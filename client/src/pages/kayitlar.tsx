@@ -40,6 +40,9 @@ export default function Kayitlar() {
 
   const { data: products, isLoading } = useQuery<Product[]>({
     queryKey: ["/api/products"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchOnWindowFocus: false, // Prevent redundant refetch on focus
   });
 
   const filterProducts = (products: Product[], category?: string) => {

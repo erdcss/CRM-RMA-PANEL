@@ -11,6 +11,9 @@ This application enables Çalışkan Group to efficiently manage customer servic
 - **Last Updated**: October 28, 2025
 
 ## Recent Changes
+- **October 28, 2025 - Next Phase Features**: 
+  - ✅ **Real-time Dashboard Updates**: Implemented automatic data refresh every 30 seconds on Dashboard, Kayıtlar, and İstatistikler pages using TanStack Query with optimized caching (staleTime, refetchOnWindowFocus settings)
+  
 - **October 28, 2025 - MVP Complete**: 
   - ✅ Implemented complete database schema with customers, tickets, products, and status history
   - ✅ Built all frontend pages: Dashboard, Kayıtlar (Records), İstatistikler (Statistics), Müşteriler (Customers), Ayarlar (Settings)

@@ -22,8 +22,11 @@ export default function Dashboard() {
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: stats, isLoading } = useQuery<DashboardStats>({
+  const { data: stats, isLoading, dataUpdatedAt } = useQuery<DashboardStats>({
     queryKey: ["/api/stats/dashboard"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchOnWindowFocus: false, // Prevent redundant refetch on focus since we have interval polling
   });
 
   const recentProducts = stats?.recentTickets || [];
@@ -58,11 +61,21 @@ export default function Dashboard() {
 
       <main className="flex-1 overflow-auto p-6">
         <div className="max-w-7xl mx-auto space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-            <p className="text-muted-foreground">
-              RMA yönetim paneline hoş geldiniz
-            </p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
+              <p className="text-muted-foreground">
+                RMA yönetim paneline hoş geldiniz
+              </p>
+            </div>
+            {dataUpdatedAt && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <RefreshCw className="h-3 w-3" />
+                <span>
+                  Son güncelleme: {new Date(dataUpdatedAt).toLocaleTimeString("tr-TR")}
+                </span>
+              </div>
+            )}
           </div>
 
           {isLoading ? (

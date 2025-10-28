@@ -45,6 +45,9 @@ const categoryLabels: Record<string, string> = {
 export default function Istatistikler() {
   const { data: stats, isLoading } = useQuery<StatsData>({
     queryKey: ["/api/stats"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchOnWindowFocus: false, // Prevent redundant refetch on focus
   });
 
   if (isLoading) {
