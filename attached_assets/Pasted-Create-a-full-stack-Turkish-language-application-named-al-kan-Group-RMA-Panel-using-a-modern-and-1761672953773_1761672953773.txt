@@ -1,0 +1,116 @@
+Create a full-stack Turkish-language application named “Çalışkan Group RMA Panel” using a modern and responsive theme. The app will manage product returns, repairs, and exchanges with a clean interface, smart data handling, and offline-ready (PWA) features.
+
+🔧 GENERAL REQUIREMENTS:
+- Programming language: Turkish (UI & labels)
+- Stack: Replit full-stack (frontend + backend + database)
+- Design: Modern dashboard theme (blue/gray tones, rounded cards, clean typography)
+- Main title area: “Çalışkan Group RMA Panel”
+- Mobile responsive (Bootstrap or Tailwind)
+- Include full PWA setup: manifest.json, service-worker.js, and installation prompt
+- Ensure foreign key errors never occur by auto-handling user creation or default user IDs
+
+📦 MAIN FUNCTIONALITY:
+1. **Yeni Kayıt Alanı (New Record Section):**
+   - Button: “Yeni Kayıt”
+   - On click: opens a modal/form with fields for:
+     - Müşteri Adı, Telefon, E-posta, Adres
+     - Ürün Adı, Seri Numarası, Marka, Model
+     - Durum seçimi (dropdown): “İade”, “Değişim”, “Servise Gidecek”
+     - Ürün Açıklaması (textarea)
+     - Tarih (otomatik eklenir)
+   - Beside each product entry: “+” button to add multiple products at once
+   - Each product will belong to one of the three status categories (iade/değişim/servis)
+   - When saved, each product appears in the corresponding list (returns/exchanges/service)
+
+2. **Kayıt Görüntüleme ve Güncelleme (Ticket Management):**
+   - Each record shows: Müşteri bilgileri, ürün bilgileri, durumu, geldiği tarih, bulunduğu aşama
+   - Status can be updated dynamically (e.g., “Serviste”, “Teslim Edildi”, “Beklemede”)
+   - Display timeline / history of status updates per item
+
+3. **Otomatik Kategorileme ve Filtreleme:**
+   - “Arızalı Ürünler”, “İade Ürünler”, “Değişim Ürünleri” sections list related products.
+   - Sort by date, customer, or brand.
+   - Search & filter by status, customer, or serial number.
+
+4. **Toplu Ürün Girişi (Bulk Entry):**
+   - Allow entering multiple items at once (table form with dynamic rows)
+   - All bulk entries can be exported together to PDF
+   - Exported PDF must include all entered product and customer information clearly
+   - PDF text must use a global font supporting Turkish characters (UTF-8, non-latin safe)
+   - Layout should be clean, minimal, and easy to read
+
+5. **PDF Export:**
+   - “Fiş Oluştur / Dışa Aktar (PDF)” button
+   - Each PDF shows:
+     - Company name: “Çalışkan Group RMA Panel”
+     - Müşteri bilgileri (isim, telefon, e-posta, adres)
+     - Ürün detayları (isim, marka, model, durum, tarih, açıklama)
+     - QR code that links directly to that ticket’s detail page
+   - Support exporting single or bulk tickets in one PDF
+
+6. **QR Kod Entegrasyonu:**
+   - Each record generates a unique QR code linking to its page
+   - Scanning QR code opens ticket detail instantly
+
+7. **İstatistikler (Statistics):**
+   - Show summary charts (bar/pie):
+     - En çok arızalanan ürün markaları
+     - En sık iade edilen ürünler
+     - Serviste bekleyen ürün sayısı
+     - Aylık işlem sayısı
+   - Include “Müşteri Raporları” section:
+     - Top customers (by number of returns)
+     - Customer satisfaction rate (manual input field or auto percentage)
+   - Export reports as PDF (weekly/monthly)
+
+8. **AI Destekli Mini Asistan:**
+   - Add a text box: “Ürün durumu nedir?” or “Müşteri X’in ürünleri neler?”
+   - Assistant should interpret and return relevant database data using natural language queries.
+
+9. **Servis Takip Otomasyonu:**
+   - If product status is updated to “Servise Gönderildi”, automatically switch it to “Servis Bekleniyor” after 24h
+   - Log each step in the product history
+
+10. **Mobil Uyum & PWA:**
+    - Include full PWA structure:
+      - manifest.json with app name, icons, theme colors
+      - service-worker.js for offline caching and install prompt
+    - App should be installable to phone home screen (Add to Home Screen)
+    - Works offline (basic cached pages)
+    - Use blue theme (#004aad) and white background
+    - Display app icon and splash screen on mobile
+
+11. **User-Friendly Additions:**
+    - Search bar on top of the dashboard
+    - Notification area (e.g., “3 yeni iade kaydı”)
+    - Light/Dark mode toggle
+    - Left sidebar navigation: Dashboard, Kayıtlar, İstatistikler, Müşteriler, Ayarlar
+
+12. **Database Safety & Automation:**
+    - Auto-create a “System User” with ID=1 if no user exists
+    - Assign created_by = 1 for all new records (to prevent foreign key errors)
+    - All relational data (tickets, customers, products) must link safely with cascading updates
+
+13. **Reports & Exporting:**
+    - Generate detailed weekly/monthly reports including:
+      - Total iade/değişim/servis count
+      - Most common issues by brand/model
+      - Customer-level statistics
+    - Allow PDF export for these reports with same global readable font
+
+14. **Additional Improvements (Recommended):**
+    - Add “Durum Güncelle” button on each product card
+    - Add tooltips or colored tags for product status
+    - Auto-refresh dashboard with live updates
+    - Include pagination or infinite scroll for long lists
+    - Ensure UTF-8 encoding globally for Turkish characters (Ç, Ş, Ğ, İ, Ö, Ü)
+
+15. **Deployment / Publishing:**
+    - Make this app PWA-ready (installable on phones)
+    - Provide clear instructions for Android/iOS publishing:
+      - Android: use PWABuilder or Capacitor to export .aab for Play Store
+      - iOS: use Capacitor + Xcode to build .ipa
+      - Include app icons and splash screens
+    - Users can also “Add to Home Screen” without store
+
+Goal: Build a beautiful, stable, and Turkish-language full RMA Management Dashboard with product tracking, PDF export, QR codes, customer insights, and PWA/mobile publishing support.
