@@ -49,10 +49,14 @@ const ticketSchema = z.object({
   phone: z.string().min(1, "Telefon gerekli"),
   email: z.string().email("Geçerli e-posta adresi girin").optional().or(z.literal("")),
   address: z.string().optional(),
-  products: z.array(productSchema).min(1, "En az bir ürün ekleyin"),
 });
 
 type TicketFormData = z.infer<typeof ticketSchema>;
+
+// Type for the full ticket submission including validated products
+type TicketSubmission = TicketFormData & {
+  products: z.infer<typeof productSchema>[];
+};
 
 interface NewTicketDialogProps {
   open: boolean;
@@ -80,12 +84,11 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
       phone: "",
       email: "",
       address: "",
-      products: [],
     },
   });
 
   const createTicketMutation = useMutation({
-    mutationFn: async (data: TicketFormData) => {
+    mutationFn: async (data: TicketSubmission) => {
       return await apiRequest("POST", "/api/tickets", data);
     },
     onSuccess: () => {
@@ -148,16 +151,58 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   };
 
   const onSubmit = (data: TicketFormData) => {
+    // Validate products manually since they're in separate state
+    if (products.length === 0 || products.every(p => !p.name && !p.brand && !p.category)) {
+      toast({
+        title: "Hata",
+        description: "En az bir ürün bilgisi doldurun",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate each product using the schema
+    const validationErrors: string[] = [];
+    const validatedProducts = products.map((product, index) => {
+      const productData = {
+        name: product.name,
+        serialNumber: product.serialNumber || undefined,
+        brand: product.brand,
+        model: product.model || undefined,
+        category: product.category,
+        description: product.description || undefined,
+      };
+
+      const result = productSchema.safeParse(productData);
+      if (!result.success) {
+        const errors = result.error.errors.map(e => e.message).join(", ");
+        validationErrors.push(`Ürün ${index + 1}: ${errors}`);
+        return null;
+      }
+      return result.data;
+    }).filter((p): p is NonNullable<typeof p> => p !== null);
+
+    if (validationErrors.length > 0) {
+      toast({
+        title: "Ürün Bilgileri Eksik",
+        description: validationErrors.join(" | "),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (validatedProducts.length === 0) {
+      toast({
+        title: "Hata",
+        description: "En az bir geçerli ürün ekleyin",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const formData = {
       ...data,
-      products: products.map((p) => ({
-        name: p.name,
-        serialNumber: p.serialNumber || undefined,
-        brand: p.brand,
-        model: p.model || undefined,
-        category: p.category,
-        description: p.description || undefined,
-      })),
+      products: validatedProducts,
     };
 
     createTicketMutation.mutate(formData);

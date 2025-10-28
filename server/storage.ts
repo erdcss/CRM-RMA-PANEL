@@ -116,6 +116,25 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (existingCustomer) {
+      // Update customer information if it has changed
+      const needsUpdate = 
+        existingCustomer.name !== customerData.name ||
+        existingCustomer.email !== customerData.email ||
+        existingCustomer.address !== customerData.address;
+
+      if (needsUpdate) {
+        const [updatedCustomer] = await db
+          .update(customers)
+          .set({
+            name: customerData.name,
+            email: customerData.email,
+            address: customerData.address,
+          })
+          .where(eq(customers.id, existingCustomer.id))
+          .returning();
+        return updatedCustomer;
+      }
+
       return existingCustomer;
     }
 
