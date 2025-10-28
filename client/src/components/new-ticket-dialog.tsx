@@ -27,6 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -76,6 +82,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
       description: "",
     },
   ]);
+  const [activeAccordion, setActiveAccordion] = useState<string>("product-1");
 
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
@@ -111,6 +118,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
           description: "",
         },
       ]);
+      setActiveAccordion("product-1");
     },
     onError: () => {
       toast({
@@ -122,10 +130,11 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   });
 
   const addProduct = () => {
+    const newId = Date.now();
     setProducts([
       ...products,
       {
-        id: Date.now(),
+        id: newId,
         name: "",
         serialNumber: "",
         brand: "",
@@ -134,6 +143,8 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
         description: "",
       },
     ]);
+    // Yeni ürünü otomatik olarak aç
+    setActiveAccordion(`product-${newId}`);
   };
 
   const removeProduct = (id: number) => {
@@ -293,25 +304,42 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                 </Button>
               </div>
 
-              {products.map((product, index) => (
-                <div
-                  key={product.id}
-                  className="p-4 border rounded-lg space-y-4 relative"
-                >
-                  {products.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2"
-                      onClick={() => removeProduct(product.id)}
-                      data-testid={`button-remove-product-${index}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
+              <Accordion
+                type="single"
+                collapsible
+                value={activeAccordion}
+                onValueChange={setActiveAccordion}
+              >
+                {products.map((product, index) => (
+                  <AccordionItem
+                    key={product.id}
+                    value={`product-${product.id}`}
+                  >
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center justify-between w-full pr-4">
+                        <span className="font-medium">
+                          Ürün {index + 1}
+                          {product.name && `: ${product.name}`}
+                          {product.brand && ` - ${product.brand}`}
+                        </span>
+                        {products.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeProduct(product.id);
+                            }}
+                            data-testid={`button-remove-product-${index}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="pt-4 grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium mb-2 block">
                         Ürün Adı *
@@ -381,22 +409,24 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
-                      <label className="text-sm font-medium mb-2 block">
-                        Açıklama
-                      </label>
-                      <Textarea
-                        value={product.description}
-                        onChange={(e) =>
-                          updateProduct(product.id, "description", e.target.value)
-                        }
-                        rows={3}
-                        data-testid={`input-description-${index}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                        <div className="col-span-2">
+                          <label className="text-sm font-medium mb-2 block">
+                            Açıklama
+                          </label>
+                          <Textarea
+                            value={product.description}
+                            onChange={(e) =>
+                              updateProduct(product.id, "description", e.target.value)
+                            }
+                            rows={3}
+                            data-testid={`input-description-${index}`}
+                          />
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             </div>
 
             <DialogFooter>

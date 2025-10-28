@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Filter, Download } from "lucide-react";
+import { Plus, Package, User, Calendar } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -11,9 +12,12 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { NewTicketDialog } from "@/components/new-ticket-dialog";
-import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { format } from "date-fns";
+import { tr } from "date-fns/locale";
 
 interface Product {
   id: number;
@@ -23,14 +27,40 @@ interface Product {
   serialNumber?: string;
   category: string;
   status: string;
-  createdAt: string;
-  ticket?: {
-    id: number;
-    customer?: {
-      name: string;
-    };
-  };
+  description?: string;
 }
+
+interface Ticket {
+  id: number;
+  createdAt: string;
+  customer: {
+    id: number;
+    name: string;
+    phone: string;
+    email?: string;
+  };
+  products: Product[];
+}
+
+const categoryLabels: Record<string, string> = {
+  iade: "İade",
+  degisim: "Değişim",
+  servis: "Servis",
+};
+
+const statusLabels: Record<string, string> = {
+  beklemede: "Beklemede",
+  serviste: "Serviste",
+  teslim_edildi: "Teslim Edildi",
+  iptal: "İptal",
+};
+
+const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  beklemede: "secondary",
+  serviste: "default",
+  teslim_edildi: "outline",
+  iptal: "destructive",
+};
 
 export default function Kayitlar() {
   const [showNewTicket, setShowNewTicket] = useState(false);
@@ -38,40 +68,43 @@ export default function Kayitlar() {
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: products, isLoading } = useQuery<Product[]>({
-    queryKey: ["/api/products"],
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    refetchOnWindowFocus: false, // Prevent redundant refetch on focus
+  const { data: tickets, isLoading } = useQuery<Ticket[]>({
+    queryKey: ["/api/tickets"],
+    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
-  const filterProducts = (products: Product[], category?: string) => {
-    if (!products) return [];
+  const filterTickets = (tickets: Ticket[], category?: string) => {
+    if (!tickets) return [];
 
-    return products.filter((product) => {
-      const matchesCategory = !category || product.category === category;
+    return tickets.filter((ticket) => {
+      const matchesCategory = !category || ticket.products.some(p => p.category === category);
       const matchesStatus =
-        statusFilter === "all" || product.status === statusFilter;
+        statusFilter === "all" || ticket.products.some(p => p.status === statusFilter);
       const matchesBrand =
-        brandFilter === "all" || product.brand === brandFilter;
+        brandFilter === "all" || ticket.products.some(p => p.brand === brandFilter);
       const matchesSearch =
         !searchQuery ||
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.serialNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.ticket?.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        ticket.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.customer.phone.includes(searchQuery) ||
+        ticket.products.some(p =>
+          p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.serialNumber?.toLowerCase().includes(searchQuery.toLowerCase())
+        );
 
       return matchesCategory && matchesStatus && matchesBrand && matchesSearch;
     });
   };
 
-  const iadeProducts = filterProducts(products || [], "iade");
-  const degisimProducts = filterProducts(products || [], "degisim");
-  const servisProducts = filterProducts(products || [], "servis");
-  const allProducts = filterProducts(products || []);
+  const iadeTickets = filterTickets(tickets || [], "iade");
+  const degisimTickets = filterTickets(tickets || [], "degisim");
+  const servisTickets = filterTickets(tickets || [], "servis");
+  const allTickets = filterTickets(tickets || []);
 
   const brands = Array.from(
-    new Set((products || []).map((p) => p.brand))
+    new Set((tickets || []).flatMap(t => t.products.map(p => p.brand)))
   ).sort();
 
   return (
@@ -81,7 +114,7 @@ export default function Kayitlar() {
           <div>
             <h1 className="text-2xl font-bold">Kayıtlar</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Tüm ürün kayıtlarını görüntüleyin ve yönetin
+              Tüm kayıtları görüntüleyin ve yönetin
             </p>
           </div>
           <Button onClick={() => setShowNewTicket(true)} data-testid="button-new-ticket">
@@ -129,84 +162,340 @@ export default function Kayitlar() {
         <Tabs defaultValue="all" className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="all" data-testid="tab-all">
-              Tümü ({allProducts.length})
+              Tümü ({allTickets.length})
             </TabsTrigger>
             <TabsTrigger value="iade" data-testid="tab-iade">
-              İade ({iadeProducts.length})
+              İade ({iadeTickets.length})
             </TabsTrigger>
             <TabsTrigger value="degisim" data-testid="tab-degisim">
-              Değişim ({degisimProducts.length})
+              Değişim ({degisimTickets.length})
             </TabsTrigger>
             <TabsTrigger value="servis" data-testid="tab-servis">
-              Servis ({servisProducts.length})
+              Servis ({servisTickets.length})
             </TabsTrigger>
           </TabsList>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Skeleton key={i} className="h-40" />
+            <div className="grid grid-cols-1 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-48" />
               ))}
             </div>
           ) : (
             <>
               <TabsContent value="all">
-                {allProducts.length === 0 ? (
+                {allTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">Kayıt bulunamadı</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {allProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                  <div className="grid grid-cols-1 gap-4">
+                    {allTickets.map((ticket) => (
+                      <Card key={ticket.id} className="hover-elevate">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <CardTitle className="text-lg">
+                                Kayıt #{ticket.id}
+                              </CardTitle>
+                              <CardDescription className="flex items-center gap-4 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {ticket.customer.name}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Package className="h-3 w-3" />
+                                  {ticket.products.length} Ürün
+                                </span>
+                              </CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                              <Link href={`/kayit/${ticket.id}`}>
+                                Detay
+                              </Link>
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {ticket.products.map((product, index) => (
+                              <div
+                                key={product.id}
+                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                data-testid={`product-item-${product.id}`}
+                              >
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{product.name}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {categoryLabels[product.category]}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    <span className="font-medium">{product.brand}</span>
+                                    {product.model && ` - ${product.model}`}
+                                    {product.serialNumber && (
+                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                    )}
+                                  </div>
+                                  {product.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {product.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant={statusColors[product.status]} className="ml-4">
+                                  {statusLabels[product.status]}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 )}
               </TabsContent>
 
               <TabsContent value="iade">
-                {iadeProducts.length === 0 ? (
+                {iadeTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
-                      İade ürünü bulunamadı
+                      İade kaydı bulunamadı
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {iadeProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                  <div className="grid grid-cols-1 gap-4">
+                    {iadeTickets.map((ticket) => (
+                      <Card key={ticket.id} className="hover-elevate">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <CardTitle className="text-lg">
+                                Kayıt #{ticket.id}
+                              </CardTitle>
+                              <CardDescription className="flex items-center gap-4 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {ticket.customer.name}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Package className="h-3 w-3" />
+                                  {ticket.products.length} Ürün
+                                </span>
+                              </CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                              <Link href={`/kayit/${ticket.id}`}>
+                                Detay
+                              </Link>
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {ticket.products.filter(p => p.category === "iade").map((product) => (
+                              <div
+                                key={product.id}
+                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                data-testid={`product-item-${product.id}`}
+                              >
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{product.name}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {categoryLabels[product.category]}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    <span className="font-medium">{product.brand}</span>
+                                    {product.model && ` - ${product.model}`}
+                                    {product.serialNumber && (
+                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                    )}
+                                  </div>
+                                  {product.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {product.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant={statusColors[product.status]} className="ml-4">
+                                  {statusLabels[product.status]}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 )}
               </TabsContent>
 
               <TabsContent value="degisim">
-                {degisimProducts.length === 0 ? (
+                {degisimTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
-                      Değişim ürünü bulunamadı
+                      Değişim kaydı bulunamadı
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {degisimProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                  <div className="grid grid-cols-1 gap-4">
+                    {degisimTickets.map((ticket) => (
+                      <Card key={ticket.id} className="hover-elevate">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <CardTitle className="text-lg">
+                                Kayıt #{ticket.id}
+                              </CardTitle>
+                              <CardDescription className="flex items-center gap-4 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {ticket.customer.name}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Package className="h-3 w-3" />
+                                  {ticket.products.length} Ürün
+                                </span>
+                              </CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                              <Link href={`/kayit/${ticket.id}`}>
+                                Detay
+                              </Link>
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {ticket.products.filter(p => p.category === "degisim").map((product) => (
+                              <div
+                                key={product.id}
+                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                data-testid={`product-item-${product.id}`}
+                              >
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{product.name}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {categoryLabels[product.category]}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    <span className="font-medium">{product.brand}</span>
+                                    {product.model && ` - ${product.model}`}
+                                    {product.serialNumber && (
+                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                    )}
+                                  </div>
+                                  {product.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {product.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant={statusColors[product.status]} className="ml-4">
+                                  {statusLabels[product.status]}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 )}
               </TabsContent>
 
               <TabsContent value="servis">
-                {servisProducts.length === 0 ? (
+                {servisTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
-                      Servis ürünü bulunamadı
+                      Servis kaydı bulunamadı
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {servisProducts.map((product) => (
-                      <ProductCard key={product.id} product={product} />
+                  <div className="grid grid-cols-1 gap-4">
+                    {servisTickets.map((ticket) => (
+                      <Card key={ticket.id} className="hover-elevate">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <CardTitle className="text-lg">
+                                Kayıt #{ticket.id}
+                              </CardTitle>
+                              <CardDescription className="flex items-center gap-4 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {ticket.customer.name}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Package className="h-3 w-3" />
+                                  {ticket.products.length} Ürün
+                                </span>
+                              </CardDescription>
+                            </div>
+                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                              <Link href={`/kayit/${ticket.id}`}>
+                                Detay
+                              </Link>
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {ticket.products.filter(p => p.category === "servis").map((product) => (
+                              <div
+                                key={product.id}
+                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                data-testid={`product-item-${product.id}`}
+                              >
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{product.name}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {categoryLabels[product.category]}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    <span className="font-medium">{product.brand}</span>
+                                    {product.model && ` - ${product.model}`}
+                                    {product.serialNumber && (
+                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                    )}
+                                  </div>
+                                  {product.description && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      {product.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge variant={statusColors[product.status]} className="ml-4">
+                                  {statusLabels[product.status]}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 )}
