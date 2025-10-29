@@ -18,6 +18,7 @@ interface TicketData {
     category: string;
     status: string;
     description?: string;
+    quantity: number;
   }>;
   createdAt: string;
 }
@@ -154,7 +155,10 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
     doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(31, 41, 55);
-    doc.text(`${index + 1}. ${product.name}`, margin, yPos);
+    const productTitle = product.quantity > 1 
+      ? `${index + 1}. ${product.name} (x${product.quantity} Adet)`
+      : `${index + 1}. ${product.name}`;
+    doc.text(productTitle, margin, yPos);
     yPos += 7;
 
     // Product details

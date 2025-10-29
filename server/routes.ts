@@ -82,6 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         model: z.string().optional(),
         category: z.enum(["iade", "degisim", "servis"]),
         description: z.string().optional(),
+        quantity: z.number().int().min(1).default(1),
       })
     ).min(1),
   });
@@ -111,6 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           category: productData.category,
           description: productData.description || undefined,
           status: "beklemede",
+          quantity: productData.quantity,
         });
 
         await storage.createStatusHistory({

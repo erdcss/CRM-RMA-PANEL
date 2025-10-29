@@ -35,6 +35,7 @@ interface TicketDetail {
     category: string;
     status: string;
     description?: string;
+    quantity: number;
     createdAt: string;
     statusHistory: Array<{
       id: number;
@@ -93,11 +94,11 @@ export default function KayitDetay() {
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-6 border-b">
+        <div className="p-4 sm:p-6 border-b">
           <Skeleton className="h-8 w-48" />
         </div>
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-5xl mx-auto space-y-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             <Skeleton className="h-48" />
             <Skeleton className="h-96" />
           </div>
@@ -109,14 +110,14 @@ export default function KayitDetay() {
   if (!ticket) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-6 border-b">
+        <div className="p-4 sm:p-6 border-b">
           <Button variant="ghost" onClick={() => setLocation("/kayitlar")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Geri
           </Button>
         </div>
-        <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Kayıt bulunamadı</p>
+        <main className="flex-1 flex items-center justify-center p-4">
+          <p className="text-sm sm:text-base text-muted-foreground">Kayıt bulunamadı</p>
         </main>
       </div>
     );
@@ -124,7 +125,7 @@ export default function KayitDetay() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-6 border-b">
+      <div className="p-4 sm:p-6 border-b">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => setLocation("/kayitlar")} data-testid="button-back">
@@ -132,8 +133,8 @@ export default function KayitDetay() {
               Geri
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Kayıt #{ticket.id} - {ticket.customer.name}</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-xl sm:text-2xl font-bold">Kayıt #{ticket.id} - {ticket.customer.name}</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 {new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
                   day: "numeric",
                   month: "long",
@@ -155,8 +156,8 @@ export default function KayitDetay() {
         </div>
       </div>
 
-      <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+      <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Müşteri Bilgileri</CardTitle>
@@ -195,13 +196,18 @@ export default function KayitDetay() {
                   product.category === "degisim" ? "border-l-blue-600" : "border-l-green-600"
                 }`}
               >
-                <CardContent className="p-3 space-y-2.5">
-                  <div className="flex items-start justify-between gap-3">
+                <CardContent className="p-3 sm:p-4 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row items-start gap-3">
                     <div className="flex-1 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-base" data-testid={`text-product-name-${product.id}`}>
                           {product.name}
                         </h3>
+                        {product.quantity > 1 && (
+                          <Badge variant="secondary" className="text-xs font-mono">
+                            {product.quantity}x Adet
+                          </Badge>
+                        )}
                         <Badge variant={
                           product.category === "iade" ? "destructive" :
                           product.category === "degisim" ? "default" : "secondary"
@@ -231,7 +237,7 @@ export default function KayitDetay() {
                         )}
                       </div>
                     </div>
-                    <div className="w-40">
+                    <div className="w-full sm:w-40">
                       <label className="text-xs font-medium mb-1.5 block text-muted-foreground">
                         Durumu Güncelle
                       </label>
@@ -272,7 +278,7 @@ export default function KayitDetay() {
                           >
                             <div className="h-1 w-1 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                             <div className="flex-1">
-                              <div className="flex items-baseline gap-2">
+                              <div className="flex flex-col xs:flex-row xs:items-baseline gap-1 xs:gap-2">
                                 <p className="font-medium text-xs">
                                   {statusLabels[history.status] || history.status}
                                 </p>

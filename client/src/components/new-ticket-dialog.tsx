@@ -48,6 +48,7 @@ const productSchema = z.object({
     required_error: "Durum seçimi gerekli",
   }),
   description: z.string().optional(),
+  quantity: z.number().int().min(1, "Adet en az 1 olmalı"),
 });
 
 const ticketSchema = z.object({
@@ -80,6 +81,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
       model: "",
       category: "" as "iade" | "degisim" | "servis" | "",
       description: "",
+      quantity: 1,
     },
   ]);
   const [activeAccordion, setActiveAccordion] = useState<string>("product-1");
@@ -116,6 +118,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
           model: "",
           category: "",
           description: "",
+          quantity: 1,
         },
       ]);
       setActiveAccordion("product-1");
@@ -141,6 +144,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
         model: "",
         category: "",
         description: "",
+        quantity: 1,
       },
     ]);
     // Yeni ürünü otomatik olarak aç
@@ -153,7 +157,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     }
   };
 
-  const updateProduct = (id: number, field: string, value: string) => {
+  const updateProduct = (id: number, field: string, value: string | number) => {
     setProducts(
       products.map((p) =>
         p.id === id ? { ...p, [field]: value } : p
@@ -182,6 +186,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
         model: product.model || undefined,
         category: product.category,
         description: product.description || undefined,
+        quantity: product.quantity,
       };
 
       const result = productSchema.safeParse(productData);
@@ -387,6 +392,20 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                           updateProduct(product.id, "model", e.target.value)
                         }
                         data-testid={`input-model-${index}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Adet *
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={product.quantity}
+                        onChange={(e) =>
+                          updateProduct(product.id, "quantity", parseInt(e.target.value) || 1)
+                        }
+                        data-testid={`input-quantity-${index}`}
                       />
                     </div>
                     <div className="col-span-2">
