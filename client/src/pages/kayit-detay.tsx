@@ -132,7 +132,7 @@ export default function KayitDetay() {
               Geri
             </Button>
             <div>
-              <h1 className="text-2xl font-bold">Kayıt #{ticket.id}</h1>
+              <h1 className="text-2xl font-bold">Kayıt #{ticket.id} - {ticket.customer.name}</h1>
               <p className="text-sm text-muted-foreground">
                 {new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
                   day: "numeric",
@@ -156,12 +156,12 @@ export default function KayitDetay() {
       </div>
 
       <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-5xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Müşteri Bilgileri</CardTitle>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Ad Soyad</p>
                 <p className="font-medium" data-testid="text-customer-name">{ticket.customer.name}</p>

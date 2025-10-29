@@ -39,112 +39,206 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   const doc = new jsPDF();
   
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
-  let yPos = 20;
+  const contentWidth = pageWidth - 2 * margin;
+  let yPos = 25;
 
+  // Global font settings
+  doc.setFont("helvetica");
+  
+  // Header - Company Name
+  doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.text("Çalışkan Group RMA Panel", margin, yPos);
-  yPos += 10;
+  doc.setTextColor(37, 99, 235); // Primary blue color
+  doc.text("Çalışkan Group RMA", margin, yPos);
+  yPos += 8;
 
-  doc.setFontSize(10);
+  // Ticket ID and Date
+  doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
-  doc.text(`Kayıt #${ticket.id}`, margin, yPos);
-  doc.text(
-    new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    pageWidth - margin,
-    yPos,
-    { align: "right" }
-  );
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Kayıt #${ticket.id} - ${ticket.customer.name}`, margin, yPos);
+  
+  const dateStr = new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  doc.text(dateStr, pageWidth - margin, yPos, { align: "right" });
   yPos += 15;
 
+  // QR Code
   const qrCodeUrl = `${window.location.origin}/kayit/${ticket.id}`;
   try {
     const qrDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-      width: 100,
+      width: 120,
       margin: 1,
+      color: {
+        dark: "#1f2937",
+        light: "#ffffff",
+      },
     });
-    doc.addImage(qrDataUrl, "PNG", pageWidth - margin - 30, yPos, 30, 30);
+    doc.addImage(qrDataUrl, "PNG", pageWidth - margin - 28, yPos - 5, 28, 28);
   } catch (error) {
     console.error("QR Code generation error:", error);
   }
 
-  doc.setFontSize(14);
+  // Section: Customer Information
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55); // Dark gray
   doc.text("Müşteri Bilgileri", margin, yPos);
+  yPos += 2;
+
+  // Divider line
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
   yPos += 8;
 
+  // Customer details
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(`Ad Soyad: ${ticket.customer.name}`, margin, yPos);
-  yPos += 6;
-  doc.text(`Telefon: ${ticket.customer.phone}`, margin, yPos);
-  yPos += 6;
-  
+  doc.setTextColor(55, 65, 81);
+
+  const customerDetails = [
+    { label: "Ad Soyad", value: ticket.customer.name },
+    { label: "Telefon", value: ticket.customer.phone },
+  ];
+
   if (ticket.customer.email) {
-    doc.text(`E-posta: ${ticket.customer.email}`, margin, yPos);
-    yPos += 6;
+    customerDetails.push({ label: "E-posta", value: ticket.customer.email });
   }
-  
+
   if (ticket.customer.address) {
-    doc.text(`Adres: ${ticket.customer.address}`, margin, yPos);
-    yPos += 6;
+    customerDetails.push({ label: "Adres", value: ticket.customer.address });
   }
 
-  yPos += 10;
+  customerDetails.forEach((detail) => {
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${detail.label}:`, margin, yPos);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(31, 41, 55);
+    doc.text(detail.value, margin + 25, yPos);
+    yPos += 6;
+  });
 
-  doc.setFontSize(14);
+  yPos += 8;
+
+  // Section: Products
+  doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
+  doc.setTextColor(31, 41, 55);
   doc.text("Ürünler", margin, yPos);
+  yPos += 2;
+
+  // Divider line
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
   yPos += 8;
 
   ticket.products.forEach((product, index) => {
-    if (yPos > 260) {
+    // Check if we need a new page
+    if (yPos > pageHeight - 50) {
       doc.addPage();
-      yPos = 20;
+      yPos = 25;
     }
 
-    doc.setFontSize(12);
+    // Product number and name
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
+    doc.setTextColor(31, 41, 55);
     doc.text(`${index + 1}. ${product.name}`, margin, yPos);
-    yPos += 6;
+    yPos += 7;
 
-    doc.setFontSize(10);
+    // Product details
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`Marka: ${product.brand}${product.model ? ` ${product.model}` : ""}`, margin + 5, yPos);
-    yPos += 6;
+    doc.setTextColor(75, 85, 99);
 
+    const productDetails = [];
+
+    // Brand and model
+    let brandModel = product.brand;
+    if (product.model) {
+      brandModel += ` ${product.model}`;
+    }
+    productDetails.push({ label: "Marka/Model", value: brandModel });
+
+    // Serial number
     if (product.serialNumber) {
-      doc.text(`Seri No: ${product.serialNumber}`, margin + 5, yPos);
-      yPos += 6;
+      productDetails.push({ label: "Seri No", value: product.serialNumber });
     }
 
-    doc.text(`Durum: ${categoryLabels[product.category]} - ${statusLabels[product.status]}`, margin + 5, yPos);
-    yPos += 6;
+    // Category and status
+    productDetails.push({
+      label: "Durum",
+      value: `${categoryLabels[product.category]} - ${statusLabels[product.status]}`,
+    });
 
+    // Description
     if (product.description) {
-      const lines = doc.splitTextToSize(`Açıklama: ${product.description}`, pageWidth - 2 * margin - 5);
-      doc.text(lines, margin + 5, yPos);
-      yPos += lines.length * 6;
+      productDetails.push({ label: "Açıklama", value: product.description });
     }
 
-    yPos += 8;
+    productDetails.forEach((detail) => {
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(100, 100, 100);
+      doc.text(`${detail.label}:`, margin + 3, yPos);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(55, 65, 81);
+
+      // Handle long text wrapping
+      const labelWidth = doc.getTextWidth(`${detail.label}: `);
+      const maxWidth = contentWidth - labelWidth - 3;
+      const lines = doc.splitTextToSize(detail.value, maxWidth);
+      
+      lines.forEach((line: string, lineIndex: number) => {
+        if (lineIndex === 0) {
+          doc.text(line, margin + 3 + labelWidth, yPos);
+        } else {
+          yPos += 5;
+          if (yPos > pageHeight - 30) {
+            doc.addPage();
+            yPos = 25;
+          }
+          doc.text(line, margin + 3 + labelWidth, yPos);
+        }
+      });
+      
+      yPos += 5;
+    });
+
+    yPos += 5;
+
+    // Separator between products
+    if (index < ticket.products.length - 1) {
+      doc.setDrawColor(243, 244, 246);
+      doc.setLineWidth(0.3);
+      doc.line(margin + 3, yPos, pageWidth - margin, yPos);
+      yPos += 5;
+    }
   });
 
+  // Footer
+  const footerY = pageHeight - 15;
   doc.setFontSize(8);
-  doc.setTextColor(150);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(156, 163, 175);
   doc.text(
-    `Bu belge ${new Date().toLocaleDateString("tr-TR")} tarihinde oluşturulmuştur.`,
+    `Bu belge ${new Date().toLocaleDateString("tr-TR")} tarihinde otomatik olarak oluşturulmuştur.`,
     pageWidth / 2,
-    doc.internal.pageSize.getHeight() - 10,
+    footerY,
     { align: "center" }
   );
 
+  // Save PDF
   doc.save(`Kayit_${ticket.id}_${ticket.customer.name.replace(/\s+/g, "_")}.pdf`);
 }
