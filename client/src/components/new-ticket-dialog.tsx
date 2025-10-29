@@ -53,6 +53,7 @@ const productSchema = z.object({
 });
 
 const ticketSchema = z.object({
+  receiptNumber: z.string().optional(),
   customerName: z.string().min(1, "Müşteri adı gerekli"),
   phone: z.string().min(1, "Telefon gerekli"),
   email: z.string().email("Geçerli e-posta adresi girin").optional().or(z.literal("")),
@@ -106,6 +107,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
     defaultValues: {
+      receiptNumber: "",
       customerName: "",
       phone: "",
       email: "",
@@ -282,6 +284,19 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                   Müşteri Seç
                 </Button>
               </div>
+              <FormField
+                control={form.control}
+                name="receiptNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fiş Numarası</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Örn: FIS-2025-001" data-testid="input-receipt-number" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
