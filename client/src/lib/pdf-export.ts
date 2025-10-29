@@ -38,6 +38,23 @@ const statusLabels: Record<string, string> = {
   iptal: "İptal",
 };
 
+// Helper function to convert Turkish characters to ASCII for PDF compatibility
+function toAscii(text: string): string {
+  return text
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/İ/g, 'I')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ş/g, 'S')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C');
+}
+
 export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   // A5 format (148 x 210 mm)
   const doc = new jsPDF({
@@ -58,12 +75,12 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   // Left side - Company info
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text("CALISKAN GROUP", margin, yPos);
+  doc.text(toAscii("ÇALIŞKAN GROUP"), margin, yPos);
   yPos += 4;
   
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
-  doc.text("Musteri Hizmetleri ve RMA Merkezi", margin, yPos);
+  doc.text(toAscii("Müşteri Hizmetleri ve RMA Merkezi"), margin, yPos);
   yPos += 3;
   doc.text("Tel: (0xxx) xxx xx xx", margin, yPos);
   
@@ -73,7 +90,7 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   
   doc.setFontSize(13);
   doc.setFont("helvetica", "bold");
-  doc.text("SERVOS FOSI", rightX, yPos, { align: "right" });
+  doc.text(toAscii("SERVİS FİŞİ"), rightX, yPos, { align: "right" });
   yPos += 5;
   
   doc.setFontSize(7);
@@ -96,7 +113,7 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   const ticketNumber = ticket.receiptNumber || `#${ticket.id}`;
-  doc.text(`Fis No: ${ticketNumber}`, rightX, yPos, { align: "right" });
+  doc.text(toAscii(`Fiş No: ${ticketNumber}`), rightX, yPos, { align: "right" });
 
   // Horizontal line - ince
   yPos = 30;
@@ -111,11 +128,10 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
-  doc.text("Musteri Adi:", margin, yPos);
+  doc.text(toAscii("Müşteri Adı:"), margin, yPos);
   
   doc.setFont("helvetica", "normal");
-  const customerName = ticket.customer.name.replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/İ/g, 'I').replace(/Ğ/g, 'G').replace(/Ü/g, 'U').replace(/Ş/g, 'S').replace(/Ö/g, 'O').replace(/Ç/g, 'C');
-  doc.text(customerName, margin + 22, yPos);
+  doc.text(toAscii(ticket.customer.name), margin + 22, yPos);
   yPos += 4;
   
   doc.setFont("helvetica", "bold");
@@ -141,10 +157,10 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
       let brandModel = product.brand;
       if (product.model) brandModel += ` ${product.model}`;
       
-      // Convert Turkish characters for compatibility
-      const productName = product.name.replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/İ/g, 'I').replace(/Ğ/g, 'G').replace(/Ü/g, 'U').replace(/Ş/g, 'S').replace(/Ö/g, 'O').replace(/Ç/g, 'C');
-      const brandText = brandModel.replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/İ/g, 'I').replace(/Ğ/g, 'G').replace(/Ü/g, 'U').replace(/Ş/g, 'S').replace(/Ö/g, 'O').replace(/Ç/g, 'C');
-      const status = `${categoryLabels[product.category]} - ${statusLabels[product.status]}`.replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c').replace(/İ/g, 'I').replace(/Ğ/g, 'G').replace(/Ü/g, 'U').replace(/Ş/g, 'S').replace(/Ö/g, 'O').replace(/Ç/g, 'C');
+      // Convert Turkish characters for compatibility using toAscii helper
+      const productName = toAscii(product.name);
+      const brandText = toAscii(brandModel);
+      const status = toAscii(`${categoryLabels[product.category]} - ${statusLabels[product.status]}`);
       
       tableRows.push([
         product.quantity.toString(),
@@ -160,7 +176,7 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   // Draw table with autoTable
   autoTable(doc, {
     startY: yPos,
-    head: [['ADET', 'URUN ADI', 'MARKA/MODEL', 'DURUM']],
+    head: [[toAscii('ADET'), toAscii('ÜRÜN ADI'), toAscii('MARKA/MODEL'), toAscii('DURUM')]],
     body: tableRows.slice(0, maxRowsPerPage),
     theme: 'grid',
     styles: {
@@ -192,10 +208,10 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
         // Add continuation header
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
-        doc.text("SERVOS FOSI (Devam)", pageWidth / 2, 12, { align: "center" });
+        doc.text(toAscii("SERVİS FİŞİ (Devam)"), pageWidth / 2, 12, { align: "center" });
         
         doc.setFontSize(8);
-        doc.text(`Fis No: ${ticketNumber}`, pageWidth / 2, 17, { align: "center" });
+        doc.text(toAscii(`Fiş No: ${ticketNumber}`), pageWidth / 2, 17, { align: "center" });
       }
       
       // Add continuation footer if not last page
@@ -203,7 +219,7 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
       if (totalProducts > currentPageProducts) {
         doc.setFontSize(6);
         doc.setFont("helvetica", "italic");
-        doc.text("(devami sonraki sayfada)", pageWidth / 2, pageHeight - 6, { align: "center" });
+        doc.text(toAscii("(devamı sonraki sayfada)"), pageWidth / 2, pageHeight - 6, { align: "center" });
       }
     },
   });
@@ -225,19 +241,19 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   
   // Teslim Eden
   let xPos = margin;
-  doc.text("Teslim Eden", xPos, yPos);
+  doc.text(toAscii("Teslim Eden"), xPos, yPos);
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.2);
   doc.line(xPos, yPos + 8, xPos + boxWidth, yPos + 8);
   
   // Teslim Alan
   xPos += boxWidth + 4;
-  doc.text("Teslim Alan", xPos, yPos);
+  doc.text(toAscii("Teslim Alan"), xPos, yPos);
   doc.line(xPos, yPos + 8, xPos + boxWidth, yPos + 8);
   
   // Ücret Durumu
   xPos += boxWidth + 4;
-  doc.text("Ucret Durumu", xPos, yPos);
+  doc.text(toAscii("Ücret Durumu"), xPos, yPos);
   doc.line(xPos, yPos + 8, xPos + boxWidth, yPos + 8);
 
   // QR Code (bottom right) - daha küçük
@@ -260,13 +276,13 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   // Footer text - küçük
   doc.setFontSize(6);
   doc.setFont("helvetica", "normal");
-  const footerText = `Bu belge ${new Date().toLocaleDateString("tr-TR")} tarihinde otomatik olusturulmustur.`;
-  doc.text(footerText.replace(/ı/g, 'i').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's').replace(/ö/g, 'o').replace(/ç/g, 'c'), margin, pageHeight - margin - 1);
+  const footerText = toAscii(`Bu belge ${new Date().toLocaleDateString("tr-TR")} tarihinde otomatik oluşturulmuştur.`);
+  doc.text(footerText, margin, pageHeight - margin - 1);
 
   // Save PDF
   const fileName = ticket.receiptNumber 
-    ? `Fis_${ticket.receiptNumber.replace(/\s+/g, "_")}.pdf`
-    : `Kayit_${ticket.id}_${ticket.customer.name.replace(/\s+/g, "_")}.pdf`;
+    ? `Fis_${toAscii(ticket.receiptNumber).replace(/\s+/g, "_")}.pdf`
+    : `Kayit_${ticket.id}_${toAscii(ticket.customer.name).replace(/\s+/g, "_")}.pdf`;
   
   doc.save(fileName);
 }
