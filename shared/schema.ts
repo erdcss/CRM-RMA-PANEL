@@ -20,8 +20,8 @@ export type User = typeof users.$inferSelect;
 // Customers table
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  phone: text("phone").notNull(),
+  name: text("name").default("Bilinmeyen"),
+  phone: text("phone").default("-"),
   email: text("email"),
   address: text("address"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -59,14 +59,14 @@ export type Ticket = typeof tickets.$inferSelect;
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
+  name: text("name").default("Bilinmeyen"),
   serialNumber: text("serial_number"),
-  brand: text("brand").notNull(),
+  brand: text("brand").default("Bilinmeyen"),
   model: text("model"),
-  category: text("category").notNull(), // "iade", "degisim", "servis"
+  category: text("category").default("servis"), // "iade", "degisim", "servis"
   status: text("status").notNull().default("beklemede"), // "beklemede", "serviste", "teslim_edildi", etc.
   description: text("description"),
-  quantity: integer("quantity").notNull().default(1), // adet sayısı
+  quantity: integer("quantity").default(1), // adet sayısı
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

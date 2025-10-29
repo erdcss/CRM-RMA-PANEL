@@ -70,21 +70,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const createTicketWithProductsSchema = z.object({
-    customerName: z.string().min(1),
-    phone: z.string().min(1),
+    receiptNumber: z.string().optional(),
+    customerName: z.string().optional(),
+    phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
     address: z.string().optional(),
     products: z.array(
       z.object({
-        name: z.string().min(1),
+        name: z.string().optional(),
         serialNumber: z.string().optional(),
-        brand: z.string().min(1),
+        brand: z.string().optional(),
         model: z.string().optional(),
-        category: z.enum(["iade", "degisim", "servis"]),
+        category: z.enum(["iade", "degisim", "servis"]).optional(),
         description: z.string().optional(),
-        quantity: z.number().int().min(1).default(1),
+        quantity: z.number().int().optional(),
       })
-    ).min(1),
+    ).optional(),
   });
 
   app.post("/api/tickets", async (req, res) => {
@@ -92,27 +93,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = createTicketWithProductsSchema.parse(req.body);
 
       const customer = await storage.findOrCreateCustomer({
-        name: validatedData.customerName,
-        phone: validatedData.phone,
+        name: validatedData.customerName || "Bilinmeyen",
+        phone: validatedData.phone || "-",
         email: validatedData.email || undefined,
         address: validatedData.address || undefined,
       });
 
       const ticket = await storage.createTicket({
         customerId: customer.id,
+        receiptNumber: validatedData.receiptNumber || undefined,
       });
 
-      for (const productData of validatedData.products) {
+      const products = validatedData.products || [];
+      for (const productData of products) {
         const product = await storage.createProduct({
           ticketId: ticket.id,
-          name: productData.name,
+          name: productData.name || "Bilinmeyen",
           serialNumber: productData.serialNumber || undefined,
-          brand: productData.brand,
+          brand: productData.brand || "Bilinmeyen",
           model: productData.model || undefined,
-          category: productData.category,
+          category: productData.category || "servis",
           description: productData.description || undefined,
           status: "beklemede",
-          quantity: productData.quantity,
+          quantity: productData.quantity || 1,
         });
 
         await storage.createStatusHistory({

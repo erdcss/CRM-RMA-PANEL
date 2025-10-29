@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, X, UserPlus } from "lucide-react";
+import { Plus, Trash2, X, UserPlus, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -41,21 +46,19 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const productSchema = z.object({
-  name: z.string().min(1, "Ürün adı gerekli"),
+  name: z.string().optional(),
   serialNumber: z.string().optional(),
-  brand: z.string().min(1, "Marka gerekli"),
+  brand: z.string().optional(),
   model: z.string().optional(),
-  category: z.enum(["iade", "degisim", "servis"], {
-    required_error: "Durum seçimi gerekli",
-  }),
+  category: z.enum(["iade", "degisim", "servis"]).optional(),
   description: z.string().optional(),
-  quantity: z.number().int().min(1, "Adet en az 1 olmalı"),
+  quantity: z.number().int().optional(),
 });
 
 const ticketSchema = z.object({
   receiptNumber: z.string().optional(),
-  customerName: z.string().min(1, "Müşteri adı gerekli"),
-  phone: z.string().min(1, "Telefon gerekli"),
+  customerName: z.string().optional(),
+  phone: z.string().optional(),
   email: z.string().email("Geçerli e-posta adresi girin").optional().or(z.literal("")),
   address: z.string().optional(),
 });
@@ -98,6 +101,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const [activeAccordion, setActiveAccordion] = useState<string>("product-1");
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [customerInfoOpen, setCustomerInfoOpen] = useState(true);
 
   const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
@@ -200,59 +204,29 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   };
 
   const onSubmit = (data: TicketFormData) => {
-    // Validate products manually since they're in separate state
-    if (products.length === 0 || products.every(p => !p.name && !p.brand && !p.category)) {
-      toast({
-        title: "Hata",
-        description: "En az bir ürün bilgisi doldurun",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate each product using the schema
-    const validationErrors: string[] = [];
-    const validatedProducts = products.map((product, index) => {
-      const productData = {
-        name: product.name,
+    // Prepare products - convert empty strings to undefined
+    const validatedProducts = products.map((product) => {
+      return {
+        name: product.name || undefined,
         serialNumber: product.serialNumber || undefined,
-        brand: product.brand,
+        brand: product.brand || undefined,
         model: product.model || undefined,
-        category: product.category,
+        category: product.category || undefined,
         description: product.description || undefined,
-        quantity: product.quantity,
+        quantity: product.quantity || undefined,
       };
-
-      const result = productSchema.safeParse(productData);
-      if (!result.success) {
-        const errors = result.error.errors.map(e => e.message).join(", ");
-        validationErrors.push(`Ürün ${index + 1}: ${errors}`);
-        return null;
-      }
-      return result.data;
-    }).filter((p): p is NonNullable<typeof p> => p !== null);
-
-    if (validationErrors.length > 0) {
-      toast({
-        title: "Ürün Bilgileri Eksik",
-        description: validationErrors.join(" | "),
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (validatedProducts.length === 0) {
-      toast({
-        title: "Hata",
-        description: "En az bir geçerli ürün ekleyin",
-        variant: "destructive",
-      });
-      return;
-    }
+    }).filter((p) => 
+      // Keep product if ANY field has data
+      p.name || p.serialNumber || p.brand || p.model || p.category || p.description || p.quantity
+    );
 
     const formData = {
       ...data,
-      products: validatedProducts,
+      customerName: data.customerName || undefined,
+      phone: data.phone || undefined,
+      email: data.email || undefined,
+      address: data.address || undefined,
+      products: validatedProducts, // Backend handles empty array
     };
 
     createTicketMutation.mutate(formData);
@@ -270,9 +244,30 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4">
+            <Collapsible
+              open={customerInfoOpen}
+              onOpenChange={setCustomerInfoOpen}
+              className="space-y-4"
+            >
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Müşteri Bilgileri</h3>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="p-0 hover:bg-transparent"
+                    data-testid="button-toggle-customer-info"
+                  >
+                    <h3 className="font-semibold flex items-center gap-2">
+                      Müşteri Bilgileri
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${
+                          customerInfoOpen ? "" : "-rotate-90"
+                        }`}
+                      />
+                    </h3>
+                  </Button>
+                </CollapsibleTrigger>
                 <Button
                   type="button"
                   variant="outline"
@@ -284,74 +279,76 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                   Müşteri Seç
                 </Button>
               </div>
-              <FormField
-                control={form.control}
-                name="receiptNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fiş Numarası</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Örn: FIS-2025-001" data-testid="input-receipt-number" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
+              <CollapsibleContent className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="customerName"
+                  name="receiptNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Müşteri Adı *</FormLabel>
+                      <FormLabel>Fiş Numarası</FormLabel>
                       <FormControl>
-                        <Input {...field} data-testid="input-customer-name" />
+                        <Input {...field} placeholder="Örn: FIS-2025-001" data-testid="input-receipt-number" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Telefon *</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-phone" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>E-posta</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} data-testid="input-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Adres</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-address" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="customerName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Müşteri Adı</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-customer-name" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Telefon</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-phone" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>E-posta</FormLabel>
+                        <FormControl>
+                          <Input type="email" {...field} data-testid="input-email" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Adres</FormLabel>
+                        <FormControl>
+                          <Input {...field} data-testid="input-address" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -406,7 +403,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                       <div className="pt-4 grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium mb-2 block">
-                        Ürün Adı *
+                        Ürün Adı
                       </label>
                       <Input
                         value={product.name}
@@ -431,7 +428,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-2 block">
-                        Marka *
+                        Marka
                       </label>
                       <Input
                         value={product.brand}
@@ -455,7 +452,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-2 block">
-                        Adet *
+                        Adet
                       </label>
                       <Input
                         type="number"
@@ -469,7 +466,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                     </div>
                     <div className="col-span-2">
                       <label className="text-sm font-medium mb-2 block">
-                        Durum *
+                        Durum
                       </label>
                       <Select
                         value={product.category}
