@@ -38,6 +38,7 @@ export type Customer = typeof customers.$inferSelect;
 // Tickets table - represents a customer service interaction
 export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(),
+  receiptNumber: text("receipt_number"), // Fiş numarası
   customerId: integer("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   createdById: integer("created_by_id").notNull().references(() => users.id).default(1),
   createdAt: timestamp("created_at").defaultNow().notNull(),
