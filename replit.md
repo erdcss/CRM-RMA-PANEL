@@ -11,6 +11,13 @@ This application enables Çalışkan Group to efficiently manage customer servic
 - **Last Updated**: October 28, 2025
 
 ## Recent Changes
+- **October 29, 2025 - Ultra-Compact Product Display**: 
+  - ✅ **Çubuk Sütun (Bar/Column) Layout**: Redesigned product cards on detail page with ultra-compact spacing
+  - ✅ **Colored Left Borders**: Added 4px colored left borders (red for İade, blue for Değişim, green for Servis) for visual category coding
+  - ✅ **Optimized Spacing**: Achieved product heights of 171-179px (target <220px) with compact padding and margins
+  - ✅ **Inline Status History**: Status and date displayed on same line with minimal spacing between entries
+  - ✅ **Shadcn Compliance**: Used proper Card components with Tailwind color classes instead of inline styles
+  
 - **October 28, 2025 - Next Phase Features**: 
   - ✅ **Real-time Dashboard Updates**: Implemented automatic data refresh every 30 seconds on Dashboard, Kayıtlar, and İstatistikler pages using TanStack Query with optimized caching (staleTime, refetchOnWindowFocus settings)
   

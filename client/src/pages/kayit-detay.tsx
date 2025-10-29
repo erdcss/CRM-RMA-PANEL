@@ -185,24 +185,30 @@ export default function KayitDetay() {
             </CardContent>
           </Card>
 
-          <div className="space-y-4">
+          <div className="space-y-2.5">
             <h2 className="text-xl font-semibold">Ürünler</h2>
             {ticket.products.map((product) => (
-              <Card key={product.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2">
+              <Card
+                key={product.id}
+                className={`border-l-4 ${
+                  product.category === "iade" ? "border-l-red-600" :
+                  product.category === "degisim" ? "border-l-blue-600" : "border-l-green-600"
+                }`}
+              >
+                <CardContent className="p-3 space-y-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <CardTitle className="text-lg" data-testid={`text-product-name-${product.id}`}>
+                        <h3 className="font-semibold text-base" data-testid={`text-product-name-${product.id}`}>
                           {product.name}
-                        </CardTitle>
+                        </h3>
                         <Badge variant={
                           product.category === "iade" ? "destructive" :
                           product.category === "degisim" ? "default" : "secondary"
-                        }>
+                        } className="text-xs">
                           {categoryLabels[product.category]}
                         </Badge>
-                        <Badge variant="outline">
+                        <Badge variant="outline" className="text-xs">
                           {statusLabels[product.status]}
                         </Badge>
                       </div>
@@ -218,15 +224,15 @@ export default function KayitDetay() {
                           </p>
                         )}
                         {product.description && (
-                          <p>
+                          <p className="text-xs">
                             <span className="font-medium">Açıklama:</span>{" "}
                             {product.description}
                           </p>
                         )}
                       </div>
                     </div>
-                    <div className="w-48">
-                      <label className="text-sm font-medium mb-2 block">
+                    <div className="w-40">
+                      <label className="text-xs font-medium mb-1.5 block text-muted-foreground">
                         Durumu Güncelle
                       </label>
                       <Select
@@ -239,7 +245,7 @@ export default function KayitDetay() {
                         }
                         disabled={updateStatusMutation.isPending}
                       >
-                        <SelectTrigger data-testid={`select-status-${product.id}`}>
+                        <SelectTrigger data-testid={`select-status-${product.id}`} className="h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -251,46 +257,47 @@ export default function KayitDetay() {
                       </Select>
                     </div>
                   </div>
-                </CardHeader>
-                {product.statusHistory && product.statusHistory.length > 0 && (
-                  <CardContent>
-                    <div className="border-t pt-4">
-                      <h4 className="text-sm font-medium mb-4 flex items-center gap-2">
-                        <Clock className="h-4 w-4" />
+
+                  {product.statusHistory && product.statusHistory.length > 0 && (
+                    <div className="border-t pt-2.5 mt-2.5">
+                      <h4 className="text-xs font-medium mb-1.5 flex items-center gap-1.5 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
                         Durum Geçmişi
                       </h4>
-                      <div className="space-y-3">
+                      <div className="space-y-1">
                         {product.statusHistory.map((history) => (
                           <div
                             key={history.id}
-                            className="flex gap-3 text-sm pb-3 border-b last:border-0"
+                            className="flex gap-1.5 text-xs"
                           >
-                            <div className="h-2 w-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
+                            <div className="h-1 w-1 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                             <div className="flex-1">
-                              <p className="font-medium">
-                                {statusLabels[history.status] || history.status}
-                              </p>
+                              <div className="flex items-baseline gap-2">
+                                <p className="font-medium text-xs">
+                                  {statusLabels[history.status] || history.status}
+                                </p>
+                                <p className="text-muted-foreground text-xs">
+                                  {new Date(history.createdAt).toLocaleDateString("tr-TR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
+                              </div>
                               {history.notes && (
-                                <p className="text-muted-foreground text-xs mt-1">
+                                <p className="text-muted-foreground text-xs">
                                   {history.notes}
                                 </p>
                               )}
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {new Date(history.createdAt).toLocaleDateString("tr-TR", {
-                                  day: "numeric",
-                                  month: "long",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </p>
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  </CardContent>
-                )}
+                  )}
+                </CardContent>
               </Card>
             ))}
           </div>
