@@ -30,6 +30,7 @@ import { useState } from "react";
 
 interface TicketDetail {
   id: number;
+  receiptNumber?: string;
   customer: {
     id: number;
     name: string;
@@ -167,7 +168,9 @@ export default function KayitDetay() {
               Geri
             </Button>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Kayıt #{ticket.id} - {ticket.customer.name}</h1>
+              <h1 className="text-xl sm:text-2xl font-bold">
+                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`} - {ticket.customer.name}
+              </h1>
               <p className="text-xs sm:text-sm text-muted-foreground">
                 {new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
                   day: "numeric",
