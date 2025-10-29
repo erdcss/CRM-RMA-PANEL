@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
-import { Plus, Trash2, X } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Plus, Trash2, X, UserPlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -65,6 +66,15 @@ type TicketSubmission = TicketFormData & {
   products: z.infer<typeof productSchema>[];
 };
 
+interface Customer {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  ticketCount?: number;
+}
+
 interface NewTicketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -85,6 +95,13 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     },
   ]);
   const [activeAccordion, setActiveAccordion] = useState<string>("product-1");
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+
+  const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+    enabled: customerDialogOpen,
+  });
 
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
@@ -95,6 +112,21 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
       address: "",
     },
   });
+
+  const selectCustomer = (customer: Customer) => {
+    form.setValue("customerName", customer.name, { shouldValidate: true, shouldDirty: true });
+    form.setValue("phone", customer.phone, { shouldValidate: true, shouldDirty: true });
+    form.setValue("email", customer.email || "", { shouldValidate: true, shouldDirty: true });
+    form.setValue("address", customer.address || "", { shouldValidate: true, shouldDirty: true });
+    setCustomerDialogOpen(false);
+    setCustomerSearchQuery("");
+  };
+
+  const filteredCustomers = customers.filter(
+    (customer) =>
+      customer.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+      customer.phone.includes(customerSearchQuery)
+  );
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: TicketSubmission) => {
@@ -237,7 +269,19 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="space-y-4">
-              <h3 className="font-semibold">Müşteri Bilgileri</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Müşteri Bilgileri</h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCustomerDialogOpen(true)}
+                  data-testid="button-select-customer"
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Müşteri Seç
+                </Button>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -467,6 +511,87 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
           </form>
         </Form>
       </DialogContent>
+
+      {/* Müşteri Seçimi Dialogu */}
+      <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Müşteri Seç</DialogTitle>
+            <DialogDescription>
+              Kayıtlı müşterilerden birini seçin
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <Input
+              placeholder="Müşteri adı veya telefon ile ara..."
+              value={customerSearchQuery}
+              onChange={(e) => setCustomerSearchQuery(e.target.value)}
+              data-testid="input-search-customer"
+            />
+            
+            <div className="max-h-96 overflow-y-auto space-y-2">
+              {customersLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+              ) : filteredCustomers.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  Müşteri bulunamadı
+                </p>
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <div
+                    key={customer.id}
+                    className="p-4 border rounded-lg hover-elevate cursor-pointer"
+                    onClick={() => selectCustomer(customer)}
+                    data-testid={`customer-item-${customer.id}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold">{customer.name}</p>
+                        <p className="text-sm text-muted-foreground font-mono">
+                          {customer.phone}
+                        </p>
+                        {customer.email && (
+                          <p className="text-sm text-muted-foreground">
+                            {customer.email}
+                          </p>
+                        )}
+                        {customer.address && (
+                          <p className="text-sm text-muted-foreground">
+                            {customer.address}
+                          </p>
+                        )}
+                      </div>
+                      {customer.ticketCount !== undefined && (
+                        <span className="text-xs text-muted-foreground">
+                          {customer.ticketCount} kayıt
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCustomerDialogOpen(false);
+                setCustomerSearchQuery("");
+              }}
+              data-testid="button-close-customer-dialog"
+            >
+              İptal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
