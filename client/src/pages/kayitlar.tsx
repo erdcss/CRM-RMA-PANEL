@@ -32,6 +32,7 @@ interface Product {
 
 interface Ticket {
   id: number;
+  receiptNumber?: string;
   createdAt: string;
   customer: {
     id: number;
@@ -196,7 +197,7 @@ export default function Kayitlar() {
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <CardTitle className="text-lg">
-                                Kayıt #{ticket.id}
+                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
                               </CardTitle>
                               <CardDescription className="flex items-center gap-4 text-sm">
                                 <span className="flex items-center gap-1">
@@ -276,7 +277,7 @@ export default function Kayitlar() {
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <CardTitle className="text-lg">
-                                Kayıt #{ticket.id}
+                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
                               </CardTitle>
                               <CardDescription className="flex items-center gap-4 text-sm">
                                 <span className="flex items-center gap-1">
@@ -356,7 +357,7 @@ export default function Kayitlar() {
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <CardTitle className="text-lg">
-                                Kayıt #{ticket.id}
+                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
                               </CardTitle>
                               <CardDescription className="flex items-center gap-4 text-sm">
                                 <span className="flex items-center gap-1">
@@ -436,7 +437,7 @@ export default function Kayitlar() {
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <CardTitle className="text-lg">
-                                Kayıt #{ticket.id}
+                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
                               </CardTitle>
                               <CardDescription className="flex items-center gap-4 text-sm">
                                 <span className="flex items-center gap-1">
