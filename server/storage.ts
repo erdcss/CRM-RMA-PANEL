@@ -31,6 +31,7 @@ export interface IStorage {
   getTickets(): Promise<any[]>;
   getTicket(id: number): Promise<any | undefined>;
   createTicket(ticket: InsertTicket): Promise<Ticket>;
+  deleteTicket(id: number): Promise<void>;
   
   getProducts(): Promise<any[]>;
   getProduct(id: number): Promise<Product | undefined>;
@@ -183,6 +184,10 @@ export class DatabaseStorage implements IStorage {
       .values(insertTicket)
       .returning();
     return ticket;
+  }
+
+  async deleteTicket(id: number): Promise<void> {
+    await db.delete(tickets).where(eq(tickets.id, id));
   }
 
   async getProducts(): Promise<any[]> {

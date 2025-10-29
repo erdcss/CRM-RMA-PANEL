@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, Download, Edit, Clock } from "lucide-react";
+import { ArrowLeft, Download, Edit, Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -91,6 +102,29 @@ export default function KayitDetay() {
     },
   });
 
+  const deleteTicketMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", `/api/tickets/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats/dashboard"] });
+      toast({
+        title: "Başarılı",
+        description: "Kayıt silindi",
+      });
+      setLocation("/kayitlar");
+    },
+    onError: () => {
+      toast({
+        title: "Hata",
+        description: "Kayıt silinemedi",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
@@ -145,14 +179,46 @@ export default function KayitDetay() {
               </p>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            data-testid="button-export-pdf"
-            onClick={() => generateTicketPDF(ticket)}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            PDF İndir
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              data-testid="button-export-pdf"
+              onClick={() => generateTicketPDF(ticket)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              PDF İndir
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="destructive" 
+                  data-testid="button-delete-ticket"
+                  disabled={deleteTicketMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Sil
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Kaydı silmek istediğinize emin misiniz?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Bu işlem geri alınamaz. Kayıt #{ticket.id} ve tüm ürünleri kalıcı olarak silinecektir.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel data-testid="button-cancel-delete">İptal</AlertDialogCancel>
+                  <AlertDialogAction 
+                    data-testid="button-confirm-delete"
+                    onClick={() => deleteTicketMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Sil
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </div>
 
