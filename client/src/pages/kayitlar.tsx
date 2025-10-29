@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Package, User, Calendar } from "lucide-react";
+import { Plus, Package, User, Calendar, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { NewTicketDialog } from "@/components/new-ticket-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
 
@@ -68,6 +73,7 @@ export default function Kayitlar() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [openTickets, setOpenTickets] = useState<Record<number, boolean>>({});
 
   const { data: tickets, isLoading } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
@@ -113,14 +119,14 @@ export default function Kayitlar() {
       <div className="p-6 border-b">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Kayıtlar</h1>
+            <h1 className="text-2xl font-bold">Fişler</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Tüm kayıtları görüntüleyin ve yönetin
+              Tüm fişleri görüntüleyin ve yönetin
             </p>
           </div>
           <Button onClick={() => setShowNewTicket(true)} data-testid="button-new-ticket">
             <Plus className="h-4 w-4 mr-2" />
-            Yeni Kayıt
+            Yeni Fiş
           </Button>
         </div>
         <div className="flex flex-col md:flex-row gap-4">
@@ -187,76 +193,91 @@ export default function Kayitlar() {
               <TabsContent value="all">
                 {allTickets.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-muted-foreground">Kayıt bulunamadı</p>
+                    <p className="text-muted-foreground">Fiş bulunamadı</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {allTickets.map((ticket) => (
-                      <Card key={ticket.id} className="hover-elevate">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-1">
-                              <CardTitle className="text-lg">
-                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
-                              </CardTitle>
-                              <CardDescription className="flex items-center gap-4 text-sm">
-                                <span className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {ticket.customer.name}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Package className="h-3 w-3" />
-                                  {ticket.products.length} Ürün
-                                </span>
-                              </CardDescription>
+                      <Collapsible 
+                        key={ticket.id}
+                        open={openTickets[ticket.id] ?? false}
+                        onOpenChange={(isOpen) => setOpenTickets(prev => ({ ...prev, [ticket.id]: isOpen }))}
+                      >
+                        <Card className="hover-elevate">
+                          <CardHeader>
+                            <div className="flex items-start justify-between gap-4">
+                              <CollapsibleTrigger className="flex-1 text-left" data-testid={`button-toggle-ticket-${ticket.id}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <CardTitle className="text-lg">
+                                        {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Fiş #${ticket.id}`}
+                                      </CardTitle>
+                                      <ChevronDown className={`h-4 w-4 transition-transform ${openTickets[ticket.id] ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    <CardDescription className="flex items-center gap-4 text-sm flex-wrap">
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {ticket.customer.name}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Package className="h-3 w-3" />
+                                        {ticket.products.length} Ürün
+                                      </span>
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                                <Link href={`/kayit/${ticket.id}`}>
+                                  Detay
+                                </Link>
+                              </Button>
                             </div>
-                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
-                              <Link href={`/kayit/${ticket.id}`}>
-                                Detay
-                              </Link>
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {ticket.products.map((product, index) => (
-                              <div
-                                key={product.id}
-                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
-                                data-testid={`product-item-${product.id}`}
-                              >
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{product.name}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {categoryLabels[product.category]}
+                          </CardHeader>
+                          <CollapsibleContent>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {ticket.products.map((product, index) => (
+                                  <div
+                                    key={product.id}
+                                    className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                    data-testid={`product-item-${product.id}`}
+                                  >
+                                    <div className="flex-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{product.name}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {categoryLabels[product.category]}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        <span className="font-medium">{product.brand}</span>
+                                        {product.model && ` - ${product.model}`}
+                                        {product.serialNumber && (
+                                          <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                        )}
+                                      </div>
+                                      {product.description && (
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                          {product.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge variant={statusColors[product.status]} className="ml-4">
+                                      {statusLabels[product.status]}
                                     </Badge>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    <span className="font-medium">{product.brand}</span>
-                                    {product.model && ` - ${product.model}`}
-                                    {product.serialNumber && (
-                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
-                                    )}
-                                  </div>
-                                  {product.description && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      {product.description}
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge variant={statusColors[product.status]} className="ml-4">
-                                  {statusLabels[product.status]}
-                                </Badge>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
                     ))}
                   </div>
                 )}
@@ -266,77 +287,92 @@ export default function Kayitlar() {
                 {iadeTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
-                      İade kaydı bulunamadı
+                      İade fişi bulunamadı
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {iadeTickets.map((ticket) => (
-                      <Card key={ticket.id} className="hover-elevate">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-1">
-                              <CardTitle className="text-lg">
-                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
-                              </CardTitle>
-                              <CardDescription className="flex items-center gap-4 text-sm">
-                                <span className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {ticket.customer.name}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Package className="h-3 w-3" />
-                                  {ticket.products.length} Ürün
-                                </span>
-                              </CardDescription>
+                      <Collapsible 
+                        key={ticket.id}
+                        open={openTickets[ticket.id] ?? false}
+                        onOpenChange={(isOpen) => setOpenTickets(prev => ({ ...prev, [ticket.id]: isOpen }))}
+                      >
+                        <Card className="hover-elevate">
+                          <CardHeader>
+                            <div className="flex items-start justify-between gap-4">
+                              <CollapsibleTrigger className="flex-1 text-left" data-testid={`button-toggle-ticket-${ticket.id}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <CardTitle className="text-lg">
+                                        {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Fiş #${ticket.id}`}
+                                      </CardTitle>
+                                      <ChevronDown className={`h-4 w-4 transition-transform ${openTickets[ticket.id] ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    <CardDescription className="flex items-center gap-4 text-sm flex-wrap">
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {ticket.customer.name}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Package className="h-3 w-3" />
+                                        {ticket.products.filter(p => p.category === "iade").length} Ürün
+                                      </span>
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                                <Link href={`/kayit/${ticket.id}`}>
+                                  Detay
+                                </Link>
+                              </Button>
                             </div>
-                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
-                              <Link href={`/kayit/${ticket.id}`}>
-                                Detay
-                              </Link>
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {ticket.products.filter(p => p.category === "iade").map((product) => (
-                              <div
-                                key={product.id}
-                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
-                                data-testid={`product-item-${product.id}`}
-                              >
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{product.name}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {categoryLabels[product.category]}
+                          </CardHeader>
+                          <CollapsibleContent>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {ticket.products.filter(p => p.category === "iade").map((product) => (
+                                  <div
+                                    key={product.id}
+                                    className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                    data-testid={`product-item-${product.id}`}
+                                  >
+                                    <div className="flex-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{product.name}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {categoryLabels[product.category]}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        <span className="font-medium">{product.brand}</span>
+                                        {product.model && ` - ${product.model}`}
+                                        {product.serialNumber && (
+                                          <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                        )}
+                                      </div>
+                                      {product.description && (
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                          {product.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge variant={statusColors[product.status]} className="ml-4">
+                                      {statusLabels[product.status]}
                                     </Badge>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    <span className="font-medium">{product.brand}</span>
-                                    {product.model && ` - ${product.model}`}
-                                    {product.serialNumber && (
-                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
-                                    )}
-                                  </div>
-                                  {product.description && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      {product.description}
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge variant={statusColors[product.status]} className="ml-4">
-                                  {statusLabels[product.status]}
-                                </Badge>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
                     ))}
                   </div>
                 )}
@@ -346,77 +382,92 @@ export default function Kayitlar() {
                 {degisimTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
-                      Değişim kaydı bulunamadı
+                      Değişim fişi bulunamadı
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {degisimTickets.map((ticket) => (
-                      <Card key={ticket.id} className="hover-elevate">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-1">
-                              <CardTitle className="text-lg">
-                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
-                              </CardTitle>
-                              <CardDescription className="flex items-center gap-4 text-sm">
-                                <span className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {ticket.customer.name}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Package className="h-3 w-3" />
-                                  {ticket.products.length} Ürün
-                                </span>
-                              </CardDescription>
+                      <Collapsible 
+                        key={ticket.id}
+                        open={openTickets[ticket.id] ?? false}
+                        onOpenChange={(isOpen) => setOpenTickets(prev => ({ ...prev, [ticket.id]: isOpen }))}
+                      >
+                        <Card className="hover-elevate">
+                          <CardHeader>
+                            <div className="flex items-start justify-between gap-4">
+                              <CollapsibleTrigger className="flex-1 text-left" data-testid={`button-toggle-ticket-${ticket.id}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <CardTitle className="text-lg">
+                                        {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Fiş #${ticket.id}`}
+                                      </CardTitle>
+                                      <ChevronDown className={`h-4 w-4 transition-transform ${openTickets[ticket.id] ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    <CardDescription className="flex items-center gap-4 text-sm flex-wrap">
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {ticket.customer.name}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Package className="h-3 w-3" />
+                                        {ticket.products.filter(p => p.category === "degisim").length} Ürün
+                                      </span>
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                                <Link href={`/kayit/${ticket.id}`}>
+                                  Detay
+                                </Link>
+                              </Button>
                             </div>
-                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
-                              <Link href={`/kayit/${ticket.id}`}>
-                                Detay
-                              </Link>
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {ticket.products.filter(p => p.category === "degisim").map((product) => (
-                              <div
-                                key={product.id}
-                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
-                                data-testid={`product-item-${product.id}`}
-                              >
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{product.name}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {categoryLabels[product.category]}
+                          </CardHeader>
+                          <CollapsibleContent>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {ticket.products.filter(p => p.category === "degisim").map((product) => (
+                                  <div
+                                    key={product.id}
+                                    className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                    data-testid={`product-item-${product.id}`}
+                                  >
+                                    <div className="flex-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{product.name}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {categoryLabels[product.category]}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        <span className="font-medium">{product.brand}</span>
+                                        {product.model && ` - ${product.model}`}
+                                        {product.serialNumber && (
+                                          <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                        )}
+                                      </div>
+                                      {product.description && (
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                          {product.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge variant={statusColors[product.status]} className="ml-4">
+                                      {statusLabels[product.status]}
                                     </Badge>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    <span className="font-medium">{product.brand}</span>
-                                    {product.model && ` - ${product.model}`}
-                                    {product.serialNumber && (
-                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
-                                    )}
-                                  </div>
-                                  {product.description && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      {product.description}
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge variant={statusColors[product.status]} className="ml-4">
-                                  {statusLabels[product.status]}
-                                </Badge>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
                     ))}
                   </div>
                 )}
@@ -426,77 +477,92 @@ export default function Kayitlar() {
                 {servisTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
-                      Servis kaydı bulunamadı
+                      Servis fişi bulunamadı
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {servisTickets.map((ticket) => (
-                      <Card key={ticket.id} className="hover-elevate">
-                        <CardHeader>
-                          <div className="flex items-start justify-between">
-                            <div className="space-y-1">
-                              <CardTitle className="text-lg">
-                                {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`}
-                              </CardTitle>
-                              <CardDescription className="flex items-center gap-4 text-sm">
-                                <span className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {ticket.customer.name}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Package className="h-3 w-3" />
-                                  {ticket.products.length} Ürün
-                                </span>
-                              </CardDescription>
+                      <Collapsible 
+                        key={ticket.id}
+                        open={openTickets[ticket.id] ?? false}
+                        onOpenChange={(isOpen) => setOpenTickets(prev => ({ ...prev, [ticket.id]: isOpen }))}
+                      >
+                        <Card className="hover-elevate">
+                          <CardHeader>
+                            <div className="flex items-start justify-between gap-4">
+                              <CollapsibleTrigger className="flex-1 text-left" data-testid={`button-toggle-ticket-${ticket.id}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="space-y-1 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <CardTitle className="text-lg">
+                                        {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Fiş #${ticket.id}`}
+                                      </CardTitle>
+                                      <ChevronDown className={`h-4 w-4 transition-transform ${openTickets[ticket.id] ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    <CardDescription className="flex items-center gap-4 text-sm flex-wrap">
+                                      <span className="flex items-center gap-1">
+                                        <User className="h-3 w-3" />
+                                        {ticket.customer.name}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" />
+                                        {format(new Date(ticket.createdAt), "d MMM yyyy", { locale: tr })}
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <Package className="h-3 w-3" />
+                                        {ticket.products.filter(p => p.category === "servis").length} Ürün
+                                      </span>
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
+                                <Link href={`/kayit/${ticket.id}`}>
+                                  Detay
+                                </Link>
+                              </Button>
                             </div>
-                            <Button variant="outline" size="sm" asChild data-testid={`button-view-ticket-${ticket.id}`}>
-                              <Link href={`/kayit/${ticket.id}`}>
-                                Detay
-                              </Link>
-                            </Button>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-3">
-                            {ticket.products.filter(p => p.category === "servis").map((product) => (
-                              <div
-                                key={product.id}
-                                className="flex items-start justify-between p-3 rounded-lg border bg-card"
-                                data-testid={`product-item-${product.id}`}
-                              >
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium">{product.name}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {categoryLabels[product.category]}
+                          </CardHeader>
+                          <CollapsibleContent>
+                            <CardContent>
+                              <div className="space-y-3">
+                                {ticket.products.filter(p => p.category === "servis").map((product) => (
+                                  <div
+                                    key={product.id}
+                                    className="flex items-start justify-between p-3 rounded-lg border bg-card"
+                                    data-testid={`product-item-${product.id}`}
+                                  >
+                                    <div className="flex-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium">{product.name}</span>
+                                        <Badge variant="outline" className="text-xs">
+                                          {categoryLabels[product.category]}
+                                        </Badge>
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        <span className="font-medium">{product.brand}</span>
+                                        {product.model && ` - ${product.model}`}
+                                        {product.serialNumber && (
+                                          <span className="font-mono ml-2">#{product.serialNumber}</span>
+                                        )}
+                                      </div>
+                                      {product.description && (
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                          {product.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge variant={statusColors[product.status]} className="ml-4">
+                                      {statusLabels[product.status]}
                                     </Badge>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    <span className="font-medium">{product.brand}</span>
-                                    {product.model && ` - ${product.model}`}
-                                    {product.serialNumber && (
-                                      <span className="font-mono ml-2">#{product.serialNumber}</span>
-                                    )}
-                                  </div>
-                                  {product.description && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      {product.description}
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge variant={statusColors[product.status]} className="ml-4">
-                                  {statusLabels[product.status]}
-                                </Badge>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
+                            </CardContent>
+                          </CollapsibleContent>
+                        </Card>
+                      </Collapsible>
                     ))}
                   </div>
                 )}
