@@ -4,8 +4,32 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertProductSchema, insertTicketSchema } from "@shared/schema";
 import { z } from "zod";
 
+let dbReady = false;
+
+async function initDatabase(): Promise<void> {
+  const maxRetries = 20;
+  const delayMs = 5000;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await storage.ensureSystemUser();
+      dbReady = true;
+      console.log("Database connected successfully");
+      return;
+    } catch (error: any) {
+      const msg = error?.message || "";
+      if (msg.includes("disabled") || msg.includes("endpoint") || msg.includes("connect")) {
+        console.log(`Database waking up... retry ${i + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      } else {
+        throw error;
+      }
+    }
+  }
+  console.error("Database failed to connect after retries - app running without DB");
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  await storage.ensureSystemUser();
+  initDatabase().catch(err => console.error("DB init error:", err));
 
   app.get("/api/customers", async (_req, res) => {
     try {
