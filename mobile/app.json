@@ -8,16 +8,28 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.caliskangroup.rma"
+      "bundleIdentifier": "com.caliskangroup.rma",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.caliskangroup.rma"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b798642-00ea-462b-af15-07b2a3a54c5c"
+      }
+    },
+    "owner": "erdcls"
   }
 }

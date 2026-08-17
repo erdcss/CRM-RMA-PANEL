@@ -1,0 +1,110 @@
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { colors, minTouchTarget, radius, shadows, spacing, typography } from '@/constants/theme';
+
+const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  index: { label: 'Ana Sayfa', icon: 'home-outline' },
+  records: { label: 'Kayıtlar', icon: 'list-outline' },
+  'new-rma': { label: 'Yeni RMA', icon: 'add' },
+  customers: { label: 'Müşteriler', icon: 'people-outline' },
+  profile: { label: 'Hesabım', icon: 'person-outline' },
+};
+
+export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+      {state.routes.map((route, index) => {
+        const focused = state.index === index;
+        const config = TAB_CONFIG[route.name];
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+        };
+
+        if (route.name === 'new-rma') {
+          return (
+            <Pressable key={route.key} onPress={onPress} style={styles.centerWrap}>
+              <View style={[styles.centerButton, focused && styles.centerButtonActive]}>
+                <Ionicons name="add" size={26} color={colors.surface} />
+              </View>
+              <Text style={[styles.centerLabel, focused && styles.labelActive]}>{config.label}</Text>
+            </Pressable>
+          );
+        }
+
+        return (
+          <Pressable key={route.key} onPress={onPress} style={styles.tab}>
+            <Ionicons
+              name={config.icon}
+              size={22}
+              color={focused ? colors.primary : colors.textMuted}
+            />
+            <Text style={[styles.label, focused && styles.labelActive]}>{config.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    ...shadows.tab,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: minTouchTarget,
+    gap: 2,
+  },
+  label: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  labelActive: {
+    color: colors.primary,
+  },
+  centerWrap: {
+    flex: 1,
+    alignItems: 'center',
+    marginTop: -18,
+    gap: 4,
+  },
+  centerButton: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.full,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: colors.surface,
+  },
+  centerButtonActive: {
+    backgroundColor: colors.primaryDark,
+  },
+  centerLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+});

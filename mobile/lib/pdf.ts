@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -13,6 +14,16 @@ const escapeHtml = (value: unknown) =>
 
 const categoryLabel = (value: string) =>
   ({ iade: 'İade', degisim: 'Değişim', servis: 'Servis' } as Record<string, string>)[value] ?? value;
+
+export function pdfFileNameForCustomer(customerName?: string | null) {
+  const sanitized = String(customerName ?? 'Musteri')
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 120);
+
+  return `${sanitized || 'Musteri'}.pdf`;
+}
 
 function buildTicketHtml(ticket: RmaTicket) {
   const rows = ticket.products
@@ -91,18 +102,25 @@ function buildTicketHtml(ticket: RmaTicket) {
 }
 
 export async function createTicketPdf(ticket: RmaTicket) {
-  return Print.printToFileAsync({ html: buildTicketHtml(ticket) });
+  const { uri } = await Print.printToFileAsync({ html: buildTicketHtml(ticket) });
+  const fileName = pdfFileNameForCustomer(ticket.customer.name);
+  const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+  await FileSystem.deleteAsync(targetUri, { idempotent: true });
+  await FileSystem.copyAsync({ from: uri, to: targetUri });
+
+  return { uri: targetUri, fileName };
 }
 
 export async function shareTicketPdf(ticket: RmaTicket) {
-  const { uri } = await createTicketPdf(ticket);
+  const { uri, fileName } = await createTicketPdf(ticket);
   const available = await Sharing.isAvailableAsync();
   if (!available) throw new Error('Bu cihazda dosya paylaşımı kullanılamıyor.');
 
   await Sharing.shareAsync(uri, {
-    UTI: '.pdf',
+    UTI: 'com.adobe.pdf',
     mimeType: 'application/pdf',
-    dialogTitle: `${ticket.receiptNumber || `RMA-${ticket.id}`} PDF`,
+    dialogTitle: fileName.replace(/\.pdf$/i, ''),
   });
 
   return uri;
