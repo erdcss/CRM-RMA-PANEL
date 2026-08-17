@@ -53,8 +53,10 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    console.error("Request error:", err);
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
   });
 
   // importantly only setup vite in development and after
@@ -78,7 +80,19 @@ app.use((req, res, next) => {
   if (process.platform !== "win32") {
     listenOptions.reusePort = true;
   }
-  server.listen(listenOptions, () => {
-    log(`serving on http://localhost:${port}`);
+  server.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "EADDRINUSE") {
+      console.error(`Port ${port} is already in use. Stop the existing dev server before running npm run dev again.`);
+      process.exit(1);
+    }
+    console.error("Server listen error:", err);
+    process.exit(1);
   });
-})();
+
+  server.listen(listenOptions, () => {
+    log(`serving on http://0.0.0.0:${port}`);
+  });
+})().catch((err) => {
+  console.error("Failed to start server:", err);
+  process.exit(1);
+});
