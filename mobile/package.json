@@ -17,6 +17,7 @@
     "expo-print": "latest",
     "expo-router": "~57.0.7",
     "expo-sharing": "~57.0.6",
+    "expo-status-bar": "latest",
     "react": "19.2.3",
     "react-native": "0.86.0",
     "react-native-safe-area-context": "latest",
