@@ -48,6 +48,7 @@ interface TicketDetail {
     status: string;
     description?: string;
     quantity: number;
+    imageUrl?: string;
     createdAt: string;
     statusHistory: Array<{
       id: number;
@@ -132,7 +133,7 @@ export default function KayitDetay() {
         <div className="p-4 sm:p-6 border-b">
           <Skeleton className="h-8 w-48" />
         </div>
-        <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
           <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
             <Skeleton className="h-48" />
             <Skeleton className="h-96" />
@@ -159,8 +160,8 @@ export default function KayitDetay() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 sm:p-6 border-b">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="p-4 sm:p-6 border-b shrink-0">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => setLocation("/kayitlar")} data-testid="button-back">
@@ -225,7 +226,7 @@ export default function KayitDetay() {
         </div>
       </div>
 
-      <main className="flex-1 overflow-auto p-4 sm:p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
           <Card>
             <CardHeader>
@@ -267,6 +268,13 @@ export default function KayitDetay() {
               >
                 <CardContent className="p-3 sm:p-4 space-y-2.5">
                   <div className="flex flex-col sm:flex-row items-start gap-3">
+                    {product.imageUrl && (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="h-24 w-24 rounded-md object-cover border shrink-0"
+                      />
+                    )}
                     <div className="flex-1 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-base" data-testid={`text-product-name-${product.id}`}>

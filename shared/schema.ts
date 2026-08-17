@@ -67,6 +67,7 @@ export const products = pgTable("products", {
   status: text("status").notNull().default("beklemede"), // "beklemede", "serviste", "teslim_edildi", etc.
   description: text("description"),
   quantity: integer("quantity").default(1), // adet sayısı
+  imageUrl: text("image_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

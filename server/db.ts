@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS products (
   status TEXT NOT NULL DEFAULT 'beklemede',
   description TEXT,
   quantity INTEGER DEFAULT 1,
+  image_url TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS status_history (
@@ -65,11 +66,16 @@ async function createDatabase() {
   fs.mkdirSync(dataDir, { recursive: true });
   const client = await PGlite.create(dataDir);
   await client.exec(LOCAL_SCHEMA_SQL);
+  await client.exec(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;`);
   const db = drizzle({ client, schema });
   console.log(`Using local PGlite database at ${dataDir}`);
   return { db, pool: undefined };
 }
 
 const { db, pool } = await createDatabase();
+
+if (pool) {
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT`);
+}
 
 export { db, pool };

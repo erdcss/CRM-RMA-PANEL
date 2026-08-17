@@ -10,14 +10,14 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-import { ThemeToggle } from "./theme-toggle";
+import { BRAND } from "@/lib/brand";
 
 const menuItems = [
   {
@@ -52,11 +52,24 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
+      <SidebarHeader className="p-3">
+        <div className="flex items-center gap-2.5 px-1">
+          <img
+            src={BRAND.logo}
+            alt={BRAND.name}
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-md object-cover border border-sidebar-border shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="text-base font-bold tracking-tight leading-tight truncate">
+              {BRAND.name}
+            </p>
+          </div>
+        </div>
+      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-lg font-bold">
-            Çalışkan Group
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
@@ -78,7 +91,7 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4">
         <div className="flex items-center justify-center">
-          <span className="text-sm text-muted-foreground">RMA Panel v1.0</span>
+          <span className="text-sm text-muted-foreground">{BRAND.name} v{BRAND.version}</span>
         </div>
       </SidebarFooter>
     </Sidebar>

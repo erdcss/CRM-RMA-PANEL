@@ -110,36 +110,47 @@ export class DatabaseStorage implements IStorage {
     email?: string;
     address?: string;
   }): Promise<Customer> {
-    const [existingCustomer] = await db
-      .select()
-      .from(customers)
-      .where(eq(customers.phone, customerData.phone))
-      .limit(1);
+    const phone = (customerData.phone || "").trim();
+    const hasRealPhone = phone.length > 0 && phone !== "-";
 
-    if (existingCustomer) {
-      // Update customer information if it has changed
-      const needsUpdate = 
-        existingCustomer.name !== customerData.name ||
-        existingCustomer.email !== customerData.email ||
-        existingCustomer.address !== customerData.address;
+    if (hasRealPhone) {
+      const [existingCustomer] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.phone, phone))
+        .limit(1);
 
-      if (needsUpdate) {
-        const [updatedCustomer] = await db
-          .update(customers)
-          .set({
-            name: customerData.name,
-            email: customerData.email,
-            address: customerData.address,
-          })
-          .where(eq(customers.id, existingCustomer.id))
-          .returning();
-        return updatedCustomer;
+      if (existingCustomer) {
+        const updates: Partial<InsertCustomer> = {};
+        if (customerData.name && customerData.name !== "Bilinmeyen" && customerData.name !== existingCustomer.name) {
+          updates.name = customerData.name;
+        }
+        if (customerData.email && customerData.email !== existingCustomer.email) {
+          updates.email = customerData.email;
+        }
+        if (customerData.address && customerData.address !== existingCustomer.address) {
+          updates.address = customerData.address;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const [updatedCustomer] = await db
+            .update(customers)
+            .set(updates)
+            .where(eq(customers.id, existingCustomer.id))
+            .returning();
+          return updatedCustomer;
+        }
+
+        return existingCustomer;
       }
-
-      return existingCustomer;
     }
 
-    return await this.createCustomer(customerData);
+    return await this.createCustomer({
+      name: customerData.name || "Bilinmeyen",
+      phone: hasRealPhone ? phone : "-",
+      email: customerData.email,
+      address: customerData.address,
+    });
   }
 
   async getTickets(): Promise<any[]> {

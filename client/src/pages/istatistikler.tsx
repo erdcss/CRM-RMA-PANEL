@@ -52,14 +52,14 @@ export default function Istatistikler() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full min-h-0">
         <div className="p-6 border-b">
           <h1 className="text-2xl font-bold">İstatistikler</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Genel raporlar ve analizler
           </p>
         </div>
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-32" />
@@ -82,7 +82,7 @@ export default function Istatistikler() {
   }));
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       <div className="p-6 border-b">
         <h1 className="text-2xl font-bold">İstatistikler</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -90,7 +90,7 @@ export default function Istatistikler() {
         </p>
       </div>
 
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>

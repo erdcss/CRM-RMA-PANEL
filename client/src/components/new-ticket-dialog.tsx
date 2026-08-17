@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, X, UserPlus, ChevronDown } from "lucide-react";
+import { Plus, Trash2, UserPlus, ChevronDown, ChevronLeft } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -44,30 +44,47 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-
-const productSchema = z.object({
-  name: z.string().optional(),
-  serialNumber: z.string().optional(),
-  brand: z.string().optional(),
-  model: z.string().optional(),
-  category: z.enum(["iade", "degisim", "servis"]).optional(),
-  description: z.string().optional(),
-  quantity: z.number().int().optional(),
-});
+import { ProductImagePicker } from "@/components/product-image-picker";
 
 const ticketSchema = z.object({
   receiptNumber: z.string().optional(),
   customerName: z.string().optional(),
   phone: z.string().optional(),
-  email: z.string().email("Geçerli e-posta adresi girin").optional().or(z.literal("")),
+  email: z
+    .string()
+    .optional()
+    .refine(
+      (val) => !val || val.trim() === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()),
+      "Geçerli e-posta adresi girin"
+    ),
   address: z.string().optional(),
 });
 
 type TicketFormData = z.infer<typeof ticketSchema>;
 
-// Type for the full ticket submission including validated products
+type ProductDraft = {
+  id: number;
+  name: string;
+  serialNumber: string;
+  brand: string;
+  model: string;
+  category: "iade" | "degisim" | "servis" | "";
+  description: string;
+  quantity: number;
+  imageUrl?: string;
+};
+
 type TicketSubmission = TicketFormData & {
-  products: z.infer<typeof productSchema>[];
+  products: Array<{
+    name?: string;
+    serialNumber?: string;
+    brand?: string;
+    model?: string;
+    category?: "iade" | "degisim" | "servis";
+    description?: string;
+    quantity?: number;
+    imageUrl?: string;
+  }>;
 };
 
 interface Customer {
@@ -84,28 +101,29 @@ interface NewTicketDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const emptyProduct = (id: number): ProductDraft => ({
+  id,
+  name: "",
+  serialNumber: "",
+  brand: "",
+  model: "",
+  category: "",
+  description: "",
+  quantity: 1,
+  imageUrl: undefined,
+});
+
 export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const { toast } = useToast();
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: "",
-      serialNumber: "",
-      brand: "",
-      model: "",
-      category: "" as "iade" | "degisim" | "servis" | "",
-      description: "",
-      quantity: 1,
-    },
-  ]);
+  const [products, setProducts] = useState<ProductDraft[]>([emptyProduct(1)]);
   const [activeAccordion, setActiveAccordion] = useState<string>("product-1");
-  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerInfoOpen, setCustomerInfoOpen] = useState(true);
 
   const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
-    enabled: customerDialogOpen,
+    enabled: open && customerPickerOpen,
   });
 
   const form = useForm<TicketFormData>({
@@ -119,12 +137,21 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     },
   });
 
+  const resetForm = () => {
+    form.reset();
+    setProducts([emptyProduct(1)]);
+    setActiveAccordion("product-1");
+    setCustomerPickerOpen(false);
+    setCustomerSearchQuery("");
+    setCustomerInfoOpen(true);
+  };
+
   const selectCustomer = (customer: Customer) => {
     form.setValue("customerName", customer.name, { shouldValidate: true, shouldDirty: true });
-    form.setValue("phone", customer.phone, { shouldValidate: true, shouldDirty: true });
+    form.setValue("phone", customer.phone === "-" ? "" : customer.phone, { shouldValidate: true, shouldDirty: true });
     form.setValue("email", customer.email || "", { shouldValidate: true, shouldDirty: true });
     form.setValue("address", customer.address || "", { shouldValidate: true, shouldDirty: true });
-    setCustomerDialogOpen(false);
+    setCustomerPickerOpen(false);
     setCustomerSearchQuery("");
   };
 
@@ -141,30 +168,18 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
       toast({
         title: "Başarılı",
-        description: "Kayıt başarıyla oluşturuldu",
+        description: "Fiş başarıyla kaydedildi",
       });
       onOpenChange(false);
-      form.reset();
-      setProducts([
-        {
-          id: 1,
-          name: "",
-          serialNumber: "",
-          brand: "",
-          model: "",
-          category: "",
-          description: "",
-          quantity: 1,
-        },
-      ]);
-      setActiveAccordion("product-1");
+      resetForm();
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Hata",
-        description: "Kayıt oluşturulamadı",
+        description: error.message || "Kayıt oluşturulamadı",
         variant: "destructive",
       });
     },
@@ -172,377 +187,88 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
 
   const addProduct = () => {
     const newId = Date.now();
-    setProducts([
-      ...products,
-      {
-        id: newId,
-        name: "",
-        serialNumber: "",
-        brand: "",
-        model: "",
-        category: "",
-        description: "",
-        quantity: 1,
-      },
-    ]);
-    // Yeni ürünü otomatik olarak aç
+    setProducts((prev) => [...prev, emptyProduct(newId)]);
     setActiveAccordion(`product-${newId}`);
   };
 
   const removeProduct = (id: number) => {
-    if (products.length > 1) {
-      setProducts(products.filter((p) => p.id !== id));
-    }
+    setProducts((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((p) => p.id !== id);
+    });
   };
 
-  const updateProduct = (id: number, field: string, value: string | number) => {
-    setProducts(
-      products.map((p) =>
-        p.id === id ? { ...p, [field]: value } : p
-      )
+  const updateProduct = (id: number, field: keyof ProductDraft, value: string | number | undefined) => {
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
     );
+  };
+
+  const onInvalid = () => {
+    setCustomerInfoOpen(true);
+    toast({
+      title: "Form hatası",
+      description: "Lütfen e-posta alanını kontrol edin veya boş bırakın",
+      variant: "destructive",
+    });
   };
 
   const onSubmit = (data: TicketFormData) => {
-    // Prepare products - convert empty strings to undefined
-    const validatedProducts = products.map((product) => {
-      return {
-        name: product.name || undefined,
-        serialNumber: product.serialNumber || undefined,
-        brand: product.brand || undefined,
-        model: product.model || undefined,
+    const validatedProducts = products
+      .map((product) => ({
+        name: product.name.trim() || undefined,
+        serialNumber: product.serialNumber.trim() || undefined,
+        brand: product.brand.trim() || undefined,
+        model: product.model.trim() || undefined,
         category: product.category || undefined,
-        description: product.description || undefined,
+        description: product.description.trim() || undefined,
         quantity: product.quantity || undefined,
-      };
-    }).filter((p) => 
-      // Keep product if ANY field has data
-      p.name || p.serialNumber || p.brand || p.model || p.category || p.description || p.quantity
-    );
+        imageUrl: product.imageUrl || undefined,
+      }))
+      .filter((p) =>
+        p.name || p.serialNumber || p.brand || p.model || p.category || p.description || p.imageUrl
+      );
 
-    const formData = {
+    createTicketMutation.mutate({
       ...data,
-      customerName: data.customerName || undefined,
-      phone: data.phone || undefined,
-      email: data.email || undefined,
-      address: data.address || undefined,
-      products: validatedProducts, // Backend handles empty array
-    };
+      customerName: data.customerName?.trim() || undefined,
+      phone: data.phone?.trim() || undefined,
+      email: typeof data.email === "string" ? data.email.trim() || undefined : undefined,
+      address: data.address?.trim() || undefined,
+      products: validatedProducts,
+    });
+  };
 
-    createTicketMutation.mutate(formData);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setCustomerPickerOpen(false);
+      setCustomerSearchQuery("");
+    }
+    onOpenChange(nextOpen);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Yeni Kayıt Oluştur</DialogTitle>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-3xl flex flex-col gap-0 p-0 sm:p-6 overflow-hidden">
+        <DialogHeader className="shrink-0 px-4 pt-4 pr-12 sm:px-0 sm:pt-0 sm:pr-8">
+          <DialogTitle>{customerPickerOpen ? "Müşteri Seç" : "Yeni Fiş Oluştur"}</DialogTitle>
           <DialogDescription>
-            Müşteri ve ürün bilgilerini girin
+            {customerPickerOpen
+              ? "Kayıtlı müşterilerden birini seçin"
+              : "Müşteri ve ürün bilgilerini girin"}
           </DialogDescription>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Collapsible
-              open={customerInfoOpen}
-              onOpenChange={setCustomerInfoOpen}
-              className="space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <CollapsibleTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="p-0 hover:bg-transparent"
-                    data-testid="button-toggle-customer-info"
-                  >
-                    <h3 className="font-semibold flex items-center gap-2">
-                      Müşteri Bilgileri
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${
-                          customerInfoOpen ? "" : "-rotate-90"
-                        }`}
-                      />
-                    </h3>
-                  </Button>
-                </CollapsibleTrigger>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCustomerDialogOpen(true)}
-                  data-testid="button-select-customer"
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Müşteri Seç
-                </Button>
-              </div>
-              <CollapsibleContent className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="receiptNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fiş Numarası</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Örn: FIS-2025-001" data-testid="input-receipt-number" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="customerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Müşteri Adı</FormLabel>
-                        <FormControl>
-                          <Input {...field} data-testid="input-customer-name" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Telefon</FormLabel>
-                        <FormControl>
-                          <Input {...field} data-testid="input-phone" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>E-posta</FormLabel>
-                        <FormControl>
-                          <Input type="email" {...field} data-testid="input-email" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Adres</FormLabel>
-                        <FormControl>
-                          <Input {...field} data-testid="input-address" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Ürün Bilgileri</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addProduct}
-                  data-testid="button-add-product"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ürün Ekle
-                </Button>
-              </div>
-
-              <Accordion
-                type="single"
-                collapsible
-                value={activeAccordion}
-                onValueChange={setActiveAccordion}
-              >
-                {products.map((product, index) => (
-                  <AccordionItem
-                    key={product.id}
-                    value={`product-${product.id}`}
-                  >
-                    <AccordionTrigger className="hover:no-underline">
-                      <div className="flex items-center justify-between w-full pr-4">
-                        <span className="font-medium">
-                          Ürün {index + 1}
-                          {product.name && `: ${product.name}`}
-                          {product.brand && ` - ${product.brand}`}
-                        </span>
-                        {products.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeProduct(product.id);
-                            }}
-                            data-testid={`button-remove-product-${index}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="pt-4 grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Ürün Adı
-                      </label>
-                      <Input
-                        value={product.name}
-                        onChange={(e) =>
-                          updateProduct(product.id, "name", e.target.value)
-                        }
-                        data-testid={`input-product-name-${index}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Seri Numarası
-                      </label>
-                      <Input
-                        value={product.serialNumber}
-                        onChange={(e) =>
-                          updateProduct(product.id, "serialNumber", e.target.value)
-                        }
-                        className="font-mono"
-                        data-testid={`input-serial-${index}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Marka
-                      </label>
-                      <Input
-                        value={product.brand}
-                        onChange={(e) =>
-                          updateProduct(product.id, "brand", e.target.value)
-                        }
-                        data-testid={`input-brand-${index}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Model
-                      </label>
-                      <Input
-                        value={product.model}
-                        onChange={(e) =>
-                          updateProduct(product.id, "model", e.target.value)
-                        }
-                        data-testid={`input-model-${index}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Adet
-                      </label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={product.quantity}
-                        onChange={(e) =>
-                          updateProduct(product.id, "quantity", parseInt(e.target.value) || 1)
-                        }
-                        data-testid={`input-quantity-${index}`}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-sm font-medium mb-2 block">
-                        Durum
-                      </label>
-                      <Select
-                        value={product.category}
-                        onValueChange={(value) =>
-                          updateProduct(product.id, "category", value)
-                        }
-                      >
-                        <SelectTrigger data-testid={`select-category-${index}`}>
-                          <SelectValue placeholder="Durum seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="iade">İade</SelectItem>
-                          <SelectItem value="degisim">Değişim</SelectItem>
-                          <SelectItem value="servis">Servise Gidecek</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                        <div className="col-span-2">
-                          <label className="text-sm font-medium mb-2 block">
-                            Açıklama
-                          </label>
-                          <Textarea
-                            value={product.description}
-                            onChange={(e) =>
-                              updateProduct(product.id, "description", e.target.value)
-                            }
-                            rows={3}
-                            data-testid={`input-description-${index}`}
-                          />
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                İptal
-              </Button>
-              <Button
-                type="submit"
-                disabled={createTicketMutation.isPending}
-                data-testid="button-submit-ticket"
-              >
-                {createTicketMutation.isPending ? "Kaydediliyor..." : "Kaydet"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-
-      {/* Müşteri Seçimi Dialogu */}
-      <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Müşteri Seç</DialogTitle>
-            <DialogDescription>
-              Kayıtlı müşterilerden birini seçin
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
+        {customerPickerOpen ? (
+          <div className="flex-1 min-h-0 flex flex-col px-4 sm:px-0 pt-4">
             <Input
               placeholder="Müşteri adı veya telefon ile ara..."
               value={customerSearchQuery}
               onChange={(e) => setCustomerSearchQuery(e.target.value)}
               data-testid="input-search-customer"
+              className="shrink-0"
             />
-            
-            <div className="max-h-96 overflow-y-auto space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain mt-4 space-y-2 pb-4">
               {customersLoading ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map((i) => (
@@ -555,9 +281,10 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                 </p>
               ) : (
                 filteredCustomers.map((customer) => (
-                  <div
+                  <button
+                    type="button"
                     key={customer.id}
-                    className="p-4 border rounded-lg hover-elevate cursor-pointer"
+                    className="w-full text-left p-4 border rounded-lg hover-elevate"
                     onClick={() => selectCustomer(customer)}
                     data-testid={`customer-item-${customer.id}`}
                   >
@@ -584,26 +311,319 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
+            <DialogFooter className="shrink-0 border-t pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:border-0 sm:pb-0">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCustomerPickerOpen(false);
+                  setCustomerSearchQuery("");
+                }}
+                data-testid="button-close-customer-dialog"
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Geri
+              </Button>
+            </DialogFooter>
           </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCustomerDialogOpen(false);
-                setCustomerSearchQuery("");
-              }}
-              data-testid="button-close-customer-dialog"
+        ) : (
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+              className="flex-1 min-h-0 flex flex-col"
+              autoComplete="off"
             >
-              İptal
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-0 pt-4 space-y-6">
+                <Collapsible
+                  open={customerInfoOpen}
+                  onOpenChange={setCustomerInfoOpen}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="p-0 hover:bg-transparent"
+                        data-testid="button-toggle-customer-info"
+                      >
+                        <h3 className="font-semibold flex items-center gap-2">
+                          Müşteri Bilgileri
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${
+                              customerInfoOpen ? "" : "-rotate-90"
+                            }`}
+                          />
+                        </h3>
+                      </Button>
+                    </CollapsibleTrigger>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCustomerPickerOpen(true)}
+                      data-testid="button-select-customer"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Müşteri Seç
+                    </Button>
+                  </div>
+                  <CollapsibleContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="receiptNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fiş Numarası</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Örn: FIS-2025-001" data-testid="input-receipt-number" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="customerName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Müşteri Adı</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-customer-name" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Telefon</FormLabel>
+                            <FormControl>
+                              <Input {...field} inputMode="tel" data-testid="input-phone" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>E-posta</FormLabel>
+                            <FormControl>
+                              <Input type="email" {...field} value={field.value ?? ""} data-testid="input-email" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="address"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Adres</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-address" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <div className="space-y-4 pb-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Ürün Bilgileri</h3>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addProduct}
+                      data-testid="button-add-product"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ürün Ekle
+                    </Button>
+                  </div>
+
+                  <Accordion
+                    type="single"
+                    collapsible
+                    value={activeAccordion}
+                    onValueChange={setActiveAccordion}
+                  >
+                    {products.map((product, index) => (
+                      <AccordionItem
+                        key={product.id}
+                        value={`product-${product.id}`}
+                      >
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="flex items-center justify-between w-full pr-4 gap-2">
+                            <span className="font-medium truncate">
+                              Ürün {index + 1}
+                              {product.name && `: ${product.name}`}
+                              {product.brand && ` - ${product.brand}`}
+                            </span>
+                            {products.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeProduct(product.id);
+                                }}
+                                data-testid={`button-remove-product-${index}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Ürün Adı
+                              </label>
+                              <Input
+                                value={product.name}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "name", e.target.value)
+                                }
+                                data-testid={`input-product-name-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Seri Numarası
+                              </label>
+                              <Input
+                                value={product.serialNumber}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "serialNumber", e.target.value)
+                                }
+                                className="font-mono"
+                                data-testid={`input-serial-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Marka
+                              </label>
+                              <Input
+                                value={product.brand}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "brand", e.target.value)
+                                }
+                                data-testid={`input-brand-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Model
+                              </label>
+                              <Input
+                                value={product.model}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "model", e.target.value)
+                                }
+                                data-testid={`input-model-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Adet
+                              </label>
+                              <Input
+                                type="number"
+                                min="1"
+                                inputMode="numeric"
+                                value={product.quantity}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "quantity", parseInt(e.target.value) || 1)
+                                }
+                                data-testid={`input-quantity-${index}`}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Durum
+                              </label>
+                              <Select
+                                value={product.category || undefined}
+                                onValueChange={(value) =>
+                                  updateProduct(product.id, "category", value)
+                                }
+                              >
+                                <SelectTrigger data-testid={`select-category-${index}`}>
+                                  <SelectValue placeholder="Durum seçin" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="iade">İade</SelectItem>
+                                  <SelectItem value="degisim">Değişim</SelectItem>
+                                  <SelectItem value="servis">Servise Gidecek</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <ProductImagePicker
+                              imageUrl={product.imageUrl}
+                              onChange={(url) => updateProduct(product.id, "imageUrl", url)}
+                              testId={`input-product-image-${index}`}
+                            />
+                            <div className="sm:col-span-2">
+                              <label className="text-sm font-medium mb-2 block">
+                                Açıklama
+                              </label>
+                              <Textarea
+                                value={product.description}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "description", e.target.value)
+                                }
+                                rows={3}
+                                data-testid={`input-description-${index}`}
+                              />
+                            </div>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </div>
+              </div>
+
+              <DialogFooter className="shrink-0 border-t mx-4 sm:mx-0 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                >
+                  İptal
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createTicketMutation.isPending}
+                  data-testid="button-submit-ticket"
+                >
+                  {createTicketMutation.isPending ? "Kaydediliyor..." : "Kaydet"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        )}
+      </DialogContent>
     </Dialog>
   );
 }

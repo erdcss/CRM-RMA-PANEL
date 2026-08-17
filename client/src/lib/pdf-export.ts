@@ -75,7 +75,7 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
   // Left side - Company info
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text(toAscii("ÇALIŞKAN GROUP"), margin, yPos);
+  doc.text(toAscii("ÇALIŞKAN CORE"), margin, yPos);
   yPos += 4;
   
   doc.setFontSize(7);

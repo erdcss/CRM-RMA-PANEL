@@ -32,8 +32,8 @@ export default function Dashboard() {
   const recentProducts = stats?.recentTickets || [];
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-6 border-b">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="p-4 sm:p-6 border-b shrink-0">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4 flex-1 w-full">
             <div className="relative flex-1 max-w-md">
@@ -59,7 +59,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <main className="flex-1 overflow-auto p-6">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
         <div className="max-w-7xl mx-auto space-y-8">
           <div className="flex items-start justify-between">
             <div>

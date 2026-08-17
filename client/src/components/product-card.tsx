@@ -13,6 +13,7 @@ interface ProductCardProps {
     serialNumber?: string;
     category: string;
     status: string;
+    imageUrl?: string;
     createdAt: string;
     ticket?: {
       customer?: {
@@ -51,7 +52,14 @@ export function ProductCard({ product, showActions = true }: ProductCardProps) {
     <Card className="hover-elevate">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-2">
+          {product.imageUrl && (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="h-16 w-16 rounded-md object-cover border shrink-0"
+            />
+          )}
+          <div className="flex-1 space-y-2 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-semibold" data-testid={`text-product-name-${product.id}`}>
                 {product.name}

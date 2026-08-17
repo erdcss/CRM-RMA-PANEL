@@ -1,8 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { nanoid } from "nanoid";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertProductSchema, insertTicketSchema } from "@shared/schema";
+import { insertCustomerSchema } from "@shared/schema";
 import { z } from "zod";
+
+const uploadsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
+fs.mkdirSync(uploadsDir, { recursive: true });
 
 let dbReady = false;
 
@@ -108,12 +115,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category: z.enum(["iade", "degisim", "servis"]).optional(),
         description: z.string().optional(),
         quantity: z.number().int().optional(),
+        imageUrl: z.string().optional(),
       })
     ).optional(),
   });
 
+  app.post("/api/uploads", async (req, res) => {
+    try {
+      const dataUrl = req.body?.dataUrl;
+      if (typeof dataUrl !== "string") {
+        return res.status(400).json({ error: "Görsel verisi bulunamadı" });
+      }
+
+      const match = dataUrl.match(/^data:(image\/(jpeg|jpg|png|webp));base64,(.+)$/i);
+      if (!match) {
+        return res.status(400).json({ error: "Geçersiz görsel formatı" });
+      }
+
+      const ext = match[2].toLowerCase() === "png" ? "png" : match[2].toLowerCase() === "webp" ? "webp" : "jpg";
+      const buffer = Buffer.from(match[3], "base64");
+      if (buffer.length > 5 * 1024 * 1024) {
+        return res.status(400).json({ error: "Görsel 5MB sınırını aşıyor" });
+      }
+
+      const filename = `${nanoid()}.${ext}`;
+      await fs.promises.writeFile(path.join(uploadsDir, filename), buffer);
+      res.status(201).json({ url: `/uploads/${filename}` });
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      res.status(500).json({ error: "Görsel yüklenemedi" });
+    }
+  });
+
   app.post("/api/tickets", async (req, res) => {
     try {
+      if (!dbReady) {
+        try {
+          await storage.ensureSystemUser();
+          dbReady = true;
+        } catch {
+          return res.status(503).json({ error: "Veritabanı henüz hazır değil. Lütfen birkaç saniye sonra tekrar deneyin." });
+        }
+      }
+
       const validatedData = createTicketWithProductsSchema.parse(req.body);
 
       const customer = await storage.findOrCreateCustomer({
@@ -140,6 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: productData.description || undefined,
           status: "beklemede",
           quantity: productData.quantity || 1,
+          imageUrl: productData.imageUrl || undefined,
         });
 
         await storage.createStatusHistory({
