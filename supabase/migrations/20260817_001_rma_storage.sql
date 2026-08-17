@@ -74,6 +74,11 @@ on conflict (id) do nothing;
 
 alter table public.rma_attachments enable row level security;
 
+-- The project has automatic table exposure disabled, so grant only the authenticated role
+-- the CRUD privileges required by the mobile app. RLS policies below still control row access.
+grant select, insert, update, delete on public.rma_attachments to authenticated;
+grant usage, select on sequence public.rma_attachments_id_seq to authenticated;
+
 -- Initial mobile phase: authenticated users can work with RMA files.
 -- These policies will be narrowed to company/branch/role ownership when the auth model is added.
 drop policy if exists "authenticated can read rma metadata" on public.rma_attachments;
