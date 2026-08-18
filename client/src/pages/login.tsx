@@ -42,9 +42,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-6">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <img src="/logo.png" alt="Çalışkan Corse" className="h-24 w-24 mx-auto object-contain" />
+          <img src="/logo.png" alt="Çalışkan RMA" className="h-24 w-24 mx-auto object-contain" />
           <div>
-            <CardTitle className="text-2xl">Çalışkan Corse</CardTitle>
+            <CardTitle className="text-2xl">Çalışkan RMA</CardTitle>
             <CardDescription>RMA yönetim paneline giriş yapın</CardDescription>
           </div>
         </CardHeader>
