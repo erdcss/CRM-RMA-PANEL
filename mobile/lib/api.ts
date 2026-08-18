@@ -1,3 +1,35 @@
+import { supabase } from './supabase';
+
+const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user?.id;
+  if (!userId) return {};
+  return { 'X-Owner-User-Id': userId };
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!API_URL) throw new Error('EXPO_PUBLIC_API_URL tanımlı değil.');
+
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(body || `API hatası: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export type StatusHistoryEntry = {
   id: number;
   status: string;
@@ -11,6 +43,7 @@ export type RmaProduct = {
   brand: string | null;
   model?: string | null;
   serialNumber?: string | null;
+  stockCode?: string | null;
   category: 'iade' | 'degisim' | 'servis' | string;
   status: string;
   description?: string | null;
@@ -23,6 +56,7 @@ export type RmaTicket = {
   receiptNumber?: string | null;
   createdAt: string;
   updatedAt?: string;
+  ownerUserId?: string | null;
   customer: {
     id: number;
     name: string | null;
@@ -41,6 +75,14 @@ export type RmaCustomer = {
   address?: string | null;
   createdAt?: string;
   ticketCount?: number;
+};
+
+export type CatalogProduct = {
+  id: number;
+  stockCode: string;
+  stockName: string;
+  ownerUserId: string;
+  createdAt: string;
 };
 
 export type DashboardStats = {
@@ -77,29 +119,9 @@ export type CreateTicketPayload = {
     category?: 'iade' | 'degisim' | 'servis';
     description?: string;
     quantity?: number;
+    stockCode?: string;
   }>;
 };
-
-const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_URL) throw new Error('EXPO_PUBLIC_API_URL tanımlı değil.');
-
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || `API hatası: ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
-}
 
 export const rmaApi = {
   listTickets: () => request<RmaTicket[]>('/api/tickets'),
@@ -111,6 +133,8 @@ export const rmaApi = {
     }),
   listCustomers: () => request<RmaCustomer[]>('/api/customers'),
   getCustomer: (id: number) => request<RmaCustomer>(`/api/customers/${id}`),
+  listCatalogProducts: (q?: string) =>
+    request<CatalogProduct[]>(`/api/catalog-products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getDashboardStats: () => request<DashboardStats>('/api/stats/dashboard'),
   updateProductStatus: (id: number, status: string) =>
     request<RmaProduct>(`/api/products/${id}/status`, {

@@ -1,6 +1,5 @@
 import { jsPDF } from "jspdf";
-import autoTable from 'jspdf-autotable';
-import QRCode from "qrcode";
+import autoTable from "jspdf-autotable";
 
 interface TicketData {
   id: number;
@@ -17,6 +16,7 @@ interface TicketData {
     brand: string;
     model?: string;
     serialNumber?: string;
+    stockCode?: string;
     category: string;
     status: string;
     description?: string;
@@ -26,8 +26,8 @@ interface TicketData {
 }
 
 const categoryLabels: Record<string, string> = {
-  iade: "İade",
-  degisim: "Değişim",
+  iade: "Iade",
+  degisim: "Degisim",
   servis: "Servis",
 };
 
@@ -35,66 +35,34 @@ const statusLabels: Record<string, string> = {
   beklemede: "Beklemede",
   serviste: "Serviste",
   teslim_edildi: "Teslim Edildi",
-  iptal: "İptal",
+  iptal: "Iptal",
 };
 
-// Helper function to convert Turkish characters to ASCII for PDF compatibility
+const PDF_FONT = "courier";
+
 function toAscii(text: string): string {
   return text
-    .replace(/ı/g, 'i')
-    .replace(/ğ/g, 'g')
-    .replace(/ü/g, 'u')
-    .replace(/ş/g, 's')
-    .replace(/ö/g, 'o')
-    .replace(/ç/g, 'c')
-    .replace(/İ/g, 'I')
-    .replace(/Ğ/g, 'G')
-    .replace(/Ü/g, 'U')
-    .replace(/Ş/g, 'S')
-    .replace(/Ö/g, 'O')
-    .replace(/Ç/g, 'C');
+    .replace(/ı/g, "i")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/İ/g, "I")
+    .replace(/Ğ/g, "G")
+    .replace(/Ü/g, "U")
+    .replace(/Ş/g, "S")
+    .replace(/Ö/g, "O")
+    .replace(/Ç/g, "C");
 }
 
-export async function generateTicketPDF(ticket: TicketData): Promise<void> {
-  // A5 format (148 x 210 mm)
-  const doc = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a5",
-  });
-  
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 8;
-  let yPos = 12;
-
-  // ======================
-  // HEADER SECTION - Daha sıkı
-  // ======================
-  
-  // Left side - Company info
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text(toAscii("ÇALIŞKAN GROUP"), margin, yPos);
-  yPos += 4;
-  
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "normal");
-  doc.text(toAscii("Müşteri Hizmetleri ve RMA Merkezi"), margin, yPos);
-  yPos += 3;
-  doc.text("Tel: (0xxx) xxx xx xx", margin, yPos);
-  
-  // Right side - Form title and date
-  const rightX = pageWidth - margin;
-  yPos = 12;
-  
-  doc.setFontSize(13);
-  doc.setFont("helvetica", "bold");
-  doc.text(toAscii("SERVİS FİŞİ"), rightX, yPos, { align: "right" });
-  yPos += 5;
-  
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "normal");
+function drawTopSection(
+  doc: jsPDF,
+  ticket: TicketData,
+  margin: number,
+  pageWidth: number,
+): number {
+  const ticketNumber = ticket.receiptNumber || `#${ticket.id}`;
   const dateStr = new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
     day: "2-digit",
     month: "2-digit",
@@ -104,185 +72,170 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
     hour: "2-digit",
     minute: "2-digit",
   });
-  doc.text(`Tarih: ${dateStr}`, rightX, yPos, { align: "right" });
+
+  let yPos = 7;
+
+  doc.setFont(PDF_FONT, "bold");
+  doc.setFontSize(8.5);
+  doc.text(toAscii("CALISKAN GROUP"), margin, yPos);
+  doc.text(toAscii("SERVIS FISI"), pageWidth - margin, yPos, { align: "right" });
   yPos += 3;
-  doc.text(`Saat: ${timeStr}`, rightX, yPos, { align: "right" });
-  
-  // Receipt/Ticket number
-  yPos += 4;
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  const ticketNumber = ticket.receiptNumber || `#${ticket.id}`;
-  doc.text(toAscii(`Fiş No: ${ticketNumber}`), rightX, yPos, { align: "right" });
 
-  // Horizontal line - ince
-  yPos = 30;
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.3);
+  doc.setFont(PDF_FONT, "normal");
+  doc.setFontSize(5);
+  doc.text(toAscii("Musteri Hizmetleri ve RMA Merkezi"), margin, yPos);
+  doc.text(`Tarih: ${dateStr}`, pageWidth - margin, yPos, { align: "right" });
+  yPos += 2.2;
+
+  doc.text("Tel: (0xxx) xxx xx xx", margin, yPos);
+  doc.text(`Saat: ${timeStr}`, pageWidth - margin, yPos, { align: "right" });
+  yPos += 2.2;
+
+  doc.setFont(PDF_FONT, "bold");
+  doc.setFontSize(5.5);
+  doc.text(toAscii(`Fis No: ${ticketNumber}`), pageWidth - margin, yPos, { align: "right" });
+  yPos += 2.8;
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.2);
   doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 2.8;
+
+  doc.setFontSize(5.5);
+  doc.setFont(PDF_FONT, "bold");
+  doc.text(toAscii("Musteri:"), margin, yPos);
+  doc.setFont(PDF_FONT, "normal");
+  doc.text(toAscii(ticket.customer.name), margin + 13, yPos);
+
+  doc.setFont(PDF_FONT, "bold");
+  doc.text("Tel:", pageWidth / 2 + 2, yPos);
+  doc.setFont(PDF_FONT, "normal");
+  doc.text(toAscii(ticket.customer.phone || "-"), pageWidth / 2 + 10, yPos);
   yPos += 4;
 
-  // ======================
-  // CUSTOMER INFO - Daha sıkı
-  // ======================
-  
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.text(toAscii("Müşteri Adı:"), margin, yPos);
-  
-  doc.setFont("helvetica", "normal");
-  doc.text(toAscii(ticket.customer.name), margin + 22, yPos);
-  yPos += 4;
-  
-  doc.setFont("helvetica", "bold");
-  doc.text("Telefon:", margin, yPos);
-  
-  doc.setFont("helvetica", "normal");
-  doc.text(ticket.customer.phone, margin + 22, yPos);
-  yPos += 5;
+  const contentWidth = pageWidth - 2 * margin;
+  const boxWidth = (contentWidth - 4) / 3;
+  doc.setFont(PDF_FONT, "bold");
+  doc.setFontSize(5);
 
-  // ======================
-  // TABLE SECTION - autoTable ile UTF-8 desteği
-  // ======================
-  
-  const maxRowsPerPage = 15;
-  const totalProducts = ticket.products.length;
-  
-  // Prepare table data
-  const tableRows: any[] = [];
-  
-  for (let i = 0; i < Math.max(maxRowsPerPage, totalProducts); i++) {
-    if (i < totalProducts) {
-      const product = ticket.products[i];
-      let brandModel = product.brand;
-      if (product.model) brandModel += ` ${product.model}`;
-      
-      // Convert Turkish characters for compatibility using toAscii helper
-      const productName = toAscii(product.name);
-      const brandText = toAscii(brandModel);
-      const status = toAscii(`${categoryLabels[product.category]} - ${statusLabels[product.status]}`);
-      
-      tableRows.push([
-        product.quantity.toString(),
-        productName,
-        brandText,
-        status
-      ]);
-    } else {
-      tableRows.push(['', '', '', '']);
-    }
+  let xPos = margin;
+  for (const label of ["Teslim Eden", "Teslim Alan", "Ucret Durumu"]) {
+    doc.text(toAscii(label), xPos + boxWidth / 2, yPos, { align: "center" });
+    doc.setDrawColor(170, 170, 170);
+    doc.line(xPos, yPos + 5, xPos + boxWidth, yPos + 5);
+    xPos += boxWidth + 2;
   }
-  
-  // Draw table with autoTable
+  yPos += 8;
+
+  doc.setFont(PDF_FONT, "normal");
+  doc.setFontSize(4.5);
+  doc.text(
+    toAscii(`Bu belge ${dateStr} tarihinde olusturulmustur.`),
+    margin,
+    yPos,
+  );
+
+  return yPos + 3;
+}
+
+export async function generateTicketPDF(ticket: TicketData): Promise<void> {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a5",
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 6;
+  const contentWidth = pageWidth - 2 * margin;
+  const ticketNumber = ticket.receiptNumber || `#${ticket.id}`;
+
+  const tableStartY = drawTopSection(doc, ticket, margin, pageWidth);
+
+  const tableRows = ticket.products.map((product) => {
+    const brandModel = [product.brand, product.model].filter(Boolean).join(" ").trim();
+    const status = `${categoryLabels[product.category] ?? product.category} - ${
+      statusLabels[product.status] ?? product.status
+    }`;
+
+    return [
+      String(product.quantity ?? 1),
+      toAscii(product.stockCode?.trim() || "-"),
+      toAscii(product.name),
+      toAscii(brandModel || "-"),
+      toAscii(status),
+    ];
+  });
+
   autoTable(doc, {
-    startY: yPos,
-    head: [[toAscii('ADET'), toAscii('ÜRÜN ADI'), toAscii('MARKA/MODEL'), toAscii('DURUM')]],
-    body: tableRows.slice(0, maxRowsPerPage),
-    theme: 'grid',
+    startY: tableStartY,
+    head: [[
+      toAscii("Adet"),
+      toAscii("Urun Kodu"),
+      toAscii("Urun Adi"),
+      toAscii("Marka"),
+      toAscii("Durum"),
+    ]],
+    body: tableRows.length > 0 ? tableRows : [["-", "-", "-", "-", "-"]],
+    theme: "grid",
     styles: {
-      fontSize: 7,
-      cellPadding: 1.5,
-      lineColor: [200, 200, 200],
+      font: PDF_FONT,
+      fontSize: 4.8,
+      cellPadding: 0.6,
+      lineColor: [190, 190, 190],
       lineWidth: 0.1,
-      font: 'helvetica',
+      overflow: "linebreak",
+      valign: "middle",
     },
     headStyles: {
-      fillColor: [245, 245, 245],
-      textColor: [40, 40, 40],
-      fontStyle: 'bold',
-      halign: 'left',
-      fontSize: 7,
-      cellPadding: 2,
+      fillColor: [240, 240, 240],
+      textColor: [30, 30, 30],
+      fontStyle: "bold",
+      halign: "left",
+      fontSize: 4.8,
+      cellPadding: 0.8,
     },
     columnStyles: {
-      0: { cellWidth: 13, halign: 'center' },
-      1: { cellWidth: 44 },
-      2: { cellWidth: 34 },
-      3: { cellWidth: 31 },
+      0: { cellWidth: 7, halign: "center" },
+      1: { cellWidth: 20 },
+      2: { cellWidth: 46 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: contentWidth - 97 },
     },
-    margin: { left: margin, right: margin },
-    tableWidth: pageWidth - 2 * margin,
+    margin: { left: margin, right: margin, top: margin, bottom: margin },
+    tableWidth: contentWidth,
+    showHead: "everyPage",
     didDrawPage: (data) => {
-      // Handle pagination if more than 15 products
-      if (data.pageNumber > 1) {
-        // Add continuation header
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text(toAscii("SERVİS FİŞİ (Devam)"), pageWidth / 2, 12, { align: "center" });
-        
-        doc.setFontSize(8);
-        doc.text(toAscii(`Fiş No: ${ticketNumber}`), pageWidth / 2, 17, { align: "center" });
-      }
-      
-      // Add continuation footer if not last page
-      const currentPageProducts = maxRowsPerPage * data.pageNumber;
-      if (totalProducts > currentPageProducts) {
-        doc.setFontSize(6);
-        doc.setFont("helvetica", "italic");
-        doc.text(toAscii("(devamı sonraki sayfada)"), pageWidth / 2, pageHeight - 6, { align: "center" });
+      if (data.pageNumber === 1) return;
+
+      doc.setFont(PDF_FONT, "bold");
+      doc.setFontSize(7);
+      doc.text(toAscii("SERVIS FISI (Devam)"), pageWidth / 2, 8, { align: "center" });
+      doc.setFont(PDF_FONT, "normal");
+      doc.setFontSize(5);
+      doc.text(toAscii(`Fis No: ${ticketNumber}`), pageWidth / 2, 11.5, { align: "center" });
+    },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.pageNumber > 1) {
+        data.cell.styles.fontSize = 4.8;
       }
     },
+    pageBreak: "auto",
+    rowPageBreak: "avoid",
   });
-  
-  // Get final Y position after table
-  const finalY = (doc as any).lastAutoTable.finalY || yPos + 95;
-  
-  // ======================
-  // FOOTER SECTION - Sadece son sayfada
-  // ======================
-  
-  yPos = finalY + 5;
-  
-  // Signature boxes - daha sıkı
-  const boxWidth = (pageWidth - 2 * margin - 8) / 3;
-  
-  doc.setFontSize(7);
-  doc.setFont("helvetica", "bold");
-  
-  // Teslim Eden
-  let xPos = margin;
-  doc.text(toAscii("Teslim Eden"), xPos, yPos);
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.line(xPos, yPos + 8, xPos + boxWidth, yPos + 8);
-  
-  // Teslim Alan
-  xPos += boxWidth + 4;
-  doc.text(toAscii("Teslim Alan"), xPos, yPos);
-  doc.line(xPos, yPos + 8, xPos + boxWidth, yPos + 8);
-  
-  // Ücret Durumu
-  xPos += boxWidth + 4;
-  doc.text(toAscii("Ücret Durumu"), xPos, yPos);
-  doc.line(xPos, yPos + 8, xPos + boxWidth, yPos + 8);
 
-  // QR Code (bottom right) - daha küçük
-  const qrCodeUrl = `${window.location.origin}/kayit/${ticket.id}`;
-  try {
-    const qrDataUrl = await QRCode.toDataURL(qrCodeUrl, {
-      width: 70,
-      margin: 1,
-      color: {
-        dark: "#1f2937",
-        light: "#ffffff",
-      },
-    });
-    const qrSize = 18;
-    doc.addImage(qrDataUrl, "PNG", pageWidth - margin - qrSize, pageHeight - margin - qrSize - 3, qrSize, qrSize);
-  } catch (error) {
-    console.error("QR Code generation error:", error);
+  const pageCount = doc.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setFont(PDF_FONT, "normal");
+    doc.setFontSize(4);
+    doc.text(`${page}/${pageCount}`, pageWidth - margin, pageHeight - 3, { align: "right" });
   }
 
-  // Footer text - küçük
-  doc.setFontSize(6);
-  doc.setFont("helvetica", "normal");
-  const footerText = toAscii(`Bu belge ${new Date().toLocaleDateString("tr-TR")} tarihinde otomatik oluşturulmuştur.`);
-  doc.text(footerText, margin, pageHeight - margin - 1);
-
-  // Save PDF
-  const fileName = ticket.receiptNumber 
+  const fileName = ticket.receiptNumber
     ? `Fis_${toAscii(ticket.receiptNumber).replace(/\s+/g, "_")}.pdf`
     : `Kayit_${ticket.id}_${toAscii(ticket.customer.name).replace(/\s+/g, "_")}.pdf`;
-  
+
   doc.save(fileName);
 }

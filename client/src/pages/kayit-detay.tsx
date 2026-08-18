@@ -44,6 +44,7 @@ interface TicketDetail {
     brand: string;
     model?: string;
     serialNumber?: string;
+    stockCode?: string;
     category: string;
     status: string;
     description?: string;
@@ -77,8 +78,9 @@ export default function KayitDetay() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const { data: ticket, isLoading } = useQuery<TicketDetail>({
-    queryKey: ["/api/tickets", id],
+  const { data: ticket, isLoading, isError } = useQuery<TicketDetail>({
+    queryKey: [`/api/tickets/${id}`],
+    enabled: Boolean(id),
   });
 
   const updateStatusMutation = useMutation({
@@ -86,9 +88,10 @@ export default function KayitDetay() {
       return await apiRequest("PATCH", `/api/products/${productId}/status`, { status });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tickets", id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tickets/${id}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Başarılı",
         description: "Durum güncellendi",
@@ -111,6 +114,7 @@ export default function KayitDetay() {
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/products"] });
       queryClient.invalidateQueries({ queryKey: ["/api/stats/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
       toast({
         title: "Başarılı",
         description: "Kayıt silindi",
@@ -152,7 +156,9 @@ export default function KayitDetay() {
           </Button>
         </div>
         <main className="flex-1 flex items-center justify-center p-4">
-          <p className="text-sm sm:text-base text-muted-foreground">Kayıt bulunamadı</p>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            {isError ? "Kayıt yüklenemedi" : "Kayıt bulunamadı"}
+          </p>
         </main>
       </div>
     );

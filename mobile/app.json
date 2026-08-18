@@ -1,25 +1,44 @@
 {
   "expo": {
-    "name": "Çalışkan RMA",
+    "name": "Çalışkan Corse",
     "slug": "caliskan-rma",
     "version": "0.1.0",
     "orientation": "portrait",
     "scheme": "caliskanrma",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111111"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.caliskangroup.rma",
       "buildNumber": "1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Ürün fotoğrafı çekmek için kamera erişimi gerekir.",
+        "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı eklemek için galeri erişimi gerekir."
       }
     },
     "android": {
-      "package": "com.caliskangroup.rma"
+      "package": "com.caliskangroup.rma",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#111111"
+      }
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ürün fotoğrafları için galeri erişimi gerekir.",
+          "cameraPermission": "Ürün fotoğrafı çekmek için kamera erişimi gerekir."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

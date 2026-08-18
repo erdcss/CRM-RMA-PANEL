@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
   name TEXT DEFAULT 'Bilinmeyen',
   phone TEXT DEFAULT '-',
+  account_code TEXT,
   email TEXT,
   address TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   receipt_number TEXT,
   customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   created_by_id INTEGER NOT NULL DEFAULT 1 REFERENCES users(id),
+  owner_user_id TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -33,6 +35,7 @@ CREATE TABLE IF NOT EXISTS products (
   ticket_id INTEGER NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
   name TEXT DEFAULT 'Bilinmeyen',
   serial_number TEXT,
+  stock_code TEXT,
   brand TEXT DEFAULT 'Bilinmeyen',
   model TEXT,
   category TEXT DEFAULT 'servis',
@@ -47,6 +50,22 @@ CREATE TABLE IF NOT EXISTS status_history (
   status TEXT NOT NULL,
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS catalog_products (
+  id SERIAL PRIMARY KEY,
+  stock_code TEXT NOT NULL,
+  stock_name TEXT NOT NULL,
+  owner_user_id TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (stock_code, owner_user_id)
+);
+CREATE TABLE IF NOT EXISTS catalog_customers (
+  id SERIAL PRIMARY KEY,
+  account_code TEXT NOT NULL,
+  account_name TEXT NOT NULL,
+  owner_user_id TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (account_code, owner_user_id)
 );
 `;
 
@@ -65,6 +84,28 @@ async function createDatabase() {
   fs.mkdirSync(dataDir, { recursive: true });
   const client = await PGlite.create(dataDir);
   await client.exec(LOCAL_SCHEMA_SQL);
+  await client.exec('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS owner_user_id TEXT;');
+  await client.exec(`
+    CREATE TABLE IF NOT EXISTS catalog_products (
+      id SERIAL PRIMARY KEY,
+      stock_code TEXT NOT NULL,
+      stock_name TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (stock_code, owner_user_id)
+    );
+  `);
+  await client.exec(`
+    CREATE TABLE IF NOT EXISTS catalog_customers (
+      id SERIAL PRIMARY KEY,
+      account_code TEXT NOT NULL,
+      account_name TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE (account_code, owner_user_id)
+    );
+  `);
+  await client.exec('ALTER TABLE customers ADD COLUMN IF NOT EXISTS account_code TEXT;');
   const db = drizzle({ client, schema });
   console.log(`Using local PGlite database at ${dataDir}`);
   return { db, pool: undefined };

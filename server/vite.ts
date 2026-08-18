@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
-import { createServer as createViteServer, createLogger } from "vite";
+import { createServer as createViteServer, createLogger, loadEnv } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
@@ -20,6 +20,9 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  const rootDir = path.resolve(import.meta.dirname, "..");
+  const env = loadEnv(process.env.NODE_ENV ?? "development", rootDir, ["VITE_", "EXPO_PUBLIC_"]);
+
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
@@ -29,6 +32,12 @@ export async function setupVite(app: Express, server: Server) {
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
+    envDir: rootDir,
+    define: {
+      ...Object.fromEntries(
+        Object.entries(env).map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
+      ),
+    },
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {

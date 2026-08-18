@@ -19,6 +19,8 @@ export default defineConfig({
         ]
       : []),
   ],
+  envDir: path.resolve(import.meta.dirname),
+  envPrefix: ["VITE_", "EXPO_PUBLIC_"],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

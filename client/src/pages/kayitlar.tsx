@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Package, User, Calendar, ChevronDown } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -69,11 +69,58 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default function Kayitlar() {
+  const [location] = useLocation();
+  const search = useSearch();
   const [showNewTicket, setShowNewTicket] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("status") || "all";
+  });
+  const [brandFilter, setBrandFilter] = useState<string>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("brand") || "all";
+  });
+  const [searchQuery, setSearchQuery] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("customer") || "";
+  });
+  const [monthFilter, setMonthFilter] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("month") === "current") {
+      return format(new Date(), "yyyy-MM");
+    }
+    return params.get("month");
+  });
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const category = params.get("category");
+    return category && ["iade", "degisim", "servis"].includes(category) ? category : "all";
+  });
   const [openTickets, setOpenTickets] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const category = params.get("category");
+    if (category && ["iade", "degisim", "servis"].includes(category)) {
+      setActiveTab(category);
+    } else if (!category) {
+      setActiveTab("all");
+    }
+    const brand = params.get("brand");
+    setBrandFilter(brand || "all");
+    const customer = params.get("customer");
+    setSearchQuery(customer || "");
+    const status = params.get("status");
+    setStatusFilter(status || "all");
+    const month = params.get("month");
+    if (month === "current") {
+      setMonthFilter(format(new Date(), "yyyy-MM"));
+    } else if (month) {
+      setMonthFilter(month);
+    } else {
+      setMonthFilter(null);
+    }
+  }, [location, search]);
 
   const { data: tickets, isLoading } = useQuery<Ticket[]>({
     queryKey: ["/api/tickets"],
@@ -100,8 +147,10 @@ export default function Kayitlar() {
           p.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
           p.serialNumber?.toLowerCase().includes(searchQuery.toLowerCase())
         );
+      const matchesMonth =
+        !monthFilter || format(new Date(ticket.createdAt), "yyyy-MM") === monthFilter;
 
-      return matchesCategory && matchesStatus && matchesBrand && matchesSearch;
+      return matchesCategory && matchesStatus && matchesBrand && matchesSearch && matchesMonth;
     });
   };
 
@@ -166,7 +215,7 @@ export default function Kayitlar() {
       </div>
 
       <main className="flex-1 overflow-auto p-6">
-        <Tabs defaultValue="all" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="all" data-testid="tab-all">
               Tümü ({allTickets.length})

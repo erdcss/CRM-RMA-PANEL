@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCustomerSchema, insertProductSchema, insertTicketSchema } from "@shared/schema";
@@ -28,12 +28,20 @@ async function initDatabase(): Promise<void> {
   console.error("Database failed to connect after retries - app running without DB");
 }
 
+function getOwnerUserId(req: Request): string | undefined {
+  const header = req.header("X-Owner-User-Id");
+  if (header?.trim()) return header.trim();
+  const query = req.query.ownerUserId;
+  if (typeof query === "string" && query.trim()) return query.trim();
+  return undefined;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   initDatabase().catch(err => console.error("DB init error:", err));
 
-  app.get("/api/customers", async (_req, res) => {
+  app.get("/api/customers", async (req, res) => {
     try {
-      const customers = await storage.getCustomers();
+      const customers = await storage.getCustomers(getOwnerUserId(req));
       res.json(customers);
     } catch (error) {
       console.error("Error fetching customers:", error);
@@ -44,7 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/customers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const customer = await storage.getCustomer(id);
+      const customer = await storage.getCustomer(id, getOwnerUserId(req));
       if (!customer) {
         return res.status(404).json({ error: "Customer not found" });
       }
@@ -69,9 +77,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/tickets", async (_req, res) => {
+  app.get("/api/tickets", async (req, res) => {
     try {
-      const tickets = await storage.getTickets();
+      const tickets = await storage.getTickets(getOwnerUserId(req));
       res.json(tickets);
     } catch (error) {
       console.error("Error fetching tickets:", error);
@@ -82,7 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/tickets/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const ticket = await storage.getTicket(id);
+      const ticket = await storage.getTicket(id, getOwnerUserId(req));
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
@@ -96,6 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const createTicketWithProductsSchema = z.object({
     receiptNumber: z.string().optional(),
     customerName: z.string().optional(),
+    accountCode: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
     address: z.string().optional(),
@@ -103,6 +112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       z.object({
         name: z.string().optional(),
         serialNumber: z.string().optional(),
+        stockCode: z.string().optional(),
         brand: z.string().optional(),
         model: z.string().optional(),
         category: z.enum(["iade", "degisim", "servis"]).optional(),
@@ -119,6 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customer = await storage.findOrCreateCustomer({
         name: validatedData.customerName || "Bilinmeyen",
         phone: validatedData.phone || "-",
+        accountCode: validatedData.accountCode || undefined,
         email: validatedData.email || undefined,
         address: validatedData.address || undefined,
       });
@@ -126,6 +137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticket = await storage.createTicket({
         customerId: customer.id,
         receiptNumber: validatedData.receiptNumber || undefined,
+        ownerUserId: getOwnerUserId(req),
       });
 
       const products = validatedData.products || [];
@@ -134,6 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ticketId: ticket.id,
           name: productData.name || "Bilinmeyen",
           serialNumber: productData.serialNumber || undefined,
+          stockCode: productData.stockCode || undefined,
           brand: productData.brand || "Bilinmeyen",
           model: productData.model || undefined,
           category: productData.category || "servis",
@@ -149,7 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const fullTicket = await storage.getTicket(ticket.id);
+      const fullTicket = await storage.getTicket(ticket.id, getOwnerUserId(req));
       res.status(201).json(fullTicket);
     } catch (error) {
       console.error("Error creating ticket:", error);
@@ -163,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/tickets/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const ticket = await storage.getTicket(id);
+      const ticket = await storage.getTicket(id, getOwnerUserId(req));
       if (!ticket) {
         return res.status(404).json({ error: "Ticket not found" });
       }
@@ -226,9 +239,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/stats/dashboard", async (_req, res) => {
+  app.get("/api/stats/dashboard", async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats();
+      const stats = await storage.getDashboardStats(getOwnerUserId(req));
       res.json(stats);
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -236,13 +249,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/stats", async (_req, res) => {
+  app.get("/api/stats", async (req, res) => {
     try {
-      const stats = await storage.getStatistics();
+      const stats = await storage.getStatistics(getOwnerUserId(req));
       res.json(stats);
     } catch (error) {
       console.error("Error fetching statistics:", error);
       res.status(500).json({ error: "Failed to fetch statistics" });
+    }
+  });
+
+  app.get("/api/catalog-products", async (req, res) => {
+    try {
+      const ownerUserId = getOwnerUserId(req);
+      if (!ownerUserId) {
+        return res.status(401).json({ error: "Owner user id required" });
+      }
+      const query = typeof req.query.q === "string" ? req.query.q : undefined;
+      const products = await storage.getCatalogProducts(ownerUserId, query);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching catalog products:", error);
+      res.status(500).json({ error: "Failed to fetch catalog products" });
+    }
+  });
+
+  app.get("/api/catalog-customers", async (req, res) => {
+    try {
+      const ownerUserId = getOwnerUserId(req);
+      if (!ownerUserId) {
+        return res.status(401).json({ error: "Owner user id required" });
+      }
+      const query = typeof req.query.q === "string" ? req.query.q : undefined;
+      const customers = await storage.getCatalogCustomers(ownerUserId, query);
+      res.json(customers);
+    } catch (error) {
+      console.error("Error fetching catalog customers:", error);
+      res.status(500).json({ error: "Failed to fetch catalog customers" });
     }
   });
 

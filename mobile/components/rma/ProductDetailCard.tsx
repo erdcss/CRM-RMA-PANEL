@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
+import { ProductImagePicker } from '@/components/forms/ProductImagePicker';
 import { RmaTimeline } from '@/components/rma/RmaTimeline';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -10,10 +12,20 @@ import type { RmaProduct } from '@/lib/api';
 type ProductDetailCardProps = {
   product: RmaProduct;
   index: number;
+  imageUri?: string | null;
   onUpdateStatus: () => void;
+  onPhotoChange?: (uri: string | null) => void;
+  uploadingPhoto?: boolean;
 };
 
-export function ProductDetailCard({ product, index, onUpdateStatus }: ProductDetailCardProps) {
+export function ProductDetailCard({
+  product,
+  index,
+  imageUri,
+  onUpdateStatus,
+  onPhotoChange,
+  uploadingPhoto,
+}: ProductDetailCardProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
@@ -25,13 +37,31 @@ export function ProductDetailCard({ product, index, onUpdateStatus }: ProductDet
       </View>
 
       <Card style={styles.card}>
+        <View style={styles.topRow}>
+          {onPhotoChange ? (
+            <ProductImagePicker compact imageUri={imageUri} onChange={onPhotoChange} />
+          ) : imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.thumb} contentFit="cover" />
+          ) : null}
+
+          <View style={styles.infoCol}>
         <InfoRow label="Ürün adı" value={product.name || '-'} />
+        <InfoRow label="Stok kodu" value={product.stockCode || '-'} />
         <InfoRow label="Marka" value={product.brand || '-'} />
-        <InfoRow label="Model" value={product.model || '-'} />
+            <InfoRow label="Model" value={product.model || '-'} />
+          </View>
+        </View>
+
         <InfoRow label="Seri no" value={product.serialNumber || '-'} />
         <InfoRow label="Miktar" value={String(product.quantity ?? 1)} />
         <InfoRow label="Kategori" value={getCategoryLabel(product.category)} />
         <InfoRow label="Açıklama" value={product.description || '-'} />
+
+        {onPhotoChange ? (
+          <Text style={styles.photoHint}>
+            {uploadingPhoto ? 'Görsel yükleniyor…' : 'Görsele dokunarak fotoğraf çekin veya ekleyin'}
+          </Text>
+        ) : null}
 
         <Pressable style={styles.updateButton} onPress={onUpdateStatus}>
           <Text style={styles.updateButtonText}>Bu Ürünün Durumunu Güncelle</Text>
@@ -73,6 +103,20 @@ const styles = StyleSheet.create({
   card: {
     gap: spacing.md,
   },
+  topRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  infoCol: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  thumb: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+  },
   timelineCard: {
     gap: spacing.md,
   },
@@ -90,6 +134,10 @@ const styles = StyleSheet.create({
   infoValue: {
     ...typography.body,
     color: colors.text,
+  },
+  photoHint: {
+    ...typography.caption,
+    color: colors.textMuted,
   },
   updateButton: {
     marginTop: spacing.sm,

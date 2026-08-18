@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users } from "lucide-react";
+import { Package } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,23 +14,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-type CatalogCustomer = {
+type CatalogProduct = {
   id: number;
-  accountCode: string;
-  accountName: string;
+  stockCode: string;
+  stockName: string;
   ownerUserId: string;
   createdAt: string;
 };
 
-export default function Musteriler() {
+export default function Urunler() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const queryPath =
     searchQuery.trim().length > 0
-      ? `/api/catalog-customers?q=${encodeURIComponent(searchQuery.trim())}`
-      : "/api/catalog-customers";
+      ? `/api/catalog-products?q=${encodeURIComponent(searchQuery.trim())}`
+      : "/api/catalog-products";
 
-  const { data: customers, isLoading } = useQuery<CatalogCustomer[]>({
+  const { data: products, isLoading } = useQuery<CatalogProduct[]>({
     queryKey: [queryPath],
   });
 
@@ -39,24 +39,24 @@ export default function Musteriler() {
       <div className="p-6 border-b">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Müşteriler</h1>
+            <h1 className="text-2xl font-bold">Ürünler</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Cari kodu ve cari adı listesi (hesabınıza özel)
+              Stok kodu ve stok adı listesi (hesabınıza özel)
             </p>
           </div>
           <Badge variant="secondary" className="text-lg px-4 py-2">
-            {customers?.length ?? 0} Müşteri
+            {products?.length ?? 0} Ürün
           </Badge>
         </div>
       </div>
 
       <div className="p-6 border-b">
         <Input
-          placeholder="Cari kodu veya cari adı ara..."
+          placeholder="Stok kodu veya ürün adı ara..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-md"
-          data-testid="input-search-customers"
+          data-testid="input-search-products"
         />
       </div>
 
@@ -67,11 +67,11 @@ export default function Musteriler() {
               <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
-        ) : !customers?.length ? (
+        ) : !products?.length ? (
           <div className="text-center py-12">
-            <Users className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              {searchQuery ? "Müşteri bulunamadı" : "Cari listeniz boş"}
+              {searchQuery ? "Ürün bulunamadı" : "Stok listeniz boş"}
             </p>
           </div>
         ) : (
@@ -79,15 +79,15 @@ export default function Musteriler() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[180px]">Cari Kodu</TableHead>
-                  <TableHead>Cari Adı</TableHead>
+                  <TableHead className="w-[180px]">Stok Kodu</TableHead>
+                  <TableHead>Stok Adı</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium text-primary">{customer.accountCode}</TableCell>
-                    <TableCell>{customer.accountName}</TableCell>
+                {products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-medium text-primary">{product.stockCode}</TableCell>
+                    <TableCell>{product.stockName}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, serial, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,6 +22,7 @@ export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
   name: text("name").default("Bilinmeyen"),
   phone: text("phone").default("-"),
+  accountCode: text("account_code"),
   email: text("email"),
   address: text("address"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -41,6 +42,7 @@ export const tickets = pgTable("tickets", {
   receiptNumber: text("receipt_number"), // Fiş numarası
   customerId: integer("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   createdById: integer("created_by_id").notNull().references(() => users.id).default(1),
+  ownerUserId: text("owner_user_id"), // Supabase auth user id — per-user data isolation
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -61,6 +63,7 @@ export const products = pgTable("products", {
   ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
   name: text("name").default("Bilinmeyen"),
   serialNumber: text("serial_number"),
+  stockCode: text("stock_code"),
   brand: text("brand").default("Bilinmeyen"),
   model: text("model"),
   category: text("category").default("servis"), // "iade", "degisim", "servis"
@@ -94,6 +97,48 @@ export const insertStatusHistorySchema = createInsertSchema(statusHistory).omit(
 
 export type InsertStatusHistory = z.infer<typeof insertStatusHistorySchema>;
 export type StatusHistory = typeof statusHistory.$inferSelect;
+
+// User-specific product catalog (stock list from Excel imports)
+export const catalogProducts = pgTable(
+  "catalog_products",
+  {
+    id: serial("id").primaryKey(),
+    stockCode: text("stock_code").notNull(),
+    stockName: text("stock_name").notNull(),
+    ownerUserId: text("owner_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [unique("catalog_products_stock_owner_unique").on(table.stockCode, table.ownerUserId)],
+);
+
+export const insertCatalogProductSchema = createInsertSchema(catalogProducts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCatalogProduct = z.infer<typeof insertCatalogProductSchema>;
+export type CatalogProduct = typeof catalogProducts.$inferSelect;
+
+// User-specific customer/account catalog (cari list from Excel imports)
+export const catalogCustomers = pgTable(
+  "catalog_customers",
+  {
+    id: serial("id").primaryKey(),
+    accountCode: text("account_code").notNull(),
+    accountName: text("account_name").notNull(),
+    ownerUserId: text("owner_user_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [unique("catalog_customers_code_owner_unique").on(table.accountCode, table.ownerUserId)],
+);
+
+export const insertCatalogCustomerSchema = createInsertSchema(catalogCustomers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCatalogCustomer = z.infer<typeof insertCatalogCustomerSchema>;
+export type CatalogCustomer = typeof catalogCustomers.$inferSelect;
 
 // Relations
 export const customersRelations = relations(customers, ({ many }) => ({

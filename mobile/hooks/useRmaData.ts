@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { rmaApi, type DashboardStats, type RmaCustomer, type RmaTicket } from '@/lib/api';
+import { rmaApi, type DashboardStats, type RmaCustomer, type RmaTicket, type CatalogProduct } from '@/lib/api';
 import { countCompletedProducts, countOpenProducts } from '@/lib/format';
 
 export function useTickets() {
@@ -105,6 +105,34 @@ export function useCustomers() {
   }, [load]);
 
   return { customers, loading, refreshing, error, refresh: () => load(true) };
+}
+
+export function useCatalogProducts(query = '') {
+  const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+      const data = await rmaApi.listCatalogProducts(query.trim() || undefined);
+      setProducts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ürünler alınamadı.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { products, loading, refreshing, error, refresh: () => load(true) };
 }
 
 export function useTicket(id: number) {

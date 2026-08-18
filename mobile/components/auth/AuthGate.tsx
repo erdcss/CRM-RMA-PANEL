@@ -5,27 +5,47 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/constants/theme';
 
+function isAuthRoute(segment: string | undefined) {
+  return segment === 'login' || segment === 'signup';
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const currentRoute = segments[0];
+  const onAuthScreen = isAuthRoute(currentRoute);
 
   useEffect(() => {
     if (loading) return;
 
-    const onLoginScreen = segments[0] === 'login';
-
-    if (!session && !onLoginScreen) {
+    if (!session && !onAuthScreen) {
       router.replace('/login');
       return;
     }
 
-    if (session && onLoginScreen) {
+    if (session && onAuthScreen) {
       router.replace('/(tabs)');
     }
-  }, [session, loading, segments, router]);
+  }, [session, loading, onAuthScreen, router]);
 
   if (loading) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (!session && !onAuthScreen) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
+  }
+
+  if (session && onAuthScreen) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator color={colors.primary} size="large" />
@@ -38,11 +58,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
 export function RootStack() {
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="record/[id]" />
-      <Stack.Screen name="customer/[id]" />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+        animation: 'slide_from_right',
+      }}
+    >
+      <Stack.Screen name="login" options={{ animation: 'fade' }} />
+      <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+      <Stack.Screen name="record/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="customer/[id]" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

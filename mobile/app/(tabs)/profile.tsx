@@ -68,6 +68,7 @@ export default function ProfileScreen() {
           <View>
             <Text style={styles.name}>{displayName}</Text>
             <Text style={styles.role}>{user?.email ?? '-'}</Text>
+            <Text style={styles.privacyNote}>Kayıtlarınız yalnızca bu hesaba özeldir.</Text>
           </View>
         </Card>
 
@@ -129,6 +130,11 @@ const styles = StyleSheet.create({
   role: {
     ...typography.body,
     color: colors.textSecondary,
+  },
+  privacyNote: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
   section: {
     gap: spacing.sm,

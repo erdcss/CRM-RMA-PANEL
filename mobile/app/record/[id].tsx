@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ProductDetailCard } from '@/components/rma/ProductDetailCard';
-import { AttachmentsSection } from '@/components/rma/AttachmentCard';
 import { StatusSheet } from '@/components/rma/StatusSheet';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
@@ -12,7 +11,9 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useTicket } from '@/hooks/useRmaData';
+import { useTicketProductPhotos } from '@/hooks/useProductPhotos';
 import { rmaApi, type RmaProduct } from '@/lib/api';
+import { getAttachmentSignedUrl, uploadProductPhoto } from '@/lib/attachments';
 import { formatDateTime, formatRmaId } from '@/lib/format';
 import { shareTicketPdf } from '@/lib/pdf';
 
@@ -21,11 +22,13 @@ export default function RecordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const ticketId = Number(id);
   const { ticket, loading, error, reload } = useTicket(ticketId);
+  const { getProductPhotoUrl, setProductPhotoUrl } = useTicketProductPhotos(ticketId);
   const [statusOpen, setStatusOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<RmaProduct | null>(null);
   const [updating, setUpdating] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadingProductId, setUploadingProductId] = useState<number | null>(null);
 
   const confirmDelete = () => {
     if (!ticket) return;
@@ -91,6 +94,20 @@ export default function RecordDetailScreen() {
     });
   };
 
+  const handleProductPhoto = async (product: RmaProduct, uri: string | null) => {
+    if (!ticket || !uri) return;
+    setUploadingProductId(product.id);
+    try {
+      const attachment = await uploadProductPhoto(ticket.id, product.id, uri);
+      const signedUrl = await getAttachmentSignedUrl(attachment.file_path);
+      setProductPhotoUrl(product.id, signedUrl);
+    } catch (err) {
+      Alert.alert('Görsel yüklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+    } finally {
+      setUploadingProductId(null);
+    }
+  };
+
   if (loading) {
     return (
       <Screen>
@@ -144,11 +161,12 @@ export default function RecordDetailScreen() {
             key={product.id}
             product={product}
             index={index}
+            imageUri={getProductPhotoUrl(product.id)}
             onUpdateStatus={() => openStatusSheet(product)}
+            onPhotoChange={(uri) => handleProductPhoto(product, uri)}
+            uploadingPhoto={uploadingProductId === product.id}
           />
         ))}
-
-        <AttachmentsSection />
 
         <Pressable
           style={[styles.deleteButton, deleting && styles.actionDisabled]}

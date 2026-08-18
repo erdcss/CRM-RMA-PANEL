@@ -13,14 +13,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { FormField } from '@/components/forms/FormField';
+import { ProductImagePicker } from '@/components/forms/ProductImagePicker';
 import { StepIndicator } from '@/components/forms/StepIndicator';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import { CATEGORY_OPTIONS, getCategoryLabel } from '@/constants/statuses';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { useCustomers } from '@/hooks/useRmaData';
-import { rmaApi, type RmaCustomer } from '@/lib/api';
+import { useCustomers, useCatalogProducts } from '@/hooks/useRmaData';
+import { rmaApi, type RmaCustomer, type CatalogProduct } from '@/lib/api';
+import { uploadProductPhoto } from '@/lib/attachments';
 import { recordHref } from '@/lib/routes';
 
 type CustomerForm = {
@@ -37,19 +39,23 @@ type ProductDraft = {
   model: string;
   serialNumber: string;
   quantity: string;
+  stockCode: string;
   category: 'iade' | 'degisim' | 'servis';
   description: string;
+  imageUri?: string | null;
 };
 
 const emptyProductDraft = (): ProductDraft => ({
   id: `${Date.now()}-${Math.random()}`,
   productName: '',
+  stockCode: '',
   brand: '',
   model: '',
   serialNumber: '',
   quantity: '1',
   category: 'servis',
   description: '',
+  imageUri: null,
 });
 
 const emptyCustomer: CustomerForm = {
@@ -62,6 +68,8 @@ const emptyCustomer: CustomerForm = {
 export default function NewRmaScreen() {
   const router = useRouter();
   const { customers, refresh: refreshCustomers } = useCustomers();
+  const [catalogQuery, setCatalogQuery] = useState('');
+  const { products: catalogProducts } = useCatalogProducts(catalogQuery);
   const [step, setStep] = useState(1);
   const [customer, setCustomer] = useState<CustomerForm>(emptyCustomer);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -85,7 +93,7 @@ export default function NewRmaScreen() {
     setCustomer((prev) => ({ ...prev, [key]: value }));
   };
 
-  const updateDraft = (key: keyof ProductDraft, value: string) => {
+  const updateDraft = (key: keyof ProductDraft, value: string | null) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -120,6 +128,19 @@ export default function NewRmaScreen() {
     return true;
   };
 
+  const updateProductImage = (id: string, imageUri: string | null) => {
+    setProducts((prev) => prev.map((item) => (item.id === id ? { ...item, imageUri } : item)));
+  };
+
+  const selectCatalogProduct = (item: CatalogProduct) => {
+    setDraft((prev) => ({
+      ...prev,
+      stockCode: item.stockCode,
+      productName: item.stockName,
+    }));
+    setCatalogQuery(item.stockCode);
+  };
+
   const submit = async () => {
     setSubmitting(true);
     try {
@@ -133,11 +154,21 @@ export default function NewRmaScreen() {
           brand: product.brand || undefined,
           model: product.model || undefined,
           serialNumber: product.serialNumber || undefined,
+          stockCode: product.stockCode || undefined,
           category: product.category,
           description: product.description || undefined,
           quantity: Number(product.quantity) || 1,
         })),
       });
+
+      await Promise.all(
+        products.map(async (product, index) => {
+          const created = ticket.products[index];
+          if (product.imageUri && created) {
+            await uploadProductPhoto(ticket.id, created.id, product.imageUri);
+          }
+        }),
+      );
 
       setCustomer(emptyCustomer);
       setProducts([]);
@@ -146,7 +177,7 @@ export default function NewRmaScreen() {
       setCustomerQuery('');
       setStep(1);
       refreshCustomers();
-      router.push(recordHref(ticket.id));
+      router.replace(recordHref(ticket.id));
     } catch (err) {
       Alert.alert('Kayıt oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
@@ -221,6 +252,31 @@ export default function NewRmaScreen() {
           {step === 2 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Ürün Bilgileri</Text>
+
+              <FormField
+                label="Stok Kodu"
+                value={draft.stockCode}
+                onChangeText={(v) => {
+                  updateDraft('stockCode', v);
+                  setCatalogQuery(v);
+                }}
+                placeholder="Stok kodu yazın veya listeden seçin"
+              />
+              {catalogQuery.trim().length > 1 ? (
+                <View style={styles.catalogList}>
+                  {catalogProducts.slice(0, 6).map((item) => (
+                    <Pressable
+                      key={item.id}
+                      style={styles.catalogItem}
+                      onPress={() => selectCatalogProduct(item)}
+                    >
+                      <Text style={styles.catalogCode}>{item.stockCode}</Text>
+                      <Text style={styles.catalogName}>{item.stockName}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+
               <FormField label="Ürün Adı" value={draft.productName} onChangeText={(v) => updateDraft('productName', v)} />
               <FormField label="Marka" value={draft.brand} onChangeText={(v) => updateDraft('brand', v)} />
               <FormField label="Model" value={draft.model} onChangeText={(v) => updateDraft('model', v)} />
@@ -264,6 +320,11 @@ export default function NewRmaScreen() {
                 multiline
               />
 
+              <ProductImagePicker
+                imageUri={draft.imageUri}
+                onChange={(uri) => updateDraft('imageUri', uri)}
+              />
+
               <Pressable style={styles.addButton} onPress={addProduct}>
                 <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
                 <Text style={styles.addButtonText}>Ürünü Listeye Ekle</Text>
@@ -276,17 +337,27 @@ export default function NewRmaScreen() {
                 ) : (
                   products.map((product, index) => (
                     <Card key={product.id} style={styles.addedCard}>
-                      <View style={styles.addedHeader}>
-                        <Text style={styles.addedTitle}>
-                          {index + 1}. {product.productName}
-                        </Text>
-                        <Pressable onPress={() => removeProduct(product.id)}>
-                          <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                        </Pressable>
+                      <View style={styles.addedRow}>
+                        <ProductImagePicker
+                          compact
+                          imageUri={product.imageUri}
+                          onChange={(uri) => updateProductImage(product.id, uri)}
+                        />
+                        <View style={styles.addedBody}>
+                          <View style={styles.addedHeader}>
+                            <Text style={styles.addedTitle}>
+                              {index + 1}. {product.productName}
+                            </Text>
+                            <Pressable onPress={() => removeProduct(product.id)}>
+                              <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                            </Pressable>
+                          </View>
+                          <Text style={styles.addedMeta}>
+                            {product.stockCode ? `${product.stockCode} · ` : ''}
+                            {getCategoryLabel(product.category)} · Seri: {product.serialNumber || '-'}
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={styles.addedMeta}>
-                        {getCategoryLabel(product.category)} · Seri: {product.serialNumber || '-'}
-                      </Text>
                     </Card>
                   ))
                 )}
@@ -306,6 +377,7 @@ export default function NewRmaScreen() {
               {products.map((product, index) => (
                 <Card key={product.id} style={styles.summaryCard}>
                   <Text style={styles.productSummaryTitle}>Ürün {index + 1}</Text>
+                  <SummaryRow label="Stok Kodu" value={product.stockCode || '-'} />
                   <SummaryRow label="Ad" value={product.productName} />
                   <SummaryRow label="Marka / Model" value={[product.brand, product.model].filter(Boolean).join(' ') || '-'} />
                   <SummaryRow label="Seri No" value={product.serialNumber || '-'} />
@@ -370,6 +442,26 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...typography.subtitle,
     color: colors.text,
+  },
+  catalogList: {
+    gap: spacing.xs,
+  },
+  catalogItem: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    padding: spacing.sm,
+    gap: 2,
+  },
+  catalogCode: {
+    ...typography.caption,
+    color: colors.primaryDark,
+    fontWeight: '700',
+  },
+  catalogName: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   customerList: {
     gap: spacing.sm,
@@ -455,6 +547,15 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   addedCard: {
+    gap: spacing.xs,
+  },
+  addedRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
+  addedBody: {
+    flex: 1,
     gap: spacing.xs,
   },
   addedHeader: {

@@ -9,6 +9,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.gl
   index: { label: 'Ana Sayfa', icon: 'home-outline' },
   records: { label: 'Kayıtlar', icon: 'list-outline' },
   'new-rma': { label: 'Yeni RMA', icon: 'add' },
+  products: { label: 'Ürünler', icon: 'cube-outline' },
   customers: { label: 'Müşteriler', icon: 'people-outline' },
   profile: { label: 'Hesabım', icon: 'person-outline' },
 };
@@ -20,7 +21,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
       {state.routes.map((route, index) => {
         const focused = state.index === index;
-        const config = TAB_CONFIG[route.name];
+        const config = TAB_CONFIG[route.name] ?? { label: route.name, icon: 'ellipse-outline' as const };
         const onPress = () => {
           const event = navigation.emit({
             type: 'tabPress',
@@ -29,6 +30,10 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
         };
+
+        if (route.name === 'customers') {
+          return null;
+        }
 
         if (route.name === 'new-rma') {
           return (

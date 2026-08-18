@@ -7,6 +7,12 @@ import {
   type User,
   type InsertUser,
   type Customer,
+  catalogProducts,
+  type InsertCatalogProduct,
+  type CatalogProduct,
+  catalogCustomers,
+  type InsertCatalogCustomer,
+  type CatalogCustomer,
   type InsertCustomer,
   type Ticket,
   type InsertTicket,
@@ -15,7 +21,27 @@ import {
   type InsertStatusHistory,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, count } from "drizzle-orm";
+import { eq, desc, sql, count, and, or, ilike, isNull } from "drizzle-orm";
+
+function normalizeTicketIds(value: unknown): number[] {
+  if (Array.isArray(value)) {
+    return value.map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0);
+  }
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[{}]/g, "").trim();
+    if (!cleaned) return [];
+    return cleaned
+      .split(",")
+      .map((part) => Number(part.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0);
+  }
+  return [];
+}
+
+function ownerTicketFilter(ownerUserId?: string) {
+  if (!ownerUserId) return undefined;
+  return or(eq(tickets.ownerUserId, ownerUserId), isNull(tickets.ownerUserId));
+}
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -23,13 +49,19 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   ensureSystemUser(): Promise<void>;
 
-  getCustomers(): Promise<Customer[]>;
-  getCustomer(id: number): Promise<Customer | undefined>;
+  getCustomers(ownerUserId?: string): Promise<Customer[]>;
+  getCustomer(id: number, ownerUserId?: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
-  findOrCreateCustomer(customerData: { name: string; phone: string; email?: string; address?: string }): Promise<Customer>;
+  findOrCreateCustomer(customerData: {
+    name: string;
+    phone: string;
+    accountCode?: string;
+    email?: string;
+    address?: string;
+  }): Promise<Customer>;
 
-  getTickets(): Promise<any[]>;
-  getTicket(id: number): Promise<any | undefined>;
+  getTickets(ownerUserId?: string): Promise<any[]>;
+  getTicket(id: number, ownerUserId?: string): Promise<any | undefined>;
   createTicket(ticket: InsertTicket): Promise<Ticket>;
   deleteTicket(id: number): Promise<void>;
   
@@ -39,8 +71,13 @@ export interface IStorage {
   updateProductStatus(id: number, status: string): Promise<void>;
 
   createStatusHistory(history: InsertStatusHistory): Promise<void>;
-  getDashboardStats(): Promise<any>;
-  getStatistics(): Promise<any>;
+  getDashboardStats(ownerUserId?: string): Promise<any>;
+  getStatistics(ownerUserId?: string): Promise<any>;
+
+  getCatalogProducts(ownerUserId: string, query?: string): Promise<CatalogProduct[]>;
+  bulkUpsertCatalogProducts(items: InsertCatalogProduct[]): Promise<number>;
+  getCatalogCustomers(ownerUserId: string, query?: string): Promise<CatalogCustomer[]>;
+  bulkUpsertCatalogCustomers(items: InsertCatalogCustomer[]): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -72,28 +109,49 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getCustomers(): Promise<Customer[]> {
+  async getCustomers(ownerUserId?: string): Promise<Customer[]> {
     const customersWithCounts = await db
       .select({
         id: customers.id,
         name: customers.name,
         phone: customers.phone,
+        accountCode: customers.accountCode,
         email: customers.email,
         address: customers.address,
         createdAt: customers.createdAt,
         ticketCount: count(tickets.id),
       })
       .from(customers)
-      .leftJoin(tickets, eq(customers.id, tickets.customerId))
+      .leftJoin(
+        tickets,
+        ownerUserId
+          ? and(eq(customers.id, tickets.customerId), ownerTicketFilter(ownerUserId)!)
+          : eq(customers.id, tickets.customerId),
+      )
       .groupBy(customers.id)
       .orderBy(desc(customers.createdAt));
+
+    if (ownerUserId) {
+      return customersWithCounts.filter((c) => (c.ticketCount ?? 0) > 0);
+    }
 
     return customersWithCounts;
   }
 
-  async getCustomer(id: number): Promise<Customer | undefined> {
+  async getCustomer(id: number, ownerUserId?: string): Promise<Customer | undefined> {
     const [customer] = await db.select().from(customers).where(eq(customers.id, id));
-    return customer || undefined;
+    if (!customer) return undefined;
+
+    if (ownerUserId) {
+      const [owned] = await db
+        .select({ id: tickets.id })
+        .from(tickets)
+        .where(and(eq(tickets.customerId, id), ownerTicketFilter(ownerUserId)!))
+        .limit(1);
+      if (!owned) return undefined;
+    }
+
+    return customer;
   }
 
   async createCustomer(insertCustomer: InsertCustomer): Promise<Customer> {
@@ -107,43 +165,88 @@ export class DatabaseStorage implements IStorage {
   async findOrCreateCustomer(customerData: {
     name: string;
     phone: string;
+    accountCode?: string;
     email?: string;
     address?: string;
   }): Promise<Customer> {
-    const [existingCustomer] = await db
-      .select()
-      .from(customers)
-      .where(eq(customers.phone, customerData.phone))
-      .limit(1);
+    const accountCode = customerData.accountCode?.trim();
+    if (accountCode) {
+      const [existingByCode] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.accountCode, accountCode))
+        .limit(1);
 
-    if (existingCustomer) {
-      // Update customer information if it has changed
-      const needsUpdate = 
-        existingCustomer.name !== customerData.name ||
-        existingCustomer.email !== customerData.email ||
-        existingCustomer.address !== customerData.address;
+      if (existingByCode) {
+        const needsUpdate =
+          existingByCode.name !== customerData.name ||
+          existingByCode.email !== customerData.email ||
+          existingByCode.address !== customerData.address ||
+          (customerData.phone && customerData.phone !== "-" && existingByCode.phone !== customerData.phone);
 
-      if (needsUpdate) {
-        const [updatedCustomer] = await db
-          .update(customers)
-          .set({
-            name: customerData.name,
-            email: customerData.email,
-            address: customerData.address,
-          })
-          .where(eq(customers.id, existingCustomer.id))
-          .returning();
-        return updatedCustomer;
+        if (needsUpdate) {
+          const [updatedCustomer] = await db
+            .update(customers)
+            .set({
+              name: customerData.name,
+              email: customerData.email,
+              address: customerData.address,
+              ...(customerData.phone && customerData.phone !== "-" ? { phone: customerData.phone } : {}),
+            })
+            .where(eq(customers.id, existingByCode.id))
+            .returning();
+          return updatedCustomer;
+        }
+
+        return existingByCode;
       }
-
-      return existingCustomer;
     }
 
-    return await this.createCustomer(customerData);
+    const phone = customerData.phone?.trim() || "-";
+    if (phone !== "-") {
+      const [existingCustomer] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.phone, phone))
+        .limit(1);
+
+      if (existingCustomer) {
+        const needsUpdate =
+          existingCustomer.name !== customerData.name ||
+          existingCustomer.email !== customerData.email ||
+          existingCustomer.address !== customerData.address ||
+          (accountCode && existingCustomer.accountCode !== accountCode);
+
+        if (needsUpdate) {
+          const [updatedCustomer] = await db
+            .update(customers)
+            .set({
+              name: customerData.name,
+              email: customerData.email,
+              address: customerData.address,
+              ...(accountCode ? { accountCode } : {}),
+            })
+            .where(eq(customers.id, existingCustomer.id))
+            .returning();
+          return updatedCustomer;
+        }
+
+        return existingCustomer;
+      }
+    }
+
+    return await this.createCustomer({
+      name: customerData.name,
+      phone,
+      accountCode: accountCode || undefined,
+      email: customerData.email,
+      address: customerData.address,
+    });
   }
 
-  async getTickets(): Promise<any[]> {
+  async getTickets(ownerUserId?: string): Promise<any[]> {
     const allTickets = await db.query.tickets.findMany({
+      where: ownerTicketFilter(ownerUserId),
       with: {
         customer: true,
         products: {
@@ -160,9 +263,11 @@ export class DatabaseStorage implements IStorage {
     return allTickets;
   }
 
-  async getTicket(id: number): Promise<any | undefined> {
+  async getTicket(id: number, ownerUserId?: string): Promise<any | undefined> {
     const ticket = await db.query.tickets.findFirst({
-      where: eq(tickets.id, id),
+      where: ownerUserId
+        ? and(eq(tickets.id, id), ownerTicketFilter(ownerUserId)!)
+        : eq(tickets.id, id),
       with: {
         customer: true,
         products: {
@@ -237,29 +342,56 @@ export class DatabaseStorage implements IStorage {
     await db.insert(statusHistory).values(insertHistory);
   }
 
-  async getDashboardStats(): Promise<any> {
-    const totalTicketsResult = await db.select({ count: count() }).from(tickets);
+  async getDashboardStats(ownerUserId?: string): Promise<any> {
+    const ticketFilter = ownerTicketFilter(ownerUserId);
+
+    const totalTicketsResult = await db
+      .select({ count: count() })
+      .from(tickets)
+      .where(ticketFilter);
     const totalTickets = totalTicketsResult[0]?.count || 0;
+
+    const productOwnerFilter = ownerUserId
+      ? sql`${products.ticketId} in (select id from tickets where owner_user_id = ${ownerUserId} or owner_user_id is null)`
+      : undefined;
 
     const activeReturnsResult = await db
       .select({ count: count() })
       .from(products)
-      .where(sql`${products.category} = 'iade' AND ${products.status} != 'teslim_edildi'`);
+      .where(
+        productOwnerFilter
+          ? and(
+              sql`${products.category} = 'iade' AND ${products.status} != 'teslim_edildi'`,
+              productOwnerFilter,
+            )
+          : sql`${products.category} = 'iade' AND ${products.status} != 'teslim_edildi'`,
+      );
     const activeReturns = activeReturnsResult[0]?.count || 0;
 
     const activeExchangesResult = await db
       .select({ count: count() })
       .from(products)
-      .where(sql`${products.category} = 'degisim' AND ${products.status} != 'teslim_edildi'`);
+      .where(
+        productOwnerFilter
+          ? and(
+              sql`${products.category} = 'degisim' AND ${products.status} != 'teslim_edildi'`,
+              productOwnerFilter,
+            )
+          : sql`${products.category} = 'degisim' AND ${products.status} != 'teslim_edildi'`,
+      );
     const activeExchanges = activeExchangesResult[0]?.count || 0;
 
     const inServiceResult = await db
       .select({ count: count() })
       .from(products)
-      .where(eq(products.status, 'serviste'));
+      .where(
+        productOwnerFilter
+          ? and(eq(products.status, 'serviste'), productOwnerFilter)
+          : eq(products.status, 'serviste'),
+      );
     const inService = inServiceResult[0]?.count || 0;
 
-    const recentTickets = await db.query.products.findMany({
+    const allProducts = await db.query.products.findMany({
       with: {
         ticket: {
           with: {
@@ -268,18 +400,30 @@ export class DatabaseStorage implements IStorage {
         },
       },
       orderBy: (p, { desc }) => [desc(p.createdAt)],
-      limit: 10,
+      limit: 50,
     });
 
-    const brandStats = await db
-      .select({
-        brand: products.brand,
-        count: count(),
-      })
-      .from(products)
-      .groupBy(products.brand)
-      .orderBy(desc(count()))
-      .limit(10);
+    const recentTickets = ownerUserId
+      ? allProducts.filter((p) => !p.ticket?.ownerUserId || p.ticket.ownerUserId === ownerUserId).slice(0, 10)
+      : allProducts.slice(0, 10);
+
+    const brandStatsQuery = ownerUserId
+      ? db
+          .select({ brand: products.brand, count: count() })
+          .from(products)
+          .innerJoin(tickets, eq(products.ticketId, tickets.id))
+          .where(ownerTicketFilter(ownerUserId)!)
+          .groupBy(products.brand)
+          .orderBy(desc(count()))
+          .limit(10)
+      : db
+          .select({ brand: products.brand, count: count() })
+          .from(products)
+          .groupBy(products.brand)
+          .orderBy(desc(count()))
+          .limit(10);
+
+    const brandStats = await brandStatsQuery;
 
     return {
       totalTickets,
@@ -291,19 +435,42 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getStatistics(): Promise<any> {
-    const totalTicketsResult = await db.select({ count: count() }).from(tickets);
+  async getStatistics(ownerUserId?: string): Promise<any> {
+    const ticketFilter = ownerTicketFilter(ownerUserId);
+    const ticketJoinFilter = ownerTicketFilter(ownerUserId) ?? sql`true`;
+
+    const totalTicketsResult = await db
+      .select({ count: count() })
+      .from(tickets)
+      .where(ticketFilter);
     const totalTickets = totalTicketsResult[0]?.count || 0;
 
-    const totalCustomersResult = await db.select({ count: count() }).from(customers);
-    const totalCustomers = totalCustomersResult[0]?.count || 0;
+    const totalCustomersQuery = ownerUserId
+      ? db
+          .select({ count: sql<number>`count(distinct ${tickets.customerId})` })
+          .from(tickets)
+          .where(ownerTicketFilter(ownerUserId)!)
+      : db.select({ count: count() }).from(customers);
+    const totalCustomersResult = await totalCustomersQuery;
+    const totalCustomers = Number(totalCustomersResult[0]?.count || 0);
+
+    const avgProcessingResult = await db
+      .select({
+        avg: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${tickets.updatedAt} - ${tickets.createdAt})) / 86400), 0)`,
+      })
+      .from(tickets)
+      .where(ticketFilter);
+    const avgProcessingTime = Math.round(Number(avgProcessingResult[0]?.avg || 0));
 
     const brandStats = await db
       .select({
         brand: products.brand,
         count: count(),
+        ticketIds: sql<number[]>`array_agg(distinct ${tickets.id})`,
       })
       .from(products)
+      .innerJoin(tickets, eq(products.ticketId, tickets.id))
+      .where(ticketJoinFilter)
       .groupBy(products.brand)
       .orderBy(desc(count()));
 
@@ -311,41 +478,157 @@ export class DatabaseStorage implements IStorage {
       .select({
         category: products.category,
         count: count(),
+        ticketIds: sql<number[]>`array_agg(distinct ${tickets.id})`,
       })
       .from(products)
-      .groupBy(products.category);
+      .innerJoin(tickets, eq(products.ticketId, tickets.id))
+      .where(ticketJoinFilter)
+      .groupBy(products.category)
+      .orderBy(desc(count()));
 
     const monthlyStats = await db
       .select({
-        month: sql<string>`TO_CHAR(${tickets.createdAt}, 'Mon')`,
+        monthKey: sql<string>`TO_CHAR(${tickets.createdAt}, 'YYYY-MM')`,
+        month: sql<string>`TO_CHAR(${tickets.createdAt}, 'YYYY-MM')`,
         count: count(),
+        ticketIds: sql<number[]>`array_agg(${tickets.id} ORDER BY ${tickets.createdAt} DESC)`,
       })
       .from(tickets)
-      .groupBy(sql`TO_CHAR(${tickets.createdAt}, 'Mon'), TO_CHAR(${tickets.createdAt}, 'MM')`)
-      .orderBy(sql`TO_CHAR(${tickets.createdAt}, 'MM')`)
-      .limit(6);
+      .where(
+        ticketFilter
+          ? and(ticketFilter, sql`${tickets.createdAt} >= NOW() - INTERVAL '6 months'`)
+          : sql`${tickets.createdAt} >= NOW() - INTERVAL '6 months'`,
+      )
+      .groupBy(sql`TO_CHAR(${tickets.createdAt}, 'YYYY-MM')`)
+      .orderBy(sql`TO_CHAR(${tickets.createdAt}, 'YYYY-MM')`);
 
     const topCustomers = await db
       .select({
+        customerId: customers.id,
         name: customers.name,
         ticketCount: count(tickets.id),
+        ticketIds: sql<number[]>`array_agg(${tickets.id} ORDER BY ${tickets.createdAt} DESC)`,
+        latestTicketId: sql<number>`(array_agg(${tickets.id} ORDER BY ${tickets.createdAt} DESC))[1]`,
       })
       .from(customers)
-      .leftJoin(tickets, eq(customers.id, tickets.customerId))
+      .innerJoin(tickets, eq(customers.id, tickets.customerId))
+      .where(ticketJoinFilter)
       .groupBy(customers.id, customers.name)
-      .having(sql`count(${tickets.id}) > 0`)
       .orderBy(desc(count(tickets.id)))
       .limit(10);
+
+    const currentMonthResult = await db
+      .select({ count: count() })
+      .from(tickets)
+      .where(
+        ticketFilter
+          ? and(
+              ticketFilter,
+              sql`TO_CHAR(${tickets.createdAt}, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')`,
+            )
+          : sql`TO_CHAR(${tickets.createdAt}, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')`,
+      );
+    const currentMonthTickets = currentMonthResult[0]?.count || 0;
 
     return {
       totalTickets,
       totalCustomers,
-      avgProcessingTime: 3,
-      brandStats,
-      categoryStats,
-      monthlyStats,
-      topCustomers,
+      avgProcessingTime,
+      currentMonthTickets,
+      brandStats: brandStats.map((item) => ({
+        ...item,
+        ticketIds: normalizeTicketIds(item.ticketIds),
+      })),
+      categoryStats: categoryStats.map((item) => ({
+        ...item,
+        ticketIds: normalizeTicketIds(item.ticketIds),
+      })),
+      monthlyStats: monthlyStats.map((item) => ({
+        ...item,
+        ticketIds: normalizeTicketIds(item.ticketIds),
+      })),
+      topCustomers: topCustomers.map((item) => ({
+        ...item,
+        ticketIds: normalizeTicketIds(item.ticketIds),
+        latestTicketId: Number(item.latestTicketId) || normalizeTicketIds(item.ticketIds)[0] || null,
+      })),
     };
+  }
+
+  async getCatalogProducts(ownerUserId: string, query?: string): Promise<CatalogProduct[]> {
+    const q = query?.trim();
+    const filters = q
+      ? and(
+          eq(catalogProducts.ownerUserId, ownerUserId),
+          or(
+            ilike(catalogProducts.stockCode, `%${q}%`),
+            ilike(catalogProducts.stockName, `%${q}%`),
+          ),
+        )
+      : eq(catalogProducts.ownerUserId, ownerUserId);
+
+    return db
+      .select()
+      .from(catalogProducts)
+      .where(filters)
+      .orderBy(catalogProducts.stockCode);
+  }
+
+  async bulkUpsertCatalogProducts(items: InsertCatalogProduct[]): Promise<number> {
+    if (items.length === 0) return 0;
+
+    let inserted = 0;
+    const chunkSize = 200;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      await db
+        .insert(catalogProducts)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [catalogProducts.stockCode, catalogProducts.ownerUserId],
+          set: { stockName: sql`excluded.stock_name` },
+        });
+      inserted += chunk.length;
+    }
+    return inserted;
+  }
+
+  async getCatalogCustomers(ownerUserId: string, query?: string): Promise<CatalogCustomer[]> {
+    const q = query?.trim();
+    const filters = q
+      ? and(
+          eq(catalogCustomers.ownerUserId, ownerUserId),
+          or(
+            ilike(catalogCustomers.accountCode, `%${q}%`),
+            ilike(catalogCustomers.accountName, `%${q}%`),
+          ),
+        )
+      : eq(catalogCustomers.ownerUserId, ownerUserId);
+
+    return db
+      .select()
+      .from(catalogCustomers)
+      .where(filters)
+      .orderBy(catalogCustomers.accountCode);
+  }
+
+  async bulkUpsertCatalogCustomers(items: InsertCatalogCustomer[]): Promise<number> {
+    if (items.length === 0) return 0;
+
+    let inserted = 0;
+    const chunkSize = 200;
+    for (let i = 0; i < items.length; i += chunkSize) {
+      const chunk = items.slice(i, i + chunkSize);
+      await db
+        .insert(catalogCustomers)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [catalogCustomers.accountCode, catalogCustomers.ownerUserId],
+          set: { accountName: sql`excluded.account_name` },
+        });
+      inserted += chunk.length;
+    }
+    return inserted;
   }
 }
 
