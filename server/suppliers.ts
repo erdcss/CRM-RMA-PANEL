@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db } from "./db";
 import { products, supplierItems, tickets } from "@shared/schema";
@@ -26,6 +26,24 @@ export type ProductEditInput = {
   description?: string | null;
   quantity?: number;
 };
+
+export async function ensureSupplierItemsTable() {
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS supplier_items (
+      id SERIAL PRIMARY KEY,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      supplier_account_code TEXT NOT NULL,
+      supplier_name TEXT NOT NULL,
+      owner_user_id TEXT NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      CONSTRAINT supplier_items_product_owner_unique UNIQUE (product_id, owner_user_id)
+    )
+  `);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_owner_idx ON supplier_items(owner_user_id)`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_supplier_idx ON supplier_items(owner_user_id, supplier_account_code)`);
+}
 
 export async function getOwnedProduct(productId: number, ownerUserId: string) {
   const [row] = await db
@@ -111,6 +129,13 @@ export async function updateSupplierItem(
   return assignment;
 }
 
+export async function touchSupplierItemForProduct(productId: number, ownerUserId: string) {
+  await db
+    .update(supplierItems)
+    .set({ updatedAt: new Date() })
+    .where(and(eq(supplierItems.productId, productId), eq(supplierItems.ownerUserId, ownerUserId)));
+}
+
 export async function deleteSupplierItem(id: number, ownerUserId: string) {
   const deleted = await db
     .delete(supplierItems)
@@ -146,10 +171,6 @@ export async function updateOwnedProduct(
     .where(eq(products.id, productId))
     .returning();
 
-  await db
-    .update(supplierItems)
-    .set({ updatedAt: new Date() })
-    .where(and(eq(supplierItems.productId, productId), eq(supplierItems.ownerUserId, ownerUserId)));
-
+  await touchSupplierItemForProduct(productId, ownerUserId);
   return updated;
 }
