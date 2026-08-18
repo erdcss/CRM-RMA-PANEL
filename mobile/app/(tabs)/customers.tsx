@@ -8,70 +8,90 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useCustomers, useTickets } from '@/hooks/useRmaData';
+import { useCatalogCustomers } from '@/hooks/useCatalogCustomers';
+import { useCustomers } from '@/hooks/useRmaData';
 import { getInitials } from '@/lib/format';
 import { customerHref } from '@/lib/routes';
-import type { RmaCustomer } from '@/lib/api';
+
+type DisplayCustomer = {
+  key: string;
+  accountCode: string;
+  accountName: string;
+  phone?: string | null;
+  ticketCount?: number;
+  rmaCustomerId?: number;
+};
 
 export default function CustomersScreen() {
   const router = useRouter();
-  const {
-    customers,
-    loading: customersLoading,
-    refreshing: customersRefreshing,
-    error: customersError,
-    refresh: refreshCustomers,
-  } = useCustomers();
-  const {
-    tickets,
-    loading: ticketsLoading,
-    refreshing: ticketsRefreshing,
-    error: ticketsError,
-    refresh: refreshTickets,
-  } = useTickets();
   const [query, setQuery] = useState('');
 
-  const customerRows = useMemo<RmaCustomer[]>(() => {
-    if (customers.length > 0) return customers;
+  const {
+    customers: catalogCustomers,
+    loading: catalogLoading,
+    refreshing: catalogRefreshing,
+    error: catalogError,
+    refresh: refreshCatalog,
+  } = useCatalogCustomers(query);
 
-    const fallback = new Map<number, RmaCustomer>();
-    for (const ticket of tickets) {
-      const existing = fallback.get(ticket.customer.id);
-      if (existing) {
-        existing.ticketCount = (existing.ticketCount ?? 0) + 1;
-        continue;
-      }
+  const {
+    customers: rmaCustomers,
+    loading: rmaLoading,
+    refreshing: rmaRefreshing,
+    error: rmaError,
+    refresh: refreshRma,
+  } = useCustomers();
 
-      fallback.set(ticket.customer.id, {
-        id: ticket.customer.id,
-        name: ticket.customer.name,
-        phone: ticket.customer.phone,
-        email: ticket.customer.email,
-        address: ticket.customer.address,
-        ticketCount: 1,
+  const rows = useMemo<DisplayCustomer[]>(() => {
+    if (catalogCustomers.length > 0) {
+      const rmaByCode = new Map(
+        rmaCustomers
+          .filter((customer) => customer.accountCode?.trim())
+          .map((customer) => [customer.accountCode!.trim(), customer]),
+      );
+
+      return catalogCustomers.map((customer) => {
+        const linked = rmaByCode.get(customer.accountCode.trim());
+        return {
+          key: `catalog-${customer.id}`,
+          accountCode: customer.accountCode,
+          accountName: customer.accountName,
+          phone: linked?.phone,
+          ticketCount: linked?.ticketCount,
+          rmaCustomerId: linked?.id,
+        };
       });
     }
 
-    return Array.from(fallback.values());
-  }, [customers, tickets]);
-
-  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return customerRows;
-    return customerRows.filter((customer) =>
-      [customer.name, customer.phone, customer.email].filter(Boolean).join(' ').toLowerCase().includes(q),
-    );
-  }, [customerRows, query]);
+    return rmaCustomers
+      .filter((customer) => {
+        if (!q) return true;
+        return [customer.accountCode, customer.name, customer.phone, customer.email]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q);
+      })
+      .map((customer) => ({
+        key: `rma-${customer.id}`,
+        accountCode: customer.accountCode || '-',
+        accountName: customer.name || 'Bilinmeyen müşteri',
+        phone: customer.phone,
+        ticketCount: customer.ticketCount,
+        rmaCustomerId: customer.id,
+      }));
+  }, [catalogCustomers, rmaCustomers, query]);
 
-  const loading = customersLoading && ticketsLoading;
-  const refreshing = customersRefreshing || ticketsRefreshing;
-  const error = customersError ?? ticketsError;
+  const loading = catalogLoading && rmaLoading;
+  const refreshing = catalogRefreshing || rmaRefreshing;
+  const error = catalogError ?? rmaError;
 
   const refresh = useCallback(() => {
-    void Promise.all([refreshCustomers(), refreshTickets()]);
-  }, [refreshCustomers, refreshTickets]);
+    void Promise.all([refreshCatalog(), refreshRma()]);
+  }, [refreshCatalog, refreshRma]);
 
-  if (loading && customerRows.length === 0) {
+  if (loading && rows.length === 0) {
     return (
       <Screen>
         <LoadingState />
@@ -81,10 +101,10 @@ export default function CustomersScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Müşteriler" subtitle={`${customerRows.length} müşteri`} />
+      <AppHeader title="Müşteriler" subtitle={`${rows.length} müşteri`} />
       <FlatList
-        data={filtered}
-        keyExtractor={(item) => String(item.id)}
+        data={rows}
+        keyExtractor={(item) => item.key}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -92,30 +112,40 @@ export default function CustomersScreen() {
             <SearchInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Ad, telefon veya e-posta ara"
+              placeholder="Cari kodu veya cari adı ara"
             />
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => router.push(customerHref(item.id))}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
-            </View>
-            <View style={styles.meta}>
-              <Text style={styles.name}>{item.name || 'Bilinmeyen müşteri'}</Text>
-              <Text style={styles.phone}>{item.phone || '-'}</Text>
-              <Text style={styles.count}>{item.ticketCount ?? 0} RMA Kaydı</Text>
-            </View>
-            <Text style={styles.chevron}>›</Text>
-          </Pressable>
-        )}
+        renderItem={({ item }) => {
+          const canOpen = Boolean(item.rmaCustomerId);
+          return (
+            <Pressable
+              style={styles.row}
+              disabled={!canOpen}
+              onPress={() => item.rmaCustomerId && router.push(customerHref(item.rmaCustomerId))}
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{getInitials(item.accountName)}</Text>
+              </View>
+              <View style={styles.meta}>
+                <Text style={styles.name}>{item.accountName}</Text>
+                <Text style={styles.code}>Cari Kodu: {item.accountCode}</Text>
+                {item.phone ? <Text style={styles.phone}>{item.phone}</Text> : null}
+                {typeof item.ticketCount === 'number' ? (
+                  <Text style={styles.count}>{item.ticketCount} RMA Kaydı</Text>
+                ) : null}
+              </View>
+              {canOpen ? <Text style={styles.chevron}>›</Text> : null}
+            </Pressable>
+          );
+        }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <EmptyState
             icon="people-outline"
             title="Müşteri bulunamadı"
-            description="Henüz bu hesaba ait müşteri veya RMA kaydı bulunmuyor."
+            description="Bu hesaba ait cari listesinde eşleşen kayıt bulunamadı."
           />
         }
       />
@@ -162,6 +192,11 @@ const styles = StyleSheet.create({
   name: {
     ...typography.subtitle,
     color: colors.text,
+  },
+  code: {
+    ...typography.caption,
+    color: colors.primaryDark,
+    fontWeight: '700',
   },
   phone: {
     ...typography.body,
