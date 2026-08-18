@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Card } from '@/components/ui/Card';
-import { colors, minTouchTarget, spacing, typography } from '@/constants/theme';
+import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 
 type QuickActionProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -14,33 +14,41 @@ type QuickActionProps = {
 
 export function QuickAction({ icon, label, onPress, disabled, badge }: QuickActionProps) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.wrap, pressed && styles.pressed]}>
-      <Card style={styles.card}>
+    <Card style={[styles.card, disabled ? styles.cardDisabled : undefined]} onPress={disabled ? undefined : onPress}>
+      <View style={styles.headerRow}>
         <View style={styles.iconWrap}>
-          <Ionicons name={icon} size={20} color={disabled ? colors.textMuted : colors.primary} />
+          <Ionicons name={icon} size={21} color={disabled ? colors.textMuted : colors.primary} />
         </View>
-        <Text style={[styles.label, disabled && styles.labelDisabled]}>{label}</Text>
-        {badge ? <Text style={styles.badge}>{badge}</Text> : null}
-      </Card>
-    </Pressable>
+        <Ionicons name="chevron-forward" size={16} color={disabled ? colors.border : colors.textMuted} />
+      </View>
+      <Text style={[styles.label, disabled && styles.labelDisabled]} numberOfLines={2}>{label}</Text>
+      {badge ? <Text style={styles.badge}>{badge}</Text> : null}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    width: '48%',
-  },
-  pressed: {
-    opacity: 0.95,
-  },
   card: {
-    minHeight: minTouchTarget + 28,
+    flex: 1,
+    minWidth: 0,
+    minHeight: minTouchTarget + 46,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  cardDisabled: {
+    opacity: 0.65,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   iconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 11,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -48,6 +56,7 @@ const styles = StyleSheet.create({
   label: {
     ...typography.bodyMedium,
     color: colors.text,
+    fontWeight: '700',
   },
   labelDisabled: {
     color: colors.textMuted,
