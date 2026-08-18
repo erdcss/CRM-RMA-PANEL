@@ -52,6 +52,7 @@ export type RmaProduct = {
   status: string;
   description?: string | null;
   quantity?: number | null;
+  createdAt?: string;
   statusHistory?: StatusHistoryEntry[];
 };
 
@@ -99,6 +100,26 @@ export type CatalogCustomer = {
   createdAt: string;
 };
 
+export type SupplierItem = {
+  id: number;
+  productId: number;
+  supplierAccountCode: string;
+  supplierName: string;
+  ownerUserId: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  product: RmaProduct & {
+    ticketId?: number;
+    ticket?: {
+      id: number;
+      receiptNumber?: string | null;
+      createdAt: string;
+      customer: RmaTicket['customer'];
+    };
+  };
+};
+
 export type DashboardStats = {
   totalTickets: number;
   activeReturns: number;
@@ -138,6 +159,17 @@ export type CreateTicketPayload = {
   }>;
 };
 
+export type UpdateProductPayload = {
+  name?: string;
+  serialNumber?: string | null;
+  stockCode?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  category?: 'iade' | 'degisim' | 'servis';
+  description?: string | null;
+  quantity?: number;
+};
+
 export const rmaApi = {
   listTickets: () => request<RmaTicket[]>('/api/tickets'),
   getTicket: (id: number) => request<RmaTicket>(`/api/tickets/${id}`),
@@ -153,10 +185,38 @@ export const rmaApi = {
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getDashboardStats: () => request<DashboardStats>('/api/stats/dashboard'),
+  updateProduct: (id: number, payload: UpdateProductPayload) =>
+    request<RmaProduct>(`/api/products/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   updateProductStatus: (id: number, status: string) =>
     request<RmaProduct>(`/api/products/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    }),
+  listSupplierItems: () => request<SupplierItem[]>('/api/supplier-items'),
+  addSupplierItem: (payload: {
+    productId: number;
+    supplierAccountCode: string;
+    supplierName: string;
+    notes?: string;
+  }) =>
+    request<SupplierItem>('/api/supplier-items', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  updateSupplierItem: (
+    id: number,
+    payload: { supplierAccountCode?: string; supplierName?: string; notes?: string | null },
+  ) =>
+    request<SupplierItem>(`/api/supplier-items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  deleteSupplierItem: (id: number) =>
+    request<{ message: string }>(`/api/supplier-items/${id}`, {
+      method: 'DELETE',
     }),
   deleteTicket: (id: number) =>
     request<{ message: string }>(`/api/tickets/${id}`, {
