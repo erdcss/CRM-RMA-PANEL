@@ -368,7 +368,7 @@ export default function Istatistikler() {
                         strokeWidth={2}
                         dot={(props) => {
                           const { cx, cy, payload } = props;
-                          if (cx == null || cy == null) return null;
+                          if (cx == null || cy == null) return <g />;
                           const item = payload as MonthlyStat;
                           return (
                             <circle

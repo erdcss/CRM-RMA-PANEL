@@ -155,7 +155,7 @@ export async function deleteSupplierItem(id: number, ownerUserId: string) {
   const deleted = await db
     .delete(supplierItems)
     .where(and(eq(supplierItems.id, id), eq(supplierItems.ownerUserId, ownerUserId)))
-    .returning({ id: supplierItems.id });
+    .returning();
 
   return deleted.length > 0;
 }
