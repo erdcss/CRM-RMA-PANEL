@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Card } from '@/components/ui/Card';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 
 type StatCardProps = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -14,49 +14,41 @@ type StatCardProps = {
 
 export function StatCard({ icon, value, label, tint = colors.primary, onPress }: StatCardProps) {
   return (
-    <Pressable
-      style={({ pressed }) => [styles.wrap, pressed && onPress ? styles.pressed : null]}
-      onPress={onPress}
-      disabled={!onPress}
-    >
-      <Card style={styles.card}>
+    <Card style={styles.card} onPress={onPress}>
+      <View style={styles.topRow}>
         <View style={[styles.iconWrap, { backgroundColor: `${tint}14` }]}>
-          <Ionicons name={icon} size={18} color={tint} />
+          <Ionicons name={icon} size={20} color={tint} />
         </View>
-        <View style={styles.valueRow}>
-          <Text style={styles.value}>{value}</Text>
-          {onPress ? <Ionicons name="chevron-forward" size={18} color={colors.textMuted} /> : null}
-        </View>
-        <Text style={styles.label}>{label}</Text>
-      </Card>
-    </Pressable>
+        {onPress ? <Ionicons name="chevron-forward" size={17} color={colors.textMuted} /> : null}
+      </View>
+
+      <Text style={styles.value}>{value}</Text>
+      <Text style={styles.label} numberOfLines={2}>{label}</Text>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    flex: 1,
-    minWidth: '47%',
-  },
-  pressed: {
-    opacity: 0.72,
-  },
   card: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 126,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     gap: spacing.sm,
-    padding: spacing.lg,
+    justifyContent: 'space-between',
   },
-  iconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  valueRow: {
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   value: {
     ...typography.title,
@@ -65,6 +57,7 @@ const styles = StyleSheet.create({
   label: {
     ...typography.caption,
     color: colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
+    minHeight: 32,
   },
 });
