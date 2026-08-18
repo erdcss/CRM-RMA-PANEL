@@ -50,50 +50,56 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.hero}>
-          <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
-          <Text style={styles.title}>Çalışkan RMA</Text>
-          <Text style={styles.subtitle}>Operasyon paneline giriş yapın</Text>
+        <View style={styles.mainContent}>
+          <View style={styles.hero}>
+            <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
+            <Text style={styles.title}>Çalışkan RMA</Text>
+            <Text style={styles.subtitle}>Operasyon paneline giriş yapın</Text>
+          </View>
+
+          <View style={styles.form}>
+            <FormField
+              label="E-posta"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="ornek@caliskangroup.com"
+            />
+            <FormField
+              label="Şifre"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholder="••••••••"
+              rightSlot={
+                <Pressable style={styles.eyeButton} onPress={() => setShowPassword((v) => !v)}>
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+              }
+            />
+
+            <Pressable
+              style={[styles.button, submitting && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={submitting}
+            >
+              <Text style={styles.buttonText}>{submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}</Text>
+            </Pressable>
+
+            <Pressable style={styles.linkButton} onPress={() => router.push('/signup' as never)}>
+              <Text style={styles.linkText}>Hesabınız yok mu? Kaydol</Text>
+            </Pressable>
+          </View>
         </View>
 
-        <View style={styles.form}>
-          <FormField
-            label="E-posta"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="ornek@caliskangroup.com"
-          />
-          <FormField
-            label="Şifre"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            placeholder="••••••••"
-            rightSlot={
-              <Pressable style={styles.eyeButton} onPress={() => setShowPassword((v) => !v)}>
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={colors.textMuted}
-                />
-              </Pressable>
-            }
-          />
-
-          <Pressable
-            style={[styles.button, submitting && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={submitting}
-          >
-            <Text style={styles.buttonText}>{submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}</Text>
-          </Pressable>
-
-          <Pressable style={styles.linkButton} onPress={() => router.push('/signup' as never)}>
-            <Text style={styles.linkText}>Hesabınız yok mu? Kaydol</Text>
-          </Pressable>
+        <View style={styles.poweredBy}>
+          <Text style={styles.poweredByText}>POWERED BY Orvian</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -107,8 +113,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    justifyContent: 'center',
     padding: spacing.xxl,
+    paddingTop: spacing.xxxl,
+    paddingBottom: spacing.xl,
+  },
+  mainContent: {
+    flex: 1,
+    justifyContent: 'center',
     gap: spacing.xxl,
   },
   hero: {
@@ -163,5 +174,18 @@ const styles = StyleSheet.create({
   linkText: {
     ...typography.bodyMedium,
     color: colors.primary,
+  },
+  poweredBy: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.sm,
+  },
+  poweredByText: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '500',
+    letterSpacing: 2,
+    color: colors.textMuted,
   },
 });
