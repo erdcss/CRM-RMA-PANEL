@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
@@ -8,24 +8,70 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { useCustomers } from '@/hooks/useRmaData';
+import { useCustomers, useTickets } from '@/hooks/useRmaData';
 import { getInitials } from '@/lib/format';
 import { customerHref } from '@/lib/routes';
+import type { RmaCustomer } from '@/lib/api';
 
 export default function CustomersScreen() {
   const router = useRouter();
-  const { customers, loading, refreshing, error, refresh } = useCustomers();
+  const {
+    customers,
+    loading: customersLoading,
+    refreshing: customersRefreshing,
+    error: customersError,
+    refresh: refreshCustomers,
+  } = useCustomers();
+  const {
+    tickets,
+    loading: ticketsLoading,
+    refreshing: ticketsRefreshing,
+    error: ticketsError,
+    refresh: refreshTickets,
+  } = useTickets();
   const [query, setQuery] = useState('');
+
+  const customerRows = useMemo<RmaCustomer[]>(() => {
+    if (customers.length > 0) return customers;
+
+    const fallback = new Map<number, RmaCustomer>();
+    for (const ticket of tickets) {
+      const existing = fallback.get(ticket.customer.id);
+      if (existing) {
+        existing.ticketCount = (existing.ticketCount ?? 0) + 1;
+        continue;
+      }
+
+      fallback.set(ticket.customer.id, {
+        id: ticket.customer.id,
+        name: ticket.customer.name,
+        phone: ticket.customer.phone,
+        email: ticket.customer.email,
+        address: ticket.customer.address,
+        ticketCount: 1,
+      });
+    }
+
+    return Array.from(fallback.values());
+  }, [customers, tickets]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter((customer) =>
+    if (!q) return customerRows;
+    return customerRows.filter((customer) =>
       [customer.name, customer.phone, customer.email].filter(Boolean).join(' ').toLowerCase().includes(q),
     );
-  }, [customers, query]);
+  }, [customerRows, query]);
 
-  if (loading) {
+  const loading = customersLoading && ticketsLoading;
+  const refreshing = customersRefreshing || ticketsRefreshing;
+  const error = customersError ?? ticketsError;
+
+  const refresh = useCallback(() => {
+    void Promise.all([refreshCustomers(), refreshTickets()]);
+  }, [refreshCustomers, refreshTickets]);
+
+  if (loading && customerRows.length === 0) {
     return (
       <Screen>
         <LoadingState />
@@ -35,7 +81,7 @@ export default function CustomersScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Müşteriler" />
+      <AppHeader title="Müşteriler" subtitle={`${customerRows.length} müşteri`} />
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
@@ -69,7 +115,7 @@ export default function CustomersScreen() {
           <EmptyState
             icon="people-outline"
             title="Müşteri bulunamadı"
-            description="Yeni RMA oluştururken müşteri kaydı eklenebilir."
+            description="Henüz bu hesaba ait müşteri veya RMA kaydı bulunmuyor."
           />
         }
       />
