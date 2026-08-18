@@ -15,7 +15,7 @@ import { useTicketProductPhotos } from '@/hooks/useProductPhotos';
 import { rmaApi, type RmaProduct } from '@/lib/api';
 import { getAttachmentSignedUrl, uploadProductPhoto } from '@/lib/attachments';
 import { formatDateTime, formatRmaId } from '@/lib/format';
-import { shareTicketPdf } from '@/lib/pdf';
+import { previewTicketPdf, shareTicketPdf } from '@/lib/pdf';
 
 export default function RecordDetailScreen() {
   const router = useRouter();
@@ -27,6 +27,7 @@ export default function RecordDetailScreen() {
   const [selectedProduct, setSelectedProduct] = useState<RmaProduct | null>(null);
   const [updating, setUpdating] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadingProductId, setUploadingProductId] = useState<number | null>(null);
 
@@ -72,6 +73,18 @@ export default function RecordDetailScreen() {
       Alert.alert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handlePdfPreview = async () => {
+    if (!ticket) return;
+    setPreviewing(true);
+    try {
+      await previewTicketPdf(ticket);
+    } catch (err) {
+      Alert.alert('PDF görüntülenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+    } finally {
+      setPreviewing(false);
     }
   };
 
@@ -179,8 +192,20 @@ export default function RecordDetailScreen() {
       </ScrollView>
 
       <View style={styles.actions}>
-        <ActionButton label={sharing ? 'PDF…' : 'PDF Oluştur'} onPress={handlePdf} disabled={sharing} />
-        <ActionButton label="Paylaş" onPress={handleShare} />
+        <ActionButton
+          icon="eye-outline"
+          label={previewing ? 'Açılıyor…' : 'PDF Görüntüle'}
+          onPress={handlePdfPreview}
+          disabled={previewing}
+        />
+        <ActionButton
+          icon="document-text-outline"
+          label={sharing ? 'PDF…' : 'PDF Paylaş'}
+          onPress={handlePdf}
+          disabled={sharing}
+        />
+        <ActionButton icon="share-outline" label="Paylaş" onPress={handleShare} />
+        <ActionButton icon="home-outline" label="Ana Sayfaya Dön" onPress={() => router.replace('/(tabs)')} />
       </View>
 
       <StatusSheet
@@ -225,17 +250,20 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function ActionButton({
+  icon,
   label,
   onPress,
   disabled,
 }: {
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   disabled?: boolean;
 }) {
   return (
     <Pressable style={[styles.actionButton, disabled && styles.actionDisabled]} onPress={onPress} disabled={disabled}>
-      <Text style={styles.actionText}>{label}</Text>
+      <Ionicons name={icon} size={17} color={colors.primaryDark} />
+      <Text style={styles.actionText} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 }
@@ -291,6 +319,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -299,20 +328,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   actionButton: {
-    flex: 1,
+    width: '48%',
+    flexGrow: 1,
+    minWidth: 0,
     minHeight: minTouchTarget,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.primarySoft,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   actionDisabled: {
     opacity: 0.6,
   },
   actionText: {
-    ...typography.bodyMedium,
-    color: colors.surface,
+    ...typography.caption,
+    color: colors.primaryDark,
     fontWeight: '700',
+    flexShrink: 1,
   },
   errorWrap: {
     padding: spacing.lg,
