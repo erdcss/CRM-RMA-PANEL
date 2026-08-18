@@ -54,10 +54,6 @@ export function FilterModal({ visible, filters, onClose, onChange }: FilterModal
                   />
                 ))}
               </View>
-
-              <Text style={styles.note}>
-                Tarih aralığı, marka ve müşteri filtreleri backend desteği eklendiğinde aktif edilecek.
-              </Text>
             </ScrollView>
             <Pressable style={styles.button} onPress={onClose}>
               <Text style={styles.buttonText}>Uygula</Text>
@@ -107,11 +103,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-  },
-  note: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
   },
   button: {
     minHeight: minTouchTarget,
