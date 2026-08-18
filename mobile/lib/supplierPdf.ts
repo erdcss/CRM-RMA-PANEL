@@ -106,7 +106,12 @@ function buildSupplierHtml(supplierName: string, supplierCode: string, items: Su
   </html>`;
 }
 
-export async function shareSupplierPdf(supplierName: string, supplierCode: string, items: SupplierItem[]) {
+export async function previewSupplierPdf(supplierName: string, supplierCode: string, items: SupplierItem[]) {
+  if (items.length === 0) throw new Error('PDF görüntülemek için tedarikçi listesinde ürün bulunmuyor.');
+  await Print.printAsync({ html: buildSupplierHtml(supplierName, supplierCode, items) });
+}
+
+export async function createSupplierPdf(supplierName: string, supplierCode: string, items: SupplierItem[]) {
   if (items.length === 0) throw new Error('PDF oluşturmak için tedarikçi listesinde ürün bulunmuyor.');
 
   const { uri } = await Print.printToFileAsync({
@@ -118,14 +123,20 @@ export async function shareSupplierPdf(supplierName: string, supplierCode: strin
   await FileSystem.deleteAsync(targetUri, { idempotent: true });
   await FileSystem.copyAsync({ from: uri, to: targetUri });
 
+  return { uri: targetUri, fileName };
+}
+
+export async function shareSupplierPdf(supplierName: string, supplierCode: string, items: SupplierItem[]) {
+  const { uri, fileName } = await createSupplierPdf(supplierName, supplierCode, items);
+
   const available = await Sharing.isAvailableAsync();
   if (!available) throw new Error('Bu cihazda PDF paylaşımı kullanılamıyor.');
 
-  await Sharing.shareAsync(targetUri, {
+  await Sharing.shareAsync(uri, {
     UTI: 'com.adobe.pdf',
     mimeType: 'application/pdf',
     dialogTitle: fileName.replace(/\.pdf$/i, ''),
   });
 
-  return targetUri;
+  return uri;
 }
