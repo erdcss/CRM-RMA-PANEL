@@ -52,7 +52,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.hero}>
           <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
-          <Text style={styles.title}>Çalışkan Corse</Text>
+          <Text style={styles.title}>Çalışkan RMA</Text>
           <Text style={styles.subtitle}>Operasyon paneline giriş yapın</Text>
         </View>
 

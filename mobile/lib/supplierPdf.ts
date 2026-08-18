@@ -66,7 +66,7 @@ function buildSupplierHtml(supplierName: string, supplierCode: string, items: Su
       <div class="header">
         <div>
           <h1>Tedarikçi Ürün Teslim Listesi</h1>
-          <div class="muted">ÇALIŞKAN CORE · RMA Operasyon</div>
+          <div class="muted">ÇALIŞKAN RMA · RMA Operasyon</div>
         </div>
         <div>
           <strong>${escapeHtml(now.toLocaleDateString('tr-TR'))}</strong><br />

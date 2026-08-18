@@ -70,7 +70,7 @@ export default function SignupScreen() {
         <View style={styles.hero}>
           <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
           <Text style={styles.title}>Kaydol</Text>
-          <Text style={styles.subtitle}>Kişisel Çalışkan Corse hesabınızı oluşturun</Text>
+          <Text style={styles.subtitle}>Kişisel Çalışkan RMA hesabınızı oluşturun</Text>
         </View>
 
         <View style={styles.form}>
