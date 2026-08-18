@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -27,7 +28,8 @@ const SECTIONS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, deleteAccount } = useAuth();
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const handleLogout = () => {
     Alert.alert('Çıkış Yap', 'Oturumunuz kapatılacak.', [
@@ -42,6 +44,50 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const performAccountDeletion = async () => {
+    if (deletingAccount) return;
+    setDeletingAccount(true);
+    try {
+      await deleteAccount();
+    } catch (error) {
+      setDeletingAccount(false);
+      Alert.alert(
+        'Hesap Silinemedi',
+        error instanceof Error ? error.message : 'Hesap silme işlemi tamamlanamadı.',
+      );
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Hesabımı Sil',
+      'Bu işlem geri alınamaz. Hesabınız, size ait RMA kayıtları, ürün ve cari katalogları ile tedarikçi kayıtları kalıcı olarak silinir.',
+      [
+        { text: 'Vazgeç', style: 'cancel' },
+        {
+          text: 'Devam Et',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Son Onay',
+              'Hesabınızı ve hesabınıza bağlı verileri kalıcı olarak silmek istediğinizden emin misiniz?',
+              [
+                { text: 'Vazgeç', style: 'cancel' },
+                {
+                  text: 'Hesabımı Sil',
+                  style: 'destructive',
+                  onPress: () => {
+                    void performAccountDeletion();
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
   };
 
   if (loading) {
@@ -93,6 +139,17 @@ export default function ProfileScreen() {
 
         <Pressable style={styles.logout} onPress={handleLogout}>
           <Text style={styles.logoutText}>Çıkış Yap</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.deleteAccount, deletingAccount && styles.disabledAction]}
+          onPress={handleDeleteAccount}
+          disabled={deletingAccount}
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+          <Text style={styles.deleteAccountText}>
+            {deletingAccount ? 'Hesap Siliniyor...' : 'Hesabımı Sil'}
+          </Text>
         </Pressable>
       </ScrollView>
     </Screen>
@@ -182,5 +239,24 @@ const styles = StyleSheet.create({
   logoutText: {
     ...typography.bodyMedium,
     color: colors.danger,
+  },
+  deleteAccount: {
+    minHeight: minTouchTarget,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  deleteAccountText: {
+    ...typography.bodyMedium,
+    color: colors.danger,
+  },
+  disabledAction: {
+    opacity: 0.6,
   },
 });
