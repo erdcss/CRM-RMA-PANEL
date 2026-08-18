@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { registerAccountRoutes } from "./account";
+import { ensureAppReviewDemoData } from "./app-review-seed";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -93,6 +94,7 @@ app.use((req, res, next) => {
 
   server.listen(listenOptions, () => {
     log(`serving on http://0.0.0.0:${port}`);
+    void ensureAppReviewDemoData();
   });
 })().catch((err) => {
   console.error("Failed to start server:", err);
