@@ -222,4 +222,8 @@ export const rmaApi = {
     request<{ message: string }>(`/api/tickets/${id}`, {
       method: 'DELETE',
     }),
+  deleteAccount: () =>
+    request<{ message: string }>('/api/account', {
+      method: 'DELETE',
+    }),
 };
