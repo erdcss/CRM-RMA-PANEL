@@ -9,6 +9,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.gl
   index: { label: 'Ana Sayfa', icon: 'home-outline' },
   records: { label: 'Kayıtlar', icon: 'list-outline' },
   'new-rma': { label: 'Yeni RMA', icon: 'add' },
+  suppliers: { label: 'Tedarikçi', icon: 'business-outline' },
   products: { label: 'Ürünler', icon: 'cube-outline' },
   customers: { label: 'Müşteriler', icon: 'people-outline' },
   profile: { label: 'Hesabım', icon: 'person-outline' },
@@ -35,7 +36,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           return (
             <Pressable key={route.key} onPress={onPress} style={styles.centerWrap}>
               <View style={[styles.centerButton, focused && styles.centerButtonActive]}>
-                <Ionicons name="add" size={26} color={colors.surface} />
+                <Ionicons name="add" size={25} color={colors.surface} />
               </View>
               <Text numberOfLines={1} style={[styles.centerLabel, focused && styles.labelActive]}>
                 {config.label}
@@ -48,7 +49,7 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           <Pressable key={route.key} onPress={onPress} style={styles.tab}>
             <Ionicons
               name={config.icon}
-              size={21}
+              size={20}
               color={focused ? colors.primary : colors.textMuted}
             />
             <Text numberOfLines={1} style={[styles.label, focused && styles.labelActive]}>
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingTop: spacing.sm,
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: 2,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
@@ -79,12 +80,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: minTouchTarget,
     gap: 2,
-    paddingHorizontal: 1,
+    paddingHorizontal: 0,
   },
   label: {
     ...typography.caption,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 9,
+    lineHeight: 11,
     color: colors.textMuted,
     fontWeight: '600',
     textAlign: 'center',
@@ -95,13 +96,13 @@ const styles = StyleSheet.create({
   centerWrap: {
     flex: 1,
     alignItems: 'center',
-    marginTop: -18,
-    gap: 4,
-    paddingHorizontal: 1,
+    marginTop: -17,
+    gap: 3,
+    paddingHorizontal: 0,
   },
   centerButton: {
-    width: 52,
-    height: 52,
+    width: 50,
+    height: 50,
     borderRadius: radius.full,
     backgroundColor: colors.primary,
     alignItems: 'center',
@@ -114,8 +115,8 @@ const styles = StyleSheet.create({
   },
   centerLabel: {
     ...typography.caption,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 9,
+    lineHeight: 11,
     color: colors.textMuted,
     fontWeight: '700',
     textAlign: 'center',
