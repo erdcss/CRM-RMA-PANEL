@@ -18,6 +18,7 @@ import KayitDetay from "@/pages/kayit-detay";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/kaydol";
 import PrivacyPage from "@/pages/privacy";
+import SupportPage from "@/pages/support";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -80,7 +81,9 @@ function AppGate() {
   const [location, setLocation] = useLocation();
 
   const isAuthPage = location === "/login" || location === "/kaydol";
-  const isPublicPage = location === "/privacy";
+  const isPrivacyPage = location === "/privacy";
+  const isSupportPage = location === "/support";
+  const isPublicPage = isPrivacyPage || isSupportPage;
 
   useEffect(() => {
     if (loading) return;
@@ -95,8 +98,12 @@ function AppGate() {
     }
   }, [session, loading, isAuthPage, isPublicPage, setLocation]);
 
-  if (isPublicPage) {
+  if (isPrivacyPage) {
     return <PrivacyPage />;
+  }
+
+  if (isSupportPage) {
+    return <SupportPage />;
   }
 
   if (loading) {
