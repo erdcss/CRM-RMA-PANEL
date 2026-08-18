@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Çalışkan RMA",
+    "slug": "caliskan-rma",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "caliskanrma",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.caliskangroup.rma",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.caliskangroup.rma"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b798642-00ea-462b-af15-07b2a3a54c5c"
+      }
+    },
+    "owner": "erdcls"
+  }
+}
