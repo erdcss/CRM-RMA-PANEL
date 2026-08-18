@@ -15,6 +15,7 @@ interface ProductCardProps {
     status: string;
     createdAt: string;
     ticket?: {
+      id: number;
       customer?: {
         name: string;
       };
