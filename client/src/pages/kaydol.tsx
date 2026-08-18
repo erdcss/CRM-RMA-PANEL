@@ -55,10 +55,10 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-6">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <img src="/logo.png" alt="Çalışkan Corse" className="h-20 w-20 mx-auto object-contain" />
+          <img src="/logo.png" alt="Çalışkan RMA" className="h-20 w-20 mx-auto object-contain" />
           <div>
             <CardTitle className="text-2xl">Kaydol</CardTitle>
-            <CardDescription>Çalışkan Corse hesabınızı oluşturun</CardDescription>
+            <CardDescription>Çalışkan RMA hesabınızı oluşturun</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
