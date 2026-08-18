@@ -128,7 +128,7 @@ export async function updateSupplierItem(
   input: SupplierAssignmentUpdate,
 ) {
   await ensureSupplierItemsTable();
-  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  const patch: Partial<typeof supplierItems.$inferInsert> = { updatedAt: new Date() };
   if (input.supplierAccountCode !== undefined) patch.supplierAccountCode = input.supplierAccountCode.trim();
   if (input.supplierName !== undefined) patch.supplierName = input.supplierName.trim();
   if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
@@ -168,7 +168,7 @@ export async function updateOwnedProduct(
   const owned = await getOwnedProduct(productId, ownerUserId);
   if (!owned) return undefined;
 
-  const patch: Record<string, unknown> = {};
+  const patch: Partial<typeof products.$inferInsert> = {};
   if (input.name !== undefined) patch.name = input.name.trim();
   if (input.stockCode !== undefined) patch.stockCode = input.stockCode?.trim() || null;
   if (input.brand !== undefined) patch.brand = input.brand?.trim() || null;
