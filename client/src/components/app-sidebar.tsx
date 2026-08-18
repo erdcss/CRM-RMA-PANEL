@@ -41,7 +41,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className="text-lg font-bold flex items-center gap-2">
             <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
-            Çalışkan Corse
+            Çalışkan RMA
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -72,7 +72,7 @@ export function AppSidebar() {
           Çıkış Yap
         </button>
         <div className="flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">Çalışkan Corse v1.0</span>
+          <span className="text-xs text-muted-foreground">Çalışkan RMA v1.0</span>
         </div>
       </SidebarFooter>
     </Sidebar>
