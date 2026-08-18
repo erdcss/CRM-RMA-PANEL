@@ -5,6 +5,8 @@ import { storage } from "./storage";
 const APP_REVIEW_EMAIL = "caliskanrma.review@gmail.com";
 const APP_REVIEW_RECEIPT = "APP-REVIEW-DEMO-001";
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function findReviewUserId(): Promise<string | undefined> {
   const url = process.env.SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY;
@@ -40,11 +42,10 @@ async function findReviewUserId(): Promise<string | undefined> {
   return undefined;
 }
 
-export async function ensureAppReviewDemoData(): Promise<void> {
+async function seedOnce(): Promise<boolean> {
   const ownerUserId = await findReviewUserId();
   if (!ownerUserId) {
-    console.warn(`App Review seed skipped: ${APP_REVIEW_EMAIL} was not found.`);
-    return;
+    return false;
   }
 
   const existingTickets = await storage.getTickets(ownerUserId);
@@ -56,7 +57,7 @@ export async function ensureAppReviewDemoData(): Promise<void> {
 
   if (alreadySeeded) {
     console.log("App Review demo data already exists.");
-    return;
+    return true;
   }
 
   const customer = await storage.findOrCreateCustomer({
@@ -93,4 +94,25 @@ export async function ensureAppReviewDemoData(): Promise<void> {
   });
 
   console.log(`App Review demo data created for ${APP_REVIEW_EMAIL}.`);
+  return true;
+}
+
+export async function ensureAppReviewDemoData(): Promise<void> {
+  const maxAttempts = 20;
+  const retryDelayMs = 5000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      if (await seedOnce()) return;
+      console.log(`App Review demo user not found yet; retry ${attempt}/${maxAttempts}.`);
+    } catch (error) {
+      console.error(`App Review demo seed attempt ${attempt}/${maxAttempts} failed:`, error);
+    }
+
+    if (attempt < maxAttempts) {
+      await sleep(retryDelayMs);
+    }
+  }
+
+  console.error("App Review demo data could not be created after retries.");
 }
