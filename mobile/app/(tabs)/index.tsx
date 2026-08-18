@@ -28,7 +28,7 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <AppHeader title="RMA Merkezi" subtitle="Operasyon Merkezi" showActions notificationCount={0} avatarLabel="RMA" />
+      <AppHeader title="RMA Merkezi" subtitle="Canlı Operasyon Merkezi" />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
@@ -37,18 +37,41 @@ export default function HomeScreen() {
 
         <SectionHeader title="Genel Durum" />
         <View style={styles.statsGrid}>
-          <StatCard icon="folder-open-outline" value={kpis.openRecords} label="Açık Kayıtlar" />
-          <StatCard icon="construct-outline" value={kpis.inService} label="Serviste" tint={colors.purple} />
-          <StatCard icon="swap-horizontal-outline" value={kpis.exchangePending} label="Değişim Bekleyen" tint={colors.orange} />
-          <StatCard icon="checkmark-circle-outline" value={kpis.completed} label="Tamamlanan" tint={colors.success} />
+          <StatCard
+            icon="folder-open-outline"
+            value={kpis.openRecords}
+            label="Açık Ürünler"
+            onPress={() => router.push('/(tabs)/records?view=open')}
+          />
+          <StatCard
+            icon="construct-outline"
+            value={kpis.inService}
+            label="Serviste"
+            tint={colors.purple}
+            onPress={() => router.push('/(tabs)/records?status=serviste')}
+          />
+          <StatCard
+            icon="swap-horizontal-outline"
+            value={kpis.exchangePending}
+            label="Değişim Bekleyen"
+            tint={colors.orange}
+            onPress={() => router.push('/(tabs)/records?category=degisim')}
+          />
+          <StatCard
+            icon="checkmark-circle-outline"
+            value={kpis.completed}
+            label="Müşteriye Teslim"
+            tint={colors.success}
+            onPress={() => router.push('/(tabs)/records?status=teslim_edildi')}
+          />
         </View>
 
         <SectionHeader title="Hızlı İşlemler" />
         <View style={styles.quickActions}>
           <QuickAction icon="add-circle-outline" label="Yeni RMA" onPress={() => router.push('/(tabs)/new-rma')} />
-          <QuickAction icon="barcode-outline" label="Barkod / Seri No Ara" disabled badge="Yakında" />
+          <QuickAction icon="business-outline" label="Tedarikçiler" onPress={() => router.push('/(tabs)/suppliers')} />
           <QuickAction icon="search-outline" label="Müşteri Bul" onPress={() => router.push('/(tabs)/customers')} />
-          <QuickAction icon="document-outline" label="PDF / Evraklar" disabled badge="Yakında" />
+          <QuickAction icon="cube-outline" label="Ürün Listesi" onPress={() => router.push('/(tabs)/products')} />
         </View>
 
         <SectionHeader
