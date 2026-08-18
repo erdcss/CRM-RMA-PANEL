@@ -259,6 +259,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     padding: spacing.xxl,
+    paddingTop: spacing.xxxl + spacing.xl,
     gap: spacing.xl,
   },
   back: {
@@ -266,6 +267,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
     alignSelf: 'flex-start',
+    minHeight: minTouchTarget,
+    paddingHorizontal: spacing.xs,
   },
   backText: {
     ...typography.bodyMedium,
@@ -274,7 +277,7 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.lg,
+    marginTop: spacing.sm,
   },
   logoImage: {
     width: 96,
@@ -356,7 +359,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalTitle: {
-    ...typography.title2,
+    ...typography.title,
     color: colors.text,
   },
   modalVersion: {
