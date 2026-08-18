@@ -31,17 +31,15 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
         };
 
-        if (route.name === 'customers') {
-          return null;
-        }
-
         if (route.name === 'new-rma') {
           return (
             <Pressable key={route.key} onPress={onPress} style={styles.centerWrap}>
               <View style={[styles.centerButton, focused && styles.centerButtonActive]}>
                 <Ionicons name="add" size={26} color={colors.surface} />
               </View>
-              <Text style={[styles.centerLabel, focused && styles.labelActive]}>{config.label}</Text>
+              <Text numberOfLines={1} style={[styles.centerLabel, focused && styles.labelActive]}>
+                {config.label}
+              </Text>
             </Pressable>
           );
         }
@@ -50,10 +48,12 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           <Pressable key={route.key} onPress={onPress} style={styles.tab}>
             <Ionicons
               name={config.icon}
-              size={22}
+              size={21}
               color={focused ? colors.primary : colors.textMuted}
             />
-            <Text style={[styles.label, focused && styles.labelActive]}>{config.label}</Text>
+            <Text numberOfLines={1} style={[styles.label, focused && styles.labelActive]}>
+              {config.label}
+            </Text>
           </Pressable>
         );
       })}
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingTop: spacing.sm,
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
@@ -79,11 +79,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: minTouchTarget,
     gap: 2,
+    paddingHorizontal: 1,
   },
   label: {
     ...typography.caption,
+    fontSize: 10,
+    lineHeight: 12,
     color: colors.textMuted,
     fontWeight: '600',
+    textAlign: 'center',
   },
   labelActive: {
     color: colors.primary,
@@ -93,6 +97,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: -18,
     gap: 4,
+    paddingHorizontal: 1,
   },
   centerButton: {
     width: 52,
@@ -109,7 +114,10 @@ const styles = StyleSheet.create({
   },
   centerLabel: {
     ...typography.caption,
+    fontSize: 10,
+    lineHeight: 12,
     color: colors.textMuted,
     fontWeight: '700',
+    textAlign: 'center',
   },
 });
