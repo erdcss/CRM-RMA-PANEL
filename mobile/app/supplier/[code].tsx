@@ -27,7 +27,7 @@ import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type CatalogCustomer, type SupplierItem } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
 import { recordHref } from '@/lib/routes';
-import { shareSupplierPdf } from '@/lib/supplierPdf';
+import { previewSupplierPdf, shareSupplierPdf } from '@/lib/supplierPdf';
 
 type EditDraft = {
   name: string;
@@ -66,6 +66,7 @@ export default function SupplierDetailScreen() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [moveItem, setMoveItem] = useState<SupplierItem | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   const supplierItems = useMemo(
     () => items.filter((item) => item.supplierAccountCode === supplierCode),
@@ -165,6 +166,18 @@ export default function SupplierDetailScreen() {
     );
   };
 
+  const previewPdf = async () => {
+    if (supplierItems.length === 0) return;
+    setPreviewing(true);
+    try {
+      await previewSupplierPdf(supplierName, supplierCode, supplierItems);
+    } catch (err) {
+      Alert.alert('PDF görüntülenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   const exportPdf = async () => {
     if (supplierItems.length === 0) return;
     setSharing(true);
@@ -191,11 +204,6 @@ export default function SupplierDetailScreen() {
         title={supplierName}
         subtitle={supplierCode ? `Cari: ${supplierCode}` : 'Tedarikçi detayı'}
         onBack={() => router.back()}
-        rightSlot={
-          <Pressable style={styles.headerButton} onPress={exportPdf} disabled={sharing || supplierItems.length === 0}>
-            <Ionicons name="document-text-outline" size={20} color={colors.primaryDark} />
-          </Pressable>
-        }
       />
 
       <ScrollView
@@ -210,10 +218,25 @@ export default function SupplierDetailScreen() {
           <SummaryBox label="Açık" value={String(openCount)} />
         </View>
 
-        <Pressable style={styles.pdfAction} onPress={exportPdf} disabled={sharing || supplierItems.length === 0}>
-          <Ionicons name="document-text-outline" size={19} color={colors.primaryDark} />
-          <Text style={styles.pdfActionText}>{sharing ? 'PDF hazırlanıyor…' : 'Tedarikçi Listesini PDF Olarak Dışa Aktar'}</Text>
-        </Pressable>
+        <View style={styles.pdfActions}>
+          <Pressable
+            style={[styles.pdfAction, (previewing || supplierItems.length === 0) && styles.disabled]}
+            onPress={previewPdf}
+            disabled={previewing || supplierItems.length === 0}
+          >
+            <Ionicons name="eye-outline" size={19} color={colors.primaryDark} />
+            <Text style={styles.pdfActionText}>{previewing ? 'Açılıyor…' : 'PDF Görüntüle'}</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.pdfAction, (sharing || supplierItems.length === 0) && styles.disabled]}
+            onPress={exportPdf}
+            disabled={sharing || supplierItems.length === 0}
+          >
+            <Ionicons name="share-outline" size={19} color={colors.primaryDark} />
+            <Text style={styles.pdfActionText}>{sharing ? 'Hazırlanıyor…' : 'PDF Paylaş'}</Text>
+          </Pressable>
+        </View>
 
         {supplierItems.length === 0 ? (
           <EmptyState
@@ -281,11 +304,7 @@ export default function SupplierDetailScreen() {
                   ) : null}
 
                   <View style={styles.actionsGrid}>
-                    <ActionButton
-                      icon="sync-outline"
-                      label="Durum"
-                      onPress={() => setStatusItem(item)}
-                    />
+                    <ActionButton icon="sync-outline" label="Durum" onPress={() => setStatusItem(item)} />
                     <ActionButton icon="create-outline" label="Düzenle" onPress={() => openEdit(item)} />
                     <ActionButton icon="swap-horizontal-outline" label="Tedarikçi" onPress={() => setMoveItem(item)} />
                     <ActionButton
@@ -441,7 +460,13 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textSecondary,
   },
+  pdfActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
   pdfAction: {
+    flex: 1,
+    minWidth: 0,
     minHeight: minTouchTarget,
     borderWidth: 1,
     borderColor: colors.primary,
@@ -450,12 +475,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   pdfActionText: {
-    ...typography.bodyMedium,
+    ...typography.caption,
     color: colors.primaryDark,
+    fontWeight: '700',
+    flexShrink: 1,
   },
   list: {
     gap: spacing.lg,
