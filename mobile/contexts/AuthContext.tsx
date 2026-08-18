@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { Session, User } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
+import { rmaApi } from '@/lib/api';
 
 type AuthContextValue = {
   session: Session | null;
@@ -10,6 +11,7 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -47,6 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut() {
         const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      },
+      async deleteAccount() {
+        await rmaApi.deleteAccount();
+        const { error } = await supabase.auth.signOut({ scope: 'local' });
         if (error) throw error;
       },
     }),
