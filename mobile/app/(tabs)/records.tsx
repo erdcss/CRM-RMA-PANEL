@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { FilterModal, type RecordFilters } from '@/components/rma/FilterModal';
 import { RmaCard } from '@/components/rma/RmaCard';
@@ -26,6 +26,7 @@ function matchesTicket(
   },
   query: string,
   filters: RecordFilters,
+  view?: string,
 ) {
   const q = query.trim().toLowerCase();
   const haystack = [
@@ -39,6 +40,10 @@ function matchesTicket(
     .toLowerCase();
 
   if (q && !haystack.includes(q)) return false;
+
+  if (view === 'open') {
+    if (!ticket.products.some((product) => !['teslim_edildi', 'iptal'].includes(product.status))) return false;
+  }
 
   if (filters.status !== 'all') {
     const statusMatch =
@@ -57,12 +62,22 @@ function matchesTicket(
 
 export default function RecordsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ status?: string; category?: string; view?: string }>();
   const { tickets, loading, refreshing, error, refresh } = useTickets();
   const [query, setQuery] = useState('');
   const [activeChip, setActiveChip] = useState('all');
   const [filters, setFilters] = useState<RecordFilters>({ status: 'all', category: 'all' });
+  const [activeView, setActiveView] = useState<string | undefined>();
   const [filterOpen, setFilterOpen] = useState(false);
   const isFirstFocus = useRef(true);
+
+  useEffect(() => {
+    const status = typeof params.status === 'string' ? params.status : 'all';
+    const category = typeof params.category === 'string' ? params.category : 'all';
+    setActiveChip(status);
+    setFilters((current) => ({ ...current, status, category }));
+    setActiveView(typeof params.view === 'string' ? params.view : undefined);
+  }, [params.category, params.status, params.view]);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,13 +92,24 @@ export default function RecordsScreen() {
   const filtered = useMemo(
     () =>
       tickets.filter((ticket) =>
-        matchesTicket(ticket, query, {
-          status: activeChip,
-          category: filters.category,
-        }),
+        matchesTicket(
+          ticket,
+          query,
+          {
+            status: activeChip,
+            category: filters.category,
+          },
+          activeView,
+        ),
       ),
-    [tickets, query, activeChip, filters.category],
+    [tickets, query, activeChip, filters.category, activeView],
   );
+
+  const setChip = (chip: string) => {
+    setActiveView(undefined);
+    setActiveChip(chip);
+    setFilters((current) => ({ ...current, status: chip }));
+  };
 
   if (loading) {
     return (
@@ -116,13 +142,19 @@ export default function RecordsScreen() {
               </Pressable>
             </View>
 
+            {activeView === 'open' ? (
+              <Pressable style={styles.activeView} onPress={() => setActiveView(undefined)}>
+                <Text style={styles.activeViewText}>Açık ürünler gösteriliyor · Temizle</Text>
+              </Pressable>
+            ) : null}
+
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
               {FILTER_CHIPS.map((chip) => (
                 <FilterChip
                   key={chip.id}
                   label={chip.label}
-                  active={activeChip === chip.id}
-                  onPress={() => setActiveChip(chip.id)}
+                  active={activeChip === chip.id && !activeView}
+                  onPress={() => setChip(chip.id)}
                 />
               ))}
             </ScrollView>
@@ -138,7 +170,7 @@ export default function RecordsScreen() {
           <EmptyState
             icon="search-outline"
             title="Kayıt bulunamadı"
-            description="Filtrelerinizi değiştirin veya yeni bir RMA oluşturun."
+            description="Seçili filtrelerde gerçek RMA kaydı bulunmuyor."
             actionLabel="Yeni RMA Oluştur"
             onAction={() => router.push('/(tabs)/new-rma')}
           />
@@ -149,7 +181,11 @@ export default function RecordsScreen() {
         visible={filterOpen}
         filters={filters}
         onClose={() => setFilterOpen(false)}
-        onChange={setFilters}
+        onChange={(next) => {
+          setActiveView(undefined);
+          setFilters(next);
+          setActiveChip(next.status);
+        }}
       />
     </Screen>
   );
@@ -186,6 +222,18 @@ const styles = StyleSheet.create({
   filterText: {
     ...typography.bodyMedium,
     color: colors.text,
+  },
+  activeView: {
+    alignSelf: 'flex-start',
+    borderRadius: radius.full,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  activeViewText: {
+    ...typography.caption,
+    color: colors.primaryDark,
+    fontWeight: '700',
   },
   chips: {
     paddingRight: spacing.lg,
