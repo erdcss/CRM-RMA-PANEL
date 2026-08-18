@@ -11,8 +11,10 @@ type ScreenProps = {
 };
 
 export function Screen({ children, style, edges = ['top'] }: ScreenProps) {
+  const safeEdges = Array.from(new Set(['top', ...edges])) as ('top' | 'bottom' | 'left' | 'right')[];
+
   return (
-    <SafeAreaView style={[styles.screen, style]} edges={edges}>
+    <SafeAreaView style={[styles.screen, style]} edges={safeEdges}>
       {children}
     </SafeAreaView>
   );
@@ -26,8 +28,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
+    overflow: 'hidden',
   },
   content: {
     flex: 1,
+    minWidth: 0,
+    overflow: 'hidden',
   },
 });
