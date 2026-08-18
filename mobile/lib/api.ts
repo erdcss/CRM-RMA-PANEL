@@ -4,9 +4,13 @@ const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
-  const userId = data.session?.user?.id;
+  const session = data.session;
+  const userId = session?.user?.id;
   if (!userId) return {};
-  return { 'X-Owner-User-Id': userId };
+  return {
+    'X-Owner-User-Id': userId,
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -61,6 +65,7 @@ export type RmaTicket = {
     id: number;
     name: string | null;
     phone: string | null;
+    accountCode?: string | null;
     email?: string | null;
     address?: string | null;
   };
@@ -71,6 +76,7 @@ export type RmaCustomer = {
   id: number;
   name: string | null;
   phone: string | null;
+  accountCode?: string | null;
   email?: string | null;
   address?: string | null;
   createdAt?: string;
@@ -81,6 +87,14 @@ export type CatalogProduct = {
   id: number;
   stockCode: string;
   stockName: string;
+  ownerUserId: string;
+  createdAt: string;
+};
+
+export type CatalogCustomer = {
+  id: number;
+  accountCode: string;
+  accountName: string;
   ownerUserId: string;
   createdAt: string;
 };
@@ -108,6 +122,7 @@ export type DashboardStats = {
 export type CreateTicketPayload = {
   receiptNumber?: string;
   customerName?: string;
+  accountCode?: string;
   phone?: string;
   email?: string;
   address?: string;
@@ -135,6 +150,8 @@ export const rmaApi = {
   getCustomer: (id: number) => request<RmaCustomer>(`/api/customers/${id}`),
   listCatalogProducts: (q?: string) =>
     request<CatalogProduct[]>(`/api/catalog-products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  listCatalogCustomers: (q?: string) =>
+    request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   getDashboardStats: () => request<DashboardStats>('/api/stats/dashboard'),
   updateProductStatus: (id: number, status: string) =>
     request<RmaProduct>(`/api/products/${id}/status`, {
