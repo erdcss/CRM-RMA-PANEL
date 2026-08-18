@@ -19,6 +19,11 @@ const statusLabel = (value: string) =>
   ({
     beklemede: 'Beklemede',
     serviste: 'Serviste',
+    tamir_tamamlandi: 'Tamir Tamamlandı',
+    degisim_onaylandi: 'Değişim Onaylandı',
+    iade_onaylandi: 'İade Onaylandı',
+    tedarikciye_gonderildi: 'Tedarikçiye Gönderildi',
+    tedarikciden_teslim_alindi: 'Tedarikçiden Teslim Alındı',
     teslim_edildi: 'Teslim Edildi',
     iptal: 'Iptal',
   } as Record<string, string>)[value] ?? value;
@@ -67,55 +72,18 @@ function buildTicketHtml(ticket: RmaTicket) {
           line-height: 1.25;
           margin: 0;
         }
-        .top {
-          max-height: 52mm;
-          margin-bottom: 4mm;
-        }
-        .header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 8px;
-          margin-bottom: 3mm;
-        }
+        .top { max-height: 52mm; margin-bottom: 4mm; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 3mm; }
         .title { font-size: 11px; font-weight: 700; margin: 0; }
         .meta { text-align: right; font-size: 7px; }
         .line { border-top: 1px solid #d1d5db; margin: 2mm 0; }
-        .customer {
-          display: flex;
-          gap: 10px;
-          font-size: 7px;
-          margin-bottom: 3mm;
-        }
-        .signatures {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 4px;
-          margin-bottom: 2mm;
-        }
-        .sign-box {
-          text-align: center;
-          font-size: 6.5px;
-          font-weight: 700;
-        }
-        .sign-line {
-          border-top: 1px solid #9ca3af;
-          margin-top: 14px;
-        }
+        .customer { display: flex; gap: 10px; font-size: 7px; margin-bottom: 3mm; }
+        .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 2mm; }
+        .sign-box { text-align: center; font-size: 6.5px; font-weight: 700; }
+        .sign-line { border-top: 1px solid #9ca3af; margin-top: 14px; }
         .note { font-size: 6px; color: #4b5563; }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          table-layout: fixed;
-          font-size: 7px;
-        }
-        th, td {
-          border: 1px solid #d1d5db;
-          padding: 2px 3px;
-          text-align: left;
-          vertical-align: top;
-          word-break: break-word;
-        }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 7px; }
+        th, td { border: 1px solid #d1d5db; padding: 2px 3px; text-align: left; vertical-align: top; word-break: break-word; }
         th { background: #f3f4f6; font-size: 6.5px; }
         .center { text-align: center; }
         .mono { font-family: inherit; letter-spacing: -0.2px; }
@@ -132,7 +100,6 @@ function buildTicketHtml(ticket: RmaTicket) {
           <div>
             <p class="title">CALISKAN GROUP</p>
             <div class="note">Musteri Hizmetleri ve RMA Merkezi</div>
-            <div class="note">Tel: (0xxx) xxx xx xx</div>
           </div>
           <div class="meta">
             <strong>SERVIS FISI</strong><br />
@@ -141,20 +108,16 @@ function buildTicketHtml(ticket: RmaTicket) {
             Fis No: ${escapeHtml(documentNo)}
           </div>
         </div>
-
         <div class="line"></div>
-
         <div class="customer">
           <div><strong>Musteri:</strong> ${escapeHtml(ticket.customer.name)}</div>
           <div><strong>Tel:</strong> ${escapeHtml(ticket.customer.phone || '-')}</div>
         </div>
-
         <div class="signatures">
           <div class="sign-box">Teslim Eden<div class="sign-line"></div></div>
           <div class="sign-box">Teslim Alan<div class="sign-line"></div></div>
           <div class="sign-box">Ucret Durumu<div class="sign-line"></div></div>
         </div>
-
         <div class="note">Bu belge ${escapeHtml(dateStr)} tarihinde olusturulmustur.</div>
       </div>
 
@@ -179,6 +142,10 @@ function buildTicketHtml(ticket: RmaTicket) {
       </table>
     </body>
   </html>`;
+}
+
+export async function previewTicketPdf(ticket: RmaTicket) {
+  await Print.printAsync({ html: buildTicketHtml(ticket) });
 }
 
 export async function createTicketPdf(ticket: RmaTicket) {
