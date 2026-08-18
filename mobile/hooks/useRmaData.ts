@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 
 import {
   rmaApi,
-  type DashboardStats,
   type RmaCustomer,
   type RmaTicket,
   type CatalogProduct,
   type CatalogCustomer,
+  type SupplierItem,
 } from '@/lib/api';
 import { countCompletedProducts, countOpenProducts } from '@/lib/format';
 
@@ -41,7 +41,6 @@ export function useTickets() {
 }
 
 export function useDashboard() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tickets, setTickets] = useState<RmaTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,11 +51,9 @@ export function useDashboard() {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
-      const [statsData, ticketsData] = await Promise.all([
-        rmaApi.getDashboardStats(),
-        rmaApi.listTickets(),
-      ]);
-      setStats(statsData);
+      // Dashboard KPIs and recent records intentionally use the exact same live ticket
+      // response as the records screen. No placeholder or duplicated KPI source is used.
+      const ticketsData = await rmaApi.listTickets();
       setTickets(ticketsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Dashboard verileri alınamadı.');
@@ -74,13 +71,22 @@ export function useDashboard() {
 
   const kpis = {
     openRecords: countOpenProducts(tickets),
-    inService: stats?.inService ?? 0,
-    exchangePending: stats?.activeExchanges ?? 0,
+    inService: tickets.reduce(
+      (sum, ticket) => sum + ticket.products.filter((product) => product.status === 'serviste').length,
+      0,
+    ),
+    exchangePending: tickets.reduce(
+      (sum, ticket) =>
+        sum +
+        ticket.products.filter(
+          (product) => product.category === 'degisim' && !['teslim_edildi', 'iptal'].includes(product.status),
+        ).length,
+      0,
+    ),
     completed: countCompletedProducts(tickets),
   };
 
   return {
-    stats,
     tickets,
     kpis,
     loading,
@@ -178,6 +184,35 @@ export function useCatalogProducts(query = '') {
   const refresh = useCallback(() => load(true), [load]);
 
   return { products, loading, refreshing, error, refresh };
+}
+
+export function useSupplierItems() {
+  const [items, setItems] = useState<SupplierItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
+      const data = await rmaApi.listSupplierItems();
+      setItems(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tedarikçi ürünleri alınamadı.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const refresh = useCallback(() => load(true), [load]);
+  return { items, loading, refreshing, error, refresh };
 }
 
 export function useTicket(id: number) {
