@@ -67,7 +67,7 @@ export const products = pgTable("products", {
   brand: text("brand").default("Bilinmeyen"),
   model: text("model"),
   category: text("category").default("servis"), // "iade", "degisim", "servis"
-  status: text("status").notNull().default("beklemede"), // "beklemede", "serviste", "teslim_edildi", etc.
+  status: text("status").notNull().default("beklemede"), // "beklemede", "serviste", "tamir_tamamlandi", etc.
   description: text("description"),
   quantity: integer("quantity").default(1), // adet sayısı
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -140,6 +140,32 @@ export const insertCatalogCustomerSchema = createInsertSchema(catalogCustomers).
 export type InsertCatalogCustomer = z.infer<typeof insertCatalogCustomerSchema>;
 export type CatalogCustomer = typeof catalogCustomers.$inferSelect;
 
+// A product can be routed to one supplier at a time. The product row remains the single
+// source of truth for status so supplier and customer/RMA screens always stay in sync.
+export const supplierItems = pgTable(
+  "supplier_items",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+    supplierAccountCode: text("supplier_account_code").notNull(),
+    supplierName: text("supplier_name").notNull(),
+    ownerUserId: text("owner_user_id").notNull(),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [unique("supplier_items_product_owner_unique").on(table.productId, table.ownerUserId)],
+);
+
+export const insertSupplierItemSchema = createInsertSchema(supplierItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSupplierItem = z.infer<typeof insertSupplierItemSchema>;
+export type SupplierItem = typeof supplierItems.$inferSelect;
+
 // Relations
 export const customersRelations = relations(customers, ({ many }) => ({
   tickets: many(tickets),
@@ -163,11 +189,19 @@ export const productsRelations = relations(products, ({ one, many }) => ({
     references: [tickets.id],
   }),
   statusHistory: many(statusHistory),
+  supplierItems: many(supplierItems),
 }));
 
 export const statusHistoryRelations = relations(statusHistory, ({ one }) => ({
   product: one(products, {
     fields: [statusHistory.productId],
+    references: [products.id],
+  }),
+}));
+
+export const supplierItemsRelations = relations(supplierItems, ({ one }) => ({
+  product: one(products, {
+    fields: [supplierItems.productId],
     references: [products.id],
   }),
 }));
