@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -9,6 +9,8 @@ import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { getInitials } from '@/lib/format';
+
+const PRIVACY_URL = `${(process.env.EXPO_PUBLIC_API_URL ?? 'https://crm-rma.up.railway.app').replace(/\/$/, '')}/privacy`;
 
 const SECTIONS = [
   {
@@ -44,6 +46,12 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const handleOpenPrivacy = () => {
+    Linking.openURL(PRIVACY_URL).catch(() => {
+      Alert.alert('Bağlantı Açılamadı', 'Gizlilik politikası şu anda açılamıyor. Lütfen daha sonra tekrar deneyin.');
+    });
   };
 
   const performAccountDeletion = async () => {
@@ -136,6 +144,17 @@ export default function ProfileScreen() {
             </Card>
           </View>
         ))}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Gizlilik ve Veriler</Text>
+          <Card style={styles.menuCard}>
+            <Pressable style={styles.menuRow} onPress={handleOpenPrivacy}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={colors.textSecondary} />
+              <Text style={styles.menuLabel}>Gizlilik Politikası ve KVKK</Text>
+              <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+            </Pressable>
+          </Card>
+        </View>
 
         <Pressable style={styles.logout} onPress={handleLogout}>
           <Text style={styles.logoutText}>Çıkış Yap</Text>
