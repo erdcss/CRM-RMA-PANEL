@@ -1,4 +1,6 @@
+import { useCallback, useRef } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 
 import { QuickAction } from '@/components/dashboard/QuickAction';
@@ -17,6 +19,17 @@ export default function HomeScreen() {
   const router = useRouter();
   const { tickets, kpis, loading, refreshing, error, refresh } = useDashboard();
   const recentTickets = tickets.slice(0, 5);
+  const firstFocus = useRef(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      refresh();
+    }, [refresh]),
+  );
 
   if (loading) {
     return (
