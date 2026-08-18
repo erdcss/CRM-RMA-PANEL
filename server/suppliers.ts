@@ -27,22 +27,32 @@ export type ProductEditInput = {
   quantity?: number;
 };
 
-export async function ensureSupplierItemsTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS supplier_items (
-      id SERIAL PRIMARY KEY,
-      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-      supplier_account_code TEXT NOT NULL,
-      supplier_name TEXT NOT NULL,
-      owner_user_id TEXT NOT NULL,
-      notes TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-      CONSTRAINT supplier_items_product_owner_unique UNIQUE (product_id, owner_user_id)
-    )
-  `);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_owner_idx ON supplier_items(owner_user_id)`);
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_supplier_idx ON supplier_items(owner_user_id, supplier_account_code)`);
+let supplierSchemaPromise: Promise<void> | null = null;
+
+export function ensureSupplierItemsTable() {
+  if (!supplierSchemaPromise) {
+    supplierSchemaPromise = (async () => {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS supplier_items (
+          id SERIAL PRIMARY KEY,
+          product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          supplier_account_code TEXT NOT NULL,
+          supplier_name TEXT NOT NULL,
+          owner_user_id TEXT NOT NULL,
+          notes TEXT,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          CONSTRAINT supplier_items_product_owner_unique UNIQUE (product_id, owner_user_id)
+        )
+      `);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_owner_idx ON supplier_items(owner_user_id)`);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_supplier_idx ON supplier_items(owner_user_id, supplier_account_code)`);
+    })().catch((error) => {
+      supplierSchemaPromise = null;
+      throw error;
+    });
+  }
+  return supplierSchemaPromise;
 }
 
 export async function getOwnedProduct(productId: number, ownerUserId: string) {
@@ -62,6 +72,7 @@ export async function getOwnedProduct(productId: number, ownerUserId: string) {
 }
 
 export async function listSupplierItems(ownerUserId: string) {
+  await ensureSupplierItemsTable();
   return db.query.supplierItems.findMany({
     where: eq(supplierItems.ownerUserId, ownerUserId),
     with: {
@@ -83,6 +94,7 @@ export async function listSupplierItems(ownerUserId: string) {
 }
 
 export async function createOrMoveSupplierItem(ownerUserId: string, input: SupplierAssignmentInput) {
+  await ensureSupplierItemsTable();
   const product = await getOwnedProduct(input.productId, ownerUserId);
   if (!product) return undefined;
 
@@ -115,6 +127,7 @@ export async function updateSupplierItem(
   ownerUserId: string,
   input: SupplierAssignmentUpdate,
 ) {
+  await ensureSupplierItemsTable();
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (input.supplierAccountCode !== undefined) patch.supplierAccountCode = input.supplierAccountCode.trim();
   if (input.supplierName !== undefined) patch.supplierName = input.supplierName.trim();
@@ -130,6 +143,7 @@ export async function updateSupplierItem(
 }
 
 export async function touchSupplierItemForProduct(productId: number, ownerUserId: string) {
+  await ensureSupplierItemsTable();
   await db
     .update(supplierItems)
     .set({ updatedAt: new Date() })
@@ -137,6 +151,7 @@ export async function touchSupplierItemForProduct(productId: number, ownerUserId
 }
 
 export async function deleteSupplierItem(id: number, ownerUserId: string) {
+  await ensureSupplierItemsTable();
   const deleted = await db
     .delete(supplierItems)
     .where(and(eq(supplierItems.id, id), eq(supplierItems.ownerUserId, ownerUserId)))
