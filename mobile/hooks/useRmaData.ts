@@ -28,7 +28,9 @@ export function useTickets() {
     load();
   }, [load]);
 
-  return { tickets, loading, refreshing, error, reload: () => load(true), refresh: () => load(true) };
+  const refresh = useCallback(() => load(true), [load]);
+
+  return { tickets, loading, refreshing, error, reload: refresh, refresh };
 }
 
 export function useDashboard() {
@@ -61,6 +63,8 @@ export function useDashboard() {
     load();
   }, [load]);
 
+  const refresh = useCallback(() => load(true), [load]);
+
   const kpis = {
     openRecords: countOpenProducts(tickets),
     inService: stats?.inService ?? 0,
@@ -75,7 +79,7 @@ export function useDashboard() {
     loading,
     refreshing,
     error,
-    refresh: () => load(true),
+    refresh,
   };
 }
 
@@ -104,7 +108,9 @@ export function useCustomers() {
     load();
   }, [load]);
 
-  return { customers, loading, refreshing, error, refresh: () => load(true) };
+  const refresh = useCallback(() => load(true), [load]);
+
+  return { customers, loading, refreshing, error, refresh };
 }
 
 export function useCatalogProducts(query = '') {
@@ -132,7 +138,9 @@ export function useCatalogProducts(query = '') {
     load();
   }, [load]);
 
-  return { products, loading, refreshing, error, refresh: () => load(true) };
+  const refresh = useCallback(() => load(true), [load]);
+
+  return { products, loading, refreshing, error, refresh };
 }
 
 export function useTicket(id: number) {
