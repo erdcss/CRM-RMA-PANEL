@@ -53,19 +53,19 @@ export default function Istatistikler() {
   if (isLoading) {
     return (
       <div className="flex flex-col h-full min-h-0">
-        <div className="p-6 border-b">
+        <div className="p-4 border-b">
           <h1 className="text-2xl font-bold">İstatistikler</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Genel raporlar ve analizler
           </p>
         </div>
-        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+          <div className="grid grid-cols-1 gap-6 mb-8">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-32" />
             ))}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-96" />
             ))}
@@ -83,16 +83,16 @@ export default function Istatistikler() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-6 border-b">
+      <div className="p-4 border-b">
         <h1 className="text-2xl font-bold">İstatistikler</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Genel raporlar ve analizler
         </p>
       </div>
 
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -162,7 +162,7 @@ export default function Istatistikler() {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Marka Dağılımı</CardTitle>

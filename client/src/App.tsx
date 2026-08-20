@@ -13,7 +13,9 @@ import Musteriler from "@/pages/musteriler";
 import Ayarlar from "@/pages/ayarlar";
 import KayitDetay from "@/pages/kayit-detay";
 import NotFound from "@/pages/not-found";
+import Login from "@/pages/login";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 function Router() {
   return (
@@ -29,7 +31,12 @@ function Router() {
   );
 }
 
-function App() {
+function AppContent() {
+  const { data: user, isLoading } = useQuery<{ id: number; username: string } | null>({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -44,23 +51,35 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
-            <AppSidebar />
-            <div className="flex flex-col flex-1 min-w-0 min-h-0">
-              <header className="flex items-center justify-between p-4 border-b shrink-0 pt-[max(1rem,env(safe-area-inset-top))]">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <ThemeToggle />
-              </header>
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <Router />
+    <>
+      {isLoading ? null : user ? (
+          <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
+            <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
+              <AppSidebar username={user.username} />
+              <div className="flex flex-col flex-1 min-w-0 min-h-0">
+                <header className="flex items-center justify-between p-4 border-b shrink-0 pt-[max(1rem,env(safe-area-inset-top))]">
+                  <SidebarTrigger data-testid="button-sidebar-toggle" />
+                  <ThemeToggle />
+                </header>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <Router />
+                </div>
               </div>
             </div>
-          </div>
-        </SidebarProvider>
-        <Toaster />
+          </SidebarProvider>
+        ) : (
+          <Login />
+        )}
+      <Toaster />
+    </>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AppContent />
       </TooltipProvider>
     </QueryClientProvider>
   );

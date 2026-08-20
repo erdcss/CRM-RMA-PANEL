@@ -89,8 +89,8 @@ export default function Kayitlar() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-4 sm:p-6 border-b shrink-0">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+      <div className="p-4 border-b shrink-0">
+        <div className="flex flex-col items-start gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold">Fişler</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -102,16 +102,16 @@ export default function Kayitlar() {
             Yeni Fiş
           </Button>
         </div>
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col gap-4">
           <Input
             placeholder="Fiş no, müşteri, ürün ara..."
-            className="md:max-w-sm"
+            className="w-full"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             data-testid="input-search-records"
           />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="md:w-48" data-testid="select-status-filter">
+            <SelectTrigger className="w-full" data-testid="select-status-filter">
               <SelectValue placeholder="Durum" />
             </SelectTrigger>
             <SelectContent>
@@ -123,7 +123,7 @@ export default function Kayitlar() {
             </SelectContent>
           </Select>
           <Select value={brandFilter} onValueChange={setBrandFilter}>
-            <SelectTrigger className="md:w-48" data-testid="select-brand-filter">
+            <SelectTrigger className="w-full" data-testid="select-brand-filter">
               <SelectValue placeholder="Marka" />
             </SelectTrigger>
             <SelectContent>
@@ -138,9 +138,9 @@ export default function Kayitlar() {
         </div>
       </div>
 
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
         <Tabs defaultValue="all" className="w-full">
-          <TabsList className="mb-6 w-full sm:w-auto overflow-x-auto justify-start">
+          <TabsList className="mb-6 w-full overflow-x-auto justify-start">
             <TabsTrigger value="all" data-testid="tab-all">
               Tümü ({allTickets.length})
             </TabsTrigger>

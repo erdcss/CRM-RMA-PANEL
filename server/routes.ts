@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import fs from "fs";
 import path from "path";
@@ -12,6 +12,13 @@ const uploadsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 let dbReady = false;
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if ((req.session as { userId?: number }).userId) {
+    return next();
+  }
+  return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+}
 
 async function initDatabase(): Promise<void> {
   const maxRetries = 20;
@@ -37,6 +44,44 @@ async function initDatabase(): Promise<void> {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   initDatabase().catch(err => console.error("DB init error:", err));
+
+  app.get("/api/auth/me", async (req, res) => {
+    const userId = (req.session as { userId?: number }).userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+    }
+    const user = await storage.getUser(userId);
+    if (!user) {
+      req.session.destroy(() => undefined);
+      return res.status(401).json({ error: "Oturum geçersiz" });
+    }
+    res.json({ id: user.id, username: user.username });
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const user = await storage.getUserByUsername(username);
+
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı" });
+    }
+
+    (req.session as { userId?: number }).userId = user.id;
+    res.json({ id: user.id, username: user.username });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((error) => {
+      if (error) {
+        return res.status(500).json({ error: "Oturum kapatılamadı" });
+      }
+      res.clearCookie("connect.sid");
+      res.status(204).send();
+    });
+  });
+
+  app.use("/api", requireAuth);
 
   app.get("/api/customers", async (_req, res) => {
     try {

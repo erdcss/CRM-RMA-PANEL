@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import session from "express-session";
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,17 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || "local-rma-panel-session-secret",
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+  },
+}));
 app.use("/uploads", express.static(uploadsDir));
 
 app.use((req, res, next) => {

@@ -19,6 +19,7 @@ export interface TicketListProduct {
   serialNumber?: string;
   category: string;
   status: string;
+  quantity?: number | null;
   description?: string;
   imageUrl?: string;
 }
@@ -119,6 +120,9 @@ export function TicketListCard({ ticket, products, open, onOpenChange }: TicketL
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{product.name}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        Adet: {product.quantity ?? 1}
+                      </Badge>
                       <Badge variant="outline" className="text-xs">
                         {categoryLabels[product.category]}
                       </Badge>

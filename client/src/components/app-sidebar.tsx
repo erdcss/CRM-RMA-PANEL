@@ -4,6 +4,7 @@ import {
   BarChart3,
   Users,
   Settings,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -18,6 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { BRAND } from "@/lib/brand";
+import { apiRequest } from "@/lib/queryClient";
 
 const menuItems = [
   {
@@ -47,7 +49,7 @@ const menuItems = [
   },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ username }: { username: string }) {
   const [location] = useLocation();
 
   return (
@@ -90,9 +92,22 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <div className="flex items-center justify-center">
-          <span className="text-sm text-muted-foreground">{BRAND.name} v{BRAND.version}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-muted-foreground truncate">{username}</span>
+          <SidebarMenuButton
+            type="button"
+            className="w-auto"
+            onClick={async () => {
+              await apiRequest("POST", "/api/auth/logout");
+              window.location.reload();
+            }}
+            aria-label="Çıkış yap"
+            data-testid="button-logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </SidebarMenuButton>
         </div>
+        <span className="text-xs text-muted-foreground">{BRAND.name} v{BRAND.version}</span>
       </SidebarFooter>
     </Sidebar>
   );

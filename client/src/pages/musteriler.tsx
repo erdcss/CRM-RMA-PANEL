@@ -35,7 +35,7 @@ export default function Musteriler() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-6 border-b">
+      <div className="p-4 border-b">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Müşteriler</h1>
@@ -54,14 +54,14 @@ export default function Musteriler() {
           placeholder="Müşteri ara (isim, telefon, e-posta)..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-md"
+          className="w-full"
           data-testid="input-search-customers"
         />
       </div>
 
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
         {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-48" />
             ))}
@@ -74,7 +74,7 @@ export default function Musteriler() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {filteredCustomers.map((customer) => (
               <Card key={customer.id} className="hover-elevate">
                 <CardHeader>

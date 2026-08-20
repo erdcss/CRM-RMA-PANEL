@@ -52,6 +52,14 @@ export class DatabaseStorage implements IStorage {
         password: "system",
       });
     }
+
+    const adminUser = await this.getUserByUsername("admin");
+    if (!adminUser) {
+      await db.insert(users).values({
+        username: "admin",
+        password: "admin123",
+      });
+    }
   }
 
   async getUser(id: number): Promise<User | undefined> {
