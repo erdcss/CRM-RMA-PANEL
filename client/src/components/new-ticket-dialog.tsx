@@ -275,8 +275,8 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl flex flex-col gap-0 p-0 sm:p-6 overflow-hidden">
-        <DialogHeader className="shrink-0 px-4 pt-4 pr-12 sm:px-0 sm:pt-0 sm:pr-8">
+      <DialogContent className="flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogHeader className="shrink-0 px-4 pt-4 pr-12">
           <DialogTitle>{customerPickerOpen ? "Müşteri Seç" : "Yeni Fiş Oluştur"}</DialogTitle>
           <DialogDescription>
             {customerPickerOpen
@@ -286,7 +286,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
         </DialogHeader>
 
         {customerPickerOpen ? (
-          <div className="flex-1 min-h-0 flex flex-col px-4 sm:px-0 pt-4">
+          <div className="flex-1 min-h-0 flex flex-col px-4 pt-4">
             <Input
               placeholder="Müşteri adı veya telefon ile ara..."
               value={customerSearchQuery}
@@ -341,7 +341,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                 ))
               )}
             </div>
-            <DialogFooter className="shrink-0 border-t pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:border-0 sm:pb-0">
+            <DialogFooter className="shrink-0 border-t pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -362,7 +362,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
               className="flex-1 min-h-0 flex flex-col"
               autoComplete="off"
             >
-              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-0 pt-4 space-y-6">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pt-4 space-y-6">
                 <Collapsible
                   open={customerInfoOpen}
                   onOpenChange={setCustomerInfoOpen}
@@ -412,7 +412,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                         </FormItem>
                       )}
                     />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <FormField
                         control={form.control}
                         name="customerName"
@@ -519,7 +519,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="pt-4 grid grid-cols-1 gap-4">
                             <div>
                               <label className="text-sm font-medium mb-2 block">
                                 Ürün Adı
@@ -655,7 +655,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                               onChange={(url) => updateProduct(product.id, "imageUrl", url)}
                               testId={`input-product-image-${index}`}
                             />
-                            <div className="sm:col-span-2">
+                            <div>
                               <label className="text-sm font-medium mb-2 block">
                                 Arıza / iade nedeni
                               </label>
@@ -668,7 +668,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                                 placeholder="Neden / arıza kaydı"
                               />
                             </div>
-                            <div className="sm:col-span-2">
+                            <div>
                               <label className="text-sm font-medium mb-2 block">
                                 Açıklama
                               </label>
@@ -689,7 +689,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                 </div>
               </div>
 
-              <DialogFooter className="shrink-0 border-t mx-4 sm:mx-0 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-0 gap-2">
+              <DialogFooter className="shrink-0 border-t mx-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] gap-2">
                 <Button
                   type="button"
                   variant="outline"

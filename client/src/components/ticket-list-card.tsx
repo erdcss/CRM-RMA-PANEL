@@ -70,12 +70,12 @@ export function TicketListCard({ ticket, products, open, onOpenChange }: TicketL
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <Card className="hover-elevate">
-        <CardHeader className="p-4 sm:p-6">
+        <CardHeader className="p-4">
           <div className="flex items-start justify-between gap-3">
             <CollapsibleTrigger className="flex-1 text-left min-w-0" data-testid={`button-toggle-ticket-${ticket.id}`}>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base sm:text-lg truncate">
+                  <CardTitle className="text-base truncate">
                     {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Fiş #${ticket.id}`}
                   </CardTitle>
                   <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />

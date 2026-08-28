@@ -11,15 +11,15 @@ export default function Ayarlar() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-6 border-b">
+      <div className="p-4 border-b">
         <h1 className="text-2xl font-bold">Ayarlar</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Sistem ayarlarını yönetin
         </p>
       </div>
 
-      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">

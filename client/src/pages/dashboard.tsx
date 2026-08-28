@@ -36,7 +36,7 @@ export default function Dashboard() {
       <div className="p-4 border-b shrink-0">
         <div className="flex flex-col items-start gap-4">
           <div className="flex items-center gap-4 flex-1 w-full">
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Müşteri, seri numarası veya ürün ara..."

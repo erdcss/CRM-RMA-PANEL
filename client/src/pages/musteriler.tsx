@@ -116,7 +116,7 @@ export default function Musteriler() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="p-4 border-b">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-start gap-4">
           <div>
             <h1 className="text-2xl font-bold">Müşteriler</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -135,7 +135,7 @@ export default function Musteriler() {
         </div>
       </div>
 
-      <div className="p-6 border-b">
+      <div className="p-4 border-b">
         <Input
           placeholder="Müşteri ara (isim, telefon, e-posta)..."
           value={searchQuery}

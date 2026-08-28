@@ -19,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
 import { BRAND } from "@/lib/brand";
@@ -69,6 +70,7 @@ const menuItems = [
 
 export function AppSidebar({ username }: { username: string }) {
   const [location] = useLocation();
+  const { setOpenMobile } = useSidebar();
 
   return (
     <Sidebar>
@@ -97,7 +99,7 @@ export function AppSidebar({ username }: { username: string }) {
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive} data-testid={`link-${item.title.toLowerCase()}`}>
-                      <Link href={item.url}>
+                      <Link href={item.url} onClick={() => setOpenMobile(false)}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
                       </Link>

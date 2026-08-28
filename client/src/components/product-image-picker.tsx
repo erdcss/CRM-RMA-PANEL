@@ -61,7 +61,7 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
   };
 
   return (
-    <div className="col-span-1 sm:col-span-2 space-y-2">
+    <div className="col-span-1 space-y-2">
       <label className="text-sm font-medium block">Ürün görseli</label>
       {imageUrl ? (
         <div className="flex items-start gap-3">

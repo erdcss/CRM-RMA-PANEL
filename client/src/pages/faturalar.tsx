@@ -82,7 +82,7 @@ export default function Faturalar() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-4 border-b flex items-center justify-between">
+      <div className="p-4 border-b flex flex-col items-start gap-4">
         <div>
           <h1 className="text-2xl font-bold">Faturalar</h1>
           <p className="text-sm text-muted-foreground mt-1">RMA kayıtlarına bağlanacak satış/fatura bilgileri</p>

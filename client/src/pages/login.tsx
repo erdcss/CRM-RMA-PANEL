@@ -40,9 +40,10 @@ export default function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username">Kullanıcı adı</Label>
+              <Label htmlFor="username">E-posta / kullanıcı adı</Label>
               <Input
                 id="username"
+                type="text"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="username"
@@ -66,7 +67,7 @@ export default function Login() {
               <LogIn className="mr-2 h-4 w-4" />
               {isSubmitting ? "Giriş yapılıyor..." : "Giriş yap"}
             </Button>
-            <p className="text-center text-xs text-muted-foreground">Yerel hesap: admin / admin123</p>
+            <p className="text-center text-xs text-muted-foreground">Yerel panel hesabınızla giriş yapın</p>
           </form>
         </CardContent>
       </Card>

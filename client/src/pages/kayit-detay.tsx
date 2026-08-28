@@ -158,11 +158,11 @@ export default function KayitDetay() {
   if (isLoading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-4 sm:p-6 border-b">
+        <div className="p-4 border-b">
           <Skeleton className="h-8 w-48" />
         </div>
-        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
-          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+          <div className="space-y-4">
             <Skeleton className="h-48" />
             <Skeleton className="h-96" />
           </div>
@@ -174,14 +174,14 @@ export default function KayitDetay() {
   if (!ticket) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-4 sm:p-6 border-b">
+        <div className="p-4 border-b">
           <Button variant="ghost" onClick={() => setLocation("/kayitlar")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Geri
           </Button>
         </div>
         <main className="flex-1 flex items-center justify-center p-4">
-          <p className="text-sm sm:text-base text-muted-foreground">Kayıt bulunamadı</p>
+          <p className="text-sm text-muted-foreground">Kayıt bulunamadı</p>
         </main>
       </div>
     );
@@ -189,18 +189,18 @@ export default function KayitDetay() {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="p-4 sm:p-6 border-b shrink-0">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-4 border-b shrink-0">
+        <div className="flex flex-col items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => setLocation("/kayitlar")} data-testid="button-back">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Geri
             </Button>
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold">
+              <h1 className="text-xl font-bold">
                 {ticket.receiptNumber ? `Fiş ${ticket.receiptNumber}` : `Kayıt #${ticket.id}`} - {ticket.customer.name}
               </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {new Date(ticket.createdAt).toLocaleDateString("tr-TR", {
                   day: "numeric",
                   month: "long",
@@ -254,8 +254,8 @@ export default function KayitDetay() {
         </div>
       </div>
 
-        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">
-        <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
+        <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Müşteri Bilgileri</CardTitle>
@@ -294,8 +294,8 @@ export default function KayitDetay() {
                   product.category === "degisim" ? "border-l-blue-600" : "border-l-green-600"
                 }`}
               >
-                <CardContent className="p-3 sm:p-4 space-y-2.5">
-                  <div className="flex flex-col sm:flex-row items-start gap-3">
+                <CardContent className="p-3 space-y-2.5">
+                  <div className="flex flex-col items-start gap-3">
                     {product.imageUrl && (
                       <img
                         src={product.imageUrl}
@@ -362,7 +362,7 @@ export default function KayitDetay() {
                           <p className="text-xs"><span className="font-medium">Fatura:</span> {product.invoice.invoiceNumber}</p>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                      <div className="grid grid-cols-1 gap-2 pt-2">
                         <Select
                           value={product.warehouseId ? String(product.warehouseId) : undefined}
                           onValueChange={(value) =>
@@ -404,7 +404,7 @@ export default function KayitDetay() {
                         </Select>
                       </div>
                     </div>
-                    <div className="w-full sm:w-40">
+                    <div className="w-full">
                       <label className="text-xs font-medium mb-1.5 block text-muted-foreground">
                         Durumu Güncelle
                       </label>
@@ -460,7 +460,7 @@ export default function KayitDetay() {
                           >
                             <div className="h-1 w-1 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                             <div className="flex-1">
-                              <div className="flex flex-col xs:flex-row xs:items-baseline gap-1 xs:gap-2">
+                              <div className="flex flex-col gap-1">
                                 <p className="font-medium text-xs">
                                   {statusLabels[history.status] || history.status}
                                 </p>
