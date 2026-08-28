@@ -72,6 +72,10 @@ type ProductDraft = {
   description: string;
   quantity: number;
   imageUrl?: string;
+  barcode: string;
+  faultReason: string;
+  supplierId?: number;
+  invoiceNumber: string;
 };
 
 type TicketSubmission = TicketFormData & {
@@ -84,6 +88,10 @@ type TicketSubmission = TicketFormData & {
     description?: string;
     quantity?: number;
     imageUrl?: string;
+    barcode?: string;
+    faultReason?: string;
+    supplierId?: number;
+    invoiceNumber?: string;
   }>;
 };
 
@@ -94,6 +102,11 @@ interface Customer {
   email?: string;
   address?: string;
   ticketCount?: number;
+}
+
+interface Supplier {
+  id: number;
+  name: string;
 }
 
 interface NewTicketDialogProps {
@@ -111,6 +124,10 @@ const emptyProduct = (id: number): ProductDraft => ({
   description: "",
   quantity: 1,
   imageUrl: undefined,
+  barcode: "",
+  faultReason: "",
+  supplierId: undefined,
+  invoiceNumber: "",
 });
 
 export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
@@ -124,6 +141,11 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
     enabled: open && customerPickerOpen,
+  });
+
+  const { data: suppliers = [] } = useQuery<Supplier[]>({
+    queryKey: ["/api/suppliers"],
+    enabled: open,
   });
 
   const form = useForm<TicketFormData>({
@@ -224,6 +246,10 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
         description: product.description.trim() || undefined,
         quantity: product.quantity || undefined,
         imageUrl: product.imageUrl || undefined,
+        barcode: product.barcode.trim() || undefined,
+        faultReason: product.faultReason.trim() || undefined,
+        supplierId: product.supplierId,
+        invoiceNumber: product.invoiceNumber.trim() || undefined,
       }))
       .filter((p) =>
         p.name || p.serialNumber || p.brand || p.model || p.category || p.description || p.imageUrl
@@ -521,6 +547,52 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                             </div>
                             <div>
                               <label className="text-sm font-medium mb-2 block">
+                                Barkod
+                              </label>
+                              <Input
+                                value={product.barcode}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "barcode", e.target.value)
+                                }
+                                className="font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Fatura No
+                              </label>
+                              <Input
+                                value={product.invoiceNumber}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "invoiceNumber", e.target.value)
+                                }
+                                placeholder="Satış faturası"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
+                                Tedarikçi
+                              </label>
+                              <Select
+                                value={product.supplierId ? String(product.supplierId) : undefined}
+                                onValueChange={(value) =>
+                                  updateProduct(product.id, "supplierId", parseInt(value))
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Tedarikçi seçin (opsiyonel)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {suppliers.map((supplier) => (
+                                    <SelectItem key={supplier.id} value={String(supplier.id)}>
+                                      {supplier.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="text-sm font-medium mb-2 block">
                                 Marka
                               </label>
                               <Input
@@ -583,6 +655,19 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                               onChange={(url) => updateProduct(product.id, "imageUrl", url)}
                               testId={`input-product-image-${index}`}
                             />
+                            <div className="sm:col-span-2">
+                              <label className="text-sm font-medium mb-2 block">
+                                Arıza / iade nedeni
+                              </label>
+                              <Textarea
+                                value={product.faultReason}
+                                onChange={(e) =>
+                                  updateProduct(product.id, "faultReason", e.target.value)
+                                }
+                                rows={2}
+                                placeholder="Neden / arıza kaydı"
+                              />
+                            </div>
                             <div className="sm:col-span-2">
                               <label className="text-sm font-medium mb-2 block">
                                 Açıklama

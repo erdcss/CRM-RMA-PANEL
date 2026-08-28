@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import { ArrowLeft, Download, Edit, Clock, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, Clock, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { generateTicketPDF } from "@/lib/pdf-export";
-import { useState } from "react";
+import { locationLabels, movementTypeLabels, categoryLabels, statusLabels } from "@/lib/rma-labels";
 
 interface TicketDetail {
   id: number;
@@ -50,6 +50,23 @@ interface TicketDetail {
     quantity: number;
     imageUrl?: string;
     createdAt: string;
+    barcode?: string;
+    faultReason?: string;
+    location?: string;
+    warehouse?: { id: number; name: string; code: string };
+    supplier?: { id: number; name: string };
+    invoice?: { id: number; invoiceNumber: string };
+    warehouseId?: number;
+    supplierId?: number;
+    invoiceId?: number;
+    stockMovements?: Array<{
+      id: number;
+      movementType: string;
+      notes?: string;
+      createdAt: string;
+      fromWarehouse?: { name: string };
+      toWarehouse?: { name: string };
+    }>;
     statusHistory: Array<{
       id: number;
       status: string;
@@ -60,19 +77,6 @@ interface TicketDetail {
   createdAt: string;
 }
 
-const categoryLabels: Record<string, string> = {
-  iade: "İade",
-  degisim: "Değişim",
-  servis: "Servis",
-};
-
-const statusLabels: Record<string, string> = {
-  beklemede: "Beklemede",
-  serviste: "Serviste",
-  teslim_edildi: "Teslim Edildi",
-  iptal: "İptal",
-};
-
 export default function KayitDetay() {
   const { id } = useParams();
   const [, setLocation] = useLocation();
@@ -80,6 +84,30 @@ export default function KayitDetay() {
 
   const { data: ticket, isLoading } = useQuery<TicketDetail>({
     queryKey: ["/api/tickets", id],
+  });
+
+  const { data: warehouses = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/warehouses"],
+  });
+  const { data: suppliers = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ["/api/suppliers"],
+  });
+  const { data: invoices = [] } = useQuery<Array<{ id: number; invoiceNumber: string }>>({
+    queryKey: ["/api/invoices"],
+  });
+
+  const updateLinksMutation = useMutation({
+    mutationFn: async ({ productId, data }: { productId: number; data: Record<string, unknown> }) => {
+      return apiRequest("PATCH", `/api/products/${productId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tickets", id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats/dashboard"] });
+      toast({ title: "Başarılı", description: "Ürün bağlantısı güncellendi" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Hata", description: error.message, variant: "destructive" });
+    },
   });
 
   const updateStatusMutation = useMutation({
@@ -312,6 +340,68 @@ export default function KayitDetay() {
                             {product.description}
                           </p>
                         )}
+                        {product.barcode && (
+                          <p className="font-mono text-xs">
+                            <span className="font-medium font-sans">Barkod:</span> {product.barcode}
+                          </p>
+                        )}
+                        {product.faultReason && (
+                          <p className="text-xs">
+                            <span className="font-medium">Neden / arıza:</span> {product.faultReason}
+                          </p>
+                        )}
+                        <p className="text-xs">
+                          <span className="font-medium">Konum:</span>{" "}
+                          {locationLabels[product.location || "rma_depo"] || product.location}
+                          {product.warehouse?.name ? ` (${product.warehouse.name})` : ""}
+                        </p>
+                        {product.supplier && (
+                          <p className="text-xs"><span className="font-medium">Tedarikçi:</span> {product.supplier.name}</p>
+                        )}
+                        {product.invoice && (
+                          <p className="text-xs"><span className="font-medium">Fatura:</span> {product.invoice.invoiceNumber}</p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
+                        <Select
+                          value={product.warehouseId ? String(product.warehouseId) : undefined}
+                          onValueChange={(value) =>
+                            updateLinksMutation.mutate({ productId: product.id, data: { warehouseId: parseInt(value) } })
+                          }
+                        >
+                          <SelectTrigger className="h-9"><SelectValue placeholder="Depo" /></SelectTrigger>
+                          <SelectContent>
+                            {warehouses.map((warehouse) => (
+                              <SelectItem key={warehouse.id} value={String(warehouse.id)}>{warehouse.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={product.supplierId ? String(product.supplierId) : undefined}
+                          onValueChange={(value) =>
+                            updateLinksMutation.mutate({ productId: product.id, data: { supplierId: parseInt(value) } })
+                          }
+                        >
+                          <SelectTrigger className="h-9"><SelectValue placeholder="Tedarikçi" /></SelectTrigger>
+                          <SelectContent>
+                            {suppliers.map((supplier) => (
+                              <SelectItem key={supplier.id} value={String(supplier.id)}>{supplier.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={product.invoiceId ? String(product.invoiceId) : undefined}
+                          onValueChange={(value) =>
+                            updateLinksMutation.mutate({ productId: product.id, data: { invoiceId: parseInt(value) } })
+                          }
+                        >
+                          <SelectTrigger className="h-9"><SelectValue placeholder="Fatura" /></SelectTrigger>
+                          <SelectContent>
+                            {invoices.map((invoice) => (
+                              <SelectItem key={invoice.id} value={String(invoice.id)}>{invoice.invoiceNumber}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                     <div className="w-full sm:w-40">
@@ -340,6 +430,21 @@ export default function KayitDetay() {
                       </Select>
                     </div>
                   </div>
+
+                  {product.stockMovements && product.stockMovements.length > 0 && (
+                    <div className="border-t pt-2.5">
+                      <h4 className="text-xs font-medium mb-1.5 text-muted-foreground">Stok hareketleri</h4>
+                      <div className="space-y-1">
+                        {product.stockMovements.map((movement) => (
+                          <p key={movement.id} className="text-xs text-muted-foreground">
+                            {movementTypeLabels[movement.movementType] || movement.movementType}
+                            {movement.toWarehouse?.name ? ` → ${movement.toWarehouse.name}` : ""}
+                            {movement.notes ? ` · ${movement.notes}` : ""}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {product.statusHistory && product.statusHistory.length > 0 && (
                     <div className="border-t pt-2.5 mt-2.5">

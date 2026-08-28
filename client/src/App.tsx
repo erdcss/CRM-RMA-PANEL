@@ -11,6 +11,9 @@ import Kayitlar from "@/pages/kayitlar";
 import Istatistikler from "@/pages/istatistikler";
 import Musteriler from "@/pages/musteriler";
 import Ayarlar from "@/pages/ayarlar";
+import Depolar from "@/pages/depolar";
+import Tedarikciler from "@/pages/tedarikciler";
+import Faturalar from "@/pages/faturalar";
 import KayitDetay from "@/pages/kayit-detay";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
@@ -25,6 +28,9 @@ function Router() {
       <Route path="/kayit/:id" component={KayitDetay} />
       <Route path="/istatistikler" component={Istatistikler} />
       <Route path="/musteriler" component={Musteriler} />
+      <Route path="/depolar" component={Depolar} />
+      <Route path="/tedarikciler" component={Tedarikciler} />
+      <Route path="/faturalar" component={Faturalar} />
       <Route path="/ayarlar" component={Ayarlar} />
       <Route component={NotFound} />
     </Switch>

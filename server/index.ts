@@ -1,15 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import session from "express-session";
+import { getUploadsDir } from "./image-storage";
 
 const app = express();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.resolve(__dirname, "..", "uploads");
-fs.mkdirSync(uploadsDir, { recursive: true });
+const uploadsDir = getUploadsDir();
 
 declare module 'http' {
   interface IncomingMessage {
@@ -17,7 +13,7 @@ declare module 'http' {
   }
 }
 app.use(express.json({
-  limit: "10mb",
+  limit: "15mb",
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }

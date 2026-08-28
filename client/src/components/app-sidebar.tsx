@@ -5,6 +5,9 @@ import {
   Users,
   Settings,
   LogOut,
+  Package,
+  Truck,
+  Receipt,
 } from "lucide-react";
 import {
   Sidebar,
@@ -41,6 +44,21 @@ const menuItems = [
     title: "Müşteriler",
     url: "/musteriler",
     icon: Users,
+  },
+  {
+    title: "Depolar",
+    url: "/depolar",
+    icon: Package,
+  },
+  {
+    title: "Tedarikçiler",
+    url: "/tedarikciler",
+    icon: Truck,
+  },
+  {
+    title: "Faturalar",
+    url: "/faturalar",
+    icon: Receipt,
   },
   {
     title: "Ayarlar",

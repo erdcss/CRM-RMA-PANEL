@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { tr } from "date-fns/locale";
+import { locationLabels } from "@/lib/rma-labels";
 
 export interface TicketListProduct {
   id: number;
@@ -19,6 +20,7 @@ export interface TicketListProduct {
   serialNumber?: string;
   category: string;
   status: string;
+  location?: string;
   quantity?: number | null;
   description?: string;
   imageUrl?: string;
@@ -126,6 +128,11 @@ export function TicketListCard({ ticket, products, open, onOpenChange }: TicketL
                       <Badge variant="outline" className="text-xs">
                         {categoryLabels[product.category]}
                       </Badge>
+                      {product.location && (
+                        <Badge variant="secondary" className="text-xs">
+                          {locationLabels[product.location] || product.location}
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       <span className="font-medium">{product.brand}</span>

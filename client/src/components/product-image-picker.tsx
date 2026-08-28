@@ -11,6 +11,15 @@ interface ProductImagePickerProps {
   testId?: string;
 }
 
+async function uploadImage(dataUrl: string): Promise<string> {
+  const res = await apiRequest("POST", "/api/uploads", { dataUrl });
+  const payload = await res.json();
+  if (!payload?.url) {
+    throw new Error("Görsel kaydedilemedi");
+  }
+  return payload.url as string;
+}
+
 export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImagePickerProps) {
   const { toast } = useToast();
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -20,15 +29,25 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     setUploading(true);
+
     try {
       const dataUrl = await fileToCompressedDataUrl(file);
-      const res = await apiRequest("POST", "/api/uploads", { dataUrl });
-      const payload = await res.json();
-      if (!payload?.url) {
-        throw new Error("Görsel kaydedilemedi");
+      onChange(dataUrl);
+
+      try {
+        const uploadedUrl = await uploadImage(dataUrl);
+        onChange(uploadedUrl);
+      } catch (uploadError) {
+        toast({
+          title: "Görsel hazır",
+          description: "Önizleme eklendi. Sunucuya yükleme başarısız oldu; fiş kaydedilirken tekrar denenecek.",
+        });
+        if (uploadError instanceof Error && uploadError.message.includes("Giriş")) {
+          throw uploadError;
+        }
       }
-      onChange(payload.url);
     } catch (error) {
+      onChange(undefined);
       toast({
         title: "Görsel eklenemedi",
         description: error instanceof Error ? error.message : "Lütfen tekrar deneyin",
@@ -49,36 +68,46 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
           <img
             src={imageUrl}
             alt="Ürün görseli"
-            className="h-24 w-24 rounded-md object-cover border"
+            className="h-24 w-24 rounded-md object-cover border bg-muted"
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onChange(undefined)}
-            disabled={uploading}
-            data-testid={testId ? `${testId}-remove` : undefined}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Kaldır
-          </Button>
+          <div className="flex flex-col gap-2">
+            {uploading && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Yükleniyor...
+              </p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange(undefined)}
+              disabled={uploading}
+              data-testid={testId ? `${testId}-remove` : undefined}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Kaldır
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
           <input
             ref={cameraInputRef}
+            id={testId ? `${testId}-camera-input` : undefined}
             type="file"
-            accept="image/*"
+            accept="image/*,.heic,.heif"
             capture="environment"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files?.[0])}
+            className="sr-only"
+            onChange={(e) => void handleFile(e.target.files?.[0])}
           />
           <input
             ref={galleryInputRef}
+            id={testId ? `${testId}-gallery-input` : undefined}
             type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handleFile(e.target.files?.[0])}
+            accept="image/*,.heic,.heif"
+            className="sr-only"
+            onChange={(e) => void handleFile(e.target.files?.[0])}
           />
           <Button
             type="button"

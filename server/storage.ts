@@ -4,6 +4,10 @@ import {
   tickets,
   products,
   statusHistory,
+  warehouses,
+  suppliers,
+  invoices,
+  stockMovements,
   type User,
   type InsertUser,
   type Customer,
@@ -13,9 +17,28 @@ import {
   type Product,
   type InsertProduct,
   type InsertStatusHistory,
+  type Warehouse,
+  type InsertWarehouse,
+  type Supplier,
+  type InsertSupplier,
+  type Invoice,
+  type InsertInvoice,
+  type InsertStockMovement,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, count } from "drizzle-orm";
+
+const productRelations = {
+  warehouse: true,
+  supplier: true,
+  invoice: true,
+  statusHistory: {
+    orderBy: (sh: any, { desc }: any) => [desc(sh.createdAt)],
+  },
+  stockMovements: {
+    orderBy: (sm: any, { desc }: any) => [desc(sm.createdAt)],
+  },
+} as const;
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -26,7 +49,28 @@ export interface IStorage {
   getCustomers(): Promise<Customer[]>;
   getCustomer(id: number): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
+  updateCustomer(id: number, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
+  deleteCustomer(id: number): Promise<{ ok: boolean; error?: string }>;
   findOrCreateCustomer(customerData: { name: string; phone: string; email?: string; address?: string }): Promise<Customer>;
+
+  getWarehouses(): Promise<Warehouse[]>;
+  getWarehouseByCode(code: string): Promise<Warehouse | undefined>;
+  createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
+  updateWarehouse(id: number, warehouse: Partial<InsertWarehouse>): Promise<Warehouse | undefined>;
+  deleteWarehouse(id: number): Promise<{ ok: boolean; error?: string }>;
+
+  getSuppliers(): Promise<Supplier[]>;
+  getSupplier(id: number): Promise<Supplier | undefined>;
+  createSupplier(supplier: InsertSupplier): Promise<Supplier>;
+  updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined>;
+  deleteSupplier(id: number): Promise<{ ok: boolean; error?: string }>;
+
+  getInvoices(): Promise<any[]>;
+  getInvoice(id: number): Promise<any | undefined>;
+  createInvoice(invoice: InsertInvoice): Promise<Invoice>;
+  updateInvoice(id: number, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined>;
+  deleteInvoice(id: number): Promise<{ ok: boolean; error?: string }>;
+  findOrCreateInvoice(data: { invoiceNumber: string; customerId?: number }): Promise<Invoice | undefined>;
 
   getTickets(): Promise<any[]>;
   getTicket(id: number): Promise<any | undefined>;
@@ -34,11 +78,14 @@ export interface IStorage {
   deleteTicket(id: number): Promise<void>;
   
   getProducts(): Promise<any[]>;
-  getProduct(id: number): Promise<Product | undefined>;
+  getProduct(id: number): Promise<any | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
+  updateProduct(id: number, data: Partial<InsertProduct>, options?: { movementNotes?: string; userId?: number }): Promise<Product | undefined>;
   updateProductStatus(id: number, status: string): Promise<void>;
+  receiveProductIntoRma(productId: number, userId?: number): Promise<void>;
 
   createStatusHistory(history: InsertStatusHistory): Promise<void>;
+  createStockMovement(movement: InsertStockMovement): Promise<void>;
   getDashboardStats(): Promise<any>;
   getStatistics(): Promise<any>;
 }
@@ -161,16 +208,148 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  async updateCustomer(id: number, customerData: Partial<InsertCustomer>): Promise<Customer | undefined> {
+    const [updated] = await db
+      .update(customers)
+      .set(customerData)
+      .where(eq(customers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomer(id: number): Promise<{ ok: boolean; error?: string }> {
+    const relatedTickets = await db.select({ id: tickets.id }).from(tickets).where(eq(tickets.customerId, id)).limit(1);
+    if (relatedTickets.length > 0) {
+      return { ok: false, error: "Bu müşteriye bağlı fişler var. Önce fişleri silin." };
+    }
+    await db.delete(customers).where(eq(customers.id, id));
+    return { ok: true };
+  }
+
+  async getWarehouses(): Promise<Warehouse[]> {
+    return db.select().from(warehouses).orderBy(warehouses.id);
+  }
+
+  async getWarehouseByCode(code: string): Promise<Warehouse | undefined> {
+    const [warehouse] = await db.select().from(warehouses).where(eq(warehouses.code, code)).limit(1);
+    return warehouse;
+  }
+
+  async createWarehouse(insertWarehouse: InsertWarehouse): Promise<Warehouse> {
+    const [warehouse] = await db.insert(warehouses).values(insertWarehouse).returning();
+    return warehouse;
+  }
+
+  async updateWarehouse(id: number, data: Partial<InsertWarehouse>): Promise<Warehouse | undefined> {
+    const [updated] = await db.update(warehouses).set(data).where(eq(warehouses.id, id)).returning();
+    return updated;
+  }
+
+  async deleteWarehouse(id: number): Promise<{ ok: boolean; error?: string }> {
+    const related = await db.select({ id: products.id }).from(products).where(eq(products.warehouseId, id)).limit(1);
+    if (related.length > 0) {
+      return { ok: false, error: "Bu depoya bağlı ürünler var." };
+    }
+    await db.delete(warehouses).where(eq(warehouses.id, id));
+    return { ok: true };
+  }
+
+  async getSuppliers(): Promise<Supplier[]> {
+    return db.select().from(suppliers).orderBy(desc(suppliers.createdAt));
+  }
+
+  async getSupplier(id: number): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+    return supplier;
+  }
+
+  async createSupplier(insertSupplier: InsertSupplier): Promise<Supplier> {
+    const [supplier] = await db.insert(suppliers).values(insertSupplier).returning();
+    return supplier;
+  }
+
+  async updateSupplier(id: number, data: Partial<InsertSupplier>): Promise<Supplier | undefined> {
+    const [updated] = await db.update(suppliers).set(data).where(eq(suppliers.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSupplier(id: number): Promise<{ ok: boolean; error?: string }> {
+    const related = await db.select({ id: products.id }).from(products).where(eq(products.supplierId, id)).limit(1);
+    if (related.length > 0) {
+      return { ok: false, error: "Bu tedarikçiye bağlı ürünler var." };
+    }
+    await db.delete(suppliers).where(eq(suppliers.id, id));
+    return { ok: true };
+  }
+
+  async getInvoices(): Promise<any[]> {
+    return db.query.invoices.findMany({
+      with: { customer: true },
+      orderBy: (inv, { desc }) => [desc(inv.createdAt)],
+    });
+  }
+
+  async getInvoice(id: number): Promise<any | undefined> {
+    return db.query.invoices.findFirst({
+      where: eq(invoices.id, id),
+      with: { customer: true, products: true },
+    });
+  }
+
+  async createInvoice(insertInvoice: InsertInvoice): Promise<Invoice> {
+    const [invoice] = await db.insert(invoices).values(insertInvoice).returning();
+    return invoice;
+  }
+
+  async updateInvoice(id: number, data: Partial<InsertInvoice>): Promise<Invoice | undefined> {
+    const [updated] = await db.update(invoices).set(data).where(eq(invoices.id, id)).returning();
+    return updated;
+  }
+
+  async deleteInvoice(id: number): Promise<{ ok: boolean; error?: string }> {
+    const related = await db.select({ id: products.id }).from(products).where(eq(products.invoiceId, id)).limit(1);
+    if (related.length > 0) {
+      return { ok: false, error: "Bu faturaya bağlı ürünler var." };
+    }
+    await db.delete(invoices).where(eq(invoices.id, id));
+    return { ok: true };
+  }
+
+  async findOrCreateInvoice(data: { invoiceNumber: string; customerId?: number }): Promise<Invoice | undefined> {
+    const invoiceNumber = data.invoiceNumber.trim();
+    if (!invoiceNumber) return undefined;
+
+    const [existing] = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.invoiceNumber, invoiceNumber))
+      .limit(1);
+
+    if (existing) {
+      if (data.customerId && !existing.customerId) {
+        const [updated] = await db
+          .update(invoices)
+          .set({ customerId: data.customerId })
+          .where(eq(invoices.id, existing.id))
+          .returning();
+        return updated;
+      }
+      return existing;
+    }
+
+    return this.createInvoice({
+      invoiceNumber,
+      customerId: data.customerId,
+      invoiceDate: new Date(),
+    });
+  }
+
   async getTickets(): Promise<any[]> {
     const allTickets = await db.query.tickets.findMany({
       with: {
         customer: true,
         products: {
-          with: {
-            statusHistory: {
-              orderBy: (sh, { desc }) => [desc(sh.createdAt)],
-            },
-          },
+          with: productRelations,
         },
       },
       orderBy: (t, { desc }) => [desc(t.createdAt)],
@@ -185,11 +364,7 @@ export class DatabaseStorage implements IStorage {
       with: {
         customer: true,
         products: {
-          with: {
-            statusHistory: {
-              orderBy: (sh, { desc }) => [desc(sh.createdAt)],
-            },
-          },
+          with: productRelations,
         },
       },
     });
@@ -217,9 +392,7 @@ export class DatabaseStorage implements IStorage {
             customer: true,
           },
         },
-        statusHistory: {
-          orderBy: (sh, { desc }) => [desc(sh.createdAt)],
-        },
+        ...productRelations,
       },
       orderBy: (p, { desc }) => [desc(p.createdAt)],
     });
@@ -227,9 +400,16 @@ export class DatabaseStorage implements IStorage {
     return allProducts;
   }
 
-  async getProduct(id: number): Promise<Product | undefined> {
-    const [product] = await db.select().from(products).where(eq(products.id, id));
-    return product || undefined;
+  async getProduct(id: number): Promise<any | undefined> {
+    return db.query.products.findFirst({
+      where: eq(products.id, id),
+      with: {
+        ticket: {
+          with: { customer: true },
+        },
+        ...productRelations,
+      },
+    });
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
@@ -238,6 +418,85 @@ export class DatabaseStorage implements IStorage {
       .values(insertProduct)
       .returning();
     return product;
+  }
+
+  async receiveProductIntoRma(productId: number, userId?: number): Promise<void> {
+    const rmaWarehouse = await this.getWarehouseByCode("rma");
+    await db
+      .update(products)
+      .set({
+        warehouseId: rmaWarehouse?.id,
+        location: "rma_depo",
+      })
+      .where(eq(products.id, productId));
+
+    await this.createStockMovement({
+      productId,
+      fromWarehouseId: undefined,
+      toWarehouseId: rmaWarehouse?.id,
+      movementType: "teslim_alma",
+      notes: "Ürün teslim alındı ve RMA deposuna alındı",
+      createdById: userId,
+    });
+  }
+
+  async updateProduct(
+    id: number,
+    data: Partial<InsertProduct>,
+    options?: { movementNotes?: string; userId?: number },
+  ): Promise<Product | undefined> {
+    const current = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    if (!current[0]) return undefined;
+
+    const previous = current[0];
+    const [updated] = await db.update(products).set(data).where(eq(products.id, id)).returning();
+
+    if (data.warehouseId && data.warehouseId !== previous.warehouseId) {
+      const warehouse = (await db.select().from(warehouses).where(eq(warehouses.id, data.warehouseId)))[0];
+      const locationByCode: Record<string, string> = {
+        rma: "rma_depo",
+        satilabilir: "satilabilir",
+        hurda: "hurda",
+      };
+      const nextLocation = data.location || (warehouse ? locationByCode[warehouse.code] : previous.location);
+      if (nextLocation && nextLocation !== updated.location) {
+        const [relocated] = await db
+          .update(products)
+          .set({ location: nextLocation })
+          .where(eq(products.id, id))
+          .returning();
+        await this.createStockMovement({
+          productId: id,
+          fromWarehouseId: previous.warehouseId ?? undefined,
+          toWarehouseId: data.warehouseId,
+          movementType: nextLocation,
+          notes: options?.movementNotes || "Depo değişikliği",
+          createdById: options?.userId,
+        });
+        return relocated;
+      }
+      await this.createStockMovement({
+        productId: id,
+        fromWarehouseId: previous.warehouseId ?? undefined,
+        toWarehouseId: data.warehouseId,
+        movementType: data.location || previous.location || "rma_depo",
+        notes: options?.movementNotes || "Depo değişikliği",
+        createdById: options?.userId,
+      });
+    }
+
+    if (data.location && data.location !== previous.location && !data.warehouseId) {
+      await this.createStockMovement({
+        productId: id,
+        fromWarehouseId: previous.warehouseId ?? undefined,
+        toWarehouseId: previous.warehouseId ?? undefined,
+        movementType: data.location,
+        notes: options?.movementNotes || "Konum güncellendi",
+        createdById: options?.userId,
+      });
+    }
+
+    return updated;
   }
 
   async updateProductStatus(id: number, newStatus: string): Promise<void> {
@@ -254,6 +513,10 @@ export class DatabaseStorage implements IStorage {
 
   async createStatusHistory(insertHistory: InsertStatusHistory): Promise<void> {
     await db.insert(statusHistory).values(insertHistory);
+  }
+
+  async createStockMovement(insertMovement: InsertStockMovement): Promise<void> {
+    await db.insert(stockMovements).values(insertMovement);
   }
 
   async getDashboardStats(): Promise<any> {
