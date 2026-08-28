@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { log } from "./log";
+import { serveStatic } from "./static";
 import session from "express-session";
 import { getUploadsDir } from "./image-storage";
 
@@ -19,6 +20,9 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
 app.use(session({
   secret: process.env.SESSION_SECRET || "local-rma-panel-session-secret",
   resave: false,
@@ -26,7 +30,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     maxAge: 1000 * 60 * 60 * 24 * 7,
   },
 }));
@@ -76,7 +80,8 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (process.env.NODE_ENV === "development") {
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);
