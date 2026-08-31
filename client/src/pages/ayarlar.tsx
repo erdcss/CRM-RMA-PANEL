@@ -26,13 +26,13 @@ export default function Ayarlar() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <ScanLine className="h-5 w-5 text-primary" />
-                <CardTitle>Barkod Etiketleri</CardTitle>
+                <CardTitle>Barkod & Etiket</CardTitle>
               </div>
-              <CardDescription>Koli etiketi boyutu ve yazdırma ayarları</CardDescription>
+              <CardDescription>NIIMBOT D110-M Code 128 etiket yazdırma (40×12 mm)</CardDescription>
             </CardHeader>
             <CardContent>
               <Button variant="outline" onClick={() => navigate("/ayarlar/barkod")}>
-                Barkod Ayarlarını Aç
+                Barkod & Etiket Ayarları
               </Button>
             </CardContent>
           </Card>

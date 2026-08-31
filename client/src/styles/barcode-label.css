@@ -1,0 +1,106 @@
+/* NIIMBOT / termal barkod etiket — yalnızca Code 128 + alt numara */
+
+.barcode-label-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.barcode-label {
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px dashed hsl(var(--border));
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.barcode-label--preview {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.barcode-label--print {
+  border: none;
+  box-shadow: none;
+}
+
+.barcode-label-inner {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  background: #ffffff;
+}
+
+.barcode-label-bars {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.barcode-label-bars svg {
+  max-width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.barcode-label-bars svg rect {
+  shape-rendering: crispEdges;
+}
+
+.barcode-label-number {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 600;
+  color: #000000;
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.barcode-label-invalid {
+  font-size: 0.875rem;
+  color: hsl(var(--destructive));
+}
+
+/* In-app print fallback (ayarlar sayfası) */
+@media print {
+  body.barcode-label-print-active * {
+    visibility: hidden !important;
+  }
+
+  body.barcode-label-print-active .barcode-print-root,
+  body.barcode-label-print-active .barcode-print-root * {
+    visibility: visible !important;
+  }
+
+  body.barcode-label-print-active .barcode-print-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  @page {
+    margin: 0;
+  }
+}
+
+.barcode-print-root .barcode-print-page {
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #ffffff;
+  page-break-after: always;
+  break-after: page;
+}
+
+.barcode-print-root .barcode-print-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}

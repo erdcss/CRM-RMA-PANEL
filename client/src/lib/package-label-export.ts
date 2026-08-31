@@ -6,7 +6,7 @@ import {
   type LabelProductRow,
 } from "@shared/package-label";
 import { getPackageStatusLabel } from "@shared/package-constants";
-import { loadBarcodeSettings } from "@/lib/barcodeSettings";
+import { loadPackageLabelSettings } from "@/lib/packageLabelSettings";
 
 interface PackageLabelItem {
   quantity?: number | null;
@@ -95,7 +95,7 @@ function drawProductRows(doc: jsPDF, rows: LabelProductRow[], startY: number, ma
 }
 
 export async function generatePackageLabelPDF(data: PackageLabelData): Promise<void> {
-  const settings = loadBarcodeSettings();
+  const settings = loadPackageLabelSettings();
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
