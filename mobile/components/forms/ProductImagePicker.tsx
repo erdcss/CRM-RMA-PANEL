@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { persistLocalImage } from '@/lib/attachments';
 
 type ProductImagePickerProps = {
   imageUri?: string | null;
@@ -29,12 +30,14 @@ async function pickFromLibrary() {
 
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
-    quality: 0.9,
+    quality: 0.8,
     allowsEditing: false,
+    exif: false,
+    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
   });
 
   if (result.canceled || !result.assets[0]) return null;
-  return result.assets[0].uri;
+  return persistLocalImage(result.assets[0].uri);
 }
 
 async function pickFromCamera() {
@@ -44,12 +47,14 @@ async function pickFromCamera() {
   }
 
   const result = await ImagePicker.launchCameraAsync({
-    quality: 0.9,
+    quality: 0.8,
     allowsEditing: false,
+    exif: false,
+    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
   });
 
   if (result.canceled || !result.assets[0]) return null;
-  return result.assets[0].uri;
+  return persistLocalImage(result.assets[0].uri);
 }
 
 function showPicker(imageUri: string | null | undefined, onSelect: (uri: string | null) => void) {

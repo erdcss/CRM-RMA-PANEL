@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
@@ -18,6 +18,7 @@ const RESULT_TYPES = [
 ];
 
 export default function PackageDetailScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const packageId = Number(id);
   const [pkg, setPkg] = useState<any>(null);
@@ -54,12 +55,12 @@ export default function PackageDetailScreen() {
     }
   };
 
-  if (loading) return <LoadingState message="Koli yukleniyor..." />;
+  if (loading) return <LoadingState />;
   if (!pkg) return <Screen><Text style={styles.error}>Koli bulunamadi</Text></Screen>;
 
   return (
     <Screen>
-      <AppHeader title={pkg.packageNumber} showBack />
+      <AppHeader title={pkg.packageNumber} onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.scroll}>
         <Card>
           <Text style={styles.title}>{pkg.supplierName}</Text>

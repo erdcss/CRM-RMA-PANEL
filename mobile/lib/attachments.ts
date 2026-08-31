@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system/legacy';
+
 import { supabase } from './supabase';
 
 export type RmaAttachment = {
@@ -11,6 +13,66 @@ export type RmaAttachment = {
   document_type: string;
   created_at: string;
 };
+
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
+function base64ToArrayBuffer(base64: string) {
+  const binary = globalThis.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+export async function persistLocalImage(localUri: string) {
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir) return localUri;
+  try {
+    const dest = `${cacheDir}rma-picked-${Date.now()}.jpg`;
+    await FileSystem.copyAsync({ from: localUri, to: dest });
+    return dest;
+  } catch (error) {
+    throw new Error(`Görsel kaydedilemedi: ${errorMessage(error, 'galeriden tekrar deneyin')}`);
+  }
+}
+
+async function readLocalImageBytes(localUri: string) {
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir) {
+    throw new Error('Geçici dosya klasörü kullanılamıyor.');
+  }
+
+  let fileUri = localUri;
+  try {
+    const dest = `${cacheDir}rma-upload-${Date.now()}.jpg`;
+    await FileSystem.copyAsync({ from: localUri, to: dest });
+    fileUri = dest;
+  } catch {
+    if (!localUri.startsWith('file://')) {
+      throw new Error('Seçilen görsel uygulamaya kopyalanamadı. Galeriden tekrar deneyin.');
+    }
+  }
+
+  try {
+    const base64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    if (!base64) {
+      throw new Error('Görsel dosyası boş.');
+    }
+    return base64ToArrayBuffer(base64);
+  } catch (error) {
+    throw new Error(`Görsel okunamadı: ${errorMessage(error, 'bilinmeyen hata')}`);
+  }
+}
 
 export async function listProductAttachments(ticketId: number, productId: number) {
   const { data, error } = await supabase
@@ -57,17 +119,18 @@ export async function uploadProductPhoto(
     throw new Error('Fotoğraf yüklemek için oturum gerekli.');
   }
 
-  const response = await fetch(localUri);
-  const bytes = await response.arrayBuffer();
+  const bytes = await readLocalImageBytes(localUri);
   const safeName = (fileName ?? `photo-${Date.now()}.jpg`).replace(/[^a-zA-Z0-9._-]/g, '_');
   const path = `tickets/${ticketId}/products/${productId}/${Date.now()}-${safeName}`;
-  const mimeType = safeName.endsWith('.png') ? 'image/png' : 'image/jpeg';
+  const mimeType = 'image/jpeg';
 
   const { error: uploadError } = await supabase.storage
     .from('rma-attachments')
     .upload(path, bytes, { contentType: mimeType, upsert: false });
 
-  if (uploadError) throw uploadError;
+  if (uploadError) {
+    throw new Error(errorMessage(uploadError, 'Görsel depolamaya yüklenemedi.'));
+  }
 
   const { data, error: metadataError } = await supabase
     .from('rma_attachments')
@@ -85,7 +148,7 @@ export async function uploadProductPhoto(
 
   if (metadataError) {
     await supabase.storage.from('rma-attachments').remove([path]);
-    throw metadataError;
+    throw new Error(errorMessage(metadataError, 'Görsel kaydı oluşturulamadı.'));
   }
 
   return data as RmaAttachment;

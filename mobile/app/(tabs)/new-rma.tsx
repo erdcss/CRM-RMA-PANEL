@@ -374,21 +374,24 @@ export default function NewRmaScreen() {
         }),
       );
 
-      const failedUploads = uploadResults.filter((result) => result.status === 'rejected').length;
+      const failedUploads = uploadResults.filter((result) => result.status === 'rejected');
       const failedSuppliers = supplierResults.filter((result) => result.status === 'rejected').length;
       const ticketId = ticket.id;
 
       resetForm();
       void refreshCustomers().catch(() => undefined);
 
-      if (failedUploads > 0 || failedSuppliers > 0) {
+      if (failedUploads.length > 0 || failedSuppliers > 0) {
+        const firstUploadError = failedUploads[0]?.status === 'rejected' && failedUploads[0].reason instanceof Error
+          ? failedUploads[0].reason.message
+          : null;
         const parts = [
-          failedUploads > 0 ? `${failedUploads} görsel` : null,
+          failedUploads.length > 0 ? `${failedUploads.length} görsel` : null,
           failedSuppliers > 0 ? `${failedSuppliers} tedarikçi bağlantısı` : null,
         ].filter(Boolean);
         Alert.alert(
           'RMA kaydı oluşturuldu',
-          `RMA kaydı başarıyla oluşturuldu. Ancak ${parts.join(' ve ')} tamamlanamadı; kayıt detayından veya Tedarikçiler sayfasından tekrar ekleyebilirsiniz.`,
+          `RMA kaydı başarıyla oluşturuldu. Ancak ${parts.join(' ve ')} tamamlanamadı; kayıt detayından veya Tedarikçiler sayfasından tekrar ekleyebilirsiniz.${firstUploadError ? `\n\n${firstUploadError}` : ''}`,
           [{ text: 'Kayda Git', onPress: () => router.replace(recordHref(ticketId)) }],
         );
       } else {

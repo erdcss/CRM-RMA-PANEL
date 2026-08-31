@@ -28,7 +28,7 @@ export default function PackageScanScreen() {
 
   return (
     <Screen>
-      <AppHeader title="Koli Tara" showBack />
+      <AppHeader title="Koli Tara" onBack={() => router.back()} />
       <View style={styles.body}>
         <Text style={styles.hint}>Koli numarasi, barkod veya QR kodu girin.</Text>
         <TextInput
