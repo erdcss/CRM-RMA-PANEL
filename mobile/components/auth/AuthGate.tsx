@@ -72,6 +72,10 @@ export function RootStack() {
       <Stack.Screen name="customer/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="package/scan" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="package/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="supplier/[code]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="supplier/[code]/ship" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="supplier/product/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="settings/barcode" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

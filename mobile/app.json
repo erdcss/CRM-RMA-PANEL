@@ -18,7 +18,7 @@
       "buildNumber": "3",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Ürün fotoğrafı çekmek için kamera erişimi gerekir.",
+        "NSCameraUsageDescription": "Ürün fotoğrafı çekmek ve koli barkodu taramak için kamera erişimi gerekir.",
         "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı eklemek için galeri erişimi gerekir."
       }
     },
@@ -37,6 +37,13 @@
         {
           "photosPermission": "Ürün fotoğrafları için galeri erişimi gerekir.",
           "cameraPermission": "Ürün fotoğrafı çekmek için kamera erişimi gerekir."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Koli barkodu ve QR kodu taramak için kamera erişimi gerekir.",
+          "recordAudioAndroid": false
         }
       ]
     ],

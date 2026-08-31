@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
@@ -23,6 +24,7 @@ const SECTIONS = [
   {
     title: 'Uygulama',
     items: [
+      { icon: 'barcode-outline' as const, label: 'Barkod Ayarları', soon: false, route: '/settings/barcode' as const },
       { icon: 'notifications-outline' as const, label: 'Bildirimler', soon: true },
       { icon: 'information-circle-outline' as const, label: 'Uygulama Hakkında', soon: false },
     ],
@@ -30,6 +32,7 @@ const SECTIONS = [
 ];
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, loading, signOut, deleteAccount } = useAuth();
   const [deletingAccount, setDeletingAccount] = useState(false);
 
@@ -132,7 +135,10 @@ export default function ProfileScreen() {
             <Card style={styles.menuCard}>
               {section.items.map((item, index) => (
                 <View key={item.label}>
-                  <Pressable style={styles.menuRow}>
+                  <Pressable
+                    style={styles.menuRow}
+                    onPress={'route' in item && item.route ? () => router.push(item.route) : undefined}
+                  >
                     <Ionicons name={item.icon} size={20} color={colors.textSecondary} />
                     <Text style={styles.menuLabel}>{item.label}</Text>
                     {item.soon ? <Text style={styles.soon}>Yakında</Text> : null}

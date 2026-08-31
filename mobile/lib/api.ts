@@ -17,18 +17,29 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!API_URL) throw new Error('EXPO_PUBLIC_API_URL tanımlı değil.');
 
   const authHeaders = await getAuthHeaders();
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-      ...(init?.headers ?? {}),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch (error) {
+    const hint =
+      API_URL.includes('localhost') || API_URL.includes('127.0.0.1')
+        ? ' Bilgisayarda API sunucusunun çalıştığından emin olun (npm run dev).'
+        : ' İnternet bağlantınızı ve API adresini kontrol edin.';
+    throw new Error(
+      `Sunucuya bağlanılamadı (${API_URL}).${hint} ${error instanceof Error ? error.message : ''}`.trim(),
+    );
+  }
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(body || `API hatası: ${response.status}`);
+    throw new Error(parseApiError(body, response.status));
   }
 
   return response.json() as Promise<T>;
@@ -170,6 +181,47 @@ export type UpdateProductPayload = {
   quantity?: number;
 };
 
+export type RmaPackageItem = {
+  id: number;
+  packageId: number;
+  productId: number;
+  quantity: number | null;
+  product?: RmaProduct & {
+    ticket?: {
+      id: number;
+      receiptNumber?: string | null;
+      createdAt: string;
+      customer?: RmaTicket['customer'];
+    };
+  };
+};
+
+export type RmaPackage = {
+  id: number;
+  packageNumber: string;
+  supplierAccountCode: string;
+  supplierName: string;
+  status: string;
+  barcodeValue?: string | null;
+  qrValue?: string | null;
+  createdAt: string;
+  closedAt?: string | null;
+  verifiedAt?: string | null;
+  shippedAt?: string | null;
+  items: RmaPackageItem[];
+  productCount?: number;
+  totalQuantity?: number;
+};
+
+function parseApiError(body: string, status: number) {
+  try {
+    const parsed = JSON.parse(body) as { error?: string; message?: string };
+    return parsed.error || parsed.message || `API hatası: ${status}`;
+  } catch {
+    return body || `API hatası: ${status}`;
+  }
+}
+
 export const rmaApi = {
   listTickets: () => request<RmaTicket[]>('/api/tickets'),
   getTicket: (id: number) => request<RmaTicket>(`/api/tickets/${id}`),
@@ -228,9 +280,57 @@ export const rmaApi = {
     }),
 
   lookupPackage: (q: string) =>
-    request<any>(`/api/rma/packages/lookup?q=${encodeURIComponent(q)}`),
+    request<RmaPackage>(`/api/rma/packages/lookup?q=${encodeURIComponent(q)}`),
 
-  getPackage: (id: number) => request<any>(`/api/rma/packages/${id}`),
+  listPackages: (params?: { supplier?: string; status?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.supplier) query.set('supplier', params.supplier);
+    if (params?.status) query.set('status', params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<RmaPackage[]>(`/api/rma/packages${suffix}`);
+  },
+
+  getPackage: (id: number) => request<RmaPackage>(`/api/rma/packages/${id}`),
+
+  createPackage: (payload: {
+    supplierAccountCode: string;
+    supplierName: string;
+    productIds: number[];
+    notes?: string;
+  }) =>
+    request<RmaPackage>('/api/rma/packages', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  addPackageItems: (packageId: number, productIds: number[]) =>
+    request<RmaPackage>(`/api/rma/packages/${packageId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ productIds }),
+    }),
+
+  removePackageItem: (packageId: number, itemId: number) =>
+    request<RmaPackage>(`/api/rma/packages/${packageId}/items/${itemId}`, {
+      method: 'DELETE',
+    }),
+
+  closePackage: (packageId: number) =>
+    request<RmaPackage>(`/api/rma/packages/${packageId}/close`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  verifyPackageBarcode: (barcodeValue: string) =>
+    request<RmaPackage>('/api/rma/packages/verify', {
+      method: 'POST',
+      body: JSON.stringify({ barcodeValue }),
+    }),
+
+  shipPackage: (packageId: number, payload?: { carrierName?: string; trackingNumber?: string; notes?: string }) =>
+    request<RmaPackage>(`/api/rma/packages/${packageId}/ship`, {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }),
 
   markDeliveredToSupplier: (id: number, deliveryNote?: string) =>
     request<any>(`/api/rma/packages/${id}/deliver-to-supplier`, {
