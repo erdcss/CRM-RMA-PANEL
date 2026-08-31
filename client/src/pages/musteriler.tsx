@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Users } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,7 @@ type CatalogCustomer = {
 };
 
 export default function Musteriler() {
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
 
   const queryPath =
@@ -85,7 +87,11 @@ export default function Musteriler() {
               </TableHeader>
               <TableBody>
                 {customers.map((customer) => (
-                  <TableRow key={customer.id}>
+                  <TableRow
+                    key={customer.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/musteri/${customer.id}`)}
+                  >
                     <TableCell className="font-medium text-primary">{customer.accountCode}</TableCell>
                     <TableCell>{customer.accountName}</TableCell>
                   </TableRow>

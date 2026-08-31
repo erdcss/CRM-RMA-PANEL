@@ -28,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Kayıtlar", url: "/kayitlar", icon: FileText },
+  { title: "Tedarikçiler", url: "/tedarikciler", icon: Truck },
   { title: "Tedarikçiye Hazırlık", url: "/tedarikci-hazirlik", icon: Truck },
   { title: "Koliler", url: "/koliler", icon: Box },
   { title: "Barkod Tara", url: "/koli-tara", icon: ScanLine },

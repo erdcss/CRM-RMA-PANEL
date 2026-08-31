@@ -12,6 +12,12 @@ import {
   supplierItems,
   tickets,
 } from "@shared/schema";
+import {
+  buildPackageScanToken,
+  MAX_PACKAGE_LABEL_ITEMS,
+  MAX_PACKAGE_LABEL_SEQUENCE,
+  parsePackageLabelSequence,
+} from "@shared/package-label";
 import { EDITABLE_PACKAGE_STATUSES } from "@shared/package-constants";
 import { RMA_DEFAULT_WAREHOUSE_LOCATION } from "@shared/rma-constants";
 import { db } from "./db";
@@ -19,7 +25,14 @@ import { getOwnedProduct } from "./suppliers";
 
 let schemaPromise: Promise<void> | null = null;
 
-const PREP_STATUSES = ["rma_deposunda", "tedarikci_bekliyor", "beklemede"];
+const PREP_STATUSES = [
+  "rma_deposunda",
+  "tedarikci_bekliyor",
+  "beklemede",
+  "teslim_alindi",
+  "serviste",
+  "tedarikcide",
+];
 
 export function ensurePackageTables() {
   if (!schemaPromise) {
@@ -161,6 +174,33 @@ async function generatePackageNumber(ownerUserId: string): Promise<string> {
     .where(and(eq(rmaPackages.ownerUserId, ownerUserId), ilike(rmaPackages.packageNumber, `${prefix}%`)));
   const seq = (Number(row?.count || 0) + 1).toString().padStart(6, "0");
   return `${prefix}${seq}`;
+}
+
+async function allocateLabelSequence(ownerUserId: string, supplierAccountCode: string): Promise<number> {
+  const rows = await db
+    .select({ barcodeValue: rmaPackages.barcodeValue })
+    .from(rmaPackages)
+    .where(
+      and(
+        eq(rmaPackages.ownerUserId, ownerUserId),
+        eq(rmaPackages.supplierAccountCode, supplierAccountCode),
+        inArray(rmaPackages.status, ["kapatildi", "sevke_hazir"]),
+      ),
+    );
+
+  const used = new Set<number>();
+  for (const row of rows) {
+    const seq = parsePackageLabelSequence(row.barcodeValue);
+    if (seq) used.add(seq);
+  }
+
+  for (let i = 1; i <= MAX_PACKAGE_LABEL_SEQUENCE; i++) {
+    if (!used.has(i)) return i;
+  }
+
+  throw new Error(
+    "Bu tedarikci icin en fazla 9 aktif koli etiketi (1-9) kullanilabilir. Once mevcut kolileri sevk edin.",
+  );
 }
 
 async function generateShipmentNumber(ownerUserId: string): Promise<string> {
@@ -472,6 +512,9 @@ export async function createPackageFromProducts(
 ) {
   await ensurePackageTables();
   if (input.productIds.length === 0) throw new Error("En az bir urun secilmeli");
+  if (input.productIds.length > MAX_PACKAGE_LABEL_ITEMS) {
+    throw new Error(`Bir kolide en fazla ${MAX_PACKAGE_LABEL_ITEMS} urun olabilir`);
+  }
 
   await validateProductsForPackage(input.productIds, ownerUserId, input.supplierAccountCode);
 
@@ -534,6 +577,15 @@ export async function addProductsToPackage(
   if (!pkg) throw new Error("Koli bulunamadi");
   if (!EDITABLE_PACKAGE_STATUSES.includes(pkg.status as any)) {
     throw new Error("Kapali koli degistirilemez");
+  }
+
+  const existingItems = await db
+    .select({ id: rmaPackageItems.id })
+    .from(rmaPackageItems)
+    .where(and(eq(rmaPackageItems.packageId, packageId), isNull(rmaPackageItems.removedAt)));
+
+  if (existingItems.length + productIds.length > MAX_PACKAGE_LABEL_ITEMS) {
+    throw new Error(`Bir kolide en fazla ${MAX_PACKAGE_LABEL_ITEMS} urun olabilir`);
   }
 
   await validateProductsForPackage(productIds, ownerUserId, pkg.supplierAccountCode);
@@ -644,12 +696,21 @@ export async function closePackage(packageId: number, ownerUserId: string, userI
     .where(and(eq(rmaPackageItems.packageId, packageId), isNull(rmaPackageItems.removedAt)));
 
   if (items.length === 0) throw new Error("Kolide en az bir urun olmali");
+  if (items.length > MAX_PACKAGE_LABEL_ITEMS) {
+    throw new Error(`Bir kolide en fazla ${MAX_PACKAGE_LABEL_ITEMS} urun olabilir`);
+  }
 
   for (const item of items) {
     await validateProductsForPackage([item.productId], ownerUserId, pkg.supplierAccountCode, packageId);
   }
 
-  const scanToken = `RMAPKG-${packageId}-${nanoid(10)}`;
+  const labelSequence = await allocateLabelSequence(ownerUserId, pkg.supplierAccountCode);
+  const scanToken = buildPackageScanToken(
+    pkg.supplierAccountCode,
+    labelSequence,
+    packageId,
+    nanoid(8),
+  );
   const now = new Date();
 
   return db.transaction(async (tx) => {
@@ -687,6 +748,7 @@ export async function closePackage(packageId: number, ownerUserId: string, userI
       eventType: "kapatildi",
       performedByUserId: userId,
       notes: "Koli kapatildi ve barkod uretildi",
+      metadata: JSON.stringify({ labelSequence }),
     });
 
     return getPackageDetail(packageId, ownerUserId);

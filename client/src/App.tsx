@@ -15,7 +15,14 @@ import Musteriler from "@/pages/musteriler";
 import Urunler from "@/pages/urunler";
 import Ayarlar from "@/pages/ayarlar";
 import KayitDetay from "@/pages/kayit-detay";
+import KayitUrunDetay from "@/pages/kayit-urun-detay";
+import Tedarikciler from "@/pages/tedarikciler";
+import TedarikciDetay from "@/pages/tedarikci-detay";
+import TedarikciSevkiyat from "@/pages/tedarikci-sevkiyat";
+import TedarikciUrunDetay from "@/pages/tedarikci-urun-detay";
 import TedarikciHazirlik from "@/pages/tedarikci-hazirlik";
+import MusteriDetay from "@/pages/musteri-detay";
+import AyarlarBarkod from "@/pages/ayarlar-barkod";
 import Koliler from "@/pages/koliler";
 import KoliDetay from "@/pages/koli-detay";
 import KoliTara from "@/pages/koli-tara";
@@ -31,8 +38,15 @@ function AppRouter() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/kayitlar" component={Kayitlar} />
+      <Route path="/kayit/:id/urun/:productId" component={KayitUrunDetay} />
       <Route path="/kayit/:id" component={KayitDetay} />
+      <Route path="/tedarikciler" component={Tedarikciler} />
+      <Route path="/tedarikci/:code/sevkiyat" component={TedarikciSevkiyat} />
+      <Route path="/tedarikci/urun/:id" component={TedarikciUrunDetay} />
+      <Route path="/tedarikci/:code" component={TedarikciDetay} />
       <Route path="/tedarikci-hazirlik" component={TedarikciHazirlik} />
+      <Route path="/musteri/:id" component={MusteriDetay} />
+      <Route path="/ayarlar/barkod" component={AyarlarBarkod} />
       <Route path="/koliler" component={Koliler} />
       <Route path="/koliler/:id" component={KoliDetay} />
       <Route path="/koli-tara" component={KoliTara} />

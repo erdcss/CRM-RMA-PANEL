@@ -22,11 +22,13 @@ import { Card } from '@/components/ui/Card';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
+import { parsePackageLabelSequence } from '@/lib/packageLabelUtils';
 
-const PACKABLE_STATUSES = new Set(['rma_deposunda', 'tedarikci_bekliyor', 'beklemede']);
+const EDITABLE_PKG_STATUSES = new Set(['hazirlaniyor', 'taslak']);
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -53,7 +55,8 @@ export default function SupplierShipScreen() {
   const supplierName = params.name ? decodeURIComponent(String(params.name)) : 'Tedarikçi';
 
   const { items, loading, refreshing, refresh } = useSupplierItems();
-  const [pkg, setPkg] = useState<RmaPackage | null>(null);
+  const [activePkg, setActivePkg] = useState<RmaPackage | null>(null);
+  const [closedPkg, setClosedPkg] = useState<RmaPackage | null>(null);
   const [loadingPkg, setLoadingPkg] = useState(true);
   const [busyProductId, setBusyProductId] = useState<number | null>(null);
   const [closing, setClosing] = useState(false);
@@ -70,32 +73,40 @@ export default function SupplierShipScreen() {
 
   const inBoxMap = useMemo(() => {
     const map = new Map<number, number>();
-    for (const row of pkg?.items ?? []) {
+    for (const row of activePkg?.items ?? []) {
       map.set(row.productId, row.id);
     }
     return map;
-  }, [pkg]);
+  }, [activePkg]);
 
   const loadPackage = useCallback(async () => {
     setLoadingPkg(true);
     try {
-      const openPackages = await rmaApi.listPackages({ supplier: supplierCode, status: 'hazirlaniyor' });
-      const closed = await rmaApi.listPackages({ supplier: supplierCode, status: 'kapatildi' });
-      const ready = await rmaApi.listPackages({ supplier: supplierCode, status: 'sevke_hazir' });
-      const candidate = [...openPackages, ...closed, ...ready].sort(
+      const all = await rmaApi.listPackages({ supplier: supplierCode });
+      const sorted = [...all].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      )[0];
+      );
 
-      if (candidate?.id) {
-        const detail = await rmaApi.getPackage(candidate.id);
-        setPkg(detail);
+      const open = sorted.find((row) => EDITABLE_PKG_STATUSES.has(row.status));
+      const finished = sorted.find((row) => ['kapatildi', 'sevke_hazir', 'sevk_edildi'].includes(row.status));
+
+      if (open?.id) {
+        setActivePkg(await rmaApi.getPackage(open.id));
+      } else {
+        setActivePkg(null);
+      }
+
+      if (finished?.id) {
+        const detail = await rmaApi.getPackage(finished.id);
+        setClosedPkg(detail);
         setScanMatched(Boolean(detail.verifiedAt) || detail.status === 'sevke_hazir');
       } else {
-        setPkg(null);
+        setClosedPkg(null);
         setScanMatched(false);
       }
     } catch {
-      setPkg(null);
+      setActivePkg(null);
+      setClosedPkg(null);
     } finally {
       setLoadingPkg(false);
     }
@@ -114,29 +125,19 @@ export default function SupplierShipScreen() {
   };
 
   const addToBox = async (item: SupplierItem) => {
-    if (!PACKABLE_STATUSES.has(item.product.status)) {
-      Alert.alert(
-        'Koliye eklenemez',
-        'Ürün RMA deposunda ve sevke uygun durumda olmalıdır (RMA deposunda / tedarikçi bekliyor / beklemede).',
-      );
-      return;
-    }
-
     setBusyProductId(item.productId);
     try {
       animateLayout();
-      if (!pkg) {
+      if (!activePkg) {
         const created = await rmaApi.createPackage({
           supplierAccountCode: supplierCode,
           supplierName: item.supplierName,
           productIds: [item.productId],
         });
-        setPkg(created);
-      } else if (['hazirlaniyor', 'taslak'].includes(pkg.status)) {
-        const updated = await rmaApi.addPackageItems(pkg.id, [item.productId]);
-        setPkg(updated);
+        setActivePkg(created);
       } else {
-        Alert.alert('Koli kilitli', 'Kapalı veya sevk edilmiş koli değiştirilemez.');
+        const updated = await rmaApi.addPackageItems(activePkg.id, [item.productId]);
+        setActivePkg(updated);
       }
       await refresh();
     } catch (err) {
@@ -147,15 +148,15 @@ export default function SupplierShipScreen() {
   };
 
   const removeFromBox = async (productId: number) => {
-    if (!pkg) return;
+    if (!activePkg) return;
     const itemId = inBoxMap.get(productId);
     if (!itemId) return;
 
     setBusyProductId(productId);
     try {
       animateLayout();
-      const updated = await rmaApi.removePackageItem(pkg.id, itemId);
-      setPkg(updated.items.length ? updated : null);
+      const updated = await rmaApi.removePackageItem(activePkg.id, itemId);
+      setActivePkg(updated.items.length ? updated : null);
       await refresh();
     } catch (err) {
       Alert.alert('Koliden çıkarılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
@@ -165,12 +166,13 @@ export default function SupplierShipScreen() {
   };
 
   const closeBox = async () => {
-    if (!pkg) return;
+    if (!activePkg) return;
     setClosing(true);
     try {
       animateLayout();
-      const updated = await rmaApi.closePackage(pkg.id);
-      setPkg(updated);
+      const updated = await rmaApi.closePackage(activePkg.id);
+      setClosedPkg(updated);
+      setActivePkg(null);
       setScanMatched(false);
       Alert.alert('Koli kapatıldı', 'Barkod atandı. Etiketi yazdırıp tarayarak doğrulayabilirsiniz.');
     } catch (err) {
@@ -181,10 +183,11 @@ export default function SupplierShipScreen() {
   };
 
   const handlePrint = async () => {
-    if (!pkg?.barcodeValue && !pkg?.qrValue) return;
+    const labelPkg = closedPkg ?? activePkg;
+    if (!labelPkg?.barcodeValue && !labelPkg?.qrValue) return;
     setPrinting(true);
     try {
-      await printPackageLabel(pkg);
+      await printPackageLabel(labelPkg);
     } catch (err) {
       Alert.alert('Yazdırma başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
@@ -193,32 +196,35 @@ export default function SupplierShipScreen() {
   };
 
   const handleShareLabel = async () => {
-    if (!pkg) return;
+    const labelPkg = closedPkg ?? activePkg;
+    if (!labelPkg) return;
     try {
-      await sharePackageLabelPdf(pkg);
+      await sharePackageLabelPdf(labelPkg);
     } catch (err) {
       Alert.alert('Etiket paylaşılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     }
   };
 
   const handleScan = (value: string) => {
-    const expected = pkg?.barcodeValue || pkg?.qrValue;
+    const expected = closedPkg?.barcodeValue || closedPkg?.qrValue;
     if (expected && value === expected) {
+      playScanSuccess();
       setScanMatched(true);
       setScanOpen(false);
       Alert.alert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');
     } else {
+      playScanError();
       Alert.alert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
     }
   };
 
   const markReadyToShip = async () => {
-    if (!pkg?.barcodeValue && !pkg?.qrValue) return;
+    if (!closedPkg?.barcodeValue && !closedPkg?.qrValue) return;
     setVerifying(true);
     try {
       animateLayout();
-      const updated = await rmaApi.verifyPackageBarcode(pkg.barcodeValue || pkg.qrValue || '');
-      setPkg(updated);
+      const updated = await rmaApi.verifyPackageBarcode(closedPkg.barcodeValue || closedPkg.qrValue || '');
+      setClosedPkg(updated);
       Alert.alert('Sevkiyata hazır', 'Koli sevkiyat için hazırlandı.');
     } catch (err) {
       Alert.alert('Doğrulama başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
@@ -235,9 +241,10 @@ export default function SupplierShipScreen() {
     );
   }
 
-  const canEditBox = pkg ? ['hazirlaniyor', 'taslak'].includes(pkg.status) : true;
-  const isClosed = pkg?.status === 'kapatildi';
-  const isReady = pkg?.status === 'sevke_hazir';
+  const isClosed = closedPkg?.status === 'kapatildi';
+  const isReady = closedPkg?.status === 'sevke_hazir';
+  const boxCount = activePkg?.items?.length ?? 0;
+  const labelSequence = parsePackageLabelSequence(closedPkg?.barcodeValue || activePkg?.barcodeValue);
 
   return (
     <Screen edges={['top', 'bottom']}>
@@ -252,14 +259,25 @@ export default function SupplierShipScreen() {
             <View style={styles.statusHeader}>
               <Ionicons name="cube-outline" size={22} color={colors.primaryDark} />
               <View style={styles.statusBody}>
-                <Text style={styles.statusTitle}>{pkg ? pkg.packageNumber : 'Aktif koli yok'}</Text>
+                <Text style={styles.statusTitle}>
+                  {activePkg ? activePkg.packageNumber : closedPkg ? closedPkg.packageNumber : 'Aktif koli yok'}
+                </Text>
                 <Text style={styles.statusHint}>
-                  {pkg ? statusLabel(pkg.status) : 'Koliye eklediğinizde otomatik oluşturulur'}
+                  {activePkg
+                    ? `${statusLabel(activePkg.status)} · ${boxCount} ürün kolide`
+                    : closedPkg
+                      ? statusLabel(closedPkg.status)
+                      : 'Koliye eklediğinizde otomatik oluşturulur'}
                 </Text>
               </View>
             </View>
-            {pkg?.barcodeValue ? (
-              <Text style={styles.barcodeValue}>{pkg.barcodeValue}</Text>
+            {(closedPkg?.barcodeValue || activePkg?.barcodeValue) ? (
+              <>
+                {labelSequence ? (
+                  <Text style={styles.sequenceBadge}>Koli sıra no: {labelSequence}/9</Text>
+                ) : null}
+                <Text style={styles.barcodeValue}>{closedPkg?.barcodeValue || activePkg?.barcodeValue}</Text>
+              </>
             ) : null}
           </Card>
 
@@ -275,22 +293,20 @@ export default function SupplierShipScreen() {
                     item={item}
                     onOpen={() => router.push(`/supplier/product/${item.id}` as never)}
                     trailing={
-                      canEditBox ? (
-                        <Pressable
-                          style={[styles.boxBtn, inBox ? styles.boxBtnRemove : styles.boxBtnAdd, busy && styles.disabled]}
-                          onPress={() => (inBox ? removeFromBox(item.productId) : addToBox(item))}
-                          disabled={busy}
-                        >
-                          <Ionicons
-                            name={inBox ? 'remove-circle-outline' : 'add-circle-outline'}
-                            size={18}
-                            color={inBox ? colors.danger : colors.success}
-                          />
-                          <Text style={[styles.boxBtnText, inBox && styles.boxBtnTextRemove]}>
-                            {busy ? '…' : inBox ? 'Koliden\nÇıkar' : 'Koliye\nEkle'}
-                          </Text>
-                        </Pressable>
-                      ) : null
+                      <Pressable
+                        style={[styles.boxBtn, inBox ? styles.boxBtnRemove : styles.boxBtnAdd, busy && styles.disabled]}
+                        onPress={() => (inBox ? removeFromBox(item.productId) : addToBox(item))}
+                        disabled={busy}
+                      >
+                        <Ionicons
+                          name={inBox ? 'remove-circle-outline' : 'add-circle-outline'}
+                          size={18}
+                          color={inBox ? colors.danger : colors.success}
+                        />
+                        <Text style={[styles.boxBtnText, inBox && styles.boxBtnTextRemove]}>
+                          {busy ? '…' : inBox ? 'Koliden\nÇıkar' : 'Koliye\nEkle'}
+                        </Text>
+                      </Pressable>
                     }
                   />
                 </View>
@@ -298,30 +314,28 @@ export default function SupplierShipScreen() {
             })}
           </View>
 
-          {pkg && (pkg.items?.length ?? 0) > 0 ? (
+          {activePkg && boxCount > 0 ? (
             <View style={styles.actions}>
-              {canEditBox ? (
-                <PrimaryAction
-                  icon="lock-closed-outline"
-                  label={closing ? 'Kapatılıyor…' : 'Koliyi Kapat ve Barkod Ata'}
-                  onPress={closeBox}
-                  disabled={closing}
-                />
-              ) : null}
+              <PrimaryAction
+                icon="lock-closed-outline"
+                label={closing ? 'Kapatılıyor…' : 'Koliyi Kapat ve Barkod Ata'}
+                onPress={closeBox}
+                disabled={closing}
+              />
+            </View>
+          ) : null}
 
-              {isClosed || isReady ? (
-                <>
-                  <SecondaryAction
-                    icon="print-outline"
-                    label={printing ? 'Yazdırılıyor…' : 'Barkod Yazdır'}
-                    onPress={handlePrint}
-                    disabled={printing}
-                  />
-                  <SecondaryAction icon="share-outline" label="Etiket PDF Paylaş" onPress={handleShareLabel} />
-                  {!isReady ? (
-                    <SecondaryAction icon="scan-outline" label="Barkodu Tara" onPress={() => setScanOpen(true)} />
-                  ) : null}
-                </>
+          {closedPkg && (closedPkg.barcodeValue || closedPkg.qrValue) ? (
+            <View style={styles.actions}>
+              <SecondaryAction
+                icon="print-outline"
+                label={printing ? 'Yazdırılıyor…' : 'Barkod Yazdır'}
+                onPress={handlePrint}
+                disabled={printing}
+              />
+              <SecondaryAction icon="share-outline" label="Etiket PDF Paylaş" onPress={handleShareLabel} />
+              {!isReady ? (
+                <SecondaryAction icon="scan-outline" label="Barkodu Tara" onPress={() => setScanOpen(true)} />
               ) : null}
 
               {scanMatched && isClosed ? (
@@ -348,7 +362,7 @@ export default function SupplierShipScreen() {
       <BarcodeScannerModal
         visible={scanOpen}
         title="Koli Barkodunu Tara"
-        expectedValue={pkg?.barcodeValue || pkg?.qrValue}
+        expectedValue={closedPkg?.barcodeValue || closedPkg?.qrValue}
         onClose={() => setScanOpen(false)}
         onScanned={handleScan}
       />
@@ -412,6 +426,16 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     color: colors.primaryDark,
     fontWeight: '700',
+  },
+  sequenceBadge: {
+    ...typography.caption,
+    color: colors.primaryDark,
+    fontWeight: '800',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
   },
   sectionTitle: { ...typography.bodyMedium, color: colors.textSecondary, marginTop: spacing.sm },
   list: { gap: spacing.sm },

@@ -20,7 +20,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import { CATEGORY_OPTIONS, getCategoryLabel } from '@/constants/statuses';
-import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 import { useCatalogCustomers, useCatalogProducts, useCustomers } from '@/hooks/useRmaData';
 import { rmaApi, type CatalogCustomer, type CatalogProduct, type RmaCustomer } from '@/lib/api';
 import { uploadProductPhoto } from '@/lib/attachments';
@@ -154,6 +154,7 @@ export default function NewRmaScreen() {
   } = useCatalogProducts(debouncedProductQuery);
 
   const [submitting, setSubmitting] = useState(false);
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
 
   const customerOptions = useMemo(() => {
     const q = debouncedCustomerQuery.trim().toLocaleLowerCase('tr-TR');
@@ -411,34 +412,27 @@ export default function NewRmaScreen() {
 
   return (
     <Screen edges={['top', 'bottom']}>
-      <AppHeader title="Yeni RMA" subtitle="Müşteri · Ürün · Tedarikçi" />
+      <AppHeader title="Yeni RMA" subtitle={`Adım ${step}/3`} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <StepIndicator currentStep={step} />
 
           {step === 1 ? (
             <View style={styles.section}>
-              <StepHero
-                icon="person-add-outline"
-                eyebrow="1. ADIM"
-                title="Müşteri / Cari Seç"
-                description="Kayıtlı cari listenizden seçim yapın; RMA kaydı bu müşteriyle izlenir."
-              />
+              <StepCaption title="Müşteri / Cari" />
 
               <Card style={styles.panel}>
                 <View style={styles.panelHeader}>
-                  <View style={styles.panelTitleBody}>
-                    <Text style={styles.panelTitle}>Cari Arama</Text>
-                    <Text style={styles.hint}>Cari kodu, firma adı, telefon veya e-posta ile arayın.</Text>
-                  </View>
+                  <Text style={styles.panelTitle}>Cari Ara</Text>
                   <Pressable style={styles.softButton} onPress={() => setShowCustomerResults((visible) => !visible)}>
-                    <Ionicons name="people-outline" size={17} color={colors.primaryDark} />
-                    <Text style={styles.softButtonText}>Kayıtlılar</Text>
+                    <Ionicons name="people-outline" size={15} color={colors.primaryDark} />
+                    <Text style={styles.softButtonText}>Liste</Text>
                   </Pressable>
                 </View>
 
                 <FormField
-                  label="Müşteri / Cari Ara"
+                  compact
+                  label="Müşteri / Cari"
                   value={customerQuery}
                   onFocus={() => setShowCustomerResults(true)}
                   onChangeText={(value) => {
@@ -449,17 +443,10 @@ export default function NewRmaScreen() {
                   autoCorrect={false}
                 />
 
-                {showCustomerResults ? (
+                {showCustomerResults && customerOptions.length > 0 ? (
                   <View style={styles.searchResults}>
-                    <View style={styles.resultHeader}>
-                      <Text style={styles.resultTitle}>Eşleşen Cariler</Text>
-                      <Text style={styles.resultCount}>{Math.min(customerOptions.length, 12)} sonuç</Text>
-                    </View>
-                    {catalogCustomersLoading ? <Text style={styles.hint}>Cari listesi aranıyor…</Text> : null}
+                    {catalogCustomersLoading ? <Text style={styles.hint}>Aranıyor…</Text> : null}
                     {catalogCustomersError ? <Text style={styles.errorText}>{catalogCustomersError}</Text> : null}
-                    {!catalogCustomersLoading && customerOptions.length === 0 ? (
-                      <Text style={styles.hint}>Eşleşen kayıt bulunamadı.</Text>
-                    ) : null}
                     {customerOptions.map((item) => {
                       const active = selectedCustomerKey === item.key;
                       return (
@@ -468,65 +455,53 @@ export default function NewRmaScreen() {
                           style={[styles.optionCard, active && styles.optionCardActive]}
                           onPress={() => selectCustomer(item)}
                         >
-                          <View style={styles.optionIcon}>
-                            <Ionicons name="business-outline" size={18} color={colors.primaryDark} />
-                          </View>
                           <View style={styles.optionBody}>
-                            <Text style={styles.optionTitle}>{item.name}</Text>
-                            <Text style={styles.optionMeta}>
+                            <Text style={styles.optionTitle} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.optionMeta} numberOfLines={1}>
                               {[item.accountCode ? `Cari: ${item.accountCode}` : null, item.phone].filter(Boolean).join(' · ') || 'Cari bilgisi'}
                             </Text>
                           </View>
-                          {active ? <Ionicons name="checkmark-circle" size={20} color={colors.success} /> : null}
+                          {active ? <Ionicons name="checkmark-circle" size={18} color={colors.success} /> : null}
                         </Pressable>
                       );
                     })}
                   </View>
                 ) : null}
-              </Card>
 
-              <Card style={styles.panel}>
-                <View style={styles.panelHeaderSimple}>
-                  <Ionicons name="id-card-outline" size={20} color={colors.primaryDark} />
-                  <Text style={styles.panelTitle}>Müşteri Bilgileri</Text>
-                </View>
-                <FormField
-                  label="Cari Kodu"
-                  value={customer.accountCode}
-                  onChangeText={(value) => updateCustomer('accountCode', value)}
-                  placeholder="Varsa cari kodu"
-                  autoCapitalize="characters"
-                />
-                <FormField label="Ad Soyad / Firma" value={customer.customerName} onChangeText={(value) => updateCustomer('customerName', value)} />
-                <FormField label="Telefon" value={customer.phone} onChangeText={(value) => updateCustomer('phone', value)} keyboardType="phone-pad" />
-                <FormField label="E-posta" value={customer.email} onChangeText={(value) => updateCustomer('email', value)} keyboardType="email-address" autoCapitalize="none" />
-                <FormField label="Adres" value={customer.address} onChangeText={(value) => updateCustomer('address', value)} multiline />
+                <FormField compact label="Cari Kodu" value={customer.accountCode} onChangeText={(value) => updateCustomer('accountCode', value)} placeholder="Varsa cari kodu" autoCapitalize="characters" />
+                <FormField compact label="Ad Soyad / Firma" value={customer.customerName} onChangeText={(value) => updateCustomer('customerName', value)} />
+
+                <Pressable style={styles.collapseToggle} onPress={() => setShowCustomerDetails((v) => !v)}>
+                  <Ionicons name={showCustomerDetails ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
+                  <Text style={styles.collapseToggleText}>İletişim detayları {showCustomerDetails ? '' : '(opsiyonel)'}</Text>
+                </Pressable>
+
+                {showCustomerDetails ? (
+                  <>
+                    <FormField compact label="Telefon" value={customer.phone} onChangeText={(value) => updateCustomer('phone', value)} keyboardType="phone-pad" />
+                    <FormField compact label="E-posta" value={customer.email} onChangeText={(value) => updateCustomer('email', value)} keyboardType="email-address" autoCapitalize="none" />
+                    <FormField compact label="Adres" value={customer.address} onChangeText={(value) => updateCustomer('address', value)} multiline />
+                  </>
+                ) : null}
               </Card>
             </View>
           ) : null}
 
           {step === 2 ? (
             <View style={styles.section}>
-              <StepHero
-                icon="cube-outline"
-                eyebrow="2. ADIM"
-                title="Ürünleri Oluştur"
-                description="Her ürünü ayrı işlem, görsel ve tedarikçi bağlantısıyla kaydedin."
-              />
+              <StepCaption title="Ürünler" />
 
               <Card style={styles.panel}>
                 <View style={styles.panelHeader}>
-                  <View style={styles.panelTitleBody}>
-                    <Text style={styles.panelTitle}>Kayıtlı Ürün Ara</Text>
-                    <Text style={styles.hint}>Stok kodu veya ürün adına göre canlı katalogda arayın.</Text>
-                  </View>
+                  <Text style={styles.panelTitle}>Kayıtlı Ürün Ara</Text>
                   <Pressable style={styles.softButton} onPress={() => setShowProductResults((visible) => !visible)}>
-                    <Ionicons name="list-outline" size={17} color={colors.primaryDark} />
+                    <Ionicons name="list-outline" size={15} color={colors.primaryDark} />
                     <Text style={styles.softButtonText}>Liste</Text>
                   </Pressable>
                 </View>
 
                 <FormField
+                  compact
                   label="Ürün Ara"
                   value={productQuery}
                   onFocus={() => setShowProductResults(true)}
@@ -538,67 +513,53 @@ export default function NewRmaScreen() {
                   autoCorrect={false}
                 />
 
-                {showProductResults ? (
+                {showProductResults && catalogProducts.length > 0 ? (
                   <View style={styles.searchResults}>
-                    <View style={styles.resultHeader}>
-                      <Text style={styles.resultTitle}>Kayıtlı Ürünler</Text>
-                      <Text style={styles.resultCount}>{Math.min(catalogProducts.length, 12)} sonuç</Text>
-                    </View>
-                    {catalogProductsLoading ? <Text style={styles.hint}>Ürün listesi aranıyor…</Text> : null}
+                    {catalogProductsLoading ? <Text style={styles.hint}>Aranıyor…</Text> : null}
                     {catalogProductsError ? <Text style={styles.errorText}>{catalogProductsError}</Text> : null}
-                    {catalogProducts.slice(0, 12).map((item) => (
+                    {catalogProducts.slice(0, 8).map((item) => (
                       <Pressable
                         key={item.id}
                         style={[styles.optionCard, selectedCatalogProductId === item.id && styles.optionCardActive]}
                         onPress={() => selectCatalogProduct(item)}
                       >
-                        <View style={styles.optionIcon}>
-                          <Ionicons name="cube-outline" size={18} color={colors.primaryDark} />
-                        </View>
                         <View style={styles.optionBody}>
-                          <Text style={styles.optionTitle}>{item.stockName}</Text>
+                          <Text style={styles.optionTitle} numberOfLines={1}>{item.stockName}</Text>
                           <Text style={styles.optionMeta}>{item.stockCode}</Text>
                         </View>
                       </Pressable>
                     ))}
                   </View>
                 ) : null}
-              </Card>
 
-              <Card style={styles.panel}>
-                <View style={styles.panelHeaderSimple}>
-                  <Ionicons name="construct-outline" size={20} color={colors.primaryDark} />
-                  <Text style={styles.panelTitle}>Ürün Kartı</Text>
-                </View>
-
-                <FormField label="Stok Kodu" value={draft.stockCode} onChangeText={(value) => updateDraft('stockCode', value)} placeholder="Stok kodu" autoCapitalize="characters" />
-                <FormField label="Ürün Adı" value={draft.productName} onChangeText={(value) => updateDraft('productName', value)} placeholder="Ürün adı" />
+                <FormField compact label="Stok Kodu" value={draft.stockCode} onChangeText={(value) => updateDraft('stockCode', value)} placeholder="Stok kodu" autoCapitalize="characters" />
+                <FormField compact label="Ürün Adı" value={draft.productName} onChangeText={(value) => updateDraft('productName', value)} placeholder="Ürün adı" />
                 <View style={styles.twoColumn}>
-                  <View style={styles.column}><FormField label="Marka" value={draft.brand} onChangeText={(value) => updateDraft('brand', value)} /></View>
-                  <View style={styles.column}><FormField label="Model" value={draft.model} onChangeText={(value) => updateDraft('model', value)} /></View>
+                  <View style={styles.column}><FormField compact label="Marka" value={draft.brand} onChangeText={(value) => updateDraft('brand', value)} /></View>
+                  <View style={styles.column}><FormField compact label="Model" value={draft.model} onChangeText={(value) => updateDraft('model', value)} /></View>
                 </View>
                 <View style={styles.twoColumn}>
-                  <View style={styles.column}><FormField label="Seri No" value={draft.serialNumber} onChangeText={(value) => updateDraft('serialNumber', value)} /></View>
-                  <View style={styles.quantityColumn}><FormField label="Adet" value={draft.quantity} onChangeText={(value) => updateDraft('quantity', value)} keyboardType="number-pad" /></View>
+                  <View style={styles.column}><FormField compact label="Seri No" value={draft.serialNumber} onChangeText={(value) => updateDraft('serialNumber', value)} /></View>
+                  <View style={styles.quantityColumn}><FormField compact label="Adet" value={draft.quantity} onChangeText={(value) => updateDraft('quantity', value)} keyboardType="number-pad" /></View>
                 </View>
 
                 <Text style={styles.fieldLabel}>İşlem Türü</Text>
-                <View style={styles.categoryGrid}>
+                <View style={styles.categoryRow}>
                   {CATEGORY_OPTIONS.map((option) => {
                     const active = draft.category === option.value;
                     return (
                       <Pressable
                         key={option.value}
-                        style={[styles.categoryCard, active && styles.categoryCardActive]}
+                        style={[styles.categoryChip, active && styles.categoryChipActive]}
                         onPress={() => updateDraft('category', option.value)}
                       >
-                        <Text style={[styles.categoryTitle, active && styles.categoryTitleActive]}>{option.label}</Text>
+                        <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{option.label}</Text>
                       </Pressable>
                     );
                   })}
                 </View>
 
-                <FormField label="Açıklama / Müşteri Şikayeti" value={draft.description} onChangeText={(value) => updateDraft('description', value)} multiline />
+                <FormField compact label="Açıklama" value={draft.description} onChangeText={(value) => updateDraft('description', value)} multiline />
 
                 <ProductImagePicker imageUri={draft.imageUri} onChange={(uri) => updateDraft('imageUri', uri)} />
 
@@ -610,25 +571,18 @@ export default function NewRmaScreen() {
                 />
 
                 <Pressable style={styles.addProductButton} onPress={addProduct}>
-                  <Ionicons name="add-circle" size={21} color={colors.surface} />
-                  <Text style={styles.addProductText}>Ürünü RMA Listesine Ekle</Text>
+                  <Ionicons name="add-circle" size={18} color={colors.surface} />
+                  <Text style={styles.addProductText}>Listeye Ekle</Text>
                 </Pressable>
               </Card>
 
               <View style={styles.addedSection}>
                 <View style={styles.addedSectionHeader}>
-                  <View>
-                    <Text style={styles.sectionTitle}>RMA Ürünleri</Text>
-                    <Text style={styles.hint}>{products.length} ürün eklendi</Text>
-                  </View>
-                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{products.length}</Text></View>
+                  <Text style={styles.sectionTitle}>Eklenen ({products.length})</Text>
                 </View>
 
                 {products.length === 0 ? (
-                  <Card style={styles.emptyProductCard}>
-                    <Ionicons name="cube-outline" size={28} color={colors.textMuted} />
-                    <Text style={styles.hint}>Henüz ürün eklenmedi.</Text>
-                  </Card>
+                  <Text style={styles.hint}>Henüz ürün eklenmedi.</Text>
                 ) : (
                   products.map((product, index) => (
                     <Card key={product.id} style={styles.addedCard}>
@@ -637,14 +591,13 @@ export default function NewRmaScreen() {
                         <View style={styles.addedBody}>
                           <View style={styles.addedHeader}>
                             <View style={styles.addedTitleBody}>
-                              <Text style={styles.addedIndex}>ÜRÜN {index + 1}</Text>
-                              <Text style={styles.addedTitle}>{product.productName}</Text>
+                              <Text style={styles.addedTitle} numberOfLines={2}>{index + 1}. {product.productName}</Text>
                             </View>
                             <Pressable style={styles.deleteButton} onPress={() => removeProduct(product.id)}>
-                              <Ionicons name="trash-outline" size={17} color={colors.danger} />
+                              <Ionicons name="trash-outline" size={16} color={colors.danger} />
                             </Pressable>
                           </View>
-                          <Text style={styles.addedMeta}>
+                          <Text style={styles.addedMeta} numberOfLines={1}>
                             {[product.stockCode, getCategoryLabel(product.category), `${product.quantity} adet`].filter(Boolean).join(' · ')}
                           </Text>
                           <SupplierButton
@@ -665,48 +618,25 @@ export default function NewRmaScreen() {
 
           {step === 3 ? (
             <View style={styles.section}>
-              <StepHero
-                icon="checkmark-done-outline"
-                eyebrow="3. ADIM"
-                title="Kontrol ve Kaydet"
-                description="Müşteri, ürün ve tedarikçi yönlendirmelerini son kez kontrol edin."
-              />
+              <StepCaption title="Özet ve Kaydet" />
 
               <Card style={styles.summaryCard}>
                 <Text style={styles.summaryTitle}>Müşteri</Text>
-                <SummaryRow label="Cari Kodu" value={customer.accountCode || '-'} />
-                <SummaryRow label="Müşteri" value={customer.customerName || '-'} />
-                <SummaryRow label="Telefon" value={customer.phone || '-'} />
-                <SummaryRow label="Ürün sayısı" value={String(products.length)} />
+                <SummaryRow label="Cari" value={customer.accountCode || '-'} />
+                <SummaryRow label="Ad" value={customer.customerName || '-'} />
+                <SummaryRow label="Ürün" value={String(products.length)} />
               </Card>
 
               {products.map((product, index) => (
                 <Card key={product.id} style={styles.summaryCard}>
-                  <View style={styles.summaryProductHeader}>
-                    <View style={styles.summaryProductText}>
-                      <Text style={styles.addedIndex}>ÜRÜN {index + 1}</Text>
-                      <Text style={styles.summaryTitle}>{product.productName}</Text>
-                    </View>
-                    {product.imageUri ? <ProductImagePicker compact imageUri={product.imageUri} onChange={(uri) => updateProductImage(product.id, uri)} /> : null}
-                  </View>
-                  <SummaryRow label="Stok Kodu" value={product.stockCode || '-'} />
-                  <SummaryRow label="Seri No" value={product.serialNumber || '-'} />
-                  <SummaryRow label="Adet" value={product.quantity} />
+                  <Text style={styles.summaryTitle}>{index + 1}. {product.productName}</Text>
+                  <SummaryRow label="Stok" value={product.stockCode || '-'} />
                   <SummaryRow label="İşlem" value={getCategoryLabel(product.category)} />
-                  <SummaryRow label="Tedarikçi" value={product.supplierName ? `${product.supplierAccountCode} · ${product.supplierName}` : 'Atanmadı'} />
-                  <SummaryRow label="Açıklama" value={product.description || '-'} />
+                  <SummaryRow label="Tedarikçi" value={product.supplierName ? `${product.supplierAccountCode}` : 'Atanmadı'} />
                 </Card>
               ))}
 
-              <View style={styles.syncInfo}>
-                <Ionicons name="git-merge-outline" size={22} color={colors.primaryDark} />
-                <View style={styles.syncInfoBody}>
-                  <Text style={styles.syncInfoTitle}>Tek ürün, tek durum kaynağı</Text>
-                  <Text style={styles.syncInfoText}>
-                    Tedarikçi sayfasında yapılan durum değişikliği aynı RMA ürününü günceller; müşterinin kayıt ekranında da otomatik olarak aynı durum görünür.
-                  </Text>
-                </View>
-              </View>
+              <Text style={styles.hint}>Tedarikçi durum değişiklikleri müşteri kaydına otomatik yansır.</Text>
             </View>
           ) : null}
         </ScrollView>
@@ -743,27 +673,8 @@ export default function NewRmaScreen() {
   );
 }
 
-function StepHero({
-  icon,
-  eyebrow,
-  title,
-  description,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  eyebrow: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <View style={styles.stepHero}>
-      <View style={styles.stepHeroIcon}><Ionicons name={icon} size={24} color={colors.primaryDark} /></View>
-      <View style={styles.stepHeroBody}>
-        <Text style={styles.stepEyebrow}>{eyebrow}</Text>
-        <Text style={styles.stepTitle}>{title}</Text>
-        <Text style={styles.stepDescription}>{description}</Text>
-      </View>
-    </View>
-  );
+function StepCaption({ title }: { title: string }) {
+  return <Text style={styles.stepCaption}>{title}</Text>;
 }
 
 function SupplierButton({
@@ -814,110 +725,79 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.lg },
-  section: { gap: spacing.lg },
-  stepHero: {
-    borderRadius: radius.lg,
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    padding: spacing.lg,
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  stepHeroIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepHeroBody: { flex: 1, gap: 3 },
-  stepEyebrow: { fontSize: 10, lineHeight: 13, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.8 },
-  stepTitle: { ...typography.title, color: colors.text },
-  stepDescription: { ...typography.caption, color: colors.textSecondary },
-  panel: { gap: spacing.lg, padding: spacing.lg },
-  panelHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  panelHeaderSimple: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  panelTitleBody: { flex: 1, gap: 2 },
-  panelTitle: { ...typography.subtitle, color: colors.text },
-  sectionTitle: { ...typography.subtitle, color: colors.text },
+  content: { paddingHorizontal: spacing.md, paddingBottom: spacing.xxl, gap: spacing.md },
+  section: { gap: spacing.md },
+  stepCaption: { ...typography.subtitle, color: colors.text, fontWeight: '700' },
+  panel: { gap: spacing.md, padding: spacing.md },
+  panelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  panelTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '700' },
+  sectionTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '700' },
   hint: { ...typography.caption, color: colors.textSecondary },
   errorText: { ...typography.caption, color: colors.danger },
+  collapseToggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xs },
+  collapseToggleText: { ...typography.caption, color: colors.textMuted },
   softButton: {
-    minHeight: 38,
+    minHeight: 32,
     borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.primarySoft,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.sm,
   },
-  softButtonText: { ...typography.caption, color: colors.primaryDark, fontWeight: '700' },
+  softButtonText: { fontSize: 11, color: colors.primaryDark, fontWeight: '700' },
   searchResults: {
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.surfaceSecondary,
-    padding: spacing.sm,
-    gap: spacing.sm,
+    padding: spacing.xs,
+    gap: spacing.xs,
+    maxHeight: 200,
   },
-  resultHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.xs },
-  resultTitle: { ...typography.bodyMedium, color: colors.text },
-  resultCount: { ...typography.caption, color: colors.textMuted },
   optionCard: {
-    minHeight: 62,
+    minHeight: 44,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.surface,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
   optionCardActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  optionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionBody: { flex: 1, gap: 2 },
-  optionTitle: { ...typography.bodyMedium, color: colors.text },
-  optionMeta: { ...typography.caption, color: colors.textSecondary },
-  twoColumn: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
+  optionBody: { flex: 1, gap: 1 },
+  optionTitle: { fontSize: 13, lineHeight: 17, fontWeight: '600', color: colors.text },
+  optionMeta: { fontSize: 11, lineHeight: 14, color: colors.textSecondary },
+  twoColumn: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   column: { flex: 1 },
-  quantityColumn: { width: 92 },
-  fieldLabel: { ...typography.bodyMedium, color: colors.text },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  categoryCard: {
+  quantityColumn: { width: 72 },
+  fieldLabel: { fontSize: 12, lineHeight: 16, fontWeight: '600', color: colors.text },
+  categoryRow: { flexDirection: 'row', gap: spacing.xs },
+  categoryChip: {
     flex: 1,
-    minWidth: '29%',
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     alignItems: 'center',
   },
-  categoryCardActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  categoryTitle: { ...typography.bodyMedium, color: colors.text },
-  categoryTitleActive: { color: colors.primaryDark },
-  supplierRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm },
-  supplierRowCompact: { marginTop: spacing.sm },
+  categoryChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  categoryChipText: { fontSize: 12, fontWeight: '600', color: colors.text },
+  categoryChipTextActive: { color: colors.primaryDark },
+  supplierRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xs },
+  supplierRowCompact: { marginTop: spacing.xs },
   supplierButton: {
     flex: 1,
-    minHeight: 62,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     backgroundColor: colors.primarySoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -926,8 +806,8 @@ const styles = StyleSheet.create({
   },
   supplierButtonAssigned: { borderColor: colors.success, backgroundColor: colors.successSoft },
   supplierIcon: {
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     borderRadius: radius.sm,
     backgroundColor: colors.surface,
     alignItems: 'center',
@@ -935,10 +815,10 @@ const styles = StyleSheet.create({
   },
   supplierBody: { flex: 1, gap: 1 },
   supplierLabel: { fontSize: 10, lineHeight: 13, fontWeight: '800', color: colors.textSecondary },
-  supplierValue: { ...typography.caption, color: colors.text, fontWeight: '600' },
+  supplierValue: { fontSize: 11, lineHeight: 14, color: colors.text, fontWeight: '600' },
   clearSupplierButton: {
-    width: minTouchTarget,
-    borderRadius: radius.md,
+    width: 40,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.danger,
     backgroundColor: colors.dangerSoft,
@@ -946,69 +826,43 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addProductButton: {
-    minHeight: minTouchTarget,
-    borderRadius: radius.md,
+    minHeight: 44,
+    borderRadius: radius.sm,
     backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs,
     paddingHorizontal: spacing.md,
   },
-  addProductText: { ...typography.bodyMedium, color: colors.surface, fontWeight: '700' },
-  addedSection: { gap: spacing.md },
+  addProductText: { fontSize: 14, color: colors.surface, fontWeight: '700' },
+  addedSection: { gap: spacing.sm },
   addedSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  countBadge: {
-    minWidth: 34,
-    height: 34,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-  },
-  countBadgeText: { ...typography.bodyMedium, color: colors.surface, fontWeight: '800' },
-  emptyProductCard: { minHeight: 100, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
-  addedCard: { gap: spacing.sm, padding: spacing.md },
-  addedRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  addedBody: { flex: 1, gap: spacing.xs },
-  addedHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.sm },
-  addedTitleBody: { flex: 1, gap: 1 },
-  addedIndex: { fontSize: 10, lineHeight: 13, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.5 },
-  addedTitle: { ...typography.bodyMedium, color: colors.text },
-  addedMeta: { ...typography.caption, color: colors.textSecondary },
+  addedCard: { gap: spacing.xs, padding: spacing.sm },
+  addedRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  addedBody: { flex: 1, gap: 2 },
+  addedHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.xs },
+  addedTitleBody: { flex: 1 },
+  addedTitle: { fontSize: 13, lineHeight: 17, fontWeight: '600', color: colors.text },
+  addedMeta: { fontSize: 11, lineHeight: 14, color: colors.textSecondary },
   deleteButton: {
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     borderRadius: radius.sm,
     backgroundColor: colors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  summaryCard: { gap: spacing.md, padding: spacing.lg },
-  summaryProductHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  summaryProductText: { flex: 1, gap: 2 },
-  summaryTitle: { ...typography.subtitle, color: colors.text },
-  summaryRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-  summaryLabel: { ...typography.caption, color: colors.textMuted, width: 92 },
-  summaryValue: { ...typography.bodyMedium, color: colors.text, flex: 1 },
-  syncInfo: {
-    borderRadius: radius.lg,
-    backgroundColor: colors.successSoft,
-    borderWidth: 1,
-    borderColor: colors.success,
-    flexDirection: 'row',
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
-  syncInfoBody: { flex: 1, gap: spacing.xs },
-  syncInfoTitle: { ...typography.bodyMedium, color: colors.success, fontWeight: '800' },
-  syncInfoText: { ...typography.caption, color: colors.textSecondary },
+  summaryCard: { gap: spacing.sm, padding: spacing.md },
+  summaryTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '700' },
+  summaryRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  summaryLabel: { fontSize: 11, color: colors.textMuted, width: 56 },
+  summaryValue: { fontSize: 13, color: colors.text, flex: 1 },
   footer: {
     flexDirection: 'row',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
     backgroundColor: colors.surface,
@@ -1016,8 +870,8 @@ const styles = StyleSheet.create({
   placeholder: { flex: 1 },
   primaryButton: {
     flex: 1,
-    minHeight: minTouchTarget,
-    borderRadius: radius.md,
+    minHeight: 44,
+    borderRadius: radius.sm,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1027,8 +881,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    minHeight: minTouchTarget,
-    borderRadius: radius.md,
+    minHeight: 44,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
@@ -1037,7 +891,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
   },
-  primaryText: { ...typography.bodyMedium, color: colors.surface, textAlign: 'center' },
-  secondaryText: { ...typography.bodyMedium, color: colors.text },
+  primaryText: { fontSize: 14, color: colors.surface, textAlign: 'center', fontWeight: '700' },
+  secondaryText: { fontSize: 14, color: colors.text },
   buttonDisabled: { opacity: 0.6 },
 });

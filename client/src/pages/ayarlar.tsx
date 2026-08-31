@@ -1,11 +1,13 @@
-import { Settings as SettingsIcon, Bell, Database, Download } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Database, Download, ScanLine } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 export default function Ayarlar() {
+  const [, navigate] = useLocation();
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
 
@@ -20,6 +22,21 @@ export default function Ayarlar() {
 
       <main className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <ScanLine className="h-5 w-5 text-primary" />
+                <CardTitle>Barkod Etiketleri</CardTitle>
+              </div>
+              <CardDescription>Koli etiketi boyutu ve yazdırma ayarları</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={() => navigate("/ayarlar/barkod")}>
+                Barkod Ayarlarını Aç
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <div className="flex items-center gap-2">

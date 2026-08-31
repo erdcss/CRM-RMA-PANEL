@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { rmaApi } from '@/lib/api';
+import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const BARCODE_TYPES = [
   'qr',
@@ -41,8 +42,10 @@ export default function PackageScanScreen() {
       setCameraEnabled(false);
       try {
         const pkg = await rmaApi.lookupPackage(q);
+        playScanSuccess();
         router.push(`/package/${pkg.id}`);
       } catch (err) {
+        playScanError();
         Alert.alert('Koli bulunamadi', err instanceof Error ? err.message : 'Bilinmeyen hata');
         setCameraEnabled(true);
       } finally {

@@ -10,9 +10,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { generatePackageLabelPDF } from "@/lib/package-label-export";
+import { playScanError, playScanSuccess } from "@/lib/scanFeedback";
 import { EDITABLE_PACKAGE_STATUSES, getPackageStatusLabel } from "@shared/package-constants";
 import { getRmaOperationLabel } from "@shared/rma-constants";
 import { PackageSupplierResults } from "@/components/package-supplier-results";
+import { BarcodeScannerModal } from "@/components/packages/BarcodeScannerModal";
 
 export default function KoliDetay() {
   const { id } = useParams();
@@ -20,6 +22,7 @@ export default function KoliDetay() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [verifyCode, setVerifyCode] = useState("");
+  const [scanOpen, setScanOpen] = useState(false);
   const [carrierName, setCarrierName] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
 
@@ -43,8 +46,8 @@ export default function KoliDetay() {
 
   const verifyMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/rma/packages/verify", { barcodeValue: verifyCode }),
-    onSuccess: () => { invalidate(); toast({ title: "Barkod dogrulandi" }); setVerifyCode(""); },
-    onError: (e: Error) => toast({ title: "Hata", description: e.message, variant: "destructive" }),
+    onSuccess: () => { playScanSuccess(); invalidate(); toast({ title: "Barkod dogrulandi" }); setVerifyCode(""); },
+    onError: (e: Error) => { playScanError(); toast({ title: "Hata", description: e.message, variant: "destructive" }); },
   });
 
   const shipMutation = useMutation({
@@ -123,8 +126,10 @@ export default function KoliDetay() {
                   barcodeValue: pkg.barcodeValue,
                   qrValue: pkg.qrValue,
                   createdAt: pkg.createdAt,
+                  closedAt: pkg.closedAt,
                   productCount: pkg.productCount,
                   totalQuantity: pkg.totalQuantity,
+                  items: pkg.items,
                 })
               }
             >
@@ -167,9 +172,23 @@ export default function KoliDetay() {
                 <Button onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
                   Dogrula
                 </Button>
+                <Button variant="outline" onClick={() => setScanOpen(true)}>
+                  Kamera
+                </Button>
               </CardContent>
             </Card>
           )}
+
+          <BarcodeScannerModal
+            open={scanOpen}
+            title="Koli Barkodunu Tara"
+            expectedValue={pkg?.barcodeValue || pkg?.qrValue}
+            onClose={() => setScanOpen(false)}
+            onScanned={(code) => {
+              setVerifyCode(code);
+              setScanOpen(false);
+            }}
+          />
 
           {pkg.status === "sevke_hazir" && (
             <Card>

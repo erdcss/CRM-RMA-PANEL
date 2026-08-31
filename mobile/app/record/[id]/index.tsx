@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
-import { ProductDetailCard } from '@/components/rma/ProductDetailCard';
-import { StatusSheet } from '@/components/rma/StatusSheet';
+import { RecordProductRow } from '@/components/rma/RecordProductRow';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -12,8 +11,7 @@ import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useTicket } from '@/hooks/useRmaData';
 import { useTicketProductPhotos } from '@/hooks/useProductPhotos';
-import { rmaApi, type RmaProduct } from '@/lib/api';
-import { getAttachmentSignedUrl, uploadProductPhoto } from '@/lib/attachments';
+import { rmaApi } from '@/lib/api';
 import { formatDateTime, formatRmaId } from '@/lib/format';
 import { previewTicketPdf, shareTicketPdf } from '@/lib/pdf';
 
@@ -22,14 +20,15 @@ export default function RecordDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const ticketId = Number(id);
   const { ticket, loading, error, reload } = useTicket(ticketId);
-  const { getProductPhotoUrl, setProductPhotoUrl } = useTicketProductPhotos(ticketId);
-  const [statusOpen, setStatusOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<RmaProduct | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const { getProductPhotoUrl } = useTicketProductPhotos(ticketId);
   const [sharing, setSharing] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [uploadingProductId, setUploadingProductId] = useState<number | null>(null);
+
+  const openProducts = useMemo(
+    () => ticket?.products.filter((p) => !['teslim_edildi', 'iptal'].includes(p.status)) ?? [],
+    [ticket],
+  );
 
   const confirmDelete = () => {
     if (!ticket) return;
@@ -53,26 +52,6 @@ export default function RecordDetailScreen() {
       Alert.alert('Kayıt silinemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setDeleting(false);
-    }
-  };
-
-  const openStatusSheet = (product: RmaProduct) => {
-    setSelectedProduct(product);
-    setStatusOpen(true);
-  };
-
-  const handleStatusUpdate = async (status: string) => {
-    if (!selectedProduct) return;
-    setUpdating(true);
-    try {
-      await rmaApi.updateProductStatus(selectedProduct.id, status);
-      setStatusOpen(false);
-      setSelectedProduct(null);
-      await reload();
-    } catch (err) {
-      Alert.alert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
-    } finally {
-      setUpdating(false);
     }
   };
 
@@ -107,18 +86,8 @@ export default function RecordDetailScreen() {
     });
   };
 
-  const handleProductPhoto = async (product: RmaProduct, uri: string | null) => {
-    if (!ticket || !uri) return;
-    setUploadingProductId(product.id);
-    try {
-      const attachment = await uploadProductPhoto(ticket.id, product.id, uri);
-      const signedUrl = await getAttachmentSignedUrl(attachment.file_path);
-      setProductPhotoUrl(product.id, signedUrl);
-    } catch (err) {
-      Alert.alert('Görsel yüklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
-    } finally {
-      setUploadingProductId(null);
-    }
+  const openProduct = (productId: number) => {
+    router.push(`/record/${ticketId}/product/${productId}` as never);
   };
 
   if (loading) {
@@ -139,8 +108,6 @@ export default function RecordDetailScreen() {
       </Screen>
     );
   }
-
-  const openProducts = ticket.products.filter((p) => !['teslim_edildi', 'iptal'].includes(p.status));
 
   return (
     <Screen edges={['top', 'bottom']}>
@@ -169,17 +136,20 @@ export default function RecordDetailScreen() {
           <InfoRow label="Adres" value={ticket.customer.address || '-'} />
         </Section>
 
-        {ticket.products.map((product, index) => (
-          <ProductDetailCard
-            key={product.id}
-            product={product}
-            index={index}
-            imageUri={getProductPhotoUrl(product.id)}
-            onUpdateStatus={() => openStatusSheet(product)}
-            onPhotoChange={(uri) => handleProductPhoto(product, uri)}
-            uploadingPhoto={uploadingProductId === product.id}
-          />
-        ))}
+        <View style={styles.productsSection}>
+          <Text style={styles.sectionTitle}>ÜRÜNLER</Text>
+          <View style={styles.productList}>
+            {ticket.products.map((product, index) => (
+              <RecordProductRow
+                key={product.id}
+                product={product}
+                index={index}
+                imageUri={getProductPhotoUrl(product.id)}
+                onOpen={() => openProduct(product.id)}
+              />
+            ))}
+          </View>
+        </View>
 
         <Pressable
           style={[styles.deleteButton, deleting && styles.actionDisabled]}
@@ -207,17 +177,6 @@ export default function RecordDetailScreen() {
         <ActionButton icon="share-outline" label="Paylaş" onPress={handleShare} />
         <ActionButton icon="home-outline" label="Ana Sayfaya Dön" onPress={() => router.replace('/(tabs)')} />
       </View>
-
-      <StatusSheet
-        visible={statusOpen}
-        currentStatus={selectedProduct?.status}
-        loading={updating}
-        onClose={() => {
-          setStatusOpen(false);
-          setSelectedProduct(null);
-        }}
-        onSelect={handleStatusUpdate}
-      />
     </Screen>
   );
 }
@@ -263,7 +222,9 @@ function ActionButton({
   return (
     <Pressable style={[styles.actionButton, disabled && styles.actionDisabled]} onPress={onPress} disabled={disabled}>
       <Ionicons name={icon} size={17} color={colors.primaryDark} />
-      <Text style={styles.actionText} numberOfLines={1}>{label}</Text>
+      <Text style={styles.actionText} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -274,43 +235,23 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxxl,
     gap: spacing.lg,
   },
-  summary: {
-    gap: spacing.md,
-  },
-  summaryItem: {
-    gap: 2,
-  },
-  summaryLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-  summaryValue: {
-    ...typography.bodyMedium,
-    color: colors.text,
-  },
-  section: {
-    gap: spacing.sm,
-  },
+  summary: { gap: spacing.md },
+  summaryItem: { gap: 2 },
+  summaryLabel: { ...typography.caption, color: colors.textMuted },
+  summaryValue: { ...typography.bodyMedium, color: colors.text },
+  section: { gap: spacing.sm },
   sectionTitle: {
     ...typography.caption,
     color: colors.textSecondary,
     fontWeight: '700',
     letterSpacing: 0.6,
   },
-  sectionCard: {
-    gap: spacing.md,
-  },
-  infoRow: {
-    gap: 2,
-  },
-  infoLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-  infoValue: {
-    ...typography.body,
-    color: colors.text,
-  },
+  sectionCard: { gap: spacing.md },
+  productsSection: { gap: spacing.sm },
+  productList: { gap: spacing.sm },
+  infoRow: { gap: 2 },
+  infoLabel: { ...typography.caption, color: colors.textMuted },
+  infoValue: { ...typography.body, color: colors.text },
   menuButton: {
     width: minTouchTarget,
     height: minTouchTarget,
@@ -342,21 +283,10 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingHorizontal: spacing.sm,
   },
-  actionDisabled: {
-    opacity: 0.6,
-  },
-  actionText: {
-    ...typography.caption,
-    color: colors.primaryDark,
-    fontWeight: '700',
-    flexShrink: 1,
-  },
-  errorWrap: {
-    padding: spacing.lg,
-  },
-  error: {
-    color: colors.danger,
-  },
+  actionDisabled: { opacity: 0.6 },
+  actionText: { ...typography.caption, color: colors.primaryDark, fontWeight: '700', flexShrink: 1 },
+  errorWrap: { padding: spacing.lg },
+  error: { color: colors.danger },
   deleteButton: {
     minHeight: minTouchTarget,
     borderRadius: radius.md,
@@ -369,8 +299,5 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  deleteButtonText: {
-    ...typography.bodyMedium,
-    color: colors.danger,
-  },
+  deleteButtonText: { ...typography.bodyMedium, color: colors.danger },
 });

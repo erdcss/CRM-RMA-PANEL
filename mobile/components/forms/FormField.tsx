@@ -6,17 +6,18 @@ type FormFieldProps = TextInputProps & {
   label: string;
   hint?: string;
   rightSlot?: React.ReactNode;
+  compact?: boolean;
 };
 
-export function FormField({ label, hint, rightSlot, style, ...props }: FormFieldProps) {
+export function FormField({ label, hint, rightSlot, compact, style, ...props }: FormFieldProps) {
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.wrap, compact && styles.wrapCompact]}>
+      <Text style={[styles.label, compact && styles.labelCompact]}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
           {...props}
           placeholderTextColor={colors.textMuted}
-          style={[styles.input, style, rightSlot ? styles.inputWithSlot : null]}
+          style={[styles.input, compact && styles.inputCompact, style, rightSlot ? styles.inputWithSlot : null]}
         />
         {rightSlot}
       </View>
@@ -29,9 +30,16 @@ const styles = StyleSheet.create({
   wrap: {
     gap: spacing.sm,
   },
+  wrapCompact: {
+    gap: spacing.xs,
+  },
   label: {
     ...typography.bodyMedium,
     color: colors.text,
+  },
+  labelCompact: {
+    fontSize: 12,
+    lineHeight: 16,
   },
   inputRow: {
     position: 'relative',
@@ -46,6 +54,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     ...typography.body,
     color: colors.text,
+  },
+  inputCompact: {
+    minHeight: 40,
+    paddingHorizontal: spacing.md,
+    fontSize: 14,
+    lineHeight: 18,
   },
   inputWithSlot: {
     paddingRight: 48,

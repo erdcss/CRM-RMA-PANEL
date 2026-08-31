@@ -1,15 +1,20 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { ArrowLeft, ScanLine } from "lucide-react";
+import { ArrowLeft, Camera, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
+import { playScanError, playScanSuccess } from "@/lib/scanFeedback";
+import { BarcodeScannerModal } from "@/components/packages/BarcodeScannerModal";
+import { useToast } from "@/hooks/use-toast";
 
 export default function KoliTara() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
   const [value, setValue] = useState("");
+  const [scanOpen, setScanOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const lookupQuery = useQuery({
@@ -24,8 +29,11 @@ export default function KoliTara() {
     try {
       const res = await apiRequest("GET", `/api/rma/packages/lookup?q=${encodeURIComponent(q)}`);
       const pkg = await res.json();
+      playScanSuccess();
       navigate(`/koliler/${pkg.id}`);
     } catch {
+      playScanError();
+      toast({ title: "Koli bulunamadı", variant: "destructive" });
       inputRef.current?.select();
     }
   };
@@ -64,12 +72,26 @@ export default function KoliTara() {
             <Button className="w-full" onClick={() => handleScan()} disabled={lookupQuery.isFetching}>
               Koli Ac
             </Button>
+            <Button variant="outline" className="w-full" onClick={() => setScanOpen(true)}>
+              <Camera className="h-4 w-4 mr-2" />
+              Kamera ile Tara
+            </Button>
             <p className="text-xs text-muted-foreground">
               USB barkod okuyucu klavye gibi calisir — okutunca Enter ile otomatik acilir.
             </p>
           </CardContent>
         </Card>
       </main>
+
+      <BarcodeScannerModal
+        open={scanOpen}
+        title="Koli Barkodunu Tara"
+        onClose={() => setScanOpen(false)}
+        onScanned={(code) => {
+          setScanOpen(false);
+          void handleScan(code);
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Bell, TrendingUp, TrendingDown, Package, RefreshCw, ArrowUpRight } from "lucide-react";
+import { Plus, Search, Bell, TrendingUp, TrendingDown, Package, RefreshCw, ArrowUpRight, Truck, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { NewTicketDialog } from "@/components/new-ticket-dialog";
 import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocation } from "wouter";
 
 interface DashboardStats {
   totalTickets: number;
@@ -19,6 +20,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const [, navigate] = useLocation();
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -97,6 +99,21 @@ export default function Dashboard() {
             </>
           ) : (
             <>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Button variant="outline" className="h-auto py-4 justify-start" onClick={() => navigate("/tedarikciler")}>
+                  <Truck className="h-4 w-4 mr-2" />
+                  Tedarikçiler
+                </Button>
+                <Button variant="outline" className="h-auto py-4 justify-start" onClick={() => navigate("/koli-tara")}>
+                  <ScanLine className="h-4 w-4 mr-2" />
+                  Koli Tara
+                </Button>
+                <Button variant="outline" className="h-auto py-4 justify-start" onClick={() => navigate("/koliler")}>
+                  <Package className="h-4 w-4 mr-2" />
+                  Koliler
+                </Button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

@@ -18,17 +18,33 @@ import { printPackageLabel } from '@/lib/packageLabel';
 import type { RmaPackage } from '@/lib/api';
 
 const SAMPLE_PACKAGE: RmaPackage = {
-  id: 0,
-  packageNumber: 'RMA-KOLI-2026-0001',
+  id: 42,
+  packageNumber: 'RMA-KOLI-2026-000001',
   supplierAccountCode: '111119',
   supplierName: 'Örnek Tedarikçi',
   status: 'kapatildi',
-  barcodeValue: 'RMAPKG-0-DEMO123456',
-  qrValue: 'RMAPKG-0-DEMO123456',
+  barcodeValue: 'RMA-111119-S3-P42-DEMO1234',
+  qrValue: 'RMA-111119-S3-P42-DEMO1234',
   createdAt: new Date().toISOString(),
-  items: [],
-  productCount: 3,
-  totalQuantity: 5,
+  closedAt: new Date().toISOString(),
+  items: [
+    {
+      id: 1,
+      packageId: 42,
+      productId: 101,
+      quantity: 1,
+      product: { id: 101, name: 'Örnek Ürün A', brand: 'Marka', category: 'iade', status: 'tedarikciye_hazir', stockCode: 'STK-001' },
+    },
+    {
+      id: 2,
+      packageId: 42,
+      productId: 102,
+      quantity: 2,
+      product: { id: 102, name: 'Örnek Ürün B', brand: 'Marka', category: 'servis', status: 'tedarikciye_hazir', stockCode: 'STK-002' },
+    },
+  ],
+  productCount: 2,
+  totalQuantity: 3,
 };
 
 export default function BarcodeSettingsScreen() {
