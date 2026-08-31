@@ -70,6 +70,8 @@ export function RootStack() {
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="record/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="customer/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="package/scan" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="package/[id]" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

@@ -21,7 +21,13 @@ import {
   type InsertStatusHistory,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, count, and, or, ilike, isNull } from "drizzle-orm";
+import { eq, desc, sql, count, and, or, ilike, isNull, inArray, notInArray } from "drizzle-orm";
+import {
+  RMA_CLOSED_STATUSES,
+  RMA_SUPPLIER_WAITING_STATUSES,
+  RMA_DEFAULT_PRODUCT_STATUS,
+  RMA_DEFAULT_WAREHOUSE_LOCATION,
+} from "@shared/rma-constants";
 
 function normalizeTicketIds(value: unknown): number[] {
   if (Array.isArray(value)) {
@@ -65,14 +71,19 @@ export interface IStorage {
   createTicket(ticket: InsertTicket): Promise<Ticket>;
   deleteTicket(id: number): Promise<void>;
   
-  getProducts(): Promise<any[]>;
-  getProduct(id: number): Promise<Product | undefined>;
+  getProducts(ownerUserId?: string): Promise<any[]>;
+  getProduct(id: number, ownerUserId?: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
-  updateProductStatus(id: number, status: string): Promise<void>;
+  updateProductStatus(
+    id: number,
+    status: string,
+    options?: { previousStatus?: string; changedByUserId?: string; notes?: string },
+  ): Promise<void>;
 
   createStatusHistory(history: InsertStatusHistory): Promise<void>;
   getDashboardStats(ownerUserId?: string): Promise<any>;
   getStatistics(ownerUserId?: string): Promise<any>;
+  getRmaMetrics(ownerUserId?: string): Promise<any>;
 
   getCatalogProducts(ownerUserId: string, query?: string): Promise<CatalogProduct[]>;
   bulkUpsertCatalogProducts(items: InsertCatalogProduct[]): Promise<number>;
@@ -254,6 +265,7 @@ export class DatabaseStorage implements IStorage {
             statusHistory: {
               orderBy: (sh, { desc }) => [desc(sh.createdAt)],
             },
+            supplierItems: true,
           },
         },
       },
@@ -275,6 +287,7 @@ export class DatabaseStorage implements IStorage {
             statusHistory: {
               orderBy: (sh, { desc }) => [desc(sh.createdAt)],
             },
+            supplierItems: true,
           },
         },
       },
@@ -295,7 +308,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(tickets).where(eq(tickets.id, id));
   }
 
-  async getProducts(): Promise<any[]> {
+  async getProducts(ownerUserId?: string): Promise<any[]> {
     const allProducts = await db.query.products.findMany({
       with: {
         ticket: {
@@ -310,12 +323,29 @@ export class DatabaseStorage implements IStorage {
       orderBy: (p, { desc }) => [desc(p.createdAt)],
     });
 
-    return allProducts;
+    if (!ownerUserId) return allProducts;
+
+    return allProducts.filter(
+      (p) => !p.ticket?.ownerUserId || p.ticket.ownerUserId === ownerUserId,
+    );
   }
 
-  async getProduct(id: number): Promise<Product | undefined> {
+  async getProduct(id: number, ownerUserId?: string): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.id, id));
-    return product || undefined;
+    if (!product) return undefined;
+
+    if (ownerUserId) {
+      const [ticket] = await db
+        .select({ ownerUserId: tickets.ownerUserId })
+        .from(tickets)
+        .where(eq(tickets.id, product.ticketId))
+        .limit(1);
+      if (ticket?.ownerUserId && ticket.ownerUserId !== ownerUserId) {
+        return undefined;
+      }
+    }
+
+    return product;
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
@@ -326,7 +356,14 @@ export class DatabaseStorage implements IStorage {
     return product;
   }
 
-  async updateProductStatus(id: number, newStatus: string): Promise<void> {
+  async updateProductStatus(
+    id: number,
+    newStatus: string,
+    options?: { previousStatus?: string; changedByUserId?: string; notes?: string },
+  ): Promise<void> {
+    const existing = await this.getProduct(id);
+    const previousStatus = options?.previousStatus ?? existing?.status;
+
     await db
       .update(products)
       .set({ status: newStatus })
@@ -335,6 +372,9 @@ export class DatabaseStorage implements IStorage {
     await this.createStatusHistory({
       productId: id,
       status: newStatus,
+      previousStatus: previousStatus || undefined,
+      changedByUserId: options?.changedByUserId,
+      notes: options?.notes,
     });
   }
 
@@ -435,6 +475,111 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  private productOwnerSql(ownerUserId?: string) {
+    return ownerUserId
+      ? sql`${products.ticketId} in (select id from tickets where owner_user_id = ${ownerUserId} or owner_user_id is null)`
+      : undefined;
+  }
+
+  async getRmaMetrics(ownerUserId?: string): Promise<any> {
+    const ownerFilter = this.productOwnerSql(ownerUserId);
+    const closedList = [...RMA_CLOSED_STATUSES];
+    const supplierWaitingList = [...RMA_SUPPLIER_WAITING_STATUSES];
+
+    const baseWhere = ownerFilter ? and(ownerFilter) : undefined;
+
+    const openResult = await db
+      .select({ count: count() })
+      .from(products)
+      .where(
+        baseWhere
+          ? and(baseWhere, notInArray(products.status, closedList))
+          : notInArray(products.status, closedList),
+      );
+
+    const warehouseResult = await db
+      .select({ count: count() })
+      .from(products)
+      .where(
+        baseWhere
+          ? and(
+              baseWhere,
+              eq(products.warehouseLocation, RMA_DEFAULT_WAREHOUSE_LOCATION),
+              notInArray(products.status, closedList),
+            )
+          : and(
+              eq(products.warehouseLocation, RMA_DEFAULT_WAREHOUSE_LOCATION),
+              notInArray(products.status, closedList),
+            ),
+      );
+
+    const supplierWaitingResult = await db
+      .select({ count: count() })
+      .from(products)
+      .where(
+        baseWhere
+          ? and(baseWhere, inArray(products.status, supplierWaitingList))
+          : inArray(products.status, supplierWaitingList),
+      );
+
+    const completedResult = await db
+      .select({ count: count() })
+      .from(products)
+      .where(
+        baseWhere
+          ? and(baseWhere, inArray(products.status, closedList))
+          : inArray(products.status, closedList),
+      );
+
+    const ticketFilter = ownerTicketFilter(ownerUserId);
+    const ticketJoinFilter = ownerTicketFilter(ownerUserId) ?? sql`true`;
+
+    const byOperation = await db
+      .select({
+        operationType: tickets.operationType,
+        count: count(),
+      })
+      .from(tickets)
+      .where(ticketFilter)
+      .groupBy(tickets.operationType);
+
+    const byCategory = await db
+      .select({
+        category: products.category,
+        count: count(),
+      })
+      .from(products)
+      .innerJoin(tickets, eq(products.ticketId, tickets.id))
+      .where(ticketJoinFilter)
+      .groupBy(products.category);
+
+    const operationCounts = {
+      servis: 0,
+      iade: 0,
+      degisim: 0,
+    };
+
+    for (const row of byOperation) {
+      const key = row.operationType as keyof typeof operationCounts;
+      if (key in operationCounts) operationCounts[key] = Number(row.count);
+    }
+
+    for (const row of byCategory) {
+      const key = row.category as keyof typeof operationCounts;
+      if (key in operationCounts && operationCounts[key] === 0) {
+        operationCounts[key] = Number(row.count);
+      }
+    }
+
+    return {
+      openRma: openResult[0]?.count || 0,
+      inRmaWarehouse: warehouseResult[0]?.count || 0,
+      supplierWaiting: supplierWaitingResult[0]?.count || 0,
+      completed: completedResult[0]?.count || 0,
+      byOperationType: operationCounts,
+    };
+  }
+
   async getStatistics(ownerUserId?: string): Promise<any> {
     const ticketFilter = ownerTicketFilter(ownerUserId);
     const ticketJoinFilter = ownerTicketFilter(ownerUserId) ?? sql`true`;
@@ -529,12 +674,14 @@ export class DatabaseStorage implements IStorage {
           : sql`TO_CHAR(${tickets.createdAt}, 'YYYY-MM') = TO_CHAR(NOW(), 'YYYY-MM')`,
       );
     const currentMonthTickets = currentMonthResult[0]?.count || 0;
+    const rmaMetrics = await this.getRmaMetrics(ownerUserId);
 
     return {
       totalTickets,
       totalCustomers,
       avgProcessingTime,
       currentMonthTickets,
+      rmaMetrics,
       brandStats: brandStats.map((item) => ({
         ...item,
         ticketIds: normalizeTicketIds(item.ticketIds),

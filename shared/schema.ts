@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, serial, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, serial, unique, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -41,8 +41,17 @@ export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(),
   receiptNumber: text("receipt_number"), // Fiş numarası
   customerId: integer("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  catalogCustomerId: integer("catalog_customer_id"),
+  operationType: text("operation_type").default("servis"), // degisim | iade | servis
+  salesId: text("sales_id"),
+  invoiceId: text("invoice_id"),
+  invoiceNumber: text("invoice_number"),
+  saleDate: timestamp("sale_date"),
   createdById: integer("created_by_id").notNull().references(() => users.id).default(1),
   ownerUserId: text("owner_user_id"), // Supabase auth user id — per-user data isolation
+  rmaStatus: text("rma_status").default("open"),
+  rmaClosedAt: timestamp("rma_closed_at"),
+  rmaClosedByUserId: text("rma_closed_by_user_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -61,13 +70,17 @@ export type Ticket = typeof tickets.$inferSelect;
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
+  catalogProductId: integer("catalog_product_id"),
   name: text("name").default("Bilinmeyen"),
   serialNumber: text("serial_number"),
   stockCode: text("stock_code"),
+  barcode: text("barcode"),
   brand: text("brand").default("Bilinmeyen"),
   model: text("model"),
   category: text("category").default("servis"), // "iade", "degisim", "servis"
-  status: text("status").notNull().default("beklemede"), // "beklemede", "serviste", "tamir_tamamlandi", etc.
+  status: text("status").notNull().default("rma_deposunda"),
+  defectReason: text("defect_reason"),
+  warehouseLocation: text("warehouse_location").default("rma_deposu"),
   description: text("description"),
   quantity: integer("quantity").default(1), // adet sayısı
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -86,6 +99,8 @@ export const statusHistory = pgTable("status_history", {
   id: serial("id").primaryKey(),
   productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
   status: text("status").notNull(),
+  previousStatus: text("previous_status"),
+  changedByUserId: text("changed_by_user_id"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -149,6 +164,7 @@ export const supplierItems = pgTable(
     productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
     supplierAccountCode: text("supplier_account_code").notNull(),
     supplierName: text("supplier_name").notNull(),
+    supplierStatus: text("supplier_status").default("bekliyor"),
     ownerUserId: text("owner_user_id").notNull(),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -165,6 +181,145 @@ export const insertSupplierItemSchema = createInsertSchema(supplierItems).omit({
 
 export type InsertSupplierItem = z.infer<typeof insertSupplierItemSchema>;
 export type SupplierItem = typeof supplierItems.$inferSelect;
+
+export const rmaPackages = pgTable(
+  "rma_packages",
+  {
+    id: serial("id").primaryKey(),
+    ownerUserId: text("owner_user_id").notNull(),
+    packageNumber: text("package_number").notNull(),
+    supplierAccountCode: text("supplier_account_code").notNull(),
+    supplierName: text("supplier_name").notNull(),
+    status: text("status").notNull().default("taslak"),
+    barcodeValue: text("barcode_value"),
+    qrValue: text("qr_value"),
+    createdByUserId: text("created_by_user_id"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    closedAt: timestamp("closed_at"),
+    verifiedAt: timestamp("verified_at"),
+    shippedAt: timestamp("shipped_at"),
+    deliveredToSupplierAt: timestamp("delivered_to_supplier_at"),
+    deliveredByUserId: text("delivered_by_user_id"),
+    deliveryNote: text("delivery_note"),
+    returnedAt: timestamp("returned_at"),
+    returnedByUserId: text("returned_by_user_id"),
+    returnNote: text("return_note"),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => [unique("rma_packages_owner_number_unique").on(table.ownerUserId, table.packageNumber)],
+);
+
+export const rmaPackageItems = pgTable("rma_package_items", {
+  id: serial("id").primaryKey(),
+  packageId: integer("package_id").notNull().references(() => rmaPackages.id, { onDelete: "cascade" }),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  quantity: integer("quantity").notNull().default(1),
+  addedByUserId: text("added_by_user_id"),
+  addedAt: timestamp("added_at").defaultNow().notNull(),
+  removedAt: timestamp("removed_at"),
+});
+
+export const rmaShipments = pgTable(
+  "rma_shipments",
+  {
+    id: serial("id").primaryKey(),
+    ownerUserId: text("owner_user_id").notNull(),
+    packageId: integer("package_id").notNull().references(() => rmaPackages.id, { onDelete: "cascade" }),
+    supplierAccountCode: text("supplier_account_code").notNull(),
+    supplierName: text("supplier_name").notNull(),
+    shipmentNumber: text("shipment_number").notNull(),
+    carrierName: text("carrier_name"),
+    trackingNumber: text("tracking_number"),
+    shippedByUserId: text("shipped_by_user_id"),
+    shippedAt: timestamp("shipped_at").defaultNow().notNull(),
+    notes: text("notes"),
+    status: text("status").notNull().default("sevk_edildi"),
+  },
+  (table) => [unique("rma_shipments_owner_number_unique").on(table.ownerUserId, table.shipmentNumber)],
+);
+
+export const rmaProductMovements = pgTable("rma_product_movements", {
+  id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  movementType: text("movement_type").notNull(),
+  fromLocation: text("from_location"),
+  toLocation: text("to_location"),
+  packageId: integer("package_id").references(() => rmaPackages.id, { onDelete: "set null" }),
+  shipmentId: integer("shipment_id").references(() => rmaShipments.id, { onDelete: "set null" }),
+  performedByUserId: text("performed_by_user_id"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const rmaPackageHistory = pgTable("rma_package_history", {
+  id: serial("id").primaryKey(),
+  packageId: integer("package_id").notNull().references(() => rmaPackages.id, { onDelete: "cascade" }),
+  ownerUserId: text("owner_user_id").notNull(),
+  eventType: text("event_type").notNull(),
+  performedByUserId: text("performed_by_user_id"),
+  notes: text("notes"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const rmaSupplierResults = pgTable("rma_supplier_results", {
+  id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  packageId: integer("package_id").references(() => rmaPackages.id, { onDelete: "set null" }),
+  supplierAccountCode: text("supplier_account_code").notNull(),
+  resultType: text("result_type").notNull(),
+  resultDescription: text("result_description"),
+  supplierDocumentNumber: text("supplier_document_number"),
+  supplierSerialNumber: text("supplier_serial_number"),
+  oldSerialNumber: text("old_serial_number"),
+  newSerialNumber: text("new_serial_number"),
+  newBarcode: text("new_barcode"),
+  resultDate: timestamp("result_date").defaultNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdByUserId: text("created_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const rmaSupplierResultHistory = pgTable("rma_supplier_result_history", {
+  id: serial("id").primaryKey(),
+  supplierResultId: integer("supplier_result_id").notNull().references(() => rmaSupplierResults.id, { onDelete: "cascade" }),
+  ownerUserId: text("owner_user_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  previousResultType: text("previous_result_type"),
+  newResultType: text("new_result_type").notNull(),
+  snapshot: text("snapshot"),
+  changedByUserId: text("changed_by_user_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const rmaCustomerDeliveries = pgTable("rma_customer_deliveries", {
+  id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  ticketId: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
+  deliveredToCustomerAt: timestamp("delivered_to_customer_at").defaultNow().notNull(),
+  deliveredByUserId: text("delivered_by_user_id"),
+  receiverName: text("receiver_name").notNull(),
+  receiverPhone: text("receiver_phone"),
+  deliveryNote: text("delivery_note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const rmaScrapRecords = pgTable("rma_scrap_records", {
+  id: serial("id").primaryKey(),
+  ownerUserId: text("owner_user_id").notNull(),
+  productId: integer("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+  scrapReason: text("scrap_reason").notNull(),
+  description: text("description"),
+  attachmentUrl: text("attachment_url"),
+  scrappedByUserId: text("scrapped_by_user_id"),
+  scrappedAt: timestamp("scrapped_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // Relations
 export const customersRelations = relations(customers, ({ many }) => ({
@@ -204,4 +359,27 @@ export const supplierItemsRelations = relations(supplierItems, ({ one }) => ({
     fields: [supplierItems.productId],
     references: [products.id],
   }),
+}));
+
+export const rmaPackagesRelations = relations(rmaPackages, ({ many }) => ({
+  items: many(rmaPackageItems),
+  shipments: many(rmaShipments),
+  history: many(rmaPackageHistory),
+}));
+
+export const rmaPackageItemsRelations = relations(rmaPackageItems, ({ one }) => ({
+  package: one(rmaPackages, { fields: [rmaPackageItems.packageId], references: [rmaPackages.id] }),
+  product: one(products, { fields: [rmaPackageItems.productId], references: [products.id] }),
+}));
+
+export const rmaShipmentsRelations = relations(rmaShipments, ({ one }) => ({
+  package: one(rmaPackages, { fields: [rmaShipments.packageId], references: [rmaPackages.id] }),
+}));
+
+export const rmaProductMovementsRelations = relations(rmaProductMovements, ({ one }) => ({
+  product: one(products, { fields: [rmaProductMovements.productId], references: [products.id] }),
+}));
+
+export const rmaPackageHistoryRelations = relations(rmaPackageHistory, ({ one }) => ({
+  package: one(rmaPackages, { fields: [rmaPackageHistory.packageId], references: [rmaPackages.id] }),
 }));

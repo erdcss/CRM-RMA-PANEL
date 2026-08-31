@@ -9,25 +9,29 @@ export type StatusVariant =
   | 'default';
 
 export const PRODUCT_STATUSES = [
-  { value: 'beklemede', label: 'Beklemede' },
-  { value: 'tedarikciye_gonderildi', label: 'Tedarikçiye Gönderildi' },
-  { value: 'serviste', label: 'Serviste' },
-  { value: 'tamir_tamamlandi', label: 'Tamir Tamamlandı' },
-  { value: 'degisim_onaylandi', label: 'Değişim Onaylandı' },
-  { value: 'iade_onaylandi', label: 'İade Onaylandı' },
-  { value: 'teslim_alindi', label: 'Tedarikçiden Teslim Alındı' },
-  { value: 'teslim_edildi', label: 'Müşteriye Teslim Edildi' },
-  { value: 'iptal', label: 'İptal' },
+  { value: 'teslim_alindi', label: 'Teslim Alındı' },
+  { value: 'rma_deposunda', label: 'RMA Deposunda' },
+  { value: 'tedarikci_bekliyor', label: 'Tedarikçi Bekliyor' },
+  { value: 'tedarikciye_hazir', label: 'Tedarikçiye Hazır' },
+  { value: 'tedarikcide', label: 'Tedarikçide' },
+  { value: 'sonuclandi', label: 'Sonuçlandı' },
+  { value: 'satilabilir_stok', label: 'Satılabilir Stok' },
+  { value: 'hurda', label: 'Hurda' },
+  { value: 'musteriye_teslim_edildi', label: 'Müşteriye Teslim Edildi' },
+  { value: 'beklemede', label: 'Beklemede (Eski)' },
+  { value: 'serviste', label: 'Serviste (Eski)' },
+  { value: 'teslim_edildi', label: 'Teslim Edildi (Eski)' },
+  { value: 'iptal', label: 'İptal (Eski)' },
 ] as const;
 
 export const FILTER_CHIPS = [
   { id: 'all', label: 'Tümü' },
-  { id: 'beklemede', label: 'Yeni' },
-  { id: 'serviste', label: 'Serviste' },
-  { id: 'tamir_tamamlandi', label: 'Tamir Tamamlandı' },
+  { id: 'rma_deposunda', label: 'RMA Deposu' },
+  { id: 'tedarikci_bekliyor', label: 'Tedarikçi Bekliyor' },
+  { id: 'tedarikcide', label: 'Tedarikçide' },
   { id: 'degisim', label: 'Değişim' },
   { id: 'iade', label: 'İade' },
-  { id: 'teslim_edildi', label: 'Tamamlandı' },
+  { id: 'musteriye_teslim_edildi', label: 'Tamamlandı' },
 ] as const;
 
 export const CATEGORY_OPTIONS = [
@@ -37,12 +41,12 @@ export const CATEGORY_OPTIONS = [
 ];
 
 export function getStatusVariant(status: string, category?: string): StatusVariant {
-  if (status === 'teslim_edildi' || status === 'teslim_alindi' || status === 'tamir_tamamlandi') return 'completed';
-  if (status === 'iptal') return 'cancelled';
-  if (status === 'serviste' || status === 'tedarikciye_gonderildi') return 'service';
-  if (status === 'degisim_onaylandi' || category === 'degisim') return 'exchange';
-  if (status === 'iade_onaylandi' || category === 'iade') return 'return';
-  if (status === 'beklemede') return 'new';
+  if (['musteriye_teslim_edildi', 'sonuclandi', 'satilabilir_stok', 'teslim_edildi'].includes(status)) return 'completed';
+  if (status === 'iptal' || status === 'hurda') return 'cancelled';
+  if (['tedarikcide', 'serviste', 'tedarikciye_hazir', 'tedarikci_bekliyor'].includes(status)) return 'service';
+  if (category === 'degisim') return 'exchange';
+  if (category === 'iade') return 'return';
+  if (['rma_deposunda', 'teslim_alindi', 'beklemede'].includes(status)) return 'new';
   return 'default';
 }
 

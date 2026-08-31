@@ -15,6 +15,10 @@ import Musteriler from "@/pages/musteriler";
 import Urunler from "@/pages/urunler";
 import Ayarlar from "@/pages/ayarlar";
 import KayitDetay from "@/pages/kayit-detay";
+import TedarikciHazirlik from "@/pages/tedarikci-hazirlik";
+import Koliler from "@/pages/koliler";
+import KoliDetay from "@/pages/koli-detay";
+import KoliTara from "@/pages/koli-tara";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/kaydol";
 import PrivacyPage from "@/pages/privacy";
@@ -28,6 +32,10 @@ function AppRouter() {
       <Route path="/" component={Dashboard} />
       <Route path="/kayitlar" component={Kayitlar} />
       <Route path="/kayit/:id" component={KayitDetay} />
+      <Route path="/tedarikci-hazirlik" component={TedarikciHazirlik} />
+      <Route path="/koliler" component={Koliler} />
+      <Route path="/koliler/:id" component={KoliDetay} />
+      <Route path="/koli-tara" component={KoliTara} />
       <Route path="/istatistikler" component={Istatistikler} />
       <Route path="/musteriler" component={Musteriler} />
       <Route path="/urunler" component={Urunler} />

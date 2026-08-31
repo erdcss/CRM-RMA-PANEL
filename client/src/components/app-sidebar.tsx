@@ -5,6 +5,9 @@ import {
   Users,
   Settings,
   Package,
+  Truck,
+  Box,
+  ScanLine,
   LogOut,
 } from "lucide-react";
 import {
@@ -25,6 +28,9 @@ import { useAuth } from "@/contexts/AuthContext";
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Kayıtlar", url: "/kayitlar", icon: FileText },
+  { title: "Tedarikçiye Hazırlık", url: "/tedarikci-hazirlik", icon: Truck },
+  { title: "Koliler", url: "/koliler", icon: Box },
+  { title: "Barkod Tara", url: "/koli-tara", icon: ScanLine },
   { title: "Ürünler", url: "/urunler", icon: Package },
   { title: "İstatistikler", url: "/istatistikler", icon: BarChart3 },
   { title: "Müşteriler", url: "/musteriler", icon: Users },
@@ -46,7 +52,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
-                const isActive = location === item.url;
+                const isActive = location === item.url || location.startsWith(`${item.url}/`);
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive} data-testid={`link-${item.title.toLowerCase()}`}>

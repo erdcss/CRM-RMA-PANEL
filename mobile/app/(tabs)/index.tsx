@@ -91,7 +91,7 @@ export default function HomeScreen() {
             <QuickAction icon="business-outline" label="Tedarikçiler" onPress={() => router.push('/(tabs)/suppliers')} />
           </View>
           <View style={styles.cardRow}>
-            <QuickAction icon="search-outline" label="Müşteri Bul" onPress={() => router.push('/(tabs)/customers')} />
+            <QuickAction icon="barcode-outline" label="Koli Tara" onPress={() => router.push('/package/scan')} />
             <QuickAction icon="cube-outline" label="Ürün Listesi" onPress={() => router.push('/(tabs)/products')} />
           </View>
         </View>

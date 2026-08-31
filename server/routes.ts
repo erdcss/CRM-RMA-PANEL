@@ -10,7 +10,41 @@ import {
   updateOwnedProduct,
   updateSupplierItem,
 } from "./suppliers";
+import {
+  addProductsToPackage,
+  closePackage,
+  createPackageFromProducts,
+  getPackageDetail,
+  getPackageMetrics,
+  getProductMovements,
+  getProductPackageInfo,
+  getSupplierPrepPool,
+  listPackages,
+  lookupPackage,
+  removeProductFromPackage,
+  shipPackage,
+  verifyPackageBarcode,
+} from "./packages";
+import {
+  bulkSaveSupplierResults,
+  completePackage,
+  deliverToCustomer,
+  enrichPackageWithResults,
+  getFaz3Metrics,
+  getProductTimeline,
+  markDeliveredToSupplier,
+  markPackageReturned,
+  markProductScrap,
+  moveToSellableStock,
+  saveSupplierResult,
+} from "./supplier-results";
+import { closeTicket, getTicketClosureStatus } from "./rma-closure";
 import { z } from "zod";
+import {
+  ALL_PRODUCT_STATUS_VALUES,
+  RMA_DEFAULT_PRODUCT_STATUS,
+  RMA_DEFAULT_WAREHOUSE_LOCATION,
+} from "@shared/rma-constants";
 
 let dbReady = false;
 
@@ -115,21 +149,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const createTicketWithProductsSchema = z.object({
     receiptNumber: z.string().optional(),
+    operationType: z.enum(["iade", "degisim", "servis"]).default("servis"),
+    catalogCustomerId: z.number().int().positive().optional(),
     customerName: z.string().optional(),
     accountCode: z.string().optional(),
     phone: z.string().optional(),
     email: z.string().email().optional().or(z.literal("")),
     address: z.string().optional(),
+    salesId: z.string().optional(),
+    invoiceId: z.string().optional(),
+    invoiceNumber: z.string().optional(),
+    saleDate: z.string().optional(),
     products: z.array(
       z.object({
+        catalogProductId: z.number().int().positive().optional(),
         name: z.string().optional(),
         serialNumber: z.string().optional(),
         stockCode: z.string().optional(),
+        barcode: z.string().optional(),
         brand: z.string().optional(),
         model: z.string().optional(),
         category: z.enum(["iade", "degisim", "servis"]).optional(),
+        defectReason: z.string().optional(),
         description: z.string().optional(),
         quantity: z.number().int().positive().optional(),
+        supplierAccountCode: z.string().optional(),
+        supplierName: z.string().optional(),
       })
     ).min(1).optional(),
   });
@@ -154,29 +199,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ticket = await storage.createTicket({
         customerId: customer.id,
         receiptNumber: validatedData.receiptNumber || undefined,
+        catalogCustomerId: validatedData.catalogCustomerId,
+        operationType: validatedData.operationType,
+        salesId: validatedData.salesId || undefined,
+        invoiceId: validatedData.invoiceId || undefined,
+        invoiceNumber: validatedData.invoiceNumber || undefined,
+        saleDate: validatedData.saleDate ? new Date(validatedData.saleDate) : undefined,
         ownerUserId,
       });
 
       const products = validatedData.products || [];
+      const defaultCategory = validatedData.operationType;
       for (const productData of products) {
         const product = await storage.createProduct({
           ticketId: ticket.id,
+          catalogProductId: productData.catalogProductId,
           name: productData.name || "Bilinmeyen",
           serialNumber: productData.serialNumber || undefined,
           stockCode: productData.stockCode || undefined,
+          barcode: productData.barcode || undefined,
           brand: productData.brand || "Bilinmeyen",
           model: productData.model || undefined,
-          category: productData.category || "servis",
+          category: productData.category || defaultCategory,
+          defectReason: productData.defectReason || undefined,
           description: productData.description || undefined,
-          status: "beklemede",
+          status: RMA_DEFAULT_PRODUCT_STATUS,
+          warehouseLocation: RMA_DEFAULT_WAREHOUSE_LOCATION,
           quantity: productData.quantity || 1,
         });
 
         await storage.createStatusHistory({
           productId: product.id,
-          status: "beklemede",
-          notes: "Kayıt oluşturuldu",
+          status: RMA_DEFAULT_PRODUCT_STATUS,
+          notes: "Kayit olusturuldu - RMA deposuna alindi",
+          changedByUserId: ownerUserId,
         });
+
+        if (productData.supplierAccountCode && productData.supplierName) {
+          await createOrMoveSupplierItem(ownerUserId, {
+            productId: product.id,
+            supplierAccountCode: productData.supplierAccountCode,
+            supplierName: productData.supplierName,
+          });
+        }
       }
 
       const fullTicket = await storage.getTicket(ticket.id, ownerUserId);
@@ -205,9 +270,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/products", async (_req, res) => {
+  app.get("/api/products", async (req, res) => {
     try {
-      const products = await storage.getProducts();
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const products = await storage.getProducts(ownerUserId);
       res.json(products);
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -217,8 +284,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/products/:id", async (req, res) => {
     try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
       const id = parseInt(req.params.id);
-      const product = await storage.getProduct(id);
+      const product = await storage.getProduct(id, ownerUserId);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
@@ -235,7 +304,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     brand: z.string().nullable().optional(),
     model: z.string().nullable().optional(),
     serialNumber: z.string().nullable().optional(),
+    barcode: z.string().nullable().optional(),
     category: z.enum(["iade", "degisim", "servis"]).optional(),
+    defectReason: z.string().nullable().optional(),
+    warehouseLocation: z.enum(["rma_deposu", "satilabilir_stok", "hurda"]).optional(),
     description: z.string().nullable().optional(),
     quantity: z.number().int().positive().optional(),
   });
@@ -260,7 +332,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const updateProductStatusSchema = z.object({
-    status: z.string().min(1),
+    status: z.enum(ALL_PRODUCT_STATUS_VALUES as unknown as [string, ...string[]]),
+    notes: z.string().optional(),
   });
 
   app.patch("/api/products/:id/status", async (req, res) => {
@@ -269,16 +342,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
 
       const id = parseInt(req.params.id);
-      const { status } = updateProductStatusSchema.parse(req.body);
+      const { status, notes } = updateProductStatusSchema.parse(req.body);
 
       const product = await getOwnedProduct(id, ownerUserId);
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
 
-      // This updates the shared RMA product row and writes status_history.
-      // Supplier screens and customer/RMA screens read this same row, so the status is never duplicated.
-      await storage.updateProductStatus(id, status);
+      await storage.updateProductStatus(id, status, {
+        previousStatus: product.status,
+        changedByUserId: ownerUserId,
+        notes,
+      });
 
       const updatedProduct = await storage.getProduct(id);
       res.json(updatedProduct);
@@ -301,6 +376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const supplierUpdateSchema = z.object({
     supplierAccountCode: z.string().trim().min(1).optional(),
     supplierName: z.string().trim().min(1).optional(),
+    supplierStatus: z.enum(["bekliyor", "hazir", "gonderildi", "tamamlandi"]).optional(),
     notes: z.string().nullable().optional(),
   });
 
@@ -365,6 +441,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/stats/rma", async (req, res) => {
+    try {
+      const metrics = await storage.getRmaMetrics(getOwnerUserId(req));
+      res.json(metrics);
+    } catch (error) {
+      console.error("Error fetching RMA metrics:", error);
+      res.status(500).json({ error: "Failed to fetch RMA metrics" });
+    }
+  });
+
   app.get("/api/stats/dashboard", async (req, res) => {
     try {
       const stats = await storage.getDashboardStats(getOwnerUserId(req));
@@ -412,6 +498,378 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching catalog customers:", error);
       res.status(500).json({ error: "Failed to fetch catalog customers" });
+    }
+  });
+
+  app.get("/api/rma/prep-pool", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const pool = await getSupplierPrepPool(ownerUserId);
+      res.json(pool);
+    } catch (error) {
+      console.error("Error fetching prep pool:", error);
+      res.status(500).json({ error: "Failed to fetch prep pool" });
+    }
+  });
+
+  app.get("/api/rma/packages/metrics", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      res.json(await getPackageMetrics(ownerUserId));
+    } catch (error) {
+      console.error("Error fetching package metrics:", error);
+      res.status(500).json({ error: "Failed to fetch package metrics" });
+    }
+  });
+
+  app.get("/api/rma/packages/lookup", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const q = typeof req.query.q === "string" ? req.query.q : "";
+      const pkg = await lookupPackage(q, ownerUserId);
+      if (!pkg) return res.status(404).json({ error: "Koli bulunamadi" });
+      res.json(pkg);
+    } catch (error) {
+      console.error("Error looking up package:", error);
+      res.status(500).json({ error: "Failed to lookup package" });
+    }
+  });
+
+  app.get("/api/rma/packages", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const filters = {
+        status: typeof req.query.status === "string" ? req.query.status : undefined,
+        supplier: typeof req.query.supplier === "string" ? req.query.supplier : undefined,
+        search: typeof req.query.search === "string" ? req.query.search : undefined,
+        barcode: typeof req.query.barcode === "string" ? req.query.barcode : undefined,
+      };
+      res.json(await listPackages(ownerUserId, filters));
+    } catch (error) {
+      console.error("Error listing packages:", error);
+      res.status(500).json({ error: "Failed to list packages" });
+    }
+  });
+
+  app.get("/api/rma/packages/:id", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      const pkg = await enrichPackageWithResults(id, ownerUserId);
+      if (!pkg) return res.status(404).json({ error: "Package not found" });
+      res.json(pkg);
+    } catch (error) {
+      console.error("Error fetching package:", error);
+      res.status(500).json({ error: "Failed to fetch package" });
+    }
+  });
+
+  app.post("/api/rma/packages", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const schema = z.object({
+        supplierAccountCode: z.string().min(1),
+        supplierName: z.string().min(1),
+        productIds: z.array(z.number().int().positive()).min(1),
+        notes: z.string().optional(),
+      });
+      const payload = schema.parse(req.body);
+      const pkg = await createPackageFromProducts(ownerUserId, ownerUserId, payload);
+      res.status(201).json(pkg);
+    } catch (error: any) {
+      console.error("Error creating package:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      res.status(400).json({ error: error.message || "Failed to create package" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/items", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      const { productIds } = z.object({ productIds: z.array(z.number().int().positive()).min(1) }).parse(req.body);
+      res.json(await addProductsToPackage(id, ownerUserId, ownerUserId, productIds));
+    } catch (error: any) {
+      console.error("Error adding package items:", error);
+      res.status(400).json({ error: error.message || "Failed to add items" });
+    }
+  });
+
+  app.delete("/api/rma/packages/:id/items/:itemId", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const packageId = parseInt(req.params.id);
+      const itemId = parseInt(req.params.itemId);
+      res.json(await removeProductFromPackage(packageId, itemId, ownerUserId, ownerUserId));
+    } catch (error: any) {
+      console.error("Error removing package item:", error);
+      res.status(400).json({ error: error.message || "Failed to remove item" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/close", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      res.json(await closePackage(id, ownerUserId, ownerUserId));
+    } catch (error: any) {
+      console.error("Error closing package:", error);
+      res.status(400).json({ error: error.message || "Failed to close package" });
+    }
+  });
+
+  app.post("/api/rma/packages/verify", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const { barcodeValue } = z.object({ barcodeValue: z.string().min(1) }).parse(req.body);
+      res.json(await verifyPackageBarcode(barcodeValue, ownerUserId, ownerUserId));
+    } catch (error: any) {
+      console.error("Error verifying package:", error);
+      res.status(400).json({ error: error.message || "Verification failed" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/ship", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      const payload = z
+        .object({
+          carrierName: z.string().optional(),
+          trackingNumber: z.string().optional(),
+          notes: z.string().optional(),
+        })
+        .parse(req.body);
+      res.json(await shipPackage(id, ownerUserId, ownerUserId, payload));
+    } catch (error: any) {
+      console.error("Error shipping package:", error);
+      res.status(400).json({ error: error.message || "Failed to ship package" });
+    }
+  });
+
+  app.get("/api/rma/products/:id/package-info", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      const info = await getProductPackageInfo(productId, ownerUserId);
+      res.json(info);
+    } catch (error) {
+      console.error("Error fetching product package info:", error);
+      res.status(500).json({ error: "Failed to fetch product package info" });
+    }
+  });
+
+  app.get("/api/rma/products/:id/movements", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      res.json(await getProductMovements(productId, ownerUserId));
+    } catch (error) {
+      console.error("Error fetching product movements:", error);
+      res.status(500).json({ error: "Failed to fetch movements" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/deliver-to-supplier", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      const { deliveryNote } = z.object({ deliveryNote: z.string().optional() }).parse(req.body);
+      res.json(await markDeliveredToSupplier(id, ownerUserId, ownerUserId, { deliveryNote }));
+    } catch (error: any) {
+      console.error("Error marking delivered to supplier:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/return", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      const { returnNote } = z.object({ returnNote: z.string().optional() }).parse(req.body);
+      res.json(await markPackageReturned(id, ownerUserId, ownerUserId, { returnNote }));
+    } catch (error: any) {
+      console.error("Error marking package returned:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/complete", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      res.json(await completePackage(id, ownerUserId, ownerUserId));
+    } catch (error: any) {
+      console.error("Error completing package:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/packages/:id/supplier-results/bulk", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const id = parseInt(req.params.id);
+      const payload = z
+        .object({
+          productIds: z.array(z.number().int().positive()).min(1),
+          resultType: z.string().min(1),
+          resultDescription: z.string().optional(),
+          items: z
+            .array(
+              z.object({
+                productId: z.number().int().positive(),
+                newSerialNumber: z.string().optional(),
+                newBarcode: z.string().optional(),
+              }),
+            )
+            .optional(),
+        })
+        .parse(req.body);
+      res.json(await bulkSaveSupplierResults(ownerUserId, ownerUserId, id, payload));
+    } catch (error: any) {
+      console.error("Error bulk saving supplier results:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/products/:id/supplier-result", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      const payload = z
+        .object({
+          packageId: z.number().int().positive().optional(),
+          resultType: z.string().min(1),
+          resultDescription: z.string().optional(),
+          supplierDocumentNumber: z.string().optional(),
+          supplierSerialNumber: z.string().optional(),
+          newSerialNumber: z.string().optional(),
+          newBarcode: z.string().optional(),
+          resultDate: z.string().optional(),
+        })
+        .parse(req.body);
+      res.json(await saveSupplierResult(ownerUserId, ownerUserId, { productId, ...payload }));
+    } catch (error: any) {
+      console.error("Error saving supplier result:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/products/:id/sellable-stock", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      const { notes } = z.object({ notes: z.string().optional() }).parse(req.body ?? {});
+      res.json(await moveToSellableStock(productId, ownerUserId, ownerUserId, notes));
+    } catch (error: any) {
+      console.error("Error moving to sellable stock:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/products/:id/scrap", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      const payload = z
+        .object({
+          scrapReason: z.string().min(1),
+          description: z.string().optional(),
+          attachmentUrl: z.string().optional(),
+        })
+        .parse(req.body);
+      res.json(await markProductScrap(productId, ownerUserId, ownerUserId, payload));
+    } catch (error: any) {
+      console.error("Error marking scrap:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/products/:id/customer-delivery", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      const payload = z
+        .object({
+          receiverName: z.string().min(1),
+          receiverPhone: z.string().optional(),
+          deliveryNote: z.string().optional(),
+        })
+        .parse(req.body);
+      res.json(await deliverToCustomer(productId, ownerUserId, ownerUserId, payload));
+    } catch (error: any) {
+      console.error("Error customer delivery:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.get("/api/rma/products/:id/timeline", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const productId = parseInt(req.params.id);
+      res.json(await getProductTimeline(productId, ownerUserId));
+    } catch (error) {
+      console.error("Error fetching timeline:", error);
+      res.status(500).json({ error: "Failed to fetch timeline" });
+    }
+  });
+
+  app.get("/api/rma/metrics/faz3", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      res.json(await getFaz3Metrics(ownerUserId));
+    } catch (error) {
+      console.error("Error fetching faz3 metrics:", error);
+      res.status(500).json({ error: "Failed to fetch metrics" });
+    }
+  });
+
+  app.get("/api/rma/tickets/:id/closure-status", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const ticketId = parseInt(req.params.id);
+      res.json(await getTicketClosureStatus(ticketId, ownerUserId));
+    } catch (error: any) {
+      console.error("Error fetching closure status:", error);
+      res.status(400).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/rma/tickets/:id/close", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+      const ticketId = parseInt(req.params.id);
+      res.json(await closeTicket(ticketId, ownerUserId, ownerUserId));
+    } catch (error: any) {
+      console.error("Error closing ticket:", error);
+      res.status(400).json({ error: error.message || "Failed" });
     }
   });
 

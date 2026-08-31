@@ -19,7 +19,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Package, Users, Clock } from "lucide-react";
+import { TrendingUp, Package, Users, Clock, Warehouse, Truck, CheckCircle2, Wrench } from "lucide-react";
 
 interface StatItem {
   count: number;
@@ -56,6 +56,17 @@ interface StatsData {
   totalCustomers: number;
   avgProcessingTime: number;
   currentMonthTickets: number;
+  rmaMetrics?: {
+    openRma: number;
+    inRmaWarehouse: number;
+    supplierWaiting: number;
+    completed: number;
+    byOperationType: {
+      servis: number;
+      iade: number;
+      degisim: number;
+    };
+  };
 }
 
 const COLORS = [
@@ -128,6 +139,21 @@ export default function Istatistikler() {
     refetchInterval: 30000,
     staleTime: 10000,
     refetchOnWindowFocus: true,
+  });
+
+  const { data: faz3Metrics } = useQuery<{
+    atSupplier: number;
+    awaitingResult: number;
+    replaced: number;
+    repaired: number;
+    rejected: number;
+    scrapped: number;
+    sellableStock: number;
+    customerDeliveryPending: number;
+    completedRma: number;
+  }>({
+    queryKey: ["/api/rma/metrics/faz3"],
+    refetchInterval: 30000,
   });
 
   const brandData = useMemo(() => (stats?.brandStats || []).slice(0, 10), [stats?.brandStats]);
@@ -239,6 +265,100 @@ export default function Istatistikler() {
                 <p className="text-xs text-muted-foreground mt-1">Bu ayki kayıtlar</p>
               </CardContent>
             </Card>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold mb-4">RMA Operasyon Metrikleri</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar()}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Acik RMA</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.openRma ?? 0}</div>
+                  <Wrench className="h-4 w-4 text-muted-foreground mt-1" />
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar()}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">RMA Deposunda</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.inRmaWarehouse ?? 0}</div>
+                  <Warehouse className="h-4 w-4 text-muted-foreground mt-1" />
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar()}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Tedarikci Bekleyen</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.supplierWaiting ?? 0}</div>
+                  <Truck className="h-4 w-4 text-muted-foreground mt-1" />
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar()}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Sonuclanan</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.completed ?? 0}</div>
+                  <CheckCircle2 className="h-4 w-4 text-muted-foreground mt-1" />
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar({ category: "servis" })}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Servis</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.byOperationType?.servis ?? 0}</div>
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar({ category: "iade" })}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Iade</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.byOperationType?.iade ?? 0}</div>
+                </CardContent>
+              </Card>
+              <Card className="cursor-pointer hover:bg-muted/40" onClick={() => openKayitlar({ category: "degisim" })}>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Degisim</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{stats?.rmaMetrics?.byOperationType?.degisim ?? 0}</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Tedarikci Sonuc Metrikleri</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Tedarikcide</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.atSupplier ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Sonuc Bekleyen</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.awaitingResult ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Degistirilen</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.replaced ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Tamir Edilen</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.repaired ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Reddedilen</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.rejected ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Hurda</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.scrapped ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Satilabilir Stok</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.sellableStock ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Musteri Teslim Bekleyen</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.customerDeliveryPending ?? 0}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium">Tamamlanan RMA</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{faz3Metrics?.completedRma ?? 0}</div></CardContent>
+              </Card>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

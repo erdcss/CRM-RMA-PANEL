@@ -7,12 +7,14 @@ export type SupplierAssignmentInput = {
   productId: number;
   supplierAccountCode: string;
   supplierName: string;
+  supplierStatus?: string;
   notes?: string;
 };
 
 export type SupplierAssignmentUpdate = {
   supplierAccountCode?: string;
   supplierName?: string;
+  supplierStatus?: string;
   notes?: string | null;
 };
 
@@ -22,7 +24,10 @@ export type ProductEditInput = {
   brand?: string | null;
   model?: string | null;
   serialNumber?: string | null;
+  barcode?: string | null;
   category?: "iade" | "degisim" | "servis";
+  defectReason?: string | null;
+  warehouseLocation?: "rma_deposu" | "satilabilir_stok" | "hurda";
   description?: string | null;
   quantity?: number;
 };
@@ -39,6 +44,7 @@ export function ensureSupplierItemsTable() {
           supplier_account_code TEXT NOT NULL,
           supplier_name TEXT NOT NULL,
           owner_user_id TEXT NOT NULL,
+          supplier_status TEXT DEFAULT 'bekliyor',
           notes TEXT,
           created_at TIMESTAMP NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -47,6 +53,7 @@ export function ensureSupplierItemsTable() {
       `);
       await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_owner_idx ON supplier_items(owner_user_id)`);
       await db.execute(sql`CREATE INDEX IF NOT EXISTS supplier_items_supplier_idx ON supplier_items(owner_user_id, supplier_account_code)`);
+      await db.execute(sql`ALTER TABLE supplier_items ADD COLUMN IF NOT EXISTS supplier_status TEXT DEFAULT 'bekliyor'`);
     })().catch((error) => {
       supplierSchemaPromise = null;
       throw error;
@@ -104,6 +111,7 @@ export async function createOrMoveSupplierItem(ownerUserId: string, input: Suppl
       productId: input.productId,
       supplierAccountCode: input.supplierAccountCode.trim(),
       supplierName: input.supplierName.trim(),
+      supplierStatus: input.supplierStatus || "bekliyor",
       ownerUserId,
       notes: input.notes?.trim() || undefined,
       updatedAt: new Date(),
@@ -113,6 +121,7 @@ export async function createOrMoveSupplierItem(ownerUserId: string, input: Suppl
       set: {
         supplierAccountCode: input.supplierAccountCode.trim(),
         supplierName: input.supplierName.trim(),
+        supplierStatus: input.supplierStatus || "bekliyor",
         notes: input.notes?.trim() || null,
         updatedAt: new Date(),
       },
@@ -131,6 +140,7 @@ export async function updateSupplierItem(
   const patch: Partial<typeof supplierItems.$inferInsert> = { updatedAt: new Date() };
   if (input.supplierAccountCode !== undefined) patch.supplierAccountCode = input.supplierAccountCode.trim();
   if (input.supplierName !== undefined) patch.supplierName = input.supplierName.trim();
+  if (input.supplierStatus !== undefined) patch.supplierStatus = input.supplierStatus;
   if (input.notes !== undefined) patch.notes = input.notes?.trim() || null;
 
   const [assignment] = await db
@@ -174,7 +184,10 @@ export async function updateOwnedProduct(
   if (input.brand !== undefined) patch.brand = input.brand?.trim() || null;
   if (input.model !== undefined) patch.model = input.model?.trim() || null;
   if (input.serialNumber !== undefined) patch.serialNumber = input.serialNumber?.trim() || null;
+  if (input.barcode !== undefined) patch.barcode = input.barcode?.trim() || null;
   if (input.category !== undefined) patch.category = input.category;
+  if (input.defectReason !== undefined) patch.defectReason = input.defectReason?.trim() || null;
+  if (input.warehouseLocation !== undefined) patch.warehouseLocation = input.warehouseLocation;
   if (input.description !== undefined) patch.description = input.description?.trim() || null;
   if (input.quantity !== undefined) patch.quantity = input.quantity;
 

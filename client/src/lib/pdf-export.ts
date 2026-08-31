@@ -1,9 +1,11 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getRmaOperationLabel, getRmaStatusLabel } from "@shared/rma-constants";
 
 interface TicketData {
   id: number;
   receiptNumber?: string;
+  operationType?: string;
   customer: {
     name: string;
     phone: string;
@@ -17,6 +19,7 @@ interface TicketData {
     model?: string;
     serialNumber?: string;
     stockCode?: string;
+    defectReason?: string;
     category: string;
     status: string;
     description?: string;
@@ -24,19 +27,6 @@ interface TicketData {
   }>;
   createdAt: string;
 }
-
-const categoryLabels: Record<string, string> = {
-  iade: "Iade",
-  degisim: "Degisim",
-  servis: "Servis",
-};
-
-const statusLabels: Record<string, string> = {
-  beklemede: "Beklemede",
-  serviste: "Serviste",
-  teslim_edildi: "Teslim Edildi",
-  iptal: "Iptal",
-};
 
 const PDF_FONT = "courier";
 
@@ -111,7 +101,15 @@ function drawTopSection(
   doc.text("Tel:", pageWidth / 2 + 2, yPos);
   doc.setFont(PDF_FONT, "normal");
   doc.text(toAscii(ticket.customer.phone || "-"), pageWidth / 2 + 10, yPos);
-  yPos += 4;
+  yPos += 3;
+
+  if (ticket.operationType) {
+    doc.setFont(PDF_FONT, "bold");
+    doc.text(toAscii("Islem:"), margin, yPos);
+    doc.setFont(PDF_FONT, "normal");
+    doc.text(toAscii(getRmaOperationLabel(ticket.operationType)), margin + 13, yPos);
+    yPos += 3;
+  }
 
   const contentWidth = pageWidth - 2 * margin;
   const boxWidth = (contentWidth - 4) / 3;
@@ -155,14 +153,19 @@ export async function generateTicketPDF(ticket: TicketData): Promise<void> {
 
   const tableRows = ticket.products.map((product) => {
     const brandModel = [product.brand, product.model].filter(Boolean).join(" ").trim();
-    const status = `${categoryLabels[product.category] ?? product.category} - ${
-      statusLabels[product.status] ?? product.status
-    }`;
+    const status = `${getRmaOperationLabel(product.category)} - ${getRmaStatusLabel(product.status)}`;
+    const detailParts = [
+      product.serialNumber ? `SN:${product.serialNumber}` : "",
+      product.defectReason ? product.defectReason : "",
+    ].filter(Boolean);
+    const productLine = detailParts.length
+      ? `${product.name} (${detailParts.join(" | ")})`
+      : product.name;
 
     return [
       String(product.quantity ?? 1),
       toAscii(product.stockCode?.trim() || "-"),
-      toAscii(product.name),
+      toAscii(productLine),
       toAscii(brandModel || "-"),
       toAscii(status),
     ];

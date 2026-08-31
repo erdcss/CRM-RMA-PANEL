@@ -43,6 +43,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  RMA_OPERATION_TYPES,
+  RMA_DEFAULT_OPERATION_TYPE,
+} from "@shared/rma-constants";
 
 function useDebouncedValue<T>(value: T, delayMs = 300): T {
   const [debounced, setDebounced] = useState(value);
@@ -96,29 +100,36 @@ const mainDialogClass =
   "w-[calc(100vw-1.5rem)] max-w-3xl h-[min(900px,92dvh)] max-h-[92dvh] flex flex-col overflow-hidden gap-0 p-4 sm:p-6";
 
 const productSchema = z.object({
+  catalogProductId: z.number().int().optional(),
   name: z.string().optional(),
   serialNumber: z.string().optional(),
   stockCode: z.string().optional(),
+  barcode: z.string().optional(),
   brand: z.string().optional(),
   model: z.string().optional(),
   category: z.enum(["iade", "degisim", "servis"]).optional(),
+  defectReason: z.string().optional(),
   description: z.string().optional(),
   quantity: z.number().int().optional(),
 });
 
 const ticketSchema = z.object({
   receiptNumber: z.string().optional(),
+  operationType: z.enum(["iade", "degisim", "servis"]),
   customerName: z.string().optional(),
   accountCode: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email("Geçerli e-posta adresi girin").optional().or(z.literal("")),
   address: z.string().optional(),
+  invoiceNumber: z.string().optional(),
+  salesId: z.string().optional(),
 });
 
 type TicketFormData = z.infer<typeof ticketSchema>;
 
 // Type for the full ticket submission including validated products
 type TicketSubmission = TicketFormData & {
+  catalogCustomerId?: number;
   products: z.infer<typeof productSchema>[];
 };
 
@@ -145,12 +156,15 @@ function normalizeCatalogProduct(item: CatalogProduct) {
 
 type ProductRow = {
   id: number;
+  catalogProductId?: number;
   name: string;
   serialNumber: string;
   stockCode: string;
+  barcode: string;
   brand: string;
   model: string;
   category: "iade" | "degisim" | "servis" | "";
+  defectReason: string;
   description: string;
   quantity: number;
 };
@@ -188,15 +202,18 @@ interface NewTicketDialogProps {
 
 export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const { toast } = useToast();
-  const [products, setProducts] = useState([
+  const [products, setProducts] = useState<ProductRow[]>([
     {
       id: 1,
+      catalogProductId: undefined,
       name: "",
       serialNumber: "",
       stockCode: "",
+      barcode: "",
       brand: "",
       model: "",
       category: "" as "iade" | "degisim" | "servis" | "",
+      defectReason: "",
       description: "",
       quantity: 1,
     },
@@ -215,6 +232,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const [bulkStaging, setBulkStaging] = useState<BulkStagingItem[]>([]);
   const [pendingBulkProduct, setPendingBulkProduct] = useState<CatalogProduct | null>(null);
   const [pendingBulkQuantity, setPendingBulkQuantity] = useState("1");
+  const [catalogCustomerId, setCatalogCustomerId] = useState<number | null>(null);
   const [customerInfoOpen, setCustomerInfoOpen] = useState(true);
 
   const customerQueryPath =
@@ -271,13 +289,18 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     resolver: zodResolver(ticketSchema),
     defaultValues: {
       receiptNumber: "",
+      operationType: RMA_DEFAULT_OPERATION_TYPE,
       customerName: "",
       accountCode: "",
       phone: "",
       email: "",
       address: "",
+      invoiceNumber: "",
+      salesId: "",
     },
   });
+
+  const operationType = form.watch("operationType");
 
   const selectCustomer = (customer: CatalogCustomer) => {
     form.setValue("customerName", customer.accountName, { shouldValidate: true, shouldDirty: true });
@@ -285,6 +308,7 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     form.setValue("phone", "", { shouldValidate: true, shouldDirty: true });
     form.setValue("email", "", { shouldValidate: true, shouldDirty: true });
     form.setValue("address", "", { shouldValidate: true, shouldDirty: true });
+    setCatalogCustomerId(customer.id);
     setCustomerDialogOpen(false);
     setCustomerSearchQuery("");
   };
@@ -362,12 +386,15 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     const baseId = Date.now();
     const newRows: ProductRow[] = bulkStaging.map((item, index) => ({
       id: baseId + index,
+      catalogProductId: item.catalogId,
       name: item.name,
       stockCode: item.stockCode,
       serialNumber: "",
+      barcode: "",
       brand: "",
       model: "",
-      category: "",
+      category: operationType || "",
+      defectReason: "",
       description: "",
       quantity: item.quantity,
     }));
@@ -391,7 +418,9 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
 
     setProducts((current) =>
       current.map((p) =>
-        p.id === targetId ? { ...p, stockCode, name: stockName || p.name } : p,
+        p.id === targetId
+          ? { ...p, catalogProductId: item.id, stockCode, name: stockName || p.name }
+          : p,
       ),
     );
     setActiveAccordion(`product-${targetId}`);
@@ -417,16 +446,20 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
       setProducts([
         {
           id: 1,
+          catalogProductId: undefined,
           name: "",
           serialNumber: "",
           stockCode: "",
+          barcode: "",
           brand: "",
           model: "",
           category: "",
+          defectReason: "",
           description: "",
           quantity: 1,
         },
       ]);
+      setCatalogCustomerId(null);
       setActiveAccordion("product-1");
     },
     onError: () => {
@@ -444,12 +477,15 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
       ...products,
       {
         id: newId,
+        catalogProductId: undefined,
         name: "",
         serialNumber: "",
         stockCode: "",
+        barcode: "",
         brand: "",
         model: "",
-        category: "",
+        category: operationType || "",
+        defectReason: "",
         description: "",
         quantity: 1,
       },
@@ -476,27 +512,33 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     // Prepare products - convert empty strings to undefined
     const validatedProducts = products.map((product) => {
       return {
+        catalogProductId: product.catalogProductId,
         name: product.name || undefined,
         serialNumber: product.serialNumber || undefined,
         stockCode: product.stockCode || undefined,
+        barcode: product.barcode || undefined,
         brand: product.brand || undefined,
         model: product.model || undefined,
-        category: product.category || undefined,
+        category: product.category || data.operationType,
+        defectReason: product.defectReason || undefined,
         description: product.description || undefined,
         quantity: product.quantity || undefined,
       };
-    }).filter((p) => 
-      p.name || p.serialNumber || p.stockCode || p.brand || p.model || p.category || p.description || p.quantity
+    }).filter((p) =>
+      p.name || p.serialNumber || p.stockCode || p.barcode || p.brand || p.model || p.category || p.defectReason || p.description || p.quantity
     );
 
-    const formData = {
+    const formData: TicketSubmission = {
       ...data,
+      catalogCustomerId: catalogCustomerId ?? undefined,
       customerName: data.customerName || undefined,
       accountCode: data.accountCode || undefined,
       phone: data.phone || undefined,
       email: data.email || undefined,
       address: data.address || undefined,
-      products: validatedProducts, // Backend handles empty array
+      invoiceNumber: data.invoiceNumber || undefined,
+      salesId: data.salesId || undefined,
+      products: validatedProducts,
     };
 
     createTicketMutation.mutate(formData);
@@ -565,6 +607,30 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="operationType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>RMA İşlem Tipi *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-operation-type">
+                            <SelectValue placeholder="İşlem tipi seçin" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {RMA_OPERATION_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -626,6 +692,34 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                         <FormLabel>Adres</FormLabel>
                         <FormControl>
                           <Input {...field} data-testid="input-address" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
+                  <FormField
+                    control={form.control}
+                    name="invoiceNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fatura No (Opsiyonel)</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="font-mono" data-testid="input-invoice-number" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="salesId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Satış ID (Opsiyonel)</FormLabel>
+                        <FormControl>
+                          <Input {...field} className="font-mono" data-testid="input-sales-id" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -764,6 +858,19 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-2 block">
+                        Barkod
+                      </label>
+                      <Input
+                        value={product.barcode}
+                        onChange={(e) =>
+                          updateProduct(product.id, "barcode", e.target.value)
+                        }
+                        className="font-mono"
+                        data-testid={`input-barcode-${index}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
                         Marka
                       </label>
                       <Input
@@ -802,21 +909,36 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-sm font-medium mb-2 block">
-                        Durum
+                        Ariza / Iade Nedeni
+                      </label>
+                      <Textarea
+                        value={product.defectReason}
+                        onChange={(e) =>
+                          updateProduct(product.id, "defectReason", e.target.value)
+                        }
+                        rows={2}
+                        data-testid={`input-defect-reason-${index}`}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-sm font-medium mb-2 block">
+                        Urun Islem Tipi
                       </label>
                       <Select
-                        value={product.category}
+                        value={product.category || operationType}
                         onValueChange={(value) =>
                           updateProduct(product.id, "category", value)
                         }
                       >
                         <SelectTrigger data-testid={`select-category-${index}`}>
-                          <SelectValue placeholder="Durum seçin" />
+                          <SelectValue placeholder="Islem tipi" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="iade">İade</SelectItem>
-                          <SelectItem value="degisim">Değişim</SelectItem>
-                          <SelectItem value="servis">Servise Gidecek</SelectItem>
+                          {RMA_OPERATION_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

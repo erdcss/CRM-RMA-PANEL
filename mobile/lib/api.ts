@@ -226,4 +226,47 @@ export const rmaApi = {
     request<{ message: string }>('/api/account', {
       method: 'DELETE',
     }),
+
+  lookupPackage: (q: string) =>
+    request<any>(`/api/rma/packages/lookup?q=${encodeURIComponent(q)}`),
+
+  getPackage: (id: number) => request<any>(`/api/rma/packages/${id}`),
+
+  markDeliveredToSupplier: (id: number, deliveryNote?: string) =>
+    request<any>(`/api/rma/packages/${id}/deliver-to-supplier`, {
+      method: 'POST',
+      body: JSON.stringify({ deliveryNote }),
+    }),
+
+  markPackageReturned: (id: number, returnNote?: string) =>
+    request<any>(`/api/rma/packages/${id}/return`, {
+      method: 'POST',
+      body: JSON.stringify({ returnNote }),
+    }),
+
+  saveSupplierResult: (
+    productId: number,
+    payload: {
+      packageId?: number;
+      resultType: string;
+      resultDescription?: string;
+      newSerialNumber?: string;
+      newBarcode?: string;
+    },
+  ) =>
+    request<any>(`/api/rma/products/${productId}/supplier-result`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  deliverToCustomer: (
+    productId: number,
+    payload: { receiverName: string; receiverPhone?: string; deliveryNote?: string },
+  ) =>
+    request<any>(`/api/rma/products/${productId}/customer-delivery`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getClosureStatus: (ticketId: number) => request<any>(`/api/rma/tickets/${ticketId}/closure-status`),
 };

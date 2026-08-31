@@ -13,6 +13,9 @@ const files = [
   "20260818_003_product_stock_code.sql",
   "20260818_004_catalog_customers.sql",
   "20260818_005_customer_account_code.sql",
+  "20260831_001_rma_faz1.sql",
+  "20260831_002_rma_faz2_packages.sql",
+  "20260831_003_rma_faz3_supplier_results.sql",
 ];
 
 for (const file of files) {
