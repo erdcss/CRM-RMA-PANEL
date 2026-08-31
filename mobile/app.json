@@ -2,7 +2,7 @@
   "expo": {
     "name": "Çalışkan RMA",
     "slug": "caliskan-rma",
-    "version": "0.1.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "caliskanrma",
     "userInterfaceStyle": "automatic",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.caliskangroup.rma",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Ürün fotoğrafı çekmek için kamera erişimi gerekir.",
