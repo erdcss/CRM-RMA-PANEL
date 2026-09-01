@@ -25,7 +25,7 @@ private struct D110LabelLayout {
     return (marginX, marginY, contentWidth, fontSize, textHeight, blockHeight)
   }
 
-  static func packageMetrics(for value: String) -> (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int32) {
+  static func packageMetrics(for value: String) -> (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int) {
     let marginX: Float = 1.1
     let marginY: Float = 0.3
     let contentWidth = max(1, boardWidth - marginX * 2)
@@ -246,7 +246,7 @@ final class NiimbotPrintEngine {
             rotate: Int32(D110LabelLayout.boardRotate)
           )
 
-          let metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int32)
+          let metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
           switch mode {
           case .product:
             let product = D110LabelLayout.productMetrics()
