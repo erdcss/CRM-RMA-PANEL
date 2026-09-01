@@ -39,6 +39,7 @@ import {
   saveSupplierResult,
 } from "./supplier-results";
 import { closeTicket, getTicketClosureStatus } from "./rma-closure";
+import { ensureProductShipmentBarcode, ensureProductShipmentBarcodes } from "./shipment-barcode";
 import { z } from "zod";
 import {
   ALL_PRODUCT_STATUS_VALUES,
@@ -363,6 +364,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Validation failed", details: error.errors });
       }
       res.status(500).json({ error: "Failed to update product status" });
+    }
+  });
+
+  app.post("/api/products/:id/shipment-barcode", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+
+      const id = parseInt(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid product id" });
+
+      const result = await ensureProductShipmentBarcode(id, ownerUserId);
+      res.json({ barcodeNumber: result.barcodeNumber });
+    } catch (error) {
+      console.error("Error ensuring shipment barcode:", error);
+      const message = error instanceof Error ? error.message : "Barkod numarası oluşturulamadı.";
+      if (message === "Product not found") {
+        return res.status(404).json({ error: message });
+      }
+      res.status(500).json({ error: message || "Barkod numarası oluşturulamadı." });
+    }
+  });
+
+  app.post("/api/products/shipment-barcodes/ensure", async (req, res) => {
+    try {
+      const ownerUserId = requireOwnerUserId(req);
+      if (!ownerUserId) return res.status(401).json({ error: "Owner user id required" });
+
+      const payload = z
+        .object({
+          productIds: z.array(z.number().int().positive()).min(1).max(200),
+        })
+        .parse(req.body);
+
+      const barcodes = await ensureProductShipmentBarcodes(payload.productIds, ownerUserId);
+      res.json({ barcodes });
+    } catch (error) {
+      console.error("Error ensuring shipment barcodes:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Validation failed", details: error.errors });
+      }
+      const message = error instanceof Error ? error.message : "Barkod numarası oluşturulamadı.";
+      res.status(500).json({ error: message || "Barkod numarası oluşturulamadı." });
     }
   });
 

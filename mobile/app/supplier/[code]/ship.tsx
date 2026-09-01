@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
+import { ShipmentProductBarcode } from '@/components/suppliers/ShipmentProductBarcode';
 import { SupplierProductRow } from '@/components/suppliers/SupplierProductRow';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
@@ -26,6 +27,8 @@ import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
+import { printBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
+import { NiimbotPrinterError } from '@/lib/niimbot/types';
 import { parsePackageLabelSequence } from '@/lib/packageLabelUtils';
 
 const EDITABLE_PKG_STATUSES = new Set(['hazirlaniyor', 'taslak']);
@@ -64,6 +67,10 @@ export default function SupplierShipScreen() {
   const [scanOpen, setScanOpen] = useState(false);
   const [scanMatched, setScanMatched] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [barcodesByProductId, setBarcodesByProductId] = useState<Record<number, string>>({});
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
+  const [barcodeErrors, setBarcodeErrors] = useState<Record<number, string>>({});
+  const [printingProductId, setPrintingProductId] = useState<number | null>(null);
   const fadeAnim = useState(() => new Animated.Value(0))[0];
 
   const supplierItems = useMemo(
@@ -119,6 +126,55 @@ export default function SupplierShipScreen() {
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   }, [fadeAnim]);
+
+  useEffect(() => {
+    if (!supplierItems.length) return;
+
+    setBarcodesByProductId((prev) => {
+      const next = { ...prev };
+      for (const item of supplierItems) {
+        if (item.product.barcodeNumber) {
+          next[item.productId] = item.product.barcodeNumber;
+        }
+      }
+      return next;
+    });
+
+    const missingIds = supplierItems
+      .filter((item) => !item.product.barcodeNumber)
+      .map((item) => item.productId);
+
+    if (!missingIds.length) return;
+
+    let cancelled = false;
+    setBarcodeLoading(true);
+    setBarcodeErrors({});
+
+    rmaApi
+      .ensureShipmentBarcodes(missingIds)
+      .then(({ barcodes }) => {
+        if (cancelled) return;
+        setBarcodesByProductId((prev) => ({ ...prev, ...barcodes }));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Barkod numarası oluşturulamadı.';
+        setBarcodeErrors((prev) => {
+          const next = { ...prev };
+          for (const productId of missingIds) {
+            next[productId] = message;
+          }
+          return next;
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setBarcodeLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supplierItems]);
 
   const reloadAll = async () => {
     await Promise.all([refresh(), loadPackage()]);
@@ -182,14 +238,44 @@ export default function SupplierShipScreen() {
     }
   };
 
+  const handlePrintProductBarcode = async (productId: number, barcodeNumber: string) => {
+    setPrintingProductId(productId);
+    try {
+      const result = await printBarcodeDirect(barcodeNumber);
+      if (result.fitWarning) {
+        Alert.alert('Uyarı', result.fitWarning);
+      }
+      Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
+    } catch (err) {
+      Alert.alert(
+        'Yazdırma başarısız',
+        err instanceof NiimbotPrinterError ? err.message : err instanceof Error ? err.message : 'Bilinmeyen hata',
+      );
+    } finally {
+      setPrintingProductId(null);
+    }
+  };
+
   const handlePrint = async () => {
     const labelPkg = closedPkg ?? activePkg;
-    if (!labelPkg?.barcodeValue && !labelPkg?.qrValue) return;
+    const scanValue = labelPkg?.barcodeValue || labelPkg?.qrValue;
+    if (!scanValue) return;
     setPrinting(true);
     try {
-      await printPackageLabel(labelPkg);
+      if (shouldUseNiimbotDirectPrint()) {
+        const result = await printBarcodeDirect(scanValue);
+        if (result.fitWarning) {
+          Alert.alert('Uyarı', result.fitWarning);
+        }
+        Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
+      } else {
+        await printPackageLabel(labelPkg);
+      }
     } catch (err) {
-      Alert.alert('Yazdırma başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      Alert.alert(
+        'Yazdırma başarısız',
+        err instanceof NiimbotPrinterError ? err.message : err instanceof Error ? err.message : 'Bilinmeyen hata',
+      );
     } finally {
       setPrinting(false);
     }
@@ -286,6 +372,7 @@ export default function SupplierShipScreen() {
             {supplierItems.map((item) => {
               const inBox = inBoxMap.has(item.productId);
               const busy = busyProductId === item.productId;
+              const barcodeNumber = barcodesByProductId[item.productId] ?? item.product.barcodeNumber ?? null;
 
               return (
                 <View key={item.id} style={styles.rowWrap}>
@@ -307,6 +394,17 @@ export default function SupplierShipScreen() {
                           {busy ? '…' : inBox ? 'Koliden\nÇıkar' : 'Koliye\nEkle'}
                         </Text>
                       </Pressable>
+                    }
+                  />
+                  <ShipmentProductBarcode
+                    barcodeNumber={barcodeNumber}
+                    loading={barcodeLoading && !barcodeNumber}
+                    error={barcodeErrors[item.productId]}
+                    printing={printingProductId === item.productId}
+                    onPrint={
+                      barcodeNumber
+                        ? () => handlePrintProductBarcode(item.productId, barcodeNumber)
+                        : undefined
                     }
                   />
                 </View>
@@ -439,7 +537,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...typography.bodyMedium, color: colors.textSecondary, marginTop: spacing.sm },
   list: { gap: spacing.sm },
-  rowWrap: { gap: 0 },
+  rowWrap: { gap: 0, marginBottom: spacing.sm },
   boxBtn: {
     width: 78,
     alignItems: 'center',

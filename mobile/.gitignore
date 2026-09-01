@@ -5,3 +5,9 @@
 .expo/
 expo-env.d.ts
 # @end expo-cli
+
+# NIIMBOT proprietary SDK binaries (copy locally from official kit)
+vendor/niimbot-ios/SDK/
+vendor/niimbot-ios/IOS_4.0.3*/
+vendor/niimbot-ios/**/*.zip
+modules/niimbot-printer/ios/NiimbotSDK/

@@ -1,0 +1,12 @@
+{
+  "name": "niimbot-printer",
+  "version": "1.0.0",
+  "description": "NIIMBOT D110-M direct Bluetooth print bridge (iOS). Requires official NIIMBOT iOS SDK in vendor/niimbot-ios.",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

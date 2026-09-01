@@ -1,0 +1,10 @@
+# EAS Build upload rules (replaces .gitignore when present).
+# NIIMBOT SDK binaries must reach EAS but stay out of public git (.gitignore).
+
+.expo/
+expo-env.d.ts
+
+# Ignore vendor SDK when NiimbotSDK copy is present in the native module
+vendor/niimbot-ios/SDK/
+vendor/niimbot-ios/IOS_4.0.3*/
+vendor/niimbot-ios/**/*.zip

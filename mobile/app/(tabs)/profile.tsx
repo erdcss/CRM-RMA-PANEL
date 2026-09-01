@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
@@ -137,7 +137,7 @@ export default function ProfileScreen() {
                 <View key={item.label}>
                   <Pressable
                     style={styles.menuRow}
-                    onPress={'route' in item && item.route ? () => router.push(item.route) : undefined}
+                    onPress={'route' in item && item.route ? () => router.push(item.route as Href) : undefined}
                   >
                     <Ionicons name={item.icon} size={20} color={colors.textSecondary} />
                     <Text style={styles.menuLabel}>{item.label}</Text>

@@ -75,6 +75,7 @@ export const products = pgTable("products", {
   serialNumber: text("serial_number"),
   stockCode: text("stock_code"),
   barcode: text("barcode"),
+  barcodeNumber: text("barcode_number"),
   brand: text("brand").default("Bilinmeyen"),
   model: text("model"),
   category: text("category").default("servis"), // "iade", "degisim", "servis"

@@ -1,72 +1,58 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import { NiimbotPrinterSection } from '@/components/niimbot/NiimbotPrinterSection';
 import { FormField } from '@/components/forms/FormField';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Card } from '@/components/ui/Card';
 import { Screen } from '@/components/ui/Screen';
 import {
-  DEFAULT_BARCODE_SETTINGS,
-  loadBarcodeSettings,
-  saveBarcodeSettings,
-  type BarcodeSettings,
-} from '@/lib/barcodeSettings';
+  DEFAULT_BARCODE_NUMBER,
+  loadBarcodeLabelSettings,
+  resetBarcodeLabelSettings,
+  saveBarcodeLabelSettings,
+  validateBarcodeForPrint,
+  type BarcodeLabelSettings,
+} from '@/lib/barcodeLabelSettings';
+import { printBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
+import { NiimbotPrinterError } from '@/lib/niimbot/types';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { printPackageLabel } from '@/lib/packageLabel';
-import type { RmaPackage } from '@/lib/api';
-
-const SAMPLE_PACKAGE: RmaPackage = {
-  id: 42,
-  packageNumber: 'RMA-KOLI-2026-000001',
-  supplierAccountCode: '111119',
-  supplierName: 'Örnek Tedarikçi',
-  status: 'kapatildi',
-  barcodeValue: 'RMA-111119-S3-P42-DEMO1234',
-  qrValue: 'RMA-111119-S3-P42-DEMO1234',
-  createdAt: new Date().toISOString(),
-  closedAt: new Date().toISOString(),
-  items: [
-    {
-      id: 1,
-      packageId: 42,
-      productId: 101,
-      quantity: 1,
-      product: { id: 101, name: 'Örnek Ürün A', brand: 'Marka', category: 'iade', status: 'tedarikciye_hazir', stockCode: 'STK-001' },
-    },
-    {
-      id: 2,
-      packageId: 42,
-      productId: 102,
-      quantity: 2,
-      product: { id: 102, name: 'Örnek Ürün B', brand: 'Marka', category: 'servis', status: 'tedarikciye_hazir', stockCode: 'STK-002' },
-    },
-  ],
-  productCount: 2,
-  totalQuantity: 3,
-};
 
 export default function BarcodeSettingsScreen() {
   const router = useRouter();
-  const [draft, setDraft] = useState<BarcodeSettings>(DEFAULT_BARCODE_SETTINGS);
+  const [settings, setSettings] = useState<BarcodeLabelSettings | null>(null);
+  const [barcodeNumber, setBarcodeNumber] = useState(DEFAULT_BARCODE_NUMBER);
   const [saving, setSaving] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
-    loadBarcodeSettings().then(setDraft).catch(() => undefined);
+    loadBarcodeLabelSettings()
+      .then(setSettings)
+      .catch(() => undefined);
   }, []);
 
-  const update = (key: keyof BarcodeSettings, value: string) => {
-    const num = Number(value.replace(',', '.'));
+  if (!settings) {
+    return (
+      <Screen edges={['top', 'bottom']}>
+        <AppHeader title="Barkod Ayarları" onBack={() => router.back()} />
+      </Screen>
+    );
+  }
+
+  const { validation, fit } = validateBarcodeForPrint(barcodeNumber, settings);
+
+  const updateQuantity = (raw: string) => {
+    const num = Number(raw.replace(',', '.'));
     if (!Number.isFinite(num)) return;
-    setDraft((prev) => ({ ...prev, [key]: num }));
+    setSettings((prev: BarcodeLabelSettings | null) => (prev ? { ...prev, quantity: num } : prev));
   };
 
   const save = async () => {
     setSaving(true);
     try {
-      await saveBarcodeSettings(draft);
+      await saveBarcodeLabelSettings(settings);
       Alert.alert('Kaydedildi', 'Barkod etiket ayarları güncellendi.');
     } catch (err) {
       Alert.alert('Kaydedilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
@@ -75,58 +61,88 @@ export default function BarcodeSettingsScreen() {
     }
   };
 
-  const preview = async () => {
-    setPreviewing(true);
+  const handleReset = async () => {
+    const defaults = await resetBarcodeLabelSettings();
+    setSettings(defaults);
+    setBarcodeNumber(DEFAULT_BARCODE_NUMBER);
+    Alert.alert('Varsayılana dönüldü');
+  };
+
+  const handlePrint = async () => {
+    if (!validation.valid) {
+      Alert.alert('Geçersiz barkod', validation.error ?? 'Barkod numarası gerekli');
+      return;
+    }
+
+    if (!shouldUseNiimbotDirectPrint()) {
+      Alert.alert('iOS gerekli', 'NIIMBOT doğrudan yazdırma bu fazda yalnızca iOS içindir.');
+      return;
+    }
+
+    setPrinting(true);
     try {
-      await saveBarcodeSettings(draft);
-      await printPackageLabel(SAMPLE_PACKAGE);
+      await saveBarcodeLabelSettings(settings);
+      const result = await printBarcodeDirect(barcodeNumber, { copies: settings.quantity });
+      if (result.fitWarning) {
+        Alert.alert('Uyarı', result.fitWarning);
+      }
+      Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
     } catch (err) {
-      Alert.alert('Önizleme başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      Alert.alert(
+        'Yazdırma başarısız',
+        err instanceof NiimbotPrinterError ? err.message : err instanceof Error ? err.message : 'Barkod yazdırılamadı.',
+      );
     } finally {
-      setPreviewing(false);
+      setPrinting(false);
     }
   };
 
   return (
     <Screen edges={['top', 'bottom']}>
-      <AppHeader title="Barkod Ayarları" subtitle="Etiket boyutu ve yazdırma" onBack={() => router.back()} />
+      <AppHeader title="Barkod Ayarları" subtitle="NIIMBOT D110-M · 40×12 mm" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content}>
+        <NiimbotPrinterSection />
+
         <Card style={styles.card}>
-          <Text style={styles.cardTitle}>Etiket Boyutları (mm)</Text>
+          <Text style={styles.cardTitle}>Etiket (NIIMBOT D110-M)</Text>
+          <Text style={styles.preset}>40 × 12 mm · Code 128 · Yalnızca rakam</Text>
+
           <FormField
-            label="Etiket Genişliği"
-            value={String(draft.labelWidthMm)}
-            onChangeText={(v) => update('labelWidthMm', v)}
-            keyboardType="decimal-pad"
+            label="Barkod Numarası"
+            value={barcodeNumber}
+            onChangeText={(v) => setBarcodeNumber(v.replace(/[^\d]/g, ''))}
+            keyboardType="number-pad"
           />
+
           <FormField
-            label="Etiket Yüksekliği"
-            value={String(draft.labelHeightMm)}
-            onChangeText={(v) => update('labelHeightMm', v)}
-            keyboardType="decimal-pad"
+            label="Baskı Adedi (1-100)"
+            value={String(settings.quantity)}
+            onChangeText={updateQuantity}
+            keyboardType="number-pad"
           />
-          <FormField
-            label="QR Kod Boyutu (mm)"
-            value={String(draft.qrSizeMm)}
-            onChangeText={(v) => update('qrSizeMm', v)}
-            keyboardType="decimal-pad"
-          />
-          <FormField
-            label="Barkod Yazı Boyutu (pt)"
-            value={String(draft.barcodeFontPt)}
-            onChangeText={(v) => update('barcodeFontPt', v)}
-            keyboardType="decimal-pad"
-          />
+
+          {!validation.valid && validation.error ? (
+            <Text style={styles.warn}>{validation.error}</Text>
+          ) : null}
+          {!fit.fits && fit.warning ? <Text style={styles.warn}>{fit.warning}</Text> : null}
         </Card>
 
-        <Text style={styles.hint}>
-          Ayarlar koli etiketi yazdırırken uygulanır. Önizleme ile test edebilirsiniz.
-        </Text>
+        {Platform.OS === 'ios' ? (
+          <Text style={styles.hint}>
+            iOS AirPrint kullanılmaz. Barkod NIIMBOT JCAPI ile doğrudan D110-M yazıcıya gönderilir (development build gerekir).
+          </Text>
+        ) : (
+          <Text style={styles.hint}>Android NIIMBOT entegrasyonu bu fazda yapılmadı.</Text>
+        )}
 
-        <Pressable style={[styles.previewBtn, previewing && styles.disabled]} onPress={preview} disabled={previewing}>
-          <Ionicons name="print-outline" size={18} color={colors.primaryDark} />
-          <Text style={styles.previewText}>{previewing ? 'Yazdırılıyor…' : 'Örnek Etiket Yazdır'}</Text>
+        <Pressable style={[styles.printBtn, printing && styles.disabled]} onPress={handlePrint} disabled={printing}>
+          <Ionicons name="print-outline" size={18} color={colors.surface} />
+          <Text style={styles.printText}>{printing ? 'Yazdırılıyor…' : 'Barkod Yazdır'}</Text>
+        </Pressable>
+
+        <Pressable style={styles.secondaryBtn} onPress={handleReset}>
+          <Text style={styles.secondaryText}>Varsayılana Dön</Text>
         </Pressable>
 
         <Pressable style={[styles.saveBtn, saving && styles.disabled]} onPress={save} disabled={saving}>
@@ -141,23 +157,33 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxxl },
   card: { gap: spacing.md },
   cardTitle: { ...typography.subtitle, color: colors.text },
+  preset: { ...typography.caption, color: colors.textMuted },
+  warn: { ...typography.caption, color: colors.warning },
   hint: { ...typography.caption, color: colors.textMuted },
-  previewBtn: {
+  printBtn: {
     minHeight: minTouchTarget,
-    borderWidth: 1,
-    borderColor: colors.primary,
     borderRadius: radius.md,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
   },
-  previewText: { ...typography.bodyMedium, color: colors.primaryDark, fontWeight: '700' },
+  printText: { ...typography.bodyMedium, color: colors.surface, fontWeight: '700' },
+  secondaryBtn: {
+    minHeight: minTouchTarget,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  secondaryText: { ...typography.bodyMedium, color: colors.text },
   saveBtn: {
     minHeight: minTouchTarget,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
   },

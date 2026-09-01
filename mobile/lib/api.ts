@@ -59,6 +59,7 @@ export type RmaProduct = {
   model?: string | null;
   serialNumber?: string | null;
   stockCode?: string | null;
+  barcodeNumber?: string | null;
   category: 'iade' | 'degisim' | 'servis' | string;
   status: string;
   description?: string | null;
@@ -369,4 +370,16 @@ export const rmaApi = {
     }),
 
   getClosureStatus: (ticketId: number) => request<any>(`/api/rma/tickets/${ticketId}/closure-status`),
+
+  ensureShipmentBarcode: (productId: number) =>
+    request<{ barcodeNumber: string }>(`/api/products/${productId}/shipment-barcode`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  ensureShipmentBarcodes: (productIds: number[]) =>
+    request<{ barcodes: Record<number, string> }>('/api/products/shipment-barcodes/ensure', {
+      method: 'POST',
+      body: JSON.stringify({ productIds }),
+    }),
 };
