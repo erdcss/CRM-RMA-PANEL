@@ -14,9 +14,15 @@ const requiredFiles = [
   ['font', 'ZT002.otf'],
 ];
 
+// CocoaPods/ld resolve vendored_libraries via -lNAME -> libNAME.a
+const linkerAliases = [
+  ['Libs', 'JCAPI.a', 'libJCAPI.a'],
+  ['Libs', 'JCLPAPI.a', 'libJCLPAPI.a'],
+];
+
 const verifyTargets = [
-  ['NiimbotSDK/Libs/JCAPI.a', 9_000_000],
-  ['NiimbotSDK/Libs/JCLPAPI.a', 2_500_000],
+  ['NiimbotSDK/Libs/libJCAPI.a', 9_000_000],
+  ['NiimbotSDK/Libs/libJCLPAPI.a', 2_500_000],
   ['NiimbotSDK/Libs/libSkiaRenderLibrary.a', 60_000_000],
 ];
 
@@ -46,6 +52,26 @@ function copyIfNeeded(relativeParts) {
   return target;
 }
 
+function copyAliasIfNeeded(relativeDir, sourceName, aliasName) {
+  const source = path.join(targetRoot, relativeDir, sourceName);
+  const target = path.join(targetRoot, relativeDir, aliasName);
+
+  if (!fs.existsSync(source)) {
+    throw new Error(`NIIMBOT linker alias source missing: ${source}`);
+  }
+
+  const sourceStat = fs.statSync(source);
+  if (fs.existsSync(target)) {
+    const targetStat = fs.statSync(target);
+    if (targetStat.size === sourceStat.size && targetStat.mtimeMs >= sourceStat.mtimeMs) {
+      return target;
+    }
+  }
+
+  fs.copyFileSync(source, target);
+  return target;
+}
+
 if (!fs.existsSync(sourceRoot)) {
   throw new Error(
     `NIIMBOT SDK not found at ${sourceRoot}. Copy official SDK files before running EAS build.`,
@@ -54,6 +80,10 @@ if (!fs.existsSync(sourceRoot)) {
 
 for (const parts of requiredFiles) {
   copyIfNeeded(parts);
+}
+
+for (const [dir, sourceName, aliasName] of linkerAliases) {
+  copyAliasIfNeeded(dir, sourceName, aliasName);
 }
 
 console.log(`NIIMBOT SDK synced to ${targetRoot}`);

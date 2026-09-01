@@ -29,16 +29,18 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   install_modules_dependencies(s)
 
-  # Link by archive filename — NOT s.libraries ('JCAPI' would emit -lJCAPI → libJCAPI.a).
+  # CocoaPods emits -lJCAPI -> libJCAPI.a. Official SDK ships JCAPI.a; prepare script copies libJCAPI.a aliases.
   s.vendored_libraries = [
-    File.join(sdk_libs, 'JCAPI.a'),
-    File.join(sdk_libs, 'JCLPAPI.a'),
+    File.join(sdk_libs, 'libJCAPI.a'),
+    File.join(sdk_libs, 'libJCLPAPI.a'),
     File.join(sdk_libs, 'libSkiaRenderLibrary.a'),
   ]
 
   s.preserve_paths = [
     File.join(sdk_libs, 'JCAPI.a'),
     File.join(sdk_libs, 'JCLPAPI.a'),
+    File.join(sdk_libs, 'libJCAPI.a'),
+    File.join(sdk_libs, 'libJCLPAPI.a'),
     File.join(sdk_libs, 'libSkiaRenderLibrary.a'),
   ]
 
