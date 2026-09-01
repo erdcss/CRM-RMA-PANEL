@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -53,9 +54,9 @@ export default function BarcodeSettingsScreen() {
     setSaving(true);
     try {
       await saveBarcodeLabelSettings(settings);
-      Alert.alert('Kaydedildi', 'Barkod etiket ayarları güncellendi.');
+      appAlert('Kaydedildi', 'Barkod etiket ayarları güncellendi.');
     } catch (err) {
-      Alert.alert('Kaydedilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Kaydedilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setSaving(false);
     }
@@ -65,18 +66,18 @@ export default function BarcodeSettingsScreen() {
     const defaults = await resetBarcodeLabelSettings();
     setSettings(defaults);
     setBarcodeNumber(DEFAULT_BARCODE_NUMBER);
-    Alert.alert('Varsayılana dönüldü');
+    appAlert('Varsayılana dönüldü');
   };
 
   const handlePrint = async () => {
     if (printing) return;
     if (!validation.valid) {
-      Alert.alert('Geçersiz barkod', validation.error ?? 'Barkod numarası gerekli');
+      appAlert('Geçersiz barkod', validation.error ?? 'Barkod numarası gerekli');
       return;
     }
 
     if (!shouldUseNiimbotDirectPrint()) {
-      Alert.alert('iOS gerekli', 'NIIMBOT doğrudan yazdırma bu fazda yalnızca iOS içindir.');
+      appAlert('iOS gerekli', 'NIIMBOT doğrudan yazdırma bu fazda yalnızca iOS içindir.');
       return;
     }
 
@@ -85,11 +86,11 @@ export default function BarcodeSettingsScreen() {
       await saveBarcodeLabelSettings(settings);
       const result = await printProductBarcodeDirect(barcodeNumber, { copies: settings.quantity });
       if (result.fitWarning) {
-        Alert.alert('Uyarı', result.fitWarning);
+        appAlert('Uyarı', result.fitWarning);
       }
-      Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
+      appAlert('Başarılı', 'Barkod etiketi yazdırıldı.');
     } catch (err) {
-      Alert.alert(
+      appAlert(
         'Yazdırma başarısız',
         err instanceof NiimbotPrinterError ? err.message : err instanceof Error ? err.message : 'Barkod yazdırılamadı.',
       );
@@ -168,8 +169,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   printText: { ...typography.bodyMedium, color: colors.surface, fontWeight: '700' },
   secondaryBtn: {
     minHeight: minTouchTarget,
@@ -178,16 +178,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   secondaryText: { ...typography.bodyMedium, color: colors.text },
   saveBtn: {
     minHeight: minTouchTarget,
     borderRadius: radius.md,
     backgroundColor: colors.text,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   saveText: { ...typography.bodyMedium, color: colors.surface, fontWeight: '700' },
-  disabled: { opacity: 0.6 },
-});
+  disabled: { opacity: 0.6 }});

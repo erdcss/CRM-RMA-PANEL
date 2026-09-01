@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -35,7 +36,7 @@ export default function SupplierDetailScreen() {
     try {
       await previewSupplierPdf(supplierName, supplierCode, supplierItems);
     } catch (err) {
-      Alert.alert('PDF görüntülenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('PDF görüntülenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setPreviewing(false);
     }
@@ -47,7 +48,7 @@ export default function SupplierDetailScreen() {
     try {
       await shareSupplierPdf(supplierName, supplierCode, supplierItems);
     } catch (err) {
-      Alert.alert('PDF oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('PDF oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setSharing(false);
     }

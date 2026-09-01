@@ -18,6 +18,7 @@ import {
   MAX_PACKAGE_LABEL_SEQUENCE,
   parsePackageLabelSequence,
 } from "@shared/package-label";
+import { parseShipmentBarcodeFromScan } from "@shared/shipment-barcode";
 import { EDITABLE_PACKAGE_STATUSES } from "@shared/package-constants";
 import { RMA_DEFAULT_WAREHOUSE_LOCATION } from "@shared/rma-constants";
 import { db } from "./db";
@@ -897,6 +898,8 @@ export async function lookupPackage(
   const q = query.trim();
   if (!q) return undefined;
 
+  const shipmentBarcode = parseShipmentBarcodeFromScan(q);
+
   const [pkg] = await db
     .select()
     .from(rmaPackages)
@@ -915,6 +918,18 @@ export async function lookupPackage(
 
   if (pkg) return getPackageDetail(pkg.id, ownerUserId);
 
+  const productMatch = or(
+    ilike(products.serialNumber, q),
+    ilike(products.barcode, q),
+    ilike(products.stockCode, q),
+    ilike(tickets.receiptNumber, q),
+    eq(products.serialNumber, q),
+    eq(products.barcode, q),
+    ...(shipmentBarcode
+      ? [eq(products.barcodeNumber, shipmentBarcode), eq(products.barcodeNumber, q)]
+      : []),
+  )!;
+
   const [byProduct] = await db
     .select({ pkgId: rmaPackages.id })
     .from(rmaPackages)
@@ -925,14 +940,7 @@ export async function lookupPackage(
       and(
         eq(rmaPackages.ownerUserId, ownerUserId),
         isNull(rmaPackageItems.removedAt),
-        or(
-          ilike(products.serialNumber, q),
-          ilike(products.barcode, q),
-          ilike(products.stockCode, q),
-          ilike(tickets.receiptNumber, q),
-          eq(products.serialNumber, q),
-          eq(products.barcode, q),
-        )!,
+        productMatch,
       ),
     )
     .limit(1);

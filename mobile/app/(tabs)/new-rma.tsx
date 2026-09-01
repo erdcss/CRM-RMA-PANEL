@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View} from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -73,16 +72,14 @@ const emptyProductDraft = (): ProductDraft => ({
   description: '',
   supplierAccountCode: '',
   supplierName: '',
-  imageUri: null,
-});
+  imageUri: null});
 
 const emptyCustomer: CustomerForm = {
   customerName: '',
   accountCode: '',
   phone: '',
   email: '',
-  address: '',
-};
+  address: ''};
 
 function useDebouncedValue(value: string, delay = 250) {
   const [debounced, setDebounced] = useState(value);
@@ -104,8 +101,7 @@ function catalogCustomerToOption(item: CatalogCustomer): CustomerOption {
     accountCode: item.accountCode,
     phone: '',
     email: '',
-    address: '',
-  };
+    address: ''};
 }
 
 function rmaCustomerToOption(item: RmaCustomer): CustomerOption {
@@ -118,8 +114,7 @@ function rmaCustomerToOption(item: RmaCustomer): CustomerOption {
     phone: item.phone || '',
     email: item.email || '',
     address: item.address || '',
-    ticketCount: item.ticketCount,
-  };
+    ticketCount: item.ticketCount};
 }
 
 export default function NewRmaScreen() {
@@ -136,8 +131,7 @@ export default function NewRmaScreen() {
   const {
     customers: catalogCustomers,
     loading: catalogCustomersLoading,
-    error: catalogCustomersError,
-  } = useCatalogCustomers(debouncedCustomerQuery);
+    error: catalogCustomersError} = useCatalogCustomers(debouncedCustomerQuery);
 
   const [products, setProducts] = useState<ProductDraft[]>([]);
   const [draft, setDraft] = useState<ProductDraft>(emptyProductDraft);
@@ -150,8 +144,7 @@ export default function NewRmaScreen() {
   const {
     products: catalogProducts,
     loading: catalogProductsLoading,
-    error: catalogProductsError,
-  } = useCatalogProducts(debouncedProductQuery);
+    error: catalogProductsError} = useCatalogProducts(debouncedProductQuery);
 
   const [submitting, setSubmitting] = useState(false);
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
@@ -196,8 +189,7 @@ export default function NewRmaScreen() {
       accountCode: item.accountCode,
       phone: item.phone,
       email: item.email,
-      address: item.address,
-    });
+      address: item.address});
     setCustomerQuery([item.accountCode, item.name].filter(Boolean).join(' · '));
     setShowCustomerResults(false);
   };
@@ -212,8 +204,7 @@ export default function NewRmaScreen() {
     setDraft((prev) => ({
       ...prev,
       stockCode: item.stockCode,
-      productName: item.stockName,
-    }));
+      productName: item.stockName}));
     setProductQuery(`${item.stockCode} · ${item.stockName}`);
     setShowProductResults(false);
   };
@@ -223,8 +214,7 @@ export default function NewRmaScreen() {
       setDraft((prev) => ({
         ...prev,
         supplierAccountCode: supplier.accountCode,
-        supplierName: supplier.accountName,
-      }));
+        supplierName: supplier.accountName}));
       return;
     }
 
@@ -235,8 +225,7 @@ export default function NewRmaScreen() {
             ? {
                 ...product,
                 supplierAccountCode: supplier.accountCode,
-                supplierName: supplier.accountName,
-              }
+                supplierName: supplier.accountName}
             : product,
         ),
       );
@@ -257,13 +246,13 @@ export default function NewRmaScreen() {
 
   const addProduct = () => {
     if (!draft.productName.trim()) {
-      Alert.alert('Eksik bilgi', 'Listeden bir ürün seçin veya ürün adını girin.');
+      appAlert('Eksik bilgi', 'Listeden bir ürün seçin veya ürün adını girin.');
       return;
     }
 
     const quantity = Number(draft.quantity);
     if (!Number.isFinite(quantity) || quantity < 1) {
-      Alert.alert('Geçersiz miktar', 'Miktar en az 1 olmalıdır.');
+      appAlert('Geçersiz miktar', 'Miktar en az 1 olmalıdır.');
       return;
     }
 
@@ -290,11 +279,11 @@ export default function NewRmaScreen() {
 
   const goNext = () => {
     if (step === 1 && !customer.customerName.trim()) {
-      Alert.alert('Müşteri seçin', 'Kayıtlı cari listesinden müşteri seçin veya müşteri adını girin.');
+      appAlert('Müşteri seçin', 'Kayıtlı cari listesinden müşteri seçin veya müşteri adını girin.');
       return;
     }
     if (step === 2 && products.length === 0) {
-      Alert.alert('Ürün ekleyin', 'RMA kaydı için en az bir ürün listeye eklenmelidir.');
+      appAlert('Ürün ekleyin', 'RMA kaydı için en az bir ürün listeye eklenmelidir.');
       return;
     }
     setStep((current) => Math.min(3, current + 1));
@@ -318,12 +307,12 @@ export default function NewRmaScreen() {
     if (submitting) return;
     if (!customer.customerName.trim()) {
       setStep(1);
-      Alert.alert('Eksik müşteri', 'Müşteri adı olmadan RMA kaydı oluşturulamaz.');
+      appAlert('Eksik müşteri', 'Müşteri adı olmadan RMA kaydı oluşturulamaz.');
       return;
     }
     if (products.length === 0) {
       setStep(2);
-      Alert.alert('Eksik ürün', 'En az bir ürün ekleyin.');
+      appAlert('Eksik ürün', 'En az bir ürün ekleyin.');
       return;
     }
 
@@ -343,9 +332,7 @@ export default function NewRmaScreen() {
           stockCode: product.stockCode.trim() || undefined,
           category: product.category,
           description: product.description.trim() || undefined,
-          quantity: Math.max(1, Number(product.quantity) || 1),
-        })),
-      });
+          quantity: Math.max(1, Number(product.quantity) || 1)}))});
 
       if (!ticket?.id) throw new Error('Sunucu kayıt numarası döndürmedi.');
 
@@ -370,8 +357,7 @@ export default function NewRmaScreen() {
           await rmaApi.addSupplierItem({
             productId: created.id,
             supplierAccountCode: product.supplierAccountCode,
-            supplierName: product.supplierName,
-          });
+            supplierName: product.supplierName});
         }),
       );
 
@@ -390,7 +376,7 @@ export default function NewRmaScreen() {
           failedUploads.length > 0 ? `${failedUploads.length} görsel` : null,
           failedSuppliers > 0 ? `${failedSuppliers} tedarikçi bağlantısı` : null,
         ].filter(Boolean);
-        Alert.alert(
+        appAlert(
           'RMA kaydı oluşturuldu',
           `RMA kaydı başarıyla oluşturuldu. Ancak ${parts.join(' ve ')} tamamlanamadı; kayıt detayından veya Tedarikçiler sayfasından tekrar ekleyebilirsiniz.${firstUploadError ? `\n\n${firstUploadError}` : ''}`,
           [{ text: 'Kayda Git', onPress: () => router.replace(recordHref(ticketId)) }],
@@ -399,7 +385,7 @@ export default function NewRmaScreen() {
         router.replace(recordHref(ticketId));
       }
     } catch (err) {
-      Alert.alert('Kayıt oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Kayıt oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setSubmitting(false);
     }
@@ -682,8 +668,7 @@ function SupplierButton({
   supplierCode,
   onPress,
   onClear,
-  compact,
-}: {
+  compact}: {
   supplierName: string;
   supplierCode: string;
   onPress: () => void;
@@ -745,8 +730,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
+    paddingHorizontal: spacing.sm},
   softButtonText: { fontSize: 11, color: colors.primaryDark, fontWeight: '700' },
   searchResults: {
     borderWidth: 1,
@@ -755,8 +739,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     padding: spacing.xs,
     gap: spacing.xs,
-    maxHeight: 200,
-  },
+    maxHeight: 200},
   optionCard: {
     minHeight: 44,
     borderWidth: 1,
@@ -767,8 +750,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   optionCardActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   optionBody: { flex: 1, gap: 1 },
   optionTitle: { fontSize: 13, lineHeight: 17, fontWeight: '600', color: colors.text },
@@ -785,8 +767,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.surface,
     paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
+    alignItems: 'center'},
   categoryChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   categoryChipText: { fontSize: 12, fontWeight: '600', color: colors.text },
   categoryChipTextActive: { color: colors.primaryDark },
@@ -802,8 +783,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    padding: spacing.sm,
-  },
+    padding: spacing.sm},
   supplierButtonAssigned: { borderColor: colors.success, backgroundColor: colors.successSoft },
   supplierIcon: {
     width: 30,
@@ -811,8 +791,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.surface,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   supplierBody: { flex: 1, gap: 1 },
   supplierLabel: { fontSize: 10, lineHeight: 13, fontWeight: '800', color: colors.textSecondary },
   supplierValue: { fontSize: 11, lineHeight: 14, color: colors.text, fontWeight: '600' },
@@ -823,8 +802,7 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
     backgroundColor: colors.dangerSoft,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   addProductButton: {
     minHeight: 44,
     borderRadius: radius.sm,
@@ -833,8 +811,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-  },
+    paddingHorizontal: spacing.md},
   addProductText: { fontSize: 14, color: colors.surface, fontWeight: '700' },
   addedSection: { gap: spacing.sm },
   addedSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -851,8 +828,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.dangerSoft,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   summaryCard: { gap: spacing.sm, padding: spacing.md },
   summaryTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '700' },
   summaryRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
@@ -865,8 +841,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   placeholder: { flex: 1 },
   primaryButton: {
     flex: 1,
@@ -877,8 +852,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-  },
+    paddingHorizontal: spacing.md},
   secondaryButton: {
     flex: 1,
     minHeight: 44,
@@ -889,9 +863,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    gap: spacing.xs,
-  },
+    gap: spacing.xs},
   primaryText: { fontSize: 14, color: colors.surface, textAlign: 'center', fontWeight: '700' },
   secondaryText: { fontSize: 14, color: colors.text },
-  buttonDisabled: { opacity: 0.6 },
-});
+  buttonDisabled: { opacity: 0.6 }});

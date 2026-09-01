@@ -11,9 +11,23 @@ private struct D110LabelLayout {
   static let boardWidth: Float = 40
   static let boardHeight: Float = 12
   static let boardRotate = 270
-  static let codeType = 20 // CODE128
+  static let productCodeType = 24 // EAN13 — reliable scan for 9-digit shipment barcodes
+  static let packageCodeType = 20 // CODE128
   // JCAPI.h drawLableBarCode textPosition: 0=below, 1=above, 2=hidden
   static let textPositionBelow = 0
+  static let shipmentEanPrefix = "869"
+
+  static func shipmentEan13(from nineDigit: String) -> String? {
+    guard nineDigit.range(of: "^\\d{9}$", options: .regularExpression) != nil else { return nil }
+    let body = shipmentEanPrefix + nineDigit
+    var sum = 0
+    for (index, character) in body.enumerated() {
+      guard let digit = character.wholeNumberValue else { return nil }
+      sum += (index % 2 == 0) ? digit : digit * 3
+    }
+    let check = (10 - (sum % 10)) % 10
+    return body + String(check)
+  }
 
   static func productMetrics() -> (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float) {
     let marginX: Float = 1.25
@@ -247,10 +261,19 @@ final class NiimbotPrintEngine {
           )
 
           var metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
+          var barcodeText = cleaned
+          var codeType = D110LabelLayout.packageCodeType
+
           switch mode {
           case .product:
+            guard let ean13 = D110LabelLayout.shipmentEan13(from: cleaned) else {
+              session.finish(.failure(NiimbotNativeError.invalidBarcode("Ürün barkodu 9 haneli olmalıdır.")), on: self)
+              return
+            }
             let product = D110LabelLayout.productMetrics()
             metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
+            barcodeText = ean13
+            codeType = D110LabelLayout.productCodeType
           case .package:
             metrics = D110LabelLayout.packageMetrics(for: cleaned)
           }
@@ -260,10 +283,10 @@ final class NiimbotPrintEngine {
             y: metrics.marginY,
             width: metrics.contentWidth,
             height: metrics.blockHeight,
-            text: cleaned,
+            text: barcodeText,
             fontSize: metrics.fontSize,
             rotate: Int32(0),
-            codeType: Int32(D110LabelLayout.codeType),
+            codeType: Int32(codeType),
             textHeight: metrics.textHeight,
             textPosition: Int32(metrics.textPosition)
           )

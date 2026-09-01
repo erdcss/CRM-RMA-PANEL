@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -9,8 +8,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View} from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -34,17 +33,17 @@ export default function SignupScreen() {
 
   const validateForm = () => {
     if (!email.trim() || !password) {
-      Alert.alert('Eksik bilgi', 'E-posta ve şifre girin.');
+      appAlert('Eksik bilgi', 'E-posta ve şifre girin.');
       return false;
     }
 
     if (password.length < 6) {
-      Alert.alert('Zayıf şifre', 'Şifre en az 6 karakter olmalıdır.');
+      appAlert('Zayıf şifre', 'Şifre en az 6 karakter olmalıdır.');
       return false;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Şifre uyuşmuyor', 'Şifre tekrarı eşleşmiyor.');
+      appAlert('Şifre uyuşmuyor', 'Şifre tekrarı eşleşmiyor.');
       return false;
     }
 
@@ -61,9 +60,9 @@ export default function SignupScreen() {
     try {
       await signUp(email, password);
       setAgreementVisible(false);
-      Alert.alert('Kayıt başarılı', 'Hesabınız oluşturuldu. Giriş yapabilirsiniz.');
+      appAlert('Kayıt başarılı', 'Hesabınız oluşturuldu. Giriş yapabilirsiniz.');
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'Kayıt başarısız',
         error instanceof Error ? error.message : 'Hesap oluşturulamadı.',
       );
@@ -76,7 +75,7 @@ export default function SignupScreen() {
     try {
       await Linking.openURL(PRIVACY_URL);
     } catch {
-      Alert.alert('Bağlantı açılamadı', 'Gizlilik Politikası ve KVKK metni açılamadı.');
+      appAlert('Bağlantı açılamadı', 'Gizlilik Politikası ve KVKK metni açılamadı.');
     }
   };
 
@@ -254,47 +253,38 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
+    backgroundColor: colors.background},
   content: {
     flexGrow: 1,
     padding: spacing.xxl,
     paddingTop: spacing.xxxl + spacing.xl,
-    gap: spacing.xl,
-  },
+    gap: spacing.xl},
   back: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
     alignSelf: 'flex-start',
     minHeight: minTouchTarget,
-    paddingHorizontal: spacing.xs,
-  },
+    paddingHorizontal: spacing.xs},
   backText: {
     ...typography.bodyMedium,
-    color: colors.text,
-  },
+    color: colors.text},
   hero: {
     alignItems: 'center',
     gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
+    marginTop: spacing.sm},
   logoImage: {
     width: 96,
-    height: 96,
-  },
+    height: 96},
   title: {
     ...typography.largeTitle,
-    color: colors.text,
-  },
+    color: colors.text},
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
-    textAlign: 'center',
-  },
+    textAlign: 'center'},
   form: {
-    gap: spacing.lg,
-  },
+    gap: spacing.lg},
   eyeButton: {
     position: 'absolute',
     right: spacing.md,
@@ -302,49 +292,40 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   agreementNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
     padding: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   agreementNoticeText: {
     ...typography.body,
     color: colors.textSecondary,
-    flex: 1,
-  },
+    flex: 1},
   button: {
     marginTop: spacing.sm,
     minHeight: minTouchTarget,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   buttonDisabled: {
-    opacity: 0.7,
-  },
+    opacity: 0.7},
   buttonText: {
     ...typography.bodyMedium,
     color: colors.surface,
-    textAlign: 'center',
-  },
+    textAlign: 'center'},
   linkButton: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
+    paddingVertical: spacing.sm},
   linkText: {
     ...typography.bodyMedium,
-    color: colors.primary,
-  },
+    color: colors.primary},
   modalScreen: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
+    backgroundColor: colors.background},
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -353,50 +334,40 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   modalHeaderText: {
-    flex: 1,
-  },
+    flex: 1},
   modalTitle: {
     ...typography.title,
-    color: colors.text,
-  },
+    color: colors.text},
   modalVersion: {
     ...typography.caption,
     color: colors.textMuted,
-    marginTop: 2,
-  },
+    marginTop: 2},
   modalClose: {
     width: minTouchTarget,
     height: minTouchTarget,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   termsScroll: {
-    flex: 1,
-  },
+    flex: 1},
   termsContent: {
     padding: spacing.xl,
-    paddingBottom: spacing.xxl,
-  },
+    paddingBottom: spacing.xxl},
   termsLead: {
     ...typography.bodyMedium,
     color: colors.text,
     lineHeight: 23,
-    marginBottom: spacing.lg,
-  },
+    marginBottom: spacing.lg},
   termsHeading: {
     ...typography.bodyMedium,
     color: colors.text,
     marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-  },
+    marginBottom: spacing.sm},
   termsText: {
     ...typography.body,
     color: colors.textSecondary,
-    lineHeight: 22,
-  },
+    lineHeight: 22},
   privacyButton: {
     marginTop: spacing.md,
     flexDirection: 'row',
@@ -406,25 +377,21 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.primary,
-  },
+    borderColor: colors.primary},
   privacyButtonText: {
     ...typography.bodyMedium,
     color: colors.primary,
-    flex: 1,
-  },
+    flex: 1},
   termsFootnote: {
     ...typography.caption,
     color: colors.textMuted,
     lineHeight: 18,
-    marginTop: spacing.xl,
-  },
+    marginTop: spacing.xl},
   modalFooter: {
     padding: spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   confirmButton: {
     minHeight: minTouchTarget + 4,
     borderRadius: radius.md,
@@ -433,6 +400,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-});
+    paddingHorizontal: spacing.lg}});

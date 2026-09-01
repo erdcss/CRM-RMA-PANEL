@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Card } from '@/components/ui/Card';
@@ -64,9 +65,9 @@ export function NiimbotPrinterSection() {
     try {
       await NiimbotPrinterService.connectPrinter(savedPrinter);
       await refreshStatus();
-      Alert.alert('Bağlandı', `${savedPrinter.name} yazıcısına bağlanıldı.`);
+      appAlert('Bağlandı', `${savedPrinter.name} yazıcısına bağlanıldı.`);
     } catch (err) {
-      Alert.alert(
+      appAlert(
         'Bağlantı başarısız',
         err instanceof NiimbotPrinterError ? err.message : 'Yazıcı bağlantısı kurulamadı.',
       );
@@ -78,9 +79,9 @@ export function NiimbotPrinterSection() {
       await NiimbotPrinterService.connectPrinter(printer);
       setPickerOpen(false);
       await refreshStatus();
-      Alert.alert('Bağlandı', `${printer.name} yazıcısına bağlanıldı.`);
+      appAlert('Bağlandı', `${printer.name} yazıcısına bağlanıldı.`);
     } catch (err) {
-      Alert.alert(
+      appAlert(
         'Bağlantı başarısız',
         err instanceof NiimbotPrinterError ? err.message : 'Yazıcı bağlantısı kurulamadı.',
       );
@@ -92,7 +93,7 @@ export function NiimbotPrinterSection() {
       await NiimbotPrinterService.disconnectPrinter();
       await refreshStatus();
     } catch (err) {
-      Alert.alert('Hata', err instanceof Error ? err.message : 'Bağlantı kesilemedi');
+      appAlert('Hata', err instanceof Error ? err.message : 'Bağlantı kesilemedi');
     }
   };
 
@@ -132,8 +133,7 @@ function ActionButton({
   icon,
   label,
   onPress,
-  disabled,
-}: {
+  disabled}: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
@@ -161,8 +161,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   actionText: { ...typography.bodyMedium, color: colors.primaryDark, fontWeight: '600' },
-  disabled: { opacity: 0.5 },
-});
+  disabled: { opacity: 0.5 }});

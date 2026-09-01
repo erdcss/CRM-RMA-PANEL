@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View} from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -70,8 +69,7 @@ export default function SuppliersScreen() {
         supplierName: groupItems[0]?.supplierName || 'Tedarikçi',
         itemCount: groupItems.length,
         totalQuantity: groupItems.reduce((sum, item) => sum + Number(item.product.quantity ?? 1), 0),
-        openCount: groupItems.filter((item) => !['teslim_edildi', 'iptal'].includes(item.product.status)).length,
-      }))
+        openCount: groupItems.filter((item) => !['teslim_edildi', 'iptal'].includes(item.product.status)).length}))
       .sort((a, b) => a.supplierName.localeCompare(b.supplierName, 'tr'));
   }, [items, query]);
 
@@ -86,8 +84,7 @@ export default function SuppliersScreen() {
           ...product,
           ticketId: ticket.id,
           ticketLabel: ticket.receiptNumber || `RMA-${ticket.id}`,
-          customerName: ticket.customer.name || 'Müşteri',
-        });
+          customerName: ticket.customer.name || 'Müşteri'});
       }
     }
     return result;
@@ -100,12 +97,11 @@ export default function SuppliersScreen() {
       await rmaApi.addSupplierItem({
         productId: pendingProduct.id,
         supplierAccountCode: supplier.accountCode,
-        supplierName: supplier.accountName,
-      });
+        supplierName: supplier.accountName});
       setPendingProduct(null);
       await refresh();
     } catch (err) {
-      Alert.alert('Tedarikçi eklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Tedarikçi eklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setSaving(false);
     }
@@ -255,152 +251,124 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxxl,
-    gap: spacing.lg,
-  },
+    gap: spacing.lg},
   hero: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.md,
     padding: spacing.lg,
     borderRadius: radius.lg,
-    backgroundColor: colors.primarySoft,
-  },
+    backgroundColor: colors.primarySoft},
   heroIcon: {
     width: 46,
     height: 46,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   heroBody: {
     flex: 1,
-    gap: spacing.xs,
-  },
+    gap: spacing.xs},
   heroTitle: {
     ...typography.subtitle,
-    color: colors.text,
-  },
+    color: colors.text},
   heroText: {
     ...typography.caption,
-    color: colors.textSecondary,
-  },
+    color: colors.textSecondary},
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   searchWrap: {
-    flex: 1,
-  },
+    flex: 1},
   addButton: {
     width: minTouchTarget,
     height: minTouchTarget,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   error: {
     ...typography.caption,
-    color: colors.danger,
-  },
+    color: colors.danger},
   list: {
-    gap: spacing.md,
-  },
+    gap: spacing.md},
   supplierCard: {
-    padding: spacing.lg,
-  },
+    padding: spacing.lg},
   supplierRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-  },
+    gap: spacing.md},
   avatar: {
     width: 44,
     height: 44,
     borderRadius: radius.md,
     backgroundColor: colors.primarySoft,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   supplierBody: {
     flex: 1,
     minWidth: 0,
-    gap: 3,
-  },
+    gap: 3},
   supplierName: {
     ...typography.bodyMedium,
     color: colors.text,
-    fontWeight: '700',
-  },
+    fontWeight: '700'},
   supplierCode: {
     ...typography.caption,
     color: colors.primaryDark,
-    fontWeight: '600',
-  },
+    fontWeight: '600'},
   metrics: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: spacing.xs,
-  },
+    gap: spacing.xs},
   metric: {
     ...typography.caption,
-    color: colors.textSecondary,
-  },
+    color: colors.textSecondary},
   dot: {
     width: 3,
     height: 3,
     borderRadius: 2,
-    backgroundColor: colors.textMuted,
-  },
+    backgroundColor: colors.textMuted},
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: colors.overlay,
-  },
+    backgroundColor: colors.overlay},
   sheet: {
     maxHeight: '82%',
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    paddingHorizontal: spacing.lg,
-  },
+    paddingHorizontal: spacing.lg},
   handle: {
     alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: colors.border,
-    marginVertical: spacing.md,
-  },
+    marginVertical: spacing.md},
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
-    marginBottom: spacing.md,
-  },
+    marginBottom: spacing.md},
   sheetTitle: {
     ...typography.subtitle,
-    color: colors.text,
-  },
+    color: colors.text},
   sheetHint: {
     ...typography.caption,
     color: colors.textSecondary,
-    marginTop: 2,
-  },
+    marginTop: 2},
   closeButton: {
     width: minTouchTarget,
     height: minTouchTarget,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   productList: {
     gap: spacing.sm,
-    paddingBottom: spacing.xxl,
-  },
+    paddingBottom: spacing.xxl},
   productOption: {
     minHeight: 68,
     flexDirection: 'row',
@@ -410,19 +378,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.md,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   productOptionBody: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
-  },
+    gap: 2},
   productOptionTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
-  },
+    color: colors.text},
   productOptionMeta: {
     ...typography.caption,
-    color: colors.textSecondary,
-  },
-});
+    color: colors.textSecondary}});

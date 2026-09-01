@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -32,7 +33,7 @@ export default function RecordDetailScreen() {
 
   const confirmDelete = () => {
     if (!ticket) return;
-    Alert.alert(
+    appAlert(
       'Kaydı Sil',
       `${formatRmaId(ticket)} kaydını kalıcı olarak silmek istediğinize emin misiniz?`,
       [
@@ -49,7 +50,7 @@ export default function RecordDetailScreen() {
       await rmaApi.deleteTicket(ticket.id);
       router.replace('/(tabs)/records');
     } catch (err) {
-      Alert.alert('Kayıt silinemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Kayıt silinemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setDeleting(false);
     }
@@ -61,7 +62,7 @@ export default function RecordDetailScreen() {
     try {
       await previewTicketPdf(ticket);
     } catch (err) {
-      Alert.alert('PDF görüntülenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('PDF görüntülenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setPreviewing(false);
     }
@@ -73,7 +74,7 @@ export default function RecordDetailScreen() {
     try {
       await shareTicketPdf(ticket);
     } catch (err) {
-      Alert.alert('PDF oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('PDF oluşturulamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setSharing(false);
     }

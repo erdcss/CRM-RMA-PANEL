@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Animated,
+import { Animated,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -12,6 +10,7 @@ import {
   UIManager,
   View,
 } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -208,7 +207,7 @@ export default function SupplierShipScreen() {
       }
       await refresh();
     } catch (err) {
-      Alert.alert('Koliye eklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Koliye eklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setBusyProductId(null);
     }
@@ -226,7 +225,7 @@ export default function SupplierShipScreen() {
       setActivePkg(updated.items.length ? updated : null);
       await refresh();
     } catch (err) {
-      Alert.alert('Koliden çıkarılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Koliden çıkarılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setBusyProductId(null);
     }
@@ -242,9 +241,9 @@ export default function SupplierShipScreen() {
       setActivePkg(null);
       setScanMatched(false);
       setLastScannedValue(null);
-      Alert.alert('Koli kapatıldı', 'Barkod atandı. Etiketi yazdırıp tarayarak doğrulayabilirsiniz.');
+      appAlert('Koli kapatıldı', 'Barkod atandı. Etiketi yazdırıp tarayarak doğrulayabilirsiniz.');
     } catch (err) {
-      Alert.alert('Koli kapatılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Koli kapatılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setClosing(false);
     }
@@ -256,11 +255,11 @@ export default function SupplierShipScreen() {
     try {
       const result = await printProductBarcodeDirect(barcodeNumber);
       if (result.fitWarning) {
-        Alert.alert('Bilgi', result.fitWarning);
+        appAlert('Bilgi', result.fitWarning);
       }
-      Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
+      appAlert('Başarılı', 'Barkod etiketi yazdırıldı.');
     } catch (err) {
-      Alert.alert(
+      appAlert(
         'Yazdırma başarısız',
         err instanceof NiimbotPrinterError ? err.message : err instanceof Error ? err.message : 'Bilinmeyen hata',
       );
@@ -279,14 +278,14 @@ export default function SupplierShipScreen() {
       if (shouldUseNiimbotDirectPrint()) {
         const result = await printPackageBarcodeDirect(scanValue);
         if (result.fitWarning) {
-          Alert.alert('Bilgi', result.fitWarning);
+          appAlert('Bilgi', result.fitWarning);
         }
-        Alert.alert('Başarılı', 'Koli barkod etiketi yazdırıldı.');
+        appAlert('Başarılı', 'Koli barkod etiketi yazdırıldı.');
       } else {
         await printPackageLabel(labelPkg);
       }
     } catch (err) {
-      Alert.alert(
+      appAlert(
         'Yazdırma başarısız',
         err instanceof NiimbotPrinterError ? err.message : err instanceof Error ? err.message : 'Bilinmeyen hata',
       );
@@ -301,7 +300,7 @@ export default function SupplierShipScreen() {
     try {
       await sharePackageLabelPdf(labelPkg);
     } catch (err) {
-      Alert.alert('Etiket paylaşılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Etiket paylaşılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     }
   };
 
@@ -309,7 +308,7 @@ export default function SupplierShipScreen() {
     const value = normalizeScannedBarcode(rawValue);
     if (!closedPkg) {
       playScanError();
-      Alert.alert('Koli yok', 'Doğrulanacak kapalı koli bulunamadı.');
+      appAlert('Koli yok', 'Doğrulanacak kapalı koli bulunamadı.');
       return;
     }
 
@@ -317,7 +316,7 @@ export default function SupplierShipScreen() {
       const found = await rmaApi.lookupPackage(value);
       if (found.id !== closedPkg.id) {
         playScanError();
-        Alert.alert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
+        appAlert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
         return;
       }
 
@@ -326,10 +325,10 @@ export default function SupplierShipScreen() {
       setLastScannedValue(value);
       setScanOpen(false);
       setClosedPkg(found);
-      Alert.alert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');
+      appAlert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');
     } catch {
       playScanError();
-      Alert.alert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
+      appAlert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
     }
   };
 
@@ -343,9 +342,9 @@ export default function SupplierShipScreen() {
       const updated = await rmaApi.verifyPackageBarcode(scanValue);
       setClosedPkg(updated);
       setLastScannedValue(null);
-      Alert.alert('Sevkiyata hazır', 'Koli sevkiyat için hazırlandı.');
+      appAlert('Sevkiyata hazır', 'Koli sevkiyat için hazırlandı.');
     } catch (err) {
-      Alert.alert('Doğrulama başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Doğrulama başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setVerifying(false);
     }

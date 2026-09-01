@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 
@@ -19,16 +20,14 @@ const SECTIONS = [
     items: [
       { icon: 'person-outline' as const, label: 'Profil Bilgileri', soon: true },
       { icon: 'lock-closed-outline' as const, label: 'Şifre ve Güvenlik', soon: true },
-    ],
-  },
+    ]},
   {
     title: 'Uygulama',
     items: [
       { icon: 'barcode-outline' as const, label: 'Barkod Ayarları', soon: false, route: '/settings/barcode' as const },
       { icon: 'notifications-outline' as const, label: 'Bildirimler', soon: true },
       { icon: 'information-circle-outline' as const, label: 'Uygulama Hakkında', soon: false },
-    ],
-  },
+    ]},
 ];
 
 export default function ProfileScreen() {
@@ -37,23 +36,22 @@ export default function ProfileScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert('Çıkış Yap', 'Oturumunuz kapatılacak.', [
+    appAlert('Çıkış Yap', 'Oturumunuz kapatılacak.', [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Çıkış Yap',
         style: 'destructive',
         onPress: () => {
           signOut().catch((error) => {
-            Alert.alert('Hata', error instanceof Error ? error.message : 'Çıkış yapılamadı.');
+            appAlert('Hata', error instanceof Error ? error.message : 'Çıkış yapılamadı.');
           });
-        },
-      },
+        }},
     ]);
   };
 
   const handleOpenPrivacy = () => {
     Linking.openURL(PRIVACY_URL).catch(() => {
-      Alert.alert('Bağlantı Açılamadı', 'Gizlilik politikası şu anda açılamıyor. Lütfen daha sonra tekrar deneyin.');
+      appAlert('Bağlantı Açılamadı', 'Gizlilik politikası şu anda açılamıyor. Lütfen daha sonra tekrar deneyin.');
     });
   };
 
@@ -64,7 +62,7 @@ export default function ProfileScreen() {
       await deleteAccount();
     } catch (error) {
       setDeletingAccount(false);
-      Alert.alert(
+      appAlert(
         'Hesap Silinemedi',
         error instanceof Error ? error.message : 'Hesap silme işlemi tamamlanamadı.',
       );
@@ -72,7 +70,7 @@ export default function ProfileScreen() {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
+    appAlert(
       'Hesabımı Sil',
       'Bu işlem geri alınamaz. Hesabınız, size ait RMA kayıtları, ürün ve cari katalogları ile tedarikçi kayıtları kalıcı olarak silinir.',
       [
@@ -81,7 +79,7 @@ export default function ProfileScreen() {
           text: 'Devam Et',
           style: 'destructive',
           onPress: () => {
-            Alert.alert(
+            appAlert(
               'Son Onay',
               'Hesabınızı ve hesabınıza bağlı verileri kalıcı olarak silmek istediğinizden emin misiniz?',
               [
@@ -91,12 +89,10 @@ export default function ProfileScreen() {
                   style: 'destructive',
                   onPress: () => {
                     void performAccountDeletion();
-                  },
-                },
+                  }},
               ],
             );
-          },
-        },
+          }},
       ],
     );
   };
@@ -185,72 +181,58 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxxl,
-    gap: spacing.lg,
-  },
+    gap: spacing.lg},
   profileCard: {
     flexDirection: 'row',
     gap: spacing.lg,
-    alignItems: 'center',
-  },
+    alignItems: 'center'},
   avatar: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   avatarText: {
     color: colors.surface,
     fontWeight: '700',
-    fontSize: 18,
-  },
+    fontSize: 18},
   name: {
     ...typography.title,
-    color: colors.text,
-  },
+    color: colors.text},
   role: {
     ...typography.body,
-    color: colors.textSecondary,
-  },
+    color: colors.textSecondary},
   privacyNote: {
     ...typography.caption,
     color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
+    marginTop: spacing.xs},
   section: {
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   sectionTitle: {
     ...typography.bodyMedium,
-    color: colors.textSecondary,
-  },
+    color: colors.textSecondary},
   menuCard: {
     padding: 0,
-    overflow: 'hidden',
-  },
+    overflow: 'hidden'},
   menuRow: {
     minHeight: minTouchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-  },
+    paddingHorizontal: spacing.lg},
   menuLabel: {
     flex: 1,
     ...typography.body,
-    color: colors.text,
-  },
+    color: colors.text},
   soon: {
     ...typography.caption,
     color: colors.warning,
-    marginRight: spacing.xs,
-  },
+    marginRight: spacing.xs},
   divider: {
     height: 1,
     backgroundColor: colors.borderLight,
-    marginLeft: spacing.lg + 28,
-  },
+    marginLeft: spacing.lg + 28},
   logout: {
     minHeight: minTouchTarget,
     borderRadius: radius.md,
@@ -259,12 +241,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: spacing.lg,
-  },
+    padding: spacing.lg},
   logoutText: {
     ...typography.bodyMedium,
-    color: colors.danger,
-  },
+    color: colors.danger},
   deleteAccount: {
     minHeight: minTouchTarget,
     borderRadius: radius.md,
@@ -275,13 +255,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    padding: spacing.lg,
-  },
+    padding: spacing.lg},
   deleteAccountText: {
     ...typography.bodyMedium,
-    color: colors.danger,
-  },
+    color: colors.danger},
   disabledAction: {
-    opacity: 0.6,
-  },
-});
+    opacity: 0.6}});

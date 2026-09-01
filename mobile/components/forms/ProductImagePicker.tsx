@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import {
   ActionSheetIOS,
-  Alert,
   Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View} from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
@@ -33,8 +32,7 @@ async function pickFromLibrary() {
     quality: 0.8,
     allowsEditing: false,
     exif: false,
-    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-  });
+    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible});
 
   if (result.canceled || !result.assets[0]) return null;
   return persistLocalImage(result.assets[0].uri);
@@ -50,8 +48,7 @@ async function pickFromCamera() {
     quality: 0.8,
     allowsEditing: false,
     exif: false,
-    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
-  });
+    preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible});
 
   if (result.canceled || !result.assets[0]) return null;
   return persistLocalImage(result.assets[0].uri);
@@ -63,7 +60,7 @@ function showPicker(imageUri: string | null | undefined, onSelect: (uri: string 
       const uri = source === 'camera' ? await pickFromCamera() : await pickFromLibrary();
       if (uri) onSelect(uri);
     } catch (err) {
-      Alert.alert('Fotoğraf seçilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Fotoğraf seçilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     }
   };
 
@@ -72,8 +69,7 @@ function showPicker(imageUri: string | null | undefined, onSelect: (uri: string 
       {
         options: ['Vazgeç', 'Fotoğraf Çek', 'Galeriden Seç', ...(imageUri ? ['Kaldır'] : [])],
         cancelButtonIndex: 0,
-        destructiveButtonIndex: imageUri ? 3 : undefined,
-      },
+        destructiveButtonIndex: imageUri ? 3 : undefined},
       (index) => {
         if (index === 1) void handle('camera');
         if (index === 2) void handle('library');
@@ -83,7 +79,7 @@ function showPicker(imageUri: string | null | undefined, onSelect: (uri: string 
     return;
   }
 
-  Alert.alert('Ürün Görseli', 'Kaynak seçin', [
+  appAlert('Ürün Görseli', 'Kaynak seçin', [
     { text: 'Vazgeç', style: 'cancel' },
     { text: 'Fotoğraf Çek', onPress: () => void handle('camera') },
     { text: 'Galeriden Seç', onPress: () => void handle('library') },
@@ -200,12 +196,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: 'hidden',
     backgroundColor: colors.surface,
-    minHeight: 120,
-  },
+    minHeight: 120},
   preview: {
     width: '100%',
-    height: 190,
-  },
+    height: 190},
   previewOverlay: {
     position: 'absolute',
     right: spacing.sm,
@@ -216,13 +210,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-  },
+    backgroundColor: 'rgba(0,0,0,0.65)'},
   previewOverlayText: {
     ...typography.caption,
     color: colors.surface,
-    fontWeight: '700',
-  },
+    fontWeight: '700'},
   changeButton: {
     minHeight: minTouchTarget,
     flexDirection: 'row',
@@ -231,27 +223,22 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.borderLight,
-    backgroundColor: colors.primarySoft,
-  },
+    backgroundColor: colors.primarySoft},
   changeButtonText: {
     ...typography.bodyMedium,
-    color: colors.primaryDark,
-  },
+    color: colors.primaryDark},
   placeholder: {
     minHeight: 140,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.xs,
-    padding: spacing.lg,
-  },
+    padding: spacing.lg},
   placeholderTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
-  },
+    color: colors.text},
   placeholderHint: {
     ...typography.caption,
-    color: colors.textMuted,
-  },
+    color: colors.textMuted},
   compact: {
     width: 72,
     height: 72,
@@ -261,15 +248,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
+    overflow: 'hidden'},
   compactFilled: {
-    borderColor: colors.primary,
-  },
+    borderColor: colors.primary},
   compactImage: {
     width: '100%',
-    height: '100%',
-  },
+    height: '100%'},
   expandBadge: {
     position: 'absolute',
     right: 4,
@@ -279,44 +263,36 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.68)',
-  },
+    backgroundColor: 'rgba(0,0,0,0.68)'},
   viewer: {
     flex: 1,
-    backgroundColor: '#000000',
-  },
+    backgroundColor: '#000000'},
   viewerHeader: {
     minHeight: 68,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+    justifyContent: 'space-between'},
   viewerTitle: {
     ...typography.subtitle,
-    color: colors.surface,
-  },
+    color: colors.surface},
   viewerIconButton: {
     width: minTouchTarget,
     height: minTouchTarget,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   viewerImageWrap: {
-    flex: 1,
-  },
+    flex: 1},
   viewerImage: {
     width: '100%',
-    height: '100%',
-  },
+    height: '100%'},
   viewerActions: {
     flexDirection: 'row',
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xxxl,
-  },
+    paddingBottom: spacing.xxxl},
   viewerActionButton: {
     flex: 1,
     minHeight: minTouchTarget,
@@ -326,10 +302,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   viewerActionText: {
     ...typography.bodyMedium,
-    color: colors.surface,
-  },
-});
+    color: colors.surface}});

@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -8,7 +9,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { rmaApi } from '@/lib/api';
-import { normalizeScannedBarcode } from '@/lib/barcodeNormalize';
+import { normalizeProductBarcodeScan, normalizeScannedBarcode } from '@/lib/barcodeNormalize';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const BARCODE_TYPES = [
@@ -36,7 +37,7 @@ export default function PackageScanScreen() {
 
   const lookup = useCallback(
     async (value?: string) => {
-      const q = (value ?? code).trim();
+      const q = normalizeProductBarcodeScan(value ?? code);
       if (!q || loading) return;
 
       setLoading(true);
@@ -47,7 +48,7 @@ export default function PackageScanScreen() {
         router.push(`/package/${pkg.id}`);
       } catch (err) {
         playScanError();
-        Alert.alert('Koli bulunamadi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+        appAlert('Koli bulunamadi', err instanceof Error ? err.message : 'Bilinmeyen hata');
         setCameraEnabled(true);
       } finally {
         setLoading(false);
@@ -75,7 +76,7 @@ export default function PackageScanScreen() {
   const handlePermission = async () => {
     const result = await requestPermission();
     if (!result.granted) {
-      Alert.alert(
+      appAlert(
         'Kamera izni gerekli',
         'Barkod taramak için kamera erişimine izin verin.',
         [
@@ -172,115 +173,93 @@ export default function PackageScanScreen() {
 const styles = StyleSheet.create({
   scroll: {
     paddingBottom: spacing.xxxl,
-    gap: spacing.lg,
-  },
+    gap: spacing.lg},
   cameraWrap: {
     height: 320,
     backgroundColor: '#000',
-    overflow: 'hidden',
-  },
+    overflow: 'hidden'},
   camera: {
-    flex: 1,
-  },
+    flex: 1},
   cameraOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
+    ...StyleSheet.absoluteFillObject},
   overlayTop: {
     flex: 1,
-    backgroundColor: colors.overlay,
-  },
+    backgroundColor: colors.overlay},
   overlayMiddle: {
     flexDirection: 'row',
-    height: 180,
-  },
+    height: 180},
   overlaySide: {
     flex: 1,
-    backgroundColor: colors.overlay,
-  },
+    backgroundColor: colors.overlay},
   scanFrame: {
     width: 220,
     height: 180,
-    position: 'relative',
-  },
+    position: 'relative'},
   corner: {
     position: 'absolute',
     width: 28,
     height: 28,
-    borderColor: '#FFFFFF',
-  },
+    borderColor: '#FFFFFF'},
   cornerTopLeft: {
     top: 0,
     left: 0,
     borderTopWidth: 3,
-    borderLeftWidth: 3,
-  },
+    borderLeftWidth: 3},
   cornerTopRight: {
     top: 0,
     right: 0,
     borderTopWidth: 3,
-    borderRightWidth: 3,
-  },
+    borderRightWidth: 3},
   cornerBottomLeft: {
     bottom: 0,
     left: 0,
     borderBottomWidth: 3,
-    borderLeftWidth: 3,
-  },
+    borderLeftWidth: 3},
   cornerBottomRight: {
     bottom: 0,
     right: 0,
     borderBottomWidth: 3,
-    borderRightWidth: 3,
-  },
+    borderRightWidth: 3},
   overlayBottom: {
     flex: 1,
     backgroundColor: colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
-  },
+    paddingHorizontal: spacing.lg},
   scanHint: {
     ...typography.caption,
     color: '#FFFFFF',
-    textAlign: 'center',
-  },
+    textAlign: 'center'},
   cameraPlaceholder: {
     height: 320,
     backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
-    padding: spacing.lg,
-  },
+    padding: spacing.lg},
   cameraPlaceholderText: {
     ...typography.body,
     color: colors.textMuted,
-    textAlign: 'center',
-  },
+    textAlign: 'center'},
   permissionButton: {
     minHeight: minTouchTarget,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   permissionButtonText: {
     ...typography.bodyMedium,
-    color: '#FFFFFF',
-  },
+    color: '#FFFFFF'},
   manualSection: {
     paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-  },
+    gap: spacing.md},
   sectionTitle: {
     ...typography.subtitle,
-    color: colors.text,
-  },
+    color: colors.text},
   hint: {
     ...typography.body,
-    color: colors.textMuted,
-  },
+    color: colors.textMuted},
   input: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -288,21 +267,16 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     fontSize: 16,
     minHeight: minTouchTarget,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.md,
     padding: spacing.md,
     alignItems: 'center',
     minHeight: minTouchTarget,
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   buttonDisabled: {
-    opacity: 0.6,
-  },
+    opacity: 0.6},
   buttonText: {
     color: '#fff',
-    fontWeight: '600',
-  },
-});
+    fontWeight: '600'}});

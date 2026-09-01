@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
@@ -22,8 +23,7 @@ export function ShipmentProductBarcode({
   error,
   printing,
   disabled,
-  onPrint,
-}: ShipmentProductBarcodeProps) {
+  onPrint}: ShipmentProductBarcodeProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -33,7 +33,7 @@ export function ShipmentProductBarcode({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      Alert.alert('Kopyalanamadı', 'Barkod numarası kopyalanamadı.');
+      appAlert('Kopyalanamadı', 'Barkod numarası kopyalanamadı.');
     }
   }, [barcodeNumber]);
 
@@ -91,14 +91,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    gap: spacing.xs,
-  },
+    gap: spacing.xs},
   label: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   value: {
     flex: 1,
     fontFamily: mono,
@@ -106,8 +104,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '700',
     letterSpacing: 0.5,
-    color: colors.text,
-  },
+    color: colors.text},
   placeholder: { flex: 1, ...typography.body, color: colors.textMuted },
   loading: { flex: 1, ...typography.caption, color: colors.textSecondary },
   error: { flex: 1, ...typography.caption, color: colors.danger },
@@ -121,8 +118,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
+    backgroundColor: colors.surface},
   copyText: { ...typography.caption, color: colors.primaryDark, fontWeight: '700' },
   toast: { ...typography.caption, color: colors.success, fontWeight: '600' },
   printBtn: {
@@ -135,8 +131,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
-    marginTop: spacing.xs,
-  },
+    marginTop: spacing.xs},
   printText: { ...typography.caption, color: colors.primaryDark, fontWeight: '700' },
-  disabled: { opacity: 0.5 },
-});
+  disabled: { opacity: 0.5 }});

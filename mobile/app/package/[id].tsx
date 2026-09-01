@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { AppHeader } from '@/components/ui/AppHeader';
@@ -32,7 +33,7 @@ export default function PackageDetailScreen() {
       const data = await rmaApi.getPackage(packageId);
       setPkg(data);
     } catch (err) {
-      Alert.alert('Hata', err instanceof Error ? err.message : 'Yuklenemedi');
+      appAlert('Hata', err instanceof Error ? err.message : 'Yuklenemedi');
     } finally {
       setLoading(false);
     }
@@ -47,9 +48,9 @@ export default function PackageDetailScreen() {
     try {
       await fn();
       await reload();
-      Alert.alert('Basarili', label);
+      appAlert('Basarili', label);
     } catch (err) {
-      Alert.alert('Hata', err instanceof Error ? err.message : 'Islem basarisiz');
+      appAlert('Hata', err instanceof Error ? err.message : 'Islem basarisiz');
     } finally {
       setBusy(false);
     }

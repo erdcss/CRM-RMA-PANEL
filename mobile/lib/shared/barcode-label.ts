@@ -23,7 +23,7 @@ export type BarcodeLabelSettings = {
   offsetYmm: number;
 };
 
-export const DEFAULT_BARCODE_NUMBER = "8691234567890";
+export const DEFAULT_BARCODE_NUMBER = '123456789';
 
 export const NIIMBOT_D110M_PRESET: BarcodeLabelSettings = {
   printerProfile: "niimbot-d110m",

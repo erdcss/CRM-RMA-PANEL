@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Modal,
@@ -10,8 +9,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View} from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,8 +32,7 @@ function packageStatusLabel(status: string) {
     hazirlaniyor: 'Hazırlanıyor',
     kapatildi: 'Kapatıldı',
     sevke_hazir: 'Sevkiyata Hazır',
-    sevk_edildi: 'Sevk Edildi',
-  };
+    sevk_edildi: 'Sevk Edildi'};
   return map[status] ?? status;
 }
 
@@ -76,7 +74,7 @@ export function PackageDrawer() {
         });
       setPackages(prepared);
     } catch (err) {
-      Alert.alert('Koliler yüklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Koliler yüklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     }
   }, []);
 
@@ -101,14 +99,12 @@ export function PackageDrawer() {
         toValue: 0,
         useNativeDriver: true,
         damping: 22,
-        stiffness: 220,
-      }).start();
+        stiffness: 220}).start();
     } else {
       Animated.timing(slideAnim, {
         toValue: DRAWER_WIDTH,
         duration: 220,
-        useNativeDriver: true,
-      }).start();
+        useNativeDriver: true}).start();
       setSelectedPkg(null);
       setScanOpen(false);
     }
@@ -125,8 +121,7 @@ export function PackageDrawer() {
         map.set(key, {
           code: pkg.supplierAccountCode,
           name: pkg.supplierName,
-          packages: [pkg],
-        });
+          packages: [pkg]});
       }
     }
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
@@ -136,7 +131,7 @@ export function PackageDrawer() {
     try {
       setSelectedPkg(await rmaApi.getPackage(pkg.id));
     } catch (err) {
-      Alert.alert('Koli detayı', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Koli detayı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     }
   };
 
@@ -151,7 +146,7 @@ export function PackageDrawer() {
       setSelectedPkg(found);
     } catch {
       playScanError();
-      Alert.alert('Koli bulunamadı', 'Taranan barkod sistemde eşleşmedi.');
+      appAlert('Koli bulunamadı', 'Taranan barkod sistemde eşleşmedi.');
     }
   };
 
@@ -164,7 +159,7 @@ export function PackageDrawer() {
       setSelectedPkg(await rmaApi.getPackage(selectedPkg.id));
       await loadPackages();
     } catch (err) {
-      Alert.alert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setStatusSaving(false);
     }
@@ -278,8 +273,7 @@ export function PackageDrawer() {
                 width: DRAWER_WIDTH,
                 paddingTop: insets.top,
                 paddingBottom: Math.max(insets.bottom, spacing.md),
-                transform: [{ translateX: slideAnim }],
-              },
+                transform: [{ translateX: slideAnim }]},
             ]}
           >
             <View style={styles.header}>
@@ -321,8 +315,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.overlay,
-  },
+    backgroundColor: colors.overlay},
   panel: {
     position: 'absolute',
     top: 0,
@@ -335,8 +328,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: -4, height: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 16,
-    elevation: 12,
-  },
+    elevation: 12},
   body: { flex: 1, minHeight: 0 },
   header: {
     flexDirection: 'row',
@@ -345,8 +337,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
+    borderBottomColor: colors.borderLight},
   headerText: { flex: 1, minWidth: 0 },
   title: { ...typography.subtitle, color: colors.text },
   subtitle: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
@@ -354,8 +345,7 @@ const styles = StyleSheet.create({
     width: minTouchTarget,
     height: minTouchTarget,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   scanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -365,28 +355,24 @@ const styles = StyleSheet.create({
     marginVertical: spacing.md,
     minHeight: minTouchTarget,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
-  },
+    backgroundColor: colors.primary},
   scanBtnText: { ...typography.bodyMedium, color: colors.surface, fontWeight: '700' },
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxxl,
-    gap: spacing.md,
-  },
+    gap: spacing.md},
   loader: { marginVertical: spacing.xxxl },
   empty: {
     alignItems: 'center',
     paddingVertical: spacing.xxxl,
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   emptyTitle: { ...typography.subtitle, color: colors.text },
   emptyHint: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   group: {
     gap: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
+    borderBottomColor: colors.borderLight},
   groupTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '700' },
   groupCode: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.xs },
   pkgRow: {
@@ -397,8 +383,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.background,
-  },
+    backgroundColor: colors.background},
   pkgMain: { flex: 1, minWidth: 0, gap: 2 },
   pkgNumber: { ...typography.bodyMedium, color: colors.text, fontWeight: '700' },
   pkgBarcode: { ...typography.caption, color: colors.textSecondary, fontFamily: 'Courier' },
@@ -407,8 +392,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
-    marginBottom: spacing.sm,
-  },
+    marginBottom: spacing.sm},
   backText: { ...typography.bodyMedium, color: colors.primary, fontWeight: '600' },
   detailCard: {
     padding: spacing.lg,
@@ -417,8 +401,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#BFDBFE',
     gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
+    marginBottom: spacing.md},
   detailTitle: { ...typography.title2, color: colors.primaryDark },
   detailSupplier: { ...typography.body, color: colors.text },
   detailBarcode: { ...typography.caption, color: colors.textSecondary, fontFamily: 'Courier' },
@@ -432,10 +415,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    marginBottom: spacing.sm,
-  },
+    marginBottom: spacing.sm},
   productMain: { flex: 1, minWidth: 0, gap: 2 },
   productName: { ...typography.bodyMedium, color: colors.text, fontWeight: '600' },
   productMeta: { ...typography.caption, color: colors.textMuted },
-  productStatus: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-});
+  productStatus: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs }});

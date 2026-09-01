@@ -53,18 +53,10 @@ export async function resetBarcodeLabelSettings(): Promise<BarcodeLabelSettings>
 
 export function validateBarcodeForPrint(value: string, settings: BarcodeLabelSettings = NIIMBOT_D110M_PRESET) {
   const cleaned = sanitizeBarcodeNumber(value);
-  const validation = validateBarcodeNumber(cleaned);
-  const fit = estimateBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm);
-  if (!fit.fits) {
-    return {
-      cleaned,
-      validation,
-      fit: {
-        fits: false,
-        warning: 'Bu barkod 40×12 mm etikette güvenilir şekilde okunamayabilir.',
-      },
-    };
-  }
+  const validation = validateProductBarcodeNumber(cleaned);
+  const fit = validation.valid
+    ? estimateBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm)
+    : { fits: false as const, warning: validation.error };
   return { cleaned, validation, fit };
 }
 

@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View} from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -27,7 +26,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Eksik bilgi', 'E-posta ve şifre girin.');
+      appAlert('Eksik bilgi', 'E-posta ve şifre girin.');
       return;
     }
 
@@ -35,7 +34,7 @@ export default function LoginScreen() {
     try {
       await signIn(email, password);
     } catch (error) {
-      Alert.alert(
+      appAlert(
         'Giriş başarısız',
         error instanceof Error ? error.message : 'E-posta veya şifre hatalı.',
       );
@@ -109,40 +108,32 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
+    backgroundColor: colors.background},
   content: {
     flexGrow: 1,
     padding: spacing.xxl,
     paddingTop: spacing.xxxl,
-    paddingBottom: spacing.xl,
-  },
+    paddingBottom: spacing.xl},
   mainContent: {
     flex: 1,
     justifyContent: 'center',
-    gap: spacing.xxl,
-  },
+    gap: spacing.xxl},
   hero: {
     alignItems: 'center',
-    gap: spacing.sm,
-  },
+    gap: spacing.sm},
   logoImage: {
     width: 120,
     height: 120,
-    marginBottom: spacing.sm,
-  },
+    marginBottom: spacing.sm},
   title: {
     ...typography.largeTitle,
-    color: colors.text,
-  },
+    color: colors.text},
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
-    textAlign: 'center',
-  },
+    textAlign: 'center'},
   form: {
-    gap: spacing.lg,
-  },
+    gap: spacing.lg},
   eyeButton: {
     position: 'absolute',
     right: spacing.md,
@@ -150,42 +141,33 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   button: {
     marginTop: spacing.sm,
     minHeight: minTouchTarget,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'},
   buttonDisabled: {
-    opacity: 0.7,
-  },
+    opacity: 0.7},
   buttonText: {
     ...typography.bodyMedium,
-    color: colors.surface,
-  },
+    color: colors.surface},
   linkButton: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-  },
+    paddingVertical: spacing.sm},
   linkText: {
     ...typography.bodyMedium,
-    color: colors.primary,
-  },
+    color: colors.primary},
   poweredBy: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: spacing.xl,
-    paddingBottom: spacing.sm,
-  },
+    paddingBottom: spacing.sm},
   poweredByText: {
     fontSize: 10,
     lineHeight: 14,
     fontWeight: '500',
     letterSpacing: 2,
-    color: colors.textMuted,
-  },
-});
+    color: colors.textMuted}});

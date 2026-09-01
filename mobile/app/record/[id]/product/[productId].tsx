@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { ProductDetailCard } from '@/components/rma/ProductDetailCard';
@@ -43,7 +44,7 @@ export default function RecordProductDetailScreen() {
       setStatusOpen(false);
       await reload();
     } catch (err) {
-      Alert.alert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setUpdating(false);
     }
@@ -57,7 +58,7 @@ export default function RecordProductDetailScreen() {
       const signedUrl = await getAttachmentSignedUrl(attachment.file_path);
       setProductPhotoUrl(product.id, signedUrl);
     } catch (err) {
-      Alert.alert('Görsel yüklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Görsel yüklenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setUploadingPhoto(false);
     }

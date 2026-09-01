@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -37,7 +38,7 @@ export default function SupplierProductDetailScreen() {
       setStatusOpen(false);
       await refresh();
     } catch (err) {
-      Alert.alert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Durum güncellenemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
       setSaving(false);
     }
@@ -54,13 +55,13 @@ export default function SupplierProductDetailScreen() {
       await refresh();
       router.back();
     } catch (err) {
-      Alert.alert('Tedarikçi değiştirilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
+      appAlert('Tedarikçi değiştirilemedi', err instanceof Error ? err.message : 'Bilinmeyen hata');
     }
   };
 
   const removeItem = () => {
     if (!item) return;
-    Alert.alert('Listeden çıkar', 'Ürün tedarikçi listesinden çıkarılsın mı?', [
+    appAlert('Listeden çıkar', 'Ürün tedarikçi listesinden çıkarılsın mı?', [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Çıkar',
@@ -70,7 +71,7 @@ export default function SupplierProductDetailScreen() {
             await rmaApi.deleteSupplierItem(item.id);
             router.back();
           } catch (err) {
-            Alert.alert('İşlem başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
+            appAlert('İşlem başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
           }
         },
       },
