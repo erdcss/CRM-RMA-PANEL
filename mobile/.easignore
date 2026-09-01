@@ -8,3 +8,6 @@ expo-env.d.ts
 vendor/niimbot-ios/SDK/
 vendor/niimbot-ios/IOS_4.0.3*/
 vendor/niimbot-ios/**/*.zip
+
+# Include gitignored NIIMBOT SDK copy for EAS upload (requires EAS_NO_VCS=1)
+!modules/niimbot-printer/ios/NiimbotSDK/**

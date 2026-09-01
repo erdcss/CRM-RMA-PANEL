@@ -26,7 +26,9 @@
                               },
                   "production":  {
                                      "autoIncrement":  true,
-                                     "prebuildCommand":  "node scripts/prepare-niimbot-sdk.js",
+                                     "env":  {
+                                                 "EAS_NO_VCS":  "1"
+                                             },
                                      "ios":  {
                                                  "resourceClass":  "m-medium"
                                              },
