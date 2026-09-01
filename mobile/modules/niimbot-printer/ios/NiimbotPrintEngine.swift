@@ -246,14 +246,13 @@ final class NiimbotPrintEngine {
             rotate: Int32(D110LabelLayout.boardRotate)
           )
 
-          let metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
+          var metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
           switch mode {
           case .product:
             let product = D110LabelLayout.productMetrics()
             metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
           case .package:
-            let package = D110LabelLayout.packageMetrics(for: cleaned)
-            metrics = package
+            metrics = D110LabelLayout.packageMetrics(for: cleaned)
           }
 
           let drawn = NiimbotJCAPIBridge.drawBarcode(
@@ -263,10 +262,10 @@ final class NiimbotPrintEngine {
             height: metrics.blockHeight,
             text: cleaned,
             fontSize: metrics.fontSize,
-            rotate: 0,
-            codeType: D110LabelLayout.codeType,
+            rotate: Int32(0),
+            codeType: Int32(D110LabelLayout.codeType),
             textHeight: metrics.textHeight,
-            textPosition: metrics.textPosition
+            textPosition: Int32(metrics.textPosition)
           )
 
           guard drawn else {
