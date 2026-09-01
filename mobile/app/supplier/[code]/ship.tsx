@@ -256,7 +256,7 @@ export default function SupplierShipScreen() {
     try {
       const result = await printProductBarcodeDirect(barcodeNumber);
       if (result.fitWarning) {
-        Alert.alert('Uyarı', result.fitWarning);
+        Alert.alert('Bilgi', result.fitWarning);
       }
       Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
     } catch (err) {
@@ -279,7 +279,7 @@ export default function SupplierShipScreen() {
       if (shouldUseNiimbotDirectPrint()) {
         const result = await printPackageBarcodeDirect(scanValue);
         if (result.fitWarning) {
-          Alert.alert('Uyarı', result.fitWarning);
+          Alert.alert('Bilgi', result.fitWarning);
         }
         Alert.alert('Başarılı', 'Koli barkod etiketi yazdırıldı.');
       } else {

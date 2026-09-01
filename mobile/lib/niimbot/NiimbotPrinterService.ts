@@ -80,6 +80,9 @@ async function printBarcodeInternal(
     );
   }
 
+  const advisoryWarning =
+    validated.fit.fits && validated.fit.warning ? validated.fit.warning : undefined;
+
   return enqueuePrint(async () => {
     await NiimbotPrinterService.ensureConnected();
     const renderPlan = await renderBarcodeLabelBitmap(validated.cleaned, settings);
@@ -95,7 +98,7 @@ async function printBarcodeInternal(
       imageBase64: renderPlan.imageBase64 ?? undefined,
     });
 
-    return validated.fit.fits ? {} : { fitWarning: validated.fit.warning };
+    return advisoryWarning ? { fitWarning: advisoryWarning } : {};
   });
 }
 

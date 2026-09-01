@@ -77,16 +77,6 @@ export function validateProductBarcodeForPrint(
   const fit = validation.valid
     ? estimateBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm)
     : { fits: false as const, warning: validation.error };
-  if (validation.valid && !fit.fits) {
-    return {
-      cleaned,
-      validation,
-      fit: {
-        fits: false,
-        warning: 'Bu barkod 40×12 mm etikette güvenilir şekilde okunamayabilir.',
-      },
-    };
-  }
   return { cleaned, validation, fit };
 }
 

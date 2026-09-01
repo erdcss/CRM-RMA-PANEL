@@ -96,9 +96,6 @@ export function validatePackageBarcodeValue(value: string): { valid: boolean; er
   if (cleaned.length < 8 || cleaned.length > 64) {
     return { valid: false, error: "Koli barkodu geçersiz uzunlukta." };
   }
-  if (!PACKAGE_BARCODE_PATTERN.test(cleaned) && cleaned.length > 40) {
-    return { valid: false, error: "Koli barkodu 40×12 mm etikete sığmayacak kadar uzun." };
-  }
   return { valid: true };
 }
 
@@ -135,17 +132,24 @@ export function estimatePackageBarcodeFit(
   const cleaned = value.trim();
   if (!cleaned) return { fits: true };
 
-  const contentWidth = labelWidthMm - marginLeftMm - marginRightMm - 2;
-  const estimatedModules = 35 + cleaned.length * 11;
-  const minModuleWidthMm = cleaned.length > 24 ? 0.11 : 0.14;
-  const estimatedWidthMm = estimatedModules * minModuleWidthMm;
+  void labelWidthMm;
+  void marginLeftMm;
+  void marginRightMm;
 
-  if (estimatedWidthMm > contentWidth) {
+  if (cleaned.length > 60) {
     return {
       fits: false,
-      warning: "Koli barkodu 40×12 mm etikete sığmıyor. Daha kısa bir barkod gerekir.",
+      warning: "Koli barkodu çok uzun; yazdırma başarısız olabilir.",
     };
   }
+
+  if (cleaned.length > 34) {
+    return {
+      fits: true,
+      warning: "Uzun koli barkodu küçük yazı ile yazdırılacak.",
+    };
+  }
+
   return { fits: true };
 }
 
