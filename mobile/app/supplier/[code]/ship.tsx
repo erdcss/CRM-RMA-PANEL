@@ -24,6 +24,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
+import { normalizeScannedBarcode } from '@/lib/barcodeNormalize';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
@@ -66,6 +67,7 @@ export default function SupplierShipScreen() {
   const [printing, setPrinting] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanMatched, setScanMatched] = useState(false);
+  const [lastScannedValue, setLastScannedValue] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [barcodesByProductId, setBarcodesByProductId] = useState<Record<number, string>>({});
   const [barcodeLoading, setBarcodeLoading] = useState(false);
@@ -95,7 +97,16 @@ export default function SupplierShipScreen() {
       );
 
       const open = sorted.find((row) => EDITABLE_PKG_STATUSES.has(row.status));
-      const finished = sorted.find((row) => ['kapatildi', 'sevke_hazir', 'sevk_edildi'].includes(row.status));
+      const finishedCandidates = sorted
+        .filter((row) => ['kapatildi', 'sevke_hazir'].includes(row.status))
+        .sort((a, b) => {
+          const aTime = new Date(a.closedAt || a.verifiedAt || a.createdAt).getTime();
+          const bTime = new Date(b.closedAt || b.verifiedAt || b.createdAt).getTime();
+          return bTime - aTime;
+        });
+
+      const finished =
+        finishedCandidates.find((row) => row.status === 'kapatildi') ?? finishedCandidates[0];
 
       if (open?.id) {
         setActivePkg(await rmaApi.getPackage(open.id));
@@ -230,6 +241,7 @@ export default function SupplierShipScreen() {
       setClosedPkg(updated);
       setActivePkg(null);
       setScanMatched(false);
+      setLastScannedValue(null);
       Alert.alert('Koli kapatıldı', 'Barkod atandı. Etiketi yazdırıp tarayarak doğrulayabilirsiniz.');
     } catch (err) {
       Alert.alert('Koli kapatılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
@@ -293,26 +305,44 @@ export default function SupplierShipScreen() {
     }
   };
 
-  const handleScan = (value: string) => {
-    const expected = closedPkg?.barcodeValue || closedPkg?.qrValue;
-    if (expected && value === expected) {
+  const handleScan = async (rawValue: string) => {
+    const value = normalizeScannedBarcode(rawValue);
+    if (!closedPkg) {
+      playScanError();
+      Alert.alert('Koli yok', 'Doğrulanacak kapalı koli bulunamadı.');
+      return;
+    }
+
+    try {
+      const found = await rmaApi.lookupPackage(value);
+      if (found.id !== closedPkg.id) {
+        playScanError();
+        Alert.alert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
+        return;
+      }
+
       playScanSuccess();
       setScanMatched(true);
+      setLastScannedValue(value);
       setScanOpen(false);
+      setClosedPkg(found);
       Alert.alert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');
-    } else {
+    } catch {
       playScanError();
       Alert.alert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
     }
   };
 
   const markReadyToShip = async () => {
-    if (!closedPkg?.barcodeValue && !closedPkg?.qrValue) return;
+    const scanValue =
+      lastScannedValue || closedPkg?.barcodeValue || closedPkg?.qrValue;
+    if (!scanValue) return;
     setVerifying(true);
     try {
       animateLayout();
-      const updated = await rmaApi.verifyPackageBarcode(closedPkg.barcodeValue || closedPkg.qrValue || '');
+      const updated = await rmaApi.verifyPackageBarcode(scanValue);
       setClosedPkg(updated);
+      setLastScannedValue(null);
       Alert.alert('Sevkiyata hazır', 'Koli sevkiyat için hazırlandı.');
     } catch (err) {
       Alert.alert('Doğrulama başarısız', err instanceof Error ? err.message : 'Bilinmeyen hata');
@@ -465,7 +495,7 @@ export default function SupplierShipScreen() {
         title="Koli Barkodunu Tara"
         expectedValue={closedPkg?.barcodeValue || closedPkg?.qrValue}
         onClose={() => setScanOpen(false)}
-        onScanned={handleScan}
+        onScanned={(value) => void handleScan(value)}
       />
     </Screen>
   );

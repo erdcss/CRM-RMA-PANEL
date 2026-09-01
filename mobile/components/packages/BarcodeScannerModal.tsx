@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { barcodesMatch, normalizeScannedBarcode } from '@/lib/barcodeNormalize';
 
 const BARCODE_TYPES = ['qr', 'code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e'] as const;
 const SCAN_COOLDOWN_MS = 2000;
@@ -31,7 +32,7 @@ export function BarcodeScannerModal({
 
   const handleScan = useCallback(
     ({ data }: BarcodeScanningResult) => {
-      const value = data?.trim();
+      const value = normalizeScannedBarcode(data ?? '');
       if (!value) return;
 
       const now = Date.now();
@@ -52,7 +53,7 @@ export function BarcodeScannerModal({
     }
   };
 
-  const matchesExpected = expectedValue && lastValue === expectedValue;
+  const matchesExpected = expectedValue && lastValue ? barcodesMatch(lastValue, expectedValue) : false;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>

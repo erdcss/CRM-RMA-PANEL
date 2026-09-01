@@ -5,6 +5,9 @@ import * as Sharing from 'expo-sharing';
 import { getCategoryLabel, getStatusLabel } from '@/constants/statuses';
 import type { SupplierItem } from './api';
 
+const A5_WIDTH = 420;
+const A5_HEIGHT = 595;
+
 const escapeHtml = (value: unknown) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -23,6 +26,8 @@ function safeFileName(value: string) {
 
 function buildSupplierHtml(supplierName: string, supplierCode: string, items: SupplierItem[]) {
   const now = new Date();
+  const totalQty = items.reduce((sum, item) => sum + Number(item.product.quantity ?? 1), 0);
+
   const rows = items
     .map((item, index) => {
       const product = item.product;
@@ -31,15 +36,14 @@ function buildSupplierHtml(supplierName: string, supplierCode: string, items: Su
       const receivedAt = ticket?.createdAt || item.createdAt;
       return `
         <tr>
-          <td>${index + 1}</td>
-          <td>${escapeHtml(product.stockCode || '-')}</td>
-          <td>${escapeHtml(product.name || '-')}</td>
-          <td>${escapeHtml(product.quantity ?? 1)}</td>
+          <td class="center">${index + 1}</td>
+          <td>${escapeHtml(product.stockCode || '—')}</td>
+          <td>${escapeHtml(product.name || '—')}</td>
+          <td class="center">${escapeHtml(product.quantity ?? 1)}</td>
           <td>${escapeHtml(getCategoryLabel(product.category))}</td>
-          <td>${escapeHtml(customer?.name || '-')}</td>
-          <td>${escapeHtml(new Date(receivedAt).toLocaleDateString('tr-TR'))}</td>
           <td>${escapeHtml(getStatusLabel(product.status))}</td>
-          <td>${escapeHtml(product.serialNumber || '-')}</td>
+          <td>${escapeHtml(customer?.name || '—')}</td>
+          <td>${escapeHtml(new Date(receivedAt).toLocaleDateString('tr-TR'))}</td>
         </tr>`;
     })
     .join('');
@@ -49,58 +53,93 @@ function buildSupplierHtml(supplierName: string, supplierCode: string, items: Su
     <head>
       <meta charset="utf-8" />
       <style>
-        @page { size: A4 landscape; margin: 12mm; }
-        body { font-family: Arial, sans-serif; color: #111827; font-size: 10px; }
-        .header { display: flex; justify-content: space-between; margin-bottom: 14px; }
-        h1 { font-size: 18px; margin: 0 0 4px; }
-        .muted { color: #6b7280; font-size: 9px; }
-        .summary { margin: 10px 0 14px; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        th, td { border: 1px solid #d1d5db; padding: 5px; vertical-align: top; word-break: break-word; }
-        th { background: #f3f4f6; font-size: 9px; }
-        .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; margin-top: 34px; }
-        .sign { border-top: 1px solid #9ca3af; padding-top: 6px; text-align: center; }
+        @page { size: A5 portrait; margin: 10mm 8mm; }
+        * { box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+          color: #0f172a;
+          font-size: 8.5px;
+          line-height: 1.35;
+          margin: 0;
+        }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .brand { font-size: 13px; font-weight: 800; margin: 0; }
+        .brand-sub { font-size: 8px; color: #64748b; margin-top: 2px; }
+        .doc-meta { text-align: right; font-size: 8px; color: #334155; }
+        .doc-title { font-size: 10px; font-weight: 800; color: #1d4ed8; margin-bottom: 2px; }
+        .summary {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 4px 10px;
+          padding: 8px;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          background: #f8fafc;
+          margin-bottom: 8px;
+          font-size: 8px;
+        }
+        .summary span { color: #64748b; }
+        .summary strong { color: #0f172a; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 7.5px; }
+        th, td {
+          border: 1px solid #cbd5e1;
+          padding: 3px 4px;
+          vertical-align: top;
+          word-break: break-word;
+        }
+        th { background: #f1f5f9; font-weight: 700; color: #334155; }
+        .center { text-align: center; }
+        .signatures {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          margin-top: 16px;
+          font-size: 8px;
+          font-weight: 700;
+          text-align: center;
+        }
+        .sign-line { border-top: 1px solid #94a3b8; margin-top: 22px; padding-top: 4px; }
       </style>
     </head>
     <body>
       <div class="header">
         <div>
-          <h1>Tedarikçi Ürün Teslim Listesi</h1>
-          <div class="muted">ÇALIŞKAN RMA · RMA Operasyon</div>
+          <p class="brand">ÇALIŞKAN GROUP</p>
+          <div class="brand-sub">Tedarikçi Sevkiyat Listesi</div>
         </div>
-        <div>
-          <strong>${escapeHtml(now.toLocaleDateString('tr-TR'))}</strong><br />
-          <span class="muted">${escapeHtml(now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }))}</span>
+        <div class="doc-meta">
+          <div class="doc-title">TESLİM LİSTESİ</div>
+          ${escapeHtml(now.toLocaleDateString('tr-TR'))}<br />
+          ${escapeHtml(now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }))}
         </div>
       </div>
 
       <div class="summary">
-        <strong>Tedarikçi:</strong> ${escapeHtml(supplierName)}<br />
-        <strong>Cari Kodu:</strong> ${escapeHtml(supplierCode || '-')}<br />
-        <strong>Toplam Satır:</strong> ${items.length}<br />
-        <strong>Toplam Adet:</strong> ${items.reduce((sum, item) => sum + Number(item.product.quantity ?? 1), 0)}
+        <div><span>Tedarikçi: </span><strong>${escapeHtml(supplierName)}</strong></div>
+        <div><span>Cari Kodu: </span><strong>${escapeHtml(supplierCode || '—')}</strong></div>
+        <div><span>Satır: </span><strong>${items.length}</strong></div>
+        <div><span>Toplam Adet: </span><strong>${totalQty}</strong></div>
       </div>
 
       <table>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Stok Kodu</th>
-            <th>Ürün</th>
-            <th>Adet</th>
-            <th>İşlem</th>
-            <th>Müşteri</th>
-            <th>Geliş Tarihi</th>
-            <th>Son Durum</th>
-            <th>Seri No</th>
+            <th style="width:5%">#</th>
+            <th style="width:14%">Stok</th>
+            <th style="width:24%">Ürün</th>
+            <th style="width:7%">Adet</th>
+            <th style="width:12%">İşlem</th>
+            <th style="width:14%">Durum</th>
+            <th style="width:14%">Müşteri</th>
+            <th style="width:10%">Tarih</th>
           </tr>
         </thead>
-        <tbody>${rows || '<tr><td colspan="9">Ürün bulunmuyor.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="8">Ürün bulunmuyor.</td></tr>'}</tbody>
       </table>
 
       <div class="signatures">
-        <div class="sign">Teslim Eden</div>
-        <div class="sign">Teslim Alan</div>
+        <div>Teslim Eden<div class="sign-line"></div></div>
+        <div>Teslim Alan<div class="sign-line"></div></div>
       </div>
     </body>
   </html>`;
@@ -116,6 +155,8 @@ export async function createSupplierPdf(supplierName: string, supplierCode: stri
 
   const { uri } = await Print.printToFileAsync({
     html: buildSupplierHtml(supplierName, supplierCode, items),
+    width: A5_WIDTH,
+    height: A5_HEIGHT,
   });
 
   const fileName = `${safeFileName(supplierName)}-RMA.pdf`;

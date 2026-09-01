@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { rmaApi } from '@/lib/api';
+import { normalizeScannedBarcode } from '@/lib/barcodeNormalize';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const BARCODE_TYPES = [
@@ -57,7 +58,7 @@ export default function PackageScanScreen() {
 
   const handleBarcodeScanned = useCallback(
     ({ data }: BarcodeScanningResult) => {
-      const value = data?.trim();
+      const value = normalizeScannedBarcode(data ?? '');
       if (!value || loading || !cameraEnabled) return;
 
       const now = Date.now();

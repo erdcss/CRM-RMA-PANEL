@@ -274,14 +274,87 @@ export async function printPackageLabel(pkg: RmaPackage) {
 
 export async function sharePackageLabelPdf(pkg: RmaPackage) {
   const settings = await loadBarcodeSettings();
-  const html = buildLabelHtml(pkg, settings);
-  const { uri } = await Print.printToFileAsync({ html });
+  const scanValue = pkg.barcodeValue || pkg.qrValue || pkg.packageNumber;
+  const productRows = buildLabelProductRows(pkg.items ?? []);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(scanValue)}`;
+
+  const rows = productRows
+    .map(
+      (row) => `
+      <tr>
+        <td class="center">${row.slot}</td>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${escapeHtml(row.stockCode)}</td>
+        <td class="center">${row.quantity}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const a5Html = `<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: A5 portrait; margin: 10mm 8mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: #0f172a;
+      font-size: 9px;
+      margin: 0;
+    }
+    .header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .brand { font-size: 13px; font-weight: 800; margin: 0; }
+    .meta { font-size: 8px; color: #64748b; text-align: right; }
+    .card {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      margin-bottom: 8px;
+      background: #f8fafc;
+    }
+    .barcode { font-family: "Courier New", monospace; font-size: 9px; font-weight: 700; word-break: break-all; }
+    table { width: 100%; border-collapse: collapse; font-size: 8px; margin-bottom: 8px; }
+    th, td { border: 1px solid #cbd5e1; padding: 4px; vertical-align: top; word-break: break-word; }
+    th { background: #f1f5f9; }
+    .center { text-align: center; }
+    .qr-wrap { text-align: center; margin-top: 6px; }
+    .qr { width: ${settings.qrSizeMm + 8}mm; height: ${settings.qrSizeMm + 8}mm; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <p class="brand">ÇALIŞKAN GROUP · KOLİ ETİKETİ</p>
+      <div>${escapeHtml(pkg.packageNumber)}</div>
+    </div>
+    <div class="meta">${escapeHtml(formatDate(pkg.closedAt || pkg.createdAt))}</div>
+  </div>
+  <div class="card">
+    <div><strong>Tedarikçi:</strong> ${escapeHtml(pkg.supplierName)} (${escapeHtml(pkg.supplierAccountCode)})</div>
+    <div class="barcode">${escapeHtml(scanValue)}</div>
+  </div>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Ürün</th><th>Stok</th><th>Adet</th></tr>
+    </thead>
+    <tbody>${rows || '<tr><td colspan="4">Ürün yok</td></tr>'}</tbody>
+  </table>
+  <div class="qr-wrap"><img class="qr" src="${qrUrl}" alt="QR" /></div>
+</body>
+</html>`;
+
+  const { uri } = await Print.printToFileAsync({
+    html: a5Html,
+    width: 420,
+    height: 595,
+  });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
       dialogTitle: `${pkg.packageNumber} koli etiketi`,
     });
   } else {
-    await Print.printAsync({ html });
+    await Print.printAsync({ html: a5Html });
   }
 }

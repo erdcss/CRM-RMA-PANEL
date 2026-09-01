@@ -2,7 +2,10 @@ import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 
+import { PackageDrawer } from '@/components/packages/PackageDrawer';
+import { PackageDrawerTrigger } from '@/components/packages/PackageDrawerTrigger';
 import { useAuth } from '@/contexts/AuthContext';
+import { PackageDrawerProvider } from '@/contexts/PackageDrawerContext';
 import { colors } from '@/constants/theme';
 
 function isAuthRoute(segment: string | undefined) {
@@ -50,6 +53,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <View style={styles.loader}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
+    );
+  }
+
+  if (session) {
+    return (
+      <PackageDrawerProvider>
+        {children}
+        <PackageDrawer />
+        <PackageDrawerTrigger />
+      </PackageDrawerProvider>
     );
   }
 
