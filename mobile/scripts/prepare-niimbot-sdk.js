@@ -24,6 +24,9 @@ const verifyTargets = [
   ['NiimbotSDK/Libs/libJCAPI.a', 9_000_000],
   ['NiimbotSDK/Libs/libJCLPAPI.a', 2_500_000],
   ['NiimbotSDK/Libs/libSkiaRenderLibrary.a', 60_000_000],
+  ['NiimbotSDK/font/FONT.json', 1_000],
+  ['NiimbotSDK/font/ZT001.ttf', 1_000_000],
+  ['NiimbotSDK/font/ZT002.otf', 1_000_000],
 ];
 
 function formatBytes(bytes) {

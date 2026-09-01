@@ -16,6 +16,7 @@ const files = [
   "20260831_001_rma_faz1.sql",
   "20260831_002_rma_faz2_packages.sql",
   "20260831_003_rma_faz3_supplier_results.sql",
+  "20260901_001_product_shipment_barcode_number.sql",
 ];
 
 for (const file of files) {

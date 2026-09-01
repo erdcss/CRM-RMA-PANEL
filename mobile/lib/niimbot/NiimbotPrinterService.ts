@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import { renderBarcodeLabelBitmap } from '@/lib/barcodeLabelRenderer';
 import { loadBarcodeLabelSettings, validateBarcodeForPrint } from '@/lib/barcodeLabelSettings';
+import * as NiimbotNative from 'niimbot-printer';
 
 import { loadSavedPrinter, saveSavedPrinter } from './printerStorage';
 import {
@@ -14,13 +15,9 @@ import {
 
 let printInFlight = false;
 
-async function loadNativeAdapter() {
+function loadNativeAdapter() {
   if (Platform.OS !== 'ios') return null;
-  try {
-    return await import('niimbot-printer');
-  } catch {
-    return null;
-  }
+  return NiimbotNative;
 }
 
 export const NiimbotPrinterService = {
@@ -29,7 +26,7 @@ export const NiimbotPrinterService = {
   },
 
   async isIntegrationAvailable(): Promise<boolean> {
-    const native = await loadNativeAdapter();
+    const native = loadNativeAdapter();
     if (!native) return false;
     try {
       return await native.isIntegrationAvailable();
@@ -43,7 +40,7 @@ export const NiimbotPrinterService = {
   },
 
   async getConnectionStatus(): Promise<NiimbotConnectionStatus> {
-    const native = await loadNativeAdapter();
+    const native = loadNativeAdapter();
     if (!native) return { connected: false };
     try {
       return await native.getConnectionStatus();
@@ -53,11 +50,11 @@ export const NiimbotPrinterService = {
   },
 
   async scanPrinters(): Promise<NiimbotPrinter[]> {
-    const native = await loadNativeAdapter();
+    const native = loadNativeAdapter();
     if (!native) {
       throw new NiimbotPrinterError(
         NIIMBOT_ERROR_CODES.SDK_REQUIRED,
-        'NIIMBOT entegrasyonu bu ortamda kullanılamıyor. Expo Go desteklenmez; development build gerekir.',
+        'NIIMBOT yazıcı modülü bu sürümde yok. TestFlight\'tan en son build\'i (1.0.1+) yükleyin.',
       );
     }
     try {
@@ -68,7 +65,7 @@ export const NiimbotPrinterService = {
   },
 
   async connectPrinter(printer: NiimbotPrinter): Promise<void> {
-    const native = await loadNativeAdapter();
+    const native = loadNativeAdapter();
     if (!native) throw mapNativeError(new Error('NIIMBOT_SDK_REQUIRED'));
     try {
       await native.connectPrinter(printer.id);
@@ -79,7 +76,7 @@ export const NiimbotPrinterService = {
   },
 
   async disconnectPrinter(): Promise<void> {
-    const native = await loadNativeAdapter();
+    const native = loadNativeAdapter();
     if (!native) return;
     try {
       await native.disconnectPrinter();
@@ -141,7 +138,7 @@ export const NiimbotPrinterService = {
     try {
       await this.ensureConnected();
       const renderPlan = await renderBarcodeLabelBitmap(cleaned, settings);
-      const native = await loadNativeAdapter();
+      const native = loadNativeAdapter();
       if (!native) throw mapNativeError(new Error('NIIMBOT_SDK_REQUIRED'));
 
       await native.printBarcodeLabel({

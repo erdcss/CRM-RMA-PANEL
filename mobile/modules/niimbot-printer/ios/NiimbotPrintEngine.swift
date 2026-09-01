@@ -9,7 +9,9 @@ final class NiimbotPrintEngine {
 
   private init() {}
 
-  func isIntegrationAvailable() -> Bool { true }
+  func isIntegrationAvailable() -> Bool {
+    NiimbotFontLoader.hasBundledFonts()
+  }
 
   func scanPrinters(completion: @escaping (Result<[[String: Any?]], Error>) -> Void) {
     runOnMain {

@@ -15,11 +15,13 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.caliskangroup.rma",
-      "buildNumber": "31",
+      "buildNumber": "36",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Ürün fotoğrafı çekmek ve koli barkodu taramak için kamera erişimi gerekir.",
-        "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı eklemek için galeri erişimi gerekir."
+        "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı eklemek için galeri erişimi gerekir.",
+        "NSSpeechRecognitionUsageDescription": "Çalışkan RMA, desteklenen sesli giriş özelliklerinde konuşmayı metne dönüştürmek için konuşma tanıma erişimini kullanır.",
+        "NSMicrophoneUsageDescription": "Çalışkan RMA, desteklenen sesli giriş özelliklerinde sesinizi algılamak için mikrofon erişimini kullanır."
       }
     },
     "android": {

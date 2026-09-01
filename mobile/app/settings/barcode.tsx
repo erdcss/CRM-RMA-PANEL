@@ -130,7 +130,7 @@ export default function BarcodeSettingsScreen() {
 
         {Platform.OS === 'ios' ? (
           <Text style={styles.hint}>
-            iOS AirPrint kullanılmaz. Barkod NIIMBOT JCAPI ile doğrudan D110-M yazıcıya gönderilir (development build gerekir).
+            iOS AirPrint kullanılmaz. Barkod NIIMBOT JCAPI ile doğrudan D110-M yazıcıya gönderilir. Önce yazıcıyı Barkod Ayarlarından eşleştirin.
           </Text>
         ) : (
           <Text style={styles.hint}>Android NIIMBOT entegrasyonu bu fazda yapılmadı.</Text>

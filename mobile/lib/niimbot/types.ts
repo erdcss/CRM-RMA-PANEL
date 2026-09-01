@@ -29,6 +29,7 @@ export interface NiimbotPrinterAdapter {
 
 export const NIIMBOT_ERROR_CODES = {
   SDK_REQUIRED: 'NIIMBOT_SDK_REQUIRED',
+  SETUP: 'NIIMBOT_SETUP',
   BLUETOOTH_OFF: 'BLUETOOTH_OFF',
   PERMISSION_DENIED: 'PERMISSION_DENIED',
   PRINTER_NOT_FOUND: 'PRINTER_NOT_FOUND',
@@ -58,7 +59,13 @@ export function mapNativeError(error: unknown): NiimbotPrinterError {
   if (code === NIIMBOT_ERROR_CODES.SDK_REQUIRED || message.includes('NIIMBOT_SDK_REQUIRED')) {
     return new NiimbotPrinterError(
       NIIMBOT_ERROR_CODES.SDK_REQUIRED,
-      'Resmi NIIMBOT iOS SDK henüz bağlı değil. Geliştirme build ile SDK entegrasyonu tamamlanmalı.',
+      'NIIMBOT yazıcı modülü bu sürümde yok. TestFlight\'tan en son build\'i (1.0.1+) yükleyin.',
+    );
+  }
+  if (code === NIIMBOT_ERROR_CODES.SETUP || code === 'NIIMBOT_SETUP') {
+    return new NiimbotPrinterError(
+      NIIMBOT_ERROR_CODES.SETUP,
+      message || 'NIIMBOT yazıcı kaynakları yüklenemedi. Uygulamayı güncelleyip tekrar deneyin.',
     );
   }
   if (/bluetooth.*off|powered off|unavailable/i.test(message)) {

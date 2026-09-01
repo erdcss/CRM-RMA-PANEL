@@ -62,9 +62,9 @@ async function requireNative(): Promise<NativeNiimbotPrinterModule> {
   const available = await mod.isIntegrationAvailable();
   if (!available) {
     const err = new Error(
-      'Official NIIMBOT iOS SDK is not linked. Add SDK files to mobile/vendor/niimbot-ios and complete native integration.',
+      'NIIMBOT font resources are missing from this build. Reinstall the latest TestFlight build.',
     );
-    (err as Error & { code?: string }).code = NIIMBOT_SDK_REQUIRED;
+    (err as Error & { code?: string }).code = 'NIIMBOT_SETUP';
     throw err;
   }
   return mod;

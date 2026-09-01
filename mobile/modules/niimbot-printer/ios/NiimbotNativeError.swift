@@ -44,7 +44,7 @@ enum NiimbotNativeError: LocalizedError {
     case .printFailed: return "PRINT_FAILED"
     case .printBusy: return "PRINT_BUSY"
     case .invalidBarcode: return "PRINT_FAILED"
-    case .sdkSetup: return "NIIMBOT_SDK_REQUIRED"
+    case .sdkSetup: return "NIIMBOT_SETUP"
     }
   }
 
