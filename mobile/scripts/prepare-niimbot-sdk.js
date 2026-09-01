@@ -73,20 +73,20 @@ function copyAliasIfNeeded(relativeDir, sourceName, aliasName) {
 }
 
 if (!fs.existsSync(sourceRoot)) {
-  throw new Error(
-    `NIIMBOT SDK not found at ${sourceRoot}. Copy official SDK files before running EAS build.`,
+  console.warn(
+    `NIIMBOT vendor SDK not found at ${sourceRoot}; using existing NiimbotSDK copy from upload.`,
   );
-}
+} else {
+  for (const parts of requiredFiles) {
+    copyIfNeeded(parts);
+  }
 
-for (const parts of requiredFiles) {
-  copyIfNeeded(parts);
-}
+  for (const [dir, sourceName, aliasName] of linkerAliases) {
+    copyAliasIfNeeded(dir, sourceName, aliasName);
+  }
 
-for (const [dir, sourceName, aliasName] of linkerAliases) {
-  copyAliasIfNeeded(dir, sourceName, aliasName);
+  console.log(`NIIMBOT SDK synced to ${targetRoot}`);
 }
-
-console.log(`NIIMBOT SDK synced to ${targetRoot}`);
 
 for (const [relativePath, minBytes] of verifyTargets) {
   const absolutePath = path.join(mobileRoot, 'modules', 'niimbot-printer', 'ios', relativePath);
