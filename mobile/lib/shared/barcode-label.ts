@@ -72,6 +72,38 @@ export function validateBarcodeNumber(value: string): { valid: boolean; error?: 
   return { valid: true };
 }
 
+/** Shipment product label — exact 9 digits, leading zeros preserved as string. */
+export function validateProductBarcodeNumber(value: string): { valid: boolean; error?: string } {
+  const cleaned = sanitizeBarcodeNumber(value);
+  if (!/^\d{9}$/.test(cleaned)) {
+    return { valid: false, error: "Ürün barkodu 9 haneli olmalıdır." };
+  }
+  return { valid: true };
+}
+
+const PACKAGE_BARCODE_PATTERN = /^RMA-[A-Za-z0-9]+-S[1-9]-P\d+-[A-Za-z0-9]+$/;
+
+/** Package / koli scan token — alphanumeric Code128, not 9-digit product format. */
+export function validatePackageBarcodeValue(value: string): { valid: boolean; error?: string } {
+  const cleaned = value.trim();
+  if (!cleaned) {
+    return { valid: false, error: "Koli barkodu gerekli." };
+  }
+  if (/^\d{9}$/.test(cleaned)) {
+    return { valid: false, error: "Bu değer ürün barkodu formatındadır; koli etiketi değil." };
+  }
+  if (!/^[A-Za-z0-9\-_]+$/.test(cleaned)) {
+    return { valid: false, error: "Koli barkodu yalnızca harf, rakam ve tire içerebilir." };
+  }
+  if (cleaned.length < 8 || cleaned.length > 64) {
+    return { valid: false, error: "Koli barkodu geçersiz uzunlukta." };
+  }
+  if (!PACKAGE_BARCODE_PATTERN.test(cleaned) && cleaned.length > 40) {
+    return { valid: false, error: "Koli barkodu 40×12 mm etikete sığmayacak kadar uzun." };
+  }
+  return { valid: true };
+}
+
 /** Rough Code 128 module estimate for fit warnings on narrow labels. */
 export function estimateBarcodeFit(
   value: string,
@@ -91,6 +123,30 @@ export function estimateBarcodeFit(
     return {
       fits: false,
       warning: `${cleaned.length} haneli barkod ${labelWidthMm} mm etikete sıkışık olabilir. Daha kısa numara deneyin veya gelişmiş ayarlardan boşlukları azaltın.`,
+    };
+  }
+  return { fits: true };
+}
+
+/** Package Code128 fit estimate on 40×12 mm label. */
+export function estimatePackageBarcodeFit(
+  value: string,
+  labelWidthMm: number = NIIMBOT_D110M_PRESET.labelWidthMm,
+  marginLeftMm: number = NIIMBOT_D110M_PRESET.marginLeftMm,
+  marginRightMm: number = NIIMBOT_D110M_PRESET.marginRightMm,
+): { fits: boolean; warning?: string } {
+  const cleaned = value.trim();
+  if (!cleaned) return { fits: true };
+
+  const contentWidth = labelWidthMm - marginLeftMm - marginRightMm - 2;
+  const estimatedModules = 35 + cleaned.length * 11;
+  const minModuleWidthMm = cleaned.length > 24 ? 0.11 : 0.14;
+  const estimatedWidthMm = estimatedModules * minModuleWidthMm;
+
+  if (estimatedWidthMm > contentWidth) {
+    return {
+      fits: false,
+      warning: "Koli barkodu 40×12 mm etikete sığmıyor. Daha kısa bir barkod gerekir.",
     };
   }
   return { fits: true };

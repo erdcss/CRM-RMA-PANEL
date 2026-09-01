@@ -49,9 +49,12 @@ public class NiimbotPrinterModule: Module {
       let widthMm = (options["widthMm"] as? NSNumber)?.doubleValue ?? 40
       let heightMm = (options["heightMm"] as? NSNumber)?.doubleValue ?? 12
       let copies = (options["copies"] as? NSNumber)?.intValue ?? 1
+      let modeRaw = (options["mode"] as? String) ?? "product"
+      let mode = NiimbotBarcodePrintMode(rawValue: modeRaw) ?? .product
 
       self.engine.printBarcodeLabel(
         value: value,
+        mode: mode,
         widthMm: widthMm,
         heightMm: heightMm,
         copies: copies

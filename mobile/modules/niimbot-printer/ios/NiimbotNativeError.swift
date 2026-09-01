@@ -22,11 +22,11 @@ enum NiimbotNativeError: LocalizedError {
     case .connectionFailed(let detail):
       return detail.isEmpty ? "Yazıcı bağlantısı kurulamadı." : detail
     case .notConnected:
-      return "Bağlı NIIMBOT yazıcı yok. Barkod Ayarlarından yazıcı seçin."
+      return "NIIMBOT yazıcı bağlı değil. Barkod Ayarlarından yazıcı seçin."
     case .printFailed(let detail):
       return detail.isEmpty ? "Barkod yazdırılamadı. Yazıcı bağlantısını kontrol edin." : detail
     case .printBusy:
-      return "Yazdırma devam ediyor."
+      return "Önceki yazdırma işlemi tamamlanıyor."
     case .invalidBarcode(let detail):
       return detail
     case .sdkSetup(let detail):
@@ -52,9 +52,9 @@ enum NiimbotNativeError: LocalizedError {
     guard let code, !code.isEmpty, code != "19" else { return nil }
     switch code {
     case "1":
-      return .printFailed("Yazıcı kapağı açık.")
+      return .printFailed("Yazıcının kapağı açık.")
     case "2":
-      return .printFailed("Etiket/kağıt yok.")
+      return .printFailed("Yazıcıda etiket bulunamadı.")
     case "3":
       return .printFailed("Pil seviyesi düşük.")
     case "5":

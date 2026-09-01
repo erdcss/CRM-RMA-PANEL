@@ -16,7 +16,7 @@ import {
   validateBarcodeForPrint,
   type BarcodeLabelSettings,
 } from '@/lib/barcodeLabelSettings';
-import { printBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
+import { printProductBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
 import { NiimbotPrinterError } from '@/lib/niimbot/types';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 
@@ -69,6 +69,7 @@ export default function BarcodeSettingsScreen() {
   };
 
   const handlePrint = async () => {
+    if (printing) return;
     if (!validation.valid) {
       Alert.alert('Geçersiz barkod', validation.error ?? 'Barkod numarası gerekli');
       return;
@@ -82,7 +83,7 @@ export default function BarcodeSettingsScreen() {
     setPrinting(true);
     try {
       await saveBarcodeLabelSettings(settings);
-      const result = await printBarcodeDirect(barcodeNumber, { copies: settings.quantity });
+      const result = await printProductBarcodeDirect(barcodeNumber, { copies: settings.quantity });
       if (result.fitWarning) {
         Alert.alert('Uyarı', result.fitWarning);
       }

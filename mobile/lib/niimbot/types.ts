@@ -15,6 +15,8 @@ export type PrintBarcodeLabelOptions = {
   widthMm: number;
   heightMm: number;
   copies: number;
+  mode?: 'product' | 'package';
+  /** Base64 PNG bitmap prepared by JS renderer; native layer forwards to SDK when available. */
   imageBase64?: string;
 };
 
@@ -87,7 +89,7 @@ export function mapNativeError(error: unknown): NiimbotPrinterError {
     );
   }
   if (code === NIIMBOT_ERROR_CODES.PRINT_BUSY || message.includes('PRINT_BUSY')) {
-    return new NiimbotPrinterError(NIIMBOT_ERROR_CODES.PRINT_BUSY, 'Yazdırma devam ediyor.');
+    return new NiimbotPrinterError(NIIMBOT_ERROR_CODES.PRINT_BUSY, 'Önceki yazdırma işlemi tamamlanıyor.');
   }
   if (code === NIIMBOT_ERROR_CODES.CONNECTION_FAILED || code === 'CONNECTION_FAILED') {
     return new NiimbotPrinterError(NIIMBOT_ERROR_CODES.CONNECTION_FAILED, message || 'Yazıcı bağlantısı kurulamadı.');

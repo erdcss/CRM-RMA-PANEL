@@ -18,6 +18,7 @@ export type PrintBarcodeLabelOptions = {
   widthMm: number;
   heightMm: number;
   copies: number;
+  mode?: 'product' | 'package';
   /** Base64 PNG bitmap prepared by JS renderer; native layer forwards to SDK when available. */
   imageBase64?: string;
 };

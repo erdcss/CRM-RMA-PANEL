@@ -2,8 +2,11 @@ import {
   NIIMBOT_D110M_PRESET,
   clampBarcodeLabelSettings,
   estimateBarcodeFit,
+  estimatePackageBarcodeFit,
   sanitizeBarcodeNumber,
   validateBarcodeNumber,
+  validatePackageBarcodeValue,
+  validateProductBarcodeNumber,
   type BarcodeLabelSettings,
 } from '@/lib/shared/barcode-label';
 
@@ -13,8 +16,11 @@ export {
   NIIMBOT_D110M_PRESET,
   PRINTER_PROFILES,
   validateBarcodeNumber,
+  validateProductBarcodeNumber,
+  validatePackageBarcodeValue,
   sanitizeBarcodeNumber,
   estimateBarcodeFit,
+  estimatePackageBarcodeFit,
   clampBarcodeLabelSettings,
   resolveBarcodeHeightMm,
   resolveNumberFontSizePt,
@@ -59,5 +65,39 @@ export function validateBarcodeForPrint(value: string, settings: BarcodeLabelSet
       },
     };
   }
+  return { cleaned, validation, fit };
+}
+
+export function validateProductBarcodeForPrint(
+  value: string,
+  settings: BarcodeLabelSettings = NIIMBOT_D110M_PRESET,
+) {
+  const cleaned = sanitizeBarcodeNumber(value);
+  const validation = validateProductBarcodeNumber(cleaned);
+  const fit = validation.valid
+    ? estimateBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm)
+    : { fits: false as const, warning: validation.error };
+  if (validation.valid && !fit.fits) {
+    return {
+      cleaned,
+      validation,
+      fit: {
+        fits: false,
+        warning: 'Bu barkod 40×12 mm etikette güvenilir şekilde okunamayabilir.',
+      },
+    };
+  }
+  return { cleaned, validation, fit };
+}
+
+export function validatePackageBarcodeForPrint(
+  value: string,
+  settings: BarcodeLabelSettings = NIIMBOT_D110M_PRESET,
+) {
+  const cleaned = value.trim();
+  const validation = validatePackageBarcodeValue(cleaned);
+  const fit = validation.valid
+    ? estimatePackageBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm)
+    : { fits: false as const, warning: validation.error };
   return { cleaned, validation, fit };
 }

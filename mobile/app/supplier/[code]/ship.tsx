@@ -27,7 +27,7 @@ import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
-import { printBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
+import { printPackageBarcodeDirect, printProductBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
 import { NiimbotPrinterError } from '@/lib/niimbot/types';
 import { parsePackageLabelSequence } from '@/lib/packageLabelUtils';
 
@@ -239,9 +239,10 @@ export default function SupplierShipScreen() {
   };
 
   const handlePrintProductBarcode = async (productId: number, barcodeNumber: string) => {
+    if (printingProductId === productId || printing) return;
     setPrintingProductId(productId);
     try {
-      const result = await printBarcodeDirect(barcodeNumber);
+      const result = await printProductBarcodeDirect(barcodeNumber);
       if (result.fitWarning) {
         Alert.alert('Uyarı', result.fitWarning);
       }
@@ -257,17 +258,18 @@ export default function SupplierShipScreen() {
   };
 
   const handlePrint = async () => {
+    if (printing || printingProductId !== null) return;
     const labelPkg = closedPkg ?? activePkg;
     const scanValue = labelPkg?.barcodeValue || labelPkg?.qrValue;
     if (!scanValue) return;
     setPrinting(true);
     try {
       if (shouldUseNiimbotDirectPrint()) {
-        const result = await printBarcodeDirect(scanValue);
+        const result = await printPackageBarcodeDirect(scanValue);
         if (result.fitWarning) {
           Alert.alert('Uyarı', result.fitWarning);
         }
-        Alert.alert('Başarılı', 'Barkod etiketi yazdırıldı.');
+        Alert.alert('Başarılı', 'Koli barkod etiketi yazdırıldı.');
       } else {
         await printPackageLabel(labelPkg);
       }
@@ -401,6 +403,7 @@ export default function SupplierShipScreen() {
                     loading={barcodeLoading && !barcodeNumber}
                     error={barcodeErrors[item.productId]}
                     printing={printingProductId === item.productId}
+                    disabled={printing || (printingProductId !== null && printingProductId !== item.productId)}
                     onPrint={
                       barcodeNumber
                         ? () => handlePrintProductBarcode(item.productId, barcodeNumber)
@@ -429,7 +432,7 @@ export default function SupplierShipScreen() {
                 icon="print-outline"
                 label={printing ? 'Yazdırılıyor…' : 'Barkod Yazdır'}
                 onPress={handlePrint}
-                disabled={printing}
+                disabled={printing || printingProductId !== null}
               />
               <SecondaryAction icon="share-outline" label="Etiket PDF Paylaş" onPress={handleShareLabel} />
               {!isReady ? (

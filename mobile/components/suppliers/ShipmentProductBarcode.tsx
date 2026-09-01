@@ -12,6 +12,7 @@ type ShipmentProductBarcodeProps = {
   loading?: boolean;
   error?: string | null;
   printing?: boolean;
+  disabled?: boolean;
   onPrint?: () => void;
 };
 
@@ -20,6 +21,7 @@ export function ShipmentProductBarcode({
   loading,
   error,
   printing,
+  disabled,
   onPrint,
 }: ShipmentProductBarcodeProps) {
   const [copied, setCopied] = useState(false);
@@ -66,9 +68,9 @@ export function ShipmentProductBarcode({
 
       {barcodeNumber && shouldUseNiimbotDirectPrint() && onPrint ? (
         <Pressable
-          style={[styles.printBtn, printing && styles.disabled]}
+          style={[styles.printBtn, (printing || disabled) && styles.disabled]}
           onPress={onPrint}
-          disabled={printing}
+          disabled={printing || disabled}
         >
           <Ionicons name="print-outline" size={14} color={colors.primaryDark} />
           <Text style={styles.printText}>{printing ? 'Yazdırılıyor…' : 'Barkod Yazdır'}</Text>

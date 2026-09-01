@@ -1,7 +1,11 @@
 import { Platform } from 'react-native';
 
 import { renderBarcodeLabelBitmap } from '@/lib/barcodeLabelRenderer';
-import { loadBarcodeLabelSettings, validateBarcodeForPrint } from '@/lib/barcodeLabelSettings';
+import {
+  loadBarcodeLabelSettings,
+  validatePackageBarcodeForPrint,
+  validateProductBarcodeForPrint,
+} from '@/lib/barcodeLabelSettings';
 import * as NiimbotNative from 'niimbot-printer';
 
 import { loadSavedPrinter, saveSavedPrinter } from './printerStorage';
@@ -13,11 +17,86 @@ import {
   type NiimbotPrinter,
 } from './types';
 
-let printInFlight = false;
+const MAX_QUEUE = 3;
+let queueTail: Promise<void> = Promise.resolve();
+let queuedCount = 0;
 
 function loadNativeAdapter() {
   if (Platform.OS !== 'ios') return null;
   return NiimbotNative;
+}
+
+function enqueuePrint<T>(task: () => Promise<T>): Promise<T> {
+  if (queuedCount >= MAX_QUEUE) {
+    return Promise.reject(
+      new NiimbotPrinterError(
+        NIIMBOT_ERROR_CODES.PRINT_BUSY,
+        'Önceki yazdırma işlemi tamamlanıyor.',
+      ),
+    );
+  }
+
+  queuedCount += 1;
+  const run = queueTail.then(task);
+  queueTail = run.then(
+    () => undefined,
+    () => undefined,
+  ).finally(() => {
+    queuedCount = Math.max(0, queuedCount - 1);
+  });
+  return run;
+}
+
+async function printBarcodeInternal(
+  value: string,
+  mode: 'product' | 'package',
+  options?: { settings?: Awaited<ReturnType<typeof loadBarcodeLabelSettings>>; copies?: number },
+): Promise<{ fitWarning?: string }> {
+  if (!NiimbotPrinterService.isSupportedPlatform()) {
+    throw new NiimbotPrinterError(
+      NIIMBOT_ERROR_CODES.PRINT_FAILED,
+      'NIIMBOT doğrudan yazdırma yalnızca iOS için hazırlandı.',
+    );
+  }
+
+  const settings = options?.settings ?? (await loadBarcodeLabelSettings());
+  const copies = Math.min(100, Math.max(1, options?.copies ?? settings.quantity ?? 1));
+  const validated =
+    mode === 'product'
+      ? validateProductBarcodeForPrint(value, settings)
+      : validatePackageBarcodeForPrint(value, settings);
+
+  if (!validated.validation.valid) {
+    throw new NiimbotPrinterError(
+      NIIMBOT_ERROR_CODES.PRINT_FAILED,
+      validated.validation.error ?? 'Geçersiz barkod',
+    );
+  }
+
+  if (!validated.fit.fits) {
+    throw new NiimbotPrinterError(
+      NIIMBOT_ERROR_CODES.PRINT_FAILED,
+      validated.fit.warning ?? 'Barkod etikete sığmıyor.',
+    );
+  }
+
+  return enqueuePrint(async () => {
+    await NiimbotPrinterService.ensureConnected();
+    const renderPlan = await renderBarcodeLabelBitmap(validated.cleaned, settings);
+    const native = loadNativeAdapter();
+    if (!native) throw mapNativeError(new Error('NIIMBOT_SDK_REQUIRED'));
+
+    await native.printBarcodeLabel({
+      value: validated.cleaned,
+      widthMm: settings.labelWidthMm,
+      heightMm: settings.labelHeightMm,
+      copies,
+      mode,
+      imageBase64: renderPlan.imageBase64 ?? undefined,
+    });
+
+    return validated.fit.fits ? {} : { fitWarning: validated.fit.warning };
+  });
 }
 
 export const NiimbotPrinterService = {
@@ -93,7 +172,7 @@ export const NiimbotPrinterService = {
     if (!saved) {
       throw new NiimbotPrinterError(
         NIIMBOT_ERROR_CODES.PRINTER_NOT_FOUND,
-        'Bağlı NIIMBOT yazıcı yok. Barkod Ayarlarından yazıcı seçin.',
+        'NIIMBOT yazıcı bağlı değil. Barkod Ayarlarından yazıcı seçin.',
       );
     }
 
@@ -109,52 +188,34 @@ export const NiimbotPrinterService = {
     }
   },
 
-  /**
-   * Direct NIIMBOT print — never opens iOS AirPrint / expo-print dialog.
-   */
+  async printProductBarcode(
+    value: string,
+    options?: { settings?: Awaited<ReturnType<typeof loadBarcodeLabelSettings>>; copies?: number },
+  ): Promise<{ fitWarning?: string }> {
+    try {
+      return await printBarcodeInternal(value, 'product', options);
+    } catch (error) {
+      throw mapNativeError(error);
+    }
+  },
+
+  async printPackageBarcode(
+    value: string,
+    options?: { settings?: Awaited<ReturnType<typeof loadBarcodeLabelSettings>>; copies?: number },
+  ): Promise<{ fitWarning?: string }> {
+    try {
+      return await printBarcodeInternal(value, 'package', options);
+    } catch (error) {
+      throw mapNativeError(error);
+    }
+  },
+
+  /** @deprecated Use printProductBarcode or printPackageBarcode. */
   async printBarcode(
     value: string,
     options?: { settings?: Awaited<ReturnType<typeof loadBarcodeLabelSettings>>; copies?: number },
   ): Promise<{ fitWarning?: string }> {
-    if (!this.isSupportedPlatform()) {
-      throw new NiimbotPrinterError(
-        NIIMBOT_ERROR_CODES.PRINT_FAILED,
-        'NIIMBOT doğrudan yazdırma yalnızca iOS için hazırlandı.',
-      );
-    }
-    if (printInFlight) {
-      throw new NiimbotPrinterError(NIIMBOT_ERROR_CODES.PRINT_BUSY, 'Yazdırma devam ediyor.');
-    }
-
-    const settings = options?.settings ?? (await loadBarcodeLabelSettings());
-    const copies = Math.min(100, Math.max(1, options?.copies ?? settings.quantity ?? 1));
-    const { cleaned, validation, fit } = validateBarcodeForPrint(value, settings);
-
-    if (!validation.valid) {
-      throw new NiimbotPrinterError(NIIMBOT_ERROR_CODES.PRINT_FAILED, validation.error ?? 'Geçersiz barkod');
-    }
-
-    printInFlight = true;
-    try {
-      await this.ensureConnected();
-      const renderPlan = await renderBarcodeLabelBitmap(cleaned, settings);
-      const native = loadNativeAdapter();
-      if (!native) throw mapNativeError(new Error('NIIMBOT_SDK_REQUIRED'));
-
-      await native.printBarcodeLabel({
-        value: cleaned,
-        widthMm: settings.labelWidthMm,
-        heightMm: settings.labelHeightMm,
-        copies,
-        imageBase64: renderPlan.imageBase64 ?? undefined,
-      });
-
-      return fit.fits ? {} : { fitWarning: fit.warning };
-    } catch (error) {
-      throw mapNativeError(error);
-    } finally {
-      printInFlight = false;
-    }
+    return this.printProductBarcode(value, options);
   },
 };
 

@@ -1,11 +1,97 @@
 import Foundation
 
+enum NiimbotBarcodePrintMode: String {
+  case product
+  case package
+}
+
+private struct D110LabelLayout {
+  // T12*40-155WHITE — 40 mm × 12 mm landscape. NIIMBOT app Direction Left ←
+  // maps to getPaperInfo direction=3 → JCSDKCammodRotation270 per JCAPI.h rotation enum.
+  static let boardWidth: Float = 40
+  static let boardHeight: Float = 12
+  static let boardRotate = 270
+  static let codeType = 20 // CODE128
+  // JCAPI.h drawLableBarCode textPosition: 0=below, 1=above, 2=hidden
+  static let textPositionBelow = 0
+
+  static func productMetrics() -> (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float) {
+    let marginX: Float = 1.25
+    let marginY: Float = 0.35
+    let contentWidth = max(1, boardWidth - marginX * 2)
+    let textHeight: Float = 2.2
+    let fontSize: Float = 2.1
+    let blockHeight = boardHeight - marginY * 2
+    return (marginX, marginY, contentWidth, fontSize, textHeight, blockHeight)
+  }
+
+  static func packageMetrics(for value: String) -> (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int32) {
+    let marginX: Float = 1.1
+    let marginY: Float = 0.3
+    let contentWidth = max(1, boardWidth - marginX * 2)
+    let length = value.count
+
+    var fontSize: Float = 2.0
+    var textHeight: Float = 2.0
+    if length > 18 {
+      fontSize = 1.65
+      textHeight = 1.75
+    }
+    if length > 24 {
+      fontSize = 1.4
+      textHeight = 1.55
+    }
+    if length > 32 {
+      fontSize = 1.2
+      textHeight = 1.35
+    }
+
+    let blockHeight = boardHeight - marginY * 2
+    return (marginX, marginY, contentWidth, fontSize, textHeight, blockHeight, textPositionBelow)
+  }
+}
+
+private final class PrintSession {
+  let id = UUID()
+  let expectedCopies: Int
+  var completion: ((Result<Void, Error>) -> Void)?
+  private(set) var finished = false
+  private var timeoutWorkItem: DispatchWorkItem?
+
+  init(expectedCopies: Int, completion: @escaping (Result<Void, Error>) -> Void) {
+    self.expectedCopies = expectedCopies
+    self.completion = completion
+  }
+
+  func finish(_ result: Result<Void, Error>, on engine: NiimbotPrintEngine) {
+    guard !finished else { return }
+    finished = true
+    timeoutWorkItem?.cancel()
+    timeoutWorkItem = nil
+    engine.clearActiveSessionIfMatches(self)
+    completion?(result)
+    completion = nil
+  }
+
+  func scheduleFallbackTimeout(on engine: NiimbotPrintEngine) {
+    let work = DispatchWorkItem { [weak self, weak engine] in
+      guard let self, let engine, !self.finished else { return }
+      NiimbotJCAPIBridge.endPrint { _ in
+        self.finish(.success(()), on: engine)
+      }
+    }
+    timeoutWorkItem = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + 12, execute: work)
+  }
+}
+
 final class NiimbotPrintEngine {
   static let shared = NiimbotPrintEngine()
 
   private let queue = DispatchQueue(label: "com.caliskangroup.rma.niimbot", qos: .userInitiated)
   private var printBusy = false
   private var connectedPrinterName: String?
+  private var activeSession: PrintSession?
 
   private init() {}
 
@@ -85,15 +171,25 @@ final class NiimbotPrintEngine {
 
   func printBarcodeLabel(
     value: String,
+    mode: NiimbotBarcodePrintMode,
     widthMm: Double,
     heightMm: Double,
     copies: Int,
     completion: @escaping (Result<Void, Error>) -> Void
   ) {
     let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard cleaned.range(of: "^\\d{9}$", options: .regularExpression) != nil else {
-      completion(.failure(NiimbotNativeError.invalidBarcode("Barkod tam 9 haneli rakam olmalıdır.")))
-      return
+
+    switch mode {
+    case .product:
+      guard cleaned.range(of: "^\\d{9}$", options: .regularExpression) != nil else {
+        completion(.failure(NiimbotNativeError.invalidBarcode("Ürün barkodu 9 haneli olmalıdır.")))
+        return
+      }
+    case .package:
+      guard validatePackageBarcode(cleaned) else {
+        completion(.failure(NiimbotNativeError.invalidBarcode("Geçersiz koli barkodu.")))
+        return
+      }
     }
 
     let status = connectionStatus()
@@ -119,90 +215,122 @@ final class NiimbotPrintEngine {
       }
 
       let totalCopies = max(1, min(copies, 100))
-      let labelWidth = Float(widthMm > 0 ? widthMm : 40)
-      let labelHeight = Float(heightMm > 0 ? heightMm : 12)
+      let labelWidth = Float(widthMm > 0 ? widthMm : Double(D110LabelLayout.boardWidth))
+      let labelHeight = Float(heightMm > 0 ? heightMm : Double(D110LabelLayout.boardHeight))
+
+      guard labelWidth == D110LabelLayout.boardWidth, labelHeight == D110LabelLayout.boardHeight else {
+        self.printBusy = false
+        completion(.failure(NiimbotNativeError.printFailed("D110-M etiket boyutu 40×12 mm olmalıdır.")))
+        return
+      }
+
+      let session = PrintSession(expectedCopies: totalCopies, completion: completion)
+      self.activeSession = session
 
       self.runOnMain {
-        self.registerPrintMonitoring(expectedTotal: totalCopies)
+        self.registerPrintMonitoring(session: session)
 
         NiimbotJCAPIBridge.setTotalQuantityOfPrints(totalCopies)
-        NiimbotJCAPIBridge.startJob(withDensity: 2, paperStyle: 1, completion: { started in
+        NiimbotJCAPIBridge.startJob(withDensity: 2, paperStyle: 1, completion: { [weak self] started in
+          guard let self else { return }
           guard started else {
-            self.printBusy = false
-            completion(.failure(NiimbotNativeError.printFailed("Yazdırma işi başlatılamadı.")))
+            session.finish(.failure(NiimbotNativeError.printFailed("Yazdırma işi başlatılamadı.")), on: self)
             return
           }
 
           NiimbotJCAPIBridge.initDrawingBoard(
-            withWidth: labelWidth,
-            height: labelHeight,
+            withWidth: D110LabelLayout.boardWidth,
+            height: D110LabelLayout.boardHeight,
             horizontalShift: 0,
             verticalShift: 0,
-            rotate: 0
+            rotate: Int32(D110LabelLayout.boardRotate)
           )
 
-          let marginX: Float = 1.2
-          let marginY: Float = 0.25
-          let contentWidth = max(1, labelWidth - marginX * 2)
-          let textHeight: Float = 2.6
-          let barcodeHeight = max(4, labelHeight - marginY - textHeight - 0.25)
+          let metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int32)
+          switch mode {
+          case .product:
+            let product = D110LabelLayout.productMetrics()
+            metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
+          case .package:
+            let package = D110LabelLayout.packageMetrics(for: cleaned)
+            metrics = package
+          }
 
           let drawn = NiimbotJCAPIBridge.drawBarcode(
-            at: marginX,
-            y: marginY,
-            width: contentWidth,
-            height: barcodeHeight + textHeight,
+            at: metrics.marginX,
+            y: metrics.marginY,
+            width: metrics.contentWidth,
+            height: metrics.blockHeight,
             text: cleaned,
-            fontSize: 2.2,
+            fontSize: metrics.fontSize,
             rotate: 0,
-            codeType: 20,
-            textHeight: textHeight,
-            textPosition: 0
+            codeType: D110LabelLayout.codeType,
+            textHeight: metrics.textHeight,
+            textPosition: metrics.textPosition
           )
 
           guard drawn else {
-            self.printBusy = false
-            completion(.failure(NiimbotNativeError.printFailed("Code 128 etiketi oluşturulamadı.")))
+            session.finish(.failure(NiimbotNativeError.printFailed("Code 128 etiketi oluşturulamadı.")), on: self)
             return
           }
 
           guard let json = NiimbotJCAPIBridge.generateLabelJson(), !json.isEmpty else {
-            self.printBusy = false
-            completion(.failure(NiimbotNativeError.printFailed("Etiket verisi oluşturulamadı.")))
+            session.finish(.failure(NiimbotNativeError.printFailed("Etiket verisi oluşturulamadı.")), on: self)
             return
           }
 
-          NiimbotJCAPIBridge.sendLabelJson(json, withCopyCount: Int32(totalCopies)) { success in
-            if success {
-              completion(.success(()))
-            } else {
-              completion(.failure(NiimbotNativeError.printFailed("Barkod yazdırılamadı. Yazıcı bağlantısını kontrol edin.")))
+          session.scheduleFallbackTimeout(on: self)
+
+          NiimbotJCAPIBridge.sendLabelJson(json, withCopyCount: Int32(totalCopies)) { [weak self] success in
+            guard let self else { return }
+            if !success {
+              session.finish(.failure(NiimbotNativeError.printFailed("Barkod yazdırılamadı. Yazıcı bağlantısını kontrol edin.")), on: self)
             }
-            self.printBusy = false
           }
         })
       }
     }
   }
 
-  private func registerPrintMonitoring(expectedTotal: Int) {
-    NiimbotJCAPIBridge.getPrintingCountInfo { info in
+  fileprivate func clearActiveSessionIfMatches(_ session: PrintSession) {
+    if activeSession?.id == session.id {
+      activeSession = nil
+    }
+    printBusy = false
+  }
+
+  private func validatePackageBarcode(_ value: String) -> Bool {
+    if value.isEmpty || value.count < 8 || value.count > 64 { return false }
+    if value.range(of: "^\\d{9}$", options: .regularExpression) != nil { return false }
+    return value.range(of: "^[A-Za-z0-9\\-_]+$", options: .regularExpression) != nil
+  }
+
+  private func registerPrintMonitoring(session: PrintSession) {
+    NiimbotJCAPIBridge.getPrintingCountInfo { [weak self] info in
+      guard let self, self.activeSession?.id == session.id, !session.finished else { return }
       guard
         let dict = info as? [String: Any],
         let totalCountRaw = dict["totalCount"],
         let totalCount = Int("\(totalCountRaw)"),
-        totalCount >= expectedTotal,
-        expectedTotal > 0
+        totalCount >= session.expectedCopies,
+        session.expectedCopies > 0
       else {
         return
       }
 
-      NiimbotJCAPIBridge.endPrint { _ in }
+      NiimbotJCAPIBridge.endPrint { success in
+        if success {
+          session.finish(.success(()), on: self)
+        } else {
+          session.finish(.failure(NiimbotNativeError.printFailed("Yazdırma tamamlanamadı.")), on: self)
+        }
+      }
     }
 
-    NiimbotJCAPIBridge.getPrintingErrorInfo { code in
+    NiimbotJCAPIBridge.getPrintingErrorInfo { [weak self] code in
+      guard let self, self.activeSession?.id == session.id, !session.finished else { return }
       guard let mapped = NiimbotNativeError.mapPrintingErrorCode(code) else { return }
-      NSLog("NIIMBOT print error: \(mapped.localizedDescription)")
+      session.finish(.failure(mapped), on: self)
     }
   }
 
