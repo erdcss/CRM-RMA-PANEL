@@ -3,6 +3,7 @@ import {
   resolveBarcodeHeightMm,
   resolveNumberFontSizePt,
   sanitizeBarcodeNumber,
+  validateProductBarcodeNumber,
   type BarcodeLabelSettings,
 } from "@shared/barcode-label";
 
@@ -23,6 +24,10 @@ export function renderCode128Svg(
   settings: BarcodeLabelSettings,
 ): BarcodeRenderResult {
   const cleaned = sanitizeBarcodeNumber(value);
+  const validation = validateProductBarcodeNumber(cleaned);
+  if (!validation.valid) {
+    throw new Error(validation.error ?? "Geçersiz barkod");
+  }
   const contentWidthMm =
     settings.labelWidthMm - settings.marginLeftMm - settings.marginRightMm;
   const barcodeHeightMm = resolveBarcodeHeightMm(settings);

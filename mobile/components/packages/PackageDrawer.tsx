@@ -296,7 +296,13 @@ export function PackageDrawer() {
         </View>
       </Modal>
 
-      <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onScanned={(v) => void handleScan(v)} />
+      <BarcodeScannerModal
+        visible={scanOpen}
+        scanMode="lookup"
+        onClose={() => setScanOpen(false)}
+        onScanned={(v) => void handleScan(v)}
+        onScanRejected={(msg) => appAlert('Geçersiz barkod', msg)}
+      />
 
       <StatusSheet
         visible={Boolean(statusProduct)}

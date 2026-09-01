@@ -3,9 +3,9 @@ import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 
+import { MOBILE_SCAN_CODE128_TYPES, normalizeBarcodeScan, type BarcodeScanMode } from '@shared/barcode-scan';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
-import { normalizeScannedBarcode, scanValuesMatchAny } from '@/lib/barcodeNormalize';
+import { scanValuesMatchAny } from '@/lib/barcodeNormalize';
 
 const SCAN_COOLDOWN_MS = 1500;
 
@@ -14,17 +14,21 @@ type BarcodeScannerModalProps = {
   title?: string;
   hint?: string;
   expectedValue?: string | null;
+  scanMode?: BarcodeScanMode;
   onClose: () => void;
   onScanned: (value: string) => void;
+  onScanRejected?: (message: string) => void;
 };
 
 export function BarcodeScannerModal({
   visible,
   title = 'Barkod Tara',
-  hint = 'Barkodu veya QR kodu çerçeveye hizalayın',
+  hint = 'Code 128 barkodu çerçeveye hizalayın',
   expectedValue,
+  scanMode = 'lookup',
   onClose,
   onScanned,
+  onScanRejected,
 }: BarcodeScannerModalProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [lastValue, setLastValue] = useState<string | null>(null);
@@ -32,7 +36,12 @@ export function BarcodeScannerModal({
 
   const handleScan = useCallback(
     ({ data }: BarcodeScanningResult) => {
-      const value = normalizeScannedBarcode(data ?? '');
+      const parsed = normalizeBarcodeScan(data ?? '', scanMode);
+      if (!parsed.valid) {
+        onScanRejected?.(parsed.error ?? 'Geçersiz barkod');
+        return;
+      }
+      const value = parsed.value;
       if (!value) return;
 
       const now = Date.now();
@@ -43,7 +52,7 @@ export function BarcodeScannerModal({
       setLastValue(value);
       onScanned(value);
     },
-    [onScanned],
+    [onScanned, onScanRejected, scanMode],
   );
 
   const requestAccess = async () => {
@@ -78,7 +87,7 @@ export function BarcodeScannerModal({
             <CameraView
               style={styles.camera}
               facing="back"
-              barcodeScannerSettings={{ barcodeTypes: [...SCAN_BARCODE_TYPES] }}
+              barcodeScannerSettings={{ barcodeTypes: [...MOBILE_SCAN_CODE128_TYPES] }}
               onBarcodeScanned={handleScan}
             />
             <View style={styles.overlay} pointerEvents="none">

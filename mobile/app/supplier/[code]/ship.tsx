@@ -501,9 +501,11 @@ export default function SupplierShipScreen() {
       <BarcodeScannerModal
         visible={scanOpen}
         title="Koli Barkodunu Tara"
+        scanMode="package"
         expectedValue={closedPkg?.barcodeValue || closedPkg?.qrValue}
         onClose={() => setScanOpen(false)}
         onScanned={(value) => void handleScan(value)}
+        onScanRejected={(msg) => appAlert('Geçersiz barkod', msg)}
       />
     </Screen>
   );

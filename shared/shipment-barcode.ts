@@ -1,7 +1,10 @@
 export const SHIPMENT_BARCODE_LENGTH = 9;
-export const SHIPMENT_EAN13_PREFIX = "869";
+/** Yazdırılan ürün etiketi: Code 128 içeriği = tam 9 haneli benzersiz rakam (EAN/QR değil). */
+export const SHIPMENT_BARCODE_FORMAT = "CODE128" as const;
 
 const NINE_DIGITS = /^\d{9}$/;
+
+export const SHIPMENT_EAN13_PREFIX = "869";
 
 /** Shipment label barcode: exactly 9 digits, stored as string (leading zeros allowed). */
 export function isValidShipmentBarcodeNumber(value: string | null | undefined): value is string {

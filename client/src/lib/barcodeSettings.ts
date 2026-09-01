@@ -10,6 +10,7 @@ export {
   NIIMBOT_D110M_PRESET,
   PRINTER_PROFILES,
   validateBarcodeNumber,
+  validateProductBarcodeNumber,
   sanitizeBarcodeNumber,
   estimateBarcodeFit,
   clampBarcodeLabelSettings,

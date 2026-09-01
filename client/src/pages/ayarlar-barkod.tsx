@@ -23,7 +23,7 @@ import {
   resetBarcodeLabelSettings,
   sanitizeBarcodeNumber,
   saveBarcodeLabelSettings,
-  validateBarcodeNumber,
+  validateProductBarcodeNumber,
   type BarcodeLabelSettings,
 } from "@/lib/barcodeSettings";
 import { openBarcodePrintWindow, renderCode128Svg } from "@/lib/barcodeLabelRenderer";
@@ -45,7 +45,7 @@ export default function AyarlarBarkod() {
   }, []);
 
   const cleaned = sanitizeBarcodeNumber(barcodeNumber);
-  const validation = validateBarcodeNumber(cleaned);
+  const validation = validateProductBarcodeNumber(cleaned);
   const fit = useMemo(
     () => estimateBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm),
     [cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm],
@@ -62,7 +62,7 @@ export default function AyarlarBarkod() {
   };
 
   const handleBarcodeInput = (raw: string) => {
-    const next = raw.replace(/[^\d]/g, "");
+    const next = raw.replace(/[^\d]/g, "").slice(0, 9);
     setBarcodeNumber(next);
   };
 
@@ -157,7 +157,8 @@ export default function AyarlarBarkod() {
                     value={barcodeNumber}
                     onChange={(e) => handleBarcodeInput(e.target.value)}
                     className="font-mono"
-                    placeholder="8691234567890"
+                    maxLength={9}
+                    placeholder="123456789"
                   />
                   {!validation.valid ? (
                     <p className="text-xs text-destructive">{validation.error}</p>

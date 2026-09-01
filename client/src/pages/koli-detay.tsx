@@ -182,12 +182,14 @@ export default function KoliDetay() {
           <BarcodeScannerModal
             open={scanOpen}
             title="Koli Barkodunu Tara"
+            scanMode="package"
             expectedValue={pkg?.barcodeValue || pkg?.qrValue}
             onClose={() => setScanOpen(false)}
             onScanned={(code) => {
               setVerifyCode(code);
               setScanOpen(false);
             }}
+            onScanRejected={(msg) => toast({ title: msg, variant: "destructive" })}
           />
 
           {pkg.status === "sevke_hazir" && (

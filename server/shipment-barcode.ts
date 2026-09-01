@@ -85,7 +85,7 @@ export async function ensureProductShipmentBarcode(
       try {
         const [updated] = await tx
           .update(products)
-          .set({ barcodeNumber: candidate })
+          .set({ barcodeNumber: candidate, barcode: candidate })
           .where(and(eq(products.id, productId), isNull(products.barcodeNumber)))
           .returning();
 

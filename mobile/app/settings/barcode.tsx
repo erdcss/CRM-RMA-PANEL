@@ -113,8 +113,9 @@ export default function BarcodeSettingsScreen() {
           <FormField
             label="Barkod Numarası"
             value={barcodeNumber}
-            onChangeText={(v) => setBarcodeNumber(v.replace(/[^\d]/g, ''))}
+            onChangeText={(v) => setBarcodeNumber(v.replace(/[^\d]/g, '').slice(0, 9))}
             keyboardType="number-pad"
+            maxLength={9}
           />
 
           <FormField

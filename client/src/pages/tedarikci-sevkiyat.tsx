@@ -365,9 +365,11 @@ export default function TedarikciSevkiyat() {
       <BarcodeScannerModal
         open={scanOpen}
         title="Koli Barkodunu Tara"
+        scanMode="package"
         expectedValue={closedPkg?.barcodeValue || closedPkg?.qrValue}
         onClose={() => setScanOpen(false)}
         onScanned={handleScan}
+        onScanRejected={(msg) => toast({ title: msg, variant: "destructive" })}
       />
     </div>
   );

@@ -8,27 +8,45 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  WEB_SCAN_CODE128_FORMATS,
+  normalizeBarcodeScan,
+  type BarcodeScanMode,
+} from "@shared/barcode-scan";
 
 type Props = {
   open: boolean;
   title?: string;
   expectedValue?: string | null;
+  scanMode?: BarcodeScanMode;
   onClose: () => void;
   onScanned: (value: string) => void;
+  onScanRejected?: (message: string) => void;
 };
 
 export function BarcodeScannerModal({
   open,
-  title = "Barkodu Tara",
+  title = "Code 128 Tara",
   expectedValue,
+  scanMode = "lookup",
   onClose,
   onScanned,
+  onScanRejected,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [manual, setManual] = useState("");
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
+
+  const submitValue = (raw: string) => {
+    const parsed = normalizeBarcodeScan(raw, scanMode);
+    if (!parsed.valid) {
+      onScanRejected?.(parsed.error ?? "Geçersiz barkod");
+      return;
+    }
+    onScanned(parsed.value);
+  };
 
   useEffect(() => {
     if (!open) {
@@ -44,7 +62,7 @@ export function BarcodeScannerModal({
 
     const start = async () => {
       if (!("BarcodeDetector" in window)) {
-        setCameraError("Tarayıcı kamera taramasını desteklemiyor. Manuel girin veya USB okuyucu kullanın.");
+        setCameraError("Tarayıcı Code 128 taramasını desteklemiyor. Manuel girin veya USB okuyucu kullanın.");
         return;
       }
 
@@ -63,7 +81,7 @@ export function BarcodeScannerModal({
         }
 
         const detector = new (window as any).BarcodeDetector({
-          formats: ["qr_code", "code_128", "code_39", "ean_13", "ean_8"],
+          formats: [...WEB_SCAN_CODE128_FORMATS],
         });
 
         const tick = async () => {
@@ -73,7 +91,7 @@ export function BarcodeScannerModal({
             if (codes.length > 0) {
               const value = codes[0].rawValue?.trim();
               if (value) {
-                onScanned(value);
+                submitValue(value);
                 return;
               }
             }
@@ -98,12 +116,12 @@ export function BarcodeScannerModal({
       streamRef.current = null;
       setScanning(false);
     };
-  }, [open, onScanned]);
+  }, [open, onScanned, scanMode]);
 
   const submitManual = () => {
     const value = manual.trim();
     if (!value) return;
-    onScanned(value);
+    submitValue(value);
   };
 
   return (
@@ -131,6 +149,8 @@ export function BarcodeScannerModal({
             </div>
           )}
 
+          <p className="text-xs text-muted-foreground">Yalnızca Code 128 desteklenir.</p>
+
           {expectedValue ? (
             <p className="text-xs text-muted-foreground font-mono break-all">
               Beklenen: {expectedValue}
@@ -138,7 +158,7 @@ export function BarcodeScannerModal({
           ) : null}
 
           <Input
-            placeholder="Barkod / QR değeri..."
+            placeholder="Code 128 değeri..."
             value={manual}
             onChange={(e) => setManual(e.target.value)}
             onKeyDown={(e) => {

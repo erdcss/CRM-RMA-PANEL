@@ -55,21 +55,12 @@ export const PRINTER_PROFILES: Record<
   },
 };
 
-const DIGITS_ONLY = /^\d+$/;
-
 export function sanitizeBarcodeNumber(raw: string): string {
   return raw.replace(/\s/g, "");
 }
 
 export function validateBarcodeNumber(value: string): { valid: boolean; error?: string } {
-  const cleaned = sanitizeBarcodeNumber(value);
-  if (!cleaned) {
-    return { valid: false, error: "Barkod numarası gerekli." };
-  }
-  if (!DIGITS_ONLY.test(cleaned)) {
-    return { valid: false, error: "Barkod yalnızca rakamlardan oluşmalıdır." };
-  }
-  return { valid: true };
+  return validateProductBarcodeNumber(value);
 }
 
 /** Shipment product label — exact 9 digits, leading zeros preserved as string. */

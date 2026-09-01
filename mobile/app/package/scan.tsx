@@ -10,11 +10,11 @@ import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
 import { rmaApi } from '@/lib/api';
-import { normalizeLookupScan, normalizeScannedBarcode } from '@/lib/barcodeNormalize';
+import { normalizeLookupScan } from '@/lib/barcodeNormalize';
+import { normalizeBarcodeScan } from '@shared/barcode-scan';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const BARCODE_TYPES = SCAN_BARCODE_TYPES;
-
 const SCAN_COOLDOWN_MS = 2500;
 
 export default function PackageScanScreen() {
@@ -49,9 +49,10 @@ export default function PackageScanScreen() {
 
   const handleBarcodeScanned = useCallback(
     ({ data }: BarcodeScanningResult) => {
-      const value = normalizeScannedBarcode(data ?? '');
-      if (!value || loading || !cameraEnabled) return;
+      const parsed = normalizeBarcodeScan(data ?? '', 'lookup');
+      if (!parsed.valid || !parsed.value || loading || !cameraEnabled) return;
 
+      const value = parsed.value;
       const now = Date.now();
       const last = lastScanRef.current;
       if (last && last.code === value && now - last.at < SCAN_COOLDOWN_MS) return;

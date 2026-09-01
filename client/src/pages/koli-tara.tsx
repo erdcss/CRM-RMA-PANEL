@@ -86,11 +86,13 @@ export default function KoliTara() {
       <BarcodeScannerModal
         open={scanOpen}
         title="Koli Barkodunu Tara"
+        scanMode="lookup"
         onClose={() => setScanOpen(false)}
         onScanned={(code) => {
           setScanOpen(false);
           void handleScan(code);
         }}
+        onScanRejected={(msg) => toast({ title: msg, variant: "destructive" })}
       />
     </div>
   );
