@@ -11,7 +11,7 @@ private struct D110LabelLayout {
   static let boardWidth: Float = 40
   static let boardHeight: Float = 12
   static let boardRotate = 270
-  static let productCodeType = 24 // EAN13 — reliable scan for 9-digit shipment barcodes
+  static let productCodeType = 20 // CODE128 — fits 40×12 mm product labels
   static let packageCodeType = 20 // CODE128
   // JCAPI.h drawLableBarCode textPosition: 0=below, 1=above, 2=hidden
   static let textPositionBelow = 0
@@ -260,18 +260,18 @@ final class NiimbotPrintEngine {
             rotate: Int32(D110LabelLayout.boardRotate)
           )
 
-          var metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
+          let metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
           let barcodeText = cleaned
-          let codeType = D110LabelLayout.packageCodeType
+          let codeType: Int
 
           switch mode {
           case .product:
             let product = D110LabelLayout.productMetrics()
             metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
-            barcodeText = cleaned
-            codeType = D110LabelLayout.packageCodeType
+            codeType = D110LabelLayout.productCodeType
           case .package:
             metrics = D110LabelLayout.packageMetrics(for: cleaned)
+            codeType = D110LabelLayout.packageCodeType
           }
 
           let drawn = NiimbotJCAPIBridge.drawBarcode(

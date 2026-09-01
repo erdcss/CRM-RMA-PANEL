@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.caliskangroup.rma",
-      "buildNumber": "48",
+      "buildNumber": "50",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Ürün fotoğrafı çekmek ve koli barkodu taramak için kamera erişimi gerekir.",
