@@ -261,19 +261,15 @@ final class NiimbotPrintEngine {
           )
 
           var metrics: (marginX: Float, marginY: Float, contentWidth: Float, fontSize: Float, textHeight: Float, blockHeight: Float, textPosition: Int)
-          var barcodeText = cleaned
-          var codeType = D110LabelLayout.packageCodeType
+          let barcodeText = cleaned
+          let codeType = D110LabelLayout.packageCodeType
 
           switch mode {
           case .product:
-            guard let ean13 = D110LabelLayout.shipmentEan13(from: cleaned) else {
-              session.finish(.failure(NiimbotNativeError.invalidBarcode("Ürün barkodu 9 haneli olmalıdır.")), on: self)
-              return
-            }
             let product = D110LabelLayout.productMetrics()
             metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
-            barcodeText = ean13
-            codeType = D110LabelLayout.productCodeType
+            barcodeText = cleaned
+            codeType = D110LabelLayout.packageCodeType
           case .package:
             metrics = D110LabelLayout.packageMetrics(for: cleaned)
           }

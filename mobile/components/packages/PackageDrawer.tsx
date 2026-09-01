@@ -22,7 +22,7 @@ import { getStatusLabel, getStatusVariant } from '@/constants/statuses';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { usePackageDrawer } from '@/contexts/PackageDrawerContext';
 import { rmaApi, type RmaPackage, type RmaProduct } from '@/lib/api';
-import { normalizeScannedBarcode } from '@/lib/barcodeNormalize';
+import { normalizeLookupScan } from '@/lib/barcodeNormalize';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const DRAWER_WIDTH = Math.min(Dimensions.get('window').width * 0.88, 400);
@@ -137,12 +137,9 @@ export function PackageDrawer() {
   };
 
   const handleScan = async (rawValue: string) => {
-    const value = normalizeScannedBarcode(rawValue);
-    if (!value) return;
-
     setScanOpen(false);
     try {
-      const found = await rmaApi.lookupPackage(value);
+      const found = await rmaApi.lookupPackage(normalizeLookupScan(rawValue));
       playScanSuccess();
       setSelectedPkg(found);
     } catch {

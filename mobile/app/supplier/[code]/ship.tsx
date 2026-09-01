@@ -23,7 +23,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
-import { normalizeScannedBarcode } from '@/lib/barcodeNormalize';
+import { normalizeLookupScan, normalizeScannedBarcode, scanValuesMatchAny } from '@/lib/barcodeNormalize';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
@@ -305,15 +305,24 @@ export default function SupplierShipScreen() {
   };
 
   const handleScan = async (rawValue: string) => {
-    const value = normalizeScannedBarcode(rawValue);
     if (!closedPkg) {
       playScanError();
       appAlert('Koli yok', 'Doğrulanacak kapalı koli bulunamadı.');
       return;
     }
 
+    const expectedToken = closedPkg.barcodeValue || closedPkg.qrValue;
+    if (expectedToken && scanValuesMatchAny(rawValue, [expectedToken])) {
+      playScanSuccess();
+      setScanMatched(true);
+      setLastScannedValue(expectedToken);
+      setScanOpen(false);
+      appAlert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');
+      return;
+    }
+
     try {
-      const found = await rmaApi.lookupPackage(value);
+      const found = await rmaApi.lookupPackage(normalizeLookupScan(rawValue));
       if (found.id !== closedPkg.id) {
         playScanError();
         appAlert('Barkod eşleşmedi', 'Okunan barkod bu koliye ait değil.');
@@ -322,7 +331,7 @@ export default function SupplierShipScreen() {
 
       playScanSuccess();
       setScanMatched(true);
-      setLastScannedValue(value);
+      setLastScannedValue(found.barcodeValue || found.qrValue || normalizeScannedBarcode(rawValue));
       setScanOpen(false);
       setClosedPkg(found);
       appAlert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');

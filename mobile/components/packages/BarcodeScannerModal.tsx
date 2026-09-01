@@ -4,10 +4,10 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { barcodesMatch, normalizeScannedBarcode } from '@/lib/barcodeNormalize';
+import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
+import { normalizeScannedBarcode, scanValuesMatchAny } from '@/lib/barcodeNormalize';
 
-const BARCODE_TYPES = ['qr', 'code128', 'code39', 'ean13', 'ean8', 'upc_a', 'upc_e'] as const;
-const SCAN_COOLDOWN_MS = 2000;
+const SCAN_COOLDOWN_MS = 1500;
 
 type BarcodeScannerModalProps = {
   visible: boolean;
@@ -53,7 +53,7 @@ export function BarcodeScannerModal({
     }
   };
 
-  const matchesExpected = expectedValue && lastValue ? barcodesMatch(lastValue, expectedValue) : false;
+  const matchesExpected = expectedValue && lastValue ? scanValuesMatchAny(lastValue, [expectedValue]) : false;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
@@ -78,7 +78,7 @@ export function BarcodeScannerModal({
             <CameraView
               style={styles.camera}
               facing="back"
-              barcodeScannerSettings={{ barcodeTypes: [...BARCODE_TYPES] }}
+              barcodeScannerSettings={{ barcodeTypes: [...SCAN_BARCODE_TYPES] }}
               onBarcodeScanned={handleScan}
             />
             <View style={styles.overlay} pointerEvents="none">

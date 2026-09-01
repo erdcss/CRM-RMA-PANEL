@@ -18,7 +18,7 @@ import {
   MAX_PACKAGE_LABEL_SEQUENCE,
   parsePackageLabelSequence,
 } from "@shared/package-label";
-import { parseShipmentBarcodeFromScan } from "@shared/shipment-barcode";
+import { parseShipmentBarcodeFromScan, expandScanLookupValues } from "@shared/shipment-barcode";
 import { EDITABLE_PACKAGE_STATUSES } from "@shared/package-constants";
 import { RMA_DEFAULT_WAREHOUSE_LOCATION } from "@shared/rma-constants";
 import { db } from "./db";
@@ -762,8 +762,8 @@ export async function verifyPackageBarcode(
   userId: string,
 ) {
   await ensurePackageTables();
-  const value = scannedValue.trim();
-  if (!value) throw new Error("Barkod degeri bos");
+  const candidates = expandScanLookupValues(scannedValue);
+  if (!candidates.length) throw new Error("Barkod degeri bos");
 
   const [pkg] = await db
     .select()
@@ -771,7 +771,12 @@ export async function verifyPackageBarcode(
     .where(
       and(
         eq(rmaPackages.ownerUserId, ownerUserId),
-        or(eq(rmaPackages.barcodeValue, value), eq(rmaPackages.qrValue, value))!,
+        or(
+          ...candidates.flatMap((value) => [
+            eq(rmaPackages.barcodeValue, value),
+            eq(rmaPackages.qrValue, value),
+          ]),
+        )!,
       ),
     )
     .limit(1);
@@ -895,10 +900,8 @@ export async function lookupPackage(
   ownerUserId: string,
 ) {
   await ensurePackageTables();
-  const q = query.trim();
-  if (!q) return undefined;
-
-  const shipmentBarcode = parseShipmentBarcodeFromScan(q);
+  const candidates = expandScanLookupValues(query);
+  if (!candidates.length) return undefined;
 
   const [pkg] = await db
     .select()
@@ -907,10 +910,11 @@ export async function lookupPackage(
       and(
         eq(rmaPackages.ownerUserId, ownerUserId),
         or(
-          eq(rmaPackages.packageNumber, q),
-          eq(rmaPackages.barcodeValue, q),
-          eq(rmaPackages.qrValue, q),
-          ilike(rmaPackages.packageNumber, q),
+          ...candidates.flatMap((value) => [
+            eq(rmaPackages.packageNumber, value),
+            eq(rmaPackages.barcodeValue, value),
+            eq(rmaPackages.qrValue, value),
+          ]),
         )!,
       ),
     )
@@ -918,16 +922,26 @@ export async function lookupPackage(
 
   if (pkg) return getPackageDetail(pkg.id, ownerUserId);
 
+  const shipmentBarcodes = [
+    ...new Set(
+      candidates
+        .map((value) => parseShipmentBarcodeFromScan(value))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+
   const productMatch = or(
-    ilike(products.serialNumber, q),
-    ilike(products.barcode, q),
-    ilike(products.stockCode, q),
-    ilike(tickets.receiptNumber, q),
-    eq(products.serialNumber, q),
-    eq(products.barcode, q),
-    ...(shipmentBarcode
-      ? [eq(products.barcodeNumber, shipmentBarcode), eq(products.barcodeNumber, q)]
-      : []),
+    ...candidates.flatMap((value) => [
+      ilike(products.serialNumber, value),
+      ilike(products.barcode, value),
+      ilike(products.stockCode, value),
+      ilike(tickets.receiptNumber, value),
+      eq(products.serialNumber, value),
+      eq(products.barcode, value),
+      eq(products.stockCode, value),
+      eq(products.barcodeNumber, value),
+    ]),
+    ...shipmentBarcodes.map((value) => eq(products.barcodeNumber, value)),
   )!;
 
   const [byProduct] = await db

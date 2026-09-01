@@ -8,22 +8,12 @@ import { useRouter } from 'expo-router';
 import { AppHeader } from '@/components/ui/AppHeader';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
 import { rmaApi } from '@/lib/api';
-import { normalizeProductBarcodeScan, normalizeScannedBarcode } from '@/lib/barcodeNormalize';
+import { normalizeLookupScan, normalizeScannedBarcode } from '@/lib/barcodeNormalize';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
-const BARCODE_TYPES = [
-  'qr',
-  'code128',
-  'code39',
-  'code93',
-  'ean13',
-  'ean8',
-  'upc_a',
-  'upc_e',
-  'pdf417',
-  'datamatrix',
-] as const;
+const BARCODE_TYPES = SCAN_BARCODE_TYPES;
 
 const SCAN_COOLDOWN_MS = 2500;
 
@@ -37,7 +27,7 @@ export default function PackageScanScreen() {
 
   const lookup = useCallback(
     async (value?: string) => {
-      const q = normalizeProductBarcodeScan(value ?? code);
+      const q = normalizeLookupScan(value ?? code);
       if (!q || loading) return;
 
       setLoading(true);

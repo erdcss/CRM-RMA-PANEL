@@ -12,6 +12,14 @@ export function normalizeShipmentBarcodeNumber(value: string): string {
   return value.replace(/\s/g, "");
 }
 
+export function cleanRawScanValue(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^\][A-Za-z0-9]{1,3}/, "")
+    .replace(/\u001d/g, "")
+    .replace(/\s/g, "");
+}
+
 function ean13CheckDigit(twelveDigits: string): string {
   let sum = 0;
   for (let i = 0; i < 12; i++) {
@@ -33,7 +41,7 @@ export function toShipmentEan13(nineDigitBarcode: string): string {
 
 /** Resolve scanned value to internal 9-digit shipment barcode when possible. */
 export function parseShipmentBarcodeFromScan(raw: string): string | null {
-  const cleaned = raw.replace(/\s/g, "").replace(/^\][A-Za-z0-9]{1,3}/, "");
+  const cleaned = cleanRawScanValue(raw);
   if (!cleaned) return null;
 
   if (NINE_DIGITS.test(cleaned)) {
@@ -44,10 +52,42 @@ export function parseShipmentBarcodeFromScan(raw: string): string | null {
     return cleaned.padStart(SHIPMENT_BARCODE_LENGTH, "0");
   }
 
+  // EAN-13 body without check digit: 869 + 9 digits
+  if (/^869\d{9}$/.test(cleaned)) {
+    const nine = cleaned.slice(3);
+    return NINE_DIGITS.test(nine) ? nine : null;
+  }
+
+  // Full EAN-13 with check digit
   if (/^869\d{10}$/.test(cleaned)) {
     const nine = cleaned.slice(3, 12);
     return NINE_DIGITS.test(nine) ? nine : null;
   }
 
   return null;
+}
+
+/** All lookup variants to try after a camera / scanner read. */
+export function expandScanLookupValues(raw: string): string[] {
+  const cleaned = cleanRawScanValue(raw);
+  if (!cleaned) return [];
+
+  const values = new Set<string>([cleaned]);
+
+  const shipment = parseShipmentBarcodeFromScan(cleaned);
+  if (shipment) {
+    values.add(shipment);
+    values.add(`${SHIPMENT_EAN13_PREFIX}${shipment}`);
+    try {
+      values.add(toShipmentEan13(shipment));
+    } catch {
+      // ignore invalid conversion
+    }
+  }
+
+  if (/^\d{1,8}$/.test(cleaned)) {
+    values.add(cleaned.padStart(SHIPMENT_BARCODE_LENGTH, "0"));
+  }
+
+  return [...values];
 }
