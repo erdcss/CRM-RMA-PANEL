@@ -77,14 +77,14 @@ export function validateProductBarcodeNumber(value: string): { valid: boolean; e
 
 const PACKAGE_BARCODE_PATTERN = /^RMA-[A-Za-z0-9]+-S[1-9]-P\d+-[A-Za-z0-9]+$/;
 
-/** Package / koli scan token — alphanumeric Code128, not 9-digit product format. */
+/** Package / koli label — 9-digit numeric or legacy alphanumeric token. */
 export function validatePackageBarcodeValue(value: string): { valid: boolean; error?: string } {
   const cleaned = value.trim();
   if (!cleaned) {
     return { valid: false, error: "Koli barkodu gerekli." };
   }
   if (/^\d{9}$/.test(cleaned)) {
-    return { valid: false, error: "Bu değer ürün barkodu formatındadır; koli etiketi değil." };
+    return { valid: true };
   }
   if (!/^[A-Za-z0-9\-_]+$/.test(cleaned)) {
     return { valid: false, error: "Koli barkodu yalnızca harf, rakam ve tire içerebilir." };

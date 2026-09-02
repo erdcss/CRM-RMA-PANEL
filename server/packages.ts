@@ -1,5 +1,4 @@
 import { and, count, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
-import { nanoid } from "nanoid";
 
 import {
   products,
@@ -13,17 +12,21 @@ import {
   tickets,
 } from "@shared/schema";
 import {
-  buildPackageScanToken,
   MAX_PACKAGE_LABEL_ITEMS,
   MAX_PACKAGE_LABEL_SEQUENCE,
   parsePackageLabelSequence,
+  resolvePackageLabelSequence,
 } from "@shared/package-label";
 import { parseShipmentBarcodeFromScan, expandScanLookupValues } from "@shared/shipment-barcode";
 import { EDITABLE_PACKAGE_STATUSES } from "@shared/package-constants";
 import { RMA_DEFAULT_WAREHOUSE_LOCATION } from "@shared/rma-constants";
 import { db } from "./db";
 import { getOwnedProduct } from "./suppliers";
-import { ensureProductShipmentBarcodes } from "./shipment-barcode";
+import {
+  allocateUniqueNineDigitBarcode,
+  ensureProductShipmentBarcodes,
+  regenerateProductShipmentBarcode,
+} from "./shipment-barcode";
 
 let schemaPromise: Promise<void> | null = null;
 
@@ -180,7 +183,7 @@ async function generatePackageNumber(ownerUserId: string): Promise<string> {
 
 async function allocateLabelSequence(ownerUserId: string, supplierAccountCode: string): Promise<number> {
   const rows = await db
-    .select({ barcodeValue: rmaPackages.barcodeValue })
+    .select({ id: rmaPackages.id, barcodeValue: rmaPackages.barcodeValue })
     .from(rmaPackages)
     .where(
       and(
@@ -191,6 +194,36 @@ async function allocateLabelSequence(ownerUserId: string, supplierAccountCode: s
     );
 
   const used = new Set<number>();
+  const packageIds = rows.map((row) => row.id);
+
+  if (packageIds.length) {
+    const historyRows = await db
+      .select({ metadata: rmaPackageHistory.metadata })
+      .from(rmaPackageHistory)
+      .where(
+        and(
+          inArray(rmaPackageHistory.packageId, packageIds),
+          eq(rmaPackageHistory.eventType, "kapatildi"),
+        ),
+      );
+
+    for (const row of historyRows) {
+      if (!row.metadata) continue;
+      try {
+        const parsed = JSON.parse(row.metadata) as { labelSequence?: number };
+        if (
+          typeof parsed.labelSequence === "number" &&
+          parsed.labelSequence >= 1 &&
+          parsed.labelSequence <= MAX_PACKAGE_LABEL_SEQUENCE
+        ) {
+          used.add(parsed.labelSequence);
+        }
+      } catch {
+        // ignore invalid metadata
+      }
+    }
+  }
+
   for (const row of rows) {
     const seq = parsePackageLabelSequence(row.barcodeValue);
     if (seq) used.add(seq);
@@ -379,8 +412,12 @@ export async function getPackageDetail(packageId: number, ownerUserId: string) {
     .limit(1);
 
   const totalQuantity = items.reduce((sum, i) => sum + (i.quantity ?? 1), 0);
+  const labelSequence = resolvePackageLabelSequence({
+    barcodeValue: pkg.barcodeValue,
+    history,
+  });
 
-  return { ...pkg, items, history, shipment, totalQuantity, productCount: items.length };
+  return { ...pkg, items, history, shipment, totalQuantity, productCount: items.length, labelSequence };
 }
 
 export async function listPackages(
@@ -657,7 +694,9 @@ export async function removeProductFromPackage(
 
   if (!item) throw new Error("Koli urunu bulunamadi");
 
-  return db.transaction(async (tx) => {
+  const productId = item.productId;
+
+  await db.transaction(async (tx) => {
     await tx
       .update(rmaPackageItems)
       .set({ removedAt: new Date() })
@@ -665,7 +704,7 @@ export async function removeProductFromPackage(
 
     await tx.insert(rmaProductMovements).values({
       ownerUserId,
-      productId: item.productId,
+      productId,
       movementType: "koliden_cikarildi",
       fromLocation: `koli:${pkg.packageNumber}`,
       toLocation: RMA_DEFAULT_WAREHOUSE_LOCATION,
@@ -678,11 +717,13 @@ export async function removeProductFromPackage(
       ownerUserId,
       eventType: "urun_cikarildi",
       performedByUserId: userId,
-      notes: `Urun #${item.productId} cikarildi`,
+      notes: `Urun #${productId} cikarildi`,
     });
-
-    return getPackageDetail(packageId, ownerUserId);
   });
+
+  await regenerateProductShipmentBarcode(productId, ownerUserId);
+
+  return getPackageDetail(packageId, ownerUserId);
 }
 
 export async function closePackage(packageId: number, ownerUserId: string, userId: string) {
@@ -706,28 +747,19 @@ export async function closePackage(packageId: number, ownerUserId: string, userI
     await validateProductsForPackage([item.productId], ownerUserId, pkg.supplierAccountCode, packageId);
   }
 
-  await ensureProductShipmentBarcodes(
-    items.map((item) => item.productId),
-    ownerUserId,
-  );
-
   const labelSequence = await allocateLabelSequence(ownerUserId, pkg.supplierAccountCode);
-  const scanToken = buildPackageScanToken(
-    pkg.supplierAccountCode,
-    labelSequence,
-    packageId,
-    nanoid(8),
-  );
   const now = new Date();
 
-  return db.transaction(async (tx) => {
+  const detail = await db.transaction(async (tx) => {
+    const packageBarcode = await allocateUniqueNineDigitBarcode(tx);
+
     await tx
       .update(rmaPackages)
       .set({
         status: "kapatildi",
         closedAt: now,
-        barcodeValue: scanToken,
-        qrValue: scanToken,
+        barcodeValue: packageBarcode,
+        qrValue: packageBarcode,
       })
       .where(eq(rmaPackages.id, packageId));
 
@@ -758,8 +790,15 @@ export async function closePackage(packageId: number, ownerUserId: string, userI
       metadata: JSON.stringify({ labelSequence }),
     });
 
-    return getPackageDetail(packageId, ownerUserId);
+    return packageId;
   });
+
+  await ensureProductShipmentBarcodes(
+    items.map((item) => item.productId),
+    ownerUserId,
+  );
+
+  return getPackageDetail(detail, ownerUserId);
 }
 
 export async function verifyPackageBarcode(

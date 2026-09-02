@@ -245,8 +245,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             supplierName: productData.supplierName,
           });
         }
-
-        await ensureProductShipmentBarcode(product.id, ownerUserId);
       }
 
       const fullTicket = await storage.getTicket(ticket.id, ownerUserId);

@@ -322,8 +322,9 @@ final class NiimbotPrintEngine {
   }
 
   private func validatePackageBarcode(_ value: String) -> Bool {
-    if value.isEmpty || value.count < 8 || value.count > 64 { return false }
-    if value.range(of: "^\\d{9}$", options: .regularExpression) != nil { return false }
+    if value.isEmpty { return false }
+    if value.range(of: "^\\d{9}$", options: .regularExpression) != nil { return true }
+    if value.count < 8 || value.count > 64 { return false }
     return value.range(of: "^[A-Za-z0-9\\-_]+$", options: .regularExpression) != nil
   }
 

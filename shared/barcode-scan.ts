@@ -34,12 +34,9 @@ export function normalizeBarcodeScan(
   }
 
   if (mode === "package") {
-    if (/^\d{9}$/.test(cleaned)) {
-      return {
-        value: cleaned,
-        valid: false,
-        error: "Bu bir ürün barkodudur; koli etiketi bekleniyor.",
-      };
+    const nine = parseShipmentBarcodeFromScan(cleaned);
+    if (nine && isValidShipmentBarcodeNumber(nine)) {
+      return { value: nine, valid: true };
     }
     if (cleaned.length < 8 || cleaned.length > 64 || !/^[A-Za-z0-9\-_]+$/.test(cleaned)) {
       return {

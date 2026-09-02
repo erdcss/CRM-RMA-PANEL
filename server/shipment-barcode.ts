@@ -7,10 +7,12 @@ import {
   needsShipmentBarcodeAllocation,
   SHIPMENT_BARCODE_LENGTH,
 } from "@shared/shipment-barcode";
-import { products, tickets } from "@shared/schema";
+import { products, rmaPackages, tickets } from "@shared/schema";
 
 import { db } from "./db";
 import { getOwnedProduct } from "./suppliers";
+
+type DbExecutor = Pick<typeof db, "select">;
 
 const MAX_ALLOCATION_ATTEMPTS = 40;
 
@@ -40,6 +42,47 @@ function generateShipmentBarcodeCandidate(): string {
 function isUniqueViolation(error: unknown): boolean {
   const code = (error as { code?: string })?.code;
   return code === "23505";
+}
+
+async function isNineDigitBarcodeInUse(
+  candidate: string,
+  executor: DbExecutor = db,
+  excludeProductId?: number,
+): Promise<boolean> {
+  const [productHit] = await executor
+    .select({ id: products.id })
+    .from(products)
+    .where(eq(products.barcodeNumber, candidate))
+    .limit(1);
+
+  if (productHit && productHit.id !== excludeProductId) {
+    return true;
+  }
+
+  const [packageHit] = await executor
+    .select({ id: rmaPackages.id })
+    .from(rmaPackages)
+    .where(or(eq(rmaPackages.barcodeValue, candidate), eq(rmaPackages.qrValue, candidate))!)
+    .limit(1);
+
+  return Boolean(packageHit);
+}
+
+/** Globally unique 9-digit barcode for products or packages. */
+export async function allocateUniqueNineDigitBarcode(
+  executor: DbExecutor = db,
+  excludeProductId?: number,
+): Promise<string> {
+  await ensureShipmentBarcodeSchema();
+
+  for (let attempt = 0; attempt < MAX_ALLOCATION_ATTEMPTS; attempt++) {
+    const candidate = generateShipmentBarcodeCandidate();
+    if (!(await isNineDigitBarcodeInUse(candidate, executor, excludeProductId))) {
+      return candidate;
+    }
+  }
+
+  throw new Error("Barkod numarası oluşturulamadı.");
 }
 
 /**
@@ -78,13 +121,7 @@ export async function ensureProductShipmentBarcode(
     for (let attempt = 0; attempt < MAX_ALLOCATION_ATTEMPTS; attempt++) {
       const candidate = generateShipmentBarcodeCandidate();
 
-      const [collision] = await tx
-        .select({ id: products.id })
-        .from(products)
-        .where(eq(products.barcodeNumber, candidate))
-        .limit(1);
-
-      if (collision) continue;
+      if (await isNineDigitBarcodeInUse(candidate, tx, productId)) continue;
 
       try {
         const [updated] = await tx
@@ -153,4 +190,51 @@ export async function ensureProductShipmentBarcodes(
   }
 
   return result;
+}
+
+/** Clears an existing shipment barcode so the next close assigns a fresh value. */
+export async function invalidateProductShipmentBarcode(
+  productId: number,
+  ownerUserId: string,
+): Promise<void> {
+  await ensureShipmentBarcodeSchema();
+
+  const owned = await getOwnedProduct(productId, ownerUserId);
+  if (!owned) {
+    throw new Error("Product not found");
+  }
+
+  await db
+    .update(products)
+    .set({ barcodeNumber: null, barcode: null })
+    .where(eq(products.id, productId));
+}
+
+/** Force a new globally unique 9-digit barcode (used after removing from an open package). */
+export async function regenerateProductShipmentBarcode(
+  productId: number,
+  ownerUserId: string,
+): Promise<{ barcodeNumber: string }> {
+  await ensureShipmentBarcodeSchema();
+
+  const owned = await getOwnedProduct(productId, ownerUserId);
+  if (!owned) {
+    throw new Error("Product not found");
+  }
+
+  return db.transaction(async (tx) => {
+    const candidate = await allocateUniqueNineDigitBarcode(tx, productId);
+
+    const [updated] = await tx
+      .update(products)
+      .set({ barcodeNumber: candidate, barcode: candidate })
+      .where(eq(products.id, productId))
+      .returning();
+
+    if (!updated?.barcodeNumber || !isValidShipmentBarcodeNumber(updated.barcodeNumber)) {
+      throw new Error("Barkod numarası oluşturulamadı.");
+    }
+
+    return { barcodeNumber: updated.barcodeNumber };
+  });
 }

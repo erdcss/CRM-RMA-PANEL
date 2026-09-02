@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import {
   buildLabelProductRows,
-  parsePackageLabelSequence,
+  resolvePackageLabelSequence,
   type LabelProductRow,
 } from "@shared/package-label";
 import { getPackageStatusLabel } from "@shared/package-constants";
@@ -29,6 +29,8 @@ interface PackageLabelData {
   productCount?: number;
   totalQuantity?: number;
   items?: PackageLabelItem[];
+  labelSequence?: number | null;
+  history?: Array<{ eventType?: string | null; metadata?: string | null }>;
 }
 
 const PDF_FONT = "courier";
@@ -106,7 +108,11 @@ export async function generatePackageLabelPDF(data: PackageLabelData): Promise<v
   let y = 7;
 
   const scanValue = data.barcodeValue || data.qrValue || data.packageNumber;
-  const labelSequence = parsePackageLabelSequence(scanValue) ?? 1;
+  const labelSequence = resolvePackageLabelSequence({
+    labelSequence: data.labelSequence,
+    barcodeValue: scanValue,
+    history: data.history,
+  }) ?? 1;
   const productRows = buildLabelProductRows(data.items ?? []);
 
   doc.setFont(PDF_FONT, "bold");

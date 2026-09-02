@@ -30,7 +30,7 @@ import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
 import { printPackageBarcodeDirect, printProductBarcodeDirect, shouldUseNiimbotDirectPrint } from '@/lib/niimbot/printBarcodeDirect';
 import { NiimbotPrinterError } from '@/lib/niimbot/types';
-import { parsePackageLabelSequence } from '@/lib/packageLabelUtils';
+import { resolvePackageLabelSequence } from '@/lib/packageLabelUtils';
 
 const EDITABLE_PKG_STATUSES = new Set(['hazirlaniyor', 'taslak']);
 
@@ -69,9 +69,6 @@ export default function SupplierShipScreen() {
   const [scanMatched, setScanMatched] = useState(false);
   const [lastScannedValue, setLastScannedValue] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
-  const [barcodesByProductId, setBarcodesByProductId] = useState<Record<number, string>>({});
-  const [barcodeLoading, setBarcodeLoading] = useState(false);
-  const [barcodeErrors, setBarcodeErrors] = useState<Record<number, string>>({});
   const [printingProductId, setPrintingProductId] = useState<number | null>(null);
   const fadeAnim = useState(() => new Animated.Value(0))[0];
 
@@ -87,6 +84,21 @@ export default function SupplierShipScreen() {
     }
     return map;
   }, [activePkg]);
+
+  const closedProductIds = useMemo(() => {
+    return new Set((closedPkg?.items ?? []).map((row) => row.productId));
+  }, [closedPkg]);
+
+  const closedProductBarcodes = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const row of closedPkg?.items ?? []) {
+      const barcode = row.product?.barcodeNumber;
+      if (isValidShipmentBarcodeNumber(barcode)) {
+        map.set(row.productId, barcode);
+      }
+    }
+    return map;
+  }, [closedPkg]);
 
   const loadPackage = useCallback(async () => {
     setLoadingPkg(true);
@@ -137,55 +149,6 @@ export default function SupplierShipScreen() {
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   }, [fadeAnim]);
-
-  useEffect(() => {
-    if (!supplierItems.length) return;
-
-    setBarcodesByProductId((prev) => {
-      const next = { ...prev };
-      for (const item of supplierItems) {
-        if (isValidShipmentBarcodeNumber(item.product.barcodeNumber)) {
-          next[item.productId] = item.product.barcodeNumber;
-        }
-      }
-      return next;
-    });
-
-    const missingIds = supplierItems
-      .filter((item) => !isValidShipmentBarcodeNumber(item.product.barcodeNumber))
-      .map((item) => item.productId);
-
-    if (!missingIds.length) return;
-
-    let cancelled = false;
-    setBarcodeLoading(true);
-    setBarcodeErrors({});
-
-    rmaApi
-      .ensureShipmentBarcodes(missingIds)
-      .then(({ barcodes }) => {
-        if (cancelled) return;
-        setBarcodesByProductId((prev) => ({ ...prev, ...barcodes }));
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : 'Barkod numarası oluşturulamadı.';
-        setBarcodeErrors((prev) => {
-          const next = { ...prev };
-          for (const productId of missingIds) {
-            next[productId] = message;
-          }
-          return next;
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setBarcodeLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [supplierItems]);
 
   const reloadAll = async () => {
     await Promise.all([refresh(), loadPackage()]);
@@ -242,7 +205,8 @@ export default function SupplierShipScreen() {
       setActivePkg(null);
       setScanMatched(false);
       setLastScannedValue(null);
-      appAlert('Koli kapatıldı', 'Barkod atandı. Etiketi yazdırıp tarayarak doğrulayabilirsiniz.');
+      await refresh();
+      appAlert('Koli kapatıldı', 'Koli ve ürün barkodları atandı. Etiketi yazdırıp tarayarak doğrulayabilirsiniz.');
     } catch (err) {
       appAlert('Koli kapatılamadı', err instanceof Error ? err.message : 'Bilinmeyen hata');
     } finally {
@@ -372,7 +336,11 @@ export default function SupplierShipScreen() {
   const isClosed = closedPkg?.status === 'kapatildi';
   const isReady = closedPkg?.status === 'sevke_hazir';
   const boxCount = activePkg?.items?.length ?? 0;
-  const labelSequence = parsePackageLabelSequence(closedPkg?.barcodeValue || activePkg?.barcodeValue);
+  const labelSequence = resolvePackageLabelSequence({
+    labelSequence: closedPkg?.labelSequence ?? activePkg?.labelSequence,
+    barcodeValue: closedPkg?.barcodeValue || activePkg?.barcodeValue,
+    history: closedPkg?.history ?? activePkg?.history,
+  });
 
   return (
     <Screen edges={['top', 'bottom']}>
@@ -414,8 +382,8 @@ export default function SupplierShipScreen() {
             {supplierItems.map((item) => {
               const inBox = inBoxMap.has(item.productId);
               const busy = busyProductId === item.productId;
-              const rawBarcode = barcodesByProductId[item.productId] ?? item.product.barcodeNumber ?? null;
-              const barcodeNumber = isValidShipmentBarcodeNumber(rawBarcode) ? rawBarcode : null;
+              const inClosedBox = closedProductIds.has(item.productId);
+              const barcodeNumber = inClosedBox ? closedProductBarcodes.get(item.productId) ?? null : null;
 
               return (
                 <View key={item.id} style={styles.rowWrap}>
@@ -439,18 +407,19 @@ export default function SupplierShipScreen() {
                       </Pressable>
                     }
                   />
-                  <ShipmentProductBarcode
-                    barcodeNumber={barcodeNumber}
-                    loading={barcodeLoading && !barcodeNumber}
-                    error={barcodeErrors[item.productId]}
-                    printing={printingProductId === item.productId}
-                    disabled={printing || (printingProductId !== null && printingProductId !== item.productId)}
-                    onPrint={
-                      barcodeNumber
-                        ? () => handlePrintProductBarcode(item.productId, barcodeNumber)
-                        : undefined
-                    }
-                  />
+                  {inClosedBox ? (
+                    <ShipmentProductBarcode
+                      barcodeNumber={barcodeNumber}
+                      loading={Boolean(closedPkg && !barcodeNumber)}
+                      printing={printingProductId === item.productId}
+                      disabled={printing || (printingProductId !== null && printingProductId !== item.productId)}
+                      onPrint={
+                        barcodeNumber
+                          ? () => handlePrintProductBarcode(item.productId, barcodeNumber)
+                          : undefined
+                      }
+                    />
+                  ) : null}
                 </View>
               );
             })}

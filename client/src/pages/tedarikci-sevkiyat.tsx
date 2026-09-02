@@ -20,7 +20,7 @@ import { SupplierProductRow } from "@/components/suppliers/SupplierProductRow";
 import { BarcodeScannerModal } from "@/components/packages/BarcodeScannerModal";
 import { generatePackageLabelPDF } from "@/lib/package-label-export";
 import { playScanError, playScanSuccess } from "@/lib/scanFeedback";
-import { parsePackageLabelSequence } from "@shared/package-label";
+import { resolvePackageLabelSequence } from "@shared/package-label";
 
 const EDITABLE = new Set(["hazirlaniyor", "taslak"]);
 
@@ -55,6 +55,8 @@ type PackageRow = {
   items: Array<{ id: number; productId: number; quantity?: number | null }>;
   productCount?: number;
   totalQuantity?: number;
+  labelSequence?: number | null;
+  history?: Array<{ eventType?: string | null; metadata?: string | null }>;
 };
 
 function statusLabel(status: string) {
@@ -240,6 +242,8 @@ export default function TedarikciSevkiyat() {
       productCount: labelPkg.productCount,
       totalQuantity: labelPkg.totalQuantity,
       items: labelPkg.items,
+      labelSequence: labelPkg.labelSequence,
+      history: labelPkg.history,
     });
   };
 
@@ -253,7 +257,11 @@ export default function TedarikciSevkiyat() {
   }
 
   const boxCount = activePkg?.items?.length ?? 0;
-  const labelSequence = parsePackageLabelSequence(closedPkg?.barcodeValue || activePkg?.barcodeValue);
+  const labelSequence = resolvePackageLabelSequence({
+    labelSequence: closedPkg?.labelSequence ?? activePkg?.labelSequence,
+    barcodeValue: closedPkg?.barcodeValue || activePkg?.barcodeValue,
+    history: closedPkg?.history ?? activePkg?.history,
+  });
   const isClosed = closedPkg?.status === "kapatildi";
   const isReady = closedPkg?.status === "sevke_hazir";
 

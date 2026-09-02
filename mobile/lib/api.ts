@@ -212,6 +212,8 @@ export type RmaPackage = {
   items: RmaPackageItem[];
   productCount?: number;
   totalQuantity?: number;
+  labelSequence?: number | null;
+  history?: Array<{ eventType?: string | null; metadata?: string | null; createdAt?: string }>;
 };
 
 function parseApiError(body: string, status: number) {

@@ -11,6 +11,51 @@ export function parsePackageLabelSequence(barcodeValue?: string | null): number 
   return value >= 1 && value <= MAX_PACKAGE_LABEL_SEQUENCE ? value : null;
 }
 
+type PackageHistoryRow = {
+  eventType?: string | null;
+  metadata?: string | null;
+};
+
+export function parseLabelSequenceFromHistory(
+  history?: PackageHistoryRow[] | null,
+): number | null {
+  if (!history?.length) return null;
+
+  for (const row of history) {
+    if (row.eventType !== "kapatildi" || !row.metadata) continue;
+    try {
+      const parsed = JSON.parse(row.metadata) as { labelSequence?: number };
+      if (
+        typeof parsed.labelSequence === "number" &&
+        parsed.labelSequence >= 1 &&
+        parsed.labelSequence <= MAX_PACKAGE_LABEL_SEQUENCE
+      ) {
+        return parsed.labelSequence;
+      }
+    } catch {
+      // ignore invalid metadata
+    }
+  }
+
+  return null;
+}
+
+export function resolvePackageLabelSequence(input: {
+  labelSequence?: number | null;
+  barcodeValue?: string | null;
+  history?: PackageHistoryRow[] | null;
+}): number | null {
+  if (
+    typeof input.labelSequence === "number" &&
+    input.labelSequence >= 1 &&
+    input.labelSequence <= MAX_PACKAGE_LABEL_SEQUENCE
+  ) {
+    return input.labelSequence;
+  }
+
+  return parseLabelSequenceFromHistory(input.history) ?? parsePackageLabelSequence(input.barcodeValue);
+}
+
 export function buildPackageScanToken(
   supplierAccountCode: string,
   sequence: number,

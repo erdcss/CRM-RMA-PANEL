@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 
 import {
   buildLabelProductRows,
-  parsePackageLabelSequence,
+  resolvePackageLabelSequence,
   type LabelProductRow,
 } from './packageLabelUtils';
 
@@ -48,7 +48,11 @@ function renderProductRows(rows: LabelProductRow[]) {
 
 function buildLabelHtml(pkg: RmaPackage, settings: BarcodeSettings) {
   const scanValue = pkg.barcodeValue || pkg.qrValue || pkg.packageNumber;
-  const labelSequence = parsePackageLabelSequence(scanValue) ?? 1;
+  const labelSequence = resolvePackageLabelSequence({
+    labelSequence: pkg.labelSequence,
+    barcodeValue: scanValue,
+    history: pkg.history,
+  }) ?? 1;
   const productRows = buildLabelProductRows(pkg.items ?? []);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(scanValue)}`;
 

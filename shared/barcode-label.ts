@@ -82,7 +82,7 @@ export function validatePackageBarcodeValue(value: string): { valid: boolean; er
     return { valid: false, error: "Koli barkodu gerekli." };
   }
   if (/^\d{9}$/.test(cleaned)) {
-    return { valid: false, error: "Bu değer ürün barkodu formatındadır; koli etiketi değil." };
+    return { valid: true };
   }
   if (!/^[A-Za-z0-9\-_]+$/.test(cleaned)) {
     return { valid: false, error: "Koli barkodu yalnızca harf, rakam ve tire içerebilir." };
