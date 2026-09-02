@@ -1,13 +1,16 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 
-import { MOBILE_SCAN_CODE128_TYPES, normalizeBarcodeScan, type BarcodeScanMode } from '@shared/barcode-scan';
+import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
+import { normalizeBarcodeScan, type BarcodeScanMode } from '@shared/barcode-scan';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { scanValuesMatchAny } from '@/lib/barcodeNormalize';
 
 const SCAN_COOLDOWN_MS = 1500;
+const REJECT_FEEDBACK_MS = 2500;
+const CAMERA_WARMUP_MS = 350;
 
 type BarcodeScannerModalProps = {
   visible: boolean;
@@ -23,7 +26,7 @@ type BarcodeScannerModalProps = {
 export function BarcodeScannerModal({
   visible,
   title = 'Barkod Tara',
-  hint = 'Code 128 barkodu çerçeveye hizalayın',
+  hint = 'Barkodu çerçeveye hizalayın',
   expectedValue,
   scanMode = 'lookup',
   onClose,
@@ -32,18 +35,45 @@ export function BarcodeScannerModal({
 }: BarcodeScannerModalProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [lastValue, setLastValue] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
+  const lastRejectRef = useRef<{ message: string; at: number } | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      setCameraReady(false);
+      setLastValue(null);
+      lastScanRef.current = null;
+      lastRejectRef.current = null;
+      return;
+    }
+
+    const timer = setTimeout(() => setCameraReady(true), CAMERA_WARMUP_MS);
+    return () => clearTimeout(timer);
+  }, [visible]);
+
+  const notifyReject = useCallback(
+    (message: string) => {
+      const now = Date.now();
+      const last = lastRejectRef.current;
+      if (last && last.message === message && now - last.at < REJECT_FEEDBACK_MS) return;
+      lastRejectRef.current = { message, at: now };
+      onScanRejected?.(message);
+    },
+    [onScanRejected],
+  );
 
   const handleScan = useCallback(
     ({ data }: BarcodeScanningResult) => {
+      if (!visible || !cameraReady) return;
+
       const parsed = normalizeBarcodeScan(data ?? '', scanMode);
-      if (!parsed.valid) {
-        onScanRejected?.(parsed.error ?? 'Geçersiz barkod');
+      if (!parsed.valid || !parsed.value) {
+        if (parsed.error) notifyReject(parsed.error);
         return;
       }
-      const value = parsed.value;
-      if (!value) return;
 
+      const value = parsed.value;
       const now = Date.now();
       const last = lastScanRef.current;
       if (last && last.code === value && now - last.at < SCAN_COOLDOWN_MS) return;
@@ -52,7 +82,7 @@ export function BarcodeScannerModal({
       setLastValue(value);
       onScanned(value);
     },
-    [onScanned, onScanRejected, scanMode],
+    [cameraReady, notifyReject, onScanned, scanMode, visible],
   );
 
   const requestAccess = async () => {
@@ -84,12 +114,19 @@ export function BarcodeScannerModal({
           </View>
         ) : (
           <View style={styles.cameraWrap}>
-            <CameraView
-              style={styles.camera}
-              facing="back"
-              barcodeScannerSettings={{ barcodeTypes: [...MOBILE_SCAN_CODE128_TYPES] }}
-              onBarcodeScanned={handleScan}
-            />
+            {visible && cameraReady ? (
+              <CameraView
+                key="barcode-scanner-active"
+                style={styles.camera}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: [...SCAN_BARCODE_TYPES] }}
+                onBarcodeScanned={handleScan}
+              />
+            ) : (
+              <View style={styles.cameraPlaceholder}>
+                <Text style={styles.cameraPlaceholderText}>Kamera hazırlanıyor…</Text>
+              </View>
+            )}
             <View style={styles.overlay} pointerEvents="none">
               <View style={styles.frame} />
               <Text style={styles.hint}>{hint}</Text>
@@ -131,6 +168,13 @@ const styles = StyleSheet.create({
   },
   cameraWrap: { flex: 1, position: 'relative' },
   camera: { flex: 1 },
+  cameraPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#111',
+  },
+  cameraPlaceholderText: { ...typography.body, color: colors.textMuted },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',

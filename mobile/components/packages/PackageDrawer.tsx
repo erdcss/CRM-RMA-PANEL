@@ -13,17 +13,15 @@ import {
 } from 'react-native';
 import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { StatusSheet } from '@/components/rma/StatusSheet';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { getStatusLabel, getStatusVariant } from '@/constants/statuses';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { usePackageDrawer } from '@/contexts/PackageDrawerContext';
 import { rmaApi, type RmaPackage, type RmaProduct } from '@/lib/api';
-import { normalizeLookupScan } from '@/lib/barcodeNormalize';
-import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const DRAWER_WIDTH = Math.min(Dimensions.get('window').width * 0.88, 400);
 const PREPARED_STATUSES = new Set(['hazirlaniyor', 'kapatildi', 'sevke_hazir']);
@@ -51,6 +49,7 @@ type SupplierGroup = {
 };
 
 export function PackageDrawer() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { open, closeDrawer } = usePackageDrawer();
   const slideAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
@@ -59,7 +58,6 @@ export function PackageDrawer() {
   const [refreshing, setRefreshing] = useState(false);
   const [packages, setPackages] = useState<RmaPackage[]>([]);
   const [selectedPkg, setSelectedPkg] = useState<RmaPackage | null>(null);
-  const [scanOpen, setScanOpen] = useState(false);
   const [statusProduct, setStatusProduct] = useState<RmaProduct | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
 
@@ -107,9 +105,13 @@ export function PackageDrawer() {
         duration: 220,
         useNativeDriver: true}).start();
       setSelectedPkg(null);
-      setScanOpen(false);
     }
   }, [open, slideAnim, loadPackages]);
+
+  const openPackageScan = useCallback(() => {
+    closeDrawer();
+    setTimeout(() => router.push('/package/scan'), 280);
+  }, [closeDrawer, router]);
 
   const supplierGroups = useMemo(() => {
     const map = new Map<string, SupplierGroup>();
@@ -133,18 +135,6 @@ export function PackageDrawer() {
       setSelectedPkg(await rmaApi.getPackage(pkg.id));
     } catch (err) {
       appAlert('Koli detayı', err instanceof Error ? err.message : 'Bilinmeyen hata');
-    }
-  };
-
-  const handleScan = async (rawValue: string) => {
-    setScanOpen(false);
-    try {
-      const found = await rmaApi.lookupPackage(normalizeLookupScan(rawValue));
-      playScanSuccess();
-      setSelectedPkg(found);
-    } catch {
-      playScanError();
-      appAlert('Koli bulunamadı', 'Taranan barkod sistemde eşleşmedi.');
     }
   };
 
@@ -284,7 +274,7 @@ export function PackageDrawer() {
               </Pressable>
             </View>
 
-            <Pressable style={styles.scanBtn} onPress={() => setScanOpen(true)}>
+            <Pressable style={styles.scanBtn} onPress={openPackageScan}>
               <Ionicons name="scan-outline" size={20} color={colors.surface} />
               <Text style={styles.scanBtnText}>Barkod Tara</Text>
             </Pressable>
@@ -295,14 +285,6 @@ export function PackageDrawer() {
           </Animated.View>
         </View>
       </Modal>
-
-      <BarcodeScannerModal
-        visible={scanOpen}
-        scanMode="lookup"
-        onClose={() => setScanOpen(false)}
-        onScanned={(v) => void handleScan(v)}
-        onScanRejected={(msg) => appAlert('Geçersiz barkod', msg)}
-      />
 
       <StatusSheet
         visible={Boolean(statusProduct)}
