@@ -24,6 +24,7 @@ import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 import { normalizeLookupScan, normalizeScannedBarcode, scanValuesMatchAny } from '@/lib/barcodeNormalize';
+import { isValidShipmentBarcodeNumber, requireShipmentBarcodeNumber } from '@shared/shipment-barcode';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
@@ -143,7 +144,7 @@ export default function SupplierShipScreen() {
     setBarcodesByProductId((prev) => {
       const next = { ...prev };
       for (const item of supplierItems) {
-        if (item.product.barcodeNumber) {
+        if (isValidShipmentBarcodeNumber(item.product.barcodeNumber)) {
           next[item.productId] = item.product.barcodeNumber;
         }
       }
@@ -151,7 +152,7 @@ export default function SupplierShipScreen() {
     });
 
     const missingIds = supplierItems
-      .filter((item) => !item.product.barcodeNumber)
+      .filter((item) => !isValidShipmentBarcodeNumber(item.product.barcodeNumber))
       .map((item) => item.productId);
 
     if (!missingIds.length) return;
@@ -253,7 +254,8 @@ export default function SupplierShipScreen() {
     if (printingProductId === productId || printing) return;
     setPrintingProductId(productId);
     try {
-      const result = await printProductBarcodeDirect(barcodeNumber);
+      const normalized = requireShipmentBarcodeNumber(barcodeNumber);
+      const result = await printProductBarcodeDirect(normalized);
       if (result.fitWarning) {
         appAlert('Bilgi', result.fitWarning);
       }
@@ -412,7 +414,8 @@ export default function SupplierShipScreen() {
             {supplierItems.map((item) => {
               const inBox = inBoxMap.has(item.productId);
               const busy = busyProductId === item.productId;
-              const barcodeNumber = barcodesByProductId[item.productId] ?? item.product.barcodeNumber ?? null;
+              const rawBarcode = barcodesByProductId[item.productId] ?? item.product.barcodeNumber ?? null;
+              const barcodeNumber = isValidShipmentBarcodeNumber(rawBarcode) ? rawBarcode : null;
 
               return (
                 <View key={item.id} style={styles.rowWrap}>
@@ -468,7 +471,7 @@ export default function SupplierShipScreen() {
             <View style={styles.actions}>
               <SecondaryAction
                 icon="print-outline"
-                label={printing ? 'Yazdırılıyor…' : 'Barkod Yazdır'}
+                label={printing ? 'Yazdırılıyor…' : 'Koli Barkodu Yazdır'}
                 onPress={handlePrint}
                 disabled={printing || printingProductId !== null}
               />

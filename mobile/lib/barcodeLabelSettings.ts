@@ -9,6 +9,7 @@ import {
   validateProductBarcodeNumber,
   type BarcodeLabelSettings,
 } from '@/lib/shared/barcode-label';
+import { requireShipmentBarcodeNumber } from '@shared/shipment-barcode';
 
 export type { BarcodeLabelSettings } from '@/lib/shared/barcode-label';
 export {
@@ -64,7 +65,17 @@ export function validateProductBarcodeForPrint(
   value: string,
   settings: BarcodeLabelSettings = NIIMBOT_D110M_PRESET,
 ) {
-  const cleaned = sanitizeBarcodeNumber(value);
+  let cleaned: string;
+  try {
+    cleaned = requireShipmentBarcodeNumber(value);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Geçersiz barkod';
+    return {
+      cleaned: sanitizeBarcodeNumber(value),
+      validation: { valid: false as const, error: message },
+      fit: { fits: false as const, warning: message },
+    };
+  }
   const validation = validateProductBarcodeNumber(cleaned);
   const fit = validation.valid
     ? estimateBarcodeFit(cleaned, settings.labelWidthMm, settings.marginLeftMm, settings.marginRightMm)

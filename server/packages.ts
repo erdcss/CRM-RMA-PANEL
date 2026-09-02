@@ -23,6 +23,7 @@ import { EDITABLE_PACKAGE_STATUSES } from "@shared/package-constants";
 import { RMA_DEFAULT_WAREHOUSE_LOCATION } from "@shared/rma-constants";
 import { db } from "./db";
 import { getOwnedProduct } from "./suppliers";
+import { ensureProductShipmentBarcodes } from "./shipment-barcode";
 
 let schemaPromise: Promise<void> | null = null;
 
@@ -704,6 +705,11 @@ export async function closePackage(packageId: number, ownerUserId: string, userI
   for (const item of items) {
     await validateProductsForPackage([item.productId], ownerUserId, pkg.supplierAccountCode, packageId);
   }
+
+  await ensureProductShipmentBarcodes(
+    items.map((item) => item.productId),
+    ownerUserId,
+  );
 
   const labelSequence = await allocateLabelSequence(ownerUserId, pkg.supplierAccountCode);
   const scanToken = buildPackageScanToken(

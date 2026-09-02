@@ -218,7 +218,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: productData.name || "Bilinmeyen",
           serialNumber: productData.serialNumber || undefined,
           stockCode: productData.stockCode || undefined,
-          barcode: productData.barcode || undefined,
+          barcode: productData.barcode && /^\d{9}$/.test(productData.barcode.trim())
+            ? productData.barcode.trim()
+            : undefined,
           brand: productData.brand || "Bilinmeyen",
           model: productData.model || undefined,
           category: productData.category || defaultCategory,

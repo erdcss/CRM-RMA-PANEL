@@ -199,6 +199,10 @@ final class NiimbotPrintEngine {
         completion(.failure(NiimbotNativeError.invalidBarcode("Ürün barkodu 9 haneli olmalıdır.")))
         return
       }
+      guard cleaned.uppercased().hasPrefix("RMA") == false else {
+        completion(.failure(NiimbotNativeError.invalidBarcode("Ürün barkodu RMA/koli formatında olamaz.")))
+        return
+      }
     case .package:
       guard validatePackageBarcode(cleaned) else {
         completion(.failure(NiimbotNativeError.invalidBarcode("Geçersiz koli barkodu.")))

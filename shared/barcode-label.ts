@@ -65,8 +65,11 @@ export function validateBarcodeNumber(value: string): { valid: boolean; error?: 
 
 export function validateProductBarcodeNumber(value: string): { valid: boolean; error?: string } {
   const cleaned = sanitizeBarcodeNumber(value);
+  if (/^RMA-/i.test(cleaned)) {
+    return { valid: false, error: "Ürün barkodu RMA/koli formatında olamaz; 9 haneli rakam olmalıdır." };
+  }
   if (!/^\d{9}$/.test(cleaned)) {
-    return { valid: false, error: "Ürün barkodu 9 haneli olmalıdır." };
+    return { valid: false, error: "Ürün barkodu tam 9 haneli rakam olmalıdır." };
   }
   return { valid: true };
 }

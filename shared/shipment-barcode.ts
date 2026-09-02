@@ -11,6 +11,30 @@ export function isValidShipmentBarcodeNumber(value: string | null | undefined): 
   return typeof value === "string" && NINE_DIGITS.test(value);
 }
 
+/** True when product needs a fresh globally unique 9-digit shipment barcode. */
+export function needsShipmentBarcodeAllocation(value: string | null | undefined): boolean {
+  return !isValidShipmentBarcodeNumber(value);
+}
+
+/** Reject package tokens / RMA-prefixed values mistaken for product barcodes. */
+export function isPackageScanToken(value: string | null | undefined): boolean {
+  if (typeof value !== "string") return false;
+  const cleaned = value.trim();
+  return /^RMA-/i.test(cleaned) || /^RMA[A-Z0-9]/i.test(cleaned);
+}
+
+/** Normalize user/API input to a strict 9-digit shipment barcode or throw. */
+export function requireShipmentBarcodeNumber(value: string): string {
+  const cleaned = normalizeShipmentBarcodeNumber(value);
+  if (isPackageScanToken(cleaned)) {
+    throw new Error("Ürün barkodu RMA/koli formatında olamaz; 9 haneli rakam olmalıdır.");
+  }
+  if (!isValidShipmentBarcodeNumber(cleaned)) {
+    throw new Error("Ürün barkodu tam 9 haneli rakam olmalıdır.");
+  }
+  return cleaned;
+}
+
 export function normalizeShipmentBarcodeNumber(value: string): string {
   return value.replace(/\s/g, "");
 }

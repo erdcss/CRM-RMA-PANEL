@@ -2,7 +2,11 @@ import { randomInt } from "crypto";
 
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
-import { isValidShipmentBarcodeNumber, SHIPMENT_BARCODE_LENGTH } from "@shared/shipment-barcode";
+import {
+  isValidShipmentBarcodeNumber,
+  needsShipmentBarcodeAllocation,
+  SHIPMENT_BARCODE_LENGTH,
+} from "@shared/shipment-barcode";
 import { products, tickets } from "@shared/schema";
 
 import { db } from "./db";
@@ -86,7 +90,7 @@ export async function ensureProductShipmentBarcode(
         const [updated] = await tx
           .update(products)
           .set({ barcodeNumber: candidate, barcode: candidate })
-          .where(and(eq(products.id, productId), isNull(products.barcodeNumber)))
+          .where(eq(products.id, productId))
           .returning();
 
         if (updated?.barcodeNumber && isValidShipmentBarcodeNumber(updated.barcodeNumber)) {
@@ -138,7 +142,7 @@ export async function ensureProductShipmentBarcodes(
   for (const row of ownedRows) {
     if (isValidShipmentBarcodeNumber(row.barcodeNumber)) {
       result[row.id] = row.barcodeNumber;
-    } else {
+    } else if (needsShipmentBarcodeAllocation(row.barcodeNumber)) {
       missing.push(row.id);
     }
   }
