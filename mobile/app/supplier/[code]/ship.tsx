@@ -24,7 +24,7 @@ import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 import { normalizeLookupScan, normalizeScannedBarcode, scanValuesMatchAny } from '@/lib/barcodeNormalize';
-import { isValidShipmentBarcodeNumber, requireShipmentBarcodeNumber } from '@shared/shipment-barcode';
+import { isValidShipmentBarcodeNumber, requireShipmentBarcodeNumber, resolvePackageBarcodeValue } from '@shared/shipment-barcode';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
@@ -237,8 +237,11 @@ export default function SupplierShipScreen() {
   const handlePrint = async () => {
     if (printing || printingProductId !== null) return;
     const labelPkg = closedPkg ?? activePkg;
-    const scanValue = labelPkg?.barcodeValue || labelPkg?.qrValue;
-    if (!scanValue) return;
+    const scanValue = labelPkg ? resolvePackageBarcodeValue(labelPkg) : null;
+    if (!scanValue) {
+      appAlert('Barkod yok', 'Geçerli 9 haneli koli barkodu bulunamadı. Koliyi kapatıp barkod atayın.');
+      return;
+    }
     setPrinting(true);
     try {
       if (shouldUseNiimbotDirectPrint()) {
@@ -277,7 +280,7 @@ export default function SupplierShipScreen() {
       return;
     }
 
-    const expectedToken = closedPkg.barcodeValue || closedPkg.qrValue;
+    const expectedToken = closedPkg ? resolvePackageBarcodeValue(closedPkg) : null;
     if (expectedToken && scanValuesMatchAny(rawValue, [expectedToken])) {
       playScanSuccess();
       setScanMatched(true);
@@ -297,7 +300,9 @@ export default function SupplierShipScreen() {
 
       playScanSuccess();
       setScanMatched(true);
-      setLastScannedValue(found.barcodeValue || found.qrValue || normalizeScannedBarcode(rawValue));
+      setLastScannedValue(
+        resolvePackageBarcodeValue(found) || normalizeScannedBarcode(rawValue),
+      );
       setScanOpen(false);
       setClosedPkg(found);
       appAlert('Barkod doğrulandı', 'Koli etiketi eşleşti. Sevkiyata hazır işlemini tamamlayabilirsiniz.');
@@ -308,8 +313,7 @@ export default function SupplierShipScreen() {
   };
 
   const markReadyToShip = async () => {
-    const scanValue =
-      lastScannedValue || closedPkg?.barcodeValue || closedPkg?.qrValue;
+    const scanValue = lastScannedValue || (closedPkg ? resolvePackageBarcodeValue(closedPkg) : null);
     if (!scanValue) return;
     setVerifying(true);
     try {
@@ -336,9 +340,11 @@ export default function SupplierShipScreen() {
   const isClosed = closedPkg?.status === 'kapatildi';
   const isReady = closedPkg?.status === 'sevke_hazir';
   const boxCount = activePkg?.items?.length ?? 0;
+  const packageBarcode =
+    resolvePackageBarcodeValue(closedPkg ?? {}) ?? resolvePackageBarcodeValue(activePkg ?? {});
   const labelSequence = resolvePackageLabelSequence({
     labelSequence: closedPkg?.labelSequence ?? activePkg?.labelSequence,
-    barcodeValue: closedPkg?.barcodeValue || activePkg?.barcodeValue,
+    barcodeValue: packageBarcode,
     history: closedPkg?.history ?? activePkg?.history,
   });
 
@@ -367,12 +373,12 @@ export default function SupplierShipScreen() {
                 </Text>
               </View>
             </View>
-            {(closedPkg?.barcodeValue || activePkg?.barcodeValue) ? (
+            {packageBarcode ? (
               <>
                 {labelSequence ? (
                   <Text style={styles.sequenceBadge}>Koli sıra no: {labelSequence}/9</Text>
                 ) : null}
-                <Text style={styles.barcodeValue}>{closedPkg?.barcodeValue || activePkg?.barcodeValue}</Text>
+                <Text style={styles.barcodeValue}>{packageBarcode}</Text>
               </>
             ) : null}
           </Card>
@@ -436,7 +442,7 @@ export default function SupplierShipScreen() {
             </View>
           ) : null}
 
-          {closedPkg && (closedPkg.barcodeValue || closedPkg.qrValue) ? (
+          {closedPkg && packageBarcode ? (
             <View style={styles.actions}>
               <SecondaryAction
                 icon="print-outline"
@@ -474,7 +480,7 @@ export default function SupplierShipScreen() {
         visible={scanOpen}
         title="Koli Barkodunu Tara"
         scanMode="lookup"
-        expectedValue={closedPkg?.barcodeValue || closedPkg?.qrValue}
+        expectedValue={packageBarcode}
         onClose={() => setScanOpen(false)}
         onScanned={(value) => void handleScan(value)}
       />

@@ -74,21 +74,16 @@ export function validateProductBarcodeNumber(value: string): { valid: boolean; e
   return { valid: true };
 }
 
-const PACKAGE_BARCODE_PATTERN = /^RMA-[A-Za-z0-9]+-S[1-9]-P\d+-[A-Za-z0-9]+$/;
-
 export function validatePackageBarcodeValue(value: string): { valid: boolean; error?: string } {
-  const cleaned = value.trim();
+  const cleaned = sanitizeBarcodeNumber(value);
   if (!cleaned) {
     return { valid: false, error: "Koli barkodu gerekli." };
   }
-  if (/^\d{9}$/.test(cleaned)) {
-    return { valid: true };
+  if (/^RMA-/i.test(cleaned) || /[A-Za-z]/.test(cleaned)) {
+    return { valid: false, error: "Koli barkodu yalnızca 9 haneli rakam olmalıdır; harf içeremez." };
   }
-  if (!/^[A-Za-z0-9\-_]+$/.test(cleaned)) {
-    return { valid: false, error: "Koli barkodu yalnızca harf, rakam ve tire içerebilir." };
-  }
-  if (cleaned.length < 8 || cleaned.length > 64) {
-    return { valid: false, error: "Koli barkodu geçersiz uzunlukta." };
+  if (!/^\d{9}$/.test(cleaned)) {
+    return { valid: false, error: "Koli barkodu tam 9 haneli rakam olmalıdır." };
   }
   return { valid: true };
 }
@@ -123,28 +118,7 @@ export function estimatePackageBarcodeFit(
   marginLeftMm: number = NIIMBOT_D110M_PRESET.marginLeftMm,
   marginRightMm: number = NIIMBOT_D110M_PRESET.marginRightMm,
 ): { fits: boolean; warning?: string } {
-  const cleaned = value.trim();
-  if (!cleaned) return { fits: true };
-
-  void labelWidthMm;
-  void marginLeftMm;
-  void marginRightMm;
-
-  if (cleaned.length > 60) {
-    return {
-      fits: false,
-      warning: "Koli barkodu çok uzun; yazdırma başarısız olabilir.",
-    };
-  }
-
-  if (cleaned.length > 34) {
-    return {
-      fits: true,
-      warning: "Uzun koli barkodu küçük yazı ile yazdırılacak.",
-    };
-  }
-
-  return { fits: true };
+  return estimateBarcodeFit(value, labelWidthMm, marginLeftMm, marginRightMm);
 }
 
 export function clampBarcodeLabelSettings(input: Partial<BarcodeLabelSettings>): BarcodeLabelSettings {

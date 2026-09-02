@@ -17,7 +17,7 @@ import {
   parsePackageLabelSequence,
   resolvePackageLabelSequence,
 } from "@shared/package-label";
-import { parseShipmentBarcodeFromScan, expandScanLookupValues } from "@shared/shipment-barcode";
+import { parseShipmentBarcodeFromScan, expandScanLookupValues, isValidShipmentBarcodeNumber } from "@shared/shipment-barcode";
 import { EDITABLE_PACKAGE_STATUSES } from "@shared/package-constants";
 import { RMA_DEFAULT_WAREHOUSE_LOCATION } from "@shared/rma-constants";
 import { db } from "./db";
@@ -380,10 +380,36 @@ export async function getSupplierPrepPool(ownerUserId: string) {
   }));
 }
 
+const PACKAGE_BARCODE_MIGRATABLE_STATUSES = ["kapatildi", "sevke_hazir", "sevk_edildi", "tedarikcide"];
+
+async function ensurePackageNumericBarcode(
+  pkg: typeof rmaPackages.$inferSelect,
+): Promise<typeof rmaPackages.$inferSelect> {
+  const current = pkg.barcodeValue || pkg.qrValue;
+  if (!current || isValidShipmentBarcodeNumber(current)) {
+    return pkg;
+  }
+  if (!PACKAGE_BARCODE_MIGRATABLE_STATUSES.includes(pkg.status)) {
+    return pkg;
+  }
+
+  const packageBarcode = await allocateUniqueNineDigitBarcode();
+  const [updated] = await db
+    .update(rmaPackages)
+    .set({ barcodeValue: packageBarcode, qrValue: packageBarcode })
+    .where(eq(rmaPackages.id, pkg.id))
+    .returning();
+
+  if (updated) return updated;
+  return { ...pkg, barcodeValue: packageBarcode, qrValue: packageBarcode };
+}
+
 export async function getPackageDetail(packageId: number, ownerUserId: string) {
   await ensurePackageTables();
-  const pkg = await getOwnedPackage(packageId, ownerUserId);
-  if (!pkg) return undefined;
+  const owned = await getOwnedPackage(packageId, ownerUserId);
+  if (!owned) return undefined;
+
+  const pkg = await ensurePackageNumericBarcode(owned);
 
   const items = await db.query.rmaPackageItems.findMany({
     where: and(eq(rmaPackageItems.packageId, packageId), isNull(rmaPackageItems.removedAt)),

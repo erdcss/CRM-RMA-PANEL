@@ -5,6 +5,7 @@ import {
   resolvePackageLabelSequence,
   type LabelProductRow,
 } from "@shared/package-label";
+import { resolvePackageBarcodeValue } from "@shared/shipment-barcode";
 import { getPackageStatusLabel } from "@shared/package-constants";
 import { loadPackageLabelSettings } from "@/lib/packageLabelSettings";
 
@@ -107,7 +108,10 @@ export async function generatePackageLabelPDF(data: PackageLabelData): Promise<v
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = 7;
 
-  const scanValue = data.barcodeValue || data.qrValue || data.packageNumber;
+  const scanValue = resolvePackageBarcodeValue(data);
+  if (!scanValue) {
+    throw new Error("Koli barkodu atanmamış veya geçersiz. Önce koliyi kapatıp 9 haneli barkod alın.");
+  }
   const labelSequence = resolvePackageLabelSequence({
     labelSequence: data.labelSequence,
     barcodeValue: scanValue,

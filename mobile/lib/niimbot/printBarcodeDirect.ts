@@ -24,7 +24,7 @@ export async function printProductBarcodeDirect(
 }
 
 /**
- * iOS: direct NIIMBOT Bluetooth print — package/koli scan token (alphanumeric Code128).
+ * iOS: direct NIIMBOT Bluetooth print — 9-digit package/koli barcode (Code128).
  */
 export async function printPackageBarcodeDirect(
   value: string,

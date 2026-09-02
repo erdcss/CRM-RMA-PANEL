@@ -1,11 +1,8 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
-import {
-  buildLabelProductRows,
-  resolvePackageLabelSequence,
-  type LabelProductRow,
-} from './packageLabelUtils';
+import { buildLabelProductRows, resolvePackageLabelSequence } from './packageLabelUtils';
+import { resolvePackageBarcodeValue } from '@shared/shipment-barcode';
 
 import { loadBarcodeSettings, type BarcodeSettings } from './barcodeSettings';
 import type { RmaPackage } from './api';
@@ -47,7 +44,10 @@ function renderProductRows(rows: LabelProductRow[]) {
 }
 
 function buildLabelHtml(pkg: RmaPackage, settings: BarcodeSettings) {
-  const scanValue = pkg.barcodeValue || pkg.qrValue || pkg.packageNumber;
+  const scanValue = resolvePackageBarcodeValue(pkg);
+  if (!scanValue) {
+    throw new Error('Koli barkodu atanmamış veya geçersiz. Önce koliyi kapatıp 9 haneli barkod alın.');
+  }
   const labelSequence = resolvePackageLabelSequence({
     labelSequence: pkg.labelSequence,
     barcodeValue: scanValue,
@@ -278,7 +278,10 @@ export async function printPackageLabel(pkg: RmaPackage) {
 
 export async function sharePackageLabelPdf(pkg: RmaPackage) {
   const settings = await loadBarcodeSettings();
-  const scanValue = pkg.barcodeValue || pkg.qrValue || pkg.packageNumber;
+  const scanValue = resolvePackageBarcodeValue(pkg);
+  if (!scanValue) {
+    throw new Error('Koli barkodu atanmamış veya geçersiz. Önce koliyi kapatıp 9 haneli barkod alın.');
+  }
   const productRows = buildLabelProductRows(pkg.items ?? []);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(scanValue)}`;
 

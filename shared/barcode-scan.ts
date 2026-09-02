@@ -35,17 +35,14 @@ export function normalizeBarcodeScan(
 
   if (mode === "package") {
     const nine = parseShipmentBarcodeFromScan(cleaned);
-    if (nine && isValidShipmentBarcodeNumber(nine)) {
-      return { value: nine, valid: true };
-    }
-    if (cleaned.length < 8 || cleaned.length > 64 || !/^[A-Za-z0-9\-_]+$/.test(cleaned)) {
+    if (!nine || !isValidShipmentBarcodeNumber(nine)) {
       return {
         value: cleaned,
         valid: false,
-        error: "Geçersiz koli barkodu (Code 128).",
+        error: "Koli barkodu Code 128 formatında tam 9 haneli rakam olmalıdır.",
       };
     }
-    return { value: cleaned, valid: true };
+    return { value: nine, valid: true };
   }
 
   return { value: cleaned, valid: true };

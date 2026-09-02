@@ -16,6 +16,20 @@ export function needsShipmentBarcodeAllocation(value: string | null | undefined)
   return !isValidShipmentBarcodeNumber(value);
 }
 
+/** Koli barkodu — ürün ile aynı formatta tam 9 haneli rakam. */
+export function isValidPackageBarcodeNumber(value: string | null | undefined): value is string {
+  return isValidShipmentBarcodeNumber(value);
+}
+
+/** Geçerli 9 haneli koli barkodunu döndürür; harfli/eski token değerlerini reddeder. */
+export function resolvePackageBarcodeValue(input: {
+  barcodeValue?: string | null;
+  qrValue?: string | null;
+}): string | null {
+  const value = input.barcodeValue || input.qrValue;
+  return isValidPackageBarcodeNumber(value) ? value : null;
+}
+
 /** Reject package tokens / RMA-prefixed values mistaken for product barcodes. */
 export function isPackageScanToken(value: string | null | undefined): boolean {
   if (typeof value !== "string") return false;

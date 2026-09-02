@@ -204,8 +204,8 @@ final class NiimbotPrintEngine {
         return
       }
     case .package:
-      guard validatePackageBarcode(cleaned) else {
-        completion(.failure(NiimbotNativeError.invalidBarcode("Geçersiz koli barkodu.")))
+      guard cleaned.range(of: "^\\d{9}$", options: .regularExpression) != nil else {
+        completion(.failure(NiimbotNativeError.invalidBarcode("Koli barkodu 9 haneli rakam olmalıdır.")))
         return
       }
     }
@@ -274,8 +274,9 @@ final class NiimbotPrintEngine {
             metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
             codeType = D110LabelLayout.productCodeType
           case .package:
-            metrics = D110LabelLayout.packageMetrics(for: cleaned)
-            codeType = D110LabelLayout.packageCodeType
+            let product = D110LabelLayout.productMetrics()
+            metrics = (product.marginX, product.marginY, product.contentWidth, product.fontSize, product.textHeight, product.blockHeight, D110LabelLayout.textPositionBelow)
+            codeType = D110LabelLayout.productCodeType
           }
 
           let drawn = NiimbotJCAPIBridge.drawBarcode(
@@ -322,10 +323,7 @@ final class NiimbotPrintEngine {
   }
 
   private func validatePackageBarcode(_ value: String) -> Bool {
-    if value.isEmpty { return false }
-    if value.range(of: "^\\d{9}$", options: .regularExpression) != nil { return true }
-    if value.count < 8 || value.count > 64 { return false }
-    return value.range(of: "^[A-Za-z0-9\\-_]+$", options: .regularExpression) != nil
+    value.range(of: "^\\d{9}$", options: .regularExpression) != nil
   }
 
   private func registerPrintMonitoring(session: PrintSession) {
