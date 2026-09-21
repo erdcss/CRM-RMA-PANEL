@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertWarehouseSchema, insertSupplierSchema, insertInvoiceSchema } from "@shared/schema";
+import { insertCustomerSchema, insertWarehouseSchema, insertSupplierSchema, insertInvoiceSchema, insertUserSchema } from "@shared/schema";
 import { saveImageDataUrl, persistProductImageUrl } from "./image-storage";
 import { z } from "zod";
 
@@ -16,6 +16,16 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     return next();
   }
   return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+}
+
+async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const userId = sessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+  const user = await storage.getUser(userId);
+  if (!user || user.isActive !== 1 || !["super_admin", "admin"].includes(user.role)) {
+    return res.status(403).json({ error: "Bu işlem için yönetici yetkisi gerekiyor" });
+  }
+  return next();
 }
 
 async function initDatabase(): Promise<void> {
@@ -53,7 +63,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.destroy(() => undefined);
       return res.status(401).json({ error: "Oturum geçersiz" });
     }
-    res.json({ id: user.id, username: user.username });
+    res.json({ id: user.id, username: user.username, role: user.role, appAccess: user.appAccess, isActive: user.isActive === 1 });
   });
 
   app.post("/api/auth/login", async (req, res) => {
@@ -61,12 +71,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     const user = await storage.getUserByUsername(username);
 
-    if (!user || user.password !== password) {
+    if (!user || user.password !== password || user.isActive !== 1) {
       return res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı" });
     }
 
     (req.session as { userId?: number }).userId = user.id;
-    res.json({ id: user.id, username: user.username });
+    res.json({ id: user.id, username: user.username, role: user.role, appAccess: user.appAccess, isActive: true });
+  });
+
+  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    const allUsers = await storage.listUsers();
+    res.json(allUsers.filter((user) => user.role !== "system").map(({ password, ...user }) => ({ ...user, isActive: user.isActive === 1 })));
+  });
+
+  app.post("/api/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const payload = insertUserSchema.parse({
+        username: req.body?.username,
+        password: req.body?.password,
+        role: req.body?.role || "staff",
+        appAccess: req.body?.appAccess || "business",
+        isActive: req.body?.isActive === false ? 0 : 1,
+      });
+      const user = await storage.createUser(payload);
+      const { password, ...safeUser } = user;
+      res.status(201).json({ ...safeUser, isActive: safeUser.isActive === 1 });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation failed", details: error.errors });
+      res.status(500).json({ error: "Kullanıcı oluşturulamadı" });
+    }
+  });
+
+  app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const data = insertUserSchema.partial().parse({
+        ...(req.body?.username !== undefined ? { username: req.body.username } : {}),
+        ...(req.body?.password !== undefined ? { password: req.body.password } : {}),
+        ...(req.body?.role !== undefined ? { role: req.body.role } : {}),
+        ...(req.body?.appAccess !== undefined ? { appAccess: req.body.appAccess } : {}),
+        ...(req.body?.isActive !== undefined ? { isActive: req.body.isActive ? 1 : 0 } : {}),
+      });
+      const user = await storage.updateUser(id, data);
+      if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+      const { password, ...safeUser } = user;
+      res.json({ ...safeUser, isActive: safeUser.isActive === 1 });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json({ error: "Validation failed", details: error.errors });
+      res.status(500).json({ error: "Kullanıcı güncellenemedi" });
+    }
   });
 
   app.post("/api/auth/logout", (req, res) => {
