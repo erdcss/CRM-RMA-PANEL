@@ -9,6 +9,7 @@ import {
   Box,
   ScanLine,
   LogOut,
+  UserCog,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Ürünler", url: "/urunler", icon: Package },
   { title: "İstatistikler", url: "/istatistikler", icon: BarChart3 },
   { title: "Müşteriler", url: "/musteriler", icon: Users },
+  { title: "Yönetici Hesapları", url: "/yoneticiler", icon: UserCog },
   { title: "Ayarlar", url: "/ayarlar", icon: Settings },
 ];
 
@@ -48,7 +50,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className="text-lg font-bold flex items-center gap-2">
             <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
-            Çalışkan RMA
+            Çalışkan B2B
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -79,7 +81,7 @@ export function AppSidebar() {
           Çıkış Yap
         </button>
         <div className="flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">Çalışkan RMA v1.0</span>
+          <span className="text-xs text-muted-foreground">Çalışkan B2B v1.0</span>
         </div>
       </SidebarFooter>
     </Sidebar>
