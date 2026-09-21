@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "wouter";
 import { Eye, EyeOff } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,7 +22,6 @@ export default function LoginPage() {
       toast({ title: "Eksik bilgi", description: "E-posta ve şifre girin.", variant: "destructive" });
       return;
     }
-
     setSubmitting(true);
     try {
       await signIn(email, password);
@@ -42,41 +40,23 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-6">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <img src="/logo.png" alt="Çalışkan RMA" className="h-24 w-24 mx-auto object-contain" />
+          <img src="/logo.png" alt="Çalışkan" className="h-24 w-24 mx-auto object-contain" />
           <div>
-            <CardTitle className="text-2xl">Çalışkan RMA</CardTitle>
-            <CardDescription>RMA yönetim paneline giriş yapın</CardDescription>
+            <CardTitle className="text-2xl">Çalışkan Yönetim Paneli</CardTitle>
+            <CardDescription>Yönetici hesabınızla giriş yapın</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ornek@caliskangroup.com"
-              />
+              <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@caliskangroup.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Şifre</Label>
               <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  onClick={() => setShowPassword((v) => !v)}
-                >
+                <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="pr-10" />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPassword((v) => !v)}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -85,12 +65,6 @@ export default function LoginPage() {
               {submitting ? "Giriş yapılıyor…" : "Giriş Yap"}
             </Button>
           </form>
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Hesabınız yok mu?{" "}
-            <Link href="/kaydol" className="text-primary font-medium hover:underline">
-              Kaydol
-            </Link>
-          </p>
         </CardContent>
       </Card>
     </div>
