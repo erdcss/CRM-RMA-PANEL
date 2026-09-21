@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Çalışkan RMA",
-    "slug": "caliskan-rma",
+    "name": "Çalışkan B2B",
+    "slug": "caliskan-b2b",
     "version": "1.0.1",
     "orientation": "portrait",
-    "scheme": "caliskanrma",
+    "scheme": "caliskanb2b",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "splash": {
@@ -20,8 +20,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Ürün fotoğrafı çekmek ve koli barkodu taramak için kamera erişimi gerekir.",
         "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı eklemek için galeri erişimi gerekir.",
-        "NSSpeechRecognitionUsageDescription": "Çalışkan RMA, desteklenen sesli giriş özelliklerinde konuşmayı metne dönüştürmek için konuşma tanıma erişimini kullanır.",
-        "NSMicrophoneUsageDescription": "Çalışkan RMA, desteklenen sesli giriş özelliklerinde sesinizi algılamak için mikrofon erişimini kullanır."
+        "NSSpeechRecognitionUsageDescription": "Çalışkan B2B, desteklenen sesli giriş özelliklerinde konuşmayı metne dönüştürmek için konuşma tanıma erişimini kullanır.",
+        "NSMicrophoneUsageDescription": "Çalışkan B2B, desteklenen sesli giriş özelliklerinde sesinizi algılamak için mikrofon erişimini kullanır."
       }
     },
     "android": {
