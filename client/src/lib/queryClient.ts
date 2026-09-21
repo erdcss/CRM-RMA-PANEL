@@ -39,13 +39,13 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const authHeaders = await getAuthHeaders();
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
+    const { data: querySessionData } = await supabase.auth.getSession();
+    const queryAccessToken = querySessionData.session?.access_token;
     const res = await fetch(queryKey.join("/") as string, {
       credentials: "include",
       headers: {
         ...authHeaders,
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(queryAccessToken ? { Authorization: `Bearer ${queryAccessToken}` } : {}),
       },
     });
 
