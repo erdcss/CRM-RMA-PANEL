@@ -10,7 +10,11 @@ const LOCAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL
+  password TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'staff',
+  app_access TEXT NOT NULL DEFAULT 'business',
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
@@ -49,6 +53,15 @@ CREATE TABLE IF NOT EXISTS status_history (
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+`;
+
+const AUTH_FOUNDATION_SQL = `
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'staff';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS app_access TEXT NOT NULL DEFAULT 'business';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
+UPDATE users SET role = 'system', app_access = 'none' WHERE username = 'system';
+UPDATE users SET role = 'super_admin', app_access = 'business' WHERE username = 'admin';
 `;
 
 const PHASE1_SCHEMA_SQL = `
@@ -119,6 +132,7 @@ async function createDatabase() {
   const client = await PGlite.create(dataDir);
   await client.exec(LOCAL_SCHEMA_SQL);
   await client.exec(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT;`);
+  await client.exec(AUTH_FOUNDATION_SQL);
   await client.exec(PHASE1_SCHEMA_SQL);
   const db = drizzle({ client, schema });
   console.log(`Using local PGlite database at ${dataDir}`);
@@ -129,6 +143,7 @@ const { db, pool } = await createDatabase();
 
 if (pool) {
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  await pool.query(AUTH_FOUNDATION_SQL);
   await pool.query(PHASE1_SCHEMA_SQL);
 }
 
