@@ -30,6 +30,7 @@ import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/kaydol";
 import PrivacyPage from "@/pages/privacy";
 import SupportPage from "@/pages/support";
+import Yoneticiler from "@/pages/yoneticiler";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 
@@ -53,6 +54,7 @@ function AppRouter() {
       <Route path="/istatistikler" component={Istatistikler} />
       <Route path="/musteriler" component={Musteriler} />
       <Route path="/urunler" component={Urunler} />
+      <Route path="/yoneticiler" component={Yoneticiler} />
       <Route path="/ayarlar" component={Ayarlar} />
       <Route component={NotFound} />
     </Switch>
