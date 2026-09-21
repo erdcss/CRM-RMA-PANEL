@@ -17,6 +17,7 @@ import Faturalar from "@/pages/faturalar";
 import KayitDetay from "@/pages/kayit-detay";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import Yoneticiler from "@/pages/yoneticiler";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -32,13 +33,14 @@ function Router() {
       <Route path="/tedarikciler" component={Tedarikciler} />
       <Route path="/faturalar" component={Faturalar} />
       <Route path="/ayarlar" component={Ayarlar} />
+      <Route path="/yoneticiler" component={Yoneticiler} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function AppContent() {
-  const { data: user, isLoading } = useQuery<{ id: number; username: string } | null>({
+  const { data: user, isLoading } = useQuery<{ id: number; username: string; role: string; appAccess: string; isActive: boolean } | null>({
     queryKey: ["/api/auth/me"],
     retry: false,
   });
