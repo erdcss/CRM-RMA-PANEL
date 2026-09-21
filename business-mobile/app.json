@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Çalışkan Business",
+    "slug": "caliskan-business",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "caliskanbusiness",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.caliskangroup.business"
+    },
+    "android": {
+      "package": "com.caliskangroup.business"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
