@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { supabase } from "@/lib/supabase";
+import { getAuthHeaders } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 type AppKey = "b2b" | "business";
