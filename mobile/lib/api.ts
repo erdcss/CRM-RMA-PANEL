@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { localAuth } from './supabase';
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
 
