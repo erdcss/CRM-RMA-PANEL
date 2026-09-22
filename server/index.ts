@@ -4,6 +4,7 @@ import { registerAccountRoutes } from "./account";
 import { registerBusinessAdminRoutes } from "./business-admin";
 import { registerBrandingRoutes } from "./branding";
 import { setupVite, serveStatic, log } from "./vite";
+import { authMiddleware, ensureAuthSchema, registerAuthRoutes } from "./auth";
 
 const app = express();
 
@@ -56,6 +57,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await ensureAuthSchema();
+  registerAuthRoutes(app);
+  app.use(authMiddleware);
   registerAccountRoutes(app);
   registerBusinessAdminRoutes(app);
   registerBrandingRoutes(app);
