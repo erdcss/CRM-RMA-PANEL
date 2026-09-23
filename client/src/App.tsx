@@ -157,6 +157,17 @@ function AppGate() {
 
 function App() {
   useEffect(() => {
+    document.title = "Çalışkan Yönetim Paneli";
+
+    const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (favicon) {
+      const fallback = favicon.href;
+      favicon.href = `/api/app-branding/admin/favicon?v=${Date.now()}`;
+      favicon.onerror = () => {
+        favicon.href = fallback;
+      };
+    }
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/service-worker.js").catch((error) => {
         console.error("Service Worker registration failed:", error);
