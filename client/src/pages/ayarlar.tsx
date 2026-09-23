@@ -8,13 +8,14 @@ import { useLocation } from "wouter";
 import { getAuthHeaders } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
-type AppKey = "b2b" | "business";
-type ImageKind = "logo" | "splash";
+type AppKey = "admin" | "b2b" | "business";
+type ImageKind = "logo" | "splash" | "favicon" | "login-logo";
 type Branding = Record<AppKey, Record<ImageKind, string | null>>;
 
 const EMPTY_BRANDING: Branding = {
-  b2b: { logo: null, splash: null },
-  business: { logo: null, splash: null },
+  admin: { logo: null, splash: null, favicon: null, "login-logo": null },
+  b2b: { logo: null, splash: null, favicon: null, "login-logo": null },
+  business: { logo: null, splash: null, favicon: null, "login-logo": null },
 };
 
 export default function Ayarlar() {
@@ -25,11 +26,7 @@ export default function Ayarlar() {
   const [branding, setBranding] = useState<Branding>(EMPTY_BRANDING);
   const [uploading, setUploading] = useState<string | null>(null);
 
-  const authHeaders = async () => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
+  const authHeaders = async () => getAuthHeaders();
 
   const loadBranding = async () => {
     try {
@@ -84,7 +81,7 @@ export default function Ayarlar() {
     }
   };
 
-  const BrandingCard = ({ app, title, description }: { app: AppKey; title: string; description: string }) => (
+  const BrandingCard = ({ app, title, description, kinds = ["logo", "splash"] }: { app: AppKey; title: string; description: string; kinds?: ImageKind[] }) => (
     <Card>
       <CardHeader>
         <div className="flex items-center gap-2">
@@ -94,8 +91,11 @@ export default function Ayarlar() {
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-5 md:grid-cols-2">
-        {(["logo", "splash"] as ImageKind[]).map((kind) => {
-          const label = kind === "logo" ? "Uygulama Logosu" : "Splash Ekranı";
+        {kinds.map((kind) => {
+          const label =
+            kind === "logo" ? "Uygulama Logosu" :
+            kind === "splash" ? "Splash Ekranı" :
+            kind === "favicon" ? "Favicon" : "Giriş Ekranı Logosu";
           const key = `${app}-${kind}`;
           return (
             <div key={kind} className="rounded-xl border p-4 space-y-3">
@@ -130,6 +130,13 @@ export default function Ayarlar() {
 
       <main className="flex-1 overflow-auto p-6">
         <div className="max-w-5xl mx-auto space-y-6">
+          <BrandingCard
+            app="admin"
+            title="Çalışkan Yönetim Paneli"
+            description="Web yönetim panelinin favicon, panel logosu ve giriş ekranı logosunu yönetin."
+            kinds={["favicon", "logo", "login-logo"]}
+          />
+
           <BrandingCard app="b2b" title="Çalışkan B2B" description="Müşteri uygulamasının logo ve açılış ekranını yönetin." />
           <BrandingCard app="business" title="Çalışkan Business" description="Yönetici uygulamasının logo ve açılış ekranını yönetin." />
 
