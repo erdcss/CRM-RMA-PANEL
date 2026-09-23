@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Animated,
 } from 'react-native';
 import { appAlert } from '@/lib/appAlert';
 import { Image } from 'expo-image';
@@ -24,6 +25,14 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(false);
+  const signupAnim = useRef(new Animated.Value(0)).current;
+  const [companyName, setCompanyName] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
+  const [phone, setPhone] = useState('');
+  const [businessCategory, setBusinessCategory] = useState('');
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -44,6 +53,19 @@ export default function LoginScreen() {
     }
   };
 
+  const toggleSignup = () => {
+    const next = !signupOpen;
+    setSignupOpen(next);
+    Animated.timing(signupAnim, { toValue: next ? 1 : 0, duration: 280, useNativeDriver: false }).start();
+  };
+
+  const goToSignup = () => {
+    router.push({
+      pathname: '/signup',
+      params: { companyName, fullName, city, district, phone, businessCategory },
+    } as never);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -53,8 +75,8 @@ export default function LoginScreen() {
         <View style={styles.mainContent}>
           <View style={styles.hero}>
             <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
-            <Text style={styles.title}>Çalışkan RMA</Text>
-            <Text style={styles.subtitle}>Operasyon paneline giriş yapın</Text>
+            <Text style={styles.title}>Çalışkan B2B</Text>
+            <Text style={styles.subtitle}>Toptan satın alma hesabınıza giriş yapın</Text>
           </View>
 
           <View style={styles.form}>
@@ -84,6 +106,10 @@ export default function LoginScreen() {
               }
             />
 
+            <Pressable style={styles.forgotButton} onPress={() => appAlert('Şifremi Unuttum', 'Şifre sıfırlama bağlantısı e-posta adresinize gönderilecektir.')}>
+              <Text style={styles.forgotText}>Şifremi Unuttum</Text>
+            </Pressable>
+
             <Pressable
               style={[styles.button, submitting && styles.buttonDisabled]}
               onPress={handleLogin}
@@ -92,9 +118,31 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>{submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}</Text>
             </Pressable>
 
-            <Pressable style={styles.linkButton} onPress={() => router.push('/signup' as never)}>
-              <Text style={styles.linkText}>Hesabınız yok mu? Kaydol</Text>
+            <Pressable style={styles.signupToggle} onPress={toggleSignup}>
+              <Text style={styles.linkText}>{signupOpen ? 'Üyelik Formunu Kapat' : 'Hemen Üye Ol'}</Text>
+              <Ionicons name={signupOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
             </Pressable>
+
+            <Animated.View style={[styles.signupPanel, {
+              maxHeight: signupAnim.interpolate({ inputRange:[0,1], outputRange:[0,620] }),
+              opacity: signupAnim,
+            }]}>
+              <View style={styles.signupFields}>
+                <Text style={styles.signupTitle}>Toptan Satış Üyeliği</Text>
+                <Text style={styles.signupDescription}>Firmanıza ait bilgileri girerek Çalışkan B2B üyeliğinizi oluşturun.</Text>
+                <FormField label="Firma İsmi" value={companyName} onChangeText={setCompanyName} placeholder="Firma ünvanı" />
+                <FormField label="İsim Soy İsim" value={fullName} onChangeText={setFullName} placeholder="Ad Soyad" />
+                <View style={styles.row}>
+                  <View style={styles.rowField}><FormField label="İl" value={city} onChangeText={setCity} placeholder="İstanbul" /></View>
+                  <View style={styles.rowField}><FormField label="İlçe" value={district} onChangeText={setDistrict} placeholder="İlçe" /></View>
+                </View>
+                <FormField label="Telefon Numarası" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="05xx xxx xx xx" />
+                <FormField label="İşletme Kategorisi" value={businessCategory} onChangeText={setBusinessCategory} placeholder="Elektronik, market, yapı market..." />
+                <Pressable style={styles.outlineButton} onPress={goToSignup}>
+                  <Text style={styles.outlineButtonText}>Üyeliğe Devam Et</Text>
+                </Pressable>
+              </View>
+            </Animated.View>
           </View>
         </View>
 
@@ -155,6 +203,17 @@ const styles = StyleSheet.create({
   buttonText: {
     ...typography.bodyMedium,
     color: colors.surface},
+  forgotButton: { alignItems:'flex-end', paddingVertical: spacing.xs },
+  forgotText: { ...typography.bodyMedium, color: colors.primary },
+  signupToggle: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap: spacing.xs, paddingVertical: spacing.sm },
+  signupPanel: { overflow:'hidden' },
+  signupFields: { gap: spacing.md, paddingTop: spacing.sm },
+  signupTitle: { ...typography.title, color: colors.text },
+  signupDescription: { ...typography.body, color: colors.textSecondary },
+  row: { flexDirection:'row', gap: spacing.md },
+  rowField: { flex:1 },
+  outlineButton: { minHeight:minTouchTarget, borderRadius:radius.md, borderWidth:1, borderColor:colors.primary, alignItems:'center', justifyContent:'center', marginTop:spacing.sm },
+  outlineButtonText: { ...typography.bodyMedium, color:colors.primary },
   linkButton: {
     alignItems: 'center',
     paddingVertical: spacing.sm},
