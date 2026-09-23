@@ -76,6 +76,11 @@ export async function ensureAuthSchema() {
     CREATE INDEX IF NOT EXISTS auth_sessions_user_idx
     ON auth_sessions(user_id);
 
+    CREATE TABLE IF NOT EXISTS admin_recovery_used(
+      token_hash TEXT PRIMARY KEY,
+      used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS app_branding(
       app TEXT NOT NULL,
       kind TEXT NOT NULL,
@@ -346,6 +351,57 @@ export function registerAuthRoutes(app: Express) {
     res.json({
       ok: true,
     });
+  });
+
+  // ---------------------------------------------------------
+  // ONE-TIME PRIMARY ADMIN PASSWORD SETUP / RECOVERY
+  // ---------------------------------------------------------
+
+  app.post("/api/auth/admin-recovery", async (req, res) => {
+    try {
+      const configuredEmail = String(process.env.PRIMARY_ADMIN_EMAIL || "").trim().toLowerCase();
+      const configuredToken = String(process.env.ADMIN_RECOVERY_TOKEN || "");
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      const recoveryToken = String(req.body?.recoveryToken || "");
+      const password = String(req.body?.password || "");
+
+      if (!configuredEmail || !configuredToken) {
+        return res.status(404).json({ error: "Kurtarma bağlantısı aktif değil" });
+      }
+      if (email !== configuredEmail || recoveryToken.length !== configuredToken.length ||
+          !crypto.timingSafeEqual(Buffer.from(recoveryToken), Buffer.from(configuredToken))) {
+        return res.status(403).json({ error: "Kurtarma bağlantısı geçersiz" });
+      }
+      if (password.length < 10) {
+        return res.status(400).json({ error: "Şifre en az 10 karakter olmalıdır" });
+      }
+
+      const usedHash = tokenHash(recoveryToken);
+      const used = await q("SELECT 1 FROM admin_recovery_used WHERE token_hash=$1", [usedHash]);
+      if (used.rows[0]) return res.status(410).json({ error: "Bu kurtarma bağlantısı daha önce kullanılmış" });
+
+      await q("BEGIN");
+      try {
+        const existing = await q("SELECT id FROM auth_users WHERE email=$1 FOR UPDATE", [email]);
+        const id = existing.rows[0]?.id || crypto.randomUUID();
+        const passwordHash = hashPassword(password);
+        if (existing.rows[0]) {
+          await q("UPDATE auth_users SET password_hash=$1, role='super_admin', app_access='all', is_active=TRUE, updated_at=NOW() WHERE id=$2", [passwordHash, id]);
+          await q("DELETE FROM auth_sessions WHERE user_id=$1", [id]);
+        } else {
+          await q("INSERT INTO auth_users(id,email,password_hash,role,app_access,is_active) VALUES($1,$2,$3,'super_admin','all',TRUE)", [id,email,passwordHash]);
+        }
+        await q("INSERT INTO admin_recovery_used(token_hash) VALUES($1)", [usedHash]);
+        await q("COMMIT");
+        res.json({ ok:true, user:{ id, email, role:"super_admin", appAccess:"all", isActive:true } });
+      } catch (e) {
+        await q("ROLLBACK");
+        throw e;
+      }
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error:"Şifre oluşturulamadı" });
+    }
   });
 
   // ---------------------------------------------------------
