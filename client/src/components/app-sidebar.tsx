@@ -52,7 +52,7 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-lg font-bold flex items-center gap-2">
-            <img src="/logo.png" alt="" className="h-8 w-8 object-contain" />
+            <img src="/api/app-branding/admin/logo" alt="" className="h-8 w-8 object-contain" onError={(e) => { e.currentTarget.src = "/logo.png"; }} />
             Çalışkan B2B
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -94,7 +94,7 @@ export function AppSidebar() {
           Çıkış Yap
         </button>
         <div className="flex items-center justify-center">
-          <span className="text-xs text-muted-foreground">Çalışkan B2B v1.0</span>
+          <span className="text-xs text-muted-foreground">Çalışkan Yönetim Paneli v1.0</span>
         </div>
       </SidebarFooter>
     </Sidebar>
