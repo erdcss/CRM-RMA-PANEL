@@ -67,7 +67,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-muted/40 p-6">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <img src="/logo.png" alt="Çalışkan" className="h-24 w-24 mx-auto object-contain" />
+          <img src="/api/app-branding/admin/login-logo" alt="Çalışkan" className="h-24 w-24 mx-auto object-contain" onError={(e) => { e.currentTarget.src = "/logo.png"; }} />
           <div>
             <CardTitle className="text-2xl">Çalışkan Yönetim Paneli</CardTitle>
             <CardDescription>{recoveryMode ? "Ana yönetici şifrenizi oluşturun" : "Yönetici hesabınızla giriş yapın"}</CardDescription>
