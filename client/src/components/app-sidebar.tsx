@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, FileText, BarChart3, Users, Settings, Package, Truck, Box,
-  ScanLine, LogOut, UserCog, Wrench, ChevronDown, ChevronRight,
+  ScanLine, LogOut, UserCog, Wrench, ChevronDown, ChevronRight, Bell,
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -24,6 +24,7 @@ const rmaItems = [
 const mainItems = [
   { title: "Müşteriler", url: "/musteriler", icon: Users },
   { title: "Yönetici Hesapları", url: "/yoneticiler", icon: UserCog },
+  { title: "Push Bildirim Yönetimi", url: "/push-bildirimler", icon: Bell },
   { title: "Ayarlar", url: "/ayarlar", icon: Settings },
 ];
 
