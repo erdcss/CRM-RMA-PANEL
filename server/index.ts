@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { registerAccountRoutes } from "./account";
 import { registerBusinessAdminRoutes } from "./business-admin";
 import { registerBrandingRoutes } from "./branding";
+import { registerPushRoutes, ensurePushSchema } from "./push";
 import { setupVite, serveStatic, log } from "./vite";
 import { authMiddleware, ensureAuthSchema, registerAuthRoutes } from "./auth";
 
@@ -58,11 +59,13 @@ app.use((req, res, next) => {
 
 (async () => {
   await ensureAuthSchema();
+  await ensurePushSchema();
   registerAuthRoutes(app);
   app.use(authMiddleware);
   registerAccountRoutes(app);
   registerBusinessAdminRoutes(app);
   registerBrandingRoutes(app);
+  registerPushRoutes(app);
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
