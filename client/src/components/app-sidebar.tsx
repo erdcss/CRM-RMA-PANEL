@@ -1,32 +1,16 @@
 import {
-  LayoutDashboard,
-  FileText,
-  BarChart3,
-  Users,
-  Settings,
-  Package,
-  Truck,
-  Box,
-  ScanLine,
-  LogOut,
-  UserCog,
+  LayoutDashboard, FileText, BarChart3, Users, Settings, Package, Truck, Box,
+  ScanLine, LogOut, UserCog, Wrench, ChevronDown, ChevronRight,
 } from "lucide-react";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarFooter,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Link, useLocation } from "wouter";
-
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
-const menuItems = [
+const rmaItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Kayıtlar", url: "/kayitlar", icon: FileText },
   { title: "Tedarikçiler", url: "/tedarikciler", icon: Truck },
@@ -35,6 +19,9 @@ const menuItems = [
   { title: "Barkod Tara", url: "/koli-tara", icon: ScanLine },
   { title: "Ürünler", url: "/urunler", icon: Package },
   { title: "İstatistikler", url: "/istatistikler", icon: BarChart3 },
+];
+
+const mainItems = [
   { title: "Müşteriler", url: "/musteriler", icon: Users },
   { title: "Yönetici Hesapları", url: "/yoneticiler", icon: UserCog },
   { title: "Ayarlar", url: "/ayarlar", icon: Settings },
@@ -43,6 +30,22 @@ const menuItems = [
 export function AppSidebar() {
   const [location] = useLocation();
   const { signOut } = useAuth();
+  const rmaActive = rmaItems.some((item) => item.url === "/" ? location === "/" : location === item.url || location.startsWith(`${item.url}/`));
+  const [rmaOpen, setRmaOpen] = useState(rmaActive);
+
+  const renderItem = (item: typeof mainItems[number]) => {
+    const isActive = item.url === "/" ? location === "/" : location === item.url || location.startsWith(`${item.url}/`);
+    return (
+      <SidebarMenuItem key={item.title}>
+        <SidebarMenuButton asChild isActive={isActive} data-testid={`link-${item.title.toLowerCase()}`}>
+          <Link href={item.url}>
+            <item.icon className="h-4 w-4" />
+            <span>{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
 
   return (
     <Sidebar>
@@ -54,23 +57,33 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
-                const isActive = location === item.url || location.startsWith(`${item.url}/`);
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive} data-testid={`link-${item.title.toLowerCase()}`}>
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  type="button"
+                  isActive={rmaActive}
+                  onClick={() => setRmaOpen((open) => !open)}
+                  className="font-medium"
+                  data-testid="button-rma-menu"
+                >
+                  <Wrench className="h-4 w-4" />
+                  <span className="flex-1">RMA</span>
+                  {rmaOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              {rmaOpen && (
+                <div className="ml-3 border-l border-sidebar-border pl-2 space-y-0.5">
+                  {rmaItems.map(renderItem)}
+                </div>
+              )}
+
+              <div className="my-2 border-t border-sidebar-border" />
+              {mainItems.map(renderItem)}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter className="p-4 space-y-2">
         <button
           type="button"
