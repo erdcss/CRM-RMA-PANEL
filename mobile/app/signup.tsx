@@ -13,7 +13,7 @@ import {
 import { appAlert } from '@/lib/appAlert';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +25,13 @@ const TERMS_VERSION = '18.08.2026';
 export default function SignupScreen() {
   const router = useRouter();
   const { signUp } = useAuth();
+  const params = useLocalSearchParams<{ companyName?:string; fullName?:string; city?:string; district?:string; phone?:string; businessCategory?:string }>();
+  const companyName = String(params.companyName || '');
+  const fullName = String(params.fullName || '');
+  const city = String(params.city || '');
+  const district = String(params.district || '');
+  const phone = String(params.phone || '');
+  const businessCategory = String(params.businessCategory || '');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -93,11 +100,18 @@ export default function SignupScreen() {
 
         <View style={styles.hero}>
           <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
-          <Text style={styles.title}>Kaydol</Text>
-          <Text style={styles.subtitle}>Kişisel Çalışkan RMA hesabınızı oluşturun</Text>
+          <Text style={styles.title}>Çalışkan B2B Üyeliği</Text>
+          <Text style={styles.subtitle}>Toptan satın alma hesabınızı tamamlayın</Text>
         </View>
 
         <View style={styles.form}>
+          <View style={styles.businessSummary}>
+            <Text style={styles.summaryTitle}>{companyName || 'Firma bilgileri'}</Text>
+            <Text style={styles.summaryText}>{fullName}</Text>
+            <Text style={styles.summaryText}>{[city, district].filter(Boolean).join(' / ')}</Text>
+            <Text style={styles.summaryText}>{phone}</Text>
+            <Text style={styles.summaryText}>{businessCategory}</Text>
+          </View>
           <FormField
             label="E-posta"
             value={email}
@@ -286,6 +300,9 @@ const styles = StyleSheet.create({
     textAlign: 'center'},
   form: {
     gap: spacing.lg},
+  businessSummary: { padding:spacing.md, borderRadius:radius.md, backgroundColor:colors.surface, gap:4 },
+  summaryTitle: { ...typography.bodyMedium, color:colors.text },
+  summaryText: { ...typography.caption, color:colors.textSecondary },
   eyeButton: {
     position: 'absolute',
     right: spacing.md,
