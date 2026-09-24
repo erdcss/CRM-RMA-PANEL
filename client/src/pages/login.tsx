@@ -64,18 +64,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40 p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          <img src="/api/app-branding/admin/login-logo" alt="Çalışkan" className="h-24 w-24 mx-auto object-contain" onError={(e) => { e.currentTarget.src = "/logo.png"; }} />
+    <div className="min-h-[100dvh] flex items-center justify-center bg-muted/40 p-3 sm:p-6">
+      <Card className="w-full max-w-[390px] animate-ui-enter sm:max-w-md">
+        <CardHeader className="text-center space-y-2 p-4 pb-2 sm:space-y-4 sm:p-6 sm:pb-3">
+          <img src="/api/app-branding/admin/login-logo" alt="Çalışkan" className="h-14 w-14 mx-auto object-contain transition-transform duration-300 hover:scale-105 sm:h-20 sm:w-20 lg:h-24 lg:w-24" onError={(e) => { e.currentTarget.src = "/logo.png"; }} />
           <div>
-            <CardTitle className="text-2xl">Çalışkan Yönetim Paneli</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl">Çalışkan Yönetim Paneli</CardTitle>
             <CardDescription>{recoveryMode ? "Ana yönetici şifrenizi oluşturun" : "Yönetici hesabınızla giriş yapın"}</CardDescription>
           </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={recoveryMode ? handleRecovery : handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+        <CardContent className="p-4 pt-2 sm:p-6 sm:pt-3">
+          <form onSubmit={recoveryMode ? handleRecovery : handleSubmit} className="space-y-3 sm:space-y-4">
+            <div className="space-y-1.5 sm:space-y-2">
               <Label htmlFor="email">E-posta</Label>
               <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@caliskangroup.com" />
             </div>
@@ -95,7 +95,7 @@ export default function LoginPage() {
                 </div>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full transition-transform duration-150 active:scale-[0.98]" disabled={submitting}>
               {submitting ? "İşleniyor…" : recoveryMode ? "Şifremi Oluştur" : "Giriş Yap"}
             </Button>
           </form>
