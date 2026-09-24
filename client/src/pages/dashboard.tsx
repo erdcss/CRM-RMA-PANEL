@@ -1,261 +1,104 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Bell, TrendingUp, TrendingDown, Package, RefreshCw, ArrowUpRight, Truck, ScanLine } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ShoppingCart, Users, TrendingUp, Package, ArrowUpRight, Eye, RotateCcw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { NewTicketDialog } from "@/components/new-ticket-dialog";
-import { ProductCard } from "@/components/product-card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useLocation } from "wouter";
 
 interface DashboardStats {
-  totalTickets: number;
-  activeReturns: number;
-  activeExchanges: number;
-  inService: number;
-  recentTickets: any[];
-  topBrands: { brand: string; count: number }[];
+  totalTickets?: number;
+  activeReturns?: number;
+  recentTickets?: any[];
+  topBrands?: { brand: string; count: number }[];
 }
 
-export default function Dashboard() {
-  const [, navigate] = useLocation();
-  const [showNewTicket, setShowNewTicket] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+const number = new Intl.NumberFormat("tr-TR");
 
-  const { data: stats, isLoading, dataUpdatedAt } = useQuery<DashboardStats>({
+export default function Dashboard() {
+  const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/stats/dashboard"],
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    refetchOnWindowFocus: false, // Prevent redundant refetch on focus since we have interval polling
+    refetchInterval: 30000,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
   });
 
-  const recentProducts = stats?.recentTickets || [];
+  // Satış modülü gerçek sipariş/ziyaretçi API'lerine bağlandığında bu alanlar doğrudan
+  // canlı B2B verileriyle beslenecek. Şimdilik mevcut veriden uydurma satış rakamı üretmiyoruz.
+  const commerce = {
+    todayOrders: 0,
+    visitors: 0,
+    conversionRate: 0,
+    returns: stats?.activeReturns || 0,
+  };
+
+  const topProducts = useMemo(() => {
+    return (stats?.recentTickets || []).slice(0, 5).map((item: any, index) => ({
+      id: item.id || index,
+      name: item.productName || item.product_name || item.model || "Ürün",
+      brand: item.brand || "—",
+      sales: 0,
+    }));
+  }, [stats]);
+
+  const cards = [
+    { title: "Bugün Alınan Siparişler", value: number.format(commerce.todayOrders), detail: "Bugünkü B2B siparişleri", icon: ShoppingCart },
+    { title: "Ziyaretçiler", value: number.format(commerce.visitors), detail: "Bugünkü mağaza ziyaretleri", icon: Eye },
+    { title: "Dönüşüm Oranı", value: `%${commerce.conversionRate.toFixed(1)}`, detail: "Ziyaret → sipariş", icon: TrendingUp },
+    { title: "İade İşlemleri", value: number.format(commerce.returns), detail: "Aktif iade işlemleri", icon: RotateCcw },
+  ];
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-6 border-b">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4 flex-1 w-full">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Müşteri, seri numarası veya ürün ara..."
-                className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                data-testid="input-search"
-              />
-            </div>
+    <main className="h-full overflow-auto bg-muted/20">
+      <div className="mx-auto max-w-[1500px] space-y-6 p-6 lg:p-8">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">Çalışkan B2B</p>
+            <h1 className="text-3xl font-semibold tracking-tight">Genel Bakış</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Toptan satış operasyonunun günlük performansını tek ekrandan takip edin.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" data-testid="button-notifications">
-              <Bell className="h-5 w-5" />
-            </Button>
-            <Button onClick={() => setShowNewTicket(true)} data-testid="button-new-ticket">
-              <Plus className="h-4 w-4 mr-2" />
-              Yeni Kayıt
-            </Button>
-          </div>
+          <Badge variant="outline" className="w-fit">Canlı operasyon paneli</Badge>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => (
+            <Card key={card.title} className="shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                <div className="space-y-1"><CardTitle className="text-sm font-medium">{card.title}</CardTitle><CardDescription>{card.detail}</CardDescription></div>
+                <div className="rounded-lg border bg-background p-2"><card.icon className="h-4 w-4" /></div>
+              </CardHeader>
+              <CardContent><div className="text-3xl font-semibold tracking-tight">{isLoading ? "—" : card.value}</div></CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div><CardTitle>Satış Performansı</CardTitle><CardDescription>Sipariş ve dönüşüm verileri için ana analiz alanı</CardDescription></div>
+                <TrendingUp className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex min-h-[270px] items-center justify-center rounded-xl border border-dashed bg-muted/20 p-8 text-center">
+                <div className="max-w-md"><div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border bg-background"><ArrowUpRight className="h-5 w-5" /></div><p className="font-medium">Satış grafiği hazır</p><p className="mt-1 text-sm text-muted-foreground">Sipariş modülü devreye alındığında günlük ciro, sipariş adedi ve dönüşüm eğrisi burada gerçek zamanlı gösterilecek.</p></div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm">
+            <CardHeader><CardTitle>En Çok Satılan Ürünler</CardTitle><CardDescription>Toptan satış performansına göre ürün sıralaması</CardDescription></CardHeader>
+            <CardContent>
+              {topProducts.length ? <div className="space-y-3">{topProducts.map((product, index) => <div key={product.id} className="flex items-center gap-3 rounded-lg border p-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-sm font-semibold">{index + 1}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{product.name}</p><p className="text-xs text-muted-foreground">{product.brand}</p></div><div className="text-right"><p className="text-sm font-semibold">{product.sales}</p><p className="text-[11px] text-muted-foreground">satış</p></div></div>)}</div> : <div className="flex min-h-[270px] items-center justify-center text-center"><div><Package className="mx-auto mb-3 h-9 w-9 text-muted-foreground"/><p className="font-medium">Henüz satış verisi yok</p><p className="mt-1 text-sm text-muted-foreground">Siparişler başladığında en çok satan ürünler otomatik listelenecek.</p></div></div>}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card><CardHeader className="pb-2"><CardDescription>Toplam RMA Kaydı</CardDescription><CardTitle className="text-2xl">{number.format(stats?.totalTickets || 0)}</CardTitle></CardHeader></Card>
+          <Card><CardHeader className="pb-2"><CardDescription>Aktif İadeler</CardDescription><CardTitle className="text-2xl">{number.format(stats?.activeReturns || 0)}</CardTitle></CardHeader></Card>
+          <Card><CardHeader className="pb-2"><CardDescription>Sistemdeki Kullanıcı Alanı</CardDescription><CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4"/> Genel → Kullanıcılar</CardTitle></CardHeader></Card>
         </div>
       </div>
-
-      <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-              <p className="text-muted-foreground">
-                RMA yönetim paneline hoş geldiniz
-              </p>
-            </div>
-            {dataUpdatedAt && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <RefreshCw className="h-3 w-3" />
-                <span>
-                  Son güncelleme: {new Date(dataUpdatedAt).toLocaleTimeString("tr-TR")}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {isLoading ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[1, 2, 3, 4].map((i) => (
-                  <Card key={i}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-4 w-4" />
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="h-8 w-16 mb-2" />
-                      <Skeleton className="h-3 w-32" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Button variant="outline" className="h-auto py-4 justify-start" onClick={() => navigate("/tedarikciler")}>
-                  <Truck className="h-4 w-4 mr-2" />
-                  Tedarikçiler
-                </Button>
-                <Button variant="outline" className="h-auto py-4 justify-start" onClick={() => navigate("/koli-tara")}>
-                  <ScanLine className="h-4 w-4 mr-2" />
-                  Koli Tara
-                </Button>
-                <Button variant="outline" className="h-auto py-4 justify-start" onClick={() => navigate("/koliler")}>
-                  <Package className="h-4 w-4 mr-2" />
-                  Koliler
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Toplam Kayıt
-                    </CardTitle>
-                    <Package className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold" data-testid="text-total-tickets">
-                      {stats?.totalTickets || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Tüm zamanlar
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      İade Ürünler
-                    </CardTitle>
-                    <TrendingDown className="h-4 w-4 text-destructive" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold" data-testid="text-active-returns">
-                      {stats?.activeReturns || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Aktif işlemler
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Değişim Ürünler
-                    </CardTitle>
-                    <RefreshCw className="h-4 w-4 text-chart-1" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold" data-testid="text-active-exchanges">
-                      {stats?.activeExchanges || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Aktif işlemler
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      Serviste
-                    </CardTitle>
-                    <TrendingUp className="h-4 w-4 text-chart-2" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-3xl font-bold" data-testid="text-in-service">
-                      {stats?.inService || 0}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Bekleyen ürünler
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle>Son Kayıtlar</CardTitle>
-                    <CardDescription>
-                      En son eklenen ürünler
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {recentProducts.length === 0 ? (
-                      <div className="text-center py-12">
-                        <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground">Henüz kayıt yok</p>
-                        <Button
-                          variant="outline"
-                          className="mt-4"
-                          onClick={() => setShowNewTicket(true)}
-                        >
-                          İlk Kaydı Oluştur
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {recentProducts.slice(0, 5).map((product: any) => (
-                          <ProductCard key={product.id} product={product} />
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Popüler Markalar</CardTitle>
-                    <CardDescription>
-                      En çok kayıt oluşturulan markalar
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {(stats?.topBrands || []).length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-sm text-muted-foreground">
-                          Henüz veri yok
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {stats?.topBrands.slice(0, 5).map((brand, index) => (
-                          <div
-                            key={brand.brand}
-                            className="flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary font-medium text-sm">
-                                {index + 1}
-                              </div>
-                              <span className="font-medium">{brand.brand}</span>
-                            </div>
-                            <Badge variant="secondary">{brand.count}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </>
-          )}
-        </div>
-      </main>
-
-      <NewTicketDialog open={showNewTicket} onOpenChange={setShowNewTicket} />
-    </div>
+    </main>
   );
 }
