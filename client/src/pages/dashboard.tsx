@@ -48,29 +48,29 @@ export default function Dashboard() {
 
   return (
     <main className="h-full overflow-auto bg-muted/20">
-      <div className="mx-auto max-w-[1500px] space-y-6 p-6 lg:p-8">
+      <div className="mx-auto max-w-[1500px] space-y-4 p-4 sm:space-y-5 sm:p-5 lg:space-y-6 lg:p-8">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-medium text-muted-foreground">Çalışkan B2B</p>
-            <h1 className="text-3xl font-semibold tracking-tight">Genel Bakış</h1>
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Genel Bakış</h1>
             <p className="mt-1 text-sm text-muted-foreground">Toptan satış operasyonunun günlük performansını tek ekrandan takip edin.</p>
           </div>
           <Badge variant="outline" className="w-fit">Canlı operasyon paneli</Badge>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           {cards.map((card) => (
-            <Card key={card.title} className="shadow-sm">
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                <div className="space-y-1"><CardTitle className="text-sm font-medium">{card.title}</CardTitle><CardDescription>{card.detail}</CardDescription></div>
-                <div className="rounded-lg border bg-background p-2"><card.icon className="h-4 w-4" /></div>
+            <Card key={card.title} className="min-w-0 shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 p-4 pb-2 sm:p-6 sm:pb-3">
+                <div className="space-y-1"><CardTitle className="text-xs font-medium leading-snug sm:text-sm">{card.title}</CardTitle><CardDescription className="hidden sm:block">{card.detail}</CardDescription></div>
+                <div className="hidden rounded-lg border bg-background p-2 sm:block"><card.icon className="h-4 w-4" /></div>
               </CardHeader>
-              <CardContent><div className="text-3xl font-semibold tracking-tight">{isLoading ? "—" : card.value}</div></CardContent>
+              <CardContent className="p-4 pt-1 sm:p-6 sm:pt-0"><div className="text-2xl font-semibold tracking-tight sm:text-3xl">{isLoading ? "—" : card.value}</div></CardContent>
             </Card>
           ))}
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+        <div className="grid min-w-0 gap-4 lg:gap-6 xl:grid-cols-[1.55fr_1fr]">
           <Card className="shadow-sm">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -79,7 +79,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex min-h-[270px] items-center justify-center rounded-xl border border-dashed bg-muted/20 p-8 text-center">
+              <div className="flex min-h-[210px] items-center justify-center rounded-xl border border-dashed bg-muted/20 p-4 text-center sm:min-h-[270px] sm:p-8">
                 <div className="max-w-md"><div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border bg-background"><ArrowUpRight className="h-5 w-5" /></div><p className="font-medium">Satış grafiği hazır</p><p className="mt-1 text-sm text-muted-foreground">Sipariş modülü devreye alındığında günlük ciro, sipariş adedi ve dönüşüm eğrisi burada gerçek zamanlı gösterilecek.</p></div>
               </div>
             </CardContent>
@@ -93,7 +93,7 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 sm:gap-4">
           <Card><CardHeader className="pb-2"><CardDescription>Toplam RMA Kaydı</CardDescription><CardTitle className="text-2xl">{number.format(stats?.totalTickets || 0)}</CardTitle></CardHeader></Card>
           <Card><CardHeader className="pb-2"><CardDescription>Aktif İadeler</CardDescription><CardTitle className="text-2xl">{number.format(stats?.activeReturns || 0)}</CardTitle></CardHeader></Card>
           <Card><CardHeader className="pb-2"><CardDescription>Sistemdeki Kullanıcı Alanı</CardDescription><CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4"/> Genel → Kullanıcılar</CardTitle></CardHeader></Card>
