@@ -304,3 +304,48 @@ body {
     --sidebar-width: 14rem !important;
   }
 }
+
+
+/* Lightweight motion tuned for touch/mobile web */
+@keyframes ui-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-up {
+  from { opacity: .96; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-ui-enter { animation: ui-enter .28s cubic-bezier(.22,.8,.32,1) both; }
+.animate-overlay-in { animation: overlay-in .18s ease-out both; }
+.animate-sheet-up { animation: sheet-up .28s cubic-bezier(.22,.8,.32,1) both; }
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 767px) {
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+  [data-slot="sidebar"] a,
+  [data-slot="sidebar"] button {
+    transition: background-color .16s ease, transform .14s ease;
+  }
+  [data-slot="sidebar"] a:active,
+  [data-slot="sidebar"] button:active {
+    transform: scale(.985);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ui-enter, .animate-overlay-in, .animate-sheet-up {
+    animation: none !important;
+  }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
