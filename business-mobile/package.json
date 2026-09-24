@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "start": "expo start",
     "ios": "expo start --ios",
