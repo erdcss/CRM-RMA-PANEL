@@ -1,0 +1,10 @@
+export type CartProduct={id:string;sku:string;name:string;price:number;vat_rate?:number;stock:number;min_order_qty:number;units_per_box:number;image_data?:string};
+export type CartLine={product:CartProduct;quantity:number};
+const KEY='caliskan-b2b-cart';
+export const packSize=(p:CartProduct)=>Math.max(1,Number(p.units_per_box)||1);
+export const minimumQty=(p:CartProduct)=>Math.max(packSize(p),Number(p.min_order_qty)||1);
+export const normalizeQty=(p:CartProduct,requested:number)=>{const pack=packSize(p),min=minimumQty(p);const wanted=Math.max(min,Number(requested)||min);return Math.ceil(wanted/pack)*pack;};
+export const readCart=():CartLine[]=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch{return[]}};
+export const writeCart=(lines:CartLine[])=>{localStorage.setItem(KEY,JSON.stringify(lines));window.dispatchEvent(new Event('b2b-cart'));};
+export const addCart=(p:CartProduct,requested?:number)=>{const lines=readCart(),qty=normalizeQty(p,requested||minimumQty(p));const i=lines.findIndex(x=>x.product.id===p.id);if(i>=0)lines[i].quantity=normalizeQty(p,lines[i].quantity+qty);else lines.push({product:p,quantity:qty});writeCart(lines);return lines;};
+export const cartTotals=(lines:CartLine[])=>{let subtotal=0,vat=0,units=0,boxes=0;for(const l of lines){const qty=normalizeQty(l.product,l.quantity);const base=Number(l.product.price)*qty;subtotal+=base;vat+=base*Number(l.product.vat_rate??20)/100;units+=qty;boxes+=Math.ceil(qty/packSize(l.product));}return{subtotal,vat,total:subtotal+vat,units,boxes};};
