@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Camera, ImagePlus, Loader2, Trash2 } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { fileToCompressedDataUrl } from "@/lib/compress-image";
@@ -25,6 +25,8 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [sourceDataUrl, setSourceDataUrl] = useState<string>();
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -32,6 +34,7 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
 
     try {
       const dataUrl = await fileToCompressedDataUrl(file);
+      setSourceDataUrl(dataUrl);
       onChange(dataUrl);
 
       try {
@@ -60,6 +63,35 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
     }
   };
 
+  const prepareImage = async () => {
+    if (!sourceDataUrl) return;
+    setPreparing(true);
+    try {
+      const mime = sourceDataUrl.match(/^data:([^;]+);base64,/)?.[1] || "image/jpeg";
+      const response = await fetch("/api/product-ai/prepare-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ dataUrl: sourceDataUrl, mime }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Görsel hazırlanamadı.");
+      if (!body.imageData) throw new Error("Görsel servisi boş yanıt döndürdü.");
+      onChange(body.imageData);
+      const uploadedUrl = await uploadImage(body.imageData);
+      onChange(uploadedUrl);
+      setSourceDataUrl(body.imageData);
+    } catch (error) {
+      toast({
+        title: "AI görsel hazırlama başarısız",
+        description: error instanceof Error ? error.message : "Görsel değiştirilemedi.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreparing(false);
+    }
+  };
+
   return (
     <div className="col-span-1 space-y-2">
       <label className="text-sm font-medium block">Ürün görseli</label>
@@ -71,18 +103,31 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
             className="h-24 w-24 rounded-md object-cover border bg-muted"
           />
           <div className="flex flex-col gap-2">
-            {uploading && (
+            {(uploading || preparing) && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Yükleniyor...
+                {preparing ? "Arka plan hazırlanıyor..." : "Yükleniyor..."}
               </p>
             )}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => onChange(undefined)}
-              disabled={uploading}
+              onClick={() => void prepareImage()}
+              disabled={uploading || preparing || !sourceDataUrl}
+            >
+              {preparing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Beyaz arka planla hazırla
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSourceDataUrl(undefined);
+                onChange(undefined);
+              }}
+              disabled={uploading || preparing}
               data-testid={testId ? `${testId}-remove` : undefined}
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -113,7 +158,7 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
             type="button"
             variant="outline"
             size="sm"
-            disabled={uploading}
+            disabled={uploading || preparing}
             onClick={() => cameraInputRef.current?.click()}
             data-testid={testId ? `${testId}-camera` : undefined}
           >
@@ -124,7 +169,7 @@ export function ProductImagePicker({ imageUrl, onChange, testId }: ProductImageP
             type="button"
             variant="outline"
             size="sm"
-            disabled={uploading}
+            disabled={uploading || preparing}
             onClick={() => galleryInputRef.current?.click()}
             data-testid={testId ? `${testId}-gallery` : undefined}
           >

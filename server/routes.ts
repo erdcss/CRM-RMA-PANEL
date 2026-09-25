@@ -5,6 +5,7 @@ import { insertCustomerSchema, insertWarehouseSchema, insertSupplierSchema, inse
 import { saveImageDataUrl, persistProductImageUrl } from "./image-storage";
 import { z } from "zod";
 import OpenAI from "openai";
+import { registerProductAIRoutes } from "./product-ai";
 
 let dbReady = false;
 
@@ -172,6 +173,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(502).json({ error: "Yapay zeka servisine ulaşılamadı" });
     }
   });
+
+  registerProductAIRoutes(app, requireAdmin);
 
   app.post("/api/uploads", requireAuth, async (req, res) => {
     try {

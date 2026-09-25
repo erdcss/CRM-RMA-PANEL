@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, UserPlus, ChevronDown, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, UserPlus, ChevronDown, ChevronLeft, Sparkles, FileUp, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -78,6 +78,43 @@ type ProductDraft = {
   invoiceNumber: string;
 };
 
+type AIProductDraft = {
+  name: string;
+  sku: string;
+  barcode: string;
+  brand: string;
+  category: string;
+  description: string;
+  purchasePrice: string;
+  salePrice: string;
+  vatRate: string;
+  stock: string;
+  unitsPerBox: string;
+  minimumOrderQuantity: string;
+  color: string;
+  size: string;
+  variant: string;
+  label: string;
+};
+
+const emptyAIProduct: AIProductDraft = {
+  name: "", sku: "", barcode: "", brand: "", category: "", description: "",
+  purchasePrice: "", salePrice: "", vatRate: "", stock: "", unitsPerBox: "",
+  minimumOrderQuantity: "", color: "", size: "", variant: "", label: "",
+};
+
+function stringifyOtherProperties(value: unknown) {
+  if (!Array.isArray(value)) return "";
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return "";
+      const property = item as { key?: unknown; value?: unknown };
+      return property.key && property.value ? `${property.key}: ${property.value}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 type TicketSubmission = TicketFormData & {
   products: Array<{
     name?: string;
@@ -137,6 +174,10 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
   const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerInfoOpen, setCustomerInfoOpen] = useState(true);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiProducts, setAiProducts] = useState<AIProductDraft[]>([]);
+  const aiFileRef = useRef<HTMLInputElement>(null);
 
   const { data: customers = [], isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
@@ -166,6 +207,9 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     setCustomerPickerOpen(false);
     setCustomerSearchQuery("");
     setCustomerInfoOpen(true);
+    setAiBusy(false);
+    setAiError("");
+    setAiProducts([]);
   };
 
   const selectCustomer = (customer: Customer) => {
@@ -224,6 +268,90 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, [field]: value } : p))
     );
+  };
+
+  const readFileData = (file: File) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Dosya okunamadı."));
+    reader.readAsDataURL(file);
+  });
+
+  const analyzeProductFile = async (file?: File) => {
+    if (!file) return;
+    const allowed = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setAiError("Yalnızca PDF, PNG, JPG/JPEG ve WEBP dosyaları desteklenir.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setAiError("Dosya boyutu en fazla 10 MB olabilir.");
+      return;
+    }
+    setAiBusy(true);
+    setAiError("");
+    try {
+      const response = await fetch("/api/product-ai/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ dataUrl: await readFileData(file), mime: file.type, name: file.name }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Ürün listesi analiz edilemedi.");
+      setAiProducts((body.products || []).map((product: Record<string, unknown>) => ({
+        ...emptyAIProduct,
+        name: String(product.name ?? ""),
+        sku: String(product.sku ?? ""),
+        barcode: String(product.barcode ?? ""),
+        brand: String(product.brand ?? ""),
+        category: String(product.category ?? ""),
+        description: [String(product.description ?? ""), stringifyOtherProperties(product.otherProperties)].filter(Boolean).join("\n"),
+        purchasePrice: product.purchasePrice == null ? "" : String(product.purchasePrice),
+        salePrice: product.salePrice == null ? "" : String(product.salePrice),
+        vatRate: product.vatRate == null ? "" : String(product.vatRate),
+        stock: product.stock == null ? "" : String(product.stock),
+        unitsPerBox: product.unitsPerBox == null ? "" : String(product.unitsPerBox),
+        minimumOrderQuantity: product.minimumOrderQuantity == null ? "" : String(product.minimumOrderQuantity),
+        color: String(product.color ?? ""),
+        size: String(product.size ?? ""),
+        variant: String(product.variant ?? ""),
+        label: String(product.label ?? ""),
+      })));
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Ürün listesi analiz edilemedi.");
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const updateAIProduct = (index: number, field: keyof AIProductDraft, value: string) => {
+    setAiProducts((current) => current.map((product, productIndex) =>
+      productIndex === index ? { ...product, [field]: value } : product,
+    ));
+  };
+
+  const importAIProducts = () => {
+    const imported = aiProducts
+      .filter((product) => product.name.trim())
+      .map((product, index) => ({
+        ...emptyProduct(Date.now() + index),
+        name: product.name.trim(),
+        brand: product.brand.trim(),
+        barcode: (product.barcode || product.sku).trim(),
+        description: [product.description, product.variant, product.color && `Renk: ${product.color}`, product.size && `Beden: ${product.size}`, product.label && `Etiket: ${product.label}`]
+          .filter(Boolean).join("\n"),
+        quantity: Number(product.stock) > 0 ? Number(product.stock) : 1,
+        category: ["iade", "degisim", "servis"].includes(product.category) ? product.category as ProductDraft["category"] : "servis",
+      }));
+    if (!imported.length) {
+      setAiError("Onaylamak için en az bir ürün adı girin.");
+      return;
+    }
+    setProducts(imported);
+    setActiveAccordion(`product-${imported[0].id}`);
+    setAiProducts([]);
+    setAiError("");
   };
 
   const onInvalid = () => {
@@ -472,17 +600,78 @@ export function NewTicketDialog({ open, onOpenChange }: NewTicketDialogProps) {
                 <div className="space-y-4 pb-2">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold">Ürün Bilgileri</h3>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addProduct}
-                      data-testid="button-add-product"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Ürün Ekle
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={aiFileRef}
+                        type="file"
+                        accept="application/pdf,image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(event) => {
+                          void analyzeProductFile(event.target.files?.[0]);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                      <Button type="button" variant="outline" size="sm" onClick={() => aiFileRef.current?.click()} disabled={aiBusy}>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Yapay Zeka ile Ürün Ekle
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addProduct}
+                        data-testid="button-add-product"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Ürün Ekle
+                      </Button>
+                    </div>
                   </div>
+
+                  {(aiBusy || aiError || aiProducts.length > 0) && (
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium flex items-center gap-2">
+                            <FileUp className="h-4 w-4" />
+                            {aiBusy ? "Ürün listesi yapay zeka ile analiz ediliyor..." : "AI ürün önizlemesi"}
+                          </p>
+                          {!aiBusy && !aiError && aiProducts.length > 0 && (
+                            <p className="text-sm text-muted-foreground mt-1">{aiProducts.length} ürün bulundu. Kaydetmeden önce alanları kontrol edin.</p>
+                          )}
+                          {aiError && <p className="text-sm text-destructive mt-1">{aiError}</p>}
+                        </div>
+                        {aiProducts.length > 0 && (
+                          <Button type="button" variant="ghost" size="icon" onClick={() => setAiProducts([])} aria-label="AI sonuçlarını kapat">
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {aiBusy && <div className="h-2 rounded-full bg-muted overflow-hidden"><div className="h-full w-1/2 bg-primary animate-pulse" /></div>}
+                      {aiProducts.length > 0 && (
+                        <>
+                          <div className="overflow-x-auto">
+                            <div className="min-w-[1400px] space-y-2">
+                              <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1.6fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
+                                {['Ürün adı', 'SKU', 'Barkod', 'Marka', 'Kategori', 'Açıklama', 'Alış', 'Satış', 'KDV', 'Stok', 'Koli içi', 'Min. adet', 'Renk', 'Beden', 'Varyant', 'Etiket'].map((label) => <span key={label}>{label}</span>)}
+                              </div>
+                              {aiProducts.map((product, index) => (
+                                <div key={index} className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1.6fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-2">
+                                  {(Object.keys(emptyAIProduct) as Array<keyof AIProductDraft>).map((field) => (
+                                    <Input key={field} value={product[field]} onChange={(event) => updateAIProduct(index, field, event.target.value)} aria-label={`${field} ${index + 1}`} />
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={() => aiFileRef.current?.click()} disabled={aiBusy}>Yeni belge</Button>
+                            <Button type="button" onClick={importAIProducts}>Onayla ve ürünleri forma aktar</Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   <Accordion
                     type="single"
