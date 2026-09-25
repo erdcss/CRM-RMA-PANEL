@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Çalışkan B2B",
+    "slug": "caliskan-b2b",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "scheme": "caliskanb2b",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111111"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.caliskangroup.rma",
+      "buildNumber": "55",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Ürün fotoğrafı çekmek ve koli barkodu taramak için kamera erişimi gerekir.",
+        "NSPhotoLibraryUsageDescription": "Ürün fotoğrafı eklemek için galeri erişimi gerekir.",
+        "NSSpeechRecognitionUsageDescription": "Çalışkan B2B, desteklenen sesli giriş özelliklerinde konuşmayı metne dönüştürmek için konuşma tanıma erişimini kullanır.",
+        "NSMicrophoneUsageDescription": "Çalışkan B2B, desteklenen sesli giriş özelliklerinde sesinizi algılamak için mikrofon erişimini kullanır."
+      }
+    },
+    "android": {
+      "package": "com.caliskangroup.rma",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#111111"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "./plugins/withNiimbotBluetooth.js",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ürün fotoğrafları için galeri erişimi gerekir.",
+          "cameraPermission": "Ürün fotoğrafı çekmek için kamera erişimi gerekir."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Koli barkodu ve QR kodu taramak için kamera erişimi gerekir.",
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b798642-00ea-462b-af15-07b2a3a54c5c"
+      }
+    },
+    "owner": "erdcls"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Çalışkan Business",
+    "slug": "caliskan-business",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "caliskanbusiness",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.caliskangroup.business",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.caliskangroup.business",
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "aa005486-76a0-41cd-92de-33c2070a73f1"
+      }
+    }
+  }
+}
