@@ -10,3 +10,4 @@ cmd = "npm start"
 [variables]
 NPM_CONFIG_PRODUCTION = "false"
 NIXPACKS_NODE_VERSION = "20"
+NODE_ENV = "production"
