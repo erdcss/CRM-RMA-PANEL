@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const PRIMARY_ADMIN_EMAIL = "calisganelektronik@gmail.com";
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -19,7 +21,8 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      await apiRequest("POST", "/api/auth/login", { username, password });
+      const normalizedUsername = username.trim().toLowerCase() === PRIMARY_ADMIN_EMAIL ? "admin" : username.trim();
+      await apiRequest("POST", "/api/auth/login", { username: normalizedUsername, password });
       window.location.reload();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Giriş yapılamadı");
