@@ -64,6 +64,10 @@ async function initDatabase(): Promise<void> {
 export async function registerRoutes(app: Express): Promise<Server> {
   initDatabase().catch(err => console.error("DB init error:", err));
 
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
+  });
+
   app.get("/api/auth/me", async (req, res) => {
     const userId = (req.session as { userId?: number }).userId;
     if (!userId) {
