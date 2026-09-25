@@ -18,6 +18,7 @@ import KayitDetay from "@/pages/kayit-detay";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Yoneticiler from "@/pages/yoneticiler";
+import YapayZeka from "@/pages/yapay-zeka";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/faturalar" component={Faturalar} />
       <Route path="/ayarlar" component={Ayarlar} />
       <Route path="/yoneticiler" component={Yoneticiler} />
+      <Route path="/yapay-zeka" component={YapayZeka} />
       <Route component={NotFound} />
     </Switch>
   );

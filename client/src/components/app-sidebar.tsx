@@ -8,6 +8,7 @@ import {
   Package,
   Truck,
   Receipt,
+  Sparkles,
 } from "lucide-react";
 import {
   Sidebar,
@@ -65,6 +66,11 @@ const menuItems = [
     title: "Ayarlar",
     url: "/ayarlar",
     icon: Settings,
+  },
+  {
+    title: "Yapay Zeka",
+    url: "/yapay-zeka",
+    icon: Sparkles,
   },
 ];
 

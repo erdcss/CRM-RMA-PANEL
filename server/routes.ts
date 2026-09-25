@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertWarehouseSchema, insertSupplierSchema, insertInvoiceSchema, insertUserSchema } from "@shared/schema";
 import { saveImageDataUrl, persistProductImageUrl } from "./image-storage";
 import { z } from "zod";
+import OpenAI from "openai";
 
 let dbReady = false;
 
@@ -17,6 +18,15 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
   return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
 }
+
+const aiChatSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string().trim().min(1).max(8000),
+  })).min(1).max(20),
+});
+
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const userId = sessionUserId(req);
@@ -130,6 +140,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.clearCookie("connect.sid");
       res.status(204).send();
     });
+  });
+
+  app.post("/api/ai/chat", requireAuth, async (req, res) => {
+    if (!openai) {
+      return res.status(503).json({ error: "Yapay zeka servisi yapılandırılmamış" });
+    }
+
+    try {
+      const { messages } = aiChatSchema.parse(req.body);
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content: "Sen Çalışkan Group RMA Paneli için Türkçe konuşan bir operasyon asistanısın. İade, değişim, servis, müşteri ve ürün kayıtları hakkında kısa, net ve uygulanabilir yanıtlar ver. Bilmediğin verileri uydurma.",
+          },
+          ...messages,
+        ],
+      });
+
+      const content = completion.choices[0]?.message?.content?.trim();
+      if (!content) return res.status(502).json({ error: "Yapay zeka boş yanıt döndürdü" });
+      return res.json({ message: content });
+    } catch (error) {
+      console.error("AI chat error:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Geçersiz mesaj formatı", details: error.errors });
+      }
+      return res.status(502).json({ error: "Yapay zeka servisine ulaşılamadı" });
+    }
   });
 
   app.post("/api/uploads", requireAuth, async (req, res) => {
