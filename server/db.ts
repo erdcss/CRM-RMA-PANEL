@@ -120,7 +120,12 @@ async function createDatabase() {
   if (process.env.DATABASE_URL) {
     const pg = (await import("pg")).default;
     const { drizzle } = await import("drizzle-orm/node-postgres");
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    const databaseUrl = process.env.DATABASE_URL;
+    const requiresTls = databaseUrl.includes(".render.com") || databaseUrl.includes("sslmode=require");
+    const pool = new pg.Pool({
+      connectionString: databaseUrl,
+      ...(requiresTls ? { ssl: { rejectUnauthorized: false } } : {}),
+    });
     const db = drizzle({ client: pool, schema });
     return { db, pool };
   }
