@@ -147,6 +147,9 @@ async function createDatabase() {
 const { db, pool } = await createDatabase();
 
 if (pool) {
+  // Render/Postgres can start as a completely empty database. Bootstrap the
+  // base tables before applying ALTER statements and phase migrations.
+  await pool.query(LOCAL_SCHEMA_SQL);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url TEXT`);
   await pool.query(AUTH_FOUNDATION_SQL);
   await pool.query(PHASE1_SCHEMA_SQL);
