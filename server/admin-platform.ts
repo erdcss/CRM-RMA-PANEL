@@ -260,7 +260,16 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/branding-icon/:target", async (req, res) => {
     try {
       const branding = await brandingMap();
-      const target = req.params.target === "b2b" ? "b2b" : "admin";
+      const host = String(req.hostname || req.headers.host || "").toLowerCase();
+      const hostIsB2B =
+        host === "b2b.ecalisgan.com" ||
+        host.includes("caliskan-b2b-web");
+      const target =
+        req.params.target === "current"
+          ? (hostIsB2B ? "b2b" : "admin")
+          : req.params.target === "b2b"
+            ? "b2b"
+            : "admin";
       const value = target === "b2b" ? branding.b2b_favicon : branding.admin_favicon;
 
       if (!value || !value.startsWith("data:image/")) {
