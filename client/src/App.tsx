@@ -23,6 +23,7 @@ import YapayZeka from "@/pages/yapay-zeka";
 import AdminProductAdd from "@/pages/admin-product-add";
 import AdminProducts from "@/pages/admin-products";
 import AdminProductAiImport from "@/pages/admin-product-ai-import";
+import AdminProductEdit from "@/pages/admin-product-edit";
 import AdminReturns from "@/pages/admin-returns";
 import AdminStock from "@/pages/admin-stock";
 import AdminOrders from "@/pages/admin-orders";
@@ -69,6 +70,7 @@ function Router() {
       <Route path="/urunler" component={AdminProducts} />
       <Route path="/urunler/ekle" component={AdminProductAdd} />
       <Route path="/urunler/ai-aktar" component={AdminProductAiImport} />
+      <Route path="/urunler/:id" component={AdminProductEdit} />
       <Route path="/urun-ekle" component={AdminProductAdd} />
       <Route path="/iade-islemleri" component={AdminReturns} />
       <Route path="/stok-durumu" component={AdminStock} />
