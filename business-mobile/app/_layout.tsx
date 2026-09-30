@@ -4,12 +4,14 @@ import { Stack } from "expo-router";
 import "react-native-url-polyfill/auto";
 import { useMobileBranding } from "../lib/branding";
 
+const MANAGED_SPLASH_DURATION_MS = 1400;
+
 export default function RootLayout() {
   const branding = useMobileBranding();
   const [showManagedSplash, setShowManagedSplash] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowManagedSplash(false), 1400);
+    const timer = setTimeout(() => setShowManagedSplash(false), MANAGED_SPLASH_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
 
