@@ -42,6 +42,10 @@ export default function B2BProductPage() {
     staleTime: 30_000,
   });
 
+  useEffect(() => {
+    if (product?.id) void trackProductView(product.id, product.name);
+  }, [product?.id, product?.name]);
+
   if (isLoading) {
     return <div className="min-h-screen grid place-items-center bg-[#f6f7f9] text-slate-500">Ürün yükleniyor…</div>;
   }
@@ -57,10 +61,6 @@ export default function B2BProductPage() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (product?.id) void trackProductView(product.id, product.name);
-  }, [product?.id, product?.name]);
 
   const image = product.image_data || product.image_url;
   const pack = Math.max(1, Number(product.units_per_box || 1));
