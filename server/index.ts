@@ -4,6 +4,8 @@ import { registerRoutes } from "./routes";
 import { log } from "./log";
 import { serveStatic } from "./static";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "./db";
 import { getUploadsDir } from "./image-storage";
 
 const app = express();
@@ -24,7 +26,18 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
+const PgSession = connectPgSimple(session);
+
 app.use(session({
+  ...(pool
+    ? {
+        store: new PgSession({
+          pool,
+          tableName: "user_sessions",
+          createTableIfMissing: true,
+        }),
+      }
+    : {}),
   secret: process.env.SESSION_SECRET || "local-rma-panel-session-secret",
   resave: false,
   saveUninitialized: false,
