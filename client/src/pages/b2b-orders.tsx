@@ -22,9 +22,9 @@ export default function B2BOrders() {
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <B2BHeader />
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-black">Siparişlerim</h1>
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:py-6">
+        <div className="mb-4">
+          <h1 className="text-xl font-black">Siparişlerim</h1>
           <p className="mt-1 text-sm text-slate-500">B2B siparişlerinizi ve durumlarını takip edin.</p>
         </div>
 
@@ -40,7 +40,7 @@ export default function B2BOrders() {
           ) : (
             <div className="divide-y">
               {data.map((order) => (
-                <div key={order.id} className="grid gap-3 p-5 sm:grid-cols-5 sm:items-center">
+                <div key={order.id} className="grid gap-3 p-4 sm:grid-cols-5 sm:items-center">
                   <div>
                     <div className="text-xs text-slate-500">Sipariş</div>
                     <div className="font-bold">#{order.order_number || order.id}</div>
