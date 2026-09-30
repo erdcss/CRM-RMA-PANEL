@@ -8,6 +8,7 @@ import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
 import { pool } from "./db";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { registerAdminPlatformRoutes } from "./admin-platform";
 
 let dbReady = false;
 
@@ -363,6 +364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerProductAIRoutes(app, requireAdmin);
+  await registerAdminPlatformRoutes(app, requireAdmin);
 
   app.get("/api/b2b/products", async (_req, res) => {
     if (!pool) return res.json([]);
