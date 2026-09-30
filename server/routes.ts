@@ -256,6 +256,110 @@ async function lookupTaxpayer(vkn: string): Promise<TaxLookupResult> {
   };
 }
 
+function generateTemporaryPassword(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = randomBytes(12);
+  let password = "";
+  for (let index = 0; index < 10; index += 1) {
+    password += alphabet[bytes[index] % alphabet.length];
+  }
+  return password;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+async function sendTemporaryPasswordEmail(input: {
+  to: string;
+  firstName?: string | null;
+  companyName?: string | null;
+  temporaryPassword: string;
+}): Promise<void> {
+  const loginUrl =
+    process.env.B2B_PUBLIC_URL?.trim() ||
+    process.env.RAILWAY_SERVICE_CALISKAN_B2B_WEB_URL?.trim() ||
+    "https://b2b.ecalisgan.com/uye-girisi";
+
+  const subject = "Çalışkan B2B hesabınız onaylandı";
+  const greeting = input.firstName?.trim() ? `Merhaba ${input.firstName.trim()},` : "Merhaba,";
+  const text = [
+    greeting,
+    "",
+    "Çalışkan B2B başvurunuz onaylandı.",
+    `Tek kullanımlık giriş şifreniz: ${input.temporaryPassword}`,
+    "",
+    "Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan hemen sonra yeni şifrenizi oluşturmanız istenecektir.",
+    `Giriş: ${loginUrl}`,
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#0f172a">
+      <h2 style="margin:0 0 16px">Çalışkan B2B hesabınız onaylandı</h2>
+      <p>${escapeHtml(greeting)}</p>
+      <p>${escapeHtml(input.companyName || "Firma")} başvurunuz yönetici tarafından onaylandı.</p>
+      <div style="margin:22px 0;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc">
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px">Tek kullanımlık şifreniz</div>
+        <div style="font-size:26px;font-weight:700;letter-spacing:2px">${escapeHtml(input.temporaryPassword)}</div>
+      </div>
+      <p style="font-size:13px;color:#475569">Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan sonra yeni şifre oluşturma ekranı açılacaktır.</p>
+      <p><a href="${escapeHtml(loginUrl)}">Çalışkan B2B giriş ekranını aç</a></p>
+    </div>
+  `;
+
+  const webhookUrl = process.env.B2B_MAIL_WEBHOOK_URL?.trim();
+  if (webhookUrl) {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: input.to,
+        subject,
+        text,
+        html,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) {
+      throw new Error(`E-posta servisi HTTP ${response.status}`);
+    }
+    return;
+  }
+
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.B2B_MAIL_FROM?.trim();
+  if (!resendApiKey || !from) {
+    throw new Error("E-posta servisi yapılandırılmamış");
+  }
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [input.to],
+      subject,
+      text,
+      html,
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    console.error("Temporary password email failed:", response.status, details);
+    throw new Error("Tek kullanımlık şifre e-posta ile gönderilemedi");
+  }
+}
+
 async function initDatabase(): Promise<void> {
   const maxRetries = 20;
   const delayMs = 5000;
@@ -409,9 +513,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/b2b/login", async (req, res) => {
     const identifier =
       typeof req.body?.username === "string"
-        ? req.body.username.trim()
+        ? req.body.username.trim().toLowerCase()
         : typeof req.body?.email === "string"
-          ? req.body.email.trim()
+          ? req.body.email.trim().toLowerCase()
           : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
 
@@ -425,7 +529,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     if (user.isActive !== 1) {
-      return res.status(403).json({ error: "Hesabınız yönetici onayı bekliyor" });
+      const message =
+        user.applicationStatus === "rejected"
+          ? "Başvurunuz onaylanmadı"
+          : "Hesabınız yönetici onayı bekliyor";
+      return res.status(403).json({ error: message });
     }
 
     if (user.appAccess !== "b2b" && user.role !== "b2b_customer") {
@@ -433,13 +541,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     (req.session as { userId?: number }).userId = user.id;
+
+    if (user.mustChangePassword === 1) {
+      // Tek kullanımlık şifre ilk başarılı girişte hemen geçersiz kılınır.
+      await storage.updateUser(user.id, {
+        password: hashPassword(randomBytes(32).toString("hex")),
+      });
+
+      return res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        appAccess: user.appAccess,
+        isActive: true,
+        mustChangePassword: true,
+      });
+    }
+
     return res.json({
       id: user.id,
       username: user.username,
       role: user.role,
       appAccess: user.appAccess,
       isActive: true,
+      mustChangePassword: false,
     });
+  });
+
+  app.post("/api/b2b/change-initial-password", async (req, res) => {
+    const userId = sessionUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: "Oturum bulunamadı. Tek kullanımlık şifreyi yeniden isteyin." });
+    }
+
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const passwordAgain = typeof req.body?.passwordAgain === "string" ? req.body.passwordAgain : "";
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Yeni şifre en az 8 karakter olmalı" });
+    }
+    if (password !== passwordAgain) {
+      return res.status(400).json({ error: "Şifreler eşleşmiyor" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user || user.role !== "b2b_customer" || user.isActive !== 1) {
+      return res.status(403).json({ error: "Bu işlem için geçerli B2B hesabı bulunamadı" });
+    }
+    if (user.mustChangePassword !== 1) {
+      return res.status(409).json({ error: "İlk giriş şifre oluşturma işlemi zaten tamamlanmış" });
+    }
+
+    await storage.updateUser(user.id, {
+      password: hashPassword(password),
+      mustChangePassword: 0,
+    });
+
+    return res.json({ ok: true });
   });
 
   app.post("/api/b2b/tax-verify", async (req, res) => {
@@ -458,27 +616,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({
           valid: false,
           verified: false,
-          error: "Vergi numarası kontrol basamakları geçersiz",
+          error: "Vergi numarası geçersiz",
+        });
+      }
+      if (!result.serviceConfigured) {
+        return res.status(503).json({
+          valid: true,
+          verified: false,
+          error: "Vergi dairesi otomatik sorgulama servisine şu anda ulaşılamıyor",
+        });
+      }
+      if (!result.verified || !result.taxOffice) {
+        return res.status(422).json({
+          valid: true,
+          verified: false,
+          error: "Vergi numarası için vergi dairesi doğrulanamadı",
         });
       }
 
       return res.json({
         valid: true,
-        verified: result.verified,
+        verified: true,
         taxNumber,
         taxOffice: result.taxOffice,
         companyName: result.companyName,
-        serviceConfigured: result.serviceConfigured,
-        message: result.verified
-          ? "Vergi numarası ve vergi dairesi doğrulandı"
-          : result.serviceConfigured
-            ? "Vergi numarası geçerli; vergi dairesi otomatik doğrulanamadı"
-            : "Vergi numarası geçerli",
+        serviceConfigured: true,
+        message: "Vergi bilgileri doğrulandı",
       });
     } catch (error) {
       console.error("B2B tax verification failed:", error);
       return res.status(502).json({
-        error: "Vergi doğrulama servisine ulaşılamadı",
+        error: "Vergi dairesi otomatik sorgulanamadı. Lütfen tekrar deneyin.",
       });
     }
   });
@@ -490,8 +658,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const companyCategory = typeof req.body?.companyCategory === "string" ? req.body.companyCategory.trim() : "";
     const taxNumber = typeof req.body?.taxNumber === "string" ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10) : "";
-    const submittedTaxOffice = typeof req.body?.taxOffice === "string" ? req.body.taxOffice.trim().slice(0, 180) : "";
-    const password = typeof req.body?.password === "string" ? req.body.password : "";
 
     if (companyName.length < 2) {
       return res.status(400).json({ error: "Firma ismi zorunludur" });
@@ -508,43 +674,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!isValidVknChecksum(taxNumber)) {
       return res.status(400).json({ error: "Vergi numarası geçersiz" });
     }
-    if (password.length < 8) {
-      return res.status(400).json({ error: "Şifre en az 8 karakter olmalı" });
-    }
 
     const existing = await storage.getUserByUsername(email);
     if (existing) {
-      return res.status(409).json({ error: "Bu e-posta ile daha önce kayıt oluşturulmuş" });
+      return res.status(409).json({ error: "Bu e-posta ile daha önce başvuru oluşturulmuş" });
     }
 
     const allUsers = await storage.listUsers();
     if (allUsers.some((user) => user.taxNumber === taxNumber)) {
-      return res.status(409).json({ error: "Bu vergi numarasıyla daha önce kayıt oluşturulmuş" });
+      return res.status(409).json({ error: "Bu vergi numarasıyla daha önce başvuru oluşturulmuş" });
+    }
+
+    let taxLookup: TaxLookupResult;
+    try {
+      taxLookup = await lookupTaxpayer(taxNumber);
+    } catch (error) {
+      console.error("Registration tax lookup failed:", error);
+      return res.status(502).json({ error: "Vergi bilgileri otomatik doğrulanamadı. Lütfen tekrar deneyin." });
+    }
+
+    if (!taxLookup.serviceConfigured || !taxLookup.verified || !taxLookup.taxOffice) {
+      return res.status(422).json({
+        error: "Vergi dairesi otomatik doğrulanmadan başvuru oluşturulamaz",
+      });
     }
 
     try {
-      let taxLookup: TaxLookupResult = {
-        structurallyValid: true,
-        verified: false,
-        taxOffice: null,
-        companyName: null,
-        serviceConfigured: false,
-      };
-
-      try {
-        taxLookup = await lookupTaxpayer(taxNumber);
-      } catch (taxError) {
-        console.error("Registration tax lookup failed:", taxError);
-      }
-
-      const resolvedTaxOffice = taxLookup.taxOffice || submittedTaxOffice;
-      if (!resolvedTaxOffice) {
-        return res.status(400).json({ error: "Vergi dairesi zorunludur" });
-      }
-
       const user = await storage.createUser({
         username: email,
-        password: hashPassword(password),
+        password: hashPassword(randomBytes(32).toString("hex")),
         role: "b2b_customer",
         appAccess: "b2b",
         isActive: 0,
@@ -554,23 +712,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         companyCategory,
         taxNumber,
-        taxOffice: resolvedTaxOffice,
-        taxVerified: taxLookup.verified ? 1 : 0,
+        taxOffice: taxLookup.taxOffice,
+        taxVerified: 1,
+        applicationStatus: "pending",
+        mustChangePassword: 0,
       });
 
       return res.status(201).json({
         id: user.id,
         username: user.username,
-        status: "pending_approval",
-        taxVerified: user.taxVerified === 1,
+        status: "pending",
+        taxVerified: true,
         taxOffice: user.taxOffice,
-        message: user.taxVerified === 1
-          ? "Kaydınız alındı. Vergi bilgileri doğrulandı ve yönetici onayına gönderildi."
-          : "Kaydınız alındı. Vergi bilgileri yönetici onayı sırasında ayrıca kontrol edilecektir.",
+        message: "Başvurunuz alındı. Yönetici onayından sonra tek kullanımlık şifreniz e-posta adresinize gönderilecektir.",
       });
     } catch (error) {
       console.error("B2B registration failed:", error);
-      return res.status(500).json({ error: "Kayıt oluşturulamadı" });
+      return res.status(500).json({ error: "Başvuru oluşturulamadı" });
+    }
+  });
+
+  app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
+    const allUsers = await storage.listUsers();
+    const applications = allUsers
+      .filter((user) => user.role === "b2b_customer" && Boolean(user.applicationStatus))
+      .map(({ password, ...user }) => ({
+        ...user,
+        isActive: user.isActive === 1,
+        taxVerified: user.taxVerified === 1,
+        mustChangePassword: user.mustChangePassword === 1,
+      }));
+
+    return res.json(applications);
+  });
+
+  app.post("/api/admin/b2b-applications/:id/approve", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = await storage.getUser(id);
+    if (!user || user.role !== "b2b_customer") {
+      return res.status(404).json({ error: "Başvuru bulunamadı" });
+    }
+    if (!user.email) {
+      return res.status(400).json({ error: "Başvuruda e-posta adresi bulunmuyor" });
+    }
+    if (user.applicationStatus === "rejected") {
+      return res.status(409).json({ error: "Reddedilmiş başvuru doğrudan onaylanamaz" });
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+
+    try {
+      await sendTemporaryPasswordEmail({
+        to: user.email,
+        firstName: user.firstName,
+        companyName: user.companyName,
+        temporaryPassword,
+      });
+
+      const updated = await storage.updateUser(id, {
+        password: hashPassword(temporaryPassword),
+        isActive: 1,
+        applicationStatus: "approved",
+        mustChangePassword: 1,
+        approvedAt: new Date(),
+        credentialsSentAt: new Date(),
+      });
+
+      if (!updated) {
+        return res.status(404).json({ error: "Başvuru bulunamadı" });
+      }
+
+      const { password, ...safeUser } = updated;
+      return res.json({
+        ...safeUser,
+        isActive: true,
+        taxVerified: safeUser.taxVerified === 1,
+        mustChangePassword: true,
+        message: "Başvuru onaylandı ve tek kullanımlık şifre e-posta ile gönderildi.",
+      });
+    } catch (error) {
+      console.error("B2B application approval failed:", error);
+      return res.status(502).json({
+        error: error instanceof Error ? error.message : "Başvuru onaylanamadı",
+      });
+    }
+  });
+
+  app.post("/api/admin/b2b-applications/:id/reject", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = await storage.getUser(id);
+    if (!user || user.role !== "b2b_customer") {
+      return res.status(404).json({ error: "Başvuru bulunamadı" });
+    }
+
+    const updated = await storage.updateUser(id, {
+      isActive: 0,
+      applicationStatus: "rejected",
+      mustChangePassword: 0,
+      password: hashPassword(randomBytes(32).toString("hex")),
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Başvuru bulunamadı" });
+    }
+
+    const { password, ...safeUser } = updated;
+    return res.json({
+      ...safeUser,
+      isActive: false,
+      taxVerified: safeUser.taxVerified === 1,
+      mustChangePassword: false,
+    });
+  });
+
+  app.post("/api/admin/b2b-applications/:id/resend-password", requireAdmin, async (req, res) => {
+    const id = Number(req.params.id);
+    const user = await storage.getUser(id);
+    if (!user || user.role !== "b2b_customer") {
+      return res.status(404).json({ error: "Başvuru bulunamadı" });
+    }
+    if (user.applicationStatus !== "approved" || user.isActive !== 1 || !user.email) {
+      return res.status(409).json({ error: "Yalnızca onaylı ve aktif hesaplara yeni tek kullanımlık şifre gönderilebilir" });
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+
+    try {
+      await sendTemporaryPasswordEmail({
+        to: user.email,
+        firstName: user.firstName,
+        companyName: user.companyName,
+        temporaryPassword,
+      });
+
+      await storage.updateUser(id, {
+        password: hashPassword(temporaryPassword),
+        mustChangePassword: 1,
+        credentialsSentAt: new Date(),
+      });
+
+      return res.json({ ok: true, message: "Yeni tek kullanımlık şifre e-posta ile gönderildi." });
+    } catch (error) {
+      console.error("B2B temporary password resend failed:", error);
+      return res.status(502).json({
+        error: error instanceof Error ? error.message : "E-posta gönderilemedi",
+      });
     }
   });
 
