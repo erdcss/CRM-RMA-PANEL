@@ -26,6 +26,7 @@ import B2BRegister from "@/pages/b2b-register";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
+import { trackSession } from "@/lib/analytics";
 
 function isB2BHost() {
   const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
@@ -107,6 +108,11 @@ function AppContent() {
 function B2BWebsite() {
   useEffect(() => {
     document.title = "Çalışkan B2B";
+    void trackSession();
+    const timer = window.setInterval(() => {
+      void trackSession();
+    }, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   return (
