@@ -1,3 +1,4 @@
+# Railway deterministic Business Mobile web build
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
