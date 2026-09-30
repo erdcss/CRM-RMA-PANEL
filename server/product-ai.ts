@@ -138,7 +138,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
           content: [
             {
               type: "input_text",
-              text: "Bu belgeyi ürün listesi olarak incele. Yalnızca belgede açıkça bulunan bilgileri çıkar; tahmin etme. Her ürünü ayrı kaydet. Sayısal alanları sayı, bilinmeyen alanları null yap. category mevcutsa iade, degisim veya servis değerlerinden birini kullan; emin değilsen null bırak.",
+              text: "Bu belgeyi bir B2B ürün kataloğu veya fiyat listesi olarak incele. Yalnızca belgede açıkça bulunan bilgileri çıkar; tahmin etme. Her ürünü ayrı kaydet. Sayısal alanları sayı, bilinmeyen alanları null yap. category alanına belgede geçen gerçek ürün kategorisini yaz; kategori belirtilmiyorsa null bırak. Stok kodu, barkod, marka, ürün adı, satış fiyatı, stok, koli içi adet ve minimum sipariş gibi alanları özellikle ayır.",
             },
             source,
           ],
