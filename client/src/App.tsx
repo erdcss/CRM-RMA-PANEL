@@ -25,6 +25,7 @@ import B2BLogin from "@/pages/b2b-login";
 import B2BRegister from "@/pages/b2b-register";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useBranding } from "@/hooks/use-branding";
 
 function isB2BHost() {
   const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
@@ -120,10 +121,31 @@ function B2BWebsite() {
   );
 }
 
+function BrandingRuntime() {
+  const { data: branding } = useBranding();
+
+  useEffect(() => {
+    const isB2B = isB2BHost();
+    const favicon = isB2B ? branding?.b2b_favicon : branding?.admin_favicon;
+    if (!favicon) return;
+
+    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = favicon;
+  }, [branding?.admin_favicon, branding?.b2b_favicon]);
+
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <BrandingRuntime />
         {isB2BHost() ? <B2BWebsite /> : <AppContent />}
       </TooltipProvider>
     </QueryClientProvider>
