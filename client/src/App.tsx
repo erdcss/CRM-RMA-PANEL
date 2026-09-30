@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationCenter } from "@/components/notification-center";
 import Dashboard from "@/pages/dashboard";
 import Kayitlar from "@/pages/kayitlar";
 import Istatistikler from "@/pages/istatistikler";
@@ -89,7 +90,10 @@ function AppContent() {
               <div className="flex flex-col flex-1 min-w-0 min-h-0">
                 <header className="flex items-center justify-between p-4 border-b shrink-0 pt-[max(1rem,env(safe-area-inset-top))]">
                   <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <ThemeToggle />
+                  <div className="flex items-center gap-2">
+                    <NotificationCenter />
+                    <ThemeToggle />
+                  </div>
                 </header>
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <Router />
