@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Barcode, ImagePlus, PackageCheck, Plus, Save, Trash2 } from "lucide-react";
@@ -373,6 +373,6 @@ export default function AdminProductEdit() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }
