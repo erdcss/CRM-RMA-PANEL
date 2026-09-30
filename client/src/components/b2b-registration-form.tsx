@@ -51,7 +51,6 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [taxOffice, setTaxOffice] = useState("");
   const [taxValid, setTaxValid] = useState(false);
   const [taxVerified, setTaxVerified] = useState(false);
-  const [taxMessage, setTaxMessage] = useState("");
   const [taxChecking, setTaxChecking] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -67,7 +66,6 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     setTaxOffice("");
     setTaxValid(false);
     setTaxVerified(false);
-    setTaxMessage("");
 
     if (clean.length !== 10) return;
 
@@ -91,13 +89,20 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
 
             if (response.ok) return payload;
 
-            lastError = payload.error || "Vergi bilgileri doğrulanamadı";
-
-            if (![502, 503].includes(response.status) || attempt === 2) {
-              throw new Error(lastError);
+            // Vergi sorgu servisi bağlı değilse/geçici hata verirse,
+            // geçerli 10 haneli VKN başvuruyu engellemez.
+            if (payload.valid === true || [502, 503].includes(response.status)) {
+              return {
+                valid: true,
+                verified: false,
+                taxNumber: clean,
+                taxOffice: null,
+                companyName: null,
+              };
             }
 
-            await new Promise((resolve) => window.setTimeout(resolve, 700 * (attempt + 1)));
+            lastError = payload.error || "Vergi numarası doğrulanamadı";
+            throw new Error(lastError);
           } catch (err) {
             lastError = err instanceof Error ? err.message : lastError;
             if (attempt === 2) throw new Error(lastError);
@@ -115,17 +120,15 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         setTaxValid(Boolean(result.valid));
         setTaxVerified(Boolean(result.verified));
         setTaxOffice(result.taxOffice || "");
-        setTaxMessage(result.verified ? (result.message || "Vergi bilgileri doğrulandı") : "");
 
         if (result.companyName) {
           setCompanyName((current) => current.trim() ? current : result.companyName || "");
         }
       } catch (err) {
         if (!active) return;
-        setTaxValid(false);
+        setTaxValid(/^\d{10}$/.test(clean));
         setTaxVerified(false);
         setTaxOffice("");
-        setTaxMessage(err instanceof Error ? err.message : "Vergi numarası doğrulanamadı");
       } finally {
         if (active) setTaxChecking(false);
       }
@@ -145,8 +148,8 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
       setError("Firma kategorisi seçin");
       return;
     }
-    if (!taxValid || !taxVerified || !taxOffice.trim()) {
-      setError("Vergi numarası ve vergi dairesi otomatik doğrulanmalıdır");
+    if (!taxValid) {
+      setError("Geçerli bir vergi numarası girin");
       return;
     }
 
@@ -299,18 +302,6 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         </div>
       </div>
 
-      {taxMessage ? (
-        <div
-          className={
-            taxVerified
-              ? "rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
-              : "rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
-          }
-        >
-          {taxMessage}
-        </div>
-      ) : null}
-
       {error ? (
         <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
       ) : null}
@@ -318,7 +309,16 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
       <Button
         type="submit"
         className="h-11 w-full bg-slate-950 hover:bg-slate-800"
-        disabled={busy || taxChecking || !taxValid || !taxVerified || !taxOffice}
+        disabled={
+          busy ||
+          taxChecking ||
+          companyName.trim().length < 2 ||
+          firstName.trim().length < 2 ||
+          lastName.trim().length < 2 ||
+          !/^\S+@\S+\.\S+$/.test(email.trim()) ||
+          !companyCategory ||
+          !taxValid
+        }
       >
         <UserPlus className="mr-2 h-4 w-4" />
         {busy ? "Kayıt oluşturuluyor…" : "Başvuruyu Gönder"}
