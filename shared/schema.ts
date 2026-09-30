@@ -11,6 +11,14 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("staff"),
   appAccess: text("app_access").notNull().default("business"),
   isActive: integer("is_active").notNull().default(1),
+  companyName: text("company_name"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  companyCategory: text("company_category"),
+  taxNumber: text("tax_number"),
+  taxOffice: text("tax_office"),
+  taxVerified: integer("tax_verified").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
