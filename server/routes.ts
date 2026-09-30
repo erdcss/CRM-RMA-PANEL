@@ -19,9 +19,26 @@ function hashPassword(password: string): string {
 }
 
 function verifyPassword(password: string, stored: string): boolean {
-  if (!stored.startsWith("scrypt$")) return stored === password;
-  const [, salt, expectedHex] = stored.split("$");
-  if (!salt || !expectedHex) return false;
+  let salt = "";
+  let expectedHex = "";
+
+  if (stored.startsWith("scrypt$")) {
+    const parts = stored.split("$");
+    salt = parts[1] || "";
+    expectedHex = parts[2] || "";
+  } else if (stored.startsWith("scrypt") && stored.length === 166) {
+    // Backward compatibility for temporary passwords created before
+    // the separator fix: "scrypt" + 32-char salt + 128-char hash.
+    salt = stored.slice(6, 38);
+    expectedHex = stored.slice(38);
+  } else {
+    return stored === password;
+  }
+
+  if (!/^[0-9a-f]{32}$/i.test(salt) || !/^[0-9a-f]{128}$/i.test(expectedHex)) {
+    return false;
+  }
+
   const actual = scryptSync(password, salt, 64);
   const expected = Buffer.from(expectedHex, "hex");
   return actual.length === expected.length && timingSafeEqual(actual, expected);
