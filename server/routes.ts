@@ -7,8 +7,24 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
 import { pool } from "./db";
+import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
 let dbReady = false;
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `scrypt${salt}${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  if (!stored.startsWith("scrypt$")) return stored === password;
+  const [, salt, expectedHex] = stored.split("$");
+  if (!salt || !expectedHex) return false;
+  const actual = scryptSync(password, salt, 64);
+  const expected = Buffer.from(expectedHex, "hex");
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
 
 function sessionUserId(req: Request): number | undefined {
   return (req.session as { userId?: number }).userId;
@@ -96,17 +112,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const primaryAdminEmail = (process.env.PRIMARY_ADMIN_EMAIL || "").trim().toLowerCase();
-    const localUsername =
-      primaryAdminEmail && identifier.toLowerCase() === primaryAdminEmail
-        ? "admin"
-        : identifier;
+    const primaryAdminAuthEmail = (process.env.PRIMARY_ADMIN_AUTH_EMAIL || primaryAdminEmail).trim().toLowerCase();
+    const identifierLower = identifier.toLowerCase();
+    const isPrimaryAdminAttempt =
+      Boolean(primaryAdminEmail) &&
+      (identifierLower === primaryAdminEmail || identifierLower === primaryAdminAuthEmail);
 
+    const localUsername = isPrimaryAdminAttempt ? "admin" : identifier;
     const localUser = await storage.getUserByUsername(localUsername);
-    if (localUser && localUser.password === password && localUser.isActive === 1) {
+
+    if (
+      localUser &&
+      localUser.isActive === 1 &&
+      ["super_admin", "admin"].includes(localUser.role) &&
+      verifyPassword(password, localUser.password)
+    ) {
       (req.session as { userId?: number }).userId = localUser.id;
       return res.json({
         id: localUser.id,
-        username: localUser.username,
+        username: isPrimaryAdminAttempt ? primaryAdminEmail : localUser.username,
         role: localUser.role,
         appAccess: localUser.appAccess,
         isActive: true,
@@ -115,10 +139,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
     const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || "";
-    const isPrimaryAdminAttempt =
-      Boolean(primaryAdminEmail) && identifier.toLowerCase() === primaryAdminEmail;
 
-    if (isPrimaryAdminAttempt && supabaseUrl && supabaseKey) {
+    if (isPrimaryAdminAttempt && supabaseUrl && supabaseKey && primaryAdminAuthEmail) {
       try {
         const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
           method: "POST",
@@ -127,7 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             apikey: supabaseKey,
           },
           body: JSON.stringify({
-            email: identifier,
+            email: primaryAdminAuthEmail,
             password,
           }),
         });
@@ -136,7 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const authPayload = await authResponse.json() as { user?: { email?: string } };
           const authenticatedEmail = authPayload.user?.email?.trim().toLowerCase();
 
-          if (authenticatedEmail === primaryAdminEmail) {
+          if (authenticatedEmail === primaryAdminAuthEmail) {
             await storage.ensureSystemUser();
             const adminUser = await storage.getUserByUsername("admin");
 
@@ -147,7 +169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             (req.session as { userId?: number }).userId = adminUser.id;
             return res.json({
               id: adminUser.id,
-              username: primaryAdminEmail,
+              username: primaryAdminEmail || primaryAdminAuthEmail,
               role: "super_admin",
               appAccess: adminUser.appAccess,
               isActive: true,
@@ -160,6 +182,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     return res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı" });
+  });
+
+  app.post("/api/b2b/login", async (req, res) => {
+    const identifier =
+      typeof req.body?.username === "string"
+        ? req.body.username.trim()
+        : typeof req.body?.email === "string"
+          ? req.body.email.trim()
+          : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+    if (!identifier || !password) {
+      return res.status(400).json({ error: "E-posta ve şifre gerekli" });
+    }
+
+    const user = await storage.getUserByUsername(identifier);
+    if (!user || !verifyPassword(password, user.password)) {
+      return res.status(401).json({ error: "E-posta veya şifre hatalı" });
+    }
+
+    if (user.isActive !== 1) {
+      return res.status(403).json({ error: "Hesabınız yönetici onayı bekliyor" });
+    }
+
+    if (user.appAccess !== "b2b" && user.role !== "b2b_customer") {
+      return res.status(403).json({ error: "Bu hesap B2B web sitesi için yetkili değil" });
+    }
+
+    (req.session as { userId?: number }).userId = user.id;
+    return res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      appAccess: user.appAccess,
+      isActive: true,
+    });
+  });
+
+  app.post("/api/b2b/register", async (req, res) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({ error: "Geçerli bir e-posta adresi girin" });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Şifre en az 8 karakter olmalı" });
+    }
+
+    const existing = await storage.getUserByUsername(email);
+    if (existing) {
+      return res.status(409).json({ error: "Bu e-posta ile daha önce kayıt oluşturulmuş" });
+    }
+
+    try {
+      const user = await storage.createUser({
+        username: email,
+        password: hashPassword(password),
+        role: "b2b_customer",
+        appAccess: "b2b",
+        isActive: 0,
+      });
+      return res.status(201).json({
+        id: user.id,
+        username: user.username,
+        status: "pending_approval",
+        message: "Kaydınız alındı. Yönetici onayından sonra giriş yapabilirsiniz.",
+      });
+    } catch (error) {
+      console.error("B2B registration failed:", error);
+      return res.status(500).json({ error: "Kayıt oluşturulamadı" });
+    }
   });
 
   app.get("/api/admin/users", requireAdmin, async (_req, res) => {
