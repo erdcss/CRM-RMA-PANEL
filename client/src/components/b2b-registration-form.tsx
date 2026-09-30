@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
-  AlertCircle,
   Building2,
   CheckCircle2,
   Loader2,
@@ -53,6 +52,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [taxOffice, setTaxOffice] = useState("");
   const [taxValid, setTaxValid] = useState(false);
   const [taxVerified, setTaxVerified] = useState(false);
+  const [taxServiceConfigured, setTaxServiceConfigured] = useState(false);
   const [taxMessage, setTaxMessage] = useState("");
   const [taxChecking, setTaxChecking] = useState(false);
   const [password, setPassword] = useState("");
@@ -71,6 +71,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     setTaxOffice("");
     setTaxValid(false);
     setTaxVerified(false);
+    setTaxServiceConfigured(false);
     setTaxMessage("");
 
     if (clean.length !== 10) return;
@@ -87,8 +88,9 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
 
         setTaxValid(Boolean(result.valid));
         setTaxVerified(Boolean(result.verified));
+        setTaxServiceConfigured(Boolean(result.serviceConfigured));
         setTaxOffice(result.taxOffice || "");
-        setTaxMessage(result.message || "");
+        setTaxMessage(result.verified ? (result.message || "Vergi bilgileri doğrulandı") : "");
 
         if (result.companyName) {
           setCompanyName((current) => current.trim() ? current : result.companyName || "");
@@ -97,6 +99,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         if (!active) return;
         setTaxValid(false);
         setTaxVerified(false);
+        setTaxServiceConfigured(false);
         setTaxOffice("");
         setTaxMessage(err instanceof Error ? err.message : "Vergi numarası doğrulanamadı");
       } finally {
@@ -126,6 +129,10 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
       setError("Vergi numarasını doğrulayın");
       return;
     }
+    if (!taxOffice.trim()) {
+      setError("Vergi dairesini girin");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -136,6 +143,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         email: email.trim(),
         companyCategory,
         taxNumber,
+        taxOffice: taxOffice.trim(),
         password,
       });
       setDone(true);
@@ -257,8 +265,6 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
                 <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
               ) : taxVerified ? (
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              ) : taxNumber.length === 10 && taxValid ? (
-                <AlertCircle className="h-4 w-4 text-amber-500" />
               ) : null}
             </span>
           </div>
@@ -269,10 +275,25 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           <Input
             id="register-tax-office"
             value={taxOffice}
-            readOnly
-            className="h-11 bg-slate-50"
-            placeholder={taxChecking ? "Sorgulanıyor…" : "Otomatik belirlenecek"}
+            onChange={(event) => setTaxOffice(event.target.value)}
+            readOnly={taxVerified}
+            className={taxVerified ? "h-11 bg-emerald-50/40" : "h-11"}
+            placeholder={
+              taxChecking
+                ? "Sorgulanıyor…"
+                : taxVerified
+                  ? "Vergi dairesi"
+                  : "Vergi dairesini girin"
+            }
+            required
           />
+          {taxValid && !taxVerified ? (
+            <p className="text-xs text-slate-500">
+              {taxServiceConfigured
+                ? "Otomatik eşleşme bulunamadı. Vergi dairesini kontrol ederek girin."
+                : "Vergi numarası formatı geçerli. Vergi dairesini girerek devam edin."}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -281,9 +302,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           className={
             taxVerified
               ? "rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
-              : taxValid
-                ? "rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700"
-                : "rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
+              : "rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
           }
         >
           {taxMessage}
