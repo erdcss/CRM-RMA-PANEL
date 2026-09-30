@@ -1,11 +1,45 @@
+import { useEffect, useState } from "react";
+import { Image, StyleSheet, View } from "react-native";
 import { Stack } from "expo-router";
 import "react-native-url-polyfill/auto";
+import { useMobileBranding } from "../lib/branding";
 
 export default function RootLayout() {
+  const branding = useMobileBranding();
+  const [showManagedSplash, setShowManagedSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowManagedSplash(false), 1400);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-    </Stack>
+    <View style={styles.root}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+      </Stack>
+
+      {showManagedSplash && branding.business_mobile_splash ? (
+        <View style={styles.splash} pointerEvents="none">
+          <Image source={{ uri: branding.business_mobile_splash }} style={styles.splashImage} resizeMode="contain" />
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  splash: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0B0B0B",
+  },
+  splashImage: {
+    width: "82%",
+    height: "82%",
+  },
+});
