@@ -816,8 +816,9 @@ async function initDatabase(): Promise<void> {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  initDatabase().catch(err => console.error("DB init error:", err));
-  ensureB2BAccountTables().catch(err => console.error("B2B account tables init error:", err));
+  initDatabase()
+    .then(() => ensureB2BAccountTables())
+    .catch(err => console.error("DB/B2B account init error:", err));
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
