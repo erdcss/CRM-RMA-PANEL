@@ -44,11 +44,14 @@ CREATE TABLE IF NOT EXISTS b2b_products (
   min_order_qty INTEGER NOT NULL DEFAULT 1,
   units_per_box INTEGER NOT NULL DEFAULT 1,
   image_data TEXT,
+  images JSONB NOT NULL DEFAULT '[]'::jsonb,
+  barcode TEXT,
   collection_name TEXT,
-  features JSONB,
-  variants JSONB,
+  features JSONB NOT NULL DEFAULT '[]'::jsonb,
+  variants JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS b2b_products_stock_idx ON b2b_products (stock);
@@ -71,6 +74,87 @@ type BrandingKey = typeof BRANDING_KEYS[number];
 async function ensurePlatformTables() {
   if (!pool) return;
   await pool.query(PLATFORM_SQL);
+
+  await pool.query(`
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS image_data TEXT;
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS barcode TEXT;
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS collection_name TEXT;
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS features JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    CREATE SEQUENCE IF NOT EXISTS b2b_products_id_seq;
+    ALTER SEQUENCE b2b_products_id_seq OWNED BY b2b_products.id;
+    ALTER TABLE b2b_products ALTER COLUMN id SET DEFAULT nextval('b2b_products_id_seq');
+    SELECT setval(
+      'b2b_products_id_seq',
+      GREATEST(COALESCE((SELECT MAX(id) FROM b2b_products), 0) + 1, 1),
+      false
+    );
+  `);
+}
+
+function normalizeProductImages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) =>
+      item.startsWith("data:image/") ||
+      item.startsWith("/uploads/") ||
+      item.startsWith("https://") ||
+      item.startsWith("http://"),
+    )
+    .slice(0, 6);
+}
+
+function normalizeProductVariants(value: unknown): Array<Record<string, string | number | null>> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+    .slice(0, 50)
+    .map((item: any) => ({
+      name: typeof item.name === "string" ? item.name.trim().slice(0, 120) : "",
+      value: typeof item.value === "string" ? item.value.trim().slice(0, 160) : "",
+      sku: typeof item.sku === "string" ? item.sku.trim().slice(0, 120) : "",
+      barcode: typeof item.barcode === "string" ? item.barcode.trim().slice(0, 120) : "",
+      price: Number.isFinite(Number(item.price)) ? Number(item.price) : null,
+      stock: Number.isFinite(Number(item.stock)) ? Math.max(0, Math.trunc(Number(item.stock))) : null,
+    }))
+    .filter((item) => item.name || item.value || item.sku || item.barcode);
+}
+
+function parseAdminProductPayload(body: any) {
+  const sku = typeof body?.sku === "string" ? body.sku.trim().slice(0, 140) : "";
+  const name = typeof body?.name === "string" ? body.name.trim().slice(0, 300) : "";
+  const brand = typeof body?.brand === "string" ? body.brand.trim().slice(0, 180) : "";
+  const category = typeof body?.category === "string" ? body.category.trim().slice(0, 180) : "";
+  const description = typeof body?.description === "string" ? body.description.trim().slice(0, 5000) : "";
+  const collectionName = typeof body?.collectionName === "string" ? body.collectionName.trim().slice(0, 180) : "";
+  const barcode = typeof body?.barcode === "string" ? body.barcode.trim().slice(0, 120) : "";
+  const price = Number(body?.price ?? 0);
+  const stock = Math.max(0, Number.parseInt(String(body?.stock ?? 0), 10) || 0);
+  const minOrderQty = Math.max(1, Number.parseInt(String(body?.minOrderQty ?? 1), 10) || 1);
+  const unitsPerBox = Math.max(1, Number.parseInt(String(body?.unitsPerBox ?? 1), 10) || 1);
+  const images = normalizeProductImages(body?.images);
+  const variants = normalizeProductVariants(body?.variants);
+
+  return {
+    sku,
+    name,
+    brand,
+    category,
+    description,
+    collectionName,
+    barcode,
+    price,
+    stock,
+    minOrderQty,
+    unitsPerBox,
+    images,
+    variants,
+  };
 }
 
 function validVisitorId(value: unknown): string | null {
@@ -253,9 +337,14 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           stock,
           min_order_qty,
           units_per_box,
+          image_data,
+          images,
+          barcode,
           collection_name,
+          variants,
           is_active,
-          created_at
+          created_at,
+          updated_at
         FROM b2b_products
         ORDER BY created_at DESC
       `);
@@ -266,46 +355,224 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
-  app.post("/api/admin/b2b-products", requireAdmin, async (req, res) => {
+  app.get("/api/admin/b2b-products/:id", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
 
-    const sku = typeof req.body?.sku === "string" ? req.body.sku.trim() : "";
-    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
-    const brand = typeof req.body?.brand === "string" ? req.body.brand.trim() : "";
-    const category = typeof req.body?.category === "string" ? req.body.category.trim() : "";
-    const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
-    const collectionName = typeof req.body?.collectionName === "string" ? req.body.collectionName.trim() : "";
-    const price = Number(req.body?.price ?? 0);
-    const stock = Math.max(0, Number.parseInt(String(req.body?.stock ?? 0), 10) || 0);
-    const minOrderQty = Math.max(1, Number.parseInt(String(req.body?.minOrderQty ?? 1), 10) || 1);
-    const unitsPerBox = Math.max(1, Number.parseInt(String(req.body?.unitsPerBox ?? 1), 10) || 1);
+    try {
+      const result = await pool.query(
+        `SELECT
+           id, sku, name, brand, category, description, price, stock,
+           min_order_qty, units_per_box, image_data, images, barcode,
+           collection_name, features, variants, is_active, created_at, updated_at
+         FROM b2b_products
+         WHERE id::text = $1
+         LIMIT 1`,
+        [String(req.params.id)],
+      );
 
-    if (!sku || !name) {
+      if (!result.rows[0]) return res.status(404).json({ error: "Ürün bulunamadı" });
+      return res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Admin B2B product detail failed:", error);
+      return res.status(500).json({ error: "Ürün bilgileri alınamadı" });
+    }
+  });
+
+  app.post("/api/admin/b2b-products", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const product = parseAdminProductPayload(req.body);
+
+    if (!product.sku || !product.name) {
       return res.status(400).json({ error: "Stok kodu ve ürün adı zorunludur" });
     }
-    if (!Number.isFinite(price) || price < 0) {
+    if (!Number.isFinite(product.price) || product.price < 0) {
       return res.status(400).json({ error: "Geçerli bir fiyat girin" });
+    }
+    if (product.images.length === 0) {
+      return res.status(400).json({ error: "Ürün görseli zorunludur" });
     }
 
     try {
       const result = await pool.query(
         `INSERT INTO b2b_products (
           sku, name, brand, category, description, price, stock,
-          min_order_qty, units_per_box, collection_name, is_active
+          min_order_qty, units_per_box, image_data, images, barcode,
+          collection_name, variants, is_active, updated_at
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::jsonb,TRUE,NOW())
         RETURNING *`,
-        [sku, name, brand || null, category || null, description || null, price, stock, minOrderQty, unitsPerBox, collectionName || null],
+        [
+          product.sku,
+          product.name,
+          product.brand || null,
+          product.category || null,
+          product.description || null,
+          product.price,
+          product.stock,
+          product.minOrderQty,
+          product.unitsPerBox,
+          product.images[0],
+          JSON.stringify(product.images),
+          product.barcode || null,
+          product.collectionName || null,
+          JSON.stringify(product.variants),
+        ],
       );
-      res.status(201).json(result.rows[0]);
+      return res.status(201).json(result.rows[0]);
     } catch (error: any) {
       if (error?.code === "23505") {
         return res.status(409).json({ error: "Bu stok koduyla kayıtlı bir ürün var" });
       }
       console.error("Admin B2B product create failed:", error);
-      res.status(500).json({ error: "Ürün eklenemedi" });
+      return res.status(500).json({ error: "Ürün eklenemedi" });
     }
   });
+
+  app.post("/api/admin/b2b-products/bulk", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+
+    const rawProducts = Array.isArray(req.body?.products) ? req.body.products.slice(0, 250) : [];
+    if (rawProducts.length === 0) {
+      return res.status(400).json({ error: "Aktarılacak ürün bulunamadı" });
+    }
+
+    const products = rawProducts.map(parseAdminProductPayload);
+    const invalid = products.findIndex(
+      (item) =>
+        !item.sku ||
+        !item.name ||
+        !Number.isFinite(item.price) ||
+        item.price < 0 ||
+        item.images.length === 0,
+    );
+
+    if (invalid >= 0) {
+      return res.status(400).json({
+        error: `${invalid + 1}. üründe stok kodu, ürün adı, geçerli fiyat ve en az bir görsel zorunludur`,
+      });
+    }
+
+    const skus = products.map((item) => item.sku.toLocaleLowerCase("tr-TR"));
+    if (new Set(skus).size !== skus.length) {
+      return res.status(409).json({ error: "Aktarım listesinde tekrar eden stok kodu var" });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const created = [];
+
+      for (const product of products) {
+        const result = await client.query(
+          `INSERT INTO b2b_products (
+            sku, name, brand, category, description, price, stock,
+            min_order_qty, units_per_box, image_data, images, barcode,
+            collection_name, variants, is_active, updated_at
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::jsonb,TRUE,NOW())
+          RETURNING id, sku, name`,
+          [
+            product.sku,
+            product.name,
+            product.brand || null,
+            product.category || null,
+            product.description || null,
+            product.price,
+            product.stock,
+            product.minOrderQty,
+            product.unitsPerBox,
+            product.images[0],
+            JSON.stringify(product.images),
+            product.barcode || null,
+            product.collectionName || null,
+            JSON.stringify(product.variants),
+          ],
+        );
+        created.push(result.rows[0]);
+      }
+
+      await client.query("COMMIT");
+      return res.status(201).json({
+        count: created.length,
+        products: created,
+        message: `${created.length} ürün başarıyla aktarıldı`,
+      });
+    } catch (error: any) {
+      await client.query("ROLLBACK");
+      if (error?.code === "23505") {
+        return res.status(409).json({ error: "Stok kodlarından biri sistemde zaten kayıtlı" });
+      }
+      console.error("Admin B2B bulk product create failed:", error);
+      return res.status(500).json({ error: "Ürünler toplu olarak aktarılamadı" });
+    } finally {
+      client.release();
+    }
+  });
+
+  app.patch("/api/admin/b2b-products/:id", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const product = parseAdminProductPayload(req.body);
+
+    if (!product.sku || !product.name) {
+      return res.status(400).json({ error: "Stok kodu ve ürün adı zorunludur" });
+    }
+    if (!Number.isFinite(product.price) || product.price < 0) {
+      return res.status(400).json({ error: "Geçerli bir fiyat girin" });
+    }
+    if (product.images.length === 0) {
+      return res.status(400).json({ error: "Ürün görseli zorunludur" });
+    }
+
+    try {
+      const result = await pool.query(
+        `UPDATE b2b_products
+         SET sku = $2,
+             name = $3,
+             brand = $4,
+             category = $5,
+             description = $6,
+             price = $7,
+             stock = $8,
+             min_order_qty = $9,
+             units_per_box = $10,
+             image_data = $11,
+             images = $12::jsonb,
+             barcode = $13,
+             collection_name = $14,
+             variants = $15::jsonb,
+             updated_at = NOW()
+         WHERE id::text = $1
+         RETURNING *`,
+        [
+          String(req.params.id),
+          product.sku,
+          product.name,
+          product.brand || null,
+          product.category || null,
+          product.description || null,
+          product.price,
+          product.stock,
+          product.minOrderQty,
+          product.unitsPerBox,
+          product.images[0],
+          JSON.stringify(product.images),
+          product.barcode || null,
+          product.collectionName || null,
+          JSON.stringify(product.variants),
+        ],
+      );
+
+      if (!result.rows[0]) return res.status(404).json({ error: "Ürün bulunamadı" });
+      return res.json(result.rows[0]);
+    } catch (error: any) {
+      if (error?.code === "23505") {
+        return res.status(409).json({ error: "Bu stok kodu başka bir üründe kullanılıyor" });
+      }
+      console.error("Admin B2B product update failed:", error);
+      return res.status(500).json({ error: "Ürün güncellenemedi" });
+    }
+  });
+
 
   app.get("/api/admin/orders", requireAdmin, async (_req, res) => {
     if (!pool) return res.json([]);
