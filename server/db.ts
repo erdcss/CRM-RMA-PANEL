@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS users (
   tax_number TEXT,
   tax_office TEXT,
   tax_verified INTEGER NOT NULL DEFAULT 0,
+  application_status TEXT,
+  must_change_password INTEGER NOT NULL DEFAULT 0,
+  approved_at TIMESTAMP,
+  credentials_sent_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS customers (
@@ -75,6 +79,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS company_category TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_number TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_office TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_verified INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS application_status TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS credentials_sent_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
 CREATE UNIQUE INDEX IF NOT EXISTS users_b2b_tax_number_unique
   ON users (tax_number)
