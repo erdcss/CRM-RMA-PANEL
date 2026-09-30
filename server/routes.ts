@@ -141,110 +141,141 @@ function normalizeTaxLookupPayload(payload: Record<string, any>): {
 }
 
 async function lookupTaxpayer(vkn: string): Promise<TaxLookupResult> {
+  const configured =
+    Boolean(process.env.MUKELLEF_INFO_API_KEY?.trim()) ||
+    Boolean(process.env.RAPIDAPI_KEY?.trim()) ||
+    Boolean(process.env.TAX_VERIFICATION_API_URL?.trim());
+
   if (!isValidVknChecksum(vkn)) {
     return {
       structurallyValid: false,
       verified: false,
       taxOffice: null,
       companyName: null,
-      serviceConfigured: Boolean(
-        process.env.MUKELLEF_INFO_API_KEY ||
-        process.env.RAPIDAPI_KEY ||
-        process.env.TAX_VERIFICATION_API_URL,
-      ),
+      serviceConfigured: configured,
     };
   }
 
+  const errors: string[] = [];
+
   const mukellefInfoKey = process.env.MUKELLEF_INFO_API_KEY?.trim();
   if (mukellefInfoKey) {
-    const response = await fetch(
-      `https://api.mukellef.info/v2/query.php?TaxNumber=${encodeURIComponent(vkn)}`,
-      {
-        headers: { ApiKey: mukellefInfoKey },
-        signal: AbortSignal.timeout(8000),
-      },
-    );
+    try {
+      const response = await fetch(
+        `https://api.mukellef.info/v2/query.php?TaxNumber=${encodeURIComponent(vkn)}`,
+        {
+          headers: { ApiKey: mukellefInfoKey },
+          signal: AbortSignal.timeout(8000),
+        },
+      );
 
-    if (!response.ok) {
-      throw new Error(`Mükellef sorgulama servisi HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Mükellef.info HTTP ${response.status}`);
+      }
+
+      const payload = await response.json() as Record<string, any>;
+      const normalized = normalizeTaxLookupPayload(payload);
+
+      if (normalized.valid && normalized.taxOffice) {
+        return {
+          structurallyValid: true,
+          verified: true,
+          taxOffice: normalized.taxOffice,
+          companyName: normalized.companyName,
+          serviceConfigured: true,
+        };
+      }
+
+      errors.push("Mükellef.info eşleşme döndürmedi");
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "Mükellef.info sorgusu başarısız");
     }
-
-    const payload = await response.json() as Record<string, any>;
-    const normalized = normalizeTaxLookupPayload(payload);
-
-    return {
-      structurallyValid: true,
-      verified: normalized.valid && Boolean(normalized.taxOffice),
-      taxOffice: normalized.taxOffice,
-      companyName: normalized.companyName,
-      serviceConfigured: true,
-    };
   }
 
   const rapidApiKey = process.env.RAPIDAPI_KEY?.trim();
   if (rapidApiKey) {
-    const host =
-      process.env.RAPIDAPI_TAX_HOST?.trim() ||
-      "turkey-company-lookup-api.p.rapidapi.com";
+    try {
+      const host =
+        process.env.RAPIDAPI_TAX_HOST?.trim() ||
+        "turkey-company-lookup-api.p.rapidapi.com";
 
-    const response = await fetch(
-      `https://${host}/v1/company/vkn-lookup?vkn=${encodeURIComponent(vkn)}&lang=tr`,
-      {
-        headers: {
-          "X-RapidAPI-Key": rapidApiKey,
-          "X-RapidAPI-Host": host,
+      const response = await fetch(
+        `https://${host}/v1/company/vkn-lookup?vkn=${encodeURIComponent(vkn)}&lang=tr`,
+        {
+          headers: {
+            "X-RapidAPI-Key": rapidApiKey,
+            "X-RapidAPI-Host": host,
+          },
+          signal: AbortSignal.timeout(8000),
         },
-        signal: AbortSignal.timeout(8000),
-      },
-    );
+      );
 
-    if (!response.ok) {
-      throw new Error(`Vergi sorgulama servisi HTTP ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`TRApi HTTP ${response.status}`);
+      }
+
+      const payload = await response.json() as Record<string, any>;
+      const normalized = normalizeTaxLookupPayload(payload);
+
+      if (normalized.valid && normalized.taxOffice) {
+        return {
+          structurallyValid: true,
+          verified: true,
+          taxOffice: normalized.taxOffice,
+          companyName: normalized.companyName,
+          serviceConfigured: true,
+        };
+      }
+
+      errors.push("TRApi vergi dairesi eşleşmesi döndürmedi");
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "TRApi sorgusu başarısız");
     }
-
-    const payload = await response.json() as Record<string, any>;
-    const normalized = normalizeTaxLookupPayload(payload);
-
-    return {
-      structurallyValid: true,
-      verified: normalized.valid && Boolean(normalized.taxOffice),
-      taxOffice: normalized.taxOffice,
-      companyName: normalized.companyName,
-      serviceConfigured: true,
-    };
   }
 
   const endpoint = process.env.TAX_VERIFICATION_API_URL?.trim();
   if (endpoint) {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const apiKey = process.env.TAX_VERIFICATION_API_KEY?.trim();
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const apiKey = process.env.TAX_VERIFICATION_API_KEY?.trim();
 
-    if (apiKey) {
-      headers.Authorization = `Bearer ${apiKey}`;
-      headers["X-API-Key"] = apiKey;
+      if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+        headers["X-API-Key"] = apiKey;
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ taxNumber: vkn, vkn }),
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Özel vergi servisi HTTP ${response.status}`);
+      }
+
+      const payload = await response.json() as Record<string, any>;
+      const normalized = normalizeTaxLookupPayload(payload);
+
+      if (normalized.valid && normalized.taxOffice) {
+        return {
+          structurallyValid: true,
+          verified: true,
+          taxOffice: normalized.taxOffice,
+          companyName: normalized.companyName,
+          serviceConfigured: true,
+        };
+      }
+
+      errors.push("Özel vergi servisi eşleşme döndürmedi");
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "Özel vergi servisi sorgusu başarısız");
     }
+  }
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ taxNumber: vkn, vkn }),
-      signal: AbortSignal.timeout(8000),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Vergi doğrulama servisi HTTP ${response.status}`);
-    }
-
-    const payload = await response.json() as Record<string, any>;
-    const normalized = normalizeTaxLookupPayload(payload);
-
-    return {
-      structurallyValid: true,
-      verified: normalized.valid && Boolean(normalized.taxOffice),
-      taxOffice: normalized.taxOffice,
-      companyName: normalized.companyName,
-      serviceConfigured: true,
-    };
+  if (configured && errors.length > 0) {
+    console.error("All configured tax lookup providers failed:", errors.join(" | "));
   }
 
   return {
@@ -252,7 +283,7 @@ async function lookupTaxpayer(vkn: string): Promise<TaxLookupResult> {
     verified: false,
     taxOffice: null,
     companyName: null,
-    serviceConfigured: false,
+    serviceConfigured: configured,
   };
 }
 
