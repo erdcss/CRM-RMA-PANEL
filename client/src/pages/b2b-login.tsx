@@ -15,6 +15,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { B2BRegistrationForm } from "@/components/b2b-registration-form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function B2BLogin() {
   const { data: branding } = useBranding();
@@ -23,6 +30,11 @@ export default function B2BLogin() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [passwordSetupOpen, setPasswordSetupOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordAgain, setNewPasswordAgain] = useState("");
+  const [passwordSetupError, setPasswordSetupError] = useState("");
+  const [passwordSetupBusy, setPasswordSetupBusy] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -30,14 +42,49 @@ export default function B2BLogin() {
     setError("");
 
     try {
-      await apiRequest("POST", "/api/b2b/login", {
+      const response = await apiRequest("POST", "/api/b2b/login", {
         email: email.trim(),
         password,
       });
+      const result = await response.json() as { mustChangePassword?: boolean };
+
+      if (result.mustChangePassword) {
+        setBusy(false);
+        setPassword("");
+        setPasswordSetupOpen(true);
+        return;
+      }
+
       window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş yapılamadı");
       setBusy(false);
+    }
+  }
+
+  async function saveInitialPassword(event: FormEvent) {
+    event.preventDefault();
+    setPasswordSetupError("");
+
+    if (newPassword.length < 8) {
+      setPasswordSetupError("Yeni şifre en az 8 karakter olmalı");
+      return;
+    }
+    if (newPassword !== newPasswordAgain) {
+      setPasswordSetupError("Şifreler eşleşmiyor");
+      return;
+    }
+
+    setPasswordSetupBusy(true);
+    try {
+      await apiRequest("POST", "/api/b2b/change-initial-password", {
+        password: newPassword,
+        passwordAgain: newPasswordAgain,
+      });
+      window.location.assign("/");
+    } catch (err) {
+      setPasswordSetupError(err instanceof Error ? err.message : "Şifre oluşturulamadı");
+      setPasswordSetupBusy(false);
     }
   }
 
@@ -130,6 +177,65 @@ export default function B2BLogin() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={passwordSetupOpen} onOpenChange={() => undefined}>
+        <DialogContent className="inset-auto left-1/2 top-1/2 h-auto min-h-0 max-h-[90vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6 [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>Yeni şifrenizi oluşturun</DialogTitle>
+            <DialogDescription>
+              E-postanıza gönderilen tek kullanımlık şifre ile giriş yaptınız. Devam etmek için kalıcı şifrenizi belirleyin.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={saveInitialPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="initial-new-password">Yeni şifre</Label>
+              <div className="relative">
+                <LockKeyhole className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  id="initial-new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  className="h-11 pl-9"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  minLength={8}
+                  autoFocus
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="initial-new-password-again">Yeni şifre tekrar</Label>
+              <Input
+                id="initial-new-password-again"
+                type="password"
+                autoComplete="new-password"
+                className="h-11"
+                value={newPasswordAgain}
+                onChange={(event) => setNewPasswordAgain(event.target.value)}
+                minLength={8}
+                required
+              />
+            </div>
+
+            {passwordSetupError ? (
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                {passwordSetupError}
+              </div>
+            ) : null}
+
+            <Button
+              type="submit"
+              className="h-11 w-full bg-slate-950 hover:bg-slate-800"
+              disabled={passwordSetupBusy}
+            >
+              {passwordSetupBusy ? "Şifre oluşturuluyor…" : "Yeni Şifreyi Kaydet"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
