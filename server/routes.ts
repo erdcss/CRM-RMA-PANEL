@@ -1493,6 +1493,252 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  app.get("/api/b2b/account", requireB2B, async (_req, res) => {
+    const user = (res.locals as any).b2bUser;
+    return res.json({
+      id: user.id,
+      email: user.email || user.username,
+      companyName: user.companyName,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      companyCategory: user.companyCategory,
+      taxNumber: user.taxNumber,
+      taxOffice: user.taxOffice,
+      taxVerified: user.taxVerified === 1,
+    });
+  });
+
+  app.patch("/api/b2b/account", requireB2B, async (req, res) => {
+    const user = (res.locals as any).b2bUser;
+    const clean = (value: unknown, max = 180) =>
+      typeof value === "string" ? value.trim().slice(0, max) : "";
+
+    const updated = await storage.updateUser(user.id, {
+      companyName: clean(req.body?.companyName, 240) || user.companyName,
+      firstName: clean(req.body?.firstName, 120) || user.firstName,
+      lastName: clean(req.body?.lastName, 120) || user.lastName,
+      companyCategory: clean(req.body?.companyCategory, 180) || user.companyCategory,
+    });
+
+    if (!updated) return res.status(404).json({ error: "Hesap bulunamadı" });
+
+    return res.json({
+      id: updated.id,
+      email: updated.email || updated.username,
+      companyName: updated.companyName,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      companyCategory: updated.companyCategory,
+      taxNumber: updated.taxNumber,
+      taxOffice: updated.taxOffice,
+      taxVerified: updated.taxVerified === 1,
+    });
+  });
+
+  app.get("/api/b2b/addresses", requireB2B, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const user = (res.locals as any).b2bUser;
+    const result = await pool.query(
+      `SELECT id, title, recipient, phone, city, district, address_line, postal_code, is_default, created_at
+       FROM b2b_addresses
+       WHERE user_id = $1
+       ORDER BY is_default DESC, created_at DESC`,
+      [user.id],
+    );
+    return res.json(result.rows);
+  });
+
+  app.post("/api/b2b/addresses", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const value = (input: unknown, max: number) =>
+      typeof input === "string" ? input.trim().slice(0, max) : "";
+
+    const title = value(req.body?.title, 100);
+    const recipient = value(req.body?.recipient, 160);
+    const phone = value(req.body?.phone, 40);
+    const city = value(req.body?.city, 100);
+    const district = value(req.body?.district, 100);
+    const addressLine = value(req.body?.addressLine, 700);
+    const postalCode = value(req.body?.postalCode, 20);
+
+    if (!title || !addressLine) {
+      return res.status(400).json({ error: "Adres başlığı ve açık adres zorunludur" });
+    }
+
+    const existing = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM b2b_addresses WHERE user_id = $1",
+      [user.id],
+    );
+    const makeDefault = Number(existing.rows[0]?.count || 0) === 0;
+
+    const result = await pool.query(
+      `INSERT INTO b2b_addresses
+        (user_id, title, recipient, phone, city, district, address_line, postal_code, is_default)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+      [user.id, title, recipient || null, phone || null, city || null, district || null, addressLine, postalCode || null, makeDefault],
+    );
+    return res.status(201).json(result.rows[0]);
+  });
+
+  app.delete("/api/b2b/addresses/:id", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Geçersiz adres" });
+
+    const result = await pool.query(
+      "DELETE FROM b2b_addresses WHERE id = $1 AND user_id = $2 RETURNING id, is_default",
+      [id, user.id],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Adres bulunamadı" });
+
+    if (result.rows[0].is_default) {
+      await pool.query(
+        `UPDATE b2b_addresses SET is_default = TRUE
+         WHERE id = (
+           SELECT id FROM b2b_addresses WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
+         )`,
+        [user.id],
+      );
+    }
+
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/b2b/payment-methods", requireB2B, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const user = (res.locals as any).b2bUser;
+    const result = await pool.query(
+      `SELECT id, provider, brand, last4, holder_name, is_default, created_at
+       FROM b2b_payment_methods
+       WHERE user_id = $1
+       ORDER BY is_default DESC, created_at DESC`,
+      [user.id],
+    );
+    return res.json(result.rows);
+  });
+
+  app.get("/api/b2b/my-orders", requireB2B, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const user = (res.locals as any).b2bUser;
+    const email = String(user.email || user.username || "").toLowerCase();
+    const result = await pool.query(
+      `SELECT id, order_number, customer_email, status, item_count, total_amount, created_at
+       FROM b2b_orders
+       WHERE LOWER(COALESCE(customer_email, '')) = $1
+       ORDER BY created_at DESC`,
+      [email],
+    );
+    return res.json(result.rows);
+  });
+
+  app.get("/api/b2b/my-returns", requireB2B, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const user = (res.locals as any).b2bUser;
+    const result = await pool.query(
+      `SELECT id, order_number, status, reason, created_at
+       FROM b2b_returns
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [user.id],
+    );
+    return res.json(result.rows);
+  });
+
+  app.get("/api/b2b/my-invoices", requireB2B, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const user = (res.locals as any).b2bUser;
+    const result = await pool.query(
+      `SELECT id, invoice_number, order_number, total_amount, download_url, created_at
+       FROM b2b_invoices
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [user.id],
+    );
+    return res.json(result.rows);
+  });
+
+  app.get("/api/b2b/support", requireB2B, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const user = (res.locals as any).b2bUser;
+    const result = await pool.query(
+      `SELECT id, subject, message, status, created_at
+       FROM b2b_support_tickets
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [user.id],
+    );
+    return res.json(result.rows);
+  });
+
+  app.post("/api/b2b/support", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const subject = typeof req.body?.subject === "string" ? req.body.subject.trim().slice(0, 180) : "";
+    const message = typeof req.body?.message === "string" ? req.body.message.trim().slice(0, 4000) : "";
+
+    if (subject.length < 2 || message.length < 3) {
+      return res.status(400).json({ error: "Konu ve mesaj alanlarını doldurun" });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO b2b_support_tickets (user_id, subject, message)
+       VALUES ($1,$2,$3)
+       RETURNING id, subject, message, status, created_at`,
+      [user.id, subject, message],
+    );
+    return res.status(201).json(result.rows[0]);
+  });
+
+  app.post("/api/b2b/change-password", requireB2B, async (req, res) => {
+    const user = (res.locals as any).b2bUser;
+    const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+    const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    const newPasswordAgain = typeof req.body?.newPasswordAgain === "string" ? req.body.newPasswordAgain : "";
+
+    if (!verifyPassword(currentPassword, user.password)) {
+      return res.status(401).json({ error: "Mevcut şifreniz hatalı" });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "Yeni şifre en az 8 karakter olmalıdır" });
+    }
+    if (newPassword !== newPasswordAgain) {
+      return res.status(400).json({ error: "Yeni şifreler eşleşmiyor" });
+    }
+
+    await storage.updateUser(user.id, {
+      password: hashPassword(newPassword),
+      mustChangePassword: 0,
+    });
+
+    return res.json({ ok: true });
+  });
+
+  app.delete("/api/b2b/account", requireB2B, async (req, res) => {
+    const user = (res.locals as any).b2bUser;
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+    if (!verifyPassword(password, user.password)) {
+      return res.status(401).json({ error: "Hesabı silmek için mevcut şifrenizi doğru girin" });
+    }
+
+    await storage.updateUser(user.id, {
+      username: `deleted-${user.id}-${Date.now()}`,
+      email: null,
+      isActive: 0,
+      applicationStatus: "deleted",
+      password: hashPassword(randomBytes(32).toString("hex")),
+    });
+
+    req.session.destroy(() => undefined);
+    res.clearCookie("connect.sid");
+    return res.json({ ok: true });
+  });
+
   app.use("/api", requireAuth);
 
   app.get("/api/customers", async (_req, res) => {
