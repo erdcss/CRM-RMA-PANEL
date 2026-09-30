@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { FormEvent, useState } from "react";
 import { PackagePlus } from "lucide-react";
 
@@ -126,7 +127,7 @@ export default function AdminProductAdd() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
