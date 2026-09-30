@@ -63,12 +63,12 @@ export default function B2BStorefront() {
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-4">
-          <a href="/" className="flex shrink-0 items-center gap-3">
-            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-11 w-11 rounded-lg object-cover" />
-            <div className="hidden sm:block">
-              <div className="text-lg font-black tracking-tight">ÇALIŞKAN B2B</div>
-              <div className="text-[11px] text-slate-500">Toptan Satış Platformu</div>
-            </div>
+          <a href="/" className="flex shrink-0 items-center">
+            <img
+              src={branding?.b2b_logo || BRAND.logoLarge}
+              alt="Çalışkan B2B"
+              className="h-12 w-auto max-w-[180px] object-contain object-left sm:h-14 sm:max-w-[220px]"
+            />
           </a>
 
           <div className="relative mx-auto hidden w-full max-w-2xl md:block">
