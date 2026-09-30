@@ -120,6 +120,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const localUsername = isPrimaryAdminAttempt ? "admin" : identifier;
     const localUser = await storage.getUserByUsername(localUsername);
+    const primaryAdminTemporaryPassword = process.env.PRIMARY_ADMIN_TEMP_PASSWORD || "";
+
+    if (
+      isPrimaryAdminAttempt &&
+      primaryAdminTemporaryPassword &&
+      password === primaryAdminTemporaryPassword
+    ) {
+      await storage.ensureSystemUser();
+      const adminUser = await storage.getUserByUsername("admin");
+      if (!adminUser || adminUser.isActive !== 1) {
+        return res.status(403).json({ error: "Yönetici hesabı aktif değil" });
+      }
+
+      (req.session as { userId?: number }).userId = adminUser.id;
+      return res.json({
+        id: adminUser.id,
+        username: primaryAdminEmail,
+        role: "super_admin",
+        appAccess: adminUser.appAccess,
+        isActive: true,
+      });
+    }
 
     if (
       localUser &&
