@@ -1,11 +1,11 @@
 function getVisitorId(): string {
   const key = "caliskan_b2b_visitor_id";
-  let id = window.localStorage.getItem(key);
+  let id = window.sessionStorage.getItem(key);
   if (!id) {
     id = typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    window.localStorage.setItem(key, id);
+    window.sessionStorage.setItem(key, id);
   }
   return id;
 }
