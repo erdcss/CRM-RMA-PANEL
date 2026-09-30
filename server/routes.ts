@@ -318,6 +318,28 @@ function toBase64Url(value: string): string {
     .replace(/=+$/g, "");
 }
 
+function normalizeMailError(error: unknown): string {
+  const anyError = error as any;
+  const codes = [
+    anyError?.code,
+    ...(Array.isArray(anyError?.errors) ? anyError.errors.map((item: any) => item?.code) : []),
+  ].filter(Boolean);
+
+  if (codes.includes("ETIMEDOUT")) {
+    return "Google Mail SMTP bağlantısı zaman aşımına uğradı. Railway SMTP çıkışını engelliyor; Gmail API OAuth bağlantısı kullanılmalı.";
+  }
+
+  if (codes.includes("ECONNREFUSED") || codes.includes("ENETUNREACH")) {
+    return "Google Mail SMTP bağlantısına ulaşılamadı. Gmail API OAuth bağlantısı kullanılmalı.";
+  }
+
+  if (error instanceof Error && error.message?.trim()) {
+    return error.message.trim();
+  }
+
+  return "Google Mail gönderimi tamamlanamadı";
+}
+
 async function sendViaGoogleSmtp(input: {
   to: string;
   subject: string;
@@ -348,11 +370,16 @@ async function sendViaGoogleSmtp(input: {
 
   socket.setTimeout(12000);
 
-  await new Promise<void>((resolve, reject) => {
-    socket.once("secureConnect", () => resolve());
-    socket.once("error", reject);
-    socket.once("timeout", () => reject(new Error("Google Mail SMTP bağlantısı zaman aşımına uğradı")));
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      socket.once("secureConnect", () => resolve());
+      socket.once("error", reject);
+      socket.once("timeout", () => reject(new Error("Google Mail SMTP bağlantısı zaman aşımına uğradı")));
+    });
+  } catch (error) {
+    socket.destroy();
+    throw new Error(normalizeMailError(error));
+  }
 
   const reader = createInterface({
     input: socket,
@@ -1185,7 +1212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("B2B temporary password resend failed:", error);
       return res.status(502).json({
-        error: error instanceof Error ? error.message : "E-posta gönderilemedi",
+        error: normalizeMailError(error),
       });
     }
   });
