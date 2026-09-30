@@ -83,16 +83,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/auth/login", async (req, res) => {
-    const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+    const identifier =
+      typeof req.body?.username === "string"
+        ? req.body.username.trim()
+        : typeof req.body?.email === "string"
+          ? req.body.email.trim()
+          : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
-    const user = await storage.getUserByUsername(username);
 
-    if (!user || user.password !== password || user.isActive !== 1) {
-      return res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı" });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: "E-posta/kullanıcı adı ve şifre gerekli" });
     }
 
-    (req.session as { userId?: number }).userId = user.id;
-    res.json({ id: user.id, username: user.username, role: user.role, appAccess: user.appAccess, isActive: true });
+    const primaryAdminEmail = (process.env.PRIMARY_ADMIN_EMAIL || "").trim().toLowerCase();
+    const localUsername =
+      primaryAdminEmail && identifier.toLowerCase() === primaryAdminEmail
+        ? "admin"
+        : identifier;
+
+    const localUser = await storage.getUserByUsername(localUsername);
+    if (localUser && localUser.password === password && localUser.isActive === 1) {
+      (req.session as { userId?: number }).userId = localUser.id;
+      return res.json({
+        id: localUser.id,
+        username: localUser.username,
+        role: localUser.role,
+        appAccess: localUser.appAccess,
+        isActive: true,
+      });
+    }
+
+    const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
+    const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || "";
+    const isPrimaryAdminAttempt =
+      Boolean(primaryAdminEmail) && identifier.toLowerCase() === primaryAdminEmail;
+
+    if (isPrimaryAdminAttempt && supabaseUrl && supabaseKey) {
+      try {
+        const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: supabaseKey,
+          },
+          body: JSON.stringify({
+            email: identifier,
+            password,
+          }),
+        });
+
+        if (authResponse.ok) {
+          const authPayload = await authResponse.json() as { user?: { email?: string } };
+          const authenticatedEmail = authPayload.user?.email?.trim().toLowerCase();
+
+          if (authenticatedEmail === primaryAdminEmail) {
+            await storage.ensureSystemUser();
+            const adminUser = await storage.getUserByUsername("admin");
+
+            if (!adminUser || adminUser.isActive !== 1) {
+              return res.status(403).json({ error: "Yönetici hesabı aktif değil" });
+            }
+
+            (req.session as { userId?: number }).userId = adminUser.id;
+            return res.json({
+              id: adminUser.id,
+              username: primaryAdminEmail,
+              role: "super_admin",
+              appAccess: adminUser.appAccess,
+              isActive: true,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Supabase admin auth fallback failed:", error);
+      }
+    }
+
+    return res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı" });
   });
 
   app.get("/api/admin/users", requireAdmin, async (_req, res) => {
