@@ -15,6 +15,7 @@ import {
   Undo2,
   Boxes,
   ShoppingCart,
+  ClipboardList,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,6 +45,7 @@ const rmaItems = [
 ];
 
 const standaloneItems = [
+  { title: "Başvurular", url: "/basvurular", icon: ClipboardList },
   { title: "Ayarlar", url: "/ayarlar", icon: Settings },
   { title: "Yapay Zeka", url: "/yapay-zeka", icon: Sparkles },
 ];
