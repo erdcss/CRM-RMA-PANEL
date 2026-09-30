@@ -11,6 +11,10 @@ import {
   Sparkles,
   RotateCcw,
   ChevronDown,
+  PackagePlus,
+  Undo2,
+  Boxes,
+  ShoppingCart,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,6 +46,13 @@ const rmaItems = [
 const standaloneItems = [
   { title: "Ayarlar", url: "/ayarlar", icon: Settings },
   { title: "Yapay Zeka", url: "/yapay-zeka", icon: Sparkles },
+];
+
+const operationItems = [
+  { title: "Ürün Ekle", url: "/urun-ekle", icon: PackagePlus },
+  { title: "İade İşlemleri", url: "/iade-islemleri", icon: Undo2 },
+  { title: "Stok Durumu", url: "/stok-durumu", icon: Boxes },
+  { title: "Siparişler", url: "/siparisler", icon: ShoppingCart },
 ];
 
 export function AppSidebar({ username }: { username: string }) {
@@ -109,6 +120,26 @@ export function AppSidebar({ username }: { username: string }) {
               </Collapsible>
 
               {standaloneItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={location === item.url}>
+                    <Link href={item.url} onClick={() => setOpenMobile(false)}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="mt-auto border-t pt-2">
+          <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Operasyon
+          </div>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {operationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild isActive={location === item.url}>
                     <Link href={item.url} onClick={() => setOpenMobile(false)}>
