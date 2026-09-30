@@ -70,12 +70,12 @@ export default function B2BProductPage() {
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-4">
-          <Link href="/" className="flex items-center gap-3">
-            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-11 w-11 rounded-lg object-cover" />
-            <div>
-              <div className="text-lg font-black tracking-tight">ÇALIŞKAN B2B</div>
-              <div className="text-[11px] text-slate-500">Toptan Satış Platformu</div>
-            </div>
+          <Link href="/" className="flex shrink-0 items-center">
+            <img
+              src={branding?.b2b_logo || BRAND.logoLarge}
+              alt="Çalışkan B2B"
+              className="h-12 w-auto max-w-[180px] object-contain object-left sm:h-14 sm:max-w-[220px]"
+            />
           </Link>
           <Button asChild variant="outline" className="ml-auto">
             <Link href="/uye-girisi">Giriş Yap</Link>
