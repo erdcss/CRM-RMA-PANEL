@@ -9,7 +9,7 @@ import {
   validateProductBarcodeNumber,
   type BarcodeLabelSettings,
 } from '@/lib/shared/barcode-label';
-import { requireShipmentBarcodeNumber } from '@shared/shipment-barcode';
+import { requireShipmentBarcodeNumber } from '@/lib/shared/shipment-barcode';
 
 export type { BarcodeLabelSettings } from '@/lib/shared/barcode-label';
 export {
