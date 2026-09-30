@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
-import { BRAND } from "@/lib/brand";
 import { useBranding } from "@/hooks/use-branding";
 import {
   Sheet,
@@ -127,12 +126,17 @@ export default function B2BLogin() {
         </Link>
 
         <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b p-5">
-            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-12 w-12 rounded-lg object-cover" />
-            <div>
-              <div className="text-lg font-black">Çalışkan B2B</div>
-              <div className="text-xs text-slate-500">Müşteri Girişi</div>
-            </div>
+          <div className="flex items-center gap-3 border-b p-4">
+            {branding?.b2b_logo ? (
+              <img
+                src={branding.b2b_logo}
+                alt="Çalışkan B2B"
+                className="h-9 w-auto max-w-[150px] object-contain object-left"
+              />
+            ) : (
+              <div className="text-base font-black">ÇALIŞKAN B2B</div>
+            )}
+            <div className="ml-auto text-xs text-slate-500">Müşteri Girişi</div>
           </div>
 
           <form onSubmit={submit} className="space-y-4 p-5">
