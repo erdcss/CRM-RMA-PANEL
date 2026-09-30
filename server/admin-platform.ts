@@ -257,6 +257,88 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  app.get("/api/public/branding-icon/:target", async (req, res) => {
+    try {
+      const branding = await brandingMap();
+      const target = req.params.target === "b2b" ? "b2b" : "admin";
+      const value = target === "b2b" ? branding.b2b_favicon : branding.admin_favicon;
+
+      if (!value || !value.startsWith("data:image/")) {
+        return res.status(404).end();
+      }
+
+      const match = /^data:(image\/[^;,]+)(;base64)?,(.*)$/s.exec(value);
+      if (!match) return res.status(404).end();
+
+      const mime = match[1];
+      const body = match[2]
+        ? Buffer.from(match[3], "base64")
+        : Buffer.from(decodeURIComponent(match[3]), "utf8");
+
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.send(body);
+    } catch (error) {
+      console.error("Branding icon load failed:", error);
+      return res.status(500).end();
+    }
+  });
+
+  app.get("/manifest.webmanifest", async (req, res) => {
+    try {
+      const branding = await brandingMap();
+      const host = String(req.hostname || req.headers.host || "").toLowerCase();
+      const isB2B =
+        host === "b2b.ecalisgan.com" ||
+        host.includes("caliskan-b2b-web");
+
+      const favicon = isB2B ? branding.b2b_favicon : branding.admin_favicon;
+      const name = isB2B ? "Çalışkan B2B" : "Çalışkan Core";
+      const description = isB2B
+        ? "Çalışkan B2B toptan satış platformu"
+        : "Çalışkan Core yönetim merkezi";
+
+      const icons = favicon
+        ? [
+            {
+              src: `/api/public/branding-icon/${isB2B ? "b2b" : "admin"}?v=6`,
+              sizes: "192x192",
+              purpose: "any",
+            },
+            {
+              src: `/api/public/branding-icon/${isB2B ? "b2b" : "admin"}?v=6`,
+              sizes: "512x512",
+              purpose: "any",
+            },
+            {
+              src: `/api/public/branding-icon/${isB2B ? "b2b" : "admin"}?v=6`,
+              sizes: "512x512",
+              purpose: "maskable",
+            },
+          ]
+        : [];
+
+      res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.json({
+        id: isB2B ? "/?app=b2b" : "/?app=admin",
+        name,
+        short_name: name,
+        description,
+        start_url: "/",
+        scope: "/",
+        display: "standalone",
+        background_color: isB2B ? "#ffffff" : "#f6f7f9",
+        theme_color: "#0B0B0B",
+        orientation: "any",
+        icons,
+      });
+    } catch (error) {
+      console.error("Dynamic web manifest failed:", error);
+      return res.status(500).json({ error: "Manifest oluşturulamadı" });
+    }
+  });
+
   app.get("/api/admin/branding", requireAdmin, async (_req, res) => {
     try {
       res.json(await brandingMap());
