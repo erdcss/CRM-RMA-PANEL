@@ -57,6 +57,132 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   return next();
 }
 
+const B2B_COMPANY_CATEGORIES = [
+  "Elektrik & Elektronik",
+  "Ev Gereçleri",
+  "Yapı & Hırdavat",
+  "Otomotiv",
+  "Gıda",
+  "Tekstil",
+  "Kozmetik & Kişisel Bakım",
+  "Petshop",
+  "Market & Perakende",
+  "Toptan Ticaret",
+  "Diğer",
+] as const;
+
+function isValidVknChecksum(value: string): boolean {
+  if (!/^\d{10}$/.test(value)) return false;
+
+  const digits = value.split("").map(Number);
+  const control = digits[9];
+  const weighted = digits.slice(0, 9).map((digit, index) => {
+    const shifted = (digit + 9 - index) % 10;
+    if (shifted === 9) return 9;
+    return (shifted * 2 ** (9 - index)) % 9;
+  });
+
+  const total = weighted.reduce((sum, item) => sum + item, 0);
+  const expected = (10 - (total % 10)) % 10;
+  return expected === control;
+}
+
+type TaxLookupResult = {
+  structurallyValid: boolean;
+  verified: boolean;
+  taxOffice: string | null;
+  companyName: string | null;
+  serviceConfigured: boolean;
+};
+
+async function lookupTaxpayer(vkn: string): Promise<TaxLookupResult> {
+  if (!isValidVknChecksum(vkn)) {
+    return {
+      structurallyValid: false,
+      verified: false,
+      taxOffice: null,
+      companyName: null,
+      serviceConfigured: Boolean(process.env.TAX_VERIFICATION_API_URL),
+    };
+  }
+
+  const endpoint = process.env.TAX_VERIFICATION_API_URL?.trim();
+  if (!endpoint) {
+    return {
+      structurallyValid: true,
+      verified: false,
+      taxOffice: null,
+      companyName: null,
+      serviceConfigured: false,
+    };
+  }
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const apiKey = process.env.TAX_VERIFICATION_API_KEY?.trim();
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+    headers["X-API-Key"] = apiKey;
+  }
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ taxNumber: vkn, vkn }),
+    signal: AbortSignal.timeout(8000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Vergi doğrulama servisi HTTP ${response.status}`);
+  }
+
+  const payload = await response.json() as Record<string, any>;
+  const data =
+    payload && typeof payload.data === "object" && payload.data
+      ? payload.data as Record<string, any>
+      : payload;
+
+  if (data.valid === false || data.verified === false) {
+    return {
+      structurallyValid: true,
+      verified: false,
+      taxOffice: null,
+      companyName: null,
+      serviceConfigured: true,
+    };
+  }
+
+  const taxOfficeRaw =
+    data.taxOffice ??
+    data.tax_office ??
+    data.vergiDairesi ??
+    data.vergi_dairesi ??
+    data.taxOfficeName;
+
+  const companyNameRaw =
+    data.companyName ??
+    data.company_name ??
+    data.title ??
+    data.unvan ??
+    data.companyTitle;
+
+  const taxOffice =
+    typeof taxOfficeRaw === "string" && taxOfficeRaw.trim()
+      ? taxOfficeRaw.trim().slice(0, 180)
+      : null;
+  const companyName =
+    typeof companyNameRaw === "string" && companyNameRaw.trim()
+      ? companyNameRaw.trim().slice(0, 240)
+      : null;
+
+  return {
+    structurallyValid: true,
+    verified: Boolean(taxOffice),
+    taxOffice,
+    companyName,
+    serviceConfigured: true,
+  };
+}
+
 async function initDatabase(): Promise<void> {
   const maxRetries = 20;
   const delayMs = 5000;
@@ -243,12 +369,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  app.post("/api/b2b/tax-verify", async (req, res) => {
+    const taxNumber =
+      typeof req.body?.taxNumber === "string"
+        ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10)
+        : "";
+
+    if (!/^\d{10}$/.test(taxNumber)) {
+      return res.status(400).json({ error: "Vergi numarası 10 haneli olmalıdır" });
+    }
+
+    try {
+      const result = await lookupTaxpayer(taxNumber);
+      if (!result.structurallyValid) {
+        return res.status(400).json({
+          valid: false,
+          verified: false,
+          error: "Vergi numarası kontrol basamakları geçersiz",
+        });
+      }
+
+      return res.json({
+        valid: true,
+        verified: result.verified,
+        taxNumber,
+        taxOffice: result.taxOffice,
+        companyName: result.companyName,
+        serviceConfigured: result.serviceConfigured,
+        message: result.verified
+          ? "Vergi numarası doğrulandı"
+          : result.serviceConfigured
+            ? "Vergi numarası yapısal olarak geçerli ancak resmi kayıt eşleşmesi bulunamadı"
+            : "Vergi numarası yapısal olarak geçerli. Resmi vergi dairesi sorgu servisi henüz yapılandırılmadı.",
+      });
+    } catch (error) {
+      console.error("B2B tax verification failed:", error);
+      return res.status(502).json({
+        error: "Vergi doğrulama servisine ulaşılamadı",
+      });
+    }
+  });
+
   app.post("/api/b2b/register", async (req, res) => {
+    const companyName = typeof req.body?.companyName === "string" ? req.body.companyName.trim() : "";
+    const firstName = typeof req.body?.firstName === "string" ? req.body.firstName.trim() : "";
+    const lastName = typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const companyCategory = typeof req.body?.companyCategory === "string" ? req.body.companyCategory.trim() : "";
+    const taxNumber = typeof req.body?.taxNumber === "string" ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10) : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
 
+    if (companyName.length < 2) {
+      return res.status(400).json({ error: "Firma ismi zorunludur" });
+    }
+    if (firstName.length < 2 || lastName.length < 2) {
+      return res.status(400).json({ error: "İsim ve soy isim zorunludur" });
+    }
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       return res.status(400).json({ error: "Geçerli bir e-posta adresi girin" });
+    }
+    if (!(B2B_COMPANY_CATEGORIES as readonly string[]).includes(companyCategory)) {
+      return res.status(400).json({ error: "Geçerli bir firma kategorisi seçin" });
+    }
+    if (!isValidVknChecksum(taxNumber)) {
+      return res.status(400).json({ error: "Vergi numarası geçersiz" });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: "Şifre en az 8 karakter olmalı" });
@@ -259,19 +443,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(409).json({ error: "Bu e-posta ile daha önce kayıt oluşturulmuş" });
     }
 
+    const allUsers = await storage.listUsers();
+    if (allUsers.some((user) => user.taxNumber === taxNumber)) {
+      return res.status(409).json({ error: "Bu vergi numarasıyla daha önce kayıt oluşturulmuş" });
+    }
+
     try {
+      let taxLookup: TaxLookupResult = {
+        structurallyValid: true,
+        verified: false,
+        taxOffice: null,
+        companyName: null,
+        serviceConfigured: false,
+      };
+
+      try {
+        taxLookup = await lookupTaxpayer(taxNumber);
+      } catch (taxError) {
+        console.error("Registration tax lookup failed:", taxError);
+      }
+
       const user = await storage.createUser({
         username: email,
         password: hashPassword(password),
         role: "b2b_customer",
         appAccess: "b2b",
         isActive: 0,
+        companyName: taxLookup.companyName || companyName,
+        firstName,
+        lastName,
+        email,
+        companyCategory,
+        taxNumber,
+        taxOffice: taxLookup.taxOffice,
+        taxVerified: taxLookup.verified ? 1 : 0,
       });
+
       return res.status(201).json({
         id: user.id,
         username: user.username,
         status: "pending_approval",
-        message: "Kaydınız alındı. Yönetici onayından sonra giriş yapabilirsiniz.",
+        taxVerified: user.taxVerified === 1,
+        taxOffice: user.taxOffice,
+        message: user.taxVerified === 1
+          ? "Kaydınız alındı. Vergi bilgileri doğrulandı ve yönetici onayına gönderildi."
+          : "Kaydınız alındı. Vergi bilgileri yönetici onayı sırasında ayrıca kontrol edilecektir.",
       });
     } catch (error) {
       console.error("B2B registration failed:", error);
