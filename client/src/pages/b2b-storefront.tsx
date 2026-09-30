@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Search, Package, Boxes, Truck, ShieldCheck, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -129,28 +130,34 @@ export default function B2BStorefront() {
             {filtered.map((product) => {
               const image = product.image_data || product.image_url;
               return (
-                <article key={product.id} className="overflow-hidden rounded-2xl border bg-white">
-                  <div className="flex aspect-square items-center justify-center bg-slate-50">
-                    {image ? (
-                      <img src={image} alt={product.name || "Ürün"} className="h-full w-full object-contain p-3" />
-                    ) : (
-                      <Package className="h-12 w-12 text-slate-300" />
-                    )}
-                  </div>
-                  <div className="p-3">
-                    <div className="text-[11px] text-slate-400">{product.sku || "STOK"}</div>
-                    <h3 className="mt-1 min-h-10 line-clamp-2 font-semibold">{product.name || "Ürün"}</h3>
-                    <div className="mt-3 text-sm font-semibold text-slate-700">Fiyat için giriş yapın</div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="rounded-lg bg-slate-100 p-2">
-                        Koli içi<br /><b>{product.units_per_box || 1} adet</b>
-                      </div>
-                      <div className="rounded-lg bg-amber-50 p-2">
-                        Min. alım<br /><b>{product.min_order_qty || 1} adet</b>
+                <Link
+                  key={product.id}
+                  href={`/urun/${product.id}`}
+                  className="group block overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                >
+                  <article>
+                    <div className="flex aspect-square items-center justify-center bg-slate-50">
+                      {image ? (
+                        <img src={image} alt={product.name || "Ürün"} className="h-full w-full object-contain p-3 transition-transform duration-200 group-hover:scale-[1.02]" />
+                      ) : (
+                        <Package className="h-12 w-12 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="p-3">
+                      <div className="text-[11px] text-slate-400">{product.sku || "STOK"}</div>
+                      <h3 className="mt-1 min-h-10 line-clamp-2 font-semibold">{product.name || "Ürün"}</h3>
+                      <div className="mt-3 text-sm font-semibold text-slate-700">Fiyat için giriş yapın</div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="rounded-lg bg-slate-100 p-2">
+                          Koli içi<br /><b>{product.units_per_box || 1} adet</b>
+                        </div>
+                        <div className="rounded-lg bg-amber-50 p-2">
+                          Min. alım<br /><b>{product.min_order_qty || 1} adet</b>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </article>
+                  </article>
+                </Link>
               );
             })}
           </div>
