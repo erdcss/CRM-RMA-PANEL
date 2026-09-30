@@ -24,7 +24,7 @@ import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 import { normalizeLookupScan, normalizeScannedBarcode, scanValuesMatchAny } from '@/lib/barcodeNormalize';
-import { isValidShipmentBarcodeNumber, requireShipmentBarcodeNumber, resolvePackageBarcodeValue } from '@shared/shipment-barcode';
+import { isValidShipmentBarcodeNumber, requireShipmentBarcodeNumber, resolvePackageBarcodeValue } from '@/lib/shared/shipment-barcode';
 import { useSupplierItems } from '@/hooks/useRmaData';
 import { rmaApi, type RmaPackage, type SupplierItem } from '@/lib/api';
 import { printPackageLabel, sharePackageLabelPdf } from '@/lib/packageLabel';
