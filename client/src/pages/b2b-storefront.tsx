@@ -63,7 +63,7 @@ export default function B2BStorefront() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              className="h-11 bg-slate-50 pl-9"
+              className="h-9 bg-slate-50 pl-9"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Ürün veya stok kodu ara"
@@ -73,31 +73,31 @@ export default function B2BStorefront() {
       />
 
       <section className="bg-slate-950 text-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2 md:items-center md:py-14">
+        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-7 md:grid-cols-2 md:items-center md:py-9">
           <div>
             <div className="text-sm font-bold tracking-wide text-amber-400">ÇALIŞKAN B2B</div>
-            <h1 className="mt-3 max-w-2xl text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
+            <h1 className="mt-2 max-w-xl text-2xl font-black leading-tight sm:text-3xl lg:text-4xl">
               Toptan alışverişinizi tek merkezden yönetin.
             </h1>
-            <p className="mt-4 max-w-xl text-slate-300">
+            <p className="mt-3 max-w-lg text-sm leading-6 text-slate-300">
               Ürünleri inceleyin, koli ve minimum alım bilgilerini görün. B2B fiyatları ve sipariş işlemleri işletme hesabı ile kullanılabilir.
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <Feature icon={<Boxes className="h-6 w-6" />} title="Koli Bazlı" text="Toptan sipariş" />
-            <Feature icon={<Truck className="h-6 w-6" />} title="Sevkiyat" text="Hızlı operasyon" />
-            <Feature icon={<ShieldCheck className="h-6 w-6" />} title="İşletme" text="Onaylı hesap" />
+          <div className="grid grid-cols-3 gap-2.5">
+            <Feature icon={<Boxes className="h-5 w-5" />} title="Koli Bazlı" text="Toptan sipariş" />
+            <Feature icon={<Truck className="h-5 w-5" />} title="Sevkiyat" text="Hızlı operasyon" />
+            <Feature icon={<ShieldCheck className="h-5 w-5" />} title="İşletme" text="Onaylı hesap" />
           </div>
         </div>
       </section>
 
-      <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-6 md:hidden">
+      <main className="mx-auto max-w-6xl px-4 py-6">
+        <div className="mb-4 md:hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              className="h-11 bg-white pl-9"
+              className="h-9 bg-white pl-9"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Ürün veya stok kodu ara"
@@ -105,9 +105,9 @@ export default function B2BStorefront() {
           </div>
         </div>
 
-        <div className="mb-5 flex items-end justify-between gap-4">
+        <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold">Toptan Ürünler</h2>
+            <h2 className="text-xl font-bold">Toptan Ürünler</h2>
             <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ürün kataloğu</p>
           </div>
           {!isLoading && products.length > 0 ? (
@@ -124,7 +124,7 @@ export default function B2BStorefront() {
             <p className="mt-1 text-sm text-slate-500">Yeni ürünler eklendiğinde burada görüntülenecek.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
             {filtered.map((product) => {
               const image = product.image_data || product.image_url;
               return (
@@ -167,7 +167,7 @@ export default function B2BStorefront() {
 
 function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="rounded-2xl bg-white/10 p-4">
+    <div className="rounded-xl bg-white/10 p-3">
       {icon}
       <b className="mt-4 block text-sm sm:text-base">{title}</b>
       <span className="mt-1 block text-[11px] text-slate-300 sm:text-xs">{text}</span>
