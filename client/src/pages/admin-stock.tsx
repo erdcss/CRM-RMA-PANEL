@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Boxes, PackageCheck, TriangleAlert } from "lucide-react";
 
@@ -61,7 +62,7 @@ export default function AdminStock() {
   );
 }
 
-function Summary({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+function Summary({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
     <div className="rounded-2xl border bg-background p-4">
       <div className="flex items-center justify-between text-muted-foreground">
