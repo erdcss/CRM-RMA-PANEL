@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, LockKeyhole, LogIn, Mail, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,35 @@ export default function B2BLogin() {
   const [newPasswordAgain, setNewPasswordAgain] = useState("");
   const [passwordSetupError, setPasswordSetupError] = useState("");
   const [passwordSetupBusy, setPasswordSetupBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    fetch("/api/auth/me", { credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{
+          role?: string;
+          isActive?: boolean;
+          mustChangePassword?: boolean;
+        }>;
+      })
+      .then((session) => {
+        if (
+          active &&
+          session?.role === "b2b_customer" &&
+          session.isActive &&
+          session.mustChangePassword
+        ) {
+          setPasswordSetupOpen(true);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
