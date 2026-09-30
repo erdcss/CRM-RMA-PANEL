@@ -89,6 +89,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_b2b_tax_number_unique
   WHERE tax_number IS NOT NULL;
 UPDATE users SET role = 'system', app_access = 'none' WHERE username = 'system';
 UPDATE users SET role = 'super_admin', app_access = 'business' WHERE username = 'admin';
+UPDATE users
+SET application_status = CASE WHEN is_active = 1 THEN 'approved' ELSE 'pending' END
+WHERE role = 'b2b_customer' AND application_status IS NULL;
 `;
 
 const PHASE1_SCHEMA_SQL = `
