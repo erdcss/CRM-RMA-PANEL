@@ -14,6 +14,14 @@ CREATE TABLE IF NOT EXISTS users (
   role TEXT NOT NULL DEFAULT 'staff',
   app_access TEXT NOT NULL DEFAULT 'business',
   is_active INTEGER NOT NULL DEFAULT 1,
+  company_name TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  email TEXT,
+  company_category TEXT,
+  tax_number TEXT,
+  tax_office TEXT,
+  tax_verified INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS customers (
@@ -59,7 +67,18 @@ const AUTH_FOUNDATION_SQL = `
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'staff';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS app_access TEXT NOT NULL DEFAULT 'business';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_category TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_number TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_office TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_verified INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();
+CREATE UNIQUE INDEX IF NOT EXISTS users_b2b_tax_number_unique
+  ON users (tax_number)
+  WHERE tax_number IS NOT NULL;
 UPDATE users SET role = 'system', app_access = 'none' WHERE username = 'system';
 UPDATE users SET role = 'super_admin', app_access = 'business' WHERE username = 'admin';
 `;
