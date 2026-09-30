@@ -17,8 +17,10 @@ import { useRouter } from 'expo-router';
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { useMobileBranding } from '@/lib/branding';
 
 export default function LoginScreen() {
+  const branding = useMobileBranding();
   const router = useRouter();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -74,7 +76,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.mainContent}>
           <View style={styles.hero}>
-            <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
+            <Image source={branding.b2b_mobile_logo ? { uri: branding.b2b_mobile_logo } : require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
             <Text style={styles.title}>Çalışkan B2B</Text>
             <Text style={styles.subtitle}>Toptan satın alma hesabınıza giriş yapın</Text>
           </View>
