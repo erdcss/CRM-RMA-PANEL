@@ -7,6 +7,14 @@ import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { BRAND } from "@/lib/brand";
 import { useBranding } from "@/hooks/use-branding";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { B2BRegistrationForm } from "@/components/b2b-registration-form";
 
 export default function B2BLogin() {
   const { data: branding } = useBranding();
@@ -14,6 +22,7 @@ export default function B2BLogin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [registerOpen, setRegisterOpen] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -92,15 +101,35 @@ export default function B2BLogin() {
               {busy ? "Giriş yapılıyor…" : "Giriş Yap"}
             </Button>
 
-            <Button asChild type="button" variant="outline" className="h-11 w-full">
-              <Link href="/kayit-ol">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Kayıt Ol
-              </Link>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full"
+              onClick={() => setRegisterOpen(true)}
+            >
+              <UserPlus className="mr-2 h-4 w-4" />
+              Kayıt Ol
             </Button>
           </form>
         </div>
       </div>
+
+      <Sheet open={registerOpen} onOpenChange={setRegisterOpen}>
+        <SheetContent
+          side="right"
+          className="w-full overflow-y-auto p-0 sm:max-w-xl"
+        >
+          <SheetHeader className="border-b px-6 py-6 pr-12 text-left sm:px-8">
+            <SheetTitle className="text-xl font-black">Firma hesabı oluştur</SheetTitle>
+            <SheetDescription>
+              B2B üyelik başvurunuzu tamamlayın. Vergi numarası girildiğinde doğrulama otomatik başlar.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="pt-6">
+            <B2BRegistrationForm />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
