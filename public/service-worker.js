@@ -1,4 +1,4 @@
-const CACHE_NAME = 'caliskan-core-v3-b2b-storefront';
+const CACHE_NAME = 'caliskan-core-v4-b2b-compact-scroll';
 const urlsToCache = [
   '/',
   '/index.html',
