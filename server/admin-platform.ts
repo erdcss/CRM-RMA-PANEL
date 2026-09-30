@@ -84,14 +84,35 @@ async function ensurePlatformTables() {
     ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
-    CREATE SEQUENCE IF NOT EXISTS b2b_products_id_seq;
-    ALTER SEQUENCE b2b_products_id_seq OWNED BY b2b_products.id;
-    ALTER TABLE b2b_products ALTER COLUMN id SET DEFAULT nextval('b2b_products_id_seq');
-    SELECT setval(
-      'b2b_products_id_seq',
-      GREATEST(COALESCE((SELECT MAX(id) FROM b2b_products), 0) + 1, 1),
-      false
-    );
+    DO $
+    DECLARE
+      id_type TEXT;
+      next_id BIGINT;
+    BEGIN
+      SELECT data_type
+      INTO id_type
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'b2b_products'
+        AND column_name = 'id';
+
+      IF id_type IN ('smallint', 'integer', 'bigint') THEN
+        CREATE SEQUENCE IF NOT EXISTS b2b_products_id_seq;
+        ALTER SEQUENCE b2b_products_id_seq OWNED BY b2b_products.id;
+        ALTER TABLE b2b_products
+          ALTER COLUMN id SET DEFAULT nextval('b2b_products_id_seq');
+
+        EXECUTE 'SELECT GREATEST(COALESCE(MAX(id), 0) + 1, 1) FROM b2b_products'
+          INTO next_id;
+        PERFORM setval('b2b_products_id_seq', next_id, false);
+      ELSIF id_type = 'uuid' THEN
+        ALTER TABLE b2b_products
+          ALTER COLUMN id SET DEFAULT gen_random_uuid();
+      ELSIF id_type IN ('text', 'character varying') THEN
+        ALTER TABLE b2b_products
+          ALTER COLUMN id SET DEFAULT md5(random()::text || clock_timestamp()::text);
+      END IF;
+    END $;
   `);
 }
 
