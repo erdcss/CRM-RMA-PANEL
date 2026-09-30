@@ -46,5 +46,10 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "typescript": "latest"
+  },
+  "packageManager": "npm@10.9.9",
+  "engines": {
+    "node": "22.x",
+    "npm": "10.x"
   }
 }
