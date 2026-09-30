@@ -95,6 +95,51 @@ type TaxLookupResult = {
   serviceConfigured: boolean;
 };
 
+function normalizeTaxLookupPayload(payload: Record<string, any>): {
+  taxOffice: string | null;
+  companyName: string | null;
+  valid: boolean;
+} {
+  const root =
+    payload && typeof payload.data === "object" && payload.data
+      ? payload.data as Record<string, any>
+      : payload;
+
+  const taxOfficeRaw =
+    root.taxOffice ??
+    root.tax_office ??
+    root.taxOfficeName ??
+    root.vergiDairesi ??
+    root.vergi_dairesi ??
+    root.vergi_dairesi_adi;
+
+  const companyNameRaw =
+    root.companyName ??
+    root.company_name ??
+    root.title ??
+    root.unvan ??
+    root.companyTitle ??
+    root.firma_unvani;
+
+  const explicitInvalid =
+    root.valid === false ||
+    root.verified === false ||
+    root.isError === true ||
+    root.success === false;
+
+  return {
+    taxOffice:
+      typeof taxOfficeRaw === "string" && taxOfficeRaw.trim()
+        ? taxOfficeRaw.trim().slice(0, 180)
+        : null,
+    companyName:
+      typeof companyNameRaw === "string" && companyNameRaw.trim()
+        ? companyNameRaw.trim().slice(0, 240)
+        : null,
+    valid: !explicitInvalid,
+  };
+}
+
 async function lookupTaxpayer(vkn: string): Promise<TaxLookupResult> {
   if (!isValidVknChecksum(vkn)) {
     return {
@@ -102,84 +147,112 @@ async function lookupTaxpayer(vkn: string): Promise<TaxLookupResult> {
       verified: false,
       taxOffice: null,
       companyName: null,
-      serviceConfigured: Boolean(process.env.TAX_VERIFICATION_API_URL),
+      serviceConfigured: Boolean(
+        process.env.MUKELLEF_INFO_API_KEY ||
+        process.env.RAPIDAPI_KEY ||
+        process.env.TAX_VERIFICATION_API_URL,
+      ),
     };
   }
 
-  const endpoint = process.env.TAX_VERIFICATION_API_URL?.trim();
-  if (!endpoint) {
+  const mukellefInfoKey = process.env.MUKELLEF_INFO_API_KEY?.trim();
+  if (mukellefInfoKey) {
+    const response = await fetch(
+      `https://api.mukellef.info/v2/query.php?TaxNumber=${encodeURIComponent(vkn)}`,
+      {
+        headers: { ApiKey: mukellefInfoKey },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Mükellef sorgulama servisi HTTP ${response.status}`);
+    }
+
+    const payload = await response.json() as Record<string, any>;
+    const normalized = normalizeTaxLookupPayload(payload);
+
     return {
       structurallyValid: true,
-      verified: false,
-      taxOffice: null,
-      companyName: null,
-      serviceConfigured: false,
-    };
-  }
-
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const apiKey = process.env.TAX_VERIFICATION_API_KEY?.trim();
-  if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`;
-    headers["X-API-Key"] = apiKey;
-  }
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ taxNumber: vkn, vkn }),
-    signal: AbortSignal.timeout(8000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Vergi doğrulama servisi HTTP ${response.status}`);
-  }
-
-  const payload = await response.json() as Record<string, any>;
-  const data =
-    payload && typeof payload.data === "object" && payload.data
-      ? payload.data as Record<string, any>
-      : payload;
-
-  if (data.valid === false || data.verified === false) {
-    return {
-      structurallyValid: true,
-      verified: false,
-      taxOffice: null,
-      companyName: null,
+      verified: normalized.valid && Boolean(normalized.taxOffice),
+      taxOffice: normalized.taxOffice,
+      companyName: normalized.companyName,
       serviceConfigured: true,
     };
   }
 
-  const taxOfficeRaw =
-    data.taxOffice ??
-    data.tax_office ??
-    data.vergiDairesi ??
-    data.vergi_dairesi ??
-    data.taxOfficeName;
+  const rapidApiKey = process.env.RAPIDAPI_KEY?.trim();
+  if (rapidApiKey) {
+    const host =
+      process.env.RAPIDAPI_TAX_HOST?.trim() ||
+      "turkey-company-lookup-api.p.rapidapi.com";
 
-  const companyNameRaw =
-    data.companyName ??
-    data.company_name ??
-    data.title ??
-    data.unvan ??
-    data.companyTitle;
+    const response = await fetch(
+      `https://${host}/v1/company/vkn-lookup?vkn=${encodeURIComponent(vkn)}&lang=tr`,
+      {
+        headers: {
+          "X-RapidAPI-Key": rapidApiKey,
+          "X-RapidAPI-Host": host,
+        },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
 
-  const taxOffice =
-    typeof taxOfficeRaw === "string" && taxOfficeRaw.trim()
-      ? taxOfficeRaw.trim().slice(0, 180)
-      : null;
-  const companyName =
-    typeof companyNameRaw === "string" && companyNameRaw.trim()
-      ? companyNameRaw.trim().slice(0, 240)
-      : null;
+    if (!response.ok) {
+      throw new Error(`Vergi sorgulama servisi HTTP ${response.status}`);
+    }
+
+    const payload = await response.json() as Record<string, any>;
+    const normalized = normalizeTaxLookupPayload(payload);
+
+    return {
+      structurallyValid: true,
+      verified: normalized.valid && Boolean(normalized.taxOffice),
+      taxOffice: normalized.taxOffice,
+      companyName: normalized.companyName,
+      serviceConfigured: true,
+    };
+  }
+
+  const endpoint = process.env.TAX_VERIFICATION_API_URL?.trim();
+  if (endpoint) {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const apiKey = process.env.TAX_VERIFICATION_API_KEY?.trim();
+
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+      headers["X-API-Key"] = apiKey;
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ taxNumber: vkn, vkn }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Vergi doğrulama servisi HTTP ${response.status}`);
+    }
+
+    const payload = await response.json() as Record<string, any>;
+    const normalized = normalizeTaxLookupPayload(payload);
+
+    return {
+      structurallyValid: true,
+      verified: normalized.valid && Boolean(normalized.taxOffice),
+      taxOffice: normalized.taxOffice,
+      companyName: normalized.companyName,
+      serviceConfigured: true,
+    };
+  }
 
   return {
     structurallyValid: true,
-    verified: Boolean(taxOffice),
-    taxOffice,
-    companyName,
-    serviceConfigured: true,
+    verified: false,
+    taxOffice: null,
+    companyName: null,
+    serviceConfigured: false,
   };
 }
 
@@ -397,10 +470,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         companyName: result.companyName,
         serviceConfigured: result.serviceConfigured,
         message: result.verified
-          ? "Vergi numarası doğrulandı"
+          ? "Vergi numarası ve vergi dairesi doğrulandı"
           : result.serviceConfigured
-            ? "Vergi numarası yapısal olarak geçerli ancak resmi kayıt eşleşmesi bulunamadı"
-            : "Vergi numarası yapısal olarak geçerli. Resmi vergi dairesi sorgu servisi henüz yapılandırılmadı.",
+            ? "Vergi numarası geçerli; vergi dairesi otomatik doğrulanamadı"
+            : "Vergi numarası geçerli",
       });
     } catch (error) {
       console.error("B2B tax verification failed:", error);
@@ -417,6 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const companyCategory = typeof req.body?.companyCategory === "string" ? req.body.companyCategory.trim() : "";
     const taxNumber = typeof req.body?.taxNumber === "string" ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10) : "";
+    const submittedTaxOffice = typeof req.body?.taxOffice === "string" ? req.body.taxOffice.trim().slice(0, 180) : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
 
     if (companyName.length < 2) {
@@ -463,6 +537,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Registration tax lookup failed:", taxError);
       }
 
+      const resolvedTaxOffice = taxLookup.taxOffice || submittedTaxOffice;
+      if (!resolvedTaxOffice) {
+        return res.status(400).json({ error: "Vergi dairesi zorunludur" });
+      }
+
       const user = await storage.createUser({
         username: email,
         password: hashPassword(password),
@@ -475,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         companyCategory,
         taxNumber,
-        taxOffice: taxLookup.taxOffice,
+        taxOffice: resolvedTaxOffice,
         taxVerified: taxLookup.verified ? 1 : 0,
       });
 
