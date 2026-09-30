@@ -6,6 +6,7 @@ import { saveImageDataUrl, persistProductImageUrl } from "./image-storage";
 import { z } from "zod";
 import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
+import { pool } from "./db";
 
 let dbReady = false;
 
@@ -179,6 +180,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerProductAIRoutes(app, requireAdmin);
+
+  app.get("/api/b2b/products", async (_req, res) => {
+    if (!pool) return res.json([]);
+
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          sku,
+          name,
+          price,
+          stock,
+          min_order_qty,
+          units_per_box,
+          image_data,
+          collection_name
+        FROM b2b_products
+        WHERE is_active IS DISTINCT FROM FALSE
+        ORDER BY created_at DESC
+      `);
+      return res.json(result.rows);
+    } catch (error: any) {
+      if (error?.code === "42P01") {
+        return res.json([]);
+      }
+      console.error("Error fetching B2B products:", error);
+      return res.status(500).json({ error: "B2B ürünleri alınamadı" });
+    }
+  });
 
   app.post("/api/uploads", requireAuth, async (req, res) => {
     try {
