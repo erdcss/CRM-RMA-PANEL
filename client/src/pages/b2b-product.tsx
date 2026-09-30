@@ -4,8 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Boxes, Package, ShieldCheck, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { BRAND } from "@/lib/brand";
-import { useBranding } from "@/hooks/use-branding";
+import { B2BHeader } from "@/components/b2b-header";
 
 type Product = {
   id: string | number;
@@ -32,7 +31,6 @@ async function loadProduct(id: string): Promise<Product> {
 }
 
 export default function B2BProductPage() {
-  const { data: branding } = useBranding();
   const [, params] = useRoute("/urun/:id");
   const id = params?.id || "";
   const { data: product, isLoading, error } = useQuery({
@@ -68,20 +66,7 @@ export default function B2BProductPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
-      <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-4">
-          <Link href="/" className="flex shrink-0 items-center">
-            <img
-              src={branding?.b2b_logo || BRAND.logoLarge}
-              alt="Çalışkan B2B"
-              className="h-12 w-auto max-w-[180px] object-contain object-left sm:h-14 sm:max-w-[220px]"
-            />
-          </Link>
-          <Button asChild variant="outline" className="ml-auto">
-            <Link href="/uye-girisi">Giriş Yap</Link>
-          </Button>
-        </div>
-      </header>
+      <B2BHeader />
 
       <main className="mx-auto max-w-7xl px-4 py-5 sm:py-8">
         <Link href="/" className="mb-5 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-950">
