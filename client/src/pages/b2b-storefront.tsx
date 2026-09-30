@@ -65,7 +65,7 @@ export default function B2BStorefront() {
           </div>
 
           <Button asChild className="ml-auto bg-slate-950 hover:bg-slate-800">
-            <a href="/login">
+            <a href="/uye-girisi">
               <LogIn className="mr-2 h-4 w-4" />
               Giriş Yap
             </a>
