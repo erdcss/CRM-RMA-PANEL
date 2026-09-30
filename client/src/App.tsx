@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -19,8 +19,19 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Yoneticiler from "@/pages/yoneticiler";
 import YapayZeka from "@/pages/yapay-zeka";
+import B2BStorefront from "@/pages/b2b-storefront";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+
+function isB2BHost() {
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname === "b2b.ecalisgan.com" ||
+    hostname.startsWith("caliskan-b2b-web-") ||
+    hostname.includes("caliskan-b2b-web")
+  );
+}
 
 function Router() {
   return (
@@ -85,11 +96,25 @@ function AppContent() {
   );
 }
 
+function B2BWebsite() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    document.title = "Çalışkan B2B";
+  }, []);
+
+  if (location === "/login") {
+    return <Login />;
+  }
+
+  return <B2BStorefront />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppContent />
+        {isB2BHost() ? <B2BWebsite /> : <AppContent />}
       </TooltipProvider>
     </QueryClientProvider>
   );
