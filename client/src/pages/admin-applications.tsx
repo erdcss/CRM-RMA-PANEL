@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -7,10 +8,18 @@ import {
   Mail,
   RefreshCw,
   ShieldCheck,
+  Copy,
   XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -35,6 +44,11 @@ type Application = {
 
 export default function AdminApplications() {
   const { toast } = useToast();
+  const [fallbackCredential, setFallbackCredential] = useState<{
+    email: string;
+    password: string;
+    error?: string | null;
+  } | null>(null);
   const { data = [], isLoading } = useQuery<Application[]>({
     queryKey: ["/api/admin/b2b-applications"],
   });
@@ -57,6 +71,20 @@ export default function AdminApplications() {
       await queryClient.invalidateQueries({
         queryKey: ["/api/admin/b2b-applications"],
       });
+
+      if (
+        variables.type === "approve" &&
+        result?.emailSent === false &&
+        result?.temporaryPassword
+      ) {
+        const application = data.find((item) => item.id === variables.id);
+        setFallbackCredential({
+          email: application?.email || application?.username || "",
+          password: String(result.temporaryPassword),
+          error: result?.emailError || null,
+        });
+      }
+
       toast({
         title:
           variables.type === "approve"
@@ -67,7 +95,7 @@ export default function AdminApplications() {
         description:
           result?.message ||
           (variables.type === "approve"
-            ? "Tek kullanımlık şifre kullanıcıya e-posta ile gönderildi."
+            ? "Tek kullanımlık şifre kullanıcı için oluşturuldu."
             : undefined),
       });
     },
@@ -223,6 +251,69 @@ export default function AdminApplications() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={Boolean(fallbackCredential)}
+        onOpenChange={(open) => {
+          if (!open) setFallbackCredential(null);
+        }}
+      >
+        <DialogContent className="inset-auto left-1/2 top-1/2 h-auto min-h-0 max-h-[90vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle>Başvuru onaylandı</DialogTitle>
+            <DialogDescription>
+              Hesap aktif edildi. E-posta servisi henüz bağlı olmadığı için tek kullanımlık şifre otomatik gönderilemedi.
+            </DialogDescription>
+          </DialogHeader>
+
+          {fallbackCredential ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <div className="text-xs font-medium text-muted-foreground">Kullanıcı</div>
+                <div className="mt-1 break-all text-sm font-semibold">
+                  {fallbackCredential.email}
+                </div>
+
+                <div className="mt-4 text-xs font-medium text-muted-foreground">
+                  Tek kullanımlık şifre
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="min-w-0 flex-1 rounded-lg border bg-background px-3 py-2 text-base font-bold tracking-wider">
+                    {fallbackCredential.password}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(fallbackCredential.password);
+                      toast({
+                        title: "Şifre kopyalandı",
+                        description: "Tek kullanımlık şifre panoya kopyalandı.",
+                      });
+                    }}
+                    aria-label="Şifreyi kopyala"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                Bu şifre yalnızca ilk giriş için geçerlidir. Kullanıcı giriş yaptıktan sonra yeni şifre oluşturmak zorundadır.
+              </div>
+
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => setFallbackCredential(null)}
+              >
+                Tamam
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
