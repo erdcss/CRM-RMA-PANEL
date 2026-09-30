@@ -1,4 +1,4 @@
-import { DragEvent, useMemo, useState } from "react";
+import { DragEvent, useMemo, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, CheckCircle2, FileImage, FileText, Sparkles, Trash2, UploadCloud } from "lucide-react";
 
@@ -296,6 +296,6 @@ export default function AdminProductAiImport() {
   );
 }
 
-function Cell({ children }: { children: React.ReactNode }) {
+function Cell({ children }: { children: ReactNode }) {
   return <td className="px-3 py-2">{children}</td>;
 }
