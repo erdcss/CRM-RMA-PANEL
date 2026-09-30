@@ -210,6 +210,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/b2b/products/:id", async (req, res) => {
+    if (!pool) return res.status(404).json({ error: "Ürün bulunamadı" });
+
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          sku,
+          name,
+          brand,
+          category,
+          description,
+          price,
+          stock,
+          min_order_qty,
+          units_per_box,
+          image_data,
+          collection_name,
+          features,
+          variants
+        FROM b2b_products
+        WHERE id::text = $1
+          AND is_active IS DISTINCT FROM FALSE
+        LIMIT 1
+      `, [String(req.params.id)]);
+
+      if (!result.rows[0]) {
+        return res.status(404).json({ error: "Ürün bulunamadı" });
+      }
+
+      return res.json(result.rows[0]);
+    } catch (error: any) {
+      if (error?.code === "42P01") {
+        return res.status(404).json({ error: "Ürün bulunamadı" });
+      }
+      console.error("Error fetching B2B product:", error);
+      return res.status(500).json({ error: "B2B ürünü alınamadı" });
+    }
+  });
+
   app.post("/api/uploads", requireAuth, async (req, res) => {
     try {
       const dataUrl = req.body?.dataUrl;
