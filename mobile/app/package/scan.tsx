@@ -11,7 +11,7 @@ import { colors, minTouchTarget, radius, spacing, typography } from '@/constants
 import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
 import { rmaApi } from '@/lib/api';
 import { normalizeLookupScan } from '@/lib/barcodeNormalize';
-import { normalizeBarcodeScan } from '@shared/barcode-scan';
+import { normalizeBarcodeScan } from '@/lib/shared/barcode-scan';
 import { playScanError, playScanSuccess } from '@/lib/scanFeedback';
 
 const BARCODE_TYPES = SCAN_BARCODE_TYPES;
