@@ -71,49 +71,78 @@ const BRANDING_KEYS = [
 
 type BrandingKey = typeof BRANDING_KEYS[number];
 
+let productSchemaReady: Promise<void> | null = null;
+
+async function ensureB2BProductSchema() {
+  if (!pool) return;
+
+  if (!productSchemaReady) {
+    productSchemaReady = (async () => {
+      const migrations = [
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS image_data TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS barcode TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS collection_name TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS features JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+      ];
+
+      // Run each migration separately. A later compatibility repair must never
+      // roll back columns such as images/barcode/variants.
+      for (const sql of migrations) {
+        await pool.query(sql);
+      }
+
+      const idInfo = await pool.query(
+        `SELECT data_type, column_default
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'b2b_products'
+           AND column_name = 'id'
+         LIMIT 1`,
+      );
+
+      const idType = String(idInfo.rows[0]?.data_type || "");
+      const idDefault = idInfo.rows[0]?.column_default;
+
+      if (!idDefault && ["smallint", "integer", "bigint"].includes(idType)) {
+        await pool.query(`CREATE SEQUENCE IF NOT EXISTS b2b_products_id_seq`);
+        await pool.query(`ALTER SEQUENCE b2b_products_id_seq OWNED BY b2b_products.id`);
+
+        const maxResult = await pool.query(
+          `SELECT COALESCE(MAX(id::bigint), 0::bigint) AS max_id FROM b2b_products`,
+        );
+        const nextId = Math.max(1, Number(maxResult.rows[0]?.max_id || 0) + 1);
+
+        await pool.query(
+          `SELECT setval('b2b_products_id_seq', $1::bigint, false)`,
+          [nextId],
+        );
+        await pool.query(
+          `ALTER TABLE b2b_products
+           ALTER COLUMN id SET DEFAULT nextval('b2b_products_id_seq')`,
+        );
+      } else if (!idDefault && ["text", "character varying"].includes(idType)) {
+        await pool.query(
+          `ALTER TABLE b2b_products
+           ALTER COLUMN id SET DEFAULT md5(random()::text || clock_timestamp()::text)`,
+        );
+      }
+    })().catch((error) => {
+      productSchemaReady = null;
+      throw error;
+    });
+  }
+
+  await productSchemaReady;
+}
+
 async function ensurePlatformTables() {
   if (!pool) return;
+
   await pool.query(PLATFORM_SQL);
-
-  await pool.query(`
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS image_data TEXT;
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb;
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS barcode TEXT;
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS collection_name TEXT;
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS features JSONB NOT NULL DEFAULT '[]'::jsonb;
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb;
-    ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
-
-    DO $
-    DECLARE
-      id_type TEXT;
-      next_id BIGINT;
-    BEGIN
-      SELECT data_type
-      INTO id_type
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'b2b_products'
-        AND column_name = 'id';
-
-      IF id_type IN ('smallint', 'integer', 'bigint') THEN
-        CREATE SEQUENCE IF NOT EXISTS b2b_products_id_seq;
-        ALTER SEQUENCE b2b_products_id_seq OWNED BY b2b_products.id;
-        ALTER TABLE b2b_products
-          ALTER COLUMN id SET DEFAULT nextval('b2b_products_id_seq');
-
-        EXECUTE 'SELECT GREATEST(COALESCE(MAX(id), 0) + 1, 1) FROM b2b_products'
-          INTO next_id;
-        PERFORM setval('b2b_products_id_seq', next_id, false);
-      ELSIF id_type = 'uuid' THEN
-        ALTER TABLE b2b_products
-          ALTER COLUMN id SET DEFAULT gen_random_uuid();
-      ELSIF id_type IN ('text', 'character varying') THEN
-        ALTER TABLE b2b_products
-          ALTER COLUMN id SET DEFAULT md5(random()::text || clock_timestamp()::text);
-      END IF;
-    END $;
-  `);
+  await ensureB2BProductSchema();
 }
 
 function normalizeProductImages(value: unknown): string[] {
@@ -344,6 +373,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.get("/api/admin/b2b-products", requireAdmin, async (_req, res) => {
     if (!pool) return res.json([]);
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
 
     try {
       const result = await pool.query(`
@@ -378,6 +411,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.get("/api/admin/b2b-products/:id", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
 
     try {
       const result = await pool.query(
@@ -401,6 +438,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.post("/api/admin/b2b-products", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
     const product = parseAdminProductPayload(req.body);
 
     if (!product.sku || !product.name) {
@@ -451,6 +492,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.post("/api/admin/b2b-products/bulk", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
 
     const rawProducts = Array.isArray(req.body?.products) ? req.body.products.slice(0, 250) : [];
     if (rawProducts.length === 0) {
@@ -532,6 +577,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.patch("/api/admin/b2b-products/:id", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
     const product = parseAdminProductPayload(req.body);
 
     if (!product.sku || !product.name) {
