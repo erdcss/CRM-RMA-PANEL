@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { trackProductView } from "@/lib/analytics";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Boxes, Package, ShieldCheck, Truck, Warehouse } from "lucide-react";
@@ -54,6 +55,10 @@ export default function B2BProductPage() {
       </div>
     );
   }
+
+  useEffect(() => {
+    if (product?.id) void trackProductView(product.id, product.name);
+  }, [product?.id, product?.name]);
 
   const image = product.image_data || product.image_url;
   const pack = Math.max(1, Number(product.units_per_box || 1));
