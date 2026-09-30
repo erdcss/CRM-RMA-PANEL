@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, Boxes, Package, ShieldCheck, Truck, Warehouse } from "lucide-react";
@@ -122,7 +123,7 @@ export default function B2BProductPage() {
   );
 }
 
-function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function Info({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-xl border p-3">
       <div className="text-slate-500">{icon}</div>
