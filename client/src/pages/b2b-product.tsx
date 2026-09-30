@@ -5,6 +5,7 @@ import { Link, useRoute } from "wouter";
 import { ArrowLeft, Boxes, Package, ShieldCheck, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
+import { useBranding } from "@/hooks/use-branding";
 
 type Product = {
   id: string | number;
@@ -31,6 +32,7 @@ async function loadProduct(id: string): Promise<Product> {
 }
 
 export default function B2BProductPage() {
+  const { data: branding } = useBranding();
   const [, params] = useRoute("/urun/:id");
   const id = params?.id || "";
   const { data: product, isLoading, error } = useQuery({
@@ -69,7 +71,7 @@ export default function B2BProductPage() {
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-4">
           <Link href="/" className="flex items-center gap-3">
-            <img src={BRAND.logoLarge} alt="Çalışkan B2B" className="h-11 w-11 rounded-lg object-cover" />
+            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-11 w-11 rounded-lg object-cover" />
             <div>
               <div className="text-lg font-black tracking-tight">ÇALIŞKAN B2B</div>
               <div className="text-[11px] text-slate-500">Toptan Satış Platformu</div>
