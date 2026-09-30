@@ -139,16 +139,18 @@ function B2BWebsite() {
   }, []);
 
   return (
-    <Switch>
-      <Route path="/" component={B2BStorefront} />
-      <Route path="/urun/:id" component={B2BProductPage} />
-      <Route path="/uye-girisi" component={B2BLogin} />
-      <Route path="/login" component={B2BLogin} />
-      <Route path="/kayit-ol" component={B2BRegister} />
-      <Route path="/hesabim" component={B2BAccount} />
-      <Route path="/siparislerim" component={B2BOrders} />
-      <Route component={B2BStorefront} />
-    </Switch>
+    <div className="b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain">
+      <Switch>
+        <Route path="/" component={B2BStorefront} />
+        <Route path="/urun/:id" component={B2BProductPage} />
+        <Route path="/uye-girisi" component={B2BLogin} />
+        <Route path="/login" component={B2BLogin} />
+        <Route path="/kayit-ol" component={B2BRegister} />
+        <Route path="/hesabim" component={B2BAccount} />
+        <Route path="/siparislerim" component={B2BOrders} />
+        <Route component={B2BStorefront} />
+      </Switch>
+    </div>
   );
 }
 
