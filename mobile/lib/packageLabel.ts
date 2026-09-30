@@ -2,7 +2,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
 import { buildLabelProductRows, resolvePackageLabelSequence, type LabelProductRow } from './packageLabelUtils';
-import { resolvePackageBarcodeValue } from '@shared/shipment-barcode';
+import { resolvePackageBarcodeValue } from '@/lib/shared/shipment-barcode';
 
 import { loadBarcodeSettings, type BarcodeSettings } from './barcodeSettings';
 import type { RmaPackage } from './api';
