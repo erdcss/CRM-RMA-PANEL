@@ -123,6 +123,11 @@ async function ensureB2BProductSchema() {
           `ALTER TABLE b2b_products
            ALTER COLUMN id SET DEFAULT nextval('b2b_products_id_seq')`,
         );
+      } else if (!idDefault && idType === "uuid") {
+        await pool.query(
+          `ALTER TABLE b2b_products
+           ALTER COLUMN id SET DEFAULT (md5(random()::text || clock_timestamp()::text)::uuid)`,
+        );
       } else if (!idDefault && ["text", "character varying"].includes(idType)) {
         await pool.query(
           `ALTER TABLE b2b_products
