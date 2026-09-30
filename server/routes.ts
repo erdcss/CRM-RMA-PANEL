@@ -306,6 +306,119 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#039;");
 }
 
+function encodeMimeHeader(value: string): string {
+  return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
+
+function toBase64Url(value: string): string {
+  return Buffer.from(value, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+async function getGoogleMailAccessToken(): Promise<string> {
+  const clientId = process.env.GOOGLE_GMAIL_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim();
+  const refreshToken = process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim();
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error("Google Mail OAuth bilgileri eksik");
+  }
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    refresh_token: refreshToken,
+    grant_type: "refresh_token",
+  });
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+    signal: AbortSignal.timeout(10000),
+  });
+
+  const payload = await response.json().catch(() => ({})) as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!response.ok || !payload.access_token) {
+    const detail =
+      payload.error_description ||
+      payload.error ||
+      `HTTP ${response.status}`;
+    throw new Error(`Google Mail yetkilendirmesi başarısız: ${detail}`);
+  }
+
+  return payload.access_token;
+}
+
+async function sendViaGoogleMail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<void> {
+  const senderEmail = process.env.GOOGLE_GMAIL_SENDER?.trim();
+  const senderName =
+    process.env.GOOGLE_GMAIL_SENDER_NAME?.trim() ||
+    "Çalışkan B2B";
+
+  if (!senderEmail) {
+    throw new Error("Google Mail gönderici adresi tanımlı değil");
+  }
+
+  const accessToken = await getGoogleMailAccessToken();
+  const boundary = `b2b-${randomBytes(12).toString("hex")}`;
+
+  const mime = [
+    `From: ${encodeMimeHeader(senderName)} <${senderEmail}>`,
+    `To: ${input.to}`,
+    `Subject: ${encodeMimeHeader(input.subject)}`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    input.text,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    input.html,
+    "",
+    `--${boundary}--`,
+    "",
+  ].join("\r\n");
+
+  const response = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw: toBase64Url(mime) }),
+      signal: AbortSignal.timeout(10000),
+    },
+  );
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    console.error("Google Mail send failed:", response.status, details);
+    throw new Error("Tek kullanımlık şifre Google Mail ile gönderilemedi");
+  }
+}
+
 async function sendTemporaryPasswordEmail(input: {
   to: string;
   firstName?: string | null;
@@ -343,6 +456,22 @@ async function sendTemporaryPasswordEmail(input: {
     </div>
   `;
 
+  const gmailConfigured =
+    Boolean(process.env.GOOGLE_GMAIL_CLIENT_ID?.trim()) &&
+    Boolean(process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim()) &&
+    Boolean(process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim()) &&
+    Boolean(process.env.GOOGLE_GMAIL_SENDER?.trim());
+
+  if (gmailConfigured) {
+    await sendViaGoogleMail({
+      to: input.to,
+      subject,
+      text,
+      html,
+    });
+    return;
+  }
+
   const webhookUrl = process.env.B2B_MAIL_WEBHOOK_URL?.trim();
   if (webhookUrl) {
     const response = await fetch(webhookUrl, {
@@ -364,31 +493,32 @@ async function sendTemporaryPasswordEmail(input: {
 
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
   const from = process.env.B2B_MAIL_FROM?.trim();
-  if (!resendApiKey || !from) {
-    throw new Error("E-posta servisi yapılandırılmamış");
+  if (resendApiKey && from) {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [input.to],
+        subject,
+        text,
+        html,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) {
+      const details = await response.text().catch(() => "");
+      console.error("Resend email failed:", response.status, details);
+      throw new Error("Tek kullanımlık şifre e-posta ile gönderilemedi");
+    }
+    return;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [input.to],
-      subject,
-      text,
-      html,
-    }),
-    signal: AbortSignal.timeout(10000),
-  });
-
-  if (!response.ok) {
-    const details = await response.text().catch(() => "");
-    console.error("Temporary password email failed:", response.status, details);
-    throw new Error("Tek kullanımlık şifre e-posta ile gönderilemedi");
-  }
+  throw new Error("Google Mail bağlantısı henüz yapılandırılmamış");
 }
 
 async function initDatabase(): Promise<void> {
