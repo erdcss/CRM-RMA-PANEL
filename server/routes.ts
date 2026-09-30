@@ -318,6 +318,138 @@ function toBase64Url(value: string): string {
     .replace(/=+$/g, "");
 }
 
+async function sendViaGoogleSmtp(input: {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+}): Promise<void> {
+  const senderEmail = process.env.GOOGLE_GMAIL_SENDER?.trim();
+  const appPassword = process.env.GOOGLE_GMAIL_APP_PASSWORD
+    ?.replace(/\s+/g, "")
+    .trim();
+  const senderName =
+    process.env.GOOGLE_GMAIL_SENDER_NAME?.trim() ||
+    "Çalışkan B2B";
+
+  if (!senderEmail || !appPassword) {
+    throw new Error("Google Mail SMTP bilgileri eksik");
+  }
+
+  const { connect } = await import("tls");
+  const { createInterface } = await import("readline");
+
+  const socket = connect({
+    host: "smtp.gmail.com",
+    port: 465,
+    servername: "smtp.gmail.com",
+    rejectUnauthorized: true,
+  });
+
+  socket.setTimeout(12000);
+
+  await new Promise<void>((resolve, reject) => {
+    socket.once("secureConnect", () => resolve());
+    socket.once("error", reject);
+    socket.once("timeout", () => reject(new Error("Google Mail SMTP bağlantısı zaman aşımına uğradı")));
+  });
+
+  const reader = createInterface({
+    input: socket,
+    crlfDelay: Infinity,
+  });
+  const iterator = reader[Symbol.asyncIterator]();
+
+  async function readResponse(expectedCode: number): Promise<void> {
+    const lines: string[] = [];
+
+    while (true) {
+      const next = await iterator.next();
+      if (next.done || typeof next.value !== "string") {
+        throw new Error("Google Mail SMTP bağlantısı beklenmedik şekilde kapandı");
+      }
+
+      const line = next.value;
+      lines.push(line);
+
+      const match = /^(\d{3})([ -])/.exec(line);
+      if (!match) continue;
+      if (match[2] === "-") continue;
+
+      const code = Number(match[1]);
+      if (code !== expectedCode) {
+        throw new Error(`Google Mail SMTP hatası (${code}): ${lines.join(" ")}`);
+      }
+      return;
+    }
+  }
+
+  function write(command: string) {
+    socket.write(command.endsWith("\r\n") ? command : `${command}\r\n`);
+  }
+
+  try {
+    await readResponse(220);
+
+    write("EHLO b2b.ecalisgan.com");
+    await readResponse(250);
+
+    write("AUTH LOGIN");
+    await readResponse(334);
+
+    write(Buffer.from(senderEmail, "utf8").toString("base64"));
+    await readResponse(334);
+
+    write(Buffer.from(appPassword, "utf8").toString("base64"));
+    await readResponse(235);
+
+    write(`MAIL FROM:<${senderEmail}>`);
+    await readResponse(250);
+
+    write(`RCPT TO:<${input.to}>`);
+    await readResponse(250);
+
+    write("DATA");
+    await readResponse(354);
+
+    const boundary = `b2b-${randomBytes(12).toString("hex")}`;
+    const mime = [
+      `From: ${encodeMimeHeader(senderName)} <${senderEmail}>`,
+      `To: ${input.to}`,
+      `Subject: ${encodeMimeHeader(input.subject)}`,
+      `Date: ${new Date().toUTCString()}`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      "Content-Transfer-Encoding: 8bit",
+      "",
+      input.text,
+      "",
+      `--${boundary}`,
+      'Content-Type: text/html; charset="UTF-8"',
+      "Content-Transfer-Encoding: 8bit",
+      "",
+      input.html,
+      "",
+      `--${boundary}--`,
+      "",
+    ]
+      .join("\r\n")
+      .replace(/(^|\r\n)\./g, "$1..");
+
+    socket.write(`${mime}\r\n.\r\n`);
+    await readResponse(250);
+
+    write("QUIT");
+    await readResponse(221);
+  } finally {
+    reader.close();
+    socket.end();
+  }
+}
+
 async function getGoogleMailAccessToken(): Promise<string> {
   const clientId = process.env.GOOGLE_GMAIL_CLIENT_ID?.trim();
   const clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim();
@@ -456,13 +588,27 @@ async function sendTemporaryPasswordEmail(input: {
     </div>
   `;
 
-  const gmailConfigured =
+  const gmailSmtpConfigured =
+    Boolean(process.env.GOOGLE_GMAIL_SENDER?.trim()) &&
+    Boolean(process.env.GOOGLE_GMAIL_APP_PASSWORD?.replace(/\s+/g, "").trim());
+
+  if (gmailSmtpConfigured) {
+    await sendViaGoogleSmtp({
+      to: input.to,
+      subject,
+      text,
+      html,
+    });
+    return;
+  }
+
+  const gmailOauthConfigured =
     Boolean(process.env.GOOGLE_GMAIL_CLIENT_ID?.trim()) &&
     Boolean(process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim()) &&
     Boolean(process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim()) &&
     Boolean(process.env.GOOGLE_GMAIL_SENDER?.trim());
 
-  if (gmailConfigured) {
+  if (gmailOauthConfigured) {
     await sendViaGoogleMail({
       to: input.to,
       subject,
