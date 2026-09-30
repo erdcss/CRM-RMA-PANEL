@@ -20,6 +20,10 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Yoneticiler from "@/pages/yoneticiler";
 import YapayZeka from "@/pages/yapay-zeka";
+import AdminProductAdd from "@/pages/admin-product-add";
+import AdminReturns from "@/pages/admin-returns";
+import AdminStock from "@/pages/admin-stock";
+import AdminOrders from "@/pages/admin-orders";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
@@ -57,6 +61,10 @@ function Router() {
       <Route path="/ayarlar" component={Ayarlar} />
       <Route path="/yoneticiler" component={Yoneticiler} />
       <Route path="/yapay-zeka" component={YapayZeka} />
+      <Route path="/urun-ekle" component={AdminProductAdd} />
+      <Route path="/iade-islemleri" component={AdminReturns} />
+      <Route path="/stok-durumu" component={AdminStock} />
+      <Route path="/siparisler" component={AdminOrders} />
       <Route component={NotFound} />
     </Switch>
   );
