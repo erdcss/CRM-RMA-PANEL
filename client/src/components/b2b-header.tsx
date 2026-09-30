@@ -55,16 +55,16 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
 
         {loggedIn ? (
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <Button asChild variant="ghost" className="hidden sm:inline-flex">
-              <Link href="/siparislerim">
-                <PackageSearch className="mr-2 h-4 w-4" />
-                Siparişler
+            <Button asChild variant="ghost" className="px-2 sm:px-4">
+              <Link href="/siparislerim" aria-label="Siparişler">
+                <PackageSearch className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Siparişler</span>
               </Link>
             </Button>
-            <Button asChild className="bg-slate-950 hover:bg-slate-800">
-              <Link href="/hesabim">
-                <UserRound className="mr-2 h-4 w-4" />
-                Hesabım
+            <Button asChild className="bg-slate-950 px-2 hover:bg-slate-800 sm:px-4">
+              <Link href="/hesabim" aria-label="Hesabım">
+                <UserRound className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Hesabım</span>
               </Link>
             </Button>
           </div>
