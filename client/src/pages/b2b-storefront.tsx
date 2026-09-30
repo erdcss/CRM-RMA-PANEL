@@ -7,6 +7,7 @@ import { Search, Package, Boxes, Truck, ShieldCheck, LogIn } from "lucide-react"
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BRAND } from "@/lib/brand";
+import { useBranding } from "@/hooks/use-branding";
 
 type B2BProduct = {
   id: string | number;
@@ -28,6 +29,7 @@ async function loadProducts(): Promise<B2BProduct[]> {
 }
 
 export default function B2BStorefront() {
+  const { data: branding } = useBranding();
   useEffect(() => {
     void trackSession();
   }, []);
@@ -62,7 +64,7 @@ export default function B2BStorefront() {
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-4">
           <a href="/" className="flex shrink-0 items-center gap-3">
-            <img src={BRAND.logoLarge} alt="Çalışkan B2B" className="h-11 w-11 rounded-lg object-cover" />
+            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-11 w-11 rounded-lg object-cover" />
             <div className="hidden sm:block">
               <div className="text-lg font-black tracking-tight">ÇALIŞKAN B2B</div>
               <div className="text-[11px] text-slate-500">Toptan Satış Platformu</div>
