@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import { trackSearch, trackSession } from "@/lib/analytics";
 import { Search, Package, Boxes, Truck, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 
 type B2BProduct = {
