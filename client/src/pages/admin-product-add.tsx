@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { FormEvent, useState } from "react";
-import { PackagePlus } from "lucide-react";
+import { ArrowLeft, PackagePlus } from "lucide-react";
+import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,9 @@ export default function AdminProductAdd() {
   return (
     <div className="h-full overflow-y-auto bg-muted/20">
       <div className="mx-auto max-w-5xl p-5 sm:p-8">
+        <Link href="/urunler" className="mb-4 inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Ürünlere dön
+        </Link>
         <div className="mb-6 flex items-center gap-3">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl border bg-background">
             <PackagePlus className="h-5 w-5" />
