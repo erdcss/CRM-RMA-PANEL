@@ -93,24 +93,34 @@ async function ensureB2BAccountTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS b2b_addresses (
       id BIGSERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT,
       recipient TEXT,
       phone TEXT,
       city TEXT,
       district TEXT,
-      address_line TEXT NOT NULL,
+      address_line TEXT,
       postal_code TEXT,
       is_default BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS title TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS recipient TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS phone TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS city TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS district TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS address_line TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS postal_code TEXT;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE b2b_addresses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_addresses_user_idx ON b2b_addresses(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS b2b_payment_methods (
       id BIGSERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      provider TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT,
       brand TEXT,
       last4 TEXT,
       holder_name TEXT,
@@ -118,40 +128,63 @@ async function ensureB2BAccountTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS provider TEXT;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS brand TEXT;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS last4 TEXT;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS holder_name TEXT;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_payment_methods_user_idx ON b2b_payment_methods(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS b2b_returns (
       id BIGSERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       order_number TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       reason TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE b2b_returns ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE b2b_returns ADD COLUMN IF NOT EXISTS order_number TEXT;
+    ALTER TABLE b2b_returns ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+    ALTER TABLE b2b_returns ADD COLUMN IF NOT EXISTS reason TEXT;
+    ALTER TABLE b2b_returns ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_returns_user_idx ON b2b_returns(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS b2b_invoices (
       id BIGSERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      invoice_number TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      invoice_number TEXT,
       order_number TEXT,
       total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
       download_url TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE b2b_invoices ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE b2b_invoices ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+    ALTER TABLE b2b_invoices ADD COLUMN IF NOT EXISTS order_number TEXT;
+    ALTER TABLE b2b_invoices ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+    ALTER TABLE b2b_invoices ADD COLUMN IF NOT EXISTS download_url TEXT;
+    ALTER TABLE b2b_invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_invoices_user_idx ON b2b_invoices(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS b2b_support_tickets (
       id BIGSERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      subject TEXT NOT NULL,
-      message TEXT NOT NULL,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT,
+      message TEXT,
       status TEXT NOT NULL DEFAULT 'open',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+    ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS subject TEXT;
+    ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS message TEXT;
+    ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open';
+    ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_support_user_idx ON b2b_support_tickets(user_id, created_at DESC);
   `);
 }
@@ -1423,6 +1456,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           min_order_qty,
           units_per_box,
           image_data,
+          images,
+          barcode,
           collection_name
         FROM b2b_products
         WHERE is_active IS DISTINCT FROM FALSE
@@ -1455,6 +1490,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           min_order_qty,
           units_per_box,
           image_data,
+          images,
+          barcode,
           collection_name,
           features,
           variants
