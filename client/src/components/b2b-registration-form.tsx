@@ -27,6 +27,20 @@ const COMPANY_CATEGORIES = [
   "Diğer",
 ];
 
+function isValidVknChecksum(value: string) {
+  if (!/^\d{10}$/.test(value)) return false;
+
+  const digits = value.split("").map(Number);
+  const control = digits[9];
+  const total = digits.slice(0, 9).reduce((sum, digit, index) => {
+    const shifted = (digit + 9 - index) % 10;
+    const weighted = shifted === 9 ? 9 : (shifted * 2 ** (9 - index)) % 9;
+    return sum + weighted;
+  }, 0);
+
+  return (10 - (total % 10)) % 10 === control;
+}
+
 type TaxVerification = {
   valid: boolean;
   verified: boolean;
@@ -93,7 +107,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
             // geçerli 10 haneli VKN başvuruyu engellemez.
             if (payload.valid === true || [502, 503].includes(response.status)) {
               return {
-                valid: true,
+                valid: isValidVknChecksum(clean),
                 verified: false,
                 taxNumber: clean,
                 taxOffice: null,
@@ -126,7 +140,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         }
       } catch (err) {
         if (!active) return;
-        setTaxValid(/^\d{10}$/.test(clean));
+        setTaxValid(isValidVknChecksum(clean));
         setTaxVerified(false);
         setTaxOffice("");
       } finally {
