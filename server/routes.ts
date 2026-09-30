@@ -74,6 +74,88 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   return next();
 }
 
+async function requireB2B(req: Request, res: Response, next: NextFunction) {
+  const userId = sessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+
+  const user = await storage.getUser(userId);
+  if (!user || user.isActive !== 1 || user.role !== "b2b_customer") {
+    return res.status(403).json({ error: "Aktif B2B hesabı gerekiyor" });
+  }
+
+  (res.locals as any).b2bUser = user;
+  return next();
+}
+
+async function ensureB2BAccountTables() {
+  if (!pool) return;
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS b2b_addresses (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      recipient TEXT,
+      phone TEXT,
+      city TEXT,
+      district TEXT,
+      address_line TEXT NOT NULL,
+      postal_code TEXT,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS b2b_addresses_user_idx ON b2b_addresses(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS b2b_payment_methods (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL,
+      brand TEXT,
+      last4 TEXT,
+      holder_name TEXT,
+      is_default BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS b2b_payment_methods_user_idx ON b2b_payment_methods(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS b2b_returns (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      order_number TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      reason TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS b2b_returns_user_idx ON b2b_returns(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS b2b_invoices (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      invoice_number TEXT NOT NULL,
+      order_number TEXT,
+      total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      download_url TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS b2b_invoices_user_idx ON b2b_invoices(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS b2b_support_tickets (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS b2b_support_user_idx ON b2b_support_tickets(user_id, created_at DESC);
+  `);
+}
+
 const B2B_COMPANY_CATEGORIES = [
   "Elektrik & Elektronik",
   "Ev Gereçleri",
@@ -735,6 +817,7 @@ async function initDatabase(): Promise<void> {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   initDatabase().catch(err => console.error("DB init error:", err));
+  ensureB2BAccountTables().catch(err => console.error("B2B account tables init error:", err));
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
@@ -757,6 +840,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       appAccess: user.appAccess,
       isActive: user.isActive === 1,
       mustChangePassword: user.mustChangePassword === 1,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      companyName: user.companyName,
     });
   });
 
