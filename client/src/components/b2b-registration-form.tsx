@@ -74,11 +74,42 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     let active = true;
     const timer = window.setTimeout(async () => {
       setTaxChecking(true);
+
+      const verify = async (): Promise<TaxVerification> => {
+        let lastError = "Vergi bilgileri doğrulanamadı";
+
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            const response = await fetch("/api/b2b/tax-verify", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ taxNumber: clean }),
+            });
+
+            const payload = await response.json().catch(() => ({})) as TaxVerification & { error?: string };
+
+            if (response.ok) return payload;
+
+            lastError = payload.error || "Vergi bilgileri doğrulanamadı";
+
+            if (![502, 503].includes(response.status) || attempt === 2) {
+              throw new Error(lastError);
+            }
+
+            await new Promise((resolve) => window.setTimeout(resolve, 700 * (attempt + 1)));
+          } catch (err) {
+            lastError = err instanceof Error ? err.message : lastError;
+            if (attempt === 2) throw new Error(lastError);
+            await new Promise((resolve) => window.setTimeout(resolve, 700 * (attempt + 1)));
+          }
+        }
+
+        throw new Error(lastError);
+      };
+
       try {
-        const response = await apiRequest("POST", "/api/b2b/tax-verify", {
-          taxNumber: clean,
-        });
-        const result = (await response.json()) as TaxVerification;
+        const result = await verify();
         if (!active) return;
 
         setTaxValid(Boolean(result.valid));
