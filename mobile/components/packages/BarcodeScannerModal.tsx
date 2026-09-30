@@ -4,7 +4,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import { Ionicons } from '@expo/vector-icons';
 
 import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
-import { normalizeBarcodeScan, type BarcodeScanMode } from '@shared/barcode-scan';
+import { normalizeBarcodeScan, type BarcodeScanMode } from '@/lib/shared/barcode-scan';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { scanValuesMatchAny } from '@/lib/barcodeNormalize';
 
