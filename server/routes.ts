@@ -801,6 +801,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const temporaryPassword = generateTemporaryPassword();
 
+    const updated = await storage.updateUser(id, {
+      password: hashPassword(temporaryPassword),
+      isActive: 1,
+      applicationStatus: "approved",
+      mustChangePassword: 1,
+      approvedAt: new Date(),
+      credentialsSentAt: null,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Başvuru bulunamadı" });
+    }
+
+    let emailSent = false;
+    let emailError: string | null = null;
+
     try {
       await sendTemporaryPasswordEmail({
         to: user.email,
@@ -809,33 +825,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         temporaryPassword,
       });
 
-      const updated = await storage.updateUser(id, {
-        password: hashPassword(temporaryPassword),
-        isActive: 1,
-        applicationStatus: "approved",
-        mustChangePassword: 1,
-        approvedAt: new Date(),
+      emailSent = true;
+      await storage.updateUser(id, {
         credentialsSentAt: new Date(),
       });
-
-      if (!updated) {
-        return res.status(404).json({ error: "Başvuru bulunamadı" });
-      }
-
-      const { password, ...safeUser } = updated;
-      return res.json({
-        ...safeUser,
-        isActive: true,
-        taxVerified: safeUser.taxVerified === 1,
-        mustChangePassword: true,
-        message: "Başvuru onaylandı ve tek kullanımlık şifre e-posta ile gönderildi.",
-      });
     } catch (error) {
-      console.error("B2B application approval failed:", error);
-      return res.status(502).json({
-        error: error instanceof Error ? error.message : "Başvuru onaylanamadı",
-      });
+      emailError =
+        error instanceof Error
+          ? error.message
+          : "Tek kullanımlık şifre e-posta ile gönderilemedi";
+      console.error("B2B temporary password email failed after approval:", error);
     }
+
+    const { password, ...safeUser } = updated;
+    return res.json({
+      ...safeUser,
+      isActive: true,
+      taxVerified: safeUser.taxVerified === 1,
+      mustChangePassword: true,
+      emailSent,
+      emailError,
+      temporaryPassword: emailSent ? undefined : temporaryPassword,
+      message: emailSent
+        ? "Başvuru onaylandı ve tek kullanımlık şifre e-posta ile gönderildi."
+        : "Başvuru onaylandı. E-posta servisi hazır olmadığı için tek kullanımlık şifre yöneticiye gösterildi.",
+    });
   });
 
   app.post("/api/admin/b2b-applications/:id/reject", requireAdmin, async (req, res) => {
