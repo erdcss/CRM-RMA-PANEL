@@ -6,7 +6,8 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 400
+const NOTIFICATION_LIMIT = 50
 
 type ToasterToast = ToastProps & {
   id: string
@@ -15,11 +16,22 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement
 }
 
+export type NotificationItem = {
+  id: string
+  title?: React.ReactNode
+  description?: React.ReactNode
+  variant?: ToastProps["variant"]
+  createdAt: number
+  read: boolean
+}
+
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
   UPDATE_TOAST: "UPDATE_TOAST",
   DISMISS_TOAST: "DISMISS_TOAST",
   REMOVE_TOAST: "REMOVE_TOAST",
+  MARK_ALL_NOTIFICATIONS_READ: "MARK_ALL_NOTIFICATIONS_READ",
+  CLEAR_NOTIFICATIONS: "CLEAR_NOTIFICATIONS",
 } as const
 
 let count = 0
@@ -48,9 +60,16 @@ type Action =
       type: ActionType["REMOVE_TOAST"]
       toastId?: ToasterToast["id"]
     }
+  | {
+      type: ActionType["MARK_ALL_NOTIFICATIONS_READ"]
+    }
+  | {
+      type: ActionType["CLEAR_NOTIFICATIONS"]
+    }
 
 interface State {
   toasts: ToasterToast[]
+  notifications: NotificationItem[]
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
@@ -64,7 +83,7 @@ const addToRemoveQueue = (toastId: string) => {
     toastTimeouts.delete(toastId)
     dispatch({
       type: "REMOVE_TOAST",
-      toastId: toastId,
+      toastId,
     })
   }, TOAST_REMOVE_DELAY)
 
@@ -77,6 +96,17 @@ export const reducer = (state: State, action: Action): State => {
       return {
         ...state,
         toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+        notifications: [
+          {
+            id: action.toast.id,
+            title: action.toast.title,
+            description: action.toast.description,
+            variant: action.toast.variant,
+            createdAt: Date.now(),
+            read: false,
+          },
+          ...state.notifications,
+        ].slice(0, NOTIFICATION_LIMIT),
       }
 
     case "UPDATE_TOAST":
@@ -85,13 +115,21 @@ export const reducer = (state: State, action: Action): State => {
         toasts: state.toasts.map((t) =>
           t.id === action.toast.id ? { ...t, ...action.toast } : t
         ),
+        notifications: state.notifications.map((notification) =>
+          notification.id === action.toast.id
+            ? {
+                ...notification,
+                title: action.toast.title ?? notification.title,
+                description: action.toast.description ?? notification.description,
+                variant: action.toast.variant ?? notification.variant,
+              }
+            : notification
+        ),
       }
 
     case "DISMISS_TOAST": {
       const { toastId } = action
 
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
       if (toastId) {
         addToRemoveQueue(toastId)
       } else {
@@ -112,6 +150,7 @@ export const reducer = (state: State, action: Action): State => {
         ),
       }
     }
+
     case "REMOVE_TOAST":
       if (action.toastId === undefined) {
         return {
@@ -119,16 +158,32 @@ export const reducer = (state: State, action: Action): State => {
           toasts: [],
         }
       }
+
       return {
         ...state,
         toasts: state.toasts.filter((t) => t.id !== action.toastId),
+      }
+
+    case "MARK_ALL_NOTIFICATIONS_READ":
+      return {
+        ...state,
+        notifications: state.notifications.map((notification) => ({
+          ...notification,
+          read: true,
+        })),
+      }
+
+    case "CLEAR_NOTIFICATIONS":
+      return {
+        ...state,
+        notifications: [],
       }
   }
 }
 
 const listeners: Array<(state: State) => void> = []
 
-let memoryState: State = { toasts: [] }
+let memoryState: State = { toasts: [], notifications: [] }
 
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action)
@@ -147,6 +202,7 @@ function toast({ ...props }: Toast) {
       type: "UPDATE_TOAST",
       toast: { ...props, id },
     })
+
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
   dispatch({
@@ -162,7 +218,7 @@ function toast({ ...props }: Toast) {
   })
 
   return {
-    id: id,
+    id,
     dismiss,
     update,
   }
@@ -179,12 +235,15 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,
     toast,
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    markAllNotificationsRead: () =>
+      dispatch({ type: "MARK_ALL_NOTIFICATIONS_READ" }),
+    clearNotifications: () => dispatch({ type: "CLEAR_NOTIFICATIONS" }),
   }
 }
 
