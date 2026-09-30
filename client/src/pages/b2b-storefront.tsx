@@ -3,11 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { trackSearch, trackSession } from "@/lib/analytics";
-import { Search, Package, Boxes, Truck, ShieldCheck, LogIn } from "lucide-react";
+import { Search, Package, Boxes, Truck, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { BRAND } from "@/lib/brand";
-import { useBranding } from "@/hooks/use-branding";
+import { B2BHeader } from "@/components/b2b-header";
 
 type B2BProduct = {
   id: string | number;
@@ -29,7 +28,6 @@ async function loadProducts(): Promise<B2BProduct[]> {
 }
 
 export default function B2BStorefront() {
-  const { data: branding } = useBranding();
   useEffect(() => {
     void trackSession();
   }, []);
@@ -61,17 +59,9 @@ export default function B2BStorefront() {
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
-      <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-[72px] max-w-7xl items-center gap-4 px-4">
-          <a href="/" className="flex shrink-0 items-center">
-            <img
-              src={branding?.b2b_logo || BRAND.logoLarge}
-              alt="Çalışkan B2B"
-              className="h-12 w-auto max-w-[180px] object-contain object-left sm:h-14 sm:max-w-[220px]"
-            />
-          </a>
-
-          <div className="relative mx-auto hidden w-full max-w-2xl md:block">
+      <B2BHeader
+        middle={
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               className="h-11 bg-slate-50 pl-9"
@@ -80,15 +70,8 @@ export default function B2BStorefront() {
               placeholder="Ürün veya stok kodu ara"
             />
           </div>
-
-          <Button asChild className="ml-auto bg-slate-950 hover:bg-slate-800">
-            <a href="/uye-girisi">
-              <LogIn className="mr-2 h-4 w-4" />
-              Giriş Yap
-            </a>
-          </Button>
-        </div>
-      </header>
+        }
+      />
 
       <section className="bg-slate-950 text-white">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 md:grid-cols-2 md:items-center md:py-14">
