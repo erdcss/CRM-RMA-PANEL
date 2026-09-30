@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { BRAND } from "@/lib/brand";
+import { useBranding } from "@/hooks/use-branding";
 
 export default function B2BLogin() {
+  const { data: branding } = useBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -40,7 +42,7 @@ export default function B2BLogin() {
 
         <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
           <div className="flex items-center gap-3 border-b p-7">
-            <img src={BRAND.logoLarge} alt="Çalışkan B2B" className="h-14 w-14 rounded-xl object-cover" />
+            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-14 w-14 rounded-xl object-cover" />
             <div>
               <div className="text-xl font-black">Çalışkan B2B</div>
               <div className="text-sm text-slate-500">Müşteri Girişi</div>
