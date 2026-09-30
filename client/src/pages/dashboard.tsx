@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -313,7 +314,7 @@ function MetricCard({
   title: string;
   value: string | number;
   helper: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   live?: boolean;
 }) {
   return (
@@ -342,7 +343,7 @@ function EmptyState({
   text,
   compact = false,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   text: string;
   compact?: boolean;
