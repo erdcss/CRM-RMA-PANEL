@@ -68,12 +68,12 @@ export default function B2BProductPage() {
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <B2BHeader />
 
-      <main className="mx-auto max-w-7xl px-4 py-5 sm:py-8">
-        <Link href="/" className="mb-5 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-950">
+      <main className="mx-auto max-w-6xl px-4 py-4 sm:py-6">
+        <Link href="/" className="mb-4 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-950">
           <ArrowLeft className="mr-2 h-4 w-4" /> Ürünlere dön
         </Link>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,46%)_minmax(0,54%)] lg:gap-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,42%)_minmax(0,58%)] lg:gap-6">
           <section className="overflow-hidden rounded-2xl border bg-white">
             <div className="flex aspect-square items-center justify-center bg-white">
               {image ? (
@@ -84,21 +84,21 @@ export default function B2BProductPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border bg-white p-5 sm:p-7">
+          <section className="rounded-xl border bg-white p-4 sm:p-5">
             <div className="text-xs text-slate-500">Stok Kodu: <b className="text-slate-700">{product.sku || "—"}</b></div>
-            <h1 className="mt-2 text-2xl font-black leading-tight sm:text-3xl">{product.name || "Ürün"}</h1>
+            <h1 className="mt-2 text-xl font-black leading-tight sm:text-2xl">{product.name || "Ürün"}</h1>
             {product.collection_name ? <div className="mt-2 text-sm text-slate-500">{product.collection_name}</div> : null}
-            {product.description ? <p className="mt-5 leading-7 text-slate-600">{product.description}</p> : null}
+            {product.description ? <p className="mt-4 text-sm leading-6 text-slate-600">{product.description}</p> : null}
 
-            <div className="mt-6 rounded-xl bg-slate-950 p-5 text-white">
+            <div className="mt-5 rounded-xl bg-slate-950 p-4 text-white">
               <div className="text-sm text-slate-300">B2B fiyatı</div>
-              <div className="mt-1 text-2xl font-black">Fiyat için giriş yapın</div>
+              <div className="mt-1 text-xl font-black">Fiyat için giriş yapın</div>
               <Button asChild className="mt-4 bg-white text-slate-950 hover:bg-slate-100">
                 <Link href="/uye-girisi">İşletme hesabıyla giriş yap</Link>
               </Button>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
               <Info icon={<Boxes className="h-5 w-5" />} label="Koli içi" value={`${pack} adet`} />
               <Info icon={<Warehouse className="h-5 w-5" />} label="Stok" value={`${Math.max(0, Number(product.stock || 0))} adet`} />
               <Info icon={<ShieldCheck className="h-5 w-5" />} label="Minimum" value={`${min} adet`} />
