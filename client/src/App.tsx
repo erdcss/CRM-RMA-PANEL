@@ -22,6 +22,7 @@ import YapayZeka from "@/pages/yapay-zeka";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
+import B2BRegister from "@/pages/b2b-register";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -79,7 +80,7 @@ function AppContent() {
 
   return (
     <>
-      {isLoading ? null : user ? (
+      {isLoading ? null : user && ["super_admin", "admin"].includes(user.role) ? (
           <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
             <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
               <AppSidebar username={user.username} />
@@ -113,6 +114,7 @@ function B2BWebsite() {
       <Route path="/urun/:id" component={B2BProductPage} />
       <Route path="/uye-girisi" component={B2BLogin} />
       <Route path="/login" component={B2BLogin} />
+      <Route path="/kayit-ol" component={B2BRegister} />
       <Route component={B2BStorefront} />
     </Switch>
   );
