@@ -31,6 +31,28 @@ CREATE TABLE IF NOT EXISTS b2b_orders (
   total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS b2b_products (
+  id BIGSERIAL PRIMARY KEY,
+  sku TEXT UNIQUE,
+  name TEXT NOT NULL,
+  brand TEXT,
+  category TEXT,
+  description TEXT,
+  price NUMERIC(14,2),
+  stock INTEGER NOT NULL DEFAULT 0,
+  min_order_qty INTEGER NOT NULL DEFAULT 1,
+  units_per_box INTEGER NOT NULL DEFAULT 1,
+  image_data TEXT,
+  collection_name TEXT,
+  features JSONB,
+  variants JSONB,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS b2b_products_stock_idx ON b2b_products (stock);
+CREATE INDEX IF NOT EXISTS b2b_products_created_at_idx ON b2b_products (created_at DESC);
 `;
 
 const BRANDING_KEYS = [
@@ -212,6 +234,121 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Product view analytics failed:", error);
       res.status(204).send();
+    }
+  });
+
+  app.get("/api/admin/b2b-products", requireAdmin, async (_req, res) => {
+    if (!pool) return res.json([]);
+
+    try {
+      const result = await pool.query(`
+        SELECT
+          id,
+          sku,
+          name,
+          brand,
+          category,
+          description,
+          price,
+          stock,
+          min_order_qty,
+          units_per_box,
+          collection_name,
+          is_active,
+          created_at
+        FROM b2b_products
+        ORDER BY created_at DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Admin B2B products load failed:", error);
+      res.status(500).json({ error: "Ürünler alınamadı" });
+    }
+  });
+
+  app.post("/api/admin/b2b-products", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+
+    const sku = typeof req.body?.sku === "string" ? req.body.sku.trim() : "";
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const brand = typeof req.body?.brand === "string" ? req.body.brand.trim() : "";
+    const category = typeof req.body?.category === "string" ? req.body.category.trim() : "";
+    const description = typeof req.body?.description === "string" ? req.body.description.trim() : "";
+    const collectionName = typeof req.body?.collectionName === "string" ? req.body.collectionName.trim() : "";
+    const price = Number(req.body?.price ?? 0);
+    const stock = Math.max(0, Number.parseInt(String(req.body?.stock ?? 0), 10) || 0);
+    const minOrderQty = Math.max(1, Number.parseInt(String(req.body?.minOrderQty ?? 1), 10) || 1);
+    const unitsPerBox = Math.max(1, Number.parseInt(String(req.body?.unitsPerBox ?? 1), 10) || 1);
+
+    if (!sku || !name) {
+      return res.status(400).json({ error: "Stok kodu ve ürün adı zorunludur" });
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      return res.status(400).json({ error: "Geçerli bir fiyat girin" });
+    }
+
+    try {
+      const result = await pool.query(
+        `INSERT INTO b2b_products (
+          sku, name, brand, category, description, price, stock,
+          min_order_qty, units_per_box, collection_name, is_active
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE)
+        RETURNING *`,
+        [sku, name, brand || null, category || null, description || null, price, stock, minOrderQty, unitsPerBox, collectionName || null],
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (error: any) {
+      if (error?.code === "23505") {
+        return res.status(409).json({ error: "Bu stok koduyla kayıtlı bir ürün var" });
+      }
+      console.error("Admin B2B product create failed:", error);
+      res.status(500).json({ error: "Ürün eklenemedi" });
+    }
+  });
+
+  app.get("/api/admin/orders", requireAdmin, async (_req, res) => {
+    if (!pool) return res.json([]);
+
+    try {
+      const result = await pool.query(`
+        SELECT id, order_number, customer_email, status, item_count, total_amount, created_at
+        FROM b2b_orders
+        ORDER BY created_at DESC
+        LIMIT 250
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Admin orders load failed:", error);
+      res.status(500).json({ error: "Siparişler alınamadı" });
+    }
+  });
+
+  app.get("/api/admin/returns", requireAdmin, async (_req, res) => {
+    if (!pool) return res.json([]);
+
+    try {
+      const result = await pool.query(`
+        SELECT
+          p.id,
+          p.name,
+          p.brand,
+          p.status,
+          p.created_at,
+          c.name AS customer_name,
+          c.phone AS customer_phone,
+          t.receipt_number
+        FROM products p
+        LEFT JOIN tickets t ON t.id = p.ticket_id
+        LEFT JOIN customers c ON c.id = t.customer_id
+        WHERE p.category = 'iade'
+        ORDER BY p.created_at DESC
+        LIMIT 250
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Admin returns load failed:", error);
+      res.status(500).json({ error: "İade kayıtları alınamadı" });
     }
   });
 
