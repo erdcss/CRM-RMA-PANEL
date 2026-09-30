@@ -159,16 +159,41 @@ function BrandingRuntime() {
 
   useEffect(() => {
     const isB2B = isB2BHost();
-    const favicon = isB2B ? branding?.b2b_favicon : branding?.admin_favicon;
-    if (!favicon) return;
+    const appName = isB2B ? "Çalışkan B2B" : "Çalışkan Core";
+    const iconEndpoint = `/api/public/branding-icon/${isB2B ? "b2b" : "admin"}?v=6`;
+    const uploadedFavicon = isB2B ? branding?.b2b_favicon : branding?.admin_favicon;
 
-    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "icon";
-      document.head.appendChild(link);
+    document.title = appName;
+
+    const applicationName = document.querySelector<HTMLMetaElement>('meta[name="application-name"]');
+    if (applicationName) applicationName.content = appName;
+
+    const appleTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    if (appleTitle) appleTitle.content = appName;
+
+    let icon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!icon) {
+      icon = document.createElement("link");
+      icon.rel = "icon";
+      document.head.appendChild(icon);
     }
-    link.href = favicon;
+    icon.href = uploadedFavicon || iconEndpoint;
+
+    let appleIcon = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]');
+    if (!appleIcon) {
+      appleIcon = document.createElement("link");
+      appleIcon.rel = "apple-touch-icon";
+      document.head.appendChild(appleIcon);
+    }
+    appleIcon.href = uploadedFavicon || iconEndpoint;
+
+    let manifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!manifest) {
+      manifest = document.createElement("link");
+      manifest.rel = "manifest";
+      document.head.appendChild(manifest);
+    }
+    manifest.href = `/manifest.webmanifest?v=6&app=${isB2B ? "b2b" : "admin"}`;
   }, [branding?.admin_favicon, branding?.b2b_favicon]);
 
   return null;
