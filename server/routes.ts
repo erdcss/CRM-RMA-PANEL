@@ -399,7 +399,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.destroy(() => undefined);
       return res.status(401).json({ error: "Oturum geçersiz" });
     }
-    res.json({ id: user.id, username: user.username, role: user.role, appAccess: user.appAccess, isActive: user.isActive === 1 });
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      appAccess: user.appAccess,
+      isActive: user.isActive === 1,
+      mustChangePassword: user.mustChangePassword === 1,
+    });
   });
 
   app.post("/api/auth/login", async (req, res) => {
