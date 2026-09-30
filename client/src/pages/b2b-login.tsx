@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, LockKeyhole, LogIn, Mail, UserPlus } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LockKeyhole, LogIn, Mail, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ export default function B2BLogin() {
   const { data: branding } = useBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
@@ -118,23 +119,23 @@ export default function B2BLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7f9] px-4 py-8">
-      <div className="mx-auto max-w-md">
-        <Link href="/" className="mb-5 inline-flex items-center text-sm text-slate-500 hover:text-slate-950">
+    <div className="min-h-screen bg-[#f6f7f9] px-4 py-6">
+      <div className="mx-auto max-w-sm">
+        <Link href="/" className="mb-4 inline-flex items-center text-sm text-slate-500 hover:text-slate-950">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Mağazaya dön
         </Link>
 
-        <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b p-7">
-            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-14 w-14 rounded-xl object-cover" />
+        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b p-5">
+            <img src={branding?.b2b_logo || BRAND.logoLarge} alt="Çalışkan B2B" className="h-12 w-12 rounded-lg object-cover" />
             <div>
-              <div className="text-xl font-black">Çalışkan B2B</div>
-              <div className="text-sm text-slate-500">Müşteri Girişi</div>
+              <div className="text-lg font-black">Çalışkan B2B</div>
+              <div className="text-xs text-slate-500">Müşteri Girişi</div>
             </div>
           </div>
 
-          <form onSubmit={submit} className="space-y-5 p-7">
+          <form onSubmit={submit} className="space-y-4 p-5">
             <div className="space-y-2">
               <Label htmlFor="b2b-email">E-posta</Label>
               <div className="relative">
@@ -143,7 +144,7 @@ export default function B2BLogin() {
                   id="b2b-email"
                   type="email"
                   autoComplete="email"
-                  className="h-11 pl-9"
+                  className="h-10 pl-9"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
@@ -158,13 +159,21 @@ export default function B2BLogin() {
                 <LockKeyhole className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
                   id="b2b-password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
-                  className="h-11 pl-9"
+                  className="h-10 pl-9 pr-10"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
                 />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
@@ -172,7 +181,7 @@ export default function B2BLogin() {
               <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>
             ) : null}
 
-            <Button type="submit" className="h-11 w-full bg-slate-950 hover:bg-slate-800" disabled={busy}>
+            <Button type="submit" className="h-10 w-full bg-slate-950 hover:bg-slate-800" disabled={busy}>
               <LogIn className="mr-2 h-4 w-4" />
               {busy ? "Giriş yapılıyor…" : "Giriş Yap"}
             </Button>
@@ -180,7 +189,7 @@ export default function B2BLogin() {
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full"
+              className="h-10 w-full"
               onClick={() => setRegisterOpen(true)}
             >
               <UserPlus className="mr-2 h-4 w-4" />
@@ -225,7 +234,7 @@ export default function B2BLogin() {
                   id="initial-new-password"
                   type="password"
                   autoComplete="new-password"
-                  className="h-11 pl-9"
+                  className="h-10 pl-9"
                   value={newPassword}
                   onChange={(event) => setNewPassword(event.target.value)}
                   minLength={8}
@@ -257,7 +266,7 @@ export default function B2BLogin() {
 
             <Button
               type="submit"
-              className="h-11 w-full bg-slate-950 hover:bg-slate-800"
+              className="h-10 w-full bg-slate-950 hover:bg-slate-800"
               disabled={passwordSetupBusy}
             >
               {passwordSetupBusy ? "Şifre oluşturuluyor…" : "Yeni Şifreyi Kaydet"}
