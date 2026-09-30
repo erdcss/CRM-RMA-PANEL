@@ -723,18 +723,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(409).json({ error: "Bu vergi numarasıyla daha önce başvuru oluşturulmuş" });
     }
 
-    let taxLookup: TaxLookupResult;
+    let taxLookup: TaxLookupResult = {
+      structurallyValid: true,
+      verified: false,
+      taxOffice: null,
+      companyName: null,
+      serviceConfigured: false,
+    };
+
     try {
       taxLookup = await lookupTaxpayer(taxNumber);
     } catch (error) {
+      // Vergi sorgu servisi başvuruyu engellemez; VKN kontrol basamağı
+      // backend tarafında zaten doğrulanmıştır.
       console.error("Registration tax lookup failed:", error);
-      return res.status(502).json({ error: "Vergi bilgileri otomatik doğrulanamadı. Lütfen tekrar deneyin." });
-    }
-
-    if (!taxLookup.serviceConfigured || !taxLookup.verified || !taxLookup.taxOffice) {
-      return res.status(422).json({
-        error: "Vergi dairesi otomatik doğrulanmadan başvuru oluşturulamaz",
-      });
     }
 
     try {
@@ -750,8 +752,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         companyCategory,
         taxNumber,
-        taxOffice: taxLookup.taxOffice,
-        taxVerified: 1,
+        taxOffice: taxLookup.taxOffice || null,
+        taxVerified: taxLookup.verified && taxLookup.taxOffice ? 1 : 0,
         applicationStatus: "pending",
         mustChangePassword: 0,
       });
@@ -760,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: user.id,
         username: user.username,
         status: "pending",
-        taxVerified: true,
+        taxVerified: user.taxVerified === 1,
         taxOffice: user.taxOffice,
         message: "Başvurunuz alındı. Yönetici onayından sonra tek kullanımlık şifreniz e-posta adresinize gönderilecektir.",
       });
