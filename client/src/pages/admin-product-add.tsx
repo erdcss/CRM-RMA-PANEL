@@ -40,8 +40,9 @@ export default function AdminProductAdd() {
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
-  const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
 
   async function addImages(files: File[]) {
     try {
