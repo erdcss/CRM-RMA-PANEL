@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -231,7 +232,7 @@ function Summary({
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: number;
 }) {
