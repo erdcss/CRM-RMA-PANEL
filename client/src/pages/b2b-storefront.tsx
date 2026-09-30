@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Package, Boxes, Truck, ShieldCheck, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -160,7 +160,7 @@ export default function B2BStorefront() {
   );
 }
 
-function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
     <div className="rounded-2xl bg-white/10 p-4">
       {icon}
