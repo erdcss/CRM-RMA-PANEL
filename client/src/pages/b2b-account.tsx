@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -126,7 +126,7 @@ export default function B2BAccount() {
   );
 }
 
-function Panel({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function Panel({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
     <div className="rounded-2xl border bg-white shadow-sm">
       <div className="border-b p-5 sm:p-6">
@@ -369,7 +369,7 @@ function SettingsPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"] 
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-2"><Label>{label}</Label>{children}</div>;
 }
 
