@@ -57,12 +57,12 @@ const operationItems = [
 
 export function AppSidebar({ username }: { username: string }) {
   const [location] = useLocation();
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
   const { data: branding } = useBranding();
   const rmaActive = rmaItems.some((item) => location === item.url || location.startsWith("/kayit/"));
 
   return (
-    <Sidebar>
+    <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="shrink-0">
       <SidebarHeader className="border-b p-3">
         <div className="flex items-center gap-2.5 px-1">
           <img
