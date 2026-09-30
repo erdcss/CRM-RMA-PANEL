@@ -26,7 +26,11 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 function isB2BHost() {
+  const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
+  if (configuredMode === "b2b") return true;
+  if (configuredMode === "admin") return false;
   if (typeof window === "undefined") return false;
+
   const hostname = window.location.hostname.toLowerCase();
   return (
     hostname === "b2b.ecalisgan.com" ||
