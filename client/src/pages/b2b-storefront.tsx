@@ -1,6 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useEffect } from "react";
+import { trackSearch, trackSession } from "@/lib/analytics";
 import { Search, Package, Boxes, Truck, ShieldCheck, LogIn } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -26,12 +28,24 @@ async function loadProducts(): Promise<B2BProduct[]> {
 }
 
 export default function B2BStorefront() {
+  useEffect(() => {
+    void trackSession();
+  }, []);
   const [query, setQuery] = useState("");
   const { data: products = [], isLoading } = useQuery({
     queryKey: ["/api/b2b/products"],
     queryFn: loadProducts,
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    const clean = query.trim();
+    if (clean.length < 2) return;
+    const timer = window.setTimeout(() => {
+      void trackSearch(clean);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("tr-TR");
