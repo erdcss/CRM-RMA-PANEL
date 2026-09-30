@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,6 +20,8 @@ import Login from "@/pages/login";
 import Yoneticiler from "@/pages/yoneticiler";
 import YapayZeka from "@/pages/yapay-zeka";
 import B2BStorefront from "@/pages/b2b-storefront";
+import B2BProductPage from "@/pages/b2b-product";
+import B2BLogin from "@/pages/b2b-login";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -97,17 +99,19 @@ function AppContent() {
 }
 
 function B2BWebsite() {
-  const [location] = useLocation();
-
   useEffect(() => {
     document.title = "Çalışkan B2B";
   }, []);
 
-  if (location === "/uye-girisi") {
-    return <Login />;
-  }
-
-  return <B2BStorefront />;
+  return (
+    <Switch>
+      <Route path="/" component={B2BStorefront} />
+      <Route path="/urun/:id" component={B2BProductPage} />
+      <Route path="/uye-girisi" component={B2BLogin} />
+      <Route path="/login" component={B2BLogin} />
+      <Route component={B2BStorefront} />
+    </Switch>
+  );
 }
 
 function App() {
