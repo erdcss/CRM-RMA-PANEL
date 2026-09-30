@@ -2,12 +2,14 @@ import { FormEvent, useState } from "react";
 import { LogIn } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { BRAND } from "@/lib/brand";
+import { useBranding } from "@/hooks/use-branding";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function Login() {
+  const { data: branding } = useBranding();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,7 +33,7 @@ export default function Login() {
     <main className="flex min-h-dvh items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-4 text-center">
-          <img src={BRAND.logo} alt={BRAND.name} className="mx-auto h-16 w-16 rounded-xl object-cover" />
+          <img src={branding?.admin_logo || BRAND.logo} alt={BRAND.name} className="mx-auto h-16 w-16 rounded-xl object-cover" />
           <div>
             <CardTitle className="text-2xl">{BRAND.name}</CardTitle>
             <CardDescription className="mt-2">Panelinize giriş yapın</CardDescription>
