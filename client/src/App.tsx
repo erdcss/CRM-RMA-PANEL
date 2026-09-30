@@ -103,7 +103,7 @@ function B2BWebsite() {
     document.title = "Çalışkan B2B";
   }, []);
 
-  if (location === "/login") {
+  if (location === "/uye-girisi") {
     return <Login />;
   }
 
