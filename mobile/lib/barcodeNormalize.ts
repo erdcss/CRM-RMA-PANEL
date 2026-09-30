@@ -2,7 +2,7 @@ import {
   cleanRawScanValue,
   expandScanLookupValues,
   parseShipmentBarcodeFromScan,
-} from '@shared/shipment-barcode';
+} from '@/lib/shared/shipment-barcode';
 
 export { expandScanLookupValues, parseShipmentBarcodeFromScan };
 
