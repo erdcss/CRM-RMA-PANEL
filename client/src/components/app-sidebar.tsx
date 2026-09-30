@@ -51,7 +51,7 @@ const standaloneItems = [
 ];
 
 const operationItems = [
-  { title: "Ürün Ekle", url: "/urun-ekle", icon: PackagePlus },
+  { title: "Ürünler", url: "/urunler", icon: Package },
   { title: "İade İşlemleri", url: "/iade-islemleri", icon: Undo2 },
   { title: "Stok Durumu", url: "/stok-durumu", icon: Boxes },
   { title: "Siparişler", url: "/siparisler", icon: ShoppingCart },
