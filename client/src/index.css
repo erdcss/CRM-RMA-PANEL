@@ -219,6 +219,19 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  .b2b-site {
+    min-height: 0;
+    background: #f6f7f9;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+  }
+
+  .b2b-site input,
+  .b2b-site button,
+  .b2b-site a {
+    font-size: 0.875rem;
+  }
+
   @media (max-width: 767px) {
     [data-radix-accordion-content] {
       animation: none !important;
