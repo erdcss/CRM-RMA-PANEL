@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
-import { trackSearch, trackSession } from "@/lib/analytics";
+import { trackSearch } from "@/lib/analytics";
 import { Search, Package, Boxes, Truck, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
@@ -38,9 +38,6 @@ async function loadProducts(): Promise<B2BProduct[]> {
 }
 
 export default function B2BStorefront() {
-  useEffect(() => {
-    void trackSession();
-  }, []);
   const [query, setQuery] = useState("");
   const { data: session } = useQuery({
     queryKey: ["/api/auth/me"],
