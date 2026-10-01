@@ -303,6 +303,81 @@ async function brandingMap() {
   return defaults;
 }
 
+function normalizeHomepageCategories(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<string>();
+  const categories: string[] = [];
+
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const name = item.trim().replace(/\s+/g, " ").slice(0, 80);
+    if (!name) continue;
+
+    const key = name.toLocaleLowerCase("tr-TR");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    categories.push(name);
+
+    if (categories.length >= 30) break;
+  }
+
+  return categories;
+}
+
+async function detectedProductCategories(): Promise<string[]> {
+  if (!pool) return [];
+
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT TRIM(category) AS category
+       FROM b2b_products
+       WHERE is_active = TRUE
+         AND COALESCE(TRIM(category), '') <> ''
+       ORDER BY TRIM(category) ASC
+       LIMIT 50`,
+    );
+
+    return normalizeHomepageCategories(result.rows.map((row) => row.category));
+  } catch {
+    return [];
+  }
+}
+
+async function homepageConfig() {
+  const detectedCategories = await detectedProductCategories();
+  if (!pool) {
+    return { categories: detectedCategories, detectedCategories };
+  }
+
+  const result = await pool.query(
+    `SELECT value
+     FROM platform_settings
+     WHERE key = 'b2b_home_categories'
+     LIMIT 1`,
+  );
+
+  if (!result.rows[0]) {
+    return {
+      categories: detectedCategories,
+      detectedCategories,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(String(result.rows[0].value || "[]"));
+    return {
+      categories: normalizeHomepageCategories(parsed),
+      detectedCategories,
+    };
+  } catch {
+    return {
+      categories: detectedCategories,
+      detectedCategories,
+    };
+  }
+}
+
 export async function registerAdminPlatformRoutes(app: Express, requireAdmin: RequestHandler) {
   await ensurePlatformTables().catch((error) => {
     console.error("Platform tables could not be prepared:", error);
@@ -314,6 +389,17 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Public branding load failed:", error);
       res.json({});
+    }
+  });
+
+  app.get("/api/public/homepage", async (_req, res) => {
+    try {
+      const config = await homepageConfig();
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.json({ categories: config.categories });
+    } catch (error) {
+      console.error("Public homepage config load failed:", error);
+      return res.json({ categories: [] });
     }
   });
 
@@ -414,6 +500,39 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Admin branding load failed:", error);
       res.status(500).json({ error: "Marka ayarları alınamadı" });
+    }
+  });
+
+  app.get("/api/admin/homepage", requireAdmin, async (_req, res) => {
+    try {
+      return res.json(await homepageConfig());
+    } catch (error) {
+      console.error("Admin homepage config load failed:", error);
+      return res.status(500).json({ error: "Ana sayfa ayarları alınamadı" });
+    }
+  });
+
+  app.put("/api/admin/homepage", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+
+    const categories = normalizeHomepageCategories(req.body?.categories);
+
+    try {
+      await pool.query(
+        `INSERT INTO platform_settings (key, value, updated_at)
+         VALUES ('b2b_home_categories', $1, NOW())
+         ON CONFLICT (key)
+         DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [JSON.stringify(categories)],
+      );
+
+      return res.json({
+        categories,
+        detectedCategories: await detectedProductCategories(),
+      });
+    } catch (error) {
+      console.error("Admin homepage config update failed:", error);
+      return res.status(500).json({ error: "Ana sayfa ayarları kaydedilemedi" });
     }
   });
 
