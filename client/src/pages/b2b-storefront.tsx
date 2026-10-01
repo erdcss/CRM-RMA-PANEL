@@ -22,6 +22,7 @@ type B2BProduct = {
   units_per_box?: number | null;
   image_data?: string | null;
   image_url?: string | null;
+  category?: string | null;
   collection_name?: string | null;
 };
 
@@ -37,8 +38,15 @@ async function loadProducts(): Promise<B2BProduct[]> {
   return response.json();
 }
 
+async function loadHomepage(): Promise<{ categories: string[] }> {
+  const response = await fetch("/api/public/homepage", { credentials: "include" });
+  if (!response.ok) return { categories: [] };
+  return response.json();
+}
+
 export default function B2BStorefront() {
   const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const { data: session } = useQuery({
     queryKey: ["/api/auth/me"],
     queryFn: loadSession,
@@ -55,6 +63,12 @@ export default function B2BStorefront() {
     staleTime: 30_000,
   });
 
+  const { data: homepage = { categories: [] } } = useQuery({
+    queryKey: ["/api/public/homepage"],
+    queryFn: loadHomepage,
+    staleTime: 15_000,
+  });
+
   useEffect(() => {
     const clean = query.trim();
     if (clean.length < 2) return;
@@ -66,13 +80,22 @@ export default function B2BStorefront() {
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("tr-TR");
-    if (!term) return products;
-    return products.filter((product) =>
-      [product.name, product.sku, product.collection_name]
-        .filter(Boolean)
-        .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(term)),
-    );
-  }, [products, query]);
+    const category = selectedCategory.trim().toLocaleLowerCase("tr-TR");
+
+    return products.filter((product) => {
+      const matchesCategory =
+        !category ||
+        String(product.category || "").toLocaleLowerCase("tr-TR") === category;
+
+      const matchesSearch =
+        !term ||
+        [product.name, product.sku, product.category, product.collection_name]
+          .filter(Boolean)
+          .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(term));
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [products, query, selectedCategory]);
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -111,6 +134,61 @@ export default function B2BStorefront() {
       </section>
 
       <main className="mx-auto max-w-6xl px-4 py-6">
+        {homepage.categories.length > 0 ? (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black">Kategoriler</h2>
+                <p className="mt-0.5 text-xs text-slate-500">Ürün grubunu seçerek kataloğu filtreleyin.</p>
+              </div>
+              {selectedCategory ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory("")}
+                  className="text-xs font-medium text-slate-500 hover:text-slate-950"
+                >
+                  Filtreyi temizle
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+              <button
+                type="button"
+                onClick={() => setSelectedCategory("")}
+                className={`flex h-10 min-w-[130px] shrink-0 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition-colors ${
+                  selectedCategory
+                    ? "bg-white text-slate-700 hover:border-slate-400"
+                    : "border-slate-950 bg-slate-950 text-white"
+                }`}
+              >
+                Tümü
+              </button>
+
+              {homepage.categories.map((category) => {
+                const active =
+                  selectedCategory.toLocaleLowerCase("tr-TR") ===
+                  category.toLocaleLowerCase("tr-TR");
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCategory(category)}
+                    className={`flex h-10 min-w-[145px] shrink-0 items-center justify-center rounded-lg border px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
+                      active
+                        ? "border-slate-950 bg-slate-950 text-white"
+                        : "bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
         <div className="mb-4 md:hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
