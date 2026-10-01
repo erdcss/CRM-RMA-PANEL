@@ -95,8 +95,7 @@ async function canViewB2BPrices(req: Request): Promise<boolean> {
   return Boolean(
     user &&
     user.isActive === 1 &&
-    user.role === "b2b_customer" &&
-    user.applicationStatus === "approved",
+    user.role === "b2b_customer",
   );
 }
 
