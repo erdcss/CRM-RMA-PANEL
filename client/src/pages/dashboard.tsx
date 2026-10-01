@@ -51,12 +51,21 @@ async function getOverview(): Promise<DashboardOverview> {
 }
 
 export default function Dashboard() {
-  const { data, isLoading, dataUpdatedAt, refetch, isFetching } = useQuery<DashboardOverview>({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    dataUpdatedAt,
+    refetch,
+    isFetching,
+  } = useQuery<DashboardOverview>({
     queryKey: ["/api/admin/dashboard-overview"],
     queryFn: getOverview,
-    refetchInterval: 30_000,
-    staleTime: 15_000,
+    refetchInterval: 15_000,
+    staleTime: 5_000,
     refetchOnWindowFocus: true,
+    retry: 2,
   });
 
   return (
@@ -86,6 +95,15 @@ export default function Dashboard() {
             </Button>
           </div>
         </section>
+
+        {isError ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <div className="font-semibold">Dashboard verileri şu anda alınamadı.</div>
+            <div className="mt-1 text-xs opacity-80">
+              {error instanceof Error ? error.message : "Veri kaynağına bağlanılamadı."}
+            </div>
+          </div>
+        ) : null}
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
