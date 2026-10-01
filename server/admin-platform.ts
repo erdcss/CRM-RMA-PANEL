@@ -403,6 +403,38 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  app.get("/api/public/mobile-branding/:app", async (req, res) => {
+    try {
+      const branding = await brandingMap();
+      const target = String(req.params.app || "").toLowerCase();
+
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      if (target === "business") {
+        return res.json({
+          logo: branding.business_mobile_logo,
+          splash: branding.business_mobile_splash,
+          updatedAt: Date.now(),
+        });
+      }
+
+      if (target === "b2b") {
+        return res.json({
+          logo: branding.b2b_mobile_logo,
+          splash: branding.b2b_mobile_splash,
+          updatedAt: Date.now(),
+        });
+      }
+
+      return res.status(404).json({ error: "Mobil marka profili bulunamadı" });
+    } catch (error) {
+      console.error("Public mobile branding load failed:", error);
+      return res.status(500).json({ error: "Mobil marka bilgileri alınamadı" });
+    }
+  });
+
   app.get("/api/public/branding-icon/:target", async (req, res) => {
     try {
       const branding = await brandingMap();
