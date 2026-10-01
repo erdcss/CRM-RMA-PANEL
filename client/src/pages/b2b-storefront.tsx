@@ -7,6 +7,11 @@ import { Search, Package, Boxes, Truck, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 
+type SessionUser = {
+  role?: string;
+  isActive?: boolean;
+};
+
 type B2BProduct = {
   id: string | number;
   sku?: string | null;
@@ -20,6 +25,12 @@ type B2BProduct = {
   collection_name?: string | null;
 };
 
+async function loadSession(): Promise<SessionUser | null> {
+  const response = await fetch("/api/auth/me", { credentials: "include" });
+  if (!response.ok) return null;
+  return response.json();
+}
+
 async function loadProducts(): Promise<B2BProduct[]> {
   const response = await fetch("/api/b2b/products", { credentials: "include" });
   if (!response.ok) return [];
@@ -31,8 +42,18 @@ export default function B2BStorefront() {
     void trackSession();
   }, []);
   const [query, setQuery] = useState("");
+  const { data: session } = useQuery({
+    queryKey: ["/api/auth/me"],
+    queryFn: loadSession,
+    retry: false,
+    staleTime: 15_000,
+  });
+  const loggedIn =
+    session?.role === "b2b_customer" &&
+    session?.isActive === true;
+
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ["/api/b2b/products"],
+    queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
     queryFn: loadProducts,
     staleTime: 30_000,
   });
@@ -144,7 +165,14 @@ export default function B2BStorefront() {
                     <div className="p-3">
                       <div className="text-[11px] text-slate-400">{product.sku || "STOK"}</div>
                       <h3 className="mt-1 min-h-10 line-clamp-2 font-semibold">{product.name || "Ürün"}</h3>
-                      <div className="mt-3 text-sm font-semibold text-slate-700">Fiyat için giriş yapın</div>
+                      <div className="mt-3 text-sm font-semibold text-slate-700">
+                        {loggedIn && product.price !== null && product.price !== undefined
+                          ? `${Number(product.price).toLocaleString("tr-TR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })} ₺`
+                          : "Fiyat için giriş yapın"}
+                      </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
                         <div className="rounded-lg bg-slate-100 p-2">
                           Koli içi<br /><b>{product.units_per_box || 1} adet</b>
