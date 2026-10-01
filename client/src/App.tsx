@@ -28,6 +28,7 @@ import AdminReturns from "@/pages/admin-returns";
 import AdminStock from "@/pages/admin-stock";
 import AdminOrders from "@/pages/admin-orders";
 import AdminApplications from "@/pages/admin-applications";
+import AdminHomepage from "@/pages/admin-homepage";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
@@ -76,6 +77,7 @@ function Router() {
       <Route path="/stok-durumu" component={AdminStock} />
       <Route path="/siparisler" component={AdminOrders} />
       <Route path="/basvurular" component={AdminApplications} />
+      <Route path="/ana-sayfa" component={AdminHomepage} />
       <Route component={NotFound} />
     </Switch>
   );
