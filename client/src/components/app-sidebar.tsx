@@ -16,6 +16,7 @@ import {
   Boxes,
   ShoppingCart,
   ClipboardList,
+  Home,
 } from "lucide-react";
 import {
   Sidebar,
@@ -90,6 +91,15 @@ export function AppSidebar({ username }: { username: string }) {
                   <Link href="/" onClick={() => setOpenMobile(false)}>
                     <LayoutDashboard className="h-4 w-4" />
                     <span>Dashboard</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/ana-sayfa"}>
+                  <Link href="/ana-sayfa" onClick={() => setOpenMobile(false)}>
+                    <Home className="h-4 w-4" />
+                    <span>Ana Sayfa</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
