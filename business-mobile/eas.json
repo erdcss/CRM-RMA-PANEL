@@ -8,15 +8,22 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+      }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EAS_NO_VCS": "1"
+        "EAS_NO_VCS": "1",
+        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
       },
       "environment": "production"
     }
