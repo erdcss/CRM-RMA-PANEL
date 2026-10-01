@@ -6,6 +6,11 @@ import { ArrowLeft, Boxes, Package, ShieldCheck, Truck, Warehouse } from "lucide
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 
+type SessionUser = {
+  role?: string;
+  isActive?: boolean;
+};
+
 type Product = {
   id: string | number;
   sku?: string | null;
@@ -24,6 +29,12 @@ type Product = {
   variants?: Array<Record<string, string>> | null;
 };
 
+async function loadSession(): Promise<SessionUser | null> {
+  const response = await fetch("/api/auth/me", { credentials: "include" });
+  if (!response.ok) return null;
+  return response.json();
+}
+
 async function loadProduct(id: string): Promise<Product> {
   const response = await fetch(`/api/b2b/products/${encodeURIComponent(id)}`, { credentials: "include" });
   if (!response.ok) throw new Error(response.status === 404 ? "Ürün bulunamadı" : "Ürün yüklenemedi");
@@ -33,8 +44,18 @@ async function loadProduct(id: string): Promise<Product> {
 export default function B2BProductPage() {
   const [, params] = useRoute("/urun/:id");
   const id = params?.id || "";
+  const { data: session } = useQuery({
+    queryKey: ["/api/auth/me"],
+    queryFn: loadSession,
+    retry: false,
+    staleTime: 15_000,
+  });
+  const loggedIn =
+    session?.role === "b2b_customer" &&
+    session?.isActive === true;
+
   const { data: product, isLoading, error } = useQuery({
-    queryKey: ["/api/b2b/products", id],
+    queryKey: ["/api/b2b/products", id, loggedIn ? "member" : "guest"],
     queryFn: () => loadProduct(id),
     enabled: Boolean(id),
     staleTime: 30_000,
@@ -92,10 +113,19 @@ export default function B2BProductPage() {
 
             <div className="mt-5 rounded-xl bg-slate-950 p-4 text-white">
               <div className="text-sm text-slate-300">B2B fiyatı</div>
-              <div className="mt-1 text-xl font-black">Fiyat için giriş yapın</div>
-              <Button asChild className="mt-4 bg-white text-slate-950 hover:bg-slate-100">
-                <Link href="/uye-girisi">İşletme hesabıyla giriş yap</Link>
-              </Button>
+              <div className="mt-1 text-xl font-black">
+                {loggedIn && product.price !== null && product.price !== undefined
+                  ? `${Number(product.price).toLocaleString("tr-TR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })} ₺`
+                  : "Fiyat için giriş yapın"}
+              </div>
+              {!loggedIn ? (
+                <Button asChild className="mt-4 bg-white text-slate-950 hover:bg-slate-100">
+                  <Link href="/uye-girisi">İşletme hesabıyla giriş yap</Link>
+                </Button>
+              ) : null}
             </div>
 
             <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
@@ -106,7 +136,9 @@ export default function B2BProductPage() {
 
             <div className="mt-6 flex items-center gap-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
               <Truck className="h-5 w-5 text-slate-700" />
-              Sipariş ve sevkiyat seçenekleri giriş yaptıktan sonra aktif olur.
+              {loggedIn
+                ? "B2B fiyatınız aktif. Sipariş ve sevkiyat seçeneklerini kullanabilirsiniz."
+                : "Sipariş ve sevkiyat seçenekleri giriş yaptıktan sonra aktif olur."}
             </div>
           </section>
         </div>
