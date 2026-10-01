@@ -143,11 +143,71 @@ async function ensureB2BProductSchema() {
   await productSchemaReady;
 }
 
+let dashboardSchemaReady: Promise<void> | null = null;
+
+async function ensureDashboardSchema() {
+  if (!pool) return;
+
+  if (!dashboardSchemaReady) {
+    dashboardSchemaReady = (async () => {
+      const migrations = [
+        `ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS visitor_id TEXT`,
+        `ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS event_type TEXT`,
+        `ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS event_value TEXT`,
+        `ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS product_id TEXT`,
+        `ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS order_number TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS customer_email TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL DEFAULT 0`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+      ];
+
+      for (const sql of migrations) {
+        await pool.query(sql);
+      }
+
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS analytics_events_created_at_idx
+         ON analytics_events (created_at DESC)`,
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS analytics_events_type_idx
+         ON analytics_events (event_type, created_at DESC)`,
+      );
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS b2b_orders_created_at_idx
+         ON b2b_orders (created_at DESC)`,
+      );
+
+      // Existing order rows may predate order_number. Give them a stable
+      // human-readable number without overwriting real numbers.
+      await pool.query(
+        `UPDATE b2b_orders
+         SET order_number = COALESCE(
+           NULLIF(order_number, ''),
+           'B2B-' || LPAD(id::text, 6, '0')
+         )
+         WHERE order_number IS NULL OR order_number = ''`,
+      );
+    })().catch((error) => {
+      dashboardSchemaReady = null;
+      throw error;
+    });
+  }
+
+  await dashboardSchemaReady;
+}
+
 async function ensurePlatformTables() {
   if (!pool) return;
 
   await pool.query(PLATFORM_SQL);
-  await ensureB2BProductSchema();
+  await Promise.all([
+    ensureB2BProductSchema(),
+    ensureDashboardSchema(),
+  ]);
 }
 
 function normalizeProductImages(value: unknown): string[] {
@@ -801,6 +861,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
 
     try {
+      await ensureDashboardSchema();
+
       const [
         sessionUsers,
         liveUsers,
@@ -815,7 +877,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           SELECT COUNT(DISTINCT visitor_id)::int AS count
           FROM analytics_events
           WHERE event_type IN ('session','heartbeat')
-            AND created_at >= CURRENT_DATE
+            AND (created_at AT TIME ZONE 'Europe/Istanbul')::date =
+                (NOW() AT TIME ZONE 'Europe/Istanbul')::date
         `),
         pool.query(`
           SELECT COUNT(DISTINCT visitor_id)::int AS count
@@ -826,7 +889,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         pool.query(`
           SELECT COUNT(*)::int AS count
           FROM b2b_orders
-          WHERE created_at >= CURRENT_DATE
+          WHERE (created_at AT TIME ZONE 'Europe/Istanbul')::date =
+                (NOW() AT TIME ZONE 'Europe/Istanbul')::date
         `),
         pool.query(`
           SELECT id, order_number, customer_email, status, item_count, total_amount, created_at
