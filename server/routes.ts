@@ -87,6 +87,19 @@ async function requireB2B(req: Request, res: Response, next: NextFunction) {
   return next();
 }
 
+async function canViewB2BPrices(req: Request): Promise<boolean> {
+  const userId = sessionUserId(req);
+  if (!userId) return false;
+
+  const user = await storage.getUser(userId);
+  return Boolean(
+    user &&
+    user.isActive === 1 &&
+    user.role === "b2b_customer" &&
+    user.applicationStatus === "approved",
+  );
+}
+
 async function ensureB2BAccountTables() {
   if (!pool) return;
 
@@ -1442,10 +1455,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
 
-  app.get("/api/b2b/products", async (_req, res) => {
+  app.get("/api/b2b/products", async (req, res) => {
     if (!pool) return res.json([]);
 
     try {
+      const priceVisible = await canViewB2BPrices(req);
       const result = await pool.query(`
         SELECT
           id,
@@ -1463,7 +1477,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         WHERE is_active IS DISTINCT FROM FALSE
         ORDER BY created_at DESC
       `);
-      return res.json(result.rows);
+      return res.json(
+        result.rows.map((row) => ({
+          ...row,
+          price: priceVisible ? row.price : null,
+        })),
+      );
     } catch (error: any) {
       if (error?.code === "42P01") {
         return res.json([]);
@@ -1477,6 +1496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!pool) return res.status(404).json({ error: "Ürün bulunamadı" });
 
     try {
+      const priceVisible = await canViewB2BPrices(req);
       const result = await pool.query(`
         SELECT
           id,
@@ -1505,7 +1525,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Ürün bulunamadı" });
       }
 
-      return res.json(result.rows[0]);
+      return res.json({
+        ...result.rows[0],
+        price: priceVisible ? result.rows[0].price : null,
+      });
     } catch (error: any) {
       if (error?.code === "42P01") {
         return res.status(404).json({ error: "Ürün bulunamadı" });
