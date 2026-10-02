@@ -10,6 +10,9 @@ import {
   LockKeyhole,
   Package,
   ShieldCheck,
+  Store,
+  Truck,
+  Warehouse,
 } from "lucide-react";
 
 import { B2BHeader } from "@/components/b2b-header";
@@ -152,6 +155,10 @@ export default function B2BPaymentPage() {
   const [method, setMethod] = useState<"card" | "bank_transfer">("card");
   const [identityNumber, setIdentityNumber] = useState("");
   const [addressId, setAddressId] = useState("");
+  const [shippingMethod, setShippingMethod] = useState<"cargo" | "freight" | "pickup">("cargo");
+  const [freightCompany, setFreightCompany] = useState("");
+  const [freightPhone, setFreightPhone] = useState("");
+  const [pickupTime, setPickupTime] = useState<"" | "09:00" | "15:00" | "17:00">("");
   const [busy, setBusy] = useState(false);
   const [eftOrder, setEftOrder] = useState<{
     orderNumber: string;
@@ -204,6 +211,41 @@ export default function B2BPaymentPage() {
     };
   }
 
+  function shippingPayload() {
+    if (shippingMethod === "freight") {
+      if (!freightCompany.trim() || freightPhone.replace(/\D/g, "").length < 7) {
+        toast({
+          title: "Ambar bilgileri eksik",
+          description: "Ambar firma adı ve telefon numarasını girin.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      return {
+        method: "freight",
+        companyName: freightCompany.trim(),
+        phone: freightPhone.trim(),
+      };
+    }
+
+    if (shippingMethod === "pickup") {
+      if (!pickupTime) {
+        toast({
+          title: "Teslim saati seçin",
+          description: "09:00, 15:00 veya 17:00 saatlerinden birini seçin.",
+          variant: "destructive",
+        });
+        return null;
+      }
+      return {
+        method: "pickup",
+        pickupTime,
+      };
+    }
+
+    return { method: "cargo" };
+  }
+
   async function copy(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
@@ -224,6 +266,9 @@ export default function B2BPaymentPage() {
       return;
     }
 
+    const shipping = shippingPayload();
+    if (!shipping) return;
+
     const identity = identityNumber.replace(/\D/g, "");
     if (!/^\d{11}$/.test(identity)) {
       toast({
@@ -239,6 +284,7 @@ export default function B2BPaymentPage() {
       const response = await apiRequest("POST", "/api/b2b/payments/iyzico/initialize", {
         ...orderPayload(),
         addressId: selectedAddressId,
+        shipping,
         identityNumber: identity,
       });
       const payload = await response.json() as { paymentPageUrl?: string };
@@ -266,11 +312,15 @@ export default function B2BPaymentPage() {
       return;
     }
 
+    const shipping = shippingPayload();
+    if (!shipping) return;
+
     setBusy(true);
     try {
       const response = await apiRequest("POST", "/api/b2b/payments/bank-transfer", {
         ...orderPayload(),
         addressId: selectedAddressId,
+        shipping,
       });
       const payload = await response.json();
       setEftOrder(payload);
@@ -351,7 +401,7 @@ export default function B2BPaymentPage() {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <section className="space-y-4">
               <div className="rounded-2xl border bg-white p-5">
-                <h2 className="font-bold">Teslimat adresi</h2>
+                <h2 className="font-bold">Fatura / Teslimat Adresi</h2>
                 {addresses.length ? (
                   <select
                     value={selectedAddressId}
@@ -369,6 +419,111 @@ export default function B2BPaymentPage() {
                     Kayıtlı teslimat adresiniz yok. <Link href="/hesabim" className="font-semibold underline">Hesabım</Link> bölümünden adres ekleyin.
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-2xl border bg-white p-5">
+                <h2 className="font-bold">Nakliye Seçeneği</h2>
+                <p className="mt-1 text-sm text-slate-500">Siparişinizin nasıl teslim edileceğini seçin.</p>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => setShippingMethod("cargo")}
+                    className={`rounded-xl border p-4 text-left transition ${
+                      shippingMethod === "cargo"
+                        ? "border-slate-950 bg-slate-950 text-white"
+                        : "bg-white hover:border-slate-400"
+                    }`}
+                  >
+                    <Truck className="h-5 w-5" />
+                    <div className="mt-3 font-bold">Kargo ile gönder</div>
+                    <div className={`mt-1 text-xs ${shippingMethod === "cargo" ? "text-slate-300" : "text-slate-500"}`}>
+                      PTT Kargo ile gönderilir
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShippingMethod("freight")}
+                    className={`rounded-xl border p-4 text-left transition ${
+                      shippingMethod === "freight"
+                        ? "border-slate-950 bg-slate-950 text-white"
+                        : "bg-white hover:border-slate-400"
+                    }`}
+                  >
+                    <Warehouse className="h-5 w-5" />
+                    <div className="mt-3 font-bold">Ambar ile gönder</div>
+                    <div className={`mt-1 text-xs ${shippingMethod === "freight" ? "text-slate-300" : "text-slate-500"}`}>
+                      Kendi ambar bilgilerinizi girin
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShippingMethod("pickup")}
+                    className={`rounded-xl border p-4 text-left transition ${
+                      shippingMethod === "pickup"
+                        ? "border-slate-950 bg-slate-950 text-white"
+                        : "bg-white hover:border-slate-400"
+                    }`}
+                  >
+                    <Store className="h-5 w-5" />
+                    <div className="mt-3 font-bold">Kendim teslim alacağım</div>
+                    <div className={`mt-1 text-xs ${shippingMethod === "pickup" ? "text-slate-300" : "text-slate-500"}`}>
+                      İSTOÇ teslim noktası
+                    </div>
+                  </button>
+                </div>
+
+                {shippingMethod === "freight" ? (
+                  <div className="mt-4 grid gap-4 rounded-xl border bg-slate-50 p-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Ambar Firma İsmi</Label>
+                      <Input
+                        value={freightCompany}
+                        onChange={(event) => setFreightCompany(event.target.value)}
+                        placeholder="Ambar firma adı"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Telefon Numarası</Label>
+                      <Input
+                        value={freightPhone}
+                        onChange={(event) => setFreightPhone(event.target.value)}
+                        placeholder="05xx xxx xx xx"
+                        inputMode="tel"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                {shippingMethod === "pickup" ? (
+                  <div className="mt-4 rounded-xl border bg-slate-50 p-4">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Teslim Alma Adresi</div>
+                    <div className="mt-1 text-sm font-semibold">
+                      İSTOÇ Toptan Ticaret Merkezi Mahmutbey Mh. 19 Ada 23 Numara Bağcılar/İstanbul
+                    </div>
+                    <div className="mt-4">
+                      <Label>Teslim Saati</Label>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(["09:00", "15:00", "17:00"] as const).map((time) => (
+                          <button
+                            key={time}
+                            type="button"
+                            onClick={() => setPickupTime(time)}
+                            className={`rounded-lg border px-4 py-2 text-sm font-semibold ${
+                              pickupTime === time
+                                ? "border-slate-950 bg-slate-950 text-white"
+                                : "bg-white hover:border-slate-400"
+                            }`}
+                          >
+                            {time}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="rounded-2xl border bg-white p-5">
