@@ -2,9 +2,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { trackProductView } from "@/lib/analytics";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, Truck, Warehouse } from "lucide-react";
+import { ArrowLeft, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
+import { addB2BCartItem } from "@/lib/b2b-cart";
+import { useToast } from "@/hooks/use-toast";
 
 type SessionUser = {
   role?: string;
@@ -42,6 +44,7 @@ async function loadProduct(id: string): Promise<Product> {
 }
 
 export default function B2BProductPage() {
+  const { toast } = useToast();
   const [, params] = useRoute("/urun/:id");
   const id = params?.id || "";
   const { data: session } = useQuery({
@@ -179,12 +182,37 @@ export default function B2BProductPage() {
                     </div>
                   </div>
 
-                  <Button asChild disabled={stock < min} className="sm:min-w-48">
-                    <Link href={`/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Ödemeye Geç
-                    </Link>
-                  </Button>
+                  <div className="flex flex-col gap-2 sm:min-w-52">
+                    <Button
+                      type="button"
+                      disabled={stock < min}
+                      onClick={() => {
+                        addB2BCartItem({
+                          productId: String(product.id),
+                          sku: String(product.sku || ""),
+                          name: String(product.name || "Ürün"),
+                          image: image || null,
+                          price: Number(product.price || 0),
+                          quantity: effectiveQuantity,
+                          minOrderQty: min,
+                          stock,
+                        });
+                        toast({
+                          title: "Siparişlere eklendi",
+                          description: `${product.name || "Ürün"} · ${effectiveQuantity} adet`,
+                        });
+                      }}
+                    >
+                      <ShoppingBag className="mr-2 h-4 w-4" />
+                      Siparişlere Ekle
+                    </Button>
+                    <Button asChild disabled={stock < min} variant="outline">
+                      <Link href={`/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Hemen Öde
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
                 {stock < min ? (
                   <div className="mt-3 text-xs font-medium text-rose-600">Bu ürün için yeterli stok bulunmuyor.</div>
