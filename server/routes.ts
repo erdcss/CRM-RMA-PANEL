@@ -10,6 +10,8 @@ import { pool } from "./db";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
 import {
+  completeIyzico3DS,
+  initializeIyzico3DS,
   initializeIyzicoCheckout,
   isIyzicoConfigured,
   retrieveIyzicoCheckout,
@@ -137,7 +139,7 @@ function newB2BOrderNumber() {
     .toISOString()
     .replace(/[-:TZ.]/g, "")
     .slice(0, 14);
-  return `B2B-${stamp}-${randomBytes(3).toString("hex").toUpperCase()}`;
+  return `CLK-${stamp}-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
 async function checkoutProduct(productId: unknown, quantity: unknown): Promise<CheckoutProduct> {
@@ -1877,6 +1879,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [user.id, title, recipient || null, phone || null, city || null, district || null, addressLine, postalCode || null, makeDefault],
     );
     return res.status(201).json(result.rows[0]);
+  });
+
+  app.patch("/api/b2b/addresses/:id", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Geçersiz adres" });
+
+    const value = (input: unknown, max: number) =>
+      typeof input === "string" ? input.trim().slice(0, max) : "";
+
+    const title = value(req.body?.title, 100);
+    const recipient = value(req.body?.recipient, 160);
+    const phone = value(req.body?.phone, 40);
+    const city = value(req.body?.city, 100);
+    const district = value(req.body?.district, 100);
+    const addressLine = value(req.body?.addressLine, 700);
+    const postalCode = value(req.body?.postalCode, 20);
+
+    if (!title || !addressLine) {
+      return res.status(400).json({ error: "Adres başlığı ve açık adres zorunludur" });
+    }
+
+    const result = await pool.query(
+      `UPDATE b2b_addresses
+       SET title = $3,
+           recipient = $4,
+           phone = $5,
+           city = $6,
+           district = $7,
+           address_line = $8,
+           postal_code = $9
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [
+        id,
+        user.id,
+        title,
+        recipient || null,
+        phone || null,
+        city || null,
+        district || null,
+        addressLine,
+        postalCode || null,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: "Adres bulunamadı" });
+    }
+
+    return res.json(result.rows[0]);
   });
 
   app.delete("/api/b2b/addresses/:id", requireB2B, async (req, res) => {
