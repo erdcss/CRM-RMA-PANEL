@@ -6,13 +6,18 @@ export type B2BCartItem = {
   name: string;
   image: string | null;
   price: number;
-  quantity: number;
-  minOrderQty: number;
-  stock: number;
+  quantity: number; // ordered box count
+  minOrderQty: number; // minimum box count
+  unitsPerBox: number;
+  stock: number; // stock in individual units
 };
 
-const STORAGE_KEY = "caliskan-b2b-order-draft-v1";
+const STORAGE_KEY = "caliskan-b2b-order-draft-v2";
 const EVENT_NAME = "caliskan-b2b-cart-change";
+
+function maxBoxes(item: Pick<B2BCartItem, "stock" | "unitsPerBox">) {
+  return Math.max(0, Math.floor(item.stock / Math.max(1, item.unitsPerBox)));
+}
 
 function normalize(items: unknown): B2BCartItem[] {
   if (!Array.isArray(items)) return [];
@@ -25,13 +30,22 @@ function normalize(items: unknown): B2BCartItem[] {
     const name = String(value.name || "").trim();
     const price = Number(value.price);
     const stock = Math.max(0, Number(value.stock || 0));
+    const unitsPerBox = Math.max(1, Number(value.unitsPerBox || 1));
     const minOrderQty = Math.max(1, Number(value.minOrderQty || 1));
-    const quantity = Math.min(
-      stock || minOrderQty,
-      Math.max(minOrderQty, Number(value.quantity || minOrderQty)),
-    );
+    const availableBoxes = Math.max(0, Math.floor(stock / unitsPerBox));
+    const requested = Math.max(minOrderQty, Number(value.quantity || minOrderQty));
+    const quantity = Math.min(availableBoxes, requested);
 
-    if (!productId || !name || !Number.isFinite(price) || price < 0) continue;
+    if (
+      !productId ||
+      !name ||
+      !Number.isFinite(price) ||
+      price < 0 ||
+      availableBoxes < minOrderQty
+    ) {
+      continue;
+    }
+
     result.push({
       productId,
       sku: String(value.sku || ""),
@@ -40,9 +54,11 @@ function normalize(items: unknown): B2BCartItem[] {
       price,
       quantity,
       minOrderQty,
+      unitsPerBox,
       stock,
     });
   }
+
   return result.slice(0, 100);
 }
 
@@ -64,16 +80,25 @@ function persist(items: B2BCartItem[]) {
 export function addB2BCartItem(item: B2BCartItem) {
   const current = getB2BCart();
   const index = current.findIndex((entry) => entry.productId === item.productId);
+  const availableBoxes = maxBoxes(item);
+
+  if (availableBoxes < item.minOrderQty) return;
 
   if (index >= 0) {
     const previous = current[index];
     const quantity = Math.min(
-      item.stock || item.minOrderQty,
+      availableBoxes,
       Math.max(item.minOrderQty, previous.quantity + item.quantity),
     );
     current[index] = { ...previous, ...item, quantity };
   } else {
-    current.push(item);
+    current.push({
+      ...item,
+      quantity: Math.min(
+        availableBoxes,
+        Math.max(item.minOrderQty, item.quantity),
+      ),
+    });
   }
 
   persist(current);
@@ -82,10 +107,12 @@ export function addB2BCartItem(item: B2BCartItem) {
 export function updateB2BCartQuantity(productId: string, quantity: number) {
   const current = getB2BCart().map((item) => {
     if (item.productId !== productId) return item;
+
+    const availableBoxes = maxBoxes(item);
     return {
       ...item,
       quantity: Math.min(
-        item.stock || item.minOrderQty,
+        availableBoxes,
         Math.max(item.minOrderQty, quantity),
       ),
     };
@@ -118,10 +145,18 @@ export function useB2BCart() {
     () => items.reduce((sum, item) => sum + item.quantity, 0),
     [items],
   );
+  const totalUnits = useMemo(
+    () => items.reduce((sum, item) => sum + item.quantity * item.unitsPerBox, 0),
+    [items],
+  );
   const total = useMemo(
-    () => items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    () =>
+      items.reduce(
+        (sum, item) => sum + item.price * item.unitsPerBox * item.quantity,
+        0,
+      ),
     [items],
   );
 
-  return { items, itemCount, total };
+  return { items, itemCount, totalUnits, total };
 }
