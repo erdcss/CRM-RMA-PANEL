@@ -112,6 +112,8 @@ type CheckoutProduct = {
   price: number;
   stock: number;
   minOrderQty: number;
+  unitsPerBox: number;
+  maxBoxQty: number;
 };
 
 function cleanOrderQuantity(value: unknown) {
@@ -146,7 +148,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
   }
 
   const result = await pool.query(
-    `SELECT id, sku, name, category, price, stock, min_order_qty
+    `SELECT id, sku, name, category, price, stock, min_order_qty, units_per_box
      FROM b2b_products
      WHERE id::text = $1
        AND is_active IS DISTINCT FROM FALSE
@@ -160,10 +162,15 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
   const price = Number(row.price);
   const stock = Math.max(0, Number(row.stock || 0));
   const minOrderQty = Math.max(1, Number(row.min_order_qty || 1));
+  const unitsPerBox = Math.max(1, Number(row.units_per_box || 1));
+  const maxBoxQty = Math.max(0, Math.floor(stock / unitsPerBox));
 
   if (!Number.isFinite(price) || price < 0) throw new Error("Ürün fiyatı geçersiz");
-  if (qty < minOrderQty) throw new Error(`Minimum sipariş adedi ${minOrderQty}`);
-  if (qty > stock) throw new Error("Talep edilen adet mevcut stoktan fazla");
+  if (qty < minOrderQty) throw new Error(`Minimum sipariş koli adedi ${minOrderQty}`);
+  if (maxBoxQty < minOrderQty) throw new Error("Tam koli siparişi için yeterli stok yok");
+  if (qty > maxBoxQty) {
+    throw new Error(`Stok en fazla ${maxBoxQty} koli (${stock} adet) siparişe izin veriyor`);
+  }
 
   return {
     id: String(row.id),
@@ -173,6 +180,8 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
     price,
     stock,
     minOrderQty,
+    unitsPerBox,
+    maxBoxQty,
   };
 }
 
@@ -183,6 +192,7 @@ async function checkoutItems(rawItems: unknown) {
   const items: Array<{
     product: CheckoutProduct;
     quantity: number;
+    totalUnits: number;
     total: number;
   }> = [];
 
@@ -190,19 +200,22 @@ async function checkoutItems(rawItems: unknown) {
     const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
     const quantity = cleanOrderQuantity(value.quantity);
     const product = await checkoutProduct(value.productId, quantity);
+    const totalUnits = quantity * product.unitsPerBox;
     items.push({
       product,
       quantity,
-      total: Number((product.price * quantity).toFixed(2)),
+      totalUnits,
+      total: Number((product.price * totalUnits).toFixed(2)),
     });
   }
 
   const total = Number(
     items.reduce((sum, item) => sum + item.total, 0).toFixed(2),
   );
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const boxCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const itemCount = items.reduce((sum, item) => sum + item.totalUnits, 0);
 
-  return { items, total, itemCount };
+  return { items, total, itemCount, boxCount };
 }
 
 async function checkoutAddress(userId: number, addressId: unknown) {
@@ -1864,11 +1877,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const quantity = cleanOrderQuantity(req.query.qty);
       const product = await checkoutProduct(req.query.productId, quantity);
-      const total = Number((product.price * quantity).toFixed(2));
+      const totalUnits = quantity * product.unitsPerBox;
+      const total = Number((product.price * totalUnits).toFixed(2));
 
       return res.json({
         product,
         quantity,
+        totalUnits,
         total,
         currency: "TRY",
         iyzicoConfigured: isIyzicoConfigured(),
@@ -1887,10 +1902,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         items: cart.items.map((entry) => ({
           product: entry.product,
           quantity: entry.quantity,
+          totalUnits: entry.totalUnits,
           total: entry.total,
         })),
         total: cart.total,
         itemCount: cart.itemCount,
+        boxCount: cart.boxCount,
         currency: "TRY",
         iyzicoConfigured: isIyzicoConfigured(),
       });
@@ -1958,6 +1975,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       sku: entry.product.sku,
       name: entry.product.name,
       quantity: entry.quantity,
+      unitsPerBox: entry.product.unitsPerBox,
+      totalUnits: entry.totalUnits,
       unitPrice: entry.product.price,
       total: entry.total,
     }));
@@ -2023,7 +2042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         basketItems: checkout.items.map((entry) => ({
           id: entry.product.id,
           price: entry.total,
-          name: `${entry.product.name} x${entry.quantity}`.slice(0, 500),
+          name: `${entry.product.name} · ${entry.quantity} koli · ${entry.totalUnits} adet`.slice(0, 500),
           category1: entry.product.category || "Genel",
           itemType: "PHYSICAL",
         })),
@@ -2108,16 +2127,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const items = Array.isArray(order.items) ? order.items : [];
         for (const entry of items) {
           const productId = String(entry?.productId || "").trim();
-          const quantity = Math.max(0, cleanOrderQuantity(entry?.quantity));
-          if (!productId || quantity <= 0) continue;
-
-          await client.query(
-            `UPDATE b2b_products
-             SET stock = GREATEST(0, stock - $2),
-                 updated_at = NOW()
-             WHERE id::text = $1`,
-            [productId, quantity],
+          const boxQuantity = Math.max(0, cleanOrderQuantity(entry?.quantity));
+          const unitsPerBox = Math.max(1, cleanOrderQuantity(entry?.unitsPerBox) || 1);
+          const totalUnits = Math.max(
+            0,
+            cleanOrderQuantity(entry?.totalUnits) || boxQuantity * unitsPerBox,
           );
+          if (!productId || boxQuantity <= 0 || totalUnits <= 0) continue;
+
+          const stockUpdate = await client.query(
+            `UPDATE b2b_products
+             SET stock = stock - $2,
+                 updated_at = NOW()
+             WHERE id::text = $1
+               AND stock >= $2
+             RETURNING stock`,
+            [productId, totalUnits],
+          );
+
+          if (!stockUpdate.rows[0]) {
+            throw new Error("Ödeme tamamlandı ancak sipariş stoğu eşzamanlı değişti; manuel kontrol gerekiyor");
+          }
         }
 
         await client.query(
