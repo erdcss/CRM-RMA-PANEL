@@ -2003,6 +2003,328 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/b2b/payments/iyzico/3ds/initialize", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    if (!(await isIyzicoConfigured())) {
+      return res.status(503).json({ error: "iyzico canlı bağlantısı henüz etkin değil" });
+    }
+
+    const user = (res.locals as any).b2bUser;
+    const taxNumber = String(user.taxNumber || "").replace(/\D/g, "").slice(0, 50);
+    if (taxNumber.length < 5) {
+      return res.status(400).json({
+        error: "Kartlı ödeme için firma vergi numarası hesap bilgilerinde bulunmalıdır",
+      });
+    }
+
+    const card = req.body?.card && typeof req.body.card === "object"
+      ? req.body.card as Record<string, unknown>
+      : {};
+    const cardHolderName = String(card.cardHolderName || "").trim().slice(0, 100);
+    const cardNumber = String(card.cardNumber || "").replace(/\D/g, "").slice(0, 19);
+    const expireMonth = String(card.expireMonth || "").replace(/\D/g, "").padStart(2, "0").slice(0, 2);
+    let expireYear = String(card.expireYear || "").replace(/\D/g, "").slice(0, 4);
+    const cvc = String(card.cvc || "").replace(/\D/g, "").slice(0, 4);
+    const installment = Number.parseInt(String(req.body?.installment || "1"), 10);
+
+    if (expireYear.length === 4) expireYear = expireYear.slice(-2);
+    if (cardHolderName.length < 2) {
+      return res.status(400).json({ error: "Kart üzerindeki isim soyisim zorunludur" });
+    }
+    if (cardNumber.length < 15 || cardNumber.length > 19) {
+      return res.status(400).json({ error: "Kart numarası geçersiz" });
+    }
+    if (!/^(0[1-9]|1[0-2])$/.test(expireMonth) || !/^\d{2}$/.test(expireYear)) {
+      return res.status(400).json({ error: "Kart son kullanım tarihi geçersiz" });
+    }
+    if (!/^\d{3,4}$/.test(cvc)) {
+      return res.status(400).json({ error: "CVV bilgisi geçersiz" });
+    }
+    if (![1, 2, 3, 6, 9, 12].includes(installment)) {
+      return res.status(400).json({ error: "Geçersiz taksit seçeneği" });
+    }
+
+    let checkout: Awaited<ReturnType<typeof checkoutItems>>;
+    let address: any;
+    let shipping: ShippingSelection;
+
+    try {
+      const rawItems = Array.isArray(req.body?.items)
+        ? req.body.items
+        : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
+      checkout = await checkoutItems(rawItems);
+      address = await checkoutAddress(user.id, req.body?.addressId);
+      shipping = checkoutShipping(req.body?.shipping);
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "Sipariş bilgileri geçersiz",
+      });
+    }
+
+    const city = String(address.city || "").trim();
+    const postalCode = String(address.postal_code || "").trim();
+    const addressText = String(address.address_line || "").trim();
+    if (!city || !postalCode || !addressText) {
+      return res.status(400).json({
+        error: "Kartlı ödeme için teslimat adresinde şehir, posta kodu ve açık adres zorunludur",
+      });
+    }
+
+    const orderNumber = newB2BOrderNumber();
+    const total = checkout.total;
+    const email = String(user.email || user.username || "").trim();
+    const firstName = String(user.firstName || user.companyName || "Müşteri").trim().slice(0, 120);
+    const lastName = String(user.lastName || "Yetkili").trim().slice(0, 120);
+    const contactName = String(address.recipient || `${firstName} ${lastName}`).trim().slice(0, 180);
+    const gsm = String(address.phone || "").trim();
+    const callbackBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
+    const isCartCheckout = Array.isArray(req.body?.items) && req.body.items.length > 0;
+    const callbackUrl =
+      `${callbackBase}/api/b2b/payments/iyzico/3ds/callback${isCartCheckout ? "?cart=1" : ""}`;
+
+    const orderItems = checkout.items.map((entry) => ({
+      productId: entry.product.id,
+      sku: entry.product.sku,
+      name: entry.product.name,
+      quantity: entry.quantity,
+      unitsPerBox: entry.product.unitsPerBox,
+      totalUnits: entry.totalUnits,
+      unitPrice: entry.product.price,
+      total: entry.total,
+    }));
+
+    const created = await pool.query(
+      `INSERT INTO b2b_orders (
+        order_number, customer_email, status, item_count, total_amount,
+        payment_method, payment_provider, payment_status,
+        shipping_method, shipping_details, user_id, items
+      )
+      VALUES ($1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb)
+      RETURNING id`,
+      [
+        orderNumber,
+        email,
+        checkout.itemCount,
+        total,
+        shipping.method,
+        JSON.stringify(shipping.details),
+        user.id,
+        JSON.stringify(orderItems),
+      ],
+    );
+    const orderId = created.rows[0]?.id;
+
+    try {
+      const payment = await initializeIyzico3DS({
+        locale: "tr",
+        conversationId: orderNumber,
+        price: total,
+        paidPrice: total,
+        currency: "TRY",
+        installment,
+        paymentChannel: "WEB",
+        basketId: orderNumber,
+        paymentGroup: "PRODUCT",
+        callbackUrl,
+        paymentCard: {
+          cardHolderName,
+          cardNumber,
+          expireYear,
+          expireMonth,
+          cvc,
+          registerCard: 0,
+        },
+        buyer: {
+          id: String(user.id),
+          name: firstName,
+          surname: lastName,
+          identityNumber: taxNumber,
+          email,
+          ...(gsm ? { gsmNumber: gsm } : {}),
+          registrationAddress: addressText,
+          city,
+          country: "Turkey",
+          zipCode: postalCode,
+          ip: requestIp(req),
+        },
+        shippingAddress: {
+          address: shipping.method === "pickup" ? shipping.details.address : addressText,
+          zipCode: shipping.method === "pickup" ? "34218" : postalCode,
+          contactName,
+          city: shipping.method === "pickup" ? "İstanbul" : city,
+          country: "Turkey",
+        },
+        billingAddress: {
+          address: addressText,
+          zipCode: postalCode,
+          contactName,
+          city,
+          country: "Turkey",
+        },
+        basketItems: checkout.items.map((entry) => ({
+          id: entry.product.id,
+          price: entry.total,
+          name: `${entry.product.name} · ${entry.quantity} koli · ${entry.totalUnits} adet`.slice(0, 500),
+          category1: entry.product.category || "Genel",
+          itemType: "PHYSICAL",
+        })),
+      });
+
+      if (!payment.paymentId || !payment.threeDSHtmlContent) {
+        throw new Error("3D Secure doğrulama ekranı oluşturulamadı");
+      }
+
+      await pool.query(
+        `UPDATE b2b_orders
+         SET payment_id = $2,
+             payment_status = '3ds_pending'
+         WHERE id = $1`,
+        [orderId, payment.paymentId],
+      );
+
+      return res.json({
+        orderNumber,
+        paymentId: payment.paymentId,
+        threeDSHtmlContent: payment.threeDSHtmlContent,
+      });
+    } catch (error) {
+      await pool.query(
+        `UPDATE b2b_orders
+         SET status = 'payment_failed',
+             payment_status = 'initialize_failed'
+         WHERE id = $1`,
+        [orderId],
+      );
+      return res.status(502).json({
+        error: error instanceof Error ? error.message : "Kartlı ödeme başlatılamadı",
+      });
+    }
+  });
+
+  app.post("/api/b2b/payments/iyzico/3ds/callback", async (req, res) => {
+    if (!pool) return res.status(503).send("Database unavailable");
+
+    const redirectBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
+    const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
+    const paymentId = String(req.body?.paymentId || "").trim();
+    const conversationId = String(req.body?.conversationId || "").trim();
+    const conversationData = String(req.body?.conversationData || "").trim();
+    const callbackStatus = String(req.body?.status || "").toLowerCase();
+
+    if (!paymentId || !conversationId || callbackStatus !== "success") {
+      if (conversationId) {
+        await pool.query(
+          `UPDATE b2b_orders
+           SET status = 'payment_failed', payment_status = '3ds_failed'
+           WHERE order_number = $1`,
+          [conversationId],
+        ).catch(() => undefined);
+      }
+      return res.redirect(
+        303,
+        `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`,
+      );
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const orderResult = await client.query(
+        `SELECT id, order_number, payment_status, items
+         FROM b2b_orders
+         WHERE order_number = $1 AND payment_id = $2
+         LIMIT 1
+         FOR UPDATE`,
+        [conversationId, paymentId],
+      );
+      const order = orderResult.rows[0];
+
+      if (!order) {
+        await client.query("ROLLBACK");
+        return res.redirect(303, `${redirectBase}/odeme?result=failed`);
+      }
+
+      if (order.payment_status === "SUCCESS") {
+        await client.query("COMMIT");
+        return res.redirect(
+          303,
+          `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
+        );
+      }
+
+      const payment = await completeIyzico3DS({
+        locale: "tr",
+        paymentId,
+        conversationId,
+        ...(conversationData ? { conversationData } : {}),
+      });
+
+      const success =
+        payment.status === "success" &&
+        Number(payment.fraudStatus ?? 1) !== -1;
+
+      if (!success) {
+        await client.query(
+          `UPDATE b2b_orders
+           SET status = 'payment_failed',
+               payment_status = 'FAILURE'
+           WHERE id = $1`,
+          [order.id],
+        );
+        await client.query("COMMIT");
+        return res.redirect(
+          303,
+          `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
+        );
+      }
+
+      const items = Array.isArray(order.items) ? order.items : [];
+      let stockReview = false;
+      for (const entry of items) {
+        const productId = String(entry?.productId || "").trim();
+        const totalUnits = Math.max(
+          0,
+          cleanOrderQuantity(entry?.totalUnits) ||
+            cleanOrderQuantity(entry?.quantity) *
+              Math.max(1, cleanOrderQuantity(entry?.unitsPerBox) || 1),
+        );
+        if (!productId || totalUnits <= 0) continue;
+
+        const stockUpdate = await client.query(
+          `UPDATE b2b_products
+           SET stock = stock - $2,
+               updated_at = NOW()
+           WHERE id::text = $1
+             AND stock >= $2
+           RETURNING stock`,
+          [productId, totalUnits],
+        );
+        if (!stockUpdate.rows[0]) stockReview = true;
+      }
+
+      await client.query(
+        `UPDATE b2b_orders
+         SET status = $2,
+             payment_status = 'SUCCESS',
+             payment_id = $3
+         WHERE id = $1`,
+        [order.id, stockReview ? "paid_stock_review" : "paid", payment.paymentId || paymentId],
+      );
+      await client.query("COMMIT");
+
+      return res.redirect(
+        303,
+        `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}${stockReview ? "&stock=review" : ""}`,
+      );
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      console.error("iyzico 3DS callback failed:", error instanceof Error ? error.message : "unknown");
+      return res.redirect(303, `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`);
+    } finally {
+      client.release();
+    }
+  });
+
   app.post("/api/b2b/payments/iyzico/initialize", requireB2B, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     if (!(await isIyzicoConfigured())) {
@@ -2355,6 +2677,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       bankTransfer: bank,
       transferDescription: orderNumber,
     });
+  });
+
+  app.post("/api/b2b/payments/bank-transfer/:orderNumber/confirm", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const orderNumber = String(req.params.orderNumber || "").trim().slice(0, 80);
+
+    const result = await pool.query(
+      `UPDATE b2b_orders
+       SET status = 'awaiting_bank_confirmation',
+           payment_status = 'customer_reported_paid'
+       WHERE order_number = $1
+         AND user_id = $2
+         AND payment_method = 'bank_transfer'
+         AND payment_status IN ('pending','customer_reported_paid')
+       RETURNING id, order_number, status, payment_status`,
+      [orderNumber, user.id],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: "Havale/EFT siparişi bulunamadı" });
+    }
+
+    return res.json(result.rows[0]);
   });
 
   app.get("/api/b2b/payment-methods", requireB2B, async (_req, res) => {
