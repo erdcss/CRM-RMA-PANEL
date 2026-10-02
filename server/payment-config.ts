@@ -157,10 +157,12 @@ export async function getPublicPaymentSettings() {
 
 export async function getAdminPaymentSettings() {
   const config = await getPaymentConfig();
+  const iyzicoConfigured = Boolean(config.iyzico.apiKey && config.iyzico.secretKey);
   return {
+    iyzicoConfigured,
     iyzico: {
       enabled: config.iyzico.enabled,
-      configured: Boolean(config.iyzico.apiKey && config.iyzico.secretKey),
+      configured: iyzicoConfigured,
       apiKeyPreview: config.iyzico.apiKey
         ? `${config.iyzico.apiKey.slice(0, 6)}••••${config.iyzico.apiKey.slice(-4)}`
         : "",
