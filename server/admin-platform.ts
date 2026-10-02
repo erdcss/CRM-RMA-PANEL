@@ -1,6 +1,10 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
-import { isIyzicoConfigured } from "./iyzico";
+import {
+  getAdminPaymentSettings,
+  getPublicPaymentSettings,
+  savePaymentSettings,
+} from "./payment-config";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -286,67 +290,6 @@ function validVisitorId(value: unknown): string | null {
   return clean.length >= 8 ? clean : null;
 }
 
-type PublicPaymentSettings = {
-  iyzicoConfigured: boolean;
-  bankTransfer: {
-    enabled: boolean;
-    bankName: string;
-    accountHolder: string;
-    iban: string;
-  };
-};
-
-function normalizeIban(value: unknown) {
-  return typeof value === "string"
-    ? value.toUpperCase().replace(/\s+/g, "").slice(0, 34)
-    : "";
-}
-
-async function paymentSettings(): Promise<PublicPaymentSettings> {
-  const defaults: PublicPaymentSettings = {
-    iyzicoConfigured: isIyzicoConfigured(),
-    bankTransfer: {
-      enabled: false,
-      bankName: "",
-      accountHolder: "",
-      iban: "",
-    },
-  };
-
-  if (!pool) return defaults;
-
-  const result = await pool.query(
-    `SELECT value FROM platform_settings WHERE key = 'b2b_payment_settings' LIMIT 1`,
-  );
-  if (!result.rows[0]) return defaults;
-
-  try {
-    const parsed = JSON.parse(String(result.rows[0].value || "{}"));
-    const bankName =
-      typeof parsed?.bankTransfer?.bankName === "string"
-        ? parsed.bankTransfer.bankName.trim().slice(0, 120)
-        : "";
-    const accountHolder =
-      typeof parsed?.bankTransfer?.accountHolder === "string"
-        ? parsed.bankTransfer.accountHolder.trim().slice(0, 180)
-        : "";
-    const iban = normalizeIban(parsed?.bankTransfer?.iban);
-    const enabled = Boolean(parsed?.bankTransfer?.enabled && bankName && accountHolder && iban);
-
-    return {
-      iyzicoConfigured: isIyzicoConfigured(),
-      bankTransfer: {
-        enabled,
-        bankName,
-        accountHolder,
-        iban,
-      },
-    };
-  } catch {
-    return defaults;
-  }
-}
-
 async function brandingMap() {
   const defaults: Record<BrandingKey, string | null> = {
     admin_logo: null,
@@ -464,7 +407,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/payment-settings", async (_req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.json(await paymentSettings());
+      return res.json(await getPublicPaymentSettings());
     } catch (error) {
       console.error("Public payment settings load failed:", error);
       return res.json({
@@ -619,7 +562,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.get("/api/admin/payment-settings", requireAdmin, async (_req, res) => {
     try {
-      return res.json(await paymentSettings());
+      return res.json(await getAdminPaymentSettings());
     } catch (error) {
       console.error("Admin payment settings load failed:", error);
       return res.status(500).json({ error: "Ödeme ayarları alınamadı" });
@@ -627,48 +570,13 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   });
 
   app.put("/api/admin/payment-settings", requireAdmin, async (req, res) => {
-    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
-
-    const bankName =
-      typeof req.body?.bankTransfer?.bankName === "string"
-        ? req.body.bankTransfer.bankName.trim().slice(0, 120)
-        : "";
-    const accountHolder =
-      typeof req.body?.bankTransfer?.accountHolder === "string"
-        ? req.body.bankTransfer.accountHolder.trim().slice(0, 180)
-        : "";
-    const iban = normalizeIban(req.body?.bankTransfer?.iban);
-    const enabled = Boolean(req.body?.bankTransfer?.enabled);
-
-    if (enabled) {
-      if (!bankName || !accountHolder || !iban) {
-        return res.status(400).json({ error: "Havale/EFT için banka, hesap sahibi ve IBAN zorunludur" });
-      }
-      if (!/^TR\d{24}$/.test(iban)) {
-        return res.status(400).json({ error: "Geçerli bir Türkiye IBAN'ı girin" });
-      }
-    }
-
     try {
-      await pool.query(
-        `INSERT INTO platform_settings (key, value, updated_at)
-         VALUES ('b2b_payment_settings', $1, NOW())
-         ON CONFLICT (key)
-         DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
-        [JSON.stringify({
-          bankTransfer: {
-            enabled,
-            bankName,
-            accountHolder,
-            iban,
-          },
-        })],
-      );
-
-      return res.json(await paymentSettings());
+      return res.json(await savePaymentSettings(req.body || {}));
     } catch (error) {
       console.error("Admin payment settings update failed:", error);
-      return res.status(500).json({ error: "Ödeme ayarları kaydedilemedi" });
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "Ödeme ayarları kaydedilemedi",
+      });
     }
   });
 
