@@ -9,6 +9,11 @@ import { registerProductAIRoutes } from "./product-ai";
 import { pool } from "./db";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
+import {
+  initializeIyzicoCheckout,
+  isIyzicoConfigured,
+  retrieveIyzicoCheckout,
+} from "./iyzico";
 
 let dbReady = false;
 
@@ -99,6 +104,131 @@ async function canViewB2BPrices(req: Request): Promise<boolean> {
   );
 }
 
+type CheckoutProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  minOrderQty: number;
+};
+
+function cleanOrderQuantity(value: unknown) {
+  const qty = Number.parseInt(String(value ?? "0"), 10);
+  return Number.isFinite(qty) ? qty : 0;
+}
+
+function requestIp(req: Request) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+  return String(raw || req.socket.remoteAddress || "127.0.0.1")
+    .split(",")[0]
+    .trim()
+    .replace(/^::ffff:/, "")
+    .slice(0, 64);
+}
+
+function newB2BOrderNumber() {
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:TZ.]/g, "")
+    .slice(0, 14);
+  return `B2B-${stamp}-${randomBytes(3).toString("hex").toUpperCase()}`;
+}
+
+async function checkoutProduct(productId: unknown, quantity: unknown): Promise<CheckoutProduct> {
+  if (!pool) throw new Error("Veritabanı bağlantısı yok");
+
+  const qty = cleanOrderQuantity(quantity);
+  if (!String(productId || "").trim() || qty <= 0) {
+    throw new Error("Ürün ve adet bilgisi geçersiz");
+  }
+
+  const result = await pool.query(
+    `SELECT id, sku, name, category, price, stock, min_order_qty
+     FROM b2b_products
+     WHERE id::text = $1
+       AND is_active IS DISTINCT FROM FALSE
+     LIMIT 1`,
+    [String(productId)],
+  );
+
+  const row = result.rows[0];
+  if (!row) throw new Error("Ürün bulunamadı");
+
+  const price = Number(row.price);
+  const stock = Math.max(0, Number(row.stock || 0));
+  const minOrderQty = Math.max(1, Number(row.min_order_qty || 1));
+
+  if (!Number.isFinite(price) || price < 0) throw new Error("Ürün fiyatı geçersiz");
+  if (qty < minOrderQty) throw new Error(`Minimum sipariş adedi ${minOrderQty}`);
+  if (qty > stock) throw new Error("Talep edilen adet mevcut stoktan fazla");
+
+  return {
+    id: String(row.id),
+    sku: String(row.sku || ""),
+    name: String(row.name || "Ürün"),
+    category: String(row.category || "Genel"),
+    price,
+    stock,
+    minOrderQty,
+  };
+}
+
+async function checkoutAddress(userId: number, addressId: unknown) {
+  if (!pool) throw new Error("Veritabanı bağlantısı yok");
+
+  const cleanAddressId = String(addressId || "").trim();
+  const result = cleanAddressId
+    ? await pool.query(
+        `SELECT id, recipient, phone, city, district, address_line, postal_code, is_default
+         FROM b2b_addresses
+         WHERE user_id = $1 AND id::text = $2
+         LIMIT 1`,
+        [userId, cleanAddressId],
+      )
+    : await pool.query(
+        `SELECT id, recipient, phone, city, district, address_line, postal_code, is_default
+         FROM b2b_addresses
+         WHERE user_id = $1
+         ORDER BY is_default DESC, created_at DESC
+         LIMIT 1`,
+        [userId],
+      );
+
+  if (!result.rows[0]) {
+    throw new Error("Ödeme için kayıtlı teslimat adresi gerekiyor");
+  }
+  return result.rows[0];
+}
+
+async function bankTransferSettings() {
+  if (!pool) {
+    return { enabled: false, bankName: "", accountHolder: "", iban: "" };
+  }
+
+  const result = await pool.query(
+    `SELECT value FROM platform_settings WHERE key = 'b2b_payment_settings' LIMIT 1`,
+  );
+  if (!result.rows[0]) {
+    return { enabled: false, bankName: "", accountHolder: "", iban: "" };
+  }
+
+  try {
+    const parsed = JSON.parse(String(result.rows[0].value || "{}"));
+    const bank = parsed?.bankTransfer || {};
+    return {
+      enabled: Boolean(bank.enabled),
+      bankName: String(bank.bankName || "").trim(),
+      accountHolder: String(bank.accountHolder || "").trim(),
+      iban: String(bank.iban || "").trim().toUpperCase().replace(/\s+/g, ""),
+    };
+  } catch {
+    return { enabled: false, bankName: "", accountHolder: "", iban: "" };
+  }
+}
+
 async function ensureB2BAccountTables() {
   if (!pool) return;
 
@@ -148,6 +278,39 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_payment_methods_user_idx ON b2b_payment_methods(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS b2b_orders (
+      id BIGSERIAL PRIMARY KEY,
+      order_number TEXT UNIQUE,
+      customer_email TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      item_count INTEGER NOT NULL DEFAULT 0,
+      total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      payment_method TEXT,
+      payment_provider TEXT,
+      payment_status TEXT,
+      payment_id TEXT,
+      payment_token TEXT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      items JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS order_number TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS customer_email TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_provider TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_status TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_id TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_token TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    CREATE INDEX IF NOT EXISTS b2b_orders_user_idx ON b2b_orders(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS b2b_orders_payment_token_idx ON b2b_orders(payment_token);
 
     CREATE TABLE IF NOT EXISTS b2b_returns (
       id BIGSERIAL PRIMARY KEY,
