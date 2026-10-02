@@ -176,6 +176,35 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
   };
 }
 
+async function checkoutItems(rawItems: unknown) {
+  const source = Array.isArray(rawItems) ? rawItems.slice(0, 100) : [];
+  if (source.length === 0) throw new Error("Siparişe ürün eklenmedi");
+
+  const items: Array<{
+    product: CheckoutProduct;
+    quantity: number;
+    total: number;
+  }> = [];
+
+  for (const raw of source) {
+    const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    const quantity = cleanOrderQuantity(value.quantity);
+    const product = await checkoutProduct(value.productId, quantity);
+    items.push({
+      product,
+      quantity,
+      total: Number((product.price * quantity).toFixed(2)),
+    });
+  }
+
+  const total = Number(
+    items.reduce((sum, item) => sum + item.total, 0).toFixed(2),
+  );
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+
+  return { items, total, itemCount };
+}
+
 async function checkoutAddress(userId: number, addressId: unknown) {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
@@ -1851,6 +1880,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
+    try {
+      const cart = await checkoutItems(req.body?.items);
+      return res.json({
+        items: cart.items.map((entry) => ({
+          product: entry.product,
+          quantity: entry.quantity,
+          total: entry.total,
+        })),
+        total: cart.total,
+        itemCount: cart.itemCount,
+        currency: "TRY",
+        iyzicoConfigured: isIyzicoConfigured(),
+      });
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "Ödeme özeti hazırlanamadı",
+      });
+    }
+  });
+
   app.post("/api/b2b/payments/iyzico/initialize", requireB2B, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     if (!isIyzicoConfigured()) {
@@ -1869,12 +1919,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Kartlı ödeme için 11 haneli T.C. kimlik numarası gerekiyor" });
     }
 
-    let product: CheckoutProduct;
+    let checkout: Awaited<ReturnType<typeof checkoutItems>>;
     let address: any;
-    const quantity = cleanOrderQuantity(req.body?.quantity);
 
     try {
-      product = await checkoutProduct(req.body?.productId, quantity);
+      const rawItems = Array.isArray(req.body?.items)
+        ? req.body.items
+        : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
+      checkout = await checkoutItems(rawItems);
       address = await checkoutAddress(user.id, req.body?.addressId);
     } catch (error) {
       return res.status(400).json({
@@ -1891,23 +1943,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const orderNumber = newB2BOrderNumber();
-    const total = Number((product.price * quantity).toFixed(2));
+    const total = checkout.total;
     const email = String(user.email || user.username || "").trim();
     const firstName = String(user.firstName || user.companyName || "Müşteri").trim().slice(0, 120);
     const lastName = String(user.lastName || "Yetkili").trim().slice(0, 120);
     const contactName = String(address.recipient || `${firstName} ${lastName}`).trim().slice(0, 180);
     const callbackBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
-    const callbackUrl = `${callbackBase}/api/b2b/payments/iyzico/callback`;
+    const isCartCheckout = Array.isArray(req.body?.items) && req.body.items.length > 0;
+    const callbackUrl = `${callbackBase}/api/b2b/payments/iyzico/callback${isCartCheckout ? "?cart=1" : ""}`;
     const addressText = String(address.address_line || "").trim();
     const gsm = String(address.phone || "").trim();
-    const item = {
-      productId: product.id,
-      sku: product.sku,
-      name: product.name,
-      quantity,
-      unitPrice: product.price,
-      total,
-    };
+    const orderItems = checkout.items.map((entry) => ({
+      productId: entry.product.id,
+      sku: entry.product.sku,
+      name: entry.product.name,
+      quantity: entry.quantity,
+      unitPrice: entry.product.price,
+      total: entry.total,
+    }));
 
     const created = await pool.query(
       `INSERT INTO b2b_orders (
@@ -1919,10 +1972,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [
         orderNumber,
         email,
-        quantity,
+        checkout.itemCount,
         total,
         user.id,
-        JSON.stringify([item]),
+        JSON.stringify(orderItems),
       ],
     );
 
@@ -1967,15 +2020,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           city,
           country: "Turkey",
         },
-        basketItems: [
-          {
-            id: product.id,
-            price: total,
-            name: `${product.name} x${quantity}`.slice(0, 500),
-            category1: product.category || "Genel",
-            itemType: "PHYSICAL",
-          },
-        ],
+        basketItems: checkout.items.map((entry) => ({
+          id: entry.product.id,
+          price: entry.total,
+          name: `${entry.product.name} x${entry.quantity}`.slice(0, 500),
+          category1: entry.product.category || "Genel",
+          itemType: "PHYSICAL",
+        })),
       });
 
       if (!iyzico.token || !iyzico.paymentPageUrl) {
@@ -2016,6 +2067,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
     const redirectBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
+    const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
 
     if (!token) {
       return res.redirect(303, `${redirectBase}/odeme?result=failed`);
@@ -2043,7 +2095,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await client.query("COMMIT");
         return res.redirect(
           303,
-          `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}`,
+          `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
         );
       }
 
@@ -2092,8 +2144,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.redirect(
         303,
         success
-          ? `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}`
-          : `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}`,
+          ? `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`
+          : `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
       );
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
@@ -2113,11 +2165,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(503).json({ error: "Havale/EFT ödeme yöntemi henüz yapılandırılmadı" });
     }
 
-    let product: CheckoutProduct;
-    const quantity = cleanOrderQuantity(req.body?.quantity);
+    let checkout: Awaited<ReturnType<typeof checkoutItems>>;
 
     try {
-      product = await checkoutProduct(req.body?.productId, quantity);
+      const rawItems = Array.isArray(req.body?.items)
+        ? req.body.items
+        : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
+      checkout = await checkoutItems(rawItems);
       await checkoutAddress(user.id, req.body?.addressId);
     } catch (error) {
       return res.status(400).json({
@@ -2126,16 +2180,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const orderNumber = newB2BOrderNumber();
-    const total = Number((product.price * quantity).toFixed(2));
+    const total = checkout.total;
     const email = String(user.email || user.username || "").trim();
-    const item = {
-      productId: product.id,
-      sku: product.sku,
-      name: product.name,
-      quantity,
-      unitPrice: product.price,
-      total,
-    };
+    const orderItems = checkout.items.map((entry) => ({
+      productId: entry.product.id,
+      sku: entry.product.sku,
+      name: entry.product.name,
+      quantity: entry.quantity,
+      unitPrice: entry.product.price,
+      total: entry.total,
+    }));
 
     await pool.query(
       `INSERT INTO b2b_orders (
@@ -2146,10 +2200,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [
         orderNumber,
         email,
-        quantity,
+        checkout.itemCount,
         total,
         user.id,
-        JSON.stringify([item]),
+        JSON.stringify(orderItems),
       ],
     );
 
