@@ -55,6 +55,20 @@ function fileToDataUrl(file: File) {
   });
 }
 
+function descriptionWithProductCode(description: unknown, sku: unknown) {
+  const code = String(sku || "").trim();
+  const cleanDescription = String(description || "")
+    .split("\n")
+    .filter((line) => !/^ürün\s*kodu\s*:/i.test(line.trim()))
+    .join("\n")
+    .trim();
+
+  if (!code) return cleanDescription;
+  return cleanDescription
+    ? `Ürün Kodu: ${code}\n${cleanDescription}`
+    : `Ürün Kodu: ${code}`;
+}
+
 function variantsFromAi(product: any): ImportVariant[] {
   const variants: ImportVariant[] = [];
 
@@ -157,15 +171,16 @@ export default function AdminProductAiImport() {
         }
 
         for (const product of products) {
+          const sku = product.sku || product.barcode || "";
           extracted.push({
             key: crypto.randomUUID(),
             selected: true,
-            sku: product.sku || product.barcode || "",
+            sku,
             barcode: product.barcode || "",
             name: product.name || "",
             brand: product.brand || "",
             category: product.category || "",
-            description: product.description || "",
+            description: descriptionWithProductCode(product.description, sku),
             price: product.salePrice == null ? "" : String(product.salePrice),
             stock: product.stock == null ? "0" : String(product.stock),
             minOrderQty:
@@ -244,7 +259,7 @@ export default function AdminProductAiImport() {
           name: row.name.trim(),
           brand: row.brand.trim(),
           category: row.category.trim(),
-          description: row.description.trim(),
+          description: descriptionWithProductCode(row.description, row.sku),
           price: Number(row.price || 0),
           stock: Number(row.stock || 0),
           minOrderQty: Number(row.minOrderQty || 1),
@@ -462,7 +477,23 @@ export default function AdminProductAiImport() {
                       <Cell>
                         <Input
                           value={row.sku}
-                          onChange={(e) => updateRow(row.key, "sku", e.target.value)}
+                          onChange={(e) => {
+                            const nextSku = e.target.value;
+                            setRows((current) =>
+                              current.map((item) =>
+                                item.key === row.key
+                                  ? {
+                                      ...item,
+                                      sku: nextSku,
+                                      description: descriptionWithProductCode(
+                                        item.description,
+                                        nextSku,
+                                      ),
+                                    }
+                                  : item,
+                              ),
+                            );
+                          }}
                         />
                       </Cell>
                       <Cell>
@@ -573,7 +604,7 @@ export default function AdminProductAiImport() {
                       onChange={(e) =>
                         updateRow(row.key, "description", e.target.value)
                       }
-                      placeholder="Ürün açıklaması"
+                      placeholder="Ürün açıklaması · ürün kodu otomatik eklenir"
                     />
                   </div>
                 ))}
