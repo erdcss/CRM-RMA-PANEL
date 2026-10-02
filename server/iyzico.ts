@@ -104,3 +104,44 @@ export async function retrieveIyzicoCheckout(token: string) {
     },
   );
 }
+
+
+export type Iyzico3DSInitializeResponse = {
+  status?: string;
+  threeDSHtmlContent?: string;
+  paymentId?: string;
+  conversationId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+};
+
+export type Iyzico3DSAuthResponse = {
+  status?: string;
+  paymentId?: string;
+  conversationId?: string;
+  basketId?: string;
+  paidPrice?: number | string;
+  price?: number | string;
+  currency?: string;
+  fraudStatus?: number;
+  errorCode?: string;
+  errorMessage?: string;
+};
+
+export async function initializeIyzico3DS(
+  payload: Record<string, unknown>,
+) {
+  return iyzicoPost<Iyzico3DSInitializeResponse>(
+    "/payment/3dsecure/initialize",
+    payload,
+  );
+}
+
+export async function completeIyzico3DS(
+  payload: Record<string, unknown>,
+) {
+  return iyzicoPost<Iyzico3DSAuthResponse>(
+    "/payment/3dsecure/auth",
+    payload,
+  );
+}
