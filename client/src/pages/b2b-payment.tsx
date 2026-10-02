@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -18,18 +18,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { clearB2BCart, getB2BCart } from "@/lib/b2b-cart";
+
+type CheckoutProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  minOrderQty: number;
+};
+
+type CheckoutLine = {
+  product: CheckoutProduct;
+  quantity: number;
+  total: number;
+};
 
 type CheckoutPreview = {
-  product: {
-    id: string;
-    sku: string;
-    name: string;
-    category: string;
-    price: number;
-    stock: number;
-    minOrderQty: number;
-  };
-  quantity: number;
+  items: CheckoutLine[];
+  itemCount: number;
   total: number;
   currency: "TRY";
   iyzicoConfigured: boolean;
@@ -70,6 +79,49 @@ async function getJson<T>(url: string): Promise<T> {
   return payload as T;
 }
 
+async function loadCheckoutPreview(
+  cartMode: boolean,
+  productId: string,
+  qty: number,
+): Promise<CheckoutPreview> {
+  if (cartMode) {
+    const cart = getB2BCart();
+    if (!cart.length) throw new Error("Sipariş listeniz boş");
+
+    const response = await apiRequest("POST", "/api/b2b/checkout/preview", {
+      items: cart.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    });
+    return response.json();
+  }
+
+  const single = await getJson<{
+    product: CheckoutProduct;
+    quantity: number;
+    total: number;
+    currency: "TRY";
+    iyzicoConfigured: boolean;
+  }>(
+    `/api/b2b/checkout/preview?productId=${encodeURIComponent(productId)}&qty=${qty}`,
+  );
+
+  return {
+    items: [
+      {
+        product: single.product,
+        quantity: single.quantity,
+        total: single.total,
+      },
+    ],
+    itemCount: single.quantity,
+    total: single.total,
+    currency: single.currency,
+    iyzicoConfigured: single.iyzicoConfigured,
+  };
+}
+
 function formatMoney(value: number) {
   return value.toLocaleString("tr-TR", {
     minimumFractionDigits: 2,
@@ -88,6 +140,7 @@ export default function B2BPaymentPage() {
   const qty = Math.max(1, Number.parseInt(params.get("qty") || "1", 10) || 1);
   const result = params.get("result");
   const resultOrder = params.get("order") || "";
+  const cartMode = params.get("cart") === "1";
 
   const [method, setMethod] = useState<"card" | "bank_transfer">("card");
   const [identityNumber, setIdentityNumber] = useState("");
@@ -99,6 +152,10 @@ export default function B2BPaymentPage() {
     transferDescription: string;
     bankTransfer: PaymentSettings["bankTransfer"];
   } | null>(null);
+
+  useEffect(() => {
+    if (result === "success" && cartMode) clearB2BCart();
+  }, [result, cartMode]);
 
   const { data: settings } = useQuery<PaymentSettings>({
     queryKey: ["/api/public/payment-settings"],
@@ -113,18 +170,32 @@ export default function B2BPaymentPage() {
   });
 
   const { data: preview, isLoading, error } = useQuery<CheckoutPreview>({
-    queryKey: ["/api/b2b/checkout/preview", productId, qty],
-    queryFn: () =>
-      getJson(
-        `/api/b2b/checkout/preview?productId=${encodeURIComponent(productId)}&qty=${qty}`,
-      ),
-    enabled: Boolean(productId) && !result,
+    queryKey: ["/api/b2b/checkout/preview", cartMode ? "cart" : productId, qty],
+    queryFn: () => loadCheckoutPreview(cartMode, productId, qty),
+    enabled: !result && (cartMode || Boolean(productId)),
     retry: false,
   });
 
   const selectedAddressId =
     addressId ||
     String(addresses.find((item) => item.is_default)?.id || addresses[0]?.id || "");
+
+  function orderPayload() {
+    if (!preview) return {};
+    if (cartMode) {
+      return {
+        items: preview.items.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+        })),
+      };
+    }
+    const line = preview.items[0];
+    return {
+      productId: line.product.id,
+      quantity: line.quantity,
+    };
+  }
 
   async function copy(value: string, label: string) {
     try {
@@ -159,8 +230,7 @@ export default function B2BPaymentPage() {
     setBusy(true);
     try {
       const response = await apiRequest("POST", "/api/b2b/payments/iyzico/initialize", {
-        productId: preview.product.id,
-        quantity: preview.quantity,
+        ...orderPayload(),
         addressId: selectedAddressId,
         identityNumber: identity,
       });
@@ -192,12 +262,12 @@ export default function B2BPaymentPage() {
     setBusy(true);
     try {
       const response = await apiRequest("POST", "/api/b2b/payments/bank-transfer", {
-        productId: preview.product.id,
-        quantity: preview.quantity,
+        ...orderPayload(),
         addressId: selectedAddressId,
       });
       const payload = await response.json();
       setEftOrder(payload);
+      if (cartMode) clearB2BCart();
       toast({
         title: "Havale/EFT siparişi oluşturuldu",
         description: "Açıklama alanına sipariş numarasını yazarak transferi tamamlayın.",
@@ -232,7 +302,7 @@ export default function B2BPaymentPage() {
               <p className="mt-2 text-sm text-slate-500">Sipariş No: <b>{resultOrder}</b></p>
             ) : null}
             <div className="mt-6 flex justify-center gap-2">
-              <Button asChild><Link href="/siparislerim">Siparişlerim</Link></Button>
+              <Button asChild><Link href="/siparislerim">Siparişler</Link></Button>
               <Button asChild variant="outline"><Link href="/">Mağazaya dön</Link></Button>
             </div>
           </div>
@@ -241,14 +311,20 @@ export default function B2BPaymentPage() {
     );
   }
 
+  const backHref = cartMode
+    ? "/siparislerim"
+    : productId
+      ? `/urun/${productId}`
+      : "/";
+
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <B2BHeader />
 
       <main className="mx-auto max-w-6xl px-4 py-5 sm:py-7">
-        <Link href={productId ? `/urun/${productId}` : "/"} className="mb-4 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-950">
+        <Link href={backHref} className="mb-4 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-950">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Ürüne dön
+          {cartMode ? "Siparişlere dön" : "Ürüne dön"}
         </Link>
 
         <div className="mb-5">
@@ -262,7 +338,7 @@ export default function B2BPaymentPage() {
           <div className="rounded-2xl border bg-white p-8 text-center">
             <Package className="mx-auto h-9 w-9 text-slate-300" />
             <div className="mt-3 font-bold">Ödeme özeti hazırlanamadı</div>
-            <div className="mt-1 text-sm text-slate-500">{error instanceof Error ? error.message : "Ürün bilgisi eksik."}</div>
+            <div className="mt-1 text-sm text-slate-500">{error instanceof Error ? error.message : "Sipariş bilgisi eksik."}</div>
           </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -342,7 +418,6 @@ export default function B2BPaymentPage() {
                       onChange={(event) => setIdentityNumber(event.target.value.replace(/\D/g, "").slice(0, 11))}
                       placeholder="11 haneli T.C. kimlik numarası"
                     />
-                    <p className="text-xs text-slate-500">iyzico alıcı doğrulaması için ödeme isteğinde kullanılır; kart bilgisi değildir.</p>
                   </div>
 
                   {!settings?.iyzicoConfigured ? (
@@ -409,15 +484,18 @@ export default function B2BPaymentPage() {
               )}
             </section>
 
-            <aside className="h-fit rounded-2xl border bg-white p-5 lg:sticky lg:top-4">
+            <aside className="h-fit rounded-2xl border bg-white p-5 lg:sticky lg:top-20">
               <h2 className="font-bold">Sipariş Özeti</h2>
-              <div className="mt-4 rounded-xl border p-4">
-                <div className="font-semibold">{preview.product.name}</div>
-                <div className="mt-1 text-xs text-slate-500">Stok Kodu: {preview.product.sku || "—"}</div>
-                <div className="mt-3 flex justify-between text-sm">
-                  <span>{preview.quantity} adet × {formatMoney(preview.product.price)}</span>
-                  <b>{formatMoney(preview.total)}</b>
-                </div>
+              <div className="mt-4 divide-y rounded-xl border">
+                {preview.items.map((line) => (
+                  <div key={line.product.id} className="p-3">
+                    <div className="text-sm font-semibold">{line.product.name}</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {line.quantity} adet × {formatMoney(line.product.price)}
+                    </div>
+                    <div className="mt-1 text-sm font-bold">{formatMoney(line.total)}</div>
+                  </div>
+                ))}
               </div>
               <div className="mt-4 flex items-center justify-between border-t pt-4">
                 <span className="font-semibold">Toplam</span>
@@ -425,7 +503,7 @@ export default function B2BPaymentPage() {
               </div>
               <div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-                Ödeme tutarı sunucu tarafında ürün fiyatından yeniden hesaplanır; tarayıcıdan değiştirilemez.
+                Fiyat ve stok bilgileri sunucu tarafında yeniden doğrulanır.
               </div>
             </aside>
           </div>
