@@ -2206,6 +2206,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const redirectBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
+    const topRedirect = (url: string) =>
+      res
+        .status(200)
+        .type("html")
+        .send(`<!doctype html><html><body><script>window.top.location.replace(${JSON.stringify(url)});</script></body></html>`);
     const paymentId = String(req.body?.paymentId || "").trim();
     const conversationId = String(req.body?.conversationId || "").trim();
     const conversationData = String(req.body?.conversationData || "").trim();
@@ -2220,8 +2225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           [conversationId],
         ).catch(() => undefined);
       }
-      return res.redirect(
-        303,
+      return topRedirect(
         `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`,
       );
     }
@@ -2241,13 +2245,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!order) {
         await client.query("ROLLBACK");
-        return res.redirect(303, `${redirectBase}/odeme?result=failed`);
+        return topRedirect(`${redirectBase}/odeme?result=failed`);
       }
 
       if (order.payment_status === "SUCCESS") {
         await client.query("COMMIT");
-        return res.redirect(
-          303,
+        return topRedirect(
           `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
         );
       }
@@ -2272,8 +2275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           [order.id],
         );
         await client.query("COMMIT");
-        return res.redirect(
-          303,
+        return topRedirect(
           `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
         );
       }
@@ -2312,14 +2314,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       await client.query("COMMIT");
 
-      return res.redirect(
-        303,
+      return topRedirect(
         `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}${stockReview ? "&stock=review" : ""}`,
       );
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       console.error("iyzico 3DS callback failed:", error instanceof Error ? error.message : "unknown");
-      return res.redirect(303, `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`);
+      return topRedirect(`${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`);
     } finally {
       client.release();
     }
