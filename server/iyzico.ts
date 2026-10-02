@@ -1,36 +1,30 @@
 import { createHmac, randomBytes } from "crypto";
+import { getPaymentConfig } from "./payment-config";
 
-const LIVE_BASE_URL = "https://api.iyzipay.com";
-
-function config() {
-  const apiKey = String(process.env.IYZICO_API_KEY || "").trim();
-  const secretKey = String(process.env.IYZICO_SECRET_KEY || "").trim();
-  const baseUrl = String(process.env.IYZICO_BASE_URL || LIVE_BASE_URL).replace(/\/$/, "");
-
-  return { apiKey, secretKey, baseUrl };
+export async function isIyzicoConfigured() {
+  const { iyzico } = await getPaymentConfig();
+  return Boolean(iyzico.enabled && iyzico.apiKey && iyzico.secretKey);
 }
 
-export function isIyzicoConfigured() {
-  const { apiKey, secretKey } = config();
-  return Boolean(apiKey && secretKey);
-}
-
-function authorization(path: string, body: string) {
-  const { apiKey, secretKey } = config();
-  if (!apiKey || !secretKey) {
+async function authorization(path: string, body: string) {
+  const { iyzico } = await getPaymentConfig();
+  if (!iyzico.enabled || !iyzico.apiKey || !iyzico.secretKey) {
     throw new Error("iyzico canlı API anahtarları yapılandırılmamış");
   }
 
   const randomKey = `${Date.now()}${randomBytes(8).toString("hex")}`;
-  const signature = createHmac("sha256", secretKey)
+  const signature = createHmac("sha256", iyzico.secretKey)
     .update(randomKey + path + body)
     .digest("hex");
   const authString =
-    `apiKey:${apiKey}&randomKey:${randomKey}&signature:${signature}`;
+    `apiKey:${iyzico.apiKey}&randomKey:${randomKey}&signature:${signature}`;
 
   return {
-    Authorization: `IYZWSv2 ${Buffer.from(authString, "utf8").toString("base64")}`,
-    "x-iyzi-rnd": randomKey,
+    baseUrl: iyzico.baseUrl,
+    headers: {
+      Authorization: `IYZWSv2 ${Buffer.from(authString, "utf8").toString("base64")}`,
+      "x-iyzi-rnd": randomKey,
+    },
   };
 }
 
@@ -38,9 +32,8 @@ async function iyzicoPost<T extends Record<string, any>>(
   path: string,
   payload: Record<string, unknown>,
 ): Promise<T> {
-  const { baseUrl } = config();
   const body = JSON.stringify(payload);
-  const headers = authorization(path, body);
+  const { baseUrl, headers } = await authorization(path, body);
 
   const response = await fetch(`${baseUrl}${path}`, {
     method: "POST",
