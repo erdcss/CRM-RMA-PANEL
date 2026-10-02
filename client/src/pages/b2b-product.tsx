@@ -1,8 +1,8 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { trackProductView } from "@/lib/analytics";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Boxes, Package, ShieldCheck, Truck, Warehouse } from "lucide-react";
+import { ArrowLeft, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 
@@ -53,6 +53,7 @@ export default function B2BProductPage() {
   const loggedIn =
     session?.role === "b2b_customer" &&
     session?.isActive === true;
+  const [quantity, setQuantity] = useState(1);
 
   const { data: product, isLoading, error } = useQuery({
     queryKey: ["/api/b2b/products", id, loggedIn ? "member" : "guest"],
@@ -84,6 +85,11 @@ export default function B2BProductPage() {
   const image = product.image_data || product.image_url;
   const pack = Math.max(1, Number(product.units_per_box || 1));
   const min = Math.max(1, Number(product.min_order_qty || 1));
+  const stock = Math.max(0, Number(product.stock || 0));
+  const effectiveQuantity = Math.min(
+    stock || min,
+    Math.max(min, quantity < min ? min : quantity),
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -134,10 +140,62 @@ export default function B2BProductPage() {
               <Info icon={<ShieldCheck className="h-5 w-5" />} label="Minimum" value={`${min} adet`} />
             </div>
 
-            <div className="mt-6 flex items-center gap-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
+            {loggedIn ? (
+              <div className="mt-5 rounded-xl border p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold">Sipariş adedi</div>
+                    <div className="mt-1 text-xs text-slate-500">Minimum {min} adet · Stok {stock} adet</div>
+                    <div className="mt-3 inline-flex items-center rounded-lg border bg-white">
+                      <button
+                        type="button"
+                        className="flex h-10 w-10 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+                        disabled={effectiveQuantity <= min}
+                        onClick={() => setQuantity(Math.max(min, effectiveQuantity - 1))}
+                        aria-label="Adedi azalt"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <input
+                        type="number"
+                        min={min}
+                        max={stock}
+                        value={effectiveQuantity}
+                        onChange={(event) => {
+                          const next = Number.parseInt(event.target.value || String(min), 10);
+                          setQuantity(Math.min(stock || min, Math.max(min, next || min)));
+                        }}
+                        className="h-10 w-20 border-x text-center text-sm font-bold outline-none"
+                      />
+                      <button
+                        type="button"
+                        className="flex h-10 w-10 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+                        disabled={effectiveQuantity >= stock}
+                        onClick={() => setQuantity(Math.min(stock, effectiveQuantity + 1))}
+                        aria-label="Adedi artır"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button asChild disabled={stock < min} className="sm:min-w-48">
+                    <Link href={`/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Ödemeye Geç
+                    </Link>
+                  </Button>
+                </div>
+                {stock < min ? (
+                  <div className="mt-3 text-xs font-medium text-rose-600">Bu ürün için yeterli stok bulunmuyor.</div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex items-center gap-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
               <Truck className="h-5 w-5 text-slate-700" />
               {loggedIn
-                ? "B2B fiyatınız aktif. Sipariş ve sevkiyat seçeneklerini kullanabilirsiniz."
+                ? "Siparişinizi kart veya Havale/EFT ile tamamlayabilirsiniz."
                 : "Sipariş ve sevkiyat seçenekleri giriş yaptıktan sonra aktif olur."}
             </div>
           </section>
