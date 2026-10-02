@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
+  CreditCard,
   Database,
   FileImage,
   Image as ImageIcon,
+  Landmark,
   Monitor,
   Save,
   Settings as SettingsIcon,
@@ -16,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import type { BrandingConfig } from "@/hooks/use-branding";
@@ -26,6 +29,22 @@ async function fetchBranding(): Promise<BrandingConfig> {
   return response.json();
 }
 
+type PaymentSettings = {
+  iyzicoConfigured: boolean;
+  bankTransfer: {
+    enabled: boolean;
+    bankName: string;
+    accountHolder: string;
+    iban: string;
+  };
+};
+
+async function fetchPaymentSettings(): Promise<PaymentSettings> {
+  const response = await fetch("/api/admin/payment-settings", { credentials: "include" });
+  if (!response.ok) throw new Error("Ödeme ayarları alınamadı");
+  return response.json();
+}
+
 export default function Ayarlar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -33,13 +52,26 @@ export default function Ayarlar() {
   const [autoBackup, setAutoBackup] = useState(false);
   const [draft, setDraft] = useState<BrandingConfig>({});
   const [saving, setSaving] = useState(false);
+  const [savingPayments, setSavingPayments] = useState(false);
+  const [paymentDraft, setPaymentDraft] = useState<PaymentSettings["bankTransfer"] | null>(null);
 
   const { data: branding = {}, isLoading } = useQuery<BrandingConfig>({
     queryKey: ["/api/admin/branding"],
     queryFn: fetchBranding,
   });
 
+  const { data: paymentSettings } = useQuery<PaymentSettings>({
+    queryKey: ["/api/admin/payment-settings"],
+    queryFn: fetchPaymentSettings,
+  });
+
   const values = useMemo(() => ({ ...branding, ...draft }), [branding, draft]);
+  const bankTransfer = paymentDraft || paymentSettings?.bankTransfer || {
+    enabled: false,
+    bankName: "",
+    accountHolder: "",
+    iban: "",
+  };
 
   async function saveBranding() {
     setSaving(true);
@@ -74,6 +106,45 @@ export default function Ayarlar() {
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  function updateBankTransfer(
+    key: keyof PaymentSettings["bankTransfer"],
+    value: string | boolean,
+  ) {
+    setPaymentDraft((current) => ({
+      ...(current || bankTransfer),
+      [key]: value,
+    }));
+  }
+
+  async function savePaymentSettings() {
+    setSavingPayments(true);
+    try {
+      const response = await fetch("/api/admin/payment-settings", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bankTransfer }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Ödeme ayarları kaydedilemedi");
+
+      setPaymentDraft(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/payment-settings"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/public/payment-settings"] }),
+      ]);
+      toast({ title: "Ödeme ayarları kaydedildi", description: "Havale/EFT bilgileri güncellendi." });
+    } catch (error) {
+      toast({
+        title: "Ödeme ayarları kaydedilemedi",
+        description: error instanceof Error ? error.message : "Bir hata oluştu",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPayments(false);
+    }
+  }
+
   return (
     <div className="h-full overflow-y-auto bg-muted/20">
       <div className="mx-auto max-w-[1400px] space-y-6 p-4 md:p-6 xl:p-8">
@@ -87,6 +158,7 @@ export default function Ayarlar() {
         <Tabs defaultValue="branding" className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="branding">Marka & Görseller</TabsTrigger>
+            <TabsTrigger value="payments">Ödeme</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
           </TabsList>
 
@@ -209,6 +281,98 @@ export default function Ayarlar() {
                 {saving ? "Kaydediliyor…" : "Görsel Ayarlarını Kaydet"}
               </Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  iyzico Canlı Kart Ödemesi
+                </CardTitle>
+                <CardDescription>
+                  Kart bilgileri Çalışkan sunucularında tutulmaz; ödeme iyzico Checkout Form üzerinden tamamlanır.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-semibold">Canlı bağlantı durumu</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Railway üzerinde IYZICO_API_KEY ve IYZICO_SECRET_KEY tanımlandığında aktif olur.
+                    </div>
+                  </div>
+                  <span className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-semibold ${
+                    paymentSettings?.iyzicoConfigured
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {paymentSettings?.iyzicoConfigured ? "Canlı bağlantı aktif" : "API anahtarları bekleniyor"}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Landmark className="h-5 w-5" />
+                  Havale / EFT
+                </CardTitle>
+                <CardDescription>
+                  B2B ödeme sayfasında gösterilecek banka ve IBAN bilgilerini yönetin.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-xl border p-4">
+                  <div>
+                    <Label htmlFor="bank-transfer-enabled" className="font-semibold">Havale/EFT ödeme seçeneği</Label>
+                    <div className="mt-1 text-xs text-muted-foreground">Aktif edildiğinde müşteriler ödeme sayfasında bu yöntemi seçebilir.</div>
+                  </div>
+                  <Switch
+                    id="bank-transfer-enabled"
+                    checked={bankTransfer.enabled}
+                    onCheckedChange={(value) => updateBankTransfer("enabled", value)}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Banka Adı</Label>
+                    <Input
+                      value={bankTransfer.bankName}
+                      onChange={(event) => updateBankTransfer("bankName", event.target.value)}
+                      placeholder="Örn. Türkiye İş Bankası"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hesap Sahibi</Label>
+                    <Input
+                      value={bankTransfer.accountHolder}
+                      onChange={(event) => updateBankTransfer("accountHolder", event.target.value)}
+                      placeholder="Firma unvanı"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>IBAN</Label>
+                  <Input
+                    value={bankTransfer.iban}
+                    onChange={(event) => updateBankTransfer("iban", event.target.value.toUpperCase())}
+                    placeholder="TR00 0000 0000 0000 0000 0000 00"
+                    className="font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={savePaymentSettings} disabled={savingPayments || paymentDraft === null}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {savingPayments ? "Kaydediliyor…" : "Ödeme Ayarlarını Kaydet"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="system" className="space-y-6">
