@@ -2146,7 +2146,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           if (!stockUpdate.rows[0]) {
-            throw new Error("Ödeme tamamlandı ancak sipariş stoğu eşzamanlı değişti; manuel kontrol gerekiyor");
+            await client.query(
+              `UPDATE b2b_orders
+               SET status = 'paid_stock_review',
+                   payment_status = 'SUCCESS',
+                   payment_id = $2
+               WHERE id = $1`,
+              [order.id, payment.paymentId || null],
+            );
+            await client.query("COMMIT");
+            return res.redirect(
+              303,
+              `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}&stock=review`,
+            );
           }
         }
 
@@ -2217,6 +2229,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       sku: entry.product.sku,
       name: entry.product.name,
       quantity: entry.quantity,
+      unitsPerBox: entry.product.unitsPerBox,
+      totalUnits: entry.totalUnits,
       unitPrice: entry.product.price,
       total: entry.total,
     }));
