@@ -1,7 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { PackageSearch } from "lucide-react";
+import { Link } from "wouter";
+import {
+  ArrowRight,
+  Minus,
+  PackageSearch,
+  Plus,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
 
 import { B2BHeader } from "@/components/b2b-header";
+import { Button } from "@/components/ui/button";
+import {
+  removeB2BCartItem,
+  updateB2BCartQuantity,
+  useB2BCart,
+} from "@/lib/b2b-cart";
 
 async function loadOrders() {
   const response = await fetch("/api/b2b/my-orders", { credentials: "include" });
@@ -13,8 +27,31 @@ async function loadOrders() {
   return response.json();
 }
 
+function money(value: number) {
+  return value.toLocaleString("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + " ₺";
+}
+
+function statusLabel(value?: string | null) {
+  switch (value) {
+    case "paid":
+      return "Ödendi";
+    case "payment_pending":
+      return "Ödeme bekliyor";
+    case "payment_failed":
+      return "Ödeme başarısız";
+    case "awaiting_bank_transfer":
+      return "Havale bekleniyor";
+    default:
+      return value || "Bekliyor";
+  }
+}
+
 export default function B2BOrders() {
-  const { data = [], isLoading } = useQuery<any[]>({
+  const { items, itemCount, total } = useB2BCart();
+  const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/b2b/my-orders"],
     queryFn: loadOrders,
   });
@@ -22,54 +59,257 @@ export default function B2BOrders() {
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <B2BHeader />
-      <main className="mx-auto max-w-6xl px-4 py-5 sm:py-6">
-        <div className="mb-4">
-          <h1 className="text-xl font-black">Siparişlerim</h1>
-          <p className="mt-1 text-sm text-slate-500">B2B siparişlerinizi ve durumlarını takip edin.</p>
+
+      <main className="mx-auto max-w-6xl px-4 py-5 sm:py-7">
+        <div className="mb-5">
+          <h1 className="text-2xl font-black tracking-tight">Siparişler</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Siparişe eklediğiniz ürünleri düzenleyin ve ödeme özetini kontrol edin.
+          </p>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          {isLoading ? (
-            <div className="p-10 text-center text-slate-500">Siparişler yükleniyor…</div>
-          ) : data.length === 0 ? (
-            <div className="p-12 text-center">
-              <PackageSearch className="mx-auto h-10 w-10 text-slate-300" />
-              <div className="mt-3 font-semibold">Henüz siparişiniz yok</div>
-              <div className="mt-1 text-sm text-slate-500">Oluşturduğunuz siparişler burada listelenecek.</div>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {data.map((order) => (
-                <div key={order.id} className="grid gap-3 p-4 sm:grid-cols-6 sm:items-center">
-                  <div>
-                    <div className="text-xs text-slate-500">Sipariş</div>
-                    <div className="font-bold">#{order.order_number || order.id}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">Durum</div>
-                    <div className="font-medium">{order.status || "pending"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">Ödeme</div>
-                    <div className="font-medium">
-                      {order.payment_method === "bank_transfer" ? "Havale / EFT" : order.payment_method === "card" ? "Kart / iyzico" : "—"}
-                    </div>
-                    <div className="text-xs text-slate-500">{order.payment_status || "—"}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">Ürün</div>
-                    <div className="font-medium">{order.item_count || 0} adet</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500">Toplam</div>
-                    <div className="font-bold">{Number(order.total_amount || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
-                  </div>
-                  <div className="text-sm text-slate-500 sm:text-right">{new Date(order.created_at).toLocaleDateString("tr-TR")}</div>
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="min-w-0">
+            <div className="overflow-hidden rounded-2xl border bg-white">
+              <div className="flex items-center justify-between border-b px-4 py-4 sm:px-5">
+                <div>
+                  <h2 className="font-bold">Siparişe Eklenen Ürünler</h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {items.length} ürün · {itemCount} adet
+                  </p>
                 </div>
-              ))}
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/">Ürün eklemeye devam et</Link>
+                </Button>
+              </div>
+
+              {items.length === 0 ? (
+                <div className="p-10 text-center sm:p-14">
+                  <ShoppingBag className="mx-auto h-10 w-10 text-slate-300" />
+                  <div className="mt-3 font-semibold">Sipariş listeniz boş</div>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Ürün detayında “Siparişlere Ekle” butonunu kullanarak ürün ekleyebilirsiniz.
+                  </p>
+                  <Button asChild className="mt-5">
+                    <Link href="/">Ürünleri Görüntüle</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {items.map((item) => (
+                    <article
+                      key={item.productId}
+                      className="grid gap-4 p-4 sm:grid-cols-[88px_minmax(0,1fr)_130px_120px_40px] sm:items-center sm:p-5"
+                    >
+                      <Link
+                        href={`/urun/${encodeURIComponent(item.productId)}`}
+                        className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border bg-white"
+                      >
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="h-full w-full object-contain p-1"
+                          />
+                        ) : (
+                          <PackageSearch className="h-8 w-8 text-slate-300" />
+                        )}
+                      </Link>
+
+                      <div className="min-w-0">
+                        <Link
+                          href={`/urun/${encodeURIComponent(item.productId)}`}
+                          className="line-clamp-2 font-bold hover:underline"
+                        >
+                          {item.name}
+                        </Link>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Stok Kodu: {item.sku || "—"}
+                        </div>
+                        <div className="mt-2 text-sm">
+                          <span className="text-slate-500">Birim fiyat </span>
+                          <b>{money(item.price)}</b>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="mb-2 text-xs text-slate-500">Sipariş miktarı</div>
+                        <div className="inline-flex items-center rounded-lg border">
+                          <button
+                            type="button"
+                            className="flex h-9 w-9 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+                            disabled={item.quantity <= item.minOrderQty}
+                            onClick={() =>
+                              updateB2BCartQuantity(
+                                item.productId,
+                                Math.max(item.minOrderQty, item.quantity - 1),
+                              )
+                            }
+                            aria-label="Adedi azalt"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <input
+                            type="number"
+                            min={item.minOrderQty}
+                            max={item.stock}
+                            value={item.quantity}
+                            onChange={(event) =>
+                              updateB2BCartQuantity(
+                                item.productId,
+                                Number.parseInt(event.target.value || String(item.minOrderQty), 10),
+                              )
+                            }
+                            className="h-9 w-14 border-x text-center text-sm font-bold outline-none"
+                          />
+                          <button
+                            type="button"
+                            className="flex h-9 w-9 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
+                            disabled={item.quantity >= item.stock}
+                            onClick={() =>
+                              updateB2BCartQuantity(
+                                item.productId,
+                                Math.min(item.stock, item.quantity + 1),
+                              )
+                            }
+                            aria-label="Adedi artır"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-400">
+                          Min. {item.minOrderQty} · Stok {item.stock}
+                        </div>
+                      </div>
+
+                      <div className="sm:text-right">
+                        <div className="text-xs text-slate-500">Toplam</div>
+                        <div className="mt-1 font-black">
+                          {money(item.price * item.quantity)}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeB2BCartItem(item.productId)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        aria-label="Ürünü siparişlerden kaldır"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </section>
+
+          <aside className="h-fit rounded-2xl border bg-white p-5 lg:sticky lg:top-20">
+            <h2 className="text-lg font-black">Sipariş Özeti</h2>
+
+            <div className="mt-5 space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Ürün çeşidi</span>
+                <b>{items.length}</b>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Toplam adet</span>
+                <b>{itemCount}</b>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Ara toplam</span>
+                <b>{money(total)}</b>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Kargo</span>
+                <span>Ödeme adımında</span>
+              </div>
+            </div>
+
+            <div className="my-4 border-t" />
+
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <div className="text-xs text-slate-500">Sipariş toplamı</div>
+                <div className="mt-1 text-2xl font-black">{money(total)}</div>
+              </div>
+            </div>
+
+            <Button
+              asChild={items.length > 0}
+              disabled={items.length === 0}
+              className="mt-5 w-full"
+              size="lg"
+            >
+              {items.length > 0 ? (
+                <Link href="/odeme?cart=1">
+                  Ödemeye Geç
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              ) : (
+                <span>Ödemeye Geç</span>
+              )}
+            </Button>
+
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">
+              Fiyat ve stok bilgileri ödeme aşamasında sunucudan tekrar doğrulanır.
+            </p>
+          </aside>
         </div>
+
+        <section className="mt-8">
+          <div className="mb-3">
+            <h2 className="text-lg font-black">Geçmiş Siparişler</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Tamamlanan ve ödeme bekleyen siparişleriniz.
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border bg-white">
+            {isLoading ? (
+              <div className="p-8 text-center text-sm text-slate-500">Siparişler yükleniyor…</div>
+            ) : orders.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                Henüz geçmiş sipariş bulunmuyor.
+              </div>
+            ) : (
+              <div className="divide-y">
+                {orders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="grid gap-3 px-4 py-4 text-sm sm:grid-cols-[160px_1fr_140px_140px] sm:items-center"
+                  >
+                    <div>
+                      <div className="text-xs text-slate-400">Sipariş No</div>
+                      <div className="font-bold">{order.order_number || `#${order.id}`}</div>
+                    </div>
+                    <div>
+                      <div className="font-medium">{statusLabel(order.status)}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        {order.payment_method === "bank_transfer"
+                          ? "Havale / EFT"
+                          : order.payment_method === "card"
+                            ? "Kart / iyzico"
+                            : "Ödeme yöntemi belirtilmedi"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400">Toplam</div>
+                      <div className="font-bold">
+                        {money(Number(order.total_amount || 0))}
+                      </div>
+                    </div>
+                    <div className="text-slate-500 sm:text-right">
+                      {order.created_at
+                        ? new Date(order.created_at).toLocaleDateString("tr-TR")
+                        : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       </main>
     </div>
   );
