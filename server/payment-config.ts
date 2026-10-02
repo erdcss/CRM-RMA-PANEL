@@ -228,12 +228,22 @@ export async function savePaymentSettings(input: any) {
     }
   }
 
+  const iyzicoEnabled =
+    iyzicoInput.enabled !== undefined
+      ? Boolean(iyzicoInput.enabled)
+      : current.iyzico?.enabled !== false;
+  const effectiveApiKey =
+    decryptSecret(nextApiKey) || String(process.env.IYZICO_API_KEY || "").trim();
+  const effectiveSecretKey =
+    decryptSecret(nextSecretKey) || String(process.env.IYZICO_SECRET_KEY || "").trim();
+
+  if (iyzicoEnabled && (!effectiveApiKey || !effectiveSecretKey)) {
+    throw new Error("Canlı iyzico için API Key ve Secret Key zorunludur");
+  }
+
   const next: StoredPaymentSettings = {
     iyzico: {
-      enabled:
-        iyzicoInput.enabled !== undefined
-          ? Boolean(iyzicoInput.enabled)
-          : current.iyzico?.enabled !== false,
+      enabled: iyzicoEnabled,
       apiKey: nextApiKey,
       secretKey: nextSecretKey,
       baseUrl,
