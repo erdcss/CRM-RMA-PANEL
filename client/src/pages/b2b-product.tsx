@@ -89,10 +89,12 @@ export default function B2BProductPage() {
   const pack = Math.max(1, Number(product.units_per_box || 1));
   const min = Math.max(1, Number(product.min_order_qty || 1));
   const stock = Math.max(0, Number(product.stock || 0));
+  const maxBoxes = Math.max(0, Math.floor(stock / pack));
   const effectiveQuantity = Math.min(
-    stock || min,
+    maxBoxes || min,
     Math.max(min, quantity < min ? min : quantity),
   );
+  const boxTotal = Number(product.price || 0) * pack * effectiveQuantity;
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -117,12 +119,16 @@ export default function B2BProductPage() {
           <section className="rounded-xl border bg-white p-4 sm:p-5">
             <div className="text-xs text-slate-500">Stok Kodu: <b className="text-slate-700">{product.sku || "—"}</b></div>
             <h1 className="mt-2 text-xl font-black leading-tight sm:text-2xl">{product.name || "Ürün"}</h1>
+            {product.description ? (
+              <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
+                {product.description}
+              </p>
+            ) : null}
             {product.collection_name ? <div className="mt-2 text-sm text-slate-500">{product.collection_name}</div> : null}
-            {product.description ? <p className="mt-4 text-sm leading-6 text-slate-600">{product.description}</p> : null}
 
-            <div className="mt-5 rounded-xl bg-slate-950 p-4 text-white">
-              <div className="text-sm text-slate-300">B2B fiyatı</div>
-              <div className="mt-1 text-xl font-black">
+            <div className="mt-5 border-y py-4">
+              <div className="text-sm text-slate-500">B2B fiyatı</div>
+              <div className="mt-1 text-2xl font-black text-slate-950">
                 {loggedIn && product.price !== null && product.price !== undefined
                   ? `${Number(product.price).toLocaleString("tr-TR", {
                       minimumFractionDigits: 2,
@@ -130,25 +136,31 @@ export default function B2BProductPage() {
                     })} ₺`
                   : "Fiyat için giriş yapın"}
               </div>
-              {!loggedIn ? (
-                <Button asChild className="mt-4 bg-white text-slate-950 hover:bg-slate-100">
+              {loggedIn ? (
+                <div className="mt-1 text-xs text-slate-500">
+                  Birim fiyat · Koli içi {pack} adet
+                </div>
+              ) : (
+                <Button asChild className="mt-4 bg-slate-950 text-white hover:bg-slate-800">
                   <Link href="/uye-girisi">İşletme hesabıyla giriş yap</Link>
                 </Button>
-              ) : null}
+              )}
             </div>
 
             <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
               <Info icon={<Boxes className="h-5 w-5" />} label="Koli içi" value={`${pack} adet`} />
-              <Info icon={<Warehouse className="h-5 w-5" />} label="Stok" value={`${Math.max(0, Number(product.stock || 0))} adet`} />
-              <Info icon={<ShieldCheck className="h-5 w-5" />} label="Minimum" value={`${min} adet`} />
+              <Info icon={<Warehouse className="h-5 w-5" />} label="Stok" value={`${stock} adet · ${maxBoxes} koli`} />
+              <Info icon={<ShieldCheck className="h-5 w-5" />} label="Minimum" value={`${min} koli`} />
             </div>
 
             {loggedIn ? (
               <div className="mt-5 rounded-xl border p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <div className="text-sm font-semibold">Sipariş adedi</div>
-                    <div className="mt-1 text-xs text-slate-500">Minimum {min} adet · Stok {stock} adet</div>
+                    <div className="text-sm font-semibold">Sipariş edilen koli adedi</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Minimum {min} koli · En fazla {maxBoxes} koli · {pack} adet/koli
+                    </div>
                     <div className="mt-3 inline-flex items-center rounded-lg border bg-white">
                       <button
                         type="button"
@@ -162,19 +174,19 @@ export default function B2BProductPage() {
                       <input
                         type="number"
                         min={min}
-                        max={stock}
+                        max={maxBoxes}
                         value={effectiveQuantity}
                         onChange={(event) => {
                           const next = Number.parseInt(event.target.value || String(min), 10);
-                          setQuantity(Math.min(stock || min, Math.max(min, next || min)));
+                          setQuantity(Math.min(maxBoxes || min, Math.max(min, next || min)));
                         }}
                         className="h-10 w-20 border-x text-center text-sm font-bold outline-none"
                       />
                       <button
                         type="button"
                         className="flex h-10 w-10 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
-                        disabled={effectiveQuantity >= stock}
-                        onClick={() => setQuantity(Math.min(stock, effectiveQuantity + 1))}
+                        disabled={effectiveQuantity >= maxBoxes}
+                        onClick={() => setQuantity(Math.min(maxBoxes, effectiveQuantity + 1))}
                         aria-label="Adedi artır"
                       >
                         <Plus className="h-4 w-4" />
@@ -185,7 +197,7 @@ export default function B2BProductPage() {
                   <div className="flex flex-col gap-2 sm:min-w-52">
                     <Button
                       type="button"
-                      disabled={stock < min}
+                      disabled={maxBoxes < min}
                       onClick={() => {
                         addB2BCartItem({
                           productId: String(product.id),
@@ -195,18 +207,19 @@ export default function B2BProductPage() {
                           price: Number(product.price || 0),
                           quantity: effectiveQuantity,
                           minOrderQty: min,
+                          unitsPerBox: pack,
                           stock,
                         });
                         toast({
                           title: "Siparişlere eklendi",
-                          description: `${product.name || "Ürün"} · ${effectiveQuantity} adet`,
+                          description: `${product.name || "Ürün"} · ${effectiveQuantity} koli · ${effectiveQuantity * pack} adet`,
                         });
                       }}
                     >
                       <ShoppingBag className="mr-2 h-4 w-4" />
                       Siparişlere Ekle
                     </Button>
-                    <Button asChild disabled={stock < min} variant="outline">
+                    <Button asChild disabled={maxBoxes < min} variant="outline">
                       <Link href={`/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
                         <CreditCard className="mr-2 h-4 w-4" />
                         Hemen Öde
@@ -214,9 +227,16 @@ export default function B2BProductPage() {
                     </Button>
                   </div>
                 </div>
-                {stock < min ? (
-                  <div className="mt-3 text-xs font-medium text-rose-600">Bu ürün için yeterli stok bulunmuyor.</div>
-                ) : null}
+                {maxBoxes < min ? (
+                  <div className="mt-3 text-xs font-medium text-rose-600">
+                    Tam koli siparişi için yeterli stok bulunmuyor.
+                  </div>
+                ) : (
+                  <div className="mt-3 text-xs text-slate-500">
+                    Seçili sipariş: {effectiveQuantity} koli × {pack} adet = {effectiveQuantity * pack} adet ·
+                    Toplam {boxTotal.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                  </div>
+                )}
               </div>
             ) : null}
 
