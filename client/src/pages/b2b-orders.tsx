@@ -40,7 +40,7 @@ export default function B2BOrders() {
           ) : (
             <div className="divide-y">
               {data.map((order) => (
-                <div key={order.id} className="grid gap-3 p-4 sm:grid-cols-5 sm:items-center">
+                <div key={order.id} className="grid gap-3 p-4 sm:grid-cols-6 sm:items-center">
                   <div>
                     <div className="text-xs text-slate-500">Sipariş</div>
                     <div className="font-bold">#{order.order_number || order.id}</div>
@@ -48,6 +48,13 @@ export default function B2BOrders() {
                   <div>
                     <div className="text-xs text-slate-500">Durum</div>
                     <div className="font-medium">{order.status || "pending"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-500">Ödeme</div>
+                    <div className="font-medium">
+                      {order.payment_method === "bank_transfer" ? "Havale / EFT" : order.payment_method === "card" ? "Kart / iyzico" : "—"}
+                    </div>
+                    <div className="text-xs text-slate-500">{order.payment_status || "—"}</div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500">Ürün</div>
