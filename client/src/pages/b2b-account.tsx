@@ -9,6 +9,7 @@ import {
   LogOut,
   MapPin,
   Plus,
+  Pencil,
   RotateCcw,
   Save,
   Settings,
@@ -190,25 +191,38 @@ function AddressesPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"]
     queryFn: () => getJson("/api/b2b/addresses"),
   });
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ title: "Teslimat Adresi", recipient: "", phone: "", city: "", district: "", addressLine: "", postalCode: "" });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     try {
-      await apiRequest("POST", "/api/b2b/addresses", form);
+      await apiRequest(
+        editingId ? "PATCH" : "POST",
+        editingId ? `/api/b2b/addresses/${editingId}` : "/api/b2b/addresses",
+        form,
+      );
       await queryClient.invalidateQueries({ queryKey: ["/api/b2b/addresses"] });
       setOpen(false);
+      setEditingId(null);
       setForm({ title: "Teslimat Adresi", recipient: "", phone: "", city: "", district: "", addressLine: "", postalCode: "" });
-      toast({ title: "Adres eklendi" });
+      toast({ title: editingId ? "Adres güncellendi" : "Adres eklendi" });
     } catch (error) {
-      toast({ title: "Adres eklenemedi", description: error instanceof Error ? error.message : "Hata oluştu", variant: "destructive" });
+      toast({ title: "Adres kaydedilemedi", description: error instanceof Error ? error.message : "Hata oluştu", variant: "destructive" });
     }
   }
 
   return (
     <Panel title="Kayıtlı Adreslerim" description="Teslimat ve fatura işlemlerinde kullanacağınız adresleri yönetin.">
       <div className="mb-4 flex justify-end">
-        <Button variant="outline" onClick={() => setOpen((value) => !value)}><Plus className="mr-2 h-4 w-4" /> Yeni Adres</Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setEditingId(null);
+            setForm({ title: "Teslimat Adresi", recipient: "", phone: "", city: "", district: "", addressLine: "", postalCode: "" });
+            setOpen((value) => !value);
+          }}
+        ><Plus className="mr-2 h-4 w-4" /> Yeni Adres</Button>
       </div>
 
       {open ? (
@@ -220,7 +234,7 @@ function AddressesPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"]
           <Input placeholder="İlçe" value={form.district} onChange={(e) => setForm({ ...form, district: e.target.value })} />
           <Input placeholder="Posta kodu" value={form.postalCode} onChange={(e) => setForm({ ...form, postalCode: e.target.value })} />
           <div className="sm:col-span-2"><Input placeholder="Açık adres" value={form.addressLine} onChange={(e) => setForm({ ...form, addressLine: e.target.value })} required /></div>
-          <div className="sm:col-span-2 flex justify-end"><Button type="submit">Adresi Kaydet</Button></div>
+          <div className="sm:col-span-2 flex justify-end"><Button type="submit">{editingId ? "Adresi Güncelle" : "Adresi Kaydet"}</Button></div>
         </form>
       ) : null}
 
@@ -234,16 +248,37 @@ function AddressesPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"]
                   <div className="mt-2 text-sm text-slate-600">{address.address_line}</div>
                   <div className="mt-1 text-xs text-slate-500">{[address.district, address.city, address.postal_code].filter(Boolean).join(" / ")}</div>
                 </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={async () => {
-                    await apiRequest("DELETE", `/api/b2b/addresses/${address.id}`);
-                    await queryClient.invalidateQueries({ queryKey: ["/api/b2b/addresses"] });
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingId(address.id);
+                      setForm({
+                        title: address.title || "Teslimat Adresi",
+                        recipient: address.recipient || "",
+                        phone: address.phone || "",
+                        city: address.city || "",
+                        district: address.district || "",
+                        addressLine: address.address_line || "",
+                        postalCode: address.postal_code || "",
+                      });
+                      setOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={async () => {
+                      await apiRequest("DELETE", `/api/b2b/addresses/${address.id}`);
+                      await queryClient.invalidateQueries({ queryKey: ["/api/b2b/addresses"] });
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
