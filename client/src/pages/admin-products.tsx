@@ -1,10 +1,22 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Package, PackagePlus, Search, Sparkles } from "lucide-react";
+import { Package, PackagePlus, Search, Sparkles, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type Product = {
   id: number | string;
@@ -24,8 +36,18 @@ type Product = {
   created_at: string;
 };
 
+type DeleteRequest = {
+  ids: string[];
+  title: string;
+  description: string;
+};
+
 export default function AdminProducts() {
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
+
   const { data = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/admin/b2b-products"],
   });
@@ -39,6 +61,86 @@ export default function AdminProducts() {
         .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(q)),
     );
   }, [data, query]);
+
+  const visibleIds = products.map((product) => String(product.id));
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+
+  const deleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 1) {
+        return apiRequest("DELETE", `/api/admin/b2b-products/${encodeURIComponent(ids[0])}`);
+      }
+      return apiRequest("DELETE", "/api/admin/b2b-products/bulk", { ids });
+    },
+    onSuccess: async (_response, ids) => {
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      setDeleteRequest(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/b2b-products"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/b2b/products"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/public/homepage"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage"] }),
+      ]);
+      toast({
+        title: ids.length === 1 ? "Ürün silindi" : "Ürünler silindi",
+        description:
+          ids.length === 1
+            ? "Seçilen ürün katalogdan kaldırıldı."
+            : `${ids.length} ürün katalogdan kaldırıldı.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Silme işlemi başarısız",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  function toggleProduct(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        visibleIds.forEach((id) => next.delete(id));
+      } else {
+        visibleIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }
+
+  function confirmSingleDelete(product: Product) {
+    setDeleteRequest({
+      ids: [String(product.id)],
+      title: "Ürünü sil?",
+      description: `${product.name} kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+    });
+  }
+
+  function confirmBulkDelete() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setDeleteRequest({
+      ids,
+      title: "Seçili ürünleri sil?",
+      description: `${ids.length} ürün kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+    });
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-muted/20">
@@ -55,6 +157,16 @@ export default function AdminProducts() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {selectedIds.size > 0 ? (
+              <Button
+                variant="destructive"
+                onClick={confirmBulkDelete}
+                disabled={deleteMutation.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Seçilenleri Sil ({selectedIds.size})
+              </Button>
+            ) : null}
             <Button asChild variant="outline">
               <Link href="/urunler/ai-aktar">
                 <Sparkles className="mr-2 h-4 w-4" />
@@ -77,8 +189,8 @@ export default function AdminProducts() {
         </div>
 
         <div className="rounded-2xl border bg-background shadow-sm">
-          <div className="border-b p-4">
-            <div className="relative max-w-md">
+          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
@@ -87,12 +199,34 @@ export default function AdminProducts() {
                 className="pl-9"
               />
             </div>
+
+            {selectedIds.size > 0 ? (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-medium">{selectedIds.size} ürün seçildi</span>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Seçimi temizle
+                </button>
+              </div>
+            ) : null}
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[850px] text-sm">
+            <table className="w-full min-w-[940px] text-sm">
               <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
+                  <th className="w-12 px-4 py-3 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Görünen ürünlerin tümünü seç"
+                      className="h-4 w-4 cursor-pointer rounded border-muted-foreground/40 accent-primary"
+                    />
+                  </th>
                   <th className="w-16 px-4 py-3 font-medium">Görsel</th>
                   <th className="px-4 py-3 font-medium">Ürün</th>
                   <th className="px-4 py-3 font-medium">Stok Kodu</th>
@@ -101,26 +235,43 @@ export default function AdminProducts() {
                   <th className="px-4 py-3 font-medium">Fiyat</th>
                   <th className="px-4 py-3 font-medium">Stok</th>
                   <th className="px-4 py-3 font-medium">Durum</th>
+                  <th className="w-14 px-4 py-3 text-right font-medium">Sil</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {isLoading ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">Ürünler yükleniyor…</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">Ürünler yükleniyor…</td></tr>
                 ) : products.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">Ürün bulunamadı.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">Ürün bulunamadı.</td></tr>
                 ) : (
                   products.map((product) => {
+                    const id = String(product.id);
                     const image = product.images?.[0] || product.image_data || "";
+                    const selected = selectedIds.has(id);
+
                     return (
                       <tr
-                        key={String(product.id)}
-                        className="cursor-pointer hover:bg-muted/30"
+                        key={id}
+                        className={`cursor-pointer hover:bg-muted/30 ${selected ? "bg-primary/[0.04]" : ""}`}
                         onClick={() => window.location.assign(`/urunler/${product.id}`)}
                         tabIndex={0}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") window.location.assign(`/urunler/${product.id}`);
                         }}
                       >
+                        <td
+                          className="px-4 py-3"
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleProduct(id)}
+                            aria-label={`${product.name} ürününü seç`}
+                            className="h-4 w-4 cursor-pointer rounded border-muted-foreground/40 accent-primary"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           {image ? (
                             <img src={image} alt="" className="h-11 w-11 rounded-lg border bg-white object-contain" />
@@ -146,6 +297,22 @@ export default function AdminProducts() {
                             {product.is_active ? "Aktif" : "Pasif"}
                           </span>
                         </td>
+                        <td
+                          className="px-4 py-3 text-right"
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => confirmSingleDelete(product)}
+                            aria-label={`${product.name} ürününü sil`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
                       </tr>
                     );
                   })
@@ -155,6 +322,37 @@ export default function AdminProducts() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={deleteRequest !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteRequest(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteRequest?.title || "Ürünleri sil?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteRequest?.description || "Bu işlem geri alınamaz."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteRequest?.ids.length) {
+                  deleteMutation.mutate(deleteRequest.ids);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "Siliniyor…" : "Kalıcı Olarak Sil"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
