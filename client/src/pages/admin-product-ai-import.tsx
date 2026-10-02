@@ -5,7 +5,9 @@ import {
   CheckCircle2,
   FileImage,
   FileText,
+  Globe2,
   ImagePlus,
+  Percent,
   Sparkles,
   Trash2,
   UploadCloud,
@@ -35,6 +37,7 @@ type ImportRow = {
   brand: string;
   category: string;
   description: string;
+  sourcePrice: string;
   price: string;
   stock: string;
   minOrderQty: string;
@@ -67,6 +70,13 @@ function descriptionWithProductCode(description: unknown, sku: unknown) {
   return cleanDescription
     ? `Ürün Kodu: ${code}\n${cleanDescription}`
     : `Ürün Kodu: ${code}`;
+}
+
+function priceWithProfit(source: unknown, percent: number) {
+  const value = Number(source);
+  if (!Number.isFinite(value)) return "";
+  const safePercent = Math.min(500, Math.max(0, Number(percent) || 0));
+  return (Math.round(value * (1 + safePercent / 100) * 100) / 100).toFixed(2);
 }
 
 function variantsFromAi(product: any): ImportVariant[] {
@@ -114,6 +124,8 @@ export default function AdminProductAiImport() {
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [dragging, setDragging] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [imageSearching, setImageSearching] = useState(false);
+  const [profitPercent, setProfitPercent] = useState(0);
   const [saving, setSaving] = useState(false);
 
   const selectedRows = useMemo(() => rows.filter((row) => row.selected), [rows]);
@@ -138,6 +150,77 @@ export default function AdminProductAiImport() {
         description: "Yalnızca PDF, PNG ve JPEG; dosya başına en fazla 10 MB desteklenir.",
         variant: "destructive",
       });
+    }
+  }
+
+  function applyProfitPercent(nextPercent: number) {
+    const safePercent = Math.min(500, Math.max(0, Number(nextPercent) || 0));
+    setProfitPercent(safePercent);
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        price: row.sourcePrice
+          ? priceWithProfit(row.sourcePrice, safePercent)
+          : row.price,
+      })),
+    );
+  }
+
+  async function findWebImages(targetRows: ImportRow[]) {
+    const missing = targetRows
+      .filter((row) => row.images.length === 0)
+      .slice(0, 40);
+
+    if (!missing.length) return;
+
+    setImageSearching(true);
+    try {
+      const response = await apiRequest("POST", "/api/product-ai/find-images", {
+        products: missing.map((row) => ({
+          key: row.key,
+          sku: row.sku,
+          barcode: row.barcode,
+          name: row.name,
+          brand: row.brand,
+        })),
+      });
+      const result = await response.json() as {
+        found?: number;
+        matches?: Array<{
+          key: string;
+          imageData?: string | null;
+          sourceUrl?: string | null;
+        }>;
+      };
+      const matches = new Map(
+        (result.matches || [])
+          .filter((item) => item.imageData)
+          .map((item) => [item.key, item.imageData as string]),
+      );
+
+      setRows((current) =>
+        current.map((row) => {
+          const automaticImage = matches.get(row.key);
+          if (!automaticImage || row.images.length > 0) return row;
+          return { ...row, images: [automaticImage] };
+        }),
+      );
+
+      toast({
+        title: "Web görsel taraması tamamlandı",
+        description: `${Number(result.found || 0)} ürün için doğrulanmış görsel otomatik eklendi.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Web görselleri tamamlanamadı",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Görselleri manuel olarak eklemeye devam edebilirsiniz.",
+        variant: "destructive",
+      });
+    } finally {
+      setImageSearching(false);
     }
   }
 
@@ -172,6 +255,11 @@ export default function AdminProductAiImport() {
 
         for (const product of products) {
           const sku = product.sku || product.barcode || "";
+          const rawPrice =
+            product.salePrice == null
+              ? product.purchasePrice
+              : product.salePrice;
+          const sourcePrice = rawPrice == null ? "" : String(rawPrice);
           extracted.push({
             key: crypto.randomUUID(),
             selected: true,
@@ -181,7 +269,8 @@ export default function AdminProductAiImport() {
             brand: product.brand || "",
             category: product.category || "",
             description: descriptionWithProductCode(product.description, sku),
-            price: product.salePrice == null ? "" : String(product.salePrice),
+            sourcePrice,
+            price: sourcePrice ? priceWithProfit(sourcePrice, profitPercent) : "",
             stock: product.stock == null ? "0" : String(product.stock),
             minOrderQty:
               product.minimumOrderQuantity == null
@@ -199,8 +288,11 @@ export default function AdminProductAiImport() {
       setRows(extracted);
       toast({
         title: "AI analizi tamamlandı",
-        description: `${extracted.length} ürün bulundu. Görselleri ve bilgileri kontrol edip onaylayın.`,
+        description:
+          `${extracted.length} ürün bulundu. Eksik ürün görselleri webde otomatik aranıyor.`,
       });
+
+      void findWebImages(extracted);
     } catch (error) {
       toast({
         title: "Belge analiz edilemedi",
@@ -347,12 +439,56 @@ export default function AdminProductAiImport() {
 
         {files.length > 0 ? (
           <div className="mt-4 rounded-2xl border bg-background p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="font-semibold">Yüklenecek dosyalar ({files.length})</div>
-              <Button onClick={analyze} disabled={analyzing}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                {analyzing ? "AI analiz ediyor…" : "AI ile Analiz Et"}
-              </Button>
+            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="font-semibold">Yüklenecek dosyalar ({files.length})</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Dosyadaki birim fiyatlara uygulanacak kâr oranını analizden önce seçin.
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+                  <Percent className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-semibold">Kâr</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="500"
+                    step="1"
+                    value={profitPercent}
+                    onChange={(event) =>
+                      applyProfitPercent(Number(event.target.value || 0))
+                    }
+                    className="h-8 w-20 bg-background text-right"
+                  />
+                  <span className="text-xs font-semibold">%</span>
+                </div>
+
+                {[0, 10, 15, 20, 25, 30, 40, 50].map((percent) => (
+                  <button
+                    key={percent}
+                    type="button"
+                    onClick={() => applyProfitPercent(percent)}
+                    className={`h-8 rounded-md border px-2.5 text-xs font-semibold ${
+                      profitPercent === percent
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "bg-background hover:bg-muted"
+                    }`}
+                  >
+                    %{percent}
+                  </button>
+                ))}
+
+                <Button onClick={analyze} disabled={analyzing}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  {analyzing ? "AI analiz ediyor…" : "AI ile Analiz Et"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              Örnek: dosyadaki fiyat 100,00 ₺ ve kâr oranı %20 ise satış birim fiyatı otomatik 120,00 ₺ olur.
             </div>
 
             <div className="space-y-2">
@@ -398,15 +534,25 @@ export default function AdminProductAiImport() {
                 </div>
               </div>
 
-              <Button
-                onClick={saveApproved}
-                disabled={saving || !selectedRows.length || invalidSelected}
-              >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                {saving
-                  ? "Kaydediliyor…"
-                  : `Onaylananları Kaydet (${selectedRows.length})`}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => void findWebImages(rows)}
+                  disabled={imageSearching || rows.every((row) => row.images.length > 0)}
+                >
+                  <Globe2 className="mr-2 h-4 w-4" />
+                  {imageSearching ? "Webde görsel aranıyor…" : "Eksik Görselleri Webde Tara"}
+                </Button>
+                <Button
+                  onClick={saveApproved}
+                  disabled={saving || !selectedRows.length || invalidSelected}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  {saving
+                    ? "Kaydediliyor…"
+                    : `Onaylananları Kaydet (${selectedRows.length})`}
+                </Button>
+              </div>
             </div>
 
             {invalidSelected ? (
@@ -416,15 +562,15 @@ export default function AdminProductAiImport() {
             ) : null}
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1500px] text-sm">
+              <table className="w-full min-w-[2260px] text-sm">
                 <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="w-12 px-3 py-3">Onay</th>
                     <th className="w-24 px-3 py-3">Görsel *</th>
-                    <th className="px-3 py-3">Stok kodu *</th>
-                    <th className="px-3 py-3">Barkod</th>
-                    <th className="px-3 py-3">Ürün adı *</th>
-                    <th className="px-3 py-3">Marka</th>
+                    <th className="w-[190px] px-3 py-3">Stok kodu *</th>
+                    <th className="w-[210px] px-3 py-3">Barkod</th>
+                    <th className="w-[390px] px-3 py-3">Ürün adı *</th>
+                    <th className="w-[240px] px-3 py-3">Marka</th>
                     <th className="px-3 py-3">Kategori</th>
                     <th className="px-3 py-3">Fiyat *</th>
                     <th className="px-3 py-3">Stok</th>
@@ -477,6 +623,8 @@ export default function AdminProductAiImport() {
                       <Cell>
                         <Input
                           value={row.sku}
+                          title={row.sku}
+                          className="min-w-[170px]"
                           onChange={(e) => {
                             const nextSku = e.target.value;
                             setRows((current) =>
@@ -499,18 +647,24 @@ export default function AdminProductAiImport() {
                       <Cell>
                         <Input
                           value={row.barcode}
+                          title={row.barcode}
+                          className="min-w-[190px]"
                           onChange={(e) => updateRow(row.key, "barcode", e.target.value)}
                         />
                       </Cell>
                       <Cell>
                         <Input
                           value={row.name}
+                          title={row.name}
+                          className="min-w-[360px]"
                           onChange={(e) => updateRow(row.key, "name", e.target.value)}
                         />
                       </Cell>
                       <Cell>
                         <Input
                           value={row.brand}
+                          title={row.brand}
+                          className="min-w-[220px]"
                           onChange={(e) => updateRow(row.key, "brand", e.target.value)}
                         />
                       </Cell>
@@ -521,13 +675,23 @@ export default function AdminProductAiImport() {
                         />
                       </Cell>
                       <Cell>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={row.price}
-                          onChange={(e) => updateRow(row.key, "price", e.target.value)}
-                        />
+                        <div className="min-w-[130px]">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.price}
+                            onChange={(e) => updateRow(row.key, "price", e.target.value)}
+                          />
+                          {row.sourcePrice ? (
+                            <div className="mt-1 whitespace-nowrap text-[10px] text-muted-foreground">
+                              Kaynak {Number(row.sourcePrice).toLocaleString("tr-TR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })} ₺ · +%{profitPercent}
+                            </div>
+                          ) : null}
+                        </div>
                       </Cell>
                       <Cell>
                         <Input
