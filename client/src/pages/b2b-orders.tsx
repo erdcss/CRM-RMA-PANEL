@@ -50,7 +50,7 @@ function statusLabel(value?: string | null) {
 }
 
 export default function B2BOrders() {
-  const { items, itemCount, total } = useB2BCart();
+  const { items, itemCount, totalUnits, total } = useB2BCart();
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/b2b/my-orders"],
     queryFn: loadOrders,
@@ -75,7 +75,7 @@ export default function B2BOrders() {
                 <div>
                   <h2 className="font-bold">Siparişe Eklenen Ürünler</h2>
                   <p className="mt-1 text-xs text-slate-500">
-                    {items.length} ürün · {itemCount} adet
+                    {items.length} ürün · {itemCount} koli · {totalUnits} adet
                   </p>
                 </div>
                 <Button asChild variant="ghost" size="sm">
@@ -129,11 +129,14 @@ export default function B2BOrders() {
                         <div className="mt-2 text-sm">
                           <span className="text-slate-500">Birim fiyat </span>
                           <b>{money(item.price)}</b>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Koli içi {item.unitsPerBox} adet · 1 koli {money(item.price * item.unitsPerBox)}
+                          </div>
                         </div>
                       </div>
 
                       <div>
-                        <div className="mb-2 text-xs text-slate-500">Sipariş miktarı</div>
+                        <div className="mb-2 text-xs text-slate-500">Sipariş edilen koli adedi</div>
                         <div className="inline-flex items-center rounded-lg border">
                           <button
                             type="button"
@@ -152,7 +155,7 @@ export default function B2BOrders() {
                           <input
                             type="number"
                             min={item.minOrderQty}
-                            max={item.stock}
+                            max={Math.floor(item.stock / item.unitsPerBox)}
                             value={item.quantity}
                             onChange={(event) =>
                               updateB2BCartQuantity(
@@ -165,11 +168,11 @@ export default function B2BOrders() {
                           <button
                             type="button"
                             className="flex h-9 w-9 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
-                            disabled={item.quantity >= item.stock}
+                            disabled={item.quantity >= Math.floor(item.stock / item.unitsPerBox)}
                             onClick={() =>
                               updateB2BCartQuantity(
                                 item.productId,
-                                Math.min(item.stock, item.quantity + 1),
+                                Math.min(Math.floor(item.stock / item.unitsPerBox), item.quantity + 1),
                               )
                             }
                             aria-label="Adedi artır"
@@ -178,14 +181,14 @@ export default function B2BOrders() {
                           </button>
                         </div>
                         <div className="mt-1 text-[11px] text-slate-400">
-                          Min. {item.minOrderQty} · Stok {item.stock}
+                          Min. {item.minOrderQty} koli · Stok {item.stock} adet / {Math.floor(item.stock / item.unitsPerBox)} koli
                         </div>
                       </div>
 
                       <div className="sm:text-right">
                         <div className="text-xs text-slate-500">Toplam</div>
                         <div className="mt-1 font-black">
-                          {money(item.price * item.quantity)}
+                          {money(item.price * item.unitsPerBox * item.quantity)}
                         </div>
                       </div>
 
@@ -213,8 +216,12 @@ export default function B2BOrders() {
                 <b>{items.length}</b>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Toplam adet</span>
+                <span className="text-slate-500">Toplam koli</span>
                 <b>{itemCount}</b>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Toplam ürün adedi</span>
+                <b>{totalUnits}</b>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500">Ara toplam</span>
