@@ -28,17 +28,21 @@ type CheckoutProduct = {
   price: number;
   stock: number;
   minOrderQty: number;
+  unitsPerBox: number;
+  maxBoxQty: number;
 };
 
 type CheckoutLine = {
   product: CheckoutProduct;
   quantity: number;
+  totalUnits: number;
   total: number;
 };
 
 type CheckoutPreview = {
   items: CheckoutLine[];
   itemCount: number;
+  boxCount?: number;
   total: number;
   currency: "TRY";
   iyzicoConfigured: boolean;
@@ -100,6 +104,7 @@ async function loadCheckoutPreview(
   const single = await getJson<{
     product: CheckoutProduct;
     quantity: number;
+    totalUnits: number;
     total: number;
     currency: "TRY";
     iyzicoConfigured: boolean;
@@ -112,10 +117,12 @@ async function loadCheckoutPreview(
       {
         product: single.product,
         quantity: single.quantity,
+        totalUnits: single.totalUnits,
         total: single.total,
       },
     ],
-    itemCount: single.quantity,
+    itemCount: single.totalUnits,
+    boxCount: single.quantity,
     total: single.total,
     currency: single.currency,
     iyzicoConfigured: single.iyzicoConfigured,
@@ -491,7 +498,10 @@ export default function B2BPaymentPage() {
                   <div key={line.product.id} className="p-3">
                     <div className="text-sm font-semibold">{line.product.name}</div>
                     <div className="mt-1 text-xs text-slate-500">
-                      {line.quantity} adet × {formatMoney(line.product.price)}
+                      {line.quantity} koli × {line.product.unitsPerBox} adet = {line.totalUnits} adet
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Birim fiyat {formatMoney(line.product.price)}
                     </div>
                     <div className="mt-1 text-sm font-bold">{formatMoney(line.total)}</div>
                   </div>
