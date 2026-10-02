@@ -29,6 +29,52 @@ const productSchema = z.object({
 
 const productListSchema = z.object({ products: z.array(productSchema).max(500) });
 
+const imageSearchInputSchema = z.object({
+  products: z.array(
+    z.object({
+      key: z.string().min(1).max(120),
+      sku: z.string().max(160).optional().default(""),
+      barcode: z.string().max(160).optional().default(""),
+      name: z.string().max(500).optional().default(""),
+      brand: z.string().max(240).optional().default(""),
+    }),
+  ).min(1).max(40),
+});
+
+const imageSearchOutputSchema = z.object({
+  matches: z.array(
+    z.object({
+      key: z.string(),
+      imageUrl: z.string().nullable(),
+      pageUrl: z.string().nullable(),
+      confidence: z.number().min(0).max(1),
+    }),
+  ).max(40),
+});
+
+const imageSearchJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    matches: {
+      type: "array",
+      maxItems: 40,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          key: { type: "string" },
+          imageUrl: { type: ["string", "null"] },
+          pageUrl: { type: ["string", "null"] },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+        },
+        required: ["key", "imageUrl", "pageUrl", "confidence"],
+      },
+    },
+  },
+  required: ["matches"],
+} as const;
+
 const productJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -104,6 +150,175 @@ class ProductAiInputError extends Error {
   }
 }
 
+function isPublicHttpUrl(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return false;
+  try {
+    const url = new URL(value.trim());
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+
+    const hostname = url.hostname.toLowerCase();
+    if (
+      hostname === "localhost" ||
+      hostname.endsWith(".local") ||
+      hostname === "0.0.0.0" ||
+      hostname === "::1" ||
+      /^127\./.test(hostname) ||
+      /^10\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^169\.254\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    ) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function htmlEntityDecode(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function imageFromHtml(html: string, pageUrl: string) {
+  const patterns = [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (!match?.[1]) continue;
+    try {
+      return new URL(htmlEntityDecode(match[1]), pageUrl).toString();
+    } catch {
+      continue;
+    }
+  }
+
+  const jsonLdImages = [
+    /"image"\s*:\s*"([^"]+)"/i,
+    /"image"\s*:\s*\[\s*"([^"]+)"/i,
+    /"contentUrl"\s*:\s*"([^"]+)"/i,
+  ];
+  for (const pattern of jsonLdImages) {
+    const match = html.match(pattern);
+    if (!match?.[1]) continue;
+    try {
+      return new URL(htmlEntityDecode(match[1].replace(/\\\//g, "/")), pageUrl).toString();
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+async function fetchProductPageImage(pageUrl: string) {
+  if (!isPublicHttpUrl(pageUrl)) return null;
+
+  try {
+    const response = await fetch(pageUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; CaliskanB2BProductImageBot/1.0; +https://b2b.ecalisgan.com)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return null;
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("text/html")) return null;
+
+    const html = (await response.text()).slice(0, 1_500_000);
+    const candidate = imageFromHtml(html, response.url || pageUrl);
+    return candidate && isPublicHttpUrl(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadImageAsDataUrl(imageUrl: string) {
+  if (!isPublicHttpUrl(imageUrl)) return null;
+
+  try {
+    const response = await fetch(imageUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; CaliskanB2BProductImageBot/1.0; +https://b2b.ecalisgan.com)",
+        Accept: "image/avif,image/webp,image/png,image/jpeg,*/*;q=0.8",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!response.ok) return null;
+
+    const contentType = (response.headers.get("content-type") || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!allowed.has(contentType)) return null;
+
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (contentLength > 5 * 1024 * 1024) return null;
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length || buffer.length > 5 * 1024 * 1024) return null;
+
+    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+async function webSearchImageMatches(
+  openai: OpenAI,
+  products: z.infer<typeof imageSearchInputSchema>["products"],
+) {
+  const response = await openai.responses.create({
+    model:
+      process.env.OPENAI_WEB_SEARCH_MODEL ||
+      process.env.OPENAI_PRODUCT_MODEL ||
+      process.env.OPENAI_MODEL ||
+      "gpt-4o-mini",
+    tools: [{ type: "web_search" } as any],
+    input: [{
+      role: "user",
+      content: [{
+        type: "input_text",
+        text:
+          "Aşağıdaki ürünler için webde arama yap. Özellikle barkod, stok kodu, marka ve ürün adını birlikte kullan. " +
+          "Yalnızca aynı ürün olduğundan güçlü şekilde emin olduğun eşleşmeleri döndür. " +
+          "Üretici, distribütör veya güvenilir perakendeci ürün sayfasını tercih et. " +
+          "Mümkünse doğrudan ürün görseli URL'sini imageUrl alanına; bunu doğrulayamıyorsan imageUrl=null ve ürün sayfasını pageUrl alanına yaz. " +
+          "Benzer fakat farklı model/ürün için görsel seçme. Emin değilsen her iki URL'yi de null yap.\n\n" +
+          JSON.stringify(products),
+      }],
+    }],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "product_image_matches",
+        strict: true,
+        schema: imageSearchJsonSchema,
+      },
+    },
+  } as any);
+
+  return imageSearchOutputSchema.parse(
+    JSON.parse(cleanOutputText(response.output_text)),
+  ).matches;
+}
+
 function cleanOutputText(value: unknown) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error("Yapay zeka boş yanıt döndürdü.");
@@ -162,6 +377,96 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       }
       console.error("Product AI extract error:", error instanceof Error ? error.message : "unknown error");
       return res.status(502).json({ error: "Belge analiz edilemedi. Lütfen tekrar deneyin." });
+    }
+  });
+
+  app.post("/api/product-ai/find-images", requireAdmin, async (req, res) => {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ error: "Yapay zeka servisi yapılandırılmamış." });
+    }
+
+    try {
+      const parsed = imageSearchInputSchema.parse(req.body);
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout: 60_000,
+        maxRetries: 1,
+      });
+
+      const finalMatches: Array<{
+        key: string;
+        imageData: string | null;
+        sourceUrl: string | null;
+        confidence: number;
+      }> = [];
+
+      for (let index = 0; index < parsed.products.length; index += 8) {
+        const batch = parsed.products.slice(index, index + 8);
+        const matches = await webSearchImageMatches(openai, batch);
+        const byKey = new Map(matches.map((match) => [match.key, match]));
+
+        for (const product of batch) {
+          const match = byKey.get(product.key);
+          if (!match || match.confidence < 0.72) {
+            finalMatches.push({
+              key: product.key,
+              imageData: null,
+              sourceUrl: null,
+              confidence: match?.confidence || 0,
+            });
+            continue;
+          }
+
+          let imageUrl =
+            match.imageUrl && isPublicHttpUrl(match.imageUrl)
+              ? match.imageUrl
+              : null;
+
+          if (!imageUrl && match.pageUrl && isPublicHttpUrl(match.pageUrl)) {
+            imageUrl = await fetchProductPageImage(match.pageUrl);
+          }
+
+          let imageData = imageUrl
+            ? await downloadImageAsDataUrl(imageUrl)
+            : null;
+
+          if (!imageData && match.pageUrl && isPublicHttpUrl(match.pageUrl)) {
+            const fallbackImage = await fetchProductPageImage(match.pageUrl);
+            if (fallbackImage && fallbackImage !== imageUrl) {
+              imageUrl = fallbackImage;
+              imageData = await downloadImageAsDataUrl(fallbackImage);
+            }
+          }
+
+          finalMatches.push({
+            key: product.key,
+            imageData,
+            sourceUrl: imageData
+              ? match.pageUrl || imageUrl
+              : null,
+            confidence: match.confidence,
+          });
+        }
+      }
+
+      const found = finalMatches.filter((item) => item.imageData).length;
+      return res.json({
+        matches: finalMatches,
+        found,
+        count: parsed.products.length,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError || error instanceof SyntaxError) {
+        console.error("Product web image search validation failed:", error.message);
+        return res.status(502).json({ error: "Web görsel araması geçerli sonuç döndürmedi." });
+      }
+      console.error(
+        "Product web image search failed:",
+        error instanceof Error ? error.message : "unknown error",
+      );
+      return res.status(502).json({
+        error: "Ürün görselleri webde aranamadı. Manuel görsel eklemeye devam edebilirsiniz.",
+      });
     }
   });
 
