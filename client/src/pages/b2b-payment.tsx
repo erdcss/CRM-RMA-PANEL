@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -755,7 +755,7 @@ function DeliveryChoice({
   onClick,
 }: {
   active: boolean;
-  icon: React.ReactNode;
+  icon: ReactNode;
   title: string;
   description: string;
   onClick: () => void;
