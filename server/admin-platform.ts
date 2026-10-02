@@ -162,6 +162,13 @@ async function ensureDashboardSchema() {
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS item_count INTEGER NOT NULL DEFAULT 0`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_method TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_provider TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_status TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_id TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_token TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
       ];
 
@@ -1154,7 +1161,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
     try {
       const result = await pool.query(`
-        SELECT id, order_number, customer_email, status, item_count, total_amount, created_at
+        SELECT id, order_number, customer_email, status, item_count, total_amount,
+               payment_method, payment_provider, payment_status, created_at
         FROM b2b_orders
         ORDER BY created_at DESC
         LIMIT 250
@@ -1242,7 +1250,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
                 (NOW() AT TIME ZONE 'Europe/Istanbul')::date
         `),
         pool.query(`
-          SELECT id, order_number, customer_email, status, item_count, total_amount, created_at
+          SELECT id, order_number, customer_email, status, item_count, total_amount,
+                 payment_method, payment_provider, payment_status, created_at
           FROM b2b_orders
           ORDER BY created_at DESC
           LIMIT 6
