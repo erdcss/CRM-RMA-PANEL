@@ -8,6 +8,9 @@ type Order = {
   status?: string | null;
   item_count?: number | null;
   total_amount?: string | number | null;
+  payment_method?: string | null;
+  payment_provider?: string | null;
+  payment_status?: string | null;
   created_at?: string | null;
 };
 
@@ -31,10 +34,16 @@ export default function AdminOrders() {
           ) : data.length === 0 ? (
             <div className="p-10 text-center text-sm text-muted-foreground">Henüz sipariş bulunmuyor.</div>
           ) : data.map((order) => (
-            <div key={order.id} className="grid gap-2 border-b px-4 py-4 last:border-b-0 sm:grid-cols-[150px_1fr_120px_120px_150px] sm:items-center">
+            <div key={order.id} className="grid gap-2 border-b px-4 py-4 last:border-b-0 sm:grid-cols-[150px_1fr_130px_130px_120px_150px] sm:items-center">
               <div className="font-semibold">{order.order_number || `#${order.id}`}</div>
               <div className="truncate text-sm text-muted-foreground">{order.customer_email || "—"}</div>
               <div className="text-sm">{order.status || "pending"}</div>
+              <div className="text-sm">
+                <div className="font-medium">
+                  {order.payment_method === "bank_transfer" ? "Havale / EFT" : order.payment_method === "card" ? "Kart / iyzico" : "—"}
+                </div>
+                <div className="text-xs text-muted-foreground">{order.payment_status || "—"}</div>
+              </div>
               <div className="text-sm">{Number(order.item_count || 0)} ürün</div>
               <div className="text-sm font-semibold">{Number(order.total_amount || 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })} ₺</div>
             </div>
