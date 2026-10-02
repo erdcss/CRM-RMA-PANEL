@@ -882,6 +882,74 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  app.delete("/api/admin/b2b-products/bulk", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
+
+    const ids = Array.isArray(req.body?.ids)
+      ? Array.from(
+          new Set(
+            req.body.ids
+              .map((value: unknown) => String(value ?? "").trim())
+              .filter((value: string) => value.length > 0),
+          ),
+        ).slice(0, 250)
+      : [];
+
+    if (ids.length === 0) {
+      return res.status(400).json({ error: "Silinecek ürün seçilmedi" });
+    }
+
+    try {
+      const result = await pool.query(
+        `DELETE FROM b2b_products
+         WHERE id::text = ANY($1::text[])
+         RETURNING id`,
+        [ids],
+      );
+
+      return res.json({
+        count: result.rowCount || 0,
+        deletedIds: result.rows.map((row) => String(row.id)),
+      });
+    } catch (error) {
+      console.error("Admin B2B bulk product delete failed:", error);
+      return res.status(500).json({ error: "Seçili ürünler silinemedi" });
+    }
+  });
+
+  app.delete("/api/admin/b2b-products/:id", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try { await ensureB2BProductSchema(); } catch (error) {
+      console.error("B2B product schema repair failed:", error);
+      return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
+    }
+
+    try {
+      const result = await pool.query(
+        `DELETE FROM b2b_products
+         WHERE id::text = $1
+         RETURNING id, sku, name`,
+        [String(req.params.id)],
+      );
+
+      if (!result.rows[0]) {
+        return res.status(404).json({ error: "Ürün bulunamadı" });
+      }
+
+      return res.json({
+        deleted: true,
+        product: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Admin B2B product delete failed:", error);
+      return res.status(500).json({ error: "Ürün silinemedi" });
+    }
+  });
+
   app.patch("/api/admin/b2b-products/:id", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     try { await ensureB2BProductSchema(); } catch (error) {
