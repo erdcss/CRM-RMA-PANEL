@@ -14,6 +14,7 @@ import {
   isIyzicoConfigured,
   retrieveIyzicoCheckout,
 } from "./iyzico";
+import { getPaymentConfig } from "./payment-config";
 
 let dbReady = false;
 
@@ -218,6 +219,53 @@ async function checkoutItems(rawItems: unknown) {
   return { items, total, itemCount, boxCount };
 }
 
+type ShippingSelection =
+  | { method: "cargo"; details: { carrier: "PTT Kargo" } }
+  | { method: "freight"; details: { companyName: string; phone: string } }
+  | { method: "pickup"; details: { address: string; pickupTime: "09:00" | "15:00" | "17:00" } };
+
+function checkoutShipping(value: unknown): ShippingSelection {
+  const raw = value && typeof value === "object"
+    ? value as Record<string, unknown>
+    : {};
+  const method = String(raw.method || "").trim();
+
+  if (method === "cargo") {
+    return {
+      method: "cargo",
+      details: { carrier: "PTT Kargo" },
+    };
+  }
+
+  if (method === "freight") {
+    const companyName = String(raw.companyName || "").trim().slice(0, 160);
+    const phone = String(raw.phone || "").trim().slice(0, 40);
+    if (companyName.length < 2 || phone.replace(/\D/g, "").length < 7) {
+      throw new Error("Ambar için firma adı ve geçerli telefon numarası zorunludur");
+    }
+    return {
+      method: "freight",
+      details: { companyName, phone },
+    };
+  }
+
+  if (method === "pickup") {
+    const pickupTime = String(raw.pickupTime || "").trim();
+    if (!["09:00", "15:00", "17:00"].includes(pickupTime)) {
+      throw new Error("Teslim alma saati 09:00, 15:00 veya 17:00 olmalıdır");
+    }
+    return {
+      method: "pickup",
+      details: {
+        address: "İSTOÇ Toptan Ticaret Merkezi Mahmutbey Mh. 19 Ada 23 Numara Bağcılar/İstanbul",
+        pickupTime: pickupTime as "09:00" | "15:00" | "17:00",
+      },
+    };
+  }
+
+  throw new Error("Nakliye seçeneği seçin");
+}
+
 async function checkoutAddress(userId: number, addressId: unknown) {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
@@ -246,29 +294,8 @@ async function checkoutAddress(userId: number, addressId: unknown) {
 }
 
 async function bankTransferSettings() {
-  if (!pool) {
-    return { enabled: false, bankName: "", accountHolder: "", iban: "" };
-  }
-
-  const result = await pool.query(
-    `SELECT value FROM platform_settings WHERE key = 'b2b_payment_settings' LIMIT 1`,
-  );
-  if (!result.rows[0]) {
-    return { enabled: false, bankName: "", accountHolder: "", iban: "" };
-  }
-
-  try {
-    const parsed = JSON.parse(String(result.rows[0].value || "{}"));
-    const bank = parsed?.bankTransfer || {};
-    return {
-      enabled: Boolean(bank.enabled),
-      bankName: String(bank.bankName || "").trim(),
-      accountHolder: String(bank.accountHolder || "").trim(),
-      iban: String(bank.iban || "").trim().toUpperCase().replace(/\s+/g, ""),
-    };
-  } catch {
-    return { enabled: false, bankName: "", accountHolder: "", iban: "" };
-  }
+  const config = await getPaymentConfig();
+  return config.bankTransfer;
 }
 
 async function ensureB2BAccountTables() {
@@ -333,6 +360,8 @@ async function ensureB2BAccountTables() {
       payment_status TEXT,
       payment_id TEXT,
       payment_token TEXT,
+      shipping_method TEXT,
+      shipping_details JSONB NOT NULL DEFAULT '{}'::jsonb,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       items JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -348,6 +377,8 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_status TEXT;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_id TEXT;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_token TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_method TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_details JSONB NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
@@ -1886,7 +1917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalUnits,
         total,
         currency: "TRY",
-        iyzicoConfigured: isIyzicoConfigured(),
+        iyzicoConfigured: await isIyzicoConfigured(),
       });
     } catch (error) {
       return res.status(400).json({
@@ -1909,7 +1940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemCount: cart.itemCount,
         boxCount: cart.boxCount,
         currency: "TRY",
-        iyzicoConfigured: isIyzicoConfigured(),
+        iyzicoConfigured: await isIyzicoConfigured(),
       });
     } catch (error) {
       return res.status(400).json({
@@ -1920,7 +1951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/b2b/payments/iyzico/initialize", requireB2B, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
-    if (!isIyzicoConfigured()) {
+    if (!(await isIyzicoConfigured())) {
       return res.status(503).json({
         error: "iyzico canlı bağlantısı henüz API anahtarlarıyla etkinleştirilmedi",
       });
@@ -1938,6 +1969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     let checkout: Awaited<ReturnType<typeof checkoutItems>>;
     let address: any;
+    let shipping: ShippingSelection;
 
     try {
       const rawItems = Array.isArray(req.body?.items)
@@ -1945,6 +1977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
       checkout = await checkoutItems(rawItems);
       address = await checkoutAddress(user.id, req.body?.addressId);
+      shipping = checkoutShipping(req.body?.shipping);
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Sipariş bilgileri geçersiz",
@@ -1984,15 +2017,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const created = await pool.query(
       `INSERT INTO b2b_orders (
         order_number, customer_email, status, item_count, total_amount,
-        payment_method, payment_provider, payment_status, user_id, items
+        payment_method, payment_provider, payment_status,
+        shipping_method, shipping_details, user_id, items
       )
-      VALUES ($1,$2,'payment_pending',$3,$4,'card','iyzico','initializing',$5,$6::jsonb)
+      VALUES ($1,$2,'payment_pending',$3,$4,'card','iyzico','initializing',$5,$6::jsonb,$7,$8::jsonb)
       RETURNING id, order_number`,
       [
         orderNumber,
         email,
         checkout.itemCount,
         total,
+        shipping.method,
+        JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
       ],
@@ -2026,10 +2062,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ip: requestIp(req),
         },
         shippingAddress: {
-          address: addressText,
-          zipCode: postalCode,
+          address:
+            shipping.method === "pickup"
+              ? shipping.details.address
+              : addressText,
+          zipCode: shipping.method === "pickup" ? "34218" : postalCode,
           contactName,
-          city,
+          city: shipping.method === "pickup" ? "İstanbul" : city,
           country: "Turkey",
         },
         billingAddress: {
@@ -2208,6 +2247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     let checkout: Awaited<ReturnType<typeof checkoutItems>>;
+    let shipping: ShippingSelection;
 
     try {
       const rawItems = Array.isArray(req.body?.items)
@@ -2215,6 +2255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
       checkout = await checkoutItems(rawItems);
       await checkoutAddress(user.id, req.body?.addressId);
+      shipping = checkoutShipping(req.body?.shipping);
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Sipariş bilgileri geçersiz",
@@ -2238,14 +2279,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await pool.query(
       `INSERT INTO b2b_orders (
         order_number, customer_email, status, item_count, total_amount,
-        payment_method, payment_provider, payment_status, user_id, items
+        payment_method, payment_provider, payment_status,
+        shipping_method, shipping_details, user_id, items
       )
-      VALUES ($1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb)`,
+      VALUES ($1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb,$7,$8::jsonb)`,
       [
         orderNumber,
         email,
         checkout.itemCount,
         total,
+        shipping.method,
+        JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
       ],
@@ -2278,7 +2322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const email = String(user.email || user.username || "").toLowerCase();
     const result = await pool.query(
       `SELECT id, order_number, customer_email, status, item_count, total_amount,
-              payment_method, payment_status, created_at
+              payment_method, payment_status, shipping_method, shipping_details, created_at
        FROM b2b_orders
        WHERE LOWER(COALESCE(customer_email, '')) = $1
        ORDER BY created_at DESC`,
