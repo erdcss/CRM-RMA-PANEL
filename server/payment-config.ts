@@ -125,9 +125,14 @@ export async function getPaymentConfig(): Promise<RuntimePaymentConfig> {
     .slice(0, 180);
   const iban = cleanIban(stored.bankTransfer?.iban);
 
+  const iyzicoEnabled =
+    stored.iyzico?.enabled !== undefined
+      ? Boolean(stored.iyzico.enabled)
+      : Boolean(apiKey && secretKey);
+
   return {
     iyzico: {
-      enabled: stored.iyzico?.enabled !== false,
+      enabled: iyzicoEnabled,
       apiKey,
       secretKey,
       baseUrl,
@@ -231,7 +236,16 @@ export async function savePaymentSettings(input: any) {
   const iyzicoEnabled =
     iyzicoInput.enabled !== undefined
       ? Boolean(iyzicoInput.enabled)
-      : current.iyzico?.enabled !== false;
+      : current.iyzico?.enabled !== undefined
+        ? Boolean(current.iyzico.enabled)
+        : Boolean(
+            decryptSecret(nextApiKey) ||
+            String(process.env.IYZICO_API_KEY || "").trim(),
+          ) &&
+          Boolean(
+            decryptSecret(nextSecretKey) ||
+            String(process.env.IYZICO_SECRET_KEY || "").trim(),
+          );
   const effectiveApiKey =
     decryptSecret(nextApiKey) || String(process.env.IYZICO_API_KEY || "").trim();
   const effectiveSecretKey =
