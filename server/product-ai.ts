@@ -31,7 +31,7 @@ const productSchema = z.object({
 const productListSchema = z.object({ products: z.array(productSchema).max(500) });
 
 const imageSearchInputSchema = z.object({
-  attempt: z.number().int().min(0).max(3).optional().default(0),
+  attempt: z.number().int().min(0).max(1).optional().default(0),
   products: z.array(
     z.object({
       key: z.string().min(1).max(120),
@@ -593,12 +593,8 @@ async function webSearchImageMatches(
         text:
           "Aşağıdaki ürünler için webde ürün görseli araştır. Her ürün için EN FAZLA 2 aday ver. " +
           (attempt === 0
-            ? "İlk arama: barkod tam eşleşmesine en yüksek önceliği ver; sonra stok/model kodu + marka kullan. "
-            : attempt === 1
-              ? "İkinci arama: stok/model kodu + marka + tam ürün adını birlikte kullan; barkod bulunamazsa isim varyasyonlarını dene. "
-              : attempt === 2
-                ? "Üçüncü arama: tam ürün adı + marka + kategori + açıklamadaki ayırt edici özellikleri kullan. "
-                : "Son arama: marka + ürün adı + açıklamadaki model/renk/ölçü/paket özellikleriyle daha geniş ara; yine de farklı ürünü seçme. ") +
+            ? "İlk arama: barkod tam eşleşmesi; yoksa stok/model kodu + marka kullan. "
+            : "İkinci ve son arama: tam ürün adı + marka + kategori kullan; açıklamadaki ayırt edici özelliklerle destekle. ") +
           "Açıklamadaki renk, model, ölçü, cinsiyet, paket/adet ve varyantla çelişen sonucu verme. " +
           "Üretici, distribütör veya gerçek ürün sayfasını tercih et. Reklam, kategori görseli, logo ve kolaj verme. " +
           "imageUrl gerçek doğrudan ürün görseliyse yaz; emin değilsen null yap ve pageUrl ver. " +
@@ -814,7 +810,7 @@ async function processImageMatch(
 
   const resolved = await resolveImageCandidates(product, candidates);
   if (!resolved.length) {
-    const result: ImageMatchResult = {
+    return {
       key: product.key,
       imageData: null,
       sourceUrl: null,
@@ -822,150 +818,75 @@ async function processImageMatch(
       status: "not_found",
       reason: "Uygun ürün görseli bulunamadı.",
     };
-    setCachedImageMatch(product, result);
-    return result;
   }
 
-  try {
-    const strongest = resolved[0];
-    const exactIdentityMatch =
-      strongest &&
-      (
-        strongest.exactBarcode ||
-        (
-          strongest.exactSku &&
-          strongest.brandMatch &&
-          strongest.nameOverlap >= 0.45
-        ) ||
-        (
-          strongest.exactSku &&
-          strongest.nameOverlap >= 0.72
-        )
-      ) &&
-      strongest.evidenceScore >= 0.86;
+  const strongest = resolved[0];
 
-    if (strongest && exactIdentityMatch) {
-      const imageData = await downloadImageAsDataUrl(strongest.resolvedImageUrl);
-      if (imageData) {
-        const confidence = strongest.exactBarcode
-          ? Math.max(0.97, strongest.evidenceScore)
-          : Math.max(0.91, strongest.evidenceScore);
-        const result: ImageMatchResult = {
-          key: product.key,
-          imageData,
-          sourceUrl: strongest.pageUrl || strongest.resolvedImageUrl,
-          confidence,
-          status: "verified",
-          reason: strongest.exactBarcode
-            ? "Barkod ürün sayfasında birebir eşleşti; ürün görseli doğrulandı."
-            : "Stok/model kodu, marka ve ürün adı ürün sayfasıyla güçlü biçimde eşleşti.",
-        };
-        setCachedImageMatch(product, result);
-        return result;
-      }
-    }
+  // Fast deterministic matching: do not run a second visual AI round.
+  // This makes bulk imports much faster and avoids structured-output failures.
+  const directMatch =
+    strongest.exactBarcode ||
+    strongest.exactSku ||
+    (
+      strongest.brandMatch &&
+      strongest.nameOverlap >= (attempt === 0 ? 0.62 : 0.48)
+    ) ||
+    strongest.nameOverlap >= (attempt === 0 ? 0.82 : 0.68);
 
-    const validationCandidates = resolved.slice(0, 2);
-    const validation = await validateImageCandidates(openai, product, validationCandidates);
-    const candidate =
-      validation.selectedIndex >= 0
-        ? validationCandidates[validation.selectedIndex]
-        : null;
+  const minimumEvidence = attempt === 0 ? 0.42 : 0.28;
+  const minimumSearch = attempt === 0 ? 0.54 : 0.42;
 
-    if (!candidate) {
-      const result: ImageMatchResult = {
-        key: product.key,
-        imageData: null,
-        sourceUrl: null,
-        confidence: validation.confidence,
-        status: validation.status === "review" ? "review" : "not_found",
-        reason: validation.reason,
-      };
-      setCachedImageMatch(product, result);
-      return result;
-    }
-
-    const combinedConfidence =
-      Math.round(
-        (
-          validation.confidence * 0.8 +
-          candidate.searchConfidence * 0.2
-        ) * 100,
-      ) / 100;
-
-    const validationThreshold =
-      attempt >= 3 ? 0.74 : attempt === 2 ? 0.82 : 0.9;
-    const combinedThreshold =
-      attempt >= 3 ? 0.72 : attempt === 2 ? 0.79 : 0.87;
-    const searchThreshold =
-      attempt >= 3 ? 0.55 : attempt === 2 ? 0.62 : 0.72;
-
-    const canAutoAttach =
-      validation.selectedIndex >= 0 &&
-      validation.status !== "rejected" &&
-      validation.confidence >= validationThreshold &&
-      candidate.searchConfidence >= searchThreshold &&
-      combinedConfidence >= combinedThreshold &&
-      validation.conflicts.length === 0 &&
-      (
-        candidate.exactBarcode ||
-        candidate.exactSku ||
-        candidate.brandMatch ||
-        candidate.nameOverlap >= 0.72
-      );
-
-    if (!canAutoAttach) {
-      const result: ImageMatchResult = {
-        key: product.key,
-        imageData: null,
-        sourceUrl: candidate.pageUrl || candidate.resolvedImageUrl,
-        confidence: combinedConfidence,
-        status: "review",
-        reason:
-          validation.reason ||
-          "Görsel benziyor ancak otomatik ekleme için güven seviyesi yetersiz.",
-      };
-      setCachedImageMatch(product, result);
-      return result;
-    }
-
-    const imageData = await downloadImageAsDataUrl(candidate.resolvedImageUrl);
-    if (!imageData) {
-      const result: ImageMatchResult = {
-        key: product.key,
-        imageData: null,
-        sourceUrl: candidate.pageUrl || candidate.resolvedImageUrl,
-        confidence: combinedConfidence,
-        status: "review",
-        reason: "Doğrulanan görsel indirilemedi.",
-      };
-      setCachedImageMatch(product, result);
-      return result;
-    }
-
-    const result: ImageMatchResult = {
-      key: product.key,
-      imageData,
-      sourceUrl: candidate.pageUrl || candidate.resolvedImageUrl,
-      confidence: combinedConfidence,
-      status: "verified",
-      reason: validation.reason,
-    };
-    setCachedImageMatch(product, result);
-    return result;
-  } catch (error) {
+  if (
+    !directMatch ||
+    strongest.evidenceScore < minimumEvidence ||
+    strongest.searchConfidence < minimumSearch
+  ) {
     return {
       key: product.key,
       imageData: null,
-      sourceUrl: resolved[0]?.pageUrl || resolved[0]?.resolvedImageUrl || null,
-      confidence: 0,
-      status: "review",
-      reason:
-        error instanceof Error
-          ? "Görsel doğrulaması tamamlanamadı: " + error.message
-          : "Görsel doğrulaması tamamlanamadı.",
+      sourceUrl: null,
+      confidence: Math.max(strongest.evidenceScore, strongest.searchConfidence),
+      status: "not_found",
+      reason: "Ürün bilgileriyle yeterli görsel eşleşmesi bulunamadı.",
     };
   }
+
+  const imageData = await downloadImageAsDataUrl(strongest.resolvedImageUrl);
+  if (!imageData) {
+    return {
+      key: product.key,
+      imageData: null,
+      sourceUrl: null,
+      confidence: strongest.evidenceScore,
+      status: "not_found",
+      reason: "Uygun görsel bulundu ancak indirilemedi.",
+    };
+  }
+
+  const confidence = Math.min(
+    1,
+    Math.max(
+      strongest.evidenceScore,
+      strongest.searchConfidence,
+      strongest.exactBarcode ? 0.98 : strongest.exactSku ? 0.9 : 0,
+    ),
+  );
+
+  const result: ImageMatchResult = {
+    key: product.key,
+    imageData,
+    sourceUrl: null,
+    confidence,
+    status: "verified",
+    reason: strongest.exactBarcode
+      ? "Barkod eşleşmesiyle görsel otomatik eklendi."
+      : strongest.exactSku
+        ? "Stok/model kodu eşleşmesiyle görsel otomatik eklendi."
+        : "Ürün adı ve marka eşleşmesiyle görsel otomatik eklendi.",
+  };
+
+  setCachedImageMatch(product, result);
+  return result;
 }
 
 function cleanOutputText(value: unknown) {
