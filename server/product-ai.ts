@@ -55,7 +55,7 @@ const imageSearchOutputSchema = z.object({
   matches: z.array(
     z.object({
       key: z.string(),
-      candidates: z.array(imageCandidateSchema).max(3),
+      candidates: z.array(imageCandidateSchema).max(2),
     }),
   ).max(40),
 });
@@ -74,7 +74,7 @@ const imageSearchJsonSchema = {
           key: { type: "string" },
           candidates: {
             type: "array",
-            maxItems: 3,
+            maxItems: 2,
             items: {
               type: "object",
               additionalProperties: false,
@@ -96,7 +96,7 @@ const imageSearchJsonSchema = {
 } as const;
 
 const imageValidationOutputSchema = z.object({
-  selectedIndex: z.number().int().min(-1).max(2),
+  selectedIndex: z.number().int().min(-1).max(1),
   confidence: z.number().min(0).max(1),
   status: z.enum(["accepted", "review", "rejected"]),
   reason: z.string().max(700),
@@ -108,7 +108,7 @@ const imageValidationJsonSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
-    selectedIndex: { type: "integer", minimum: -1, maximum: 2 },
+    selectedIndex: { type: "integer", minimum: -1, maximum: 1 },
     confidence: { type: "number", minimum: 0, maximum: 1 },
     status: { type: "string", enum: ["accepted", "review", "rejected"] },
     reason: { type: "string" },
@@ -539,20 +539,18 @@ async function webSearchImageMatches(
       process.env.OPENAI_MODEL ||
       "gpt-4o-mini",
     tools: [{ type: "web_search" } as any],
+    max_output_tokens: 2200,
     input: [{
       role: "user",
       content: [{
         type: "input_text",
         text:
-          "Aşağıdaki ürünler için webde hızlı ve kesin ürün görseli araştırması yap. " +
-          "Her ürün için en fazla 3 aday döndür. Arama önceliği: " +
-          "1) barkodun tam eşleşmesi, 2) stok/model kodu + marka, 3) tam ürün adı + marka, " +
-          "4) açıklama, kategori ve varyant özellikleri. " +
-          "Yanlış model, farklı renk/varyant, farklı paket/adet, farklı cinsiyet veya farklı ürün tipini aday gösterme. " +
-          "Üretici, distribütör ve güvenilir ürün sayfalarını tercih et. " +
-          "imageUrl doğrudan ürün görseli ise yaz; değilse null bırak ve pageUrl alanına gerçek ürün sayfasını yaz. " +
-          "Reklam bannerı, kategori görseli, logo, kolaj veya ürünle ilgisiz görsel kullanma. " +
-          "searchConfidence yalnızca metinsel ürün eşleşmesi güvenini ifade etsin.\n\n" +
+          "Aşağıdaki ürünler için webde ürün görseli araştır. Her ürün için EN FAZLA 2 aday ver. " +
+          "Öncelik: barkod tam eşleşmesi; sonra stok/model kodu + marka; sonra tam ürün adı + marka. " +
+          "Açıklamadaki renk, model, ölçü, cinsiyet, paket/adet ve varyantla çelişen sonucu verme. " +
+          "Üretici, distribütör veya gerçek ürün sayfasını tercih et. Reklam, kategori görseli, logo ve kolaj verme. " +
+          "imageUrl gerçek doğrudan ürün görseliyse yaz; emin değilsen null yap ve pageUrl ver. " +
+          "Kısa yanıt ver; kaynak başlığını 100 karakteri geçirme.\n\n" +
           JSON.stringify(products),
       }],
     }],
@@ -569,6 +567,23 @@ async function webSearchImageMatches(
   return imageSearchOutputSchema.parse(
     JSON.parse(cleanOutputText(response.output_text)),
   ).matches;
+}
+
+async function webSearchSingleProduct(
+  openai: OpenAI,
+  product: ImageSearchProduct,
+) {
+  try {
+    const result = await webSearchImageMatches(openai, [product]);
+    return result[0]?.candidates || [];
+  } catch (error) {
+    console.warn(
+      "Single product web image search failed:",
+      product.sku || product.barcode || product.name,
+      error instanceof Error ? error.message : "unknown error",
+    );
+    return [];
+  }
 }
 
 function scoreCandidateEvidence(
@@ -623,7 +638,7 @@ async function resolveImageCandidates(
   candidates: z.infer<typeof imageCandidateSchema>[],
 ) {
   const resolved = await Promise.all(
-    candidates.slice(0, 3).map(async (candidate) => {
+    candidates.slice(0, 2).map(async (candidate) => {
       const evidence =
         candidate.pageUrl && isPublicHttpUrl(candidate.pageUrl)
           ? await fetchProductPageEvidence(candidate.pageUrl)
@@ -969,42 +984,84 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       }
 
       const batches: ImageSearchProduct[][] = [];
-      for (let index = 0; index < productsToSearch.length; index += 8) {
-        batches.push(productsToSearch.slice(index, index + 8));
+      for (let index = 0; index < productsToSearch.length; index += 4) {
+        batches.push(productsToSearch.slice(index, index + 4));
       }
-
-      const searchedBatches = await mapWithConcurrency(
-        batches,
-        2,
-        async (batch) => ({
-          batch,
-          matches: await webSearchImageMatches(openai, batch),
-        }),
-      );
 
       const candidateMap = new Map<
         string,
         z.infer<typeof imageCandidateSchema>[]
       >();
+      const transientSearchFailures = new Set<string>();
+
+      const searchedBatches = await mapWithConcurrency(
+        batches,
+        3,
+        async (batch) => {
+          try {
+            return {
+              batch,
+              matches: await webSearchImageMatches(openai, batch),
+              usedFallback: false,
+            };
+          } catch (batchError) {
+            console.warn(
+              "Batch product image search returned invalid/truncated output; falling back to single-product searches:",
+              batchError instanceof Error ? batchError.message : "unknown error",
+            );
+
+            const singles = await mapWithConcurrency(
+              batch,
+              4,
+              async (product) => ({
+                key: product.key,
+                candidates: await webSearchSingleProduct(openai, product),
+              }),
+            );
+
+            return {
+              batch,
+              matches: singles,
+              usedFallback: true,
+            };
+          }
+        },
+      );
 
       for (const group of searchedBatches) {
         const matchesByKey = new Map(
           group.matches.map((match) => [match.key, match.candidates]),
         );
         for (const product of group.batch) {
-          candidateMap.set(product.key, matchesByKey.get(product.key) || []);
+          const candidates = matchesByKey.get(product.key) || [];
+          candidateMap.set(product.key, candidates);
+          if (group.usedFallback && candidates.length === 0) {
+            transientSearchFailures.add(product.key);
+          }
         }
       }
 
       const processed = await mapWithConcurrency(
         productsToSearch,
         5,
-        async (product) =>
-          processImageMatch(
+        async (product) => {
+          if (transientSearchFailures.has(product.key)) {
+            return {
+              key: product.key,
+              imageData: null,
+              sourceUrl: null,
+              confidence: 0,
+              status: "review" as const,
+              reason: "Web araması geçici olarak tamamlanamadı; otomatik tekrar denenebilir.",
+            };
+          }
+
+          return processImageMatch(
             openai,
             product,
             candidateMap.get(product.key) || [],
-          ),
+          );
+        },
       );
 
       const processedMap = new Map(processed.map((item) => [item.key, item]));
@@ -1029,16 +1086,27 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
         count: parsed.products.length,
       });
     } catch (error) {
-      if (error instanceof z.ZodError || error instanceof SyntaxError) {
-        console.error("Product web image search validation failed:", error.message);
-        return res.status(502).json({ error: "Web görsel araması geçerli sonuç döndürmedi." });
-      }
       console.error(
         "Product web image search failed:",
         error instanceof Error ? error.message : "unknown error",
       );
-      return res.status(502).json({
-        error: "Ürün görselleri webde aranamadı. Manuel görsel eklemeye devam edebilirsiniz.",
+
+      // Automatic image enrichment must never block the product import flow.
+      const products = Array.isArray(req.body?.products) ? req.body.products : [];
+      return res.status(200).json({
+        matches: products.map((product: any) => ({
+          key: String(product?.key || ""),
+          imageData: null,
+          sourceUrl: null,
+          confidence: 0,
+          status: "review",
+          reason: "Otomatik görsel taraması bu turda tamamlanamadı; arka planda tekrar denenebilir.",
+        })),
+        found: 0,
+        review: products.length,
+        notFound: 0,
+        count: products.length,
+        degraded: true,
       });
     }
   });
