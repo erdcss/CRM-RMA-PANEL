@@ -28,6 +28,8 @@ type ImportVariant = {
   stock: number | null;
 };
 
+type ImageMatchStatus = "idle" | "searching" | "verified" | "review" | "not_found";
+
 type ImportRow = {
   key: string;
   selected: boolean;
@@ -44,6 +46,10 @@ type ImportRow = {
   unitsPerBox: string;
   collectionName: string;
   images: string[];
+  imageStatus: ImageMatchStatus;
+  imageConfidence: number | null;
+  imageSourceUrl: string | null;
+  imageReason: string;
   variants: ImportVariant[];
 };
 
@@ -173,6 +179,19 @@ export default function AdminProductAiImport() {
 
     if (!missing.length) return;
 
+    const missingKeys = new Set(missing.map((row) => row.key));
+    setRows((current) =>
+      current.map((row) =>
+        missingKeys.has(row.key)
+          ? {
+              ...row,
+              imageStatus: "searching" as const,
+              imageReason: "Webde adaylar aranıyor ve ürün açıklamasıyla karşılaştırılıyor…",
+            }
+          : row,
+      ),
+    );
+
     setImageSearching(true);
     try {
       const response = await apiRequest("POST", "/api/product-ai/find-images", {
@@ -182,35 +201,86 @@ export default function AdminProductAiImport() {
           barcode: row.barcode,
           name: row.name,
           brand: row.brand,
+          category: row.category,
+          description: row.description,
+          attributes: row.variants
+            .map((variant) => `${variant.name}: ${variant.value}`)
+            .filter(Boolean)
+            .join(", "),
         })),
       });
+
       const result = await response.json() as {
         found?: number;
+        review?: number;
+        notFound?: number;
         matches?: Array<{
           key: string;
           imageData?: string | null;
           sourceUrl?: string | null;
+          confidence?: number;
+          status?: "verified" | "review" | "not_found";
+          reason?: string;
         }>;
       };
+
       const matches = new Map(
-        (result.matches || [])
-          .filter((item) => item.imageData)
-          .map((item) => [item.key, item.imageData as string]),
+        (result.matches || []).map((item) => [item.key, item]),
       );
 
       setRows((current) =>
         current.map((row) => {
-          const automaticImage = matches.get(row.key);
-          if (!automaticImage || row.images.length > 0) return row;
-          return { ...row, images: [automaticImage] };
+          if (!missingKeys.has(row.key)) return row;
+          const match = matches.get(row.key);
+
+          if (!match) {
+            return {
+              ...row,
+              imageStatus: "not_found" as const,
+              imageConfidence: 0,
+              imageReason: "Uygun görsel bulunamadı.",
+            };
+          }
+
+          return {
+            ...row,
+            images:
+              match.status === "verified" &&
+              match.imageData &&
+              row.images.length === 0
+                ? [match.imageData]
+                : row.images,
+            imageStatus: match.status || "not_found",
+            imageConfidence:
+              typeof match.confidence === "number"
+                ? match.confidence
+                : null,
+            imageSourceUrl: match.sourceUrl || null,
+            imageReason: match.reason || "",
+          };
         }),
       );
 
       toast({
-        title: "Web görsel taraması tamamlandı",
-        description: `${Number(result.found || 0)} ürün için doğrulanmış görsel otomatik eklendi.`,
+        title: "AI görsel kontrolü tamamlandı",
+        description:
+          `${Number(result.found || 0)} görsel tam eşleşme ile eklendi · ` +
+          `${Number(result.review || 0)} ürün kontrol bekliyor · ` +
+          `${Number(result.notFound || 0)} ürün için güvenli eşleşme bulunamadı.`,
       });
     } catch (error) {
+      setRows((current) =>
+        current.map((row) =>
+          missingKeys.has(row.key) && row.imageStatus === "searching"
+            ? {
+                ...row,
+                imageStatus: "review" as const,
+                imageReason: "Görsel araması tamamlanamadı. Manuel görsel ekleyebilirsiniz.",
+              }
+            : row,
+        ),
+      );
+
       toast({
         title: "Web görselleri tamamlanamadı",
         description:
@@ -280,6 +350,12 @@ export default function AdminProductAiImport() {
               product.unitsPerBox == null ? "1" : String(product.unitsPerBox),
             collectionName: "",
             images: automaticImage ? [automaticImage] : [],
+            imageStatus: automaticImage ? "verified" : "idle",
+            imageConfidence: automaticImage ? 1 : null,
+            imageSourceUrl: null,
+            imageReason: automaticImage
+              ? "Yüklenen ürün görselinden doğrudan alındı."
+              : "",
             variants: variantsFromAi(product),
           });
         }
@@ -319,7 +395,20 @@ export default function AdminProductAiImport() {
 
     try {
       const image = await fileToCompressedDataUrl(file);
-      updateRow(key, "images", [image]);
+      setRows((current) =>
+        current.map((row) =>
+          row.key === key
+            ? {
+                ...row,
+                images: [image],
+                imageStatus: "verified",
+                imageConfidence: 1,
+                imageSourceUrl: null,
+                imageReason: "Manuel görsel eklendi.",
+              }
+            : row,
+        ),
+      );
     } catch (error) {
       toast({
         title: "Ürün görseli eklenemedi",
@@ -562,11 +651,11 @@ export default function AdminProductAiImport() {
             ) : null}
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[2260px] text-sm">
+              <table className="w-full min-w-[2360px] text-sm">
                 <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="w-12 px-3 py-3">Onay</th>
-                    <th className="w-24 px-3 py-3">Görsel *</th>
+                    <th className="w-[180px] px-3 py-3">Görsel *</th>
                     <th className="w-[190px] px-3 py-3">Stok kodu *</th>
                     <th className="w-[210px] px-3 py-3">Barkod</th>
                     <th className="w-[390px] px-3 py-3">Ürün adı *</th>
@@ -596,28 +685,72 @@ export default function AdminProductAiImport() {
                       </td>
 
                       <td className="px-3 py-2">
-                        <label className="block cursor-pointer">
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/webp"
-                            className="hidden"
-                            onChange={(event) => {
-                              void setRowImage(row.key, event.target.files?.[0]);
-                              event.currentTarget.value = "";
-                            }}
-                          />
-                          {row.images[0] ? (
-                            <img
-                              src={row.images[0]}
-                              alt=""
-                              className="h-14 w-14 rounded-lg border bg-white object-contain"
+                        <div className="min-w-[155px]">
+                          <label className="block w-fit cursor-pointer">
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp"
+                              className="hidden"
+                              onChange={(event) => {
+                                void setRowImage(row.key, event.target.files?.[0]);
+                                event.currentTarget.value = "";
+                              }}
                             />
-                          ) : (
-                            <span className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-amber-300 bg-amber-50 text-amber-700">
-                              <ImagePlus className="h-4 w-4" />
+                            {row.images[0] ? (
+                              <img
+                                src={row.images[0]}
+                                alt=""
+                                className="h-14 w-14 rounded-lg border bg-white object-contain"
+                              />
+                            ) : (
+                              <span className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-amber-300 bg-amber-50 text-amber-700">
+                                {row.imageStatus === "searching" ? (
+                                  <Sparkles className="h-4 w-4 animate-pulse" />
+                                ) : (
+                                  <ImagePlus className="h-4 w-4" />
+                                )}
+                              </span>
+                            )}
+                          </label>
+
+                          <div className="mt-1.5">
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                row.imageStatus === "verified"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : row.imageStatus === "searching"
+                                    ? "bg-blue-50 text-blue-700"
+                                    : row.imageStatus === "review"
+                                      ? "bg-amber-50 text-amber-700"
+                                      : row.imageStatus === "not_found"
+                                        ? "bg-rose-50 text-rose-700"
+                                        : "bg-slate-100 text-slate-500"
+                              }`}
+                              title={row.imageReason}
+                            >
+                              {row.imageStatus === "verified"
+                                ? `AI doğrulandı${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
+                                : row.imageStatus === "searching"
+                                  ? "AI kontrol ediyor"
+                                  : row.imageStatus === "review"
+                                    ? `Kontrol gerekli${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
+                                    : row.imageStatus === "not_found"
+                                      ? "Eşleşme yok"
+                                      : "Görsel bekleniyor"}
                             </span>
-                          )}
-                        </label>
+                          </div>
+
+                          {row.imageSourceUrl ? (
+                            <a
+                              href={row.imageSourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-1 block max-w-[150px] truncate text-[10px] text-blue-600 hover:underline"
+                            >
+                              Kaynağı görüntüle
+                            </a>
+                          ) : null}
+                        </div>
                       </td>
 
                       <Cell>
