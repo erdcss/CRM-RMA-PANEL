@@ -37,17 +37,25 @@ const imageSearchInputSchema = z.object({
       barcode: z.string().max(160).optional().default(""),
       name: z.string().max(500).optional().default(""),
       brand: z.string().max(240).optional().default(""),
+      category: z.string().max(240).optional().default(""),
+      description: z.string().max(1600).optional().default(""),
+      attributes: z.string().max(800).optional().default(""),
     }),
   ).min(1).max(40),
+});
+
+const imageCandidateSchema = z.object({
+  imageUrl: z.string().nullable(),
+  pageUrl: z.string().nullable(),
+  sourceTitle: z.string().nullable(),
+  searchConfidence: z.number().min(0).max(1),
 });
 
 const imageSearchOutputSchema = z.object({
   matches: z.array(
     z.object({
       key: z.string(),
-      imageUrl: z.string().nullable(),
-      pageUrl: z.string().nullable(),
-      confidence: z.number().min(0).max(1),
+      candidates: z.array(imageCandidateSchema).max(3),
     }),
   ).max(40),
 });
@@ -64,16 +72,84 @@ const imageSearchJsonSchema = {
         additionalProperties: false,
         properties: {
           key: { type: "string" },
-          imageUrl: { type: ["string", "null"] },
-          pageUrl: { type: ["string", "null"] },
-          confidence: { type: "number", minimum: 0, maximum: 1 },
+          candidates: {
+            type: "array",
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                imageUrl: { type: ["string", "null"] },
+                pageUrl: { type: ["string", "null"] },
+                sourceTitle: { type: ["string", "null"] },
+                searchConfidence: { type: "number", minimum: 0, maximum: 1 },
+              },
+              required: ["imageUrl", "pageUrl", "sourceTitle", "searchConfidence"],
+            },
+          },
         },
-        required: ["key", "imageUrl", "pageUrl", "confidence"],
+        required: ["key", "candidates"],
       },
     },
   },
   required: ["matches"],
 } as const;
+
+const imageValidationOutputSchema = z.object({
+  selectedIndex: z.number().int().min(-1).max(2),
+  confidence: z.number().min(0).max(1),
+  status: z.enum(["accepted", "review", "rejected"]),
+  reason: z.string().max(700),
+  matchedAttributes: z.array(z.string()).max(8),
+  conflicts: z.array(z.string()).max(8),
+});
+
+const imageValidationJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    selectedIndex: { type: "integer", minimum: -1, maximum: 2 },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+    status: { type: "string", enum: ["accepted", "review", "rejected"] },
+    reason: { type: "string" },
+    matchedAttributes: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+    conflicts: {
+      type: "array",
+      maxItems: 8,
+      items: { type: "string" },
+    },
+  },
+  required: [
+    "selectedIndex",
+    "confidence",
+    "status",
+    "reason",
+    "matchedAttributes",
+    "conflicts",
+  ],
+} as const;
+
+type ImageSearchProduct = z.infer<typeof imageSearchInputSchema>["products"][number];
+type ResolvedImageCandidate = z.infer<typeof imageCandidateSchema> & {
+  resolvedImageUrl: string;
+};
+
+type ImageMatchResult = {
+  key: string;
+  imageData: string | null;
+  sourceUrl: string | null;
+  confidence: number;
+  status: "verified" | "review" | "not_found";
+  reason: string;
+};
+
+const imageMatchCache = new Map<string, { expiresAt: number; value: ImageMatchResult }>();
+const IMAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const MAX_IMAGE_CACHE_ENTRIES = 800;
 
 const productJsonSchema = {
   type: "object",
@@ -280,9 +356,70 @@ async function downloadImageAsDataUrl(imageUrl: string) {
   }
 }
 
+function imageCacheKey(product: ImageSearchProduct) {
+  return [
+    product.barcode,
+    product.sku,
+    product.brand,
+    product.name,
+    product.category,
+    product.description,
+    product.attributes,
+  ]
+    .map((value) => String(value || "").trim().toLocaleLowerCase("tr-TR"))
+    .join("|");
+}
+
+function getCachedImageMatch(product: ImageSearchProduct) {
+  const key = imageCacheKey(product);
+  const cached = imageMatchCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt < Date.now()) {
+    imageMatchCache.delete(key);
+    return null;
+  }
+  return { ...cached.value, key: product.key };
+}
+
+function setCachedImageMatch(product: ImageSearchProduct, value: ImageMatchResult) {
+  if (imageMatchCache.size >= MAX_IMAGE_CACHE_ENTRIES) {
+    const firstKey = imageMatchCache.keys().next().value;
+    if (firstKey) imageMatchCache.delete(firstKey);
+  }
+  imageMatchCache.set(imageCacheKey(product), {
+    expiresAt: Date.now() + IMAGE_CACHE_TTL_MS,
+    value: { ...value, key: "" },
+  });
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function runner() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(Math.max(1, limit), items.length) },
+      () => runner(),
+    ),
+  );
+  return results;
+}
+
 async function webSearchImageMatches(
   openai: OpenAI,
-  products: z.infer<typeof imageSearchInputSchema>["products"],
+  products: ImageSearchProduct[],
 ) {
   const response = await openai.responses.create({
     model:
@@ -296,18 +433,22 @@ async function webSearchImageMatches(
       content: [{
         type: "input_text",
         text:
-          "Aşağıdaki ürünler için webde arama yap. Özellikle barkod, stok kodu, marka ve ürün adını birlikte kullan. " +
-          "Yalnızca aynı ürün olduğundan güçlü şekilde emin olduğun eşleşmeleri döndür. " +
-          "Üretici, distribütör veya güvenilir perakendeci ürün sayfasını tercih et. " +
-          "Mümkünse doğrudan ürün görseli URL'sini imageUrl alanına; bunu doğrulayamıyorsan imageUrl=null ve ürün sayfasını pageUrl alanına yaz. " +
-          "Benzer fakat farklı model/ürün için görsel seçme. Emin değilsen her iki URL'yi de null yap.\n\n" +
+          "Aşağıdaki ürünler için webde hızlı ve kesin ürün görseli araştırması yap. " +
+          "Her ürün için en fazla 3 aday döndür. Arama önceliği: " +
+          "1) barkodun tam eşleşmesi, 2) stok/model kodu + marka, 3) tam ürün adı + marka, " +
+          "4) açıklama, kategori ve varyant özellikleri. " +
+          "Yanlış model, farklı renk/varyant, farklı paket/adet, farklı cinsiyet veya farklı ürün tipini aday gösterme. " +
+          "Üretici, distribütör ve güvenilir ürün sayfalarını tercih et. " +
+          "imageUrl doğrudan ürün görseli ise yaz; değilse null bırak ve pageUrl alanına gerçek ürün sayfasını yaz. " +
+          "Reklam bannerı, kategori görseli, logo, kolaj veya ürünle ilgisiz görsel kullanma. " +
+          "searchConfidence yalnızca metinsel ürün eşleşmesi güvenini ifade etsin.\n\n" +
           JSON.stringify(products),
       }],
     }],
     text: {
       format: {
         type: "json_schema",
-        name: "product_image_matches",
+        name: "product_image_candidates",
         strict: true,
         schema: imageSearchJsonSchema,
       },
@@ -317,6 +458,215 @@ async function webSearchImageMatches(
   return imageSearchOutputSchema.parse(
     JSON.parse(cleanOutputText(response.output_text)),
   ).matches;
+}
+
+async function resolveImageCandidates(
+  candidates: z.infer<typeof imageCandidateSchema>[],
+) {
+  const resolved = await Promise.all(
+    candidates.slice(0, 3).map(async (candidate) => {
+      let resolvedImageUrl =
+        candidate.imageUrl && isPublicHttpUrl(candidate.imageUrl)
+          ? candidate.imageUrl
+          : null;
+
+      if (!resolvedImageUrl && candidate.pageUrl && isPublicHttpUrl(candidate.pageUrl)) {
+        resolvedImageUrl = await fetchProductPageImage(candidate.pageUrl);
+      }
+
+      if (!resolvedImageUrl || !isPublicHttpUrl(resolvedImageUrl)) return null;
+
+      return {
+        ...candidate,
+        resolvedImageUrl,
+      } satisfies ResolvedImageCandidate;
+    }),
+  );
+
+  return resolved.filter(
+    (candidate): candidate is ResolvedImageCandidate => Boolean(candidate),
+  );
+}
+
+async function validateImageCandidates(
+  openai: OpenAI,
+  product: ImageSearchProduct,
+  candidates: ResolvedImageCandidate[],
+) {
+  if (!candidates.length) {
+    return imageValidationOutputSchema.parse({
+      selectedIndex: -1,
+      confidence: 0,
+      status: "rejected",
+      reason: "Görsel adayı bulunamadı.",
+      matchedAttributes: [],
+      conflicts: [],
+    });
+  }
+
+  const candidateText = candidates.map((candidate, index) => ({
+    index,
+    sourceTitle: candidate.sourceTitle,
+    pageUrl: candidate.pageUrl,
+    searchConfidence: candidate.searchConfidence,
+  }));
+
+  const content: any[] = [
+    {
+      type: "input_text",
+      text:
+        "Görevin verilen ürünle TAM AYNI ürünü gösteren görseli seçmektir. " +
+        "Yakın/benzer ürün yeterli değildir. Barkod, stok/model kodu, marka, ürün adı, kategori, açıklamadaki renk, ölçü, cinsiyet, model, paket/adet ve varyant bilgilerini birlikte değerlendir. " +
+        "Görselde okunabilen marka/model/yazı ürün bilgisiyle çelişiyorsa reddet. " +
+        "Farklı varyant, farklı renk, farklı paket, reklam bannerı, kategori görseli veya yalnızca marka logosu reddedilmelidir. " +
+        "Tam eşleşmeden emin değilsen selectedIndex=-1 ve status=review/rejected kullan. " +
+        "status=accepted yalnızca çok yüksek güvenli tam ürün eşleşmesinde kullanılmalıdır.\n\n" +
+        "ÜRÜN:\n" +
+        JSON.stringify(product) +
+        "\n\nADAY KAYNAKLAR:\n" +
+        JSON.stringify(candidateText),
+    },
+  ];
+
+  for (const candidate of candidates) {
+    content.push({
+      type: "input_image",
+      image_url: candidate.resolvedImageUrl,
+      detail: "low",
+    });
+  }
+
+  const response = await openai.responses.create({
+    model:
+      process.env.OPENAI_IMAGE_VERIFY_MODEL ||
+      process.env.OPENAI_PRODUCT_MODEL ||
+      process.env.OPENAI_MODEL ||
+      "gpt-4o-mini",
+    input: [{ role: "user", content }],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "product_image_validation",
+        strict: true,
+        schema: imageValidationJsonSchema,
+      },
+    },
+  } as any);
+
+  return imageValidationOutputSchema.parse(
+    JSON.parse(cleanOutputText(response.output_text)),
+  );
+}
+
+async function processImageMatch(
+  openai: OpenAI,
+  product: ImageSearchProduct,
+  candidates: z.infer<typeof imageCandidateSchema>[],
+): Promise<ImageMatchResult> {
+  const cached = getCachedImageMatch(product);
+  if (cached) return cached;
+
+  const resolved = await resolveImageCandidates(candidates);
+  if (!resolved.length) {
+    const result: ImageMatchResult = {
+      key: product.key,
+      imageData: null,
+      sourceUrl: null,
+      confidence: 0,
+      status: "not_found",
+      reason: "Uygun ürün görseli bulunamadı.",
+    };
+    setCachedImageMatch(product, result);
+    return result;
+  }
+
+  try {
+    const validation = await validateImageCandidates(openai, product, resolved);
+    const candidate =
+      validation.selectedIndex >= 0
+        ? resolved[validation.selectedIndex]
+        : null;
+
+    if (!candidate) {
+      const result: ImageMatchResult = {
+        key: product.key,
+        imageData: null,
+        sourceUrl: null,
+        confidence: validation.confidence,
+        status: validation.status === "review" ? "review" : "not_found",
+        reason: validation.reason,
+      };
+      setCachedImageMatch(product, result);
+      return result;
+    }
+
+    const combinedConfidence =
+      Math.round(
+        (
+          validation.confidence * 0.8 +
+          candidate.searchConfidence * 0.2
+        ) * 100,
+      ) / 100;
+
+    const canAutoAttach =
+      validation.status === "accepted" &&
+      validation.confidence >= 0.9 &&
+      candidate.searchConfidence >= 0.72 &&
+      combinedConfidence >= 0.87 &&
+      validation.conflicts.length === 0;
+
+    if (!canAutoAttach) {
+      const result: ImageMatchResult = {
+        key: product.key,
+        imageData: null,
+        sourceUrl: candidate.pageUrl || candidate.resolvedImageUrl,
+        confidence: combinedConfidence,
+        status: "review",
+        reason:
+          validation.reason ||
+          "Görsel benziyor ancak otomatik ekleme için güven seviyesi yetersiz.",
+      };
+      setCachedImageMatch(product, result);
+      return result;
+    }
+
+    const imageData = await downloadImageAsDataUrl(candidate.resolvedImageUrl);
+    if (!imageData) {
+      const result: ImageMatchResult = {
+        key: product.key,
+        imageData: null,
+        sourceUrl: candidate.pageUrl || candidate.resolvedImageUrl,
+        confidence: combinedConfidence,
+        status: "review",
+        reason: "Doğrulanan görsel indirilemedi.",
+      };
+      setCachedImageMatch(product, result);
+      return result;
+    }
+
+    const result: ImageMatchResult = {
+      key: product.key,
+      imageData,
+      sourceUrl: candidate.pageUrl || candidate.resolvedImageUrl,
+      confidence: combinedConfidence,
+      status: "verified",
+      reason: validation.reason,
+    };
+    setCachedImageMatch(product, result);
+    return result;
+  } catch (error) {
+    return {
+      key: product.key,
+      imageData: null,
+      sourceUrl: resolved[0]?.pageUrl || resolved[0]?.resolvedImageUrl || null,
+      confidence: 0,
+      status: "review",
+      reason:
+        error instanceof Error
+          ? "Görsel doğrulaması tamamlanamadı: " + error.message
+          : "Görsel doğrulaması tamamlanamadı.",
+    };
+  }
 }
 
 function cleanOutputText(value: unknown) {
@@ -389,70 +739,77 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       const parsed = imageSearchInputSchema.parse(req.body);
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        timeout: 60_000,
+        timeout: 45_000,
         maxRetries: 1,
       });
 
-      const finalMatches: Array<{
-        key: string;
-        imageData: string | null;
-        sourceUrl: string | null;
-        confidence: number;
-      }> = [];
+      const cachedResults = new Map<string, ImageMatchResult>();
+      const productsToSearch: ImageSearchProduct[] = [];
 
-      for (let index = 0; index < parsed.products.length; index += 8) {
-        const batch = parsed.products.slice(index, index + 8);
-        const matches = await webSearchImageMatches(openai, batch);
-        const byKey = new Map(matches.map((match) => [match.key, match]));
+      for (const product of parsed.products) {
+        const cached = getCachedImageMatch(product);
+        if (cached) cachedResults.set(product.key, cached);
+        else productsToSearch.push(product);
+      }
 
-        for (const product of batch) {
-          const match = byKey.get(product.key);
-          if (!match || match.confidence < 0.72) {
-            finalMatches.push({
-              key: product.key,
-              imageData: null,
-              sourceUrl: null,
-              confidence: match?.confidence || 0,
-            });
-            continue;
-          }
+      const batches: ImageSearchProduct[][] = [];
+      for (let index = 0; index < productsToSearch.length; index += 8) {
+        batches.push(productsToSearch.slice(index, index + 8));
+      }
 
-          let imageUrl =
-            match.imageUrl && isPublicHttpUrl(match.imageUrl)
-              ? match.imageUrl
-              : null;
+      const searchedBatches = await mapWithConcurrency(
+        batches,
+        2,
+        async (batch) => ({
+          batch,
+          matches: await webSearchImageMatches(openai, batch),
+        }),
+      );
 
-          if (!imageUrl && match.pageUrl && isPublicHttpUrl(match.pageUrl)) {
-            imageUrl = await fetchProductPageImage(match.pageUrl);
-          }
+      const candidateMap = new Map<
+        string,
+        z.infer<typeof imageCandidateSchema>[]
+      >();
 
-          let imageData = imageUrl
-            ? await downloadImageAsDataUrl(imageUrl)
-            : null;
-
-          if (!imageData && match.pageUrl && isPublicHttpUrl(match.pageUrl)) {
-            const fallbackImage = await fetchProductPageImage(match.pageUrl);
-            if (fallbackImage && fallbackImage !== imageUrl) {
-              imageUrl = fallbackImage;
-              imageData = await downloadImageAsDataUrl(fallbackImage);
-            }
-          }
-
-          finalMatches.push({
-            key: product.key,
-            imageData,
-            sourceUrl: imageData
-              ? match.pageUrl || imageUrl
-              : null,
-            confidence: match.confidence,
-          });
+      for (const group of searchedBatches) {
+        const matchesByKey = new Map(
+          group.matches.map((match) => [match.key, match.candidates]),
+        );
+        for (const product of group.batch) {
+          candidateMap.set(product.key, matchesByKey.get(product.key) || []);
         }
       }
 
-      const found = finalMatches.filter((item) => item.imageData).length;
+      const processed = await mapWithConcurrency(
+        productsToSearch,
+        5,
+        async (product) =>
+          processImageMatch(
+            openai,
+            product,
+            candidateMap.get(product.key) || [],
+          ),
+      );
+
+      const processedMap = new Map(processed.map((item) => [item.key, item]));
+      const finalMatches = parsed.products.map(
+        (product) =>
+          cachedResults.get(product.key) ||
+          processedMap.get(product.key) || {
+            key: product.key,
+            imageData: null,
+            sourceUrl: null,
+            confidence: 0,
+            status: "not_found" as const,
+            reason: "Görsel bulunamadı.",
+          },
+      );
+
       return res.json({
         matches: finalMatches,
-        found,
+        found: finalMatches.filter((item) => item.status === "verified").length,
+        review: finalMatches.filter((item) => item.status === "review").length,
+        notFound: finalMatches.filter((item) => item.status === "not_found").length,
         count: parsed.products.length,
       });
     } catch (error) {
