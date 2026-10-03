@@ -134,8 +134,25 @@ const imageValidationJsonSchema = {
 } as const;
 
 type ImageSearchProduct = z.infer<typeof imageSearchInputSchema>["products"][number];
+type ProductPageEvidence = {
+  imageUrl: string | null;
+  title: string;
+  description: string;
+  sku: string;
+  barcode: string;
+  brand: string;
+  name: string;
+  searchableText: string;
+};
+
 type ResolvedImageCandidate = z.infer<typeof imageCandidateSchema> & {
   resolvedImageUrl: string;
+  evidence: ProductPageEvidence | null;
+  evidenceScore: number;
+  exactBarcode: boolean;
+  exactSku: boolean;
+  brandMatch: boolean;
+  nameOverlap: number;
 };
 
 type ImageMatchResult = {
@@ -297,29 +314,122 @@ function imageFromHtml(html: string, pageUrl: string) {
   return null;
 }
 
-async function fetchProductPageImage(pageUrl: string) {
+function firstMatch(html: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) return htmlEntityDecode(match[1]).trim();
+  }
+  return "";
+}
+
+function normalizeMatchText(value: unknown) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("tr-TR")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactIdentifier(value: unknown) {
+  return normalizeMatchText(value).replace(/\s+/g, "");
+}
+
+function nameTokenOverlap(productName: string, evidenceText: string) {
+  const ignored = new Set([
+    "ve", "ile", "icin", "adet", "urun", "yeni", "model", "the", "and",
+  ]);
+  const tokens = normalizeMatchText(productName)
+    .split(" ")
+    .filter((token) => token.length >= 3 && !ignored.has(token));
+  if (!tokens.length) return 0;
+  const haystack = ` ${normalizeMatchText(evidenceText)} `;
+  const matched = tokens.filter((token) => haystack.includes(` ${token} `)).length;
+  return matched / tokens.length;
+}
+
+async function fetchProductPageEvidence(pageUrl: string): Promise<ProductPageEvidence | null> {
   if (!isPublicHttpUrl(pageUrl)) return null;
 
   try {
     const response = await fetch(pageUrl, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; CaliskanB2BProductImageBot/1.0; +https://b2b.ecalisgan.com)",
+          "Mozilla/5.0 (compatible; CaliskanB2BProductImageBot/2.0; +https://b2b.ecalisgan.com)",
         Accept: "text/html,application/xhtml+xml",
       },
       redirect: "follow",
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(7_000),
     });
     if (!response.ok) return null;
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("text/html")) return null;
 
-    const html = (await response.text()).slice(0, 1_500_000);
-    const candidate = imageFromHtml(html, response.url || pageUrl);
-    return candidate && isPublicHttpUrl(candidate) ? candidate : null;
+    const html = (await response.text()).slice(0, 1_200_000);
+    const finalUrl = response.url || pageUrl;
+    const image = imageFromHtml(html, finalUrl);
+    const title = firstMatch(html, [
+      /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i,
+      /<title[^>]*>([^<]+)<\/title>/i,
+    ]);
+    const description = firstMatch(html, [
+      /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i,
+      /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["']/i,
+    ]);
+    const sku = firstMatch(html, [
+      /"sku"\s*:\s*"([^"]+)"/i,
+      /itemprop=["']sku["'][^>]+content=["']([^"']+)["']/i,
+    ]);
+    const barcode = firstMatch(html, [
+      /"gtin(?:8|12|13|14)?"\s*:\s*"([^"]+)"/i,
+      /"barcode"\s*:\s*"([^"]+)"/i,
+      /itemprop=["']gtin(?:8|12|13|14)?["'][^>]+content=["']([^"']+)["']/i,
+    ]);
+    const brand = firstMatch(html, [
+      /"brand"\s*:\s*\{[^}]*"name"\s*:\s*"([^"]+)"/i,
+      /"brand"\s*:\s*"([^"]+)"/i,
+    ]);
+    const name = firstMatch(html, [
+      /"@type"\s*:\s*"Product"[\s\S]{0,2500}?"name"\s*:\s*"([^"]+)"/i,
+      /"name"\s*:\s*"([^"]+)"/i,
+    ]);
+
+    const visibleText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .slice(0, 180_000);
+
+    return {
+      imageUrl: image && isPublicHttpUrl(image) ? image : null,
+      title,
+      description,
+      sku,
+      barcode,
+      brand,
+      name,
+      searchableText: [
+        finalUrl,
+        title,
+        description,
+        sku,
+        barcode,
+        brand,
+        name,
+        visibleText,
+      ].join(" "),
+    };
   } catch {
     return null;
   }
+}
+
+async function fetchProductPageImage(pageUrl: string) {
+  return (await fetchProductPageEvidence(pageUrl))?.imageUrl || null;
 }
 
 async function downloadImageAsDataUrl(imageUrl: string) {
@@ -367,7 +477,8 @@ function imageCacheKey(product: ImageSearchProduct) {
     product.attributes,
   ]
     .map((value) => String(value || "").trim().toLocaleLowerCase("tr-TR"))
-    .join("|");
+    .join("|")
+    .replace(/^/, "v2|");
 }
 
 function getCachedImageMatch(product: ImageSearchProduct) {
@@ -460,32 +571,88 @@ async function webSearchImageMatches(
   ).matches;
 }
 
+function scoreCandidateEvidence(
+  product: ImageSearchProduct,
+  candidate: z.infer<typeof imageCandidateSchema>,
+  evidence: ProductPageEvidence | null,
+) {
+  const text = evidence?.searchableText || [
+    candidate.sourceTitle,
+    candidate.pageUrl,
+  ].join(" ");
+
+  const normalizedText = compactIdentifier(text);
+  const barcode = compactIdentifier(product.barcode);
+  const sku = compactIdentifier(product.sku);
+  const brand = normalizeMatchText(product.brand);
+  const evidenceBrand = normalizeMatchText(
+    [evidence?.brand, evidence?.title, evidence?.description].join(" "),
+  );
+
+  const exactBarcode =
+    barcode.length >= 8 &&
+    normalizedText.includes(barcode);
+  const exactSku =
+    sku.length >= 4 &&
+    normalizedText.includes(sku);
+  const brandMatch =
+    brand.length >= 2 &&
+    evidenceBrand.includes(brand);
+  const overlap = nameTokenOverlap(
+    product.name,
+    [evidence?.name, evidence?.title, evidence?.description, text].join(" "),
+  );
+
+  let score = candidate.searchConfidence * 0.15;
+  if (exactBarcode) score += 0.62;
+  if (exactSku) score += 0.36;
+  if (brandMatch) score += 0.1;
+  score += Math.min(0.22, overlap * 0.22);
+
+  return {
+    score: Math.min(1, Math.round(score * 100) / 100),
+    exactBarcode,
+    exactSku,
+    brandMatch,
+    nameOverlap: overlap,
+  };
+}
+
 async function resolveImageCandidates(
+  product: ImageSearchProduct,
   candidates: z.infer<typeof imageCandidateSchema>[],
 ) {
   const resolved = await Promise.all(
     candidates.slice(0, 3).map(async (candidate) => {
-      let resolvedImageUrl =
-        candidate.imageUrl && isPublicHttpUrl(candidate.imageUrl)
-          ? candidate.imageUrl
+      const evidence =
+        candidate.pageUrl && isPublicHttpUrl(candidate.pageUrl)
+          ? await fetchProductPageEvidence(candidate.pageUrl)
           : null;
 
-      if (!resolvedImageUrl && candidate.pageUrl && isPublicHttpUrl(candidate.pageUrl)) {
-        resolvedImageUrl = await fetchProductPageImage(candidate.pageUrl);
-      }
+      const resolvedImageUrl =
+        candidate.imageUrl && isPublicHttpUrl(candidate.imageUrl)
+          ? candidate.imageUrl
+          : evidence?.imageUrl || null;
 
       if (!resolvedImageUrl || !isPublicHttpUrl(resolvedImageUrl)) return null;
 
+      const scored = scoreCandidateEvidence(product, candidate, evidence);
       return {
         ...candidate,
         resolvedImageUrl,
+        evidence,
+        evidenceScore: scored.score,
+        exactBarcode: scored.exactBarcode,
+        exactSku: scored.exactSku,
+        brandMatch: scored.brandMatch,
+        nameOverlap: scored.nameOverlap,
       } satisfies ResolvedImageCandidate;
     }),
   );
 
-  return resolved.filter(
-    (candidate): candidate is ResolvedImageCandidate => Boolean(candidate),
-  );
+  return resolved
+    .filter((candidate): candidate is ResolvedImageCandidate => Boolean(candidate))
+    .sort((a, b) => b.evidenceScore - a.evidenceScore);
 }
 
 async function validateImageCandidates(
@@ -509,6 +676,16 @@ async function validateImageCandidates(
     sourceTitle: candidate.sourceTitle,
     pageUrl: candidate.pageUrl,
     searchConfidence: candidate.searchConfidence,
+    evidenceScore: candidate.evidenceScore,
+    pageTitle: candidate.evidence?.title || "",
+    pageDescription: candidate.evidence?.description || "",
+    pageSku: candidate.evidence?.sku || "",
+    pageBarcode: candidate.evidence?.barcode || "",
+    pageBrand: candidate.evidence?.brand || "",
+    exactBarcode: candidate.exactBarcode,
+    exactSku: candidate.exactSku,
+    brandMatch: candidate.brandMatch,
+    nameOverlap: candidate.nameOverlap,
   }));
 
   const content: any[] = [
@@ -566,7 +743,7 @@ async function processImageMatch(
   const cached = getCachedImageMatch(product);
   if (cached) return cached;
 
-  const resolved = await resolveImageCandidates(candidates);
+  const resolved = await resolveImageCandidates(product, candidates);
   if (!resolved.length) {
     const result: ImageMatchResult = {
       key: product.key,
@@ -581,10 +758,49 @@ async function processImageMatch(
   }
 
   try {
-    const validation = await validateImageCandidates(openai, product, resolved);
+    const strongest = resolved[0];
+    const exactIdentityMatch =
+      strongest &&
+      (
+        strongest.exactBarcode ||
+        (
+          strongest.exactSku &&
+          strongest.brandMatch &&
+          strongest.nameOverlap >= 0.45
+        ) ||
+        (
+          strongest.exactSku &&
+          strongest.nameOverlap >= 0.72
+        )
+      ) &&
+      strongest.evidenceScore >= 0.86;
+
+    if (strongest && exactIdentityMatch) {
+      const imageData = await downloadImageAsDataUrl(strongest.resolvedImageUrl);
+      if (imageData) {
+        const confidence = strongest.exactBarcode
+          ? Math.max(0.97, strongest.evidenceScore)
+          : Math.max(0.91, strongest.evidenceScore);
+        const result: ImageMatchResult = {
+          key: product.key,
+          imageData,
+          sourceUrl: strongest.pageUrl || strongest.resolvedImageUrl,
+          confidence,
+          status: "verified",
+          reason: strongest.exactBarcode
+            ? "Barkod ürün sayfasında birebir eşleşti; ürün görseli doğrulandı."
+            : "Stok/model kodu, marka ve ürün adı ürün sayfasıyla güçlü biçimde eşleşti.",
+        };
+        setCachedImageMatch(product, result);
+        return result;
+      }
+    }
+
+    const validationCandidates = resolved.slice(0, 2);
+    const validation = await validateImageCandidates(openai, product, validationCandidates);
     const candidate =
       validation.selectedIndex >= 0
-        ? resolved[validation.selectedIndex]
+        ? validationCandidates[validation.selectedIndex]
         : null;
 
     if (!candidate) {
