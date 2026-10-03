@@ -390,121 +390,173 @@ export default function AdminProductAiImport() {
     addFiles(Array.from(event.dataTransfer.files || []));
   }
 
+  async function extractFileWithRetry(file: File) {
+    const dataUrl = await fileToDataUrl(file);
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await fetch("/api/product-ai/extract", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: file.name,
+            mime: file.type,
+            dataUrl,
+          }),
+        });
+
+        const payload = await response.json().catch(() => ({})) as {
+          products?: any[];
+          error?: string;
+          retryable?: boolean;
+        };
+
+        if (response.ok) return payload;
+
+        lastError = new Error(
+          payload.error || `AI analizi başarısız oldu (HTTP ${response.status})`,
+        );
+
+        const canRetry =
+          attempt === 0 &&
+          (
+            payload.retryable === true ||
+            response.status === 502 ||
+            response.status === 503 ||
+            response.status === 504
+          );
+
+        if (!canRetry) throw lastError;
+
+        toast({
+          title: "AI analizi yeniden deneniyor",
+          description: `${file.name} için geçici hata oluştu. Otomatik ikinci deneme yapılıyor.`,
+        });
+
+        await new Promise((resolve) => window.setTimeout(resolve, 900));
+      } catch (error) {
+        lastError =
+          error instanceof Error
+            ? error
+            : new Error("AI belge analizi tamamlanamadı");
+
+        if (attempt === 1) throw lastError;
+      }
+    }
+
+    throw lastError || new Error("AI belge analizi tamamlanamadı");
+  }
+
   async function analyze() {
     if (!files.length) return;
 
     setAnalyzing(true);
     const extracted: ImportRow[] = [];
+    const failedFiles: Array<{ name: string; message: string }> = [];
 
     try {
       for (const file of files) {
-        const dataUrl = await fileToDataUrl(file);
-        const response = await apiRequest("POST", "/api/product-ai/extract", {
-          name: file.name,
-          mime: file.type,
-          dataUrl,
-        });
+        try {
+          const result = await extractFileWithRetry(file);
+          const products = result.products || [];
 
-        const result = await response.json() as { products?: any[] };
-        const products = result.products || [];
+          let automaticImage: string | null = null;
+          if (file.type.startsWith("image/") && products.length === 1) {
+            automaticImage = await fileToCompressedDataUrl(file);
+          }
 
-        let automaticImage: string | null = null;
-        if (file.type.startsWith("image/") && products.length === 1) {
-          automaticImage = await fileToCompressedDataUrl(file);
-        }
+          for (const product of products) {
+            const sku = product.sku || product.barcode || "";
+            const rawPrice =
+              product.salePrice == null
+                ? product.purchasePrice
+                : product.salePrice;
+            const sourcePrice = rawPrice == null ? "" : String(rawPrice);
 
-        for (const product of products) {
-          const sku = product.sku || product.barcode || "";
-          const rawPrice =
-            product.salePrice == null
-              ? product.purchasePrice
-              : product.salePrice;
-          const sourcePrice = rawPrice == null ? "" : String(rawPrice);
-          extracted.push({
-            key: crypto.randomUUID(),
-            selected: true,
-            sku,
-            barcode: product.barcode || "",
-            name: product.name || "",
-            brand: product.brand || "",
-            category: product.category || "",
-            description: descriptionWithProductCode(product.description, sku),
-            sourcePrice,
-            price: sourcePrice ? priceWithProfit(sourcePrice, profitPercent) : "",
-            stock: product.stock == null ? "0" : String(product.stock),
-            minOrderQty:
-              product.minimumOrderQuantity == null
-                ? "1"
-                : String(product.minimumOrderQuantity),
-            unitsPerBox:
-              product.unitsPerBox == null ? "1" : String(product.unitsPerBox),
-            collectionName: "",
-            images: automaticImage ? [automaticImage] : [],
-            imageStatus: automaticImage ? "verified" : "idle",
-            imageConfidence: automaticImage ? 1 : null,
-            imageSourceUrl: null,
-            imageReason: automaticImage
-              ? "Yüklenen ürün görselinden doğrudan alındı."
-              : "",
-            variants: variantsFromAi(product),
+            extracted.push({
+              key: crypto.randomUUID(),
+              selected: true,
+              sku,
+              barcode: product.barcode || "",
+              name: product.name || "",
+              brand: product.brand || "",
+              category: product.category || "",
+              description: descriptionWithProductCode(product.description, sku),
+              sourcePrice,
+              price: sourcePrice
+                ? priceWithProfit(sourcePrice, profitPercent)
+                : "",
+              stock: product.stock == null ? "0" : String(product.stock),
+              minOrderQty:
+                product.minimumOrderQuantity == null
+                  ? "1"
+                  : String(product.minimumOrderQuantity),
+              unitsPerBox:
+                product.unitsPerBox == null
+                  ? "1"
+                  : String(product.unitsPerBox),
+              collectionName: "",
+              images: automaticImage ? [automaticImage] : [],
+              imageStatus: automaticImage ? "verified" : "idle",
+              imageConfidence: automaticImage ? 1 : null,
+              imageSourceUrl: null,
+              imageReason: automaticImage
+                ? "Yüklenen ürün görselinden doğrudan alındı."
+                : "",
+              variants: variantsFromAi(product),
+            });
+          }
+        } catch (error) {
+          failedFiles.push({
+            name: file.name,
+            message:
+              error instanceof Error
+                ? error.message
+                : "AI analizi tamamlanamadı",
           });
         }
       }
 
+      if (!extracted.length) {
+        throw new Error(
+          failedFiles[0]?.message ||
+            "Dosyalardan ürün verisi çıkarılamadı.",
+        );
+      }
+
       setRows(extracted);
+
       toast({
         title: "AI analizi tamamlandı",
         description:
-          `${extracted.length} ürün bulundu. Eksik ürün görselleri webde otomatik aranıyor.`,
+          failedFiles.length > 0
+            ? `${extracted.length} ürün bulundu. ${failedFiles.length} dosya analiz edilemedi; başarılı ürünlerin görselleri otomatik tamamlanıyor.`
+            : `${extracted.length} ürün bulundu. Eksik ürün görselleri otomatik aranıyor ve atanıyor.`,
       });
 
       void findWebImages(extracted);
+
+      if (failedFiles.length > 0) {
+        toast({
+          title: "Bazı dosyalar atlandı",
+          description: failedFiles
+            .slice(0, 2)
+            .map((item) => `${item.name}: ${item.message}`)
+            .join(" · "),
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Belge analiz edilemedi",
-        description: error instanceof Error ? error.message : "Bilinmeyen hata",
+        description:
+          error instanceof Error ? error.message : "Bilinmeyen hata",
         variant: "destructive",
       });
     } finally {
       setAnalyzing(false);
-    }
-  }
-
-  function updateRow<K extends keyof ImportRow>(
-    key: string,
-    field: K,
-    value: ImportRow[K],
-  ) {
-    setRows((current) =>
-      current.map((row) => (row.key === key ? { ...row, [field]: value } : row)),
-    );
-  }
-
-  async function setRowImage(key: string, file?: File) {
-    if (!file) return;
-
-    try {
-      const image = await fileToCompressedDataUrl(file);
-      setRows((current) =>
-        current.map((row) =>
-          row.key === key
-            ? {
-                ...row,
-                images: [image],
-                imageStatus: "verified",
-                imageConfidence: 1,
-                imageSourceUrl: null,
-                imageReason: "Manuel görsel eklendi.",
-              }
-            : row,
-        ),
-      );
-    } catch (error) {
-      toast({
-        title: "Ürün görseli eklenemedi",
-        description: error instanceof Error ? error.message : "Görsel işlenemedi",
-        variant: "destructive",
-      });
     }
   }
 
