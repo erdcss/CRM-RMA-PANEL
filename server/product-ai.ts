@@ -1,4 +1,5 @@
 import type { Express, RequestHandler } from "express";
+import { createHash } from "crypto";
 import OpenAI, { toFile } from "openai";
 import { z } from "zod";
 
@@ -167,6 +168,46 @@ type ImageMatchResult = {
 const imageMatchCache = new Map<string, { expiresAt: number; value: ImageMatchResult }>();
 const IMAGE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_IMAGE_CACHE_ENTRIES = 800;
+
+type ExtractCacheValue = {
+  products: z.infer<typeof productSchema>[];
+  model: string;
+};
+
+const productExtractCache = new Map<
+  string,
+  { expiresAt: number; value: ExtractCacheValue }
+>();
+const EXTRACT_CACHE_TTL_MS = 60 * 60 * 1000;
+const MAX_EXTRACT_CACHE_ENTRIES = 80;
+
+function extractCacheKey(buffer: Buffer, mime: string) {
+  return createHash("sha256")
+    .update(mime)
+    .update(buffer)
+    .digest("hex");
+}
+
+function getCachedExtraction(key: string) {
+  const cached = productExtractCache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt < Date.now()) {
+    productExtractCache.delete(key);
+    return null;
+  }
+  return cached.value;
+}
+
+function setCachedExtraction(key: string, value: ExtractCacheValue) {
+  if (productExtractCache.size >= MAX_EXTRACT_CACHE_ENTRIES) {
+    const firstKey = productExtractCache.keys().next().value;
+    if (firstKey) productExtractCache.delete(firstKey);
+  }
+  productExtractCache.set(key, {
+    expiresAt: Date.now() + EXTRACT_CACHE_TTL_MS,
+    value,
+  });
+}
 
 const productJsonSchema = {
   type: "object",
@@ -923,18 +964,59 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       const filename = typeof req.body?.name === "string" && req.body.name.trim()
         ? req.body.name.trim().slice(0, 120)
         : `product-document.${mime === "application/pdf" ? "pdf" : "bin"}`;
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 45_000, maxRetries: 1 });
+
+      const cacheKey = extractCacheKey(buffer, mime);
+      const cached = getCachedExtraction(cacheKey);
+      if (cached) {
+        return res.json({
+          products: cached.products,
+          count: cached.products.length,
+          model: cached.model,
+          cached: true,
+        });
+      }
+
+      const model =
+        process.env.OPENAI_PRODUCT_MODEL ||
+        process.env.OPENAI_MODEL ||
+        "gpt-4o-mini";
+
+      // PDF/table extraction can legitimately take longer than 45 seconds.
+      // Use one longer request instead of two short SDK retries, which previously
+      // caused ~90 second failures even when the model was still processing.
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout: 115_000,
+        maxRetries: 0,
+      });
+
       const source = mime === "application/pdf"
-        ? { type: "input_file" as const, filename, file_data: `data:${mime};base64,${buffer.toString("base64")}` }
-        : { type: "input_image" as const, image_url: `data:${mime};base64,${buffer.toString("base64")}`, detail: "high" as const };
+        ? {
+            type: "input_file" as const,
+            filename,
+            file_data: `data:${mime};base64,${buffer.toString("base64")}`,
+          }
+        : {
+            type: "input_image" as const,
+            image_url: `data:${mime};base64,${buffer.toString("base64")}`,
+            detail: "high" as const,
+          };
+
       const response = await openai.responses.create({
-        model: process.env.OPENAI_PRODUCT_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini",
+        model,
+        max_output_tokens: 16000,
         input: [{
           role: "user",
           content: [
             {
               type: "input_text",
-              text: "Bu belgeyi bir B2B ürün kataloğu veya fiyat listesi olarak incele. Yalnızca belgede açıkça bulunan bilgileri çıkar; tahmin etme. Her ürünü ayrı kaydet. Sayısal alanları sayı, bilinmeyen alanları null yap. category alanına belgede geçen gerçek ürün kategorisini yaz; kategori belirtilmiyorsa null bırak. Stok kodu, barkod, marka, ürün adı, satış fiyatı, stok, koli içi adet ve minimum sipariş gibi alanları özellikle ayır.",
+              text:
+                "Bu belgeyi bir B2B ürün kataloğu veya fiyat listesi olarak incele. " +
+                "Yalnızca belgede açıkça bulunan bilgileri çıkar; tahmin etme. " +
+                "Her ürünü ayrı kaydet. Sayısal alanları sayı, bilinmeyen alanları null yap. " +
+                "category alanına belgede geçen gerçek ürün kategorisini yaz; kategori belirtilmiyorsa null bırak. " +
+                "Stok kodu, barkod, marka, ürün adı, satın alma/satış fiyatı, stok, koli içi adet ve minimum sipariş alanlarını özellikle ayır. " +
+                "Tabloda aynı satıra ait bilgileri başka satırlarla karıştırma. Barkod ve stok kodlarını metin olarak eksiksiz koru.",
             },
             source,
           ],
@@ -947,17 +1029,50 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
             schema: productJsonSchema,
           },
         },
+      } as any);
+
+      const parsed = productListSchema.parse(
+        JSON.parse(cleanOutputText(response.output_text)),
+      );
+
+      setCachedExtraction(cacheKey, {
+        products: parsed.products,
+        model,
       });
-      const parsed = productListSchema.parse(JSON.parse(cleanOutputText(response.output_text)));
-      return res.json({ products: parsed.products, count: parsed.products.length, model: process.env.OPENAI_PRODUCT_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini" });
+
+      return res.json({
+        products: parsed.products,
+        count: parsed.products.length,
+        model,
+        cached: false,
+      });
     } catch (error) {
-      if (error instanceof ProductAiInputError) return res.status(error.status).json({ error: error.message });
+      if (error instanceof ProductAiInputError) {
+        return res.status(error.status).json({ error: error.message });
+      }
+
       if (error instanceof z.ZodError || error instanceof SyntaxError) {
         console.error("Product AI structured output validation failed:", error.message);
-        return res.status(502).json({ error: "Yapay zeka geçerli ürün verisi döndürmedi." });
+        return res.status(502).json({
+          error: "AI ürün tablosunu eksiksiz oluşturamadı. Dosyayı yeniden analiz edin.",
+          retryable: true,
+        });
       }
-      console.error("Product AI extract error:", error instanceof Error ? error.message : "unknown error");
-      return res.status(502).json({ error: "Belge analiz edilemedi. Lütfen tekrar deneyin." });
+
+      const message = error instanceof Error ? error.message : "unknown error";
+      console.error("Product AI extract error:", message);
+
+      if (/timed out|timeout/i.test(message)) {
+        return res.status(504).json({
+          error: "AI belge analizi zaman aşımına uğradı. Aynı dosyayı tekrar deneyin; başarılı sonuçlar önbelleğe alınır.",
+          retryable: true,
+        });
+      }
+
+      return res.status(502).json({
+        error: "Belge analiz edilemedi. Lütfen tekrar deneyin.",
+        retryable: true,
+      });
     }
   });
 
