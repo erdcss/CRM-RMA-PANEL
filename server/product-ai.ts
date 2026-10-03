@@ -520,7 +520,7 @@ function imageCacheKey(product: ImageSearchProduct) {
   ]
     .map((value) => String(value || "").trim().toLocaleLowerCase("tr-TR"))
     .join("|")
-    .replace(/^/, "v3|");
+    .replace(/^/, "v4|");
 }
 
 function getCachedImageMatch(product: ImageSearchProduct) {
@@ -571,6 +571,92 @@ async function mapWithConcurrency<T, R>(
     ),
   );
   return results;
+}
+
+async function browserImageSearchUrls(product: ImageSearchProduct) {
+  const query = [product.name, product.brand]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+
+  if (!query) return [];
+
+  try {
+    const response = await fetch(
+      `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2&first=1`,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "tr-TR,tr;q=0.9,en;q=0.7",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(7_000),
+      },
+    );
+
+    if (!response.ok) return [];
+    const html = await response.text();
+    const urls: string[] = [];
+
+    const pushUrl = (value: unknown) => {
+      if (typeof value !== "string") return;
+      const url = htmlEntityDecode(value).replace(/\\u002f/gi, "/").replace(/\\\//g, "/");
+      if (isPublicHttpUrl(url) && !urls.includes(url)) urls.push(url);
+    };
+
+    for (const pattern of [/\sm="([^"]+)"/gi, /\sm='([^']+)'/gi]) {
+      for (const match of html.matchAll(pattern)) {
+        try {
+          const payload = JSON.parse(htmlEntityDecode(match[1]));
+          pushUrl(payload?.murl);
+          pushUrl(payload?.turl);
+        } catch {
+          // Ignore malformed result metadata and keep parsing the page.
+        }
+        if (urls.length >= 12) break;
+      }
+      if (urls.length >= 12) break;
+    }
+
+    if (urls.length < 4) {
+      const decoded = htmlEntityDecode(html);
+      for (const match of decoded.matchAll(/"murl"\s*:\s*"([^"]+)"/gi)) {
+        pushUrl(match[1]);
+        if (urls.length >= 12) break;
+      }
+    }
+
+    return urls.slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
+async function firstBrowserImage(product: ImageSearchProduct): Promise<ImageMatchResult | null> {
+  const cached = getCachedImageMatch(product);
+  if (cached) return cached;
+
+  const urls = await browserImageSearchUrls(product);
+  for (let index = 0; index < urls.length; index += 1) {
+    const imageData = await downloadImageAsDataUrl(urls[index]);
+    if (!imageData) continue;
+
+    const result: ImageMatchResult = {
+      key: product.key,
+      imageData,
+      sourceUrl: null,
+      confidence: index === 0 ? 0.9 : Math.max(0.7, 0.9 - index * 0.03),
+      status: "verified",
+      reason: "Ürün adıyla yapılan görsel aramasındaki ilk geçerli görsel otomatik eklendi.",
+    };
+
+    setCachedImageMatch(product, result);
+    return result;
+  }
+
+  return null;
 }
 
 async function webSearchImageMatches(
@@ -1025,138 +1111,88 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
   });
 
   app.post("/api/product-ai/find-images", requireAdmin, async (req, res) => {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(503).json({ error: "Yapay zeka servisi yapılandırılmamış." });
-    }
-
     try {
       const parsed = imageSearchInputSchema.parse(req.body);
-      const attempt = parsed.attempt;
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        timeout: 45_000,
-        maxRetries: 1,
-      });
 
-      const cachedResults = new Map<string, ImageMatchResult>();
-      const productsToSearch: ImageSearchProduct[] = [];
-
-      for (const product of parsed.products) {
-        const cached = getCachedImageMatch(product);
-        if (cached) cachedResults.set(product.key, cached);
-        else productsToSearch.push(product);
-      }
-
-      const batches: ImageSearchProduct[][] = [];
-      for (let index = 0; index < productsToSearch.length; index += 4) {
-        batches.push(productsToSearch.slice(index, index + 4));
-      }
-
-      const candidateMap = new Map<
-        string,
-        z.infer<typeof imageCandidateSchema>[]
-      >();
-      const transientSearchFailures = new Set<string>();
-
-      const searchedBatches = await mapWithConcurrency(
-        batches,
-        3,
-        async (batch) => {
-          try {
-            return {
-              batch,
-              matches: await webSearchImageMatches(openai, batch, attempt),
-              usedFallback: false,
-            };
-          } catch (batchError) {
-            console.warn(
-              "Batch product image search returned invalid/truncated output; falling back to single-product searches:",
-              batchError instanceof Error ? batchError.message : "unknown error",
-            );
-
-            const singles = await mapWithConcurrency(
-              batch,
-              4,
-              async (product) => ({
-                key: product.key,
-                candidates: await webSearchSingleProduct(openai, product, attempt),
-              }),
-            );
-
-            return {
-              batch,
-              matches: singles,
-              usedFallback: true,
-            };
-          }
-        },
-      );
-
-      for (const group of searchedBatches) {
-        const matchesByKey = new Map(
-          group.matches.map((match) => [match.key, match.candidates]),
-        );
-        for (const product of group.batch) {
-          const candidates = matchesByKey.get(product.key) || [];
-          candidateMap.set(product.key, candidates);
-          if (group.usedFallback && candidates.length === 0) {
-            transientSearchFailures.add(product.key);
-          }
-        }
-      }
-
-      const processed = await mapWithConcurrency(
-        productsToSearch,
-        5,
+      const fastMatches = await mapWithConcurrency(
+        parsed.products,
+        8,
         async (product) => {
-          if (transientSearchFailures.has(product.key)) {
+          const direct = await firstBrowserImage(product);
+          if (direct) return direct;
+
+          // Browser image search is the primary path. OpenAI web search is only
+          // a fallback when the search page yields no downloadable image.
+          if (!process.env.OPENAI_API_KEY) {
             return {
               key: product.key,
               imageData: null,
               sourceUrl: null,
               confidence: 0,
-              status: "review" as const,
-              reason: "Web araması geçici olarak tamamlanamadı; otomatik tekrar denenebilir.",
+              status: "not_found" as const,
+              reason: "Ürün adıyla görsel bulunamadı.",
             };
           }
 
-          return processImageMatch(
-            openai,
-            product,
-            candidateMap.get(product.key) || [],
-            attempt,
-          );
-        },
-      );
+          try {
+            const openai = new OpenAI({
+              apiKey: process.env.OPENAI_API_KEY,
+              timeout: 30_000,
+              maxRetries: 0,
+            });
+            const candidates = await webSearchSingleProduct(openai, product, 1);
 
-      const processedMap = new Map(processed.map((item) => [item.key, item]));
-      const finalMatches = parsed.products.map(
-        (product) =>
-          cachedResults.get(product.key) ||
-          processedMap.get(product.key) || {
+            for (const candidate of candidates) {
+              const imageUrl =
+                candidate.imageUrl && isPublicHttpUrl(candidate.imageUrl)
+                  ? candidate.imageUrl
+                  : candidate.pageUrl
+                    ? await fetchProductPageImage(candidate.pageUrl)
+                    : null;
+              if (!imageUrl) continue;
+
+              const imageData = await downloadImageAsDataUrl(imageUrl);
+              if (!imageData) continue;
+
+              const result: ImageMatchResult = {
+                key: product.key,
+                imageData,
+                sourceUrl: null,
+                confidence: Math.max(0.72, candidate.searchConfidence || 0),
+                status: "verified",
+                reason: "Ürün adıyla bulunan ilk geçerli web görseli otomatik eklendi.",
+              };
+              setCachedImageMatch(product, result);
+              return result;
+            }
+          } catch {
+            // Keep the import flow alive; missing images can be retried later.
+          }
+
+          return {
             key: product.key,
             imageData: null,
             sourceUrl: null,
             confidence: 0,
             status: "not_found" as const,
-            reason: "Görsel bulunamadı.",
-          },
+            reason: "Ürün adıyla görsel bulunamadı.",
+          };
+        },
       );
 
       return res.json({
-        matches: finalMatches,
-        found: finalMatches.filter((item) => item.status === "verified").length,
-        review: finalMatches.filter((item) => item.status === "review").length,
-        notFound: finalMatches.filter((item) => item.status === "not_found").length,
+        matches: fastMatches,
+        found: fastMatches.filter((item) => item.status === "verified").length,
+        review: 0,
+        notFound: fastMatches.filter((item) => item.status === "not_found").length,
         count: parsed.products.length,
       });
     } catch (error) {
       console.error(
-        "Product web image search failed:",
+        "Fast product image search failed:",
         error instanceof Error ? error.message : "unknown error",
       );
 
-      // Automatic image enrichment must never block the product import flow.
       const products = Array.isArray(req.body?.products) ? req.body.products : [];
       return res.status(200).json({
         matches: products.map((product: any) => ({
@@ -1164,12 +1200,12 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
           imageData: null,
           sourceUrl: null,
           confidence: 0,
-          status: "review",
-          reason: "Otomatik görsel taraması bu turda tamamlanamadı; arka planda tekrar denenebilir.",
+          status: "not_found",
+          reason: "Görsel araması bu turda tamamlanamadı.",
         })),
         found: 0,
-        review: products.length,
-        notFound: 0,
+        review: 0,
+        notFound: products.length,
         count: products.length,
         degraded: true,
       });
