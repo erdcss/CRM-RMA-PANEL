@@ -135,13 +135,19 @@ export default function AdminProductAiImport() {
   const [saving, setSaving] = useState(false);
 
   const selectedRows = useMemo(() => rows.filter((row) => row.selected), [rows]);
-  const invalidSelected = selectedRows.some(
-    (row) =>
-      !row.sku.trim() ||
-      !row.name.trim() ||
-      !Number.isFinite(Number(row.price || 0)) ||
-      row.images.length === 0,
+  const readySelectedRows = useMemo(
+    () =>
+      selectedRows.filter(
+        (row) =>
+          row.sku.trim() &&
+          row.name.trim() &&
+          Number.isFinite(Number(row.price || 0)) &&
+          row.images.length > 0,
+      ),
+    [selectedRows],
   );
+  const waitingImageCount = selectedRows.filter((row) => row.images.length === 0).length;
+  const invalidSelected = readySelectedRows.length !== selectedRows.length;
 
   function addFiles(incoming: File[]) {
     const accepted = incoming.filter(
@@ -214,7 +220,7 @@ export default function AdminProductAiImport() {
     let pending = [...missing];
 
     try {
-      for (let attempt = 0; attempt < 4 && pending.length > 0; attempt += 1) {
+      for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
         setRows((current) =>
           current.map((row) =>
             pending.some((item) => item.key === row.key)
@@ -224,7 +230,7 @@ export default function AdminProductAiImport() {
                   imageReason:
                     attempt === 0
                       ? "Görsel otomatik aranıyor…"
-                      : `AI farklı arama yöntemiyle tekrar deniyor (${attempt + 1}/4)…`,
+                      : "İkinci hızlı arama yapılıyor…",
                 }
               : row,
           ),
@@ -344,8 +350,8 @@ export default function AdminProductAiImport() {
 
         pending = pending.filter((row) => !verified.has(row.key));
 
-        if (pending.length > 0 && attempt < 3) {
-          await new Promise((resolve) => window.setTimeout(resolve, 350));
+        if (pending.length > 0 && attempt < 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 180));
         }
       }
 
@@ -373,7 +379,7 @@ export default function AdminProductAiImport() {
             imageSourceUrl: null,
             imageReason:
               fallback?.reason ||
-              "4 otomatik arama tamamlandı ancak doğrulanmış ürün görseli bulunamadı.",
+              "İki hızlı aramada uygun ürün görseli bulunamadı.",
           };
         }),
       );
@@ -383,14 +389,13 @@ export default function AdminProductAiImport() {
 
       toast({
         title:
-          unresolvedCount === 0
-            ? "Tüm görseller otomatik atandı"
-            : "Otomatik görsel işlemi tamamlandı",
+          foundCount > 0
+            ? `${foundCount} ürüne görsel eklendi`
+            : "Görsel bulunamadı",
         description:
-          unresolvedCount === 0
-            ? `${foundCount} ürünün tamamına görsel otomatik eklendi.`
-            : `${foundCount} ürüne görsel otomatik atandı. ${unresolvedCount} ürün için 4 farklı arama tamamlandı; doğrulanmış görsel bulunmadan bu ürünler kaydedilemez.`,
-        variant: unresolvedCount === 0 ? "default" : "destructive",
+          unresolvedCount > 0
+            ? `${unresolvedCount} ürün görsel bekliyor. Diğer ürünlerle çalışmaya devam edebilirsiniz.`
+            : "Tüm ürün görselleri hazır.",
       });
 
       return { found: foundCount, unresolved: unresolvedCount };
@@ -411,12 +416,9 @@ export default function AdminProductAiImport() {
       );
 
       toast({
-        title: "Otomatik görsel ataması tamamlanamadı",
+        title: "Görsel araması beklemede",
         description:
-          error instanceof Error
-            ? error.message
-            : "AI görsel işlemi yeniden denenebilir.",
-        variant: "destructive",
+          "Ürünler hazır. Görsel bulunmayan satırları daha sonra yeniden kontrol edebilirsiniz.",
       });
 
       return { found: verified.size, unresolved: missing.length - verified.size };
@@ -577,7 +579,7 @@ export default function AdminProductAiImport() {
             : `${extracted.length} ürün bulundu. Eksik ürün görselleri otomatik aranıyor ve atanıyor.`,
       });
 
-      await findWebImages(extracted);
+      void findWebImages(extracted);
 
       if (failedFiles.length > 0) {
         toast({
@@ -604,22 +606,21 @@ export default function AdminProductAiImport() {
   async function saveApproved() {
     if (!selectedRows.length) return;
 
-    if (invalidSelected) {
+    if (!readySelectedRows.length) {
       const missingImages = selectedRows.filter((row) => row.images.length === 0);
       if (missingImages.length > 0) {
         toast({
-          title: "Eksik görseller otomatik tamamlanıyor",
+          title: "Görseller aranıyor",
           description:
-            `${missingImages.length} ürün için AI görsel atamasını yeniden başlattı. Tüm ürünlerde görsel zorunludur.`,
+            `${missingImages.length} ürün için hızlı görsel araması yeniden başlatıldı.`,
         });
-        await findWebImages(missingImages);
+        void findWebImages(missingImages);
         return;
       }
 
       toast({
         title: "Eksik ürün bilgisi var",
-        description:
-          "Seçili tüm ürünlerde stok kodu, ürün adı, fiyat ve ürün görseli zorunludur.",
+        description: "Kaydetmek için stok kodu, ürün adı ve fiyat alanlarını tamamlayın.",
         variant: "destructive",
       });
       return;
@@ -629,7 +630,7 @@ export default function AdminProductAiImport() {
 
     try {
       const response = await apiRequest("POST", "/api/admin/b2b-products/bulk", {
-        products: selectedRows.map((row) => ({
+        products: readySelectedRows.map((row) => ({
           sku: row.sku.trim(),
           barcode: row.barcode.trim(),
           name: row.name.trim(),
@@ -647,16 +648,28 @@ export default function AdminProductAiImport() {
       });
 
       const result = await response.json() as { count?: number };
-      const saved = Number(result.count || selectedRows.length);
+      const saved = Number(result.count || readySelectedRows.length);
+      const savedKeys = new Set(readySelectedRows.map((row) => row.key));
+      const remaining = rows.filter((row) => !savedKeys.has(row.key));
 
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/b2b-products"] });
-      setRows([]);
-      setFiles([]);
+      setRows(remaining);
+      if (!remaining.length) setFiles([]);
 
       toast({
-        title: "Ürünler kaydedildi",
-        description: `${saved} ürün B2B kataloğuna eksiksiz olarak aktarıldı.`,
+        title: `${saved} ürün kaydedildi`,
+        description:
+          remaining.length > 0
+            ? `${remaining.length} ürün görsel veya bilgi beklediği için listede bırakıldı.`
+            : "Tüm hazır ürünler B2B kataloğuna aktarıldı.",
       });
+
+      const remainingWithoutImage = remaining.filter(
+        (row) => row.selected && row.images.length === 0,
+      );
+      if (remainingWithoutImage.length > 0) {
+        void findWebImages(remainingWithoutImage);
+      }
     } catch (error) {
       toast({
         title: "Ürün aktarımı tamamlanamadı",
@@ -814,7 +827,7 @@ export default function AdminProductAiImport() {
               <div>
                 <div className="font-bold">AI tarafından bulunan ürünler</div>
                 <div className="text-sm text-muted-foreground">
-                  AI analizi tamamlanınca tüm ürünler için görseller otomatik aranır ve doğrudan ürüne atanır. Tüm ürünlerde görsel zorunludur; görselsiz ürün kaydedilemez.
+                  AI analizi biter bitmez görseller arka planda otomatik aranır ve bulunan görseller doğrudan ürüne atanır. Görseli hazır ürünleri beklemeden kaydedebilirsiniz.
                 </div>
               </div>
 
@@ -829,19 +842,20 @@ export default function AdminProductAiImport() {
                 </Button>
                 <Button
                   onClick={saveApproved}
-                  disabled={saving || analyzing || imageSearching || !selectedRows.length || invalidSelected}
+                  disabled={saving || analyzing || !selectedRows.length}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   {saving
                     ? "Kaydediliyor…"
-                    : `Onaylananları Kaydet (${selectedRows.length})`}
+                    : `Hazır Ürünleri Kaydet (${readySelectedRows.length}/${selectedRows.length})`}
                 </Button>
               </div>
             </div>
 
             {invalidSelected ? (
-              <div className="border-b bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Seçili tüm ürünlerde stok kodu, ürün adı, fiyat ve ürün görseli zorunludur.
+              <div className="border-b bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                {readySelectedRows.length} ürün hazır
+                {waitingImageCount > 0 ? ` · ${waitingImageCount} ürünün görseli aranıyor veya bekliyor` : ""}
               </div>
             ) : null}
 
@@ -926,11 +940,11 @@ export default function AdminProductAiImport() {
                               {row.imageStatus === "verified"
                                 ? `Görsel eklendi${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
                                 : row.imageStatus === "searching"
-                                  ? "AI otomatik atıyor"
+                                  ? "Görsel aranıyor"
                                   : row.imageStatus === "review"
-                                    ? "Tekrar aranıyor"
+                                    ? "Görsel aranıyor"
                                     : row.imageStatus === "not_found"
-                                      ? "Görsel bulunamadı"
+                                      ? "Görsel yok"
                                       : "Görsel bekleniyor"}
                             </span>
                           </div>
