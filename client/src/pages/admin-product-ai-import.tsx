@@ -180,7 +180,13 @@ export default function AdminProductAiImport() {
 
   async function findWebImages(targetRows: ImportRow[]) {
     const missing = targetRows.filter((row) => row.images.length === 0);
-    if (!missing.length) return { found: 0, unresolved: 0 };
+    if (!missing.length) {
+      return {
+        found: 0,
+        unresolved: 0,
+        imagesByKey: {} as Record<string, string>,
+      };
+    }
 
     const missingKeys = new Set(missing.map((row) => row.key));
     setRows((current) =>
@@ -189,8 +195,7 @@ export default function AdminProductAiImport() {
           ? {
               ...row,
               imageStatus: "searching" as const,
-              imageReason:
-                "AI görseli otomatik arıyor, doğruluyor ve ürüne atıyor…",
+              imageReason: "Ürün adıyla ilk görsel aranıyor…",
               imageSourceUrl: null,
             }
           : row,
@@ -199,229 +204,175 @@ export default function AdminProductAiImport() {
 
     setImageSearching(true);
 
-    const verified = new Map<
+    const imagesByKey: Record<string, string> = {};
+    const statusByKey = new Map<
       string,
       {
-        imageData: string;
         confidence: number | null;
         reason: string;
+        found: boolean;
       }
     >();
-
-    const latest = new Map<
-      string,
-      {
-        status: "verified" | "review" | "not_found";
-        confidence: number | null;
-        reason: string;
-      }
-    >();
-
-    let pending = [...missing];
 
     try {
-      for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
-        setRows((current) =>
-          current.map((row) =>
-            pending.some((item) => item.key === row.key)
-              ? {
-                  ...row,
-                  imageStatus: "searching" as const,
-                  imageReason:
-                    attempt === 0
-                      ? "Görsel otomatik aranıyor…"
-                      : "İkinci hızlı arama yapılıyor…",
-                }
-              : row,
-          ),
+      const chunks: ImportRow[][] = [];
+      for (let index = 0; index < missing.length; index += 40) {
+        chunks.push(missing.slice(index, index + 40));
+      }
+
+      for (let index = 0; index < chunks.length; index += 3) {
+        const group = chunks.slice(index, index + 3);
+        const results = await Promise.all(
+          group.map(async (chunk) => {
+            const response = await apiRequest(
+              "POST",
+              "/api/product-ai/find-images",
+              {
+                attempt: 0,
+                products: chunk.map((row) => ({
+                  key: row.key,
+                  sku: row.sku,
+                  barcode: row.barcode,
+                  name: row.name,
+                  brand: row.brand,
+                  category: row.category,
+                  description: row.description,
+                  attributes: row.variants
+                    .map((variant) => `${variant.name}: ${variant.value}`)
+                    .filter(Boolean)
+                    .join(", "),
+                })),
+              },
+            );
+
+            return response.json() as Promise<{
+              matches?: Array<{
+                key: string;
+                imageData?: string | null;
+                confidence?: number;
+                status?: "verified" | "review" | "not_found";
+                reason?: string;
+              }>;
+            }>;
+          }),
         );
 
-        const chunks: ImportRow[][] = [];
-        for (let index = 0; index < pending.length; index += 40) {
-          chunks.push(pending.slice(index, index + 40));
-        }
-
-        const roundMatches = new Map<
-          string,
-          {
-            key: string;
-            imageData?: string | null;
-            confidence?: number;
-            status?: "verified" | "review" | "not_found";
-            reason?: string;
-          }
-        >();
-
-        // Keep requests fast but bounded so large imports do not overload the AI service.
-        for (let index = 0; index < chunks.length; index += 3) {
-          const windowChunks = chunks.slice(index, index + 3);
-          const responses = await Promise.all(
-            windowChunks.map(async (chunk) => {
-              const response = await apiRequest(
-                "POST",
-                "/api/product-ai/find-images",
-                {
-                  attempt,
-                  products: chunk.map((row) => ({
-                    key: row.key,
-                    sku: row.sku,
-                    barcode: row.barcode,
-                    name: row.name,
-                    brand: row.brand,
-                    category: row.category,
-                    description: row.description,
-                    attributes: row.variants
-                      .map((variant) => `${variant.name}: ${variant.value}`)
-                      .filter(Boolean)
-                      .join(", "),
-                  })),
-                },
-              );
-
-              return response.json() as Promise<{
-                matches?: Array<{
-                  key: string;
-                  imageData?: string | null;
-                  confidence?: number;
-                  status?: "verified" | "review" | "not_found";
-                  reason?: string;
-                }>;
-              }>;
-            }),
-          );
-
-          for (const result of responses) {
-            for (const match of result.matches || []) {
-              roundMatches.set(match.key, match);
-            }
-          }
-
-          for (const row of pending) {
-            const match = roundMatches.get(row.key);
-            if (
-              match?.status === "verified" &&
+        for (const result of results) {
+          for (const match of result.matches || []) {
+            const validImage =
+              match.status === "verified" &&
               typeof match.imageData === "string" &&
-              match.imageData.startsWith("data:image/")
-            ) {
-              verified.set(row.key, {
-                imageData: match.imageData,
-                confidence:
-                  typeof match.confidence === "number"
-                    ? match.confidence
-                    : null,
-                reason:
-                  match.reason ||
-                  "AI görseli doğruladı ve ürüne otomatik atadı.",
-              });
+              match.imageData.startsWith("data:image/");
+
+            if (validImage) {
+              imagesByKey[match.key] = match.imageData as string;
             }
 
-            if (match) {
-              latest.set(row.key, {
-                status: match.status || "review",
-                confidence:
-                  typeof match.confidence === "number"
-                    ? match.confidence
-                    : null,
-                reason:
-                  match.reason ||
-                  "Bu aramada uygun görsel doğrulanamadı.",
-              });
-            }
-          }
-
-          // Attach verified images immediately instead of waiting for the whole run.
-          if (verified.size > 0) {
-            setRows((current) =>
-              current.map((row) => {
-                const found = verified.get(row.key);
-                if (!found || row.images.length > 0) return row;
-                return {
-                  ...row,
-                  images: [found.imageData],
-                  imageStatus: "verified" as const,
-                  imageConfidence: found.confidence,
-                  imageSourceUrl: null,
-                  imageReason: found.reason,
-                };
-              }),
-            );
+            statusByKey.set(match.key, {
+              found: validImage,
+              confidence:
+                typeof match.confidence === "number"
+                  ? match.confidence
+                  : null,
+              reason:
+                match.reason ||
+                (validImage
+                  ? "İlk geçerli görsel otomatik eklendi."
+                  : "Görsel bulunamadı."),
+            });
           }
         }
 
-        pending = pending.filter((row) => !verified.has(row.key));
-
-        if (pending.length > 0 && attempt < 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 180));
-        }
+        // Show images immediately as soon as each request group finishes.
+        setRows((current) =>
+          current.map((row) => {
+            const image = imagesByKey[row.key];
+            if (image && row.images.length === 0) {
+              const status = statusByKey.get(row.key);
+              return {
+                ...row,
+                images: [image],
+                imageStatus: "verified" as const,
+                imageConfidence: status?.confidence ?? 0.9,
+                imageSourceUrl: null,
+                imageReason:
+                  status?.reason ||
+                  "Ürün adıyla bulunan ilk görsel otomatik eklendi.",
+              };
+            }
+            return row;
+          }),
+        );
       }
 
       setRows((current) =>
         current.map((row) => {
           if (!missingKeys.has(row.key)) return row;
-
-          const found = verified.get(row.key);
-          if (found) {
+          const image = imagesByKey[row.key];
+          if (image) {
+            const status = statusByKey.get(row.key);
             return {
               ...row,
-              images: row.images.length ? row.images : [found.imageData],
+              images: row.images.length ? row.images : [image],
               imageStatus: "verified" as const,
-              imageConfidence: found.confidence,
+              imageConfidence: status?.confidence ?? 0.9,
               imageSourceUrl: null,
-              imageReason: found.reason,
+              imageReason:
+                status?.reason ||
+                "Ürün adıyla bulunan ilk görsel otomatik eklendi.",
             };
           }
 
-          const fallback = latest.get(row.key);
           return {
             ...row,
             imageStatus: "not_found" as const,
-            imageConfidence: fallback?.confidence ?? null,
+            imageConfidence: null,
             imageSourceUrl: null,
-            imageReason:
-              fallback?.reason ||
-              "İki hızlı aramada uygun ürün görseli bulunamadı.",
+            imageReason: "Ürün adıyla görsel bulunamadı.",
           };
         }),
       );
 
-      const foundCount = verified.size;
-      const unresolvedCount = missing.length - foundCount;
+      const found = Object.keys(imagesByKey).length;
+      const unresolved = missing.length - found;
 
       toast({
         title:
-          foundCount > 0
-            ? `${foundCount} ürüne görsel eklendi`
-            : "Görsel bulunamadı",
+          unresolved === 0
+            ? "Tüm ürün görselleri eklendi"
+            : `${found} ürüne görsel eklendi`,
         description:
-          unresolvedCount > 0
-            ? `${unresolvedCount} ürün görsel bekliyor. Diğer ürünlerle çalışmaya devam edebilirsiniz.`
-            : "Tüm ürün görselleri hazır.",
+          unresolved > 0
+            ? `${unresolved} ürün için görsel bulunamadı; ürünler yine de içe aktarılabilir.`
+            : "Listedeki tüm ürünlerin görselleri hazır.",
       });
 
-      return { found: foundCount, unresolved: unresolvedCount };
+      return { found, unresolved, imagesByKey };
     } catch (error) {
       setRows((current) =>
         current.map((row) =>
-          missingKeys.has(row.key) &&
-          row.images.length === 0
+          missingKeys.has(row.key) && row.images.length === 0
             ? {
                 ...row,
                 imageStatus: "not_found" as const,
+                imageReason: "Görsel araması tamamlanamadı.",
                 imageSourceUrl: null,
-                imageReason:
-                  "Otomatik görsel işlemi geçici olarak tamamlanamadı.",
               }
             : row,
         ),
       );
 
       toast({
-        title: "Görsel araması beklemede",
+        title: "Görsel araması tamamlanamadı",
         description:
-          "Ürünler hazır. Görsel bulunmayan satırları daha sonra yeniden kontrol edebilirsiniz.",
+          "Ürün listesi korunuyor; tüm ürünleri yine de içe aktarabilirsiniz.",
       });
 
-      return { found: verified.size, unresolved: missing.length - verified.size };
+      return {
+        found: Object.keys(imagesByKey).length,
+        unresolved: missing.length - Object.keys(imagesByKey).length,
+        imagesByKey,
+      };
     } finally {
       setImageSearching(false);
     }
@@ -604,33 +555,51 @@ export default function AdminProductAiImport() {
   }
 
   async function saveApproved() {
-    if (!selectedRows.length) return;
+    if (!selectedRows.length || imageSearching) return;
 
-    if (!readySelectedRows.length) {
-      const missingImages = selectedRows.filter((row) => row.images.length === 0);
-      if (missingImages.length > 0) {
-        toast({
-          title: "Görseller aranıyor",
-          description:
-            `${missingImages.length} ürün için hızlı görsel araması yeniden başlatıldı.`,
-        });
-        void findWebImages(missingImages);
-        return;
-      }
+    const missingCoreFields = selectedRows.filter(
+      (row) =>
+        !row.sku.trim() ||
+        !row.name.trim() ||
+        !Number.isFinite(Number(row.price || 0)),
+    );
 
+    if (missingCoreFields.length > 0) {
       toast({
         title: "Eksik ürün bilgisi var",
-        description: "Kaydetmek için stok kodu, ürün adı ve fiyat alanlarını tamamlayın.",
+        description:
+          "Tüm ürünlerde stok kodu, ürün adı ve geçerli fiyat bulunmalıdır.",
         variant: "destructive",
       });
       return;
+    }
+
+    let rowsToSave = selectedRows;
+
+    const missingImages = selectedRows.filter((row) => row.images.length === 0);
+    if (missingImages.length > 0) {
+      toast({
+        title: "Eksik görseller tamamlanıyor",
+        description:
+          `${missingImages.length} ürün için hızlı görsel araması yapılıyor.`,
+      });
+
+      const imageResult = await findWebImages(missingImages);
+
+      rowsToSave = selectedRows.map((row) => {
+        const image = imageResult.imagesByKey[row.key];
+        return image && row.images.length === 0
+          ? { ...row, images: [image] }
+          : row;
+      });
     }
 
     setSaving(true);
 
     try {
       const response = await apiRequest("POST", "/api/admin/b2b-products/bulk", {
-        products: readySelectedRows.map((row) => ({
+        allowMissingImages: true,
+        products: rowsToSave.map((row) => ({
           sku: row.sku.trim(),
           barcode: row.barcode.trim(),
           name: row.name.trim(),
@@ -648,33 +617,29 @@ export default function AdminProductAiImport() {
       });
 
       const result = await response.json() as { count?: number };
-      const saved = Number(result.count || readySelectedRows.length);
-      const savedKeys = new Set(readySelectedRows.map((row) => row.key));
+      const saved = Number(result.count || rowsToSave.length);
+      const savedKeys = new Set(selectedRows.map((row) => row.key));
       const remaining = rows.filter((row) => !savedKeys.has(row.key));
 
-      await queryClient.invalidateQueries({ queryKey: ["/api/admin/b2b-products"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/admin/b2b-products"],
+      });
+
       setRows(remaining);
       if (!remaining.length) setFiles([]);
 
       toast({
-        title: `${saved} ürün kaydedildi`,
+        title: `${saved} ürün içe aktarıldı`,
         description:
-          remaining.length > 0
-            ? `${remaining.length} ürün görsel veya bilgi beklediği için listede bırakıldı.`
-            : "Tüm hazır ürünler B2B kataloğuna aktarıldı.",
+          "Listedeki seçili ürünlerin tamamı B2B kataloğuna aktarıldı.",
       });
-
-      const remainingWithoutImage = remaining.filter(
-        (row) => row.selected && row.images.length === 0,
-      );
-      if (remainingWithoutImage.length > 0) {
-        void findWebImages(remainingWithoutImage);
-      }
     } catch (error) {
       toast({
         title: "Ürün aktarımı tamamlanamadı",
         description:
-          error instanceof Error ? error.message : "Ürün kaydetme sırasında hata oluştu",
+          error instanceof Error
+            ? error.message
+            : "Ürün kaydetme sırasında hata oluştu",
         variant: "destructive",
       });
     } finally {
@@ -827,7 +792,7 @@ export default function AdminProductAiImport() {
               <div>
                 <div className="font-bold">AI tarafından bulunan ürünler</div>
                 <div className="text-sm text-muted-foreground">
-                  AI analizi biter bitmez görseller arka planda otomatik aranır ve bulunan görseller doğrudan ürüne atanır. Görseli hazır ürünleri beklemeden kaydedebilirsiniz.
+                  AI analizi biter bitmez ürün adıyla webde ilk geçerli görsel aranır ve doğrudan ürüne atanır. Listedeki tüm ürünleri tek seferde içe aktarabilirsiniz.
                 </div>
               </div>
 
@@ -842,20 +807,22 @@ export default function AdminProductAiImport() {
                 </Button>
                 <Button
                   onClick={saveApproved}
-                  disabled={saving || analyzing || !selectedRows.length}
+                  disabled={saving || analyzing || imageSearching || !selectedRows.length}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   {saving
                     ? "Kaydediliyor…"
-                    : `Hazır Ürünleri Kaydet (${readySelectedRows.length}/${selectedRows.length})`}
+                    : `Tüm Seçili Ürünleri İçe Aktar (${selectedRows.length})`}
                 </Button>
               </div>
             </div>
 
-            {invalidSelected ? (
+            {selectedRows.length > 0 ? (
               <div className="border-b bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                {readySelectedRows.length} ürün hazır
-                {waitingImageCount > 0 ? ` · ${waitingImageCount} ürünün görseli aranıyor veya bekliyor` : ""}
+                {selectedRows.length} ürün seçili
+                {waitingImageCount > 0
+                  ? ` · ${waitingImageCount} ürün için görsel bekleniyor`
+                  : " · tüm görseller hazır"}
               </div>
             ) : null}
 
