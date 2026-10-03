@@ -31,6 +31,7 @@ const productSchema = z.object({
 const productListSchema = z.object({ products: z.array(productSchema).max(500) });
 
 const imageSearchInputSchema = z.object({
+  attempt: z.number().int().min(0).max(3).optional().default(0),
   products: z.array(
     z.object({
       key: z.string().min(1).max(120),
@@ -519,7 +520,7 @@ function imageCacheKey(product: ImageSearchProduct) {
   ]
     .map((value) => String(value || "").trim().toLocaleLowerCase("tr-TR"))
     .join("|")
-    .replace(/^/, "v2|");
+    .replace(/^/, "v3|");
 }
 
 function getCachedImageMatch(product: ImageSearchProduct) {
@@ -534,6 +535,9 @@ function getCachedImageMatch(product: ImageSearchProduct) {
 }
 
 function setCachedImageMatch(product: ImageSearchProduct, value: ImageMatchResult) {
+  // Retryable/non-matching results must not poison later automatic attempts.
+  if (value.status !== "verified" || !value.imageData) return;
+
   if (imageMatchCache.size >= MAX_IMAGE_CACHE_ENTRIES) {
     const firstKey = imageMatchCache.keys().next().value;
     if (firstKey) imageMatchCache.delete(firstKey);
@@ -572,6 +576,7 @@ async function mapWithConcurrency<T, R>(
 async function webSearchImageMatches(
   openai: OpenAI,
   products: ImageSearchProduct[],
+  attempt = 0,
 ) {
   const response = await openai.responses.create({
     model:
@@ -587,7 +592,13 @@ async function webSearchImageMatches(
         type: "input_text",
         text:
           "Aşağıdaki ürünler için webde ürün görseli araştır. Her ürün için EN FAZLA 2 aday ver. " +
-          "Öncelik: barkod tam eşleşmesi; sonra stok/model kodu + marka; sonra tam ürün adı + marka. " +
+          (attempt === 0
+            ? "İlk arama: barkod tam eşleşmesine en yüksek önceliği ver; sonra stok/model kodu + marka kullan. "
+            : attempt === 1
+              ? "İkinci arama: stok/model kodu + marka + tam ürün adını birlikte kullan; barkod bulunamazsa isim varyasyonlarını dene. "
+              : attempt === 2
+                ? "Üçüncü arama: tam ürün adı + marka + kategori + açıklamadaki ayırt edici özellikleri kullan. "
+                : "Son arama: marka + ürün adı + açıklamadaki model/renk/ölçü/paket özellikleriyle daha geniş ara; yine de farklı ürünü seçme. ") +
           "Açıklamadaki renk, model, ölçü, cinsiyet, paket/adet ve varyantla çelişen sonucu verme. " +
           "Üretici, distribütör veya gerçek ürün sayfasını tercih et. Reklam, kategori görseli, logo ve kolaj verme. " +
           "imageUrl gerçek doğrudan ürün görseliyse yaz; emin değilsen null yap ve pageUrl ver. " +
@@ -613,9 +624,10 @@ async function webSearchImageMatches(
 async function webSearchSingleProduct(
   openai: OpenAI,
   product: ImageSearchProduct,
+  attempt = 0,
 ) {
   try {
-    const result = await webSearchImageMatches(openai, [product]);
+    const result = await webSearchImageMatches(openai, [product], attempt);
     return result[0]?.candidates || [];
   } catch (error) {
     console.warn(
@@ -795,6 +807,7 @@ async function processImageMatch(
   openai: OpenAI,
   product: ImageSearchProduct,
   candidates: z.infer<typeof imageCandidateSchema>[],
+  attempt = 0,
 ): Promise<ImageMatchResult> {
   const cached = getCachedImageMatch(product);
   if (cached) return cached;
@@ -880,12 +893,26 @@ async function processImageMatch(
         ) * 100,
       ) / 100;
 
+    const validationThreshold =
+      attempt >= 3 ? 0.74 : attempt === 2 ? 0.82 : 0.9;
+    const combinedThreshold =
+      attempt >= 3 ? 0.72 : attempt === 2 ? 0.79 : 0.87;
+    const searchThreshold =
+      attempt >= 3 ? 0.55 : attempt === 2 ? 0.62 : 0.72;
+
     const canAutoAttach =
-      validation.status === "accepted" &&
-      validation.confidence >= 0.9 &&
-      candidate.searchConfidence >= 0.72 &&
-      combinedConfidence >= 0.87 &&
-      validation.conflicts.length === 0;
+      validation.selectedIndex >= 0 &&
+      validation.status !== "rejected" &&
+      validation.confidence >= validationThreshold &&
+      candidate.searchConfidence >= searchThreshold &&
+      combinedConfidence >= combinedThreshold &&
+      validation.conflicts.length === 0 &&
+      (
+        candidate.exactBarcode ||
+        candidate.exactSku ||
+        candidate.brandMatch ||
+        candidate.nameOverlap >= 0.72
+      );
 
     if (!canAutoAttach) {
       const result: ImageMatchResult = {
@@ -1083,6 +1110,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
 
     try {
       const parsed = imageSearchInputSchema.parse(req.body);
+      const attempt = parsed.attempt;
       const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
         timeout: 45_000,
@@ -1116,7 +1144,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
           try {
             return {
               batch,
-              matches: await webSearchImageMatches(openai, batch),
+              matches: await webSearchImageMatches(openai, batch, attempt),
               usedFallback: false,
             };
           } catch (batchError) {
@@ -1130,7 +1158,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
               4,
               async (product) => ({
                 key: product.key,
-                candidates: await webSearchSingleProduct(openai, product),
+                candidates: await webSearchSingleProduct(openai, product, attempt),
               }),
             );
 
@@ -1175,6 +1203,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
             openai,
             product,
             candidateMap.get(product.key) || [],
+            attempt,
           );
         },
       );
