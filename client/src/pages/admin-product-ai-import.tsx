@@ -173,11 +173,8 @@ export default function AdminProductAiImport() {
   }
 
   async function findWebImages(targetRows: ImportRow[]) {
-    const missing = targetRows
-      .filter((row) => row.images.length === 0)
-      .slice(0, 40);
-
-    if (!missing.length) return;
+    const missing = targetRows.filter((row) => row.images.length === 0);
+    if (!missing.length) return { found: 0, unresolved: 0 };
 
     const missingKeys = new Set(missing.map((row) => row.key));
     setRows((current) =>
@@ -187,7 +184,8 @@ export default function AdminProductAiImport() {
               ...row,
               imageStatus: "searching" as const,
               imageReason:
-                "Görsel otomatik aranıyor, ürün bilgileriyle doğrulanıyor ve atanıyor…",
+                "AI görseli otomatik arıyor, doğruluyor ve ürüne atıyor…",
+              imageSourceUrl: null,
             }
           : row,
       ),
@@ -199,16 +197,15 @@ export default function AdminProductAiImport() {
       string,
       {
         imageData: string;
-        sourceUrl: string | null;
         confidence: number | null;
         reason: string;
       }
     >();
+
     const latest = new Map<
       string,
       {
         status: "verified" | "review" | "not_found";
-        sourceUrl: string | null;
         confidence: number | null;
         reason: string;
       }
@@ -217,99 +214,138 @@ export default function AdminProductAiImport() {
     let pending = [...missing];
 
     try {
-      for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
-        const response = await apiRequest("POST", "/api/product-ai/find-images", {
-          products: pending.map((row) => ({
-            key: row.key,
-            sku: row.sku,
-            barcode: row.barcode,
-            name: row.name,
-            brand: row.brand,
-            category: row.category,
-            description: row.description,
-            attributes: row.variants
-              .map((variant) => `${variant.name}: ${variant.value}`)
-              .filter(Boolean)
-              .join(", "),
-          })),
-        });
+      for (let attempt = 0; attempt < 4 && pending.length > 0; attempt += 1) {
+        setRows((current) =>
+          current.map((row) =>
+            pending.some((item) => item.key === row.key)
+              ? {
+                  ...row,
+                  imageStatus: "searching" as const,
+                  imageReason:
+                    attempt === 0
+                      ? "Görsel otomatik aranıyor…"
+                      : `AI farklı arama yöntemiyle tekrar deniyor (${attempt + 1}/4)…`,
+                }
+              : row,
+          ),
+        );
 
-        const result = await response.json() as {
-          found?: number;
-          review?: number;
-          notFound?: number;
-          degraded?: boolean;
-          matches?: Array<{
+        const chunks: ImportRow[][] = [];
+        for (let index = 0; index < pending.length; index += 40) {
+          chunks.push(pending.slice(index, index + 40));
+        }
+
+        const roundMatches = new Map<
+          string,
+          {
             key: string;
             imageData?: string | null;
-            sourceUrl?: string | null;
             confidence?: number;
             status?: "verified" | "review" | "not_found";
             reason?: string;
-          }>;
-        };
+          }
+        >();
 
-        const matches = new Map(
-          (result.matches || []).map((item) => [item.key, item]),
-        );
+        // Keep requests fast but bounded so large imports do not overload the AI service.
+        for (let index = 0; index < chunks.length; index += 3) {
+          const windowChunks = chunks.slice(index, index + 3);
+          const responses = await Promise.all(
+            windowChunks.map(async (chunk) => {
+              const response = await apiRequest(
+                "POST",
+                "/api/product-ai/find-images",
+                {
+                  attempt,
+                  products: chunk.map((row) => ({
+                    key: row.key,
+                    sku: row.sku,
+                    barcode: row.barcode,
+                    name: row.name,
+                    brand: row.brand,
+                    category: row.category,
+                    description: row.description,
+                    attributes: row.variants
+                      .map((variant) => `${variant.name}: ${variant.value}`)
+                      .filter(Boolean)
+                      .join(", "),
+                  })),
+                },
+              );
 
-        const retryRows: ImportRow[] = [];
+              return response.json() as Promise<{
+                matches?: Array<{
+                  key: string;
+                  imageData?: string | null;
+                  confidence?: number;
+                  status?: "verified" | "review" | "not_found";
+                  reason?: string;
+                }>;
+              }>;
+            }),
+          );
 
-        for (const row of pending) {
-          const match = matches.get(row.key);
-          if (
-            match?.status === "verified" &&
-            typeof match.imageData === "string" &&
-            match.imageData.startsWith("data:image/")
-          ) {
-            verified.set(row.key, {
-              imageData: match.imageData,
-              sourceUrl: match.sourceUrl || null,
-              confidence:
-                typeof match.confidence === "number"
-                  ? match.confidence
-                  : null,
-              reason: match.reason || "Görsel otomatik doğrulandı ve ürüne atandı.",
-            });
-            latest.set(row.key, {
-              status: "verified",
-              sourceUrl: match.sourceUrl || null,
-              confidence:
-                typeof match.confidence === "number"
-                  ? match.confidence
-                  : null,
-              reason: match.reason || "Görsel otomatik doğrulandı ve ürüne atandı.",
-            });
-            continue;
+          for (const result of responses) {
+            for (const match of result.matches || []) {
+              roundMatches.set(match.key, match);
+            }
           }
 
-          const status = match?.status || "review";
-          latest.set(row.key, {
-            status,
-            sourceUrl: match?.sourceUrl || null,
-            confidence:
-              typeof match?.confidence === "number"
-                ? match.confidence
-                : null,
-            reason:
-              match?.reason ||
-              "Bu turda güvenli görsel eşleşmesi oluşturulamadı.",
-          });
+          for (const row of pending) {
+            const match = roundMatches.get(row.key);
+            if (
+              match?.status === "verified" &&
+              typeof match.imageData === "string" &&
+              match.imageData.startsWith("data:image/")
+            ) {
+              verified.set(row.key, {
+                imageData: match.imageData,
+                confidence:
+                  typeof match.confidence === "number"
+                    ? match.confidence
+                    : null,
+                reason:
+                  match.reason ||
+                  "AI görseli doğruladı ve ürüne otomatik atadı.",
+              });
+            }
 
-          const shouldRetry =
-            attempt === 0 &&
-            (
-              result.degraded === true ||
-              !match ||
-              match.status === "review"
+            if (match) {
+              latest.set(row.key, {
+                status: match.status || "review",
+                confidence:
+                  typeof match.confidence === "number"
+                    ? match.confidence
+                    : null,
+                reason:
+                  match.reason ||
+                  "Bu aramada uygun görsel doğrulanamadı.",
+              });
+            }
+          }
+
+          // Attach verified images immediately instead of waiting for the whole run.
+          if (verified.size > 0) {
+            setRows((current) =>
+              current.map((row) => {
+                const found = verified.get(row.key);
+                if (!found || row.images.length > 0) return row;
+                return {
+                  ...row,
+                  images: [found.imageData],
+                  imageStatus: "verified" as const,
+                  imageConfidence: found.confidence,
+                  imageSourceUrl: null,
+                  imageReason: found.reason,
+                };
+              }),
             );
-
-          if (shouldRetry) retryRows.push(row);
+          }
         }
 
-        pending = retryRows;
-        if (pending.length > 0) {
-          await new Promise((resolve) => window.setTimeout(resolve, 650));
+        pending = pending.filter((row) => !verified.has(row.key));
+
+        if (pending.length > 0 && attempt < 3) {
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
         }
       }
 
@@ -318,13 +354,13 @@ export default function AdminProductAiImport() {
           if (!missingKeys.has(row.key)) return row;
 
           const found = verified.get(row.key);
-          if (found && row.images.length === 0) {
+          if (found) {
             return {
               ...row,
-              images: [found.imageData],
+              images: row.images.length ? row.images : [found.imageData],
               imageStatus: "verified" as const,
               imageConfidence: found.confidence,
-              imageSourceUrl: found.sourceUrl,
+              imageSourceUrl: null,
               imageReason: found.reason,
             };
           }
@@ -332,15 +368,12 @@ export default function AdminProductAiImport() {
           const fallback = latest.get(row.key);
           return {
             ...row,
-            imageStatus:
-              fallback?.status === "not_found"
-                ? "not_found"
-                : "review",
+            imageStatus: "not_found" as const,
             imageConfidence: fallback?.confidence ?? null,
-            imageSourceUrl: fallback?.sourceUrl ?? null,
+            imageSourceUrl: null,
             imageReason:
               fallback?.reason ||
-              "Otomatik görsel eşleşmesi bulunamadı.",
+              "4 otomatik arama tamamlandı ancak doğrulanmış ürün görseli bulunamadı.",
           };
         }),
       );
@@ -350,35 +383,43 @@ export default function AdminProductAiImport() {
 
       toast({
         title:
-          foundCount > 0
-            ? "Görseller otomatik atandı"
-            : "Otomatik görsel taraması tamamlandı",
+          unresolvedCount === 0
+            ? "Tüm görseller otomatik atandı"
+            : "Otomatik görsel işlemi tamamlandı",
         description:
-          foundCount > 0
-            ? `${foundCount} ürünün görseli otomatik doğrulandı ve ürüne atandı. ${unresolvedCount > 0 ? `${unresolvedCount} ürün için güvenli eşleşme bulunamadı.` : "Tüm eksik görseller tamamlandı."}`
-            : "Güvenli eşleşme bulunmayan ürünlere yanlış görsel atanmadı.",
+          unresolvedCount === 0
+            ? `${foundCount} ürünün tamamına görsel otomatik eklendi.`
+            : `${foundCount} ürüne görsel otomatik atandı. ${unresolvedCount} ürün için 4 farklı arama tamamlandı; doğrulanmış görsel bulunmadan bu ürünler kaydedilemez.`,
+        variant: unresolvedCount === 0 ? "default" : "destructive",
       });
+
+      return { found: foundCount, unresolved: unresolvedCount };
     } catch (error) {
       setRows((current) =>
         current.map((row) =>
-          missingKeys.has(row.key) && row.imageStatus === "searching"
+          missingKeys.has(row.key) &&
+          row.images.length === 0
             ? {
                 ...row,
-                imageStatus: "review" as const,
+                imageStatus: "not_found" as const,
+                imageSourceUrl: null,
                 imageReason:
-                  "Otomatik görsel servisi geçici olarak tamamlanamadı. Ürün bilgileri korunuyor.",
+                  "Otomatik görsel işlemi geçici olarak tamamlanamadı.",
               }
             : row,
         ),
       );
 
       toast({
-        title: "Otomatik görsel ataması beklemede",
+        title: "Otomatik görsel ataması tamamlanamadı",
         description:
           error instanceof Error
             ? error.message
-            : "Ürünler çıkarıldı; görsel ataması daha sonra yeniden denenebilir.",
+            : "AI görsel işlemi yeniden denenebilir.",
+        variant: "destructive",
       });
+
+      return { found: verified.size, unresolved: missing.length - verified.size };
     } finally {
       setImageSearching(false);
     }
@@ -536,7 +577,7 @@ export default function AdminProductAiImport() {
             : `${extracted.length} ürün bulundu. Eksik ürün görselleri otomatik aranıyor ve atanıyor.`,
       });
 
-      void findWebImages(extracted);
+      await findWebImages(extracted);
 
       if (failedFiles.length > 0) {
         toast({
@@ -564,9 +605,21 @@ export default function AdminProductAiImport() {
     if (!selectedRows.length) return;
 
     if (invalidSelected) {
+      const missingImages = selectedRows.filter((row) => row.images.length === 0);
+      if (missingImages.length > 0) {
+        toast({
+          title: "Eksik görseller otomatik tamamlanıyor",
+          description:
+            `${missingImages.length} ürün için AI görsel atamasını yeniden başlattı. Tüm ürünlerde görsel zorunludur.`,
+        });
+        await findWebImages(missingImages);
+        return;
+      }
+
       toast({
         title: "Eksik ürün bilgisi var",
-        description: "Seçili tüm ürünlerde stok kodu, ürün adı, fiyat ve en az bir görsel zorunludur.",
+        description:
+          "Seçili tüm ürünlerde stok kodu, ürün adı, fiyat ve ürün görseli zorunludur.",
         variant: "destructive",
       });
       return;
@@ -761,7 +814,7 @@ export default function AdminProductAiImport() {
               <div>
                 <div className="font-bold">AI tarafından bulunan ürünler</div>
                 <div className="text-sm text-muted-foreground">
-                  Ürünler analiz edilince görseller otomatik aranır, doğrulanır ve eşleşen ürüne atanır. Görselsiz ürün kaydedilemez.
+                  AI analizi tamamlanınca tüm ürünler için görseller otomatik aranır ve doğrudan ürüne atanır. Tüm ürünlerde görsel zorunludur; görselsiz ürün kaydedilemez.
                 </div>
               </div>
 
@@ -776,7 +829,7 @@ export default function AdminProductAiImport() {
                 </Button>
                 <Button
                   onClick={saveApproved}
-                  disabled={saving || !selectedRows.length || invalidSelected}
+                  disabled={saving || analyzing || imageSearching || !selectedRows.length || invalidSelected}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   {saving
@@ -871,27 +924,18 @@ export default function AdminProductAiImport() {
                               title={row.imageReason}
                             >
                               {row.imageStatus === "verified"
-                                ? `AI doğrulandı${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
+                                ? `Görsel eklendi${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
                                 : row.imageStatus === "searching"
-                                  ? "AI kontrol ediyor"
+                                  ? "AI otomatik atıyor"
                                   : row.imageStatus === "review"
-                                    ? `Kontrol gerekli${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
+                                    ? "Tekrar aranıyor"
                                     : row.imageStatus === "not_found"
-                                      ? "Eşleşme yok"
+                                      ? "Görsel bulunamadı"
                                       : "Görsel bekleniyor"}
                             </span>
                           </div>
 
-                          {row.imageSourceUrl ? (
-                            <a
-                              href={row.imageSourceUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-1 block max-w-[150px] truncate text-[10px] text-blue-600 hover:underline"
-                            >
-                              Kaynağı görüntüle
-                            </a>
-                          ) : null}
+
                         </div>
                       </td>
 
