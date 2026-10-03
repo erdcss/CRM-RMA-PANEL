@@ -849,31 +849,40 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
     }
 
-    const rawProducts = Array.isArray(req.body?.products) ? req.body.products.slice(0, 250) : [];
+    const rawProducts = Array.isArray(req.body?.products)
+      ? req.body.products.slice(0, 500)
+      : [];
+    const allowMissingImages = req.body?.allowMissingImages === true;
+
     if (rawProducts.length === 0) {
       return res.status(400).json({ error: "Aktarılacak ürün bulunamadı" });
     }
 
-    const products = rawProducts.map(parseAdminProductPayload);
-    const invalid = products.findIndex(
+    const parsedProducts = rawProducts.map(parseAdminProductPayload);
+    const invalid = parsedProducts.findIndex(
       (item) =>
         !item.sku ||
         !item.name ||
         !Number.isFinite(item.price) ||
         item.price < 0 ||
-        item.images.length === 0,
+        (!allowMissingImages && item.images.length === 0),
     );
 
     if (invalid >= 0) {
       return res.status(400).json({
-        error: `${invalid + 1}. üründe stok kodu, ürün adı, geçerli fiyat ve en az bir görsel zorunludur`,
+        error: allowMissingImages
+          ? `${invalid + 1}. üründe stok kodu, ürün adı ve geçerli fiyat zorunludur`
+          : `${invalid + 1}. üründe stok kodu, ürün adı, geçerli fiyat ve en az bir görsel zorunludur`,
       });
     }
 
-    const skus = products.map((item) => item.sku.toLocaleLowerCase("tr-TR"));
-    if (new Set(skus).size !== skus.length) {
-      return res.status(409).json({ error: "Aktarım listesinde tekrar eden stok kodu var" });
+    // Aynı stok kodu listede birden fazla kez varsa aktarımı durdurmak yerine
+    // son satırı esas al. Böylece listedeki diğer ürünler de kesintisiz aktarılır.
+    const uniqueBySku = new Map<string, ReturnType<typeof parseAdminProductPayload>>();
+    for (const product of parsedProducts) {
+      uniqueBySku.set(product.sku.toLocaleLowerCase("tr-TR"), product);
     }
+    const products = Array.from(uniqueBySku.values());
 
     const client = await pool.connect();
     try {
@@ -881,6 +890,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       const created = [];
 
       for (const product of products) {
+        const incomingImages = product.images;
+        const incomingMainImage = incomingImages[0] || null;
+
         const result = await client.query(
           `INSERT INTO b2b_products (
             sku, name, brand, category, description, price, stock,
@@ -888,6 +900,25 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             collection_name, variants, is_active, updated_at
           )
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::jsonb,TRUE,NOW())
+          ON CONFLICT (sku) DO UPDATE SET
+            name = EXCLUDED.name,
+            brand = EXCLUDED.brand,
+            category = EXCLUDED.category,
+            description = EXCLUDED.description,
+            price = EXCLUDED.price,
+            stock = EXCLUDED.stock,
+            min_order_qty = EXCLUDED.min_order_qty,
+            units_per_box = EXCLUDED.units_per_box,
+            image_data = COALESCE(EXCLUDED.image_data, b2b_products.image_data),
+            images = CASE
+              WHEN jsonb_array_length(EXCLUDED.images) > 0 THEN EXCLUDED.images
+              ELSE b2b_products.images
+            END,
+            barcode = EXCLUDED.barcode,
+            collection_name = EXCLUDED.collection_name,
+            variants = EXCLUDED.variants,
+            is_active = TRUE,
+            updated_at = NOW()
           RETURNING id, sku, name`,
           [
             product.sku,
@@ -899,8 +930,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             product.stock,
             product.minOrderQty,
             product.unitsPerBox,
-            product.images[0],
-            JSON.stringify(product.images),
+            incomingMainImage,
+            JSON.stringify(incomingImages),
             product.barcode || null,
             product.collectionName || null,
             JSON.stringify(product.variants),
@@ -912,14 +943,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       await client.query("COMMIT");
       return res.status(201).json({
         count: created.length,
+        inputCount: rawProducts.length,
         products: created,
-        message: `${created.length} ürün başarıyla aktarıldı`,
+        message: `${created.length} ürün başarıyla içe aktarıldı veya güncellendi`,
       });
     } catch (error: any) {
       await client.query("ROLLBACK");
-      if (error?.code === "23505") {
-        return res.status(409).json({ error: "Stok kodlarından biri sistemde zaten kayıtlı" });
-      }
       console.error("Admin B2B bulk product create failed:", error);
       return res.status(500).json({ error: "Ürünler toplu olarak aktarılamadı" });
     } finally {
