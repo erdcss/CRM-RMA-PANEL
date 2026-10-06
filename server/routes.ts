@@ -474,6 +474,19 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+    -- Legacy installations may have b2b_orders.id as NOT NULL without a sequence default.
+    -- Ensure every checkout can create an order id before iyzico initialization.
+    CREATE SEQUENCE IF NOT EXISTS b2b_orders_id_seq;
+    ALTER SEQUENCE b2b_orders_id_seq OWNED BY b2b_orders.id;
+    ALTER TABLE b2b_orders
+      ALTER COLUMN id SET DEFAULT nextval('b2b_orders_id_seq');
+    SELECT setval(
+      'b2b_orders_id_seq',
+      GREATEST(COALESCE((SELECT MAX(id) FROM b2b_orders), 0) + 1, 1),
+      false
+    );
+
     CREATE INDEX IF NOT EXISTS b2b_orders_user_idx ON b2b_orders(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS b2b_orders_payment_token_idx ON b2b_orders(payment_token);
 
@@ -2425,11 +2438,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const redirectBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
-    const topRedirect = (url: string) =>
-      res
+    const topRedirect = (url: string) => {
+      const target = JSON.stringify(url);
+      return res
         .status(200)
         .type("html")
-        .send(`<!doctype html><html><body><script>window.top.location.replace(${JSON.stringify(url)});</script></body></html>`);
+        .send(`<!doctype html>
+<html lang="tr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body>
+<script>
+(function () {
+  var target = ${target};
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "caliskan-b2b-payment-result", url: target }, "*");
+    }
+  } catch (_) {}
+
+  try {
+    if (window.top && window.top !== window) {
+      window.top.location.replace(target);
+      return;
+    }
+  } catch (_) {}
+
+  window.location.replace(target);
+})();
+</script>
+</body>
+</html>`);
+    };
     const paymentId = String(req.body?.paymentId || "").trim();
     const conversationId = String(req.body?.conversationId || "").trim();
     const conversationData = String(req.body?.conversationData || "").trim();
