@@ -135,19 +135,7 @@ export default function AdminProductAiImport() {
   const [saving, setSaving] = useState(false);
 
   const selectedRows = useMemo(() => rows.filter((row) => row.selected), [rows]);
-  const readySelectedRows = useMemo(
-    () =>
-      selectedRows.filter(
-        (row) =>
-          row.sku.trim() &&
-          row.name.trim() &&
-          Number.isFinite(Number(row.price || 0)) &&
-          row.images.length > 0,
-      ),
-    [selectedRows],
-  );
   const waitingImageCount = selectedRows.filter((row) => row.images.length === 0).length;
-  const invalidSelected = readySelectedRows.length !== selectedRows.length;
 
   function addFiles(incoming: File[]) {
     const accepted = incoming.filter(
@@ -195,7 +183,7 @@ export default function AdminProductAiImport() {
           ? {
               ...row,
               imageStatus: "searching" as const,
-              imageReason: "Ürün adıyla ilk görsel aranıyor…",
+              imageReason: "Görselleri Çek işlemi çalışıyor…",
               imageSourceUrl: null,
             }
           : row,
@@ -526,11 +514,9 @@ export default function AdminProductAiImport() {
         title: "AI analizi tamamlandı",
         description:
           failedFiles.length > 0
-            ? `${extracted.length} ürün bulundu. ${failedFiles.length} dosya analiz edilemedi; başarılı ürünlerin görselleri otomatik tamamlanıyor.`
-            : `${extracted.length} ürün bulundu. Eksik ürün görselleri otomatik aranıyor ve atanıyor.`,
+            ? `${extracted.length} ürün bulundu. ${failedFiles.length} dosya analiz edilemedi. Görsel çekmek için “Görselleri Çek” butonunu kullanın.`
+            : `${extracted.length} ürün bulundu. Görsel çekmek için “Görselleri Çek” butonunu kullanın.`,
       });
-
-      void findWebImages(extracted);
 
       if (failedFiles.length > 0) {
         toast({
@@ -574,32 +560,12 @@ export default function AdminProductAiImport() {
       return;
     }
 
-    let rowsToSave = selectedRows;
-
-    const missingImages = selectedRows.filter((row) => row.images.length === 0);
-    if (missingImages.length > 0) {
-      toast({
-        title: "Eksik görseller tamamlanıyor",
-        description:
-          `${missingImages.length} ürün için hızlı görsel araması yapılıyor.`,
-      });
-
-      const imageResult = await findWebImages(missingImages);
-
-      rowsToSave = selectedRows.map((row) => {
-        const image = imageResult.imagesByKey[row.key];
-        return image && row.images.length === 0
-          ? { ...row, images: [image] }
-          : row;
-      });
-    }
-
     setSaving(true);
 
     try {
       const response = await apiRequest("POST", "/api/admin/b2b-products/bulk", {
         allowMissingImages: true,
-        products: rowsToSave.map((row) => ({
+        products: selectedRows.map((row) => ({
           sku: row.sku.trim(),
           barcode: row.barcode.trim(),
           name: row.name.trim(),
@@ -617,7 +583,7 @@ export default function AdminProductAiImport() {
       });
 
       const result = await response.json() as { count?: number };
-      const saved = Number(result.count || rowsToSave.length);
+      const saved = Number(result.count || selectedRows.length);
       const savedKeys = new Set(selectedRows.map((row) => row.key));
       const remaining = rows.filter((row) => !savedKeys.has(row.key));
 
@@ -631,7 +597,7 @@ export default function AdminProductAiImport() {
       toast({
         title: `${saved} ürün içe aktarıldı`,
         description:
-          "Listedeki seçili ürünlerin tamamı B2B kataloğuna aktarıldı.",
+          "Seçili ürünlerin tamamı B2B kataloğuna aktarıldı.",
       });
     } catch (error) {
       toast({
@@ -792,7 +758,7 @@ export default function AdminProductAiImport() {
               <div>
                 <div className="font-bold">AI tarafından bulunan ürünler</div>
                 <div className="text-sm text-muted-foreground">
-                  AI analizi biter bitmez ürün adıyla webde ilk geçerli görsel aranır ve doğrudan ürüne atanır. Listedeki tüm ürünleri tek seferde içe aktarabilirsiniz.
+                  AI ürünleri listeler. Web görselleri yalnızca “Görselleri Çek” butonuna bastığınızda aranır ve bulunan görseller ürünlere eklenir.
                 </div>
               </div>
 
@@ -800,10 +766,10 @@ export default function AdminProductAiImport() {
                 <Button
                   variant="outline"
                   onClick={() => void findWebImages(rows)}
-                  disabled={imageSearching || rows.every((row) => row.images.length > 0)}
+                  disabled={imageSearching || !rows.some((row) => row.images.length === 0)}
                 >
                   <Globe2 className="mr-2 h-4 w-4" />
-                  {imageSearching ? "Görseller otomatik atanıyor…" : "Görselleri Yeniden Kontrol Et"}
+                  {imageSearching ? "Görseller çekiliyor…" : "Görselleri Çek"}
                 </Button>
                 <Button
                   onClick={saveApproved}
@@ -821,7 +787,7 @@ export default function AdminProductAiImport() {
               <div className="border-b bg-slate-50 px-4 py-3 text-sm text-slate-600">
                 {selectedRows.length} ürün seçili
                 {waitingImageCount > 0
-                  ? ` · ${waitingImageCount} ürün için görsel bekleniyor`
+                  ? ` · ${waitingImageCount} üründe görsel yok`
                   : " · tüm görseller hazır"}
               </div>
             ) : null}
@@ -907,12 +873,12 @@ export default function AdminProductAiImport() {
                               {row.imageStatus === "verified"
                                 ? `Görsel eklendi${row.imageConfidence != null ? ` %${Math.round(row.imageConfidence * 100)}` : ""}`
                                 : row.imageStatus === "searching"
-                                  ? "Görsel aranıyor"
+                                  ? "Görsel çekiliyor"
                                   : row.imageStatus === "review"
-                                    ? "Görsel aranıyor"
+                                    ? "Görsel çekiliyor"
                                     : row.imageStatus === "not_found"
                                       ? "Görsel yok"
-                                      : "Görsel bekleniyor"}
+                                      : "Görsel yok"}
                             </span>
                           </div>
 
