@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
-import { useBranding } from "@/hooks/use-branding";
+import { B2BWordmark } from "@/components/b2b-wordmark";
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/dialog";
 
 export default function B2BLogin() {
-  const { data: branding } = useBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -126,16 +125,8 @@ export default function B2BLogin() {
         </Link>
 
         <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b p-4">
-            {branding?.b2b_logo ? (
-              <img
-                src={branding.b2b_logo}
-                alt="Çalışkan B2B"
-                className="h-9 w-auto max-w-[150px] object-contain object-left"
-              />
-            ) : (
-              <div className="text-base font-black">ÇALIŞKAN B2B</div>
-            )}
+          <div className="flex items-center gap-4 border-b p-4">
+            <B2BWordmark compact className="w-[190px]" />
             <div className="ml-auto text-xs text-slate-500">Müşteri Girişi</div>
           </div>
 
