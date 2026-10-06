@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -84,6 +84,32 @@ type PaymentSettings = {
   };
 };
 
+type BillingAccount = {
+  companyName: string | null;
+  taxNumber: string | null;
+  taxOffice: string | null;
+};
+
+type InstallmentOption = {
+  installmentNumber: number;
+  installmentPrice: number;
+  totalPrice: number;
+  commissionRate: number;
+};
+
+type InstallmentLookup = {
+  binNumber: string;
+  price: number;
+  bankName: string;
+  bankCode: number | null;
+  cardType: string;
+  cardAssociation: string;
+  cardFamilyName: string;
+  commercial: number;
+  force3ds: number;
+  options: InstallmentOption[];
+};
+
 const EMPTY_ADDRESS: AddressForm = {
   title: "Teslimat Adresi",
   recipient: "",
@@ -94,7 +120,6 @@ const EMPTY_ADDRESS: AddressForm = {
   postalCode: "",
 };
 
-const INSTALLMENTS = [1, 2, 3, 6, 9, 12] as const;
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { credentials: "include" });
@@ -213,6 +238,12 @@ export default function B2BPaymentPage() {
     staleTime: 10_000,
   });
 
+  const { data: billingAccount } = useQuery<BillingAccount>({
+    queryKey: ["/api/b2b/account"],
+    queryFn: () => getJson("/api/b2b/account"),
+    enabled: !result,
+  });
+
   const { data: addresses = [] } = useQuery<Address[]>({
     queryKey: ["/api/b2b/addresses"],
     queryFn: () => getJson("/api/b2b/addresses"),
@@ -225,6 +256,62 @@ export default function B2BPaymentPage() {
     enabled: !result && (cartMode || Boolean(productId)),
     retry: false,
   });
+
+  const cleanCardNumber = cardNumber.replace(/\D/g, "");
+  const cardBin = cleanCardNumber.slice(0, 8);
+
+  const {
+    data: installmentData,
+    isFetching: installmentsLoading,
+    error: installmentError,
+  } = useQuery<InstallmentLookup>({
+    queryKey: [
+      "/api/b2b/payments/iyzico/installments",
+      cardBin,
+      cartMode ? "cart" : productId,
+      qty,
+      preview?.total,
+    ],
+    queryFn: async () => {
+      const response = await apiRequest(
+        "POST",
+        "/api/b2b/payments/iyzico/installments",
+        {
+          ...orderPayload(),
+          binNumber: cardBin,
+        },
+      );
+      return response.json();
+    },
+    enabled: Boolean(
+      preview &&
+        settings?.iyzicoConfigured &&
+        method === "card" &&
+        cardBin.length === 8,
+    ),
+    retry: false,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (cardBin.length !== 8) {
+      if (installment !== 1) setInstallment(1);
+      return;
+    }
+
+    const options = installmentData?.options || [];
+    if (
+      options.length > 0 &&
+      !options.some((option) => option.installmentNumber === installment)
+    ) {
+      setInstallment(options[0].installmentNumber);
+    }
+  }, [cardBin, installment, installmentData]);
+
+  const selectedInstallment = installmentData?.options?.find(
+    (option) => option.installmentNumber === installment,
+  );
+  const payableTotal = selectedInstallment?.totalPrice ?? preview?.total ?? 0;
 
   const selectedAddressId =
     addressId ||
@@ -364,6 +451,14 @@ export default function B2BPaymentPage() {
     }
     if (!/^\d{3,4}$/.test(cvc)) {
       toast({ title: "CVV bilgisini kontrol edin", variant: "destructive" });
+      return;
+    }
+    if (!selectedInstallment) {
+      toast({
+        title: "Taksit seçeneği doğrulanamadı",
+        description: "Kartınıza ait güncel iyzico taksit seçeneklerinin yüklenmesini bekleyin.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -565,6 +660,39 @@ export default function B2BPaymentPage() {
               </div>
 
               <div className="rounded-2xl border bg-white p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-bold">Fatura Bilgileri</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Vergi bilgileri Firma Bilgilerim alanından otomatik gelir ve ödeme ekranında değiştirilemez.
+                    </p>
+                  </div>
+                  <div className="rounded-full border bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                    Kilitli
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>Firma Ünvanı</Label>
+                    <Input value={billingAccount?.companyName || ""} readOnly className="bg-slate-50" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vergi Numarası</Label>
+                    <Input value={billingAccount?.taxNumber || ""} readOnly className="bg-slate-50 font-semibold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vergi Dairesi</Label>
+                    <Input value={billingAccount?.taxOffice || ""} readOnly className="bg-slate-50" />
+                  </div>
+                </div>
+                {!billingAccount?.taxNumber ? (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    Firma hesabınızda vergi numarası bulunamadı. Kartlı ödeme için firma vergi numarası zorunludur.
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border bg-white p-5">
                 <h2 className="font-bold">Teslimat Seçeneği</h2>
                 <div className="mt-4 space-y-2">
                   <DeliveryChoice
@@ -657,24 +785,95 @@ export default function B2BPaymentPage() {
                       </div>
 
                       <div className="mt-5">
-                        <Label>Taksit Seçenekleri</Label>
-                        <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
-                          {INSTALLMENTS.map((count) => (
-                            <button key={count} type="button" onClick={() => setInstallment(count)} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${installment === count ? "bg-slate-950 text-white" : "bg-white"}`}>
-                              {count === 1 ? "Tek Çekim" : `${count} Taksit`}
-                            </button>
-                          ))}
+                        <div className="flex flex-wrap items-end justify-between gap-2">
+                          <div>
+                            <Label>Taksit Seçenekleri</Label>
+                            {installmentData?.bankName ? (
+                              <div className="mt-1 text-xs text-slate-500">
+                                {installmentData.bankName}
+                                {installmentData.cardFamilyName ? ` · ${installmentData.cardFamilyName}` : ""}
+                                {installmentData.cardType ? ` · ${installmentData.cardType.replace(/_/g, " ")}` : ""}
+                              </div>
+                            ) : null}
+                          </div>
+                          {cardBin.length === 8 && installmentsLoading ? (
+                            <span className="text-xs text-slate-500">iyzico oranları alınıyor…</span>
+                          ) : null}
                         </div>
-                        <p className="mt-2 text-xs text-slate-500">Taksit uygunluğu kartın bankasına ve iyzico anlaşmasına göre doğrulanır.</p>
+
+                        {cardBin.length < 8 ? (
+                          <div className="mt-2 rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-slate-500">
+                            Kartınızın ilk 8 hanesini girdiğinizde bankanıza özel güncel iyzico taksit oranları otomatik gösterilir.
+                          </div>
+                        ) : installmentError ? (
+                          <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                            {installmentError instanceof Error
+                              ? installmentError.message
+                              : "Taksit seçenekleri alınamadı."}
+                          </div>
+                        ) : installmentsLoading && !installmentData ? (
+                          <div className="mt-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-500">
+                            Kart ve banka bilgileri iyzico üzerinden doğrulanıyor…
+                          </div>
+                        ) : (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {(installmentData?.options || []).map((option) => {
+                              const count = option.installmentNumber;
+                              const active = installment === count;
+                              return (
+                                <button
+                                  key={count}
+                                  type="button"
+                                  onClick={() => setInstallment(count)}
+                                  className={`rounded-xl border p-3 text-left transition ${active ? "border-slate-950 bg-slate-950 text-white" : "bg-white hover:border-slate-400"}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold">
+                                      {count === 1 ? "Tek Çekim" : `${count} Taksit`}
+                                    </span>
+                                    {count > 1 ? (
+                                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${active ? "bg-white/15" : "bg-slate-100 text-slate-600"}`}>
+                                        %{option.commissionRate.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className={`mt-2 text-sm font-semibold ${active ? "text-white" : "text-slate-800"}`}>
+                                    {count === 1
+                                      ? formatMoney(option.totalPrice)
+                                      : `${formatMoney(option.installmentPrice)} × ${count}`}
+                                  </div>
+                                  <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+                                    Toplam {formatMoney(option.totalPrice)}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <p className="mt-2 text-xs text-slate-500">
+                          Yalnızca iyzico'nun bu kart için döndürdüğü taksitler gösterilir; oran ve toplam tutar kart değiştiğinde yeniden hesaplanır.
+                        </p>
                       </div>
 
                       {!settings?.iyzicoConfigured ? (
                         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Kartla ödeme henüz canlı iyzico bilgileriyle etkinleştirilmedi.</div>
                       ) : null}
 
-                      <Button className="mt-5" onClick={startCardPayment} disabled={busy || !settings?.iyzicoConfigured || !selectedAddressId}>
+                      <Button
+                        className="mt-5"
+                        onClick={startCardPayment}
+                        disabled={
+                          busy ||
+                          !settings?.iyzicoConfigured ||
+                          !selectedAddressId ||
+                          !billingAccount?.taxNumber ||
+                          cardBin.length !== 8 ||
+                          installmentsLoading ||
+                          !selectedInstallment
+                        }
+                      >
                         <ShieldCheck className="mr-2 h-4 w-4" />
-                        {busy ? "3D Secure hazırlanıyor…" : `${formatMoney(preview.total)} Kart ile Öde`}
+                        {busy ? "3D Secure hazırlanıyor…" : `${formatMoney(payableTotal)} Kart ile Öde`}
                       </Button>
                     </>
                   )}
