@@ -475,18 +475,6 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
-    -- Legacy installations may have b2b_orders.id as NOT NULL without a sequence default.
-    -- Ensure every checkout can create an order id before iyzico initialization.
-    CREATE SEQUENCE IF NOT EXISTS b2b_orders_id_seq;
-    ALTER SEQUENCE b2b_orders_id_seq OWNED BY b2b_orders.id;
-    ALTER TABLE b2b_orders
-      ALTER COLUMN id SET DEFAULT nextval('b2b_orders_id_seq');
-    SELECT setval(
-      'b2b_orders_id_seq',
-      GREATEST(COALESCE((SELECT MAX(id) FROM b2b_orders), 0) + 1, 1),
-      false
-    );
-
     CREATE INDEX IF NOT EXISTS b2b_orders_user_idx ON b2b_orders(user_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS b2b_orders_payment_token_idx ON b2b_orders(payment_token);
 
@@ -540,6 +528,63 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     CREATE INDEX IF NOT EXISTS b2b_support_user_idx ON b2b_support_tickets(user_id, created_at DESC);
   `);
+
+  await ensureB2BOrderIdDefault();
+}
+
+async function ensureB2BOrderIdDefault() {
+  if (!pool) return;
+
+  const idInfo = await pool.query(
+    `SELECT data_type, column_default
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'b2b_orders'
+       AND column_name = 'id'
+     LIMIT 1`,
+  );
+
+  const idType = String(idInfo.rows[0]?.data_type || "");
+  const idDefault = idInfo.rows[0]?.column_default;
+  if (!idType || idDefault) return;
+
+  if (["smallint", "integer", "bigint"].includes(idType)) {
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS b2b_orders_id_seq`);
+    await pool.query(`ALTER SEQUENCE b2b_orders_id_seq OWNED BY b2b_orders.id`);
+
+    const maxResult = await pool.query(
+      `SELECT COALESCE(MAX(id::bigint), 0::bigint) AS max_id FROM b2b_orders`,
+    );
+    const nextId = Math.max(1, Number(maxResult.rows[0]?.max_id || 0) + 1);
+
+    await pool.query(
+      `SELECT setval('b2b_orders_id_seq', $1::bigint, false)`,
+      [nextId],
+    );
+    await pool.query(
+      `ALTER TABLE b2b_orders
+       ALTER COLUMN id SET DEFAULT nextval('b2b_orders_id_seq')`,
+    );
+    return;
+  }
+
+  if (idType === "uuid") {
+    await pool.query(
+      `ALTER TABLE b2b_orders
+       ALTER COLUMN id SET DEFAULT (md5(random()::text || clock_timestamp()::text)::uuid)`,
+    );
+    return;
+  }
+
+  if (["text", "character varying"].includes(idType)) {
+    await pool.query(
+      `ALTER TABLE b2b_orders
+       ALTER COLUMN id SET DEFAULT md5(random()::text || clock_timestamp()::text)`,
+    );
+    return;
+  }
+
+  throw new Error(`Desteklenmeyen b2b_orders.id tipi: ${idType}`);
 }
 
 const B2B_COMPANY_CATEGORIES = [
