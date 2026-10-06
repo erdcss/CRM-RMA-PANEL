@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import { Image, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { signIn } from "../lib/auth";
 import { useMobileBranding } from "../lib/branding";
 
 export default function BusinessLogin() {
+  const router = useRouter();
   const branding = useMobileBranding();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +18,7 @@ export default function BusinessLogin() {
     try {
       await signIn(email.trim(), password);
       setMessage("Giriş başarılı.");
+      router.replace("/");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Giriş başarısız");
     } finally {
