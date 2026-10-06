@@ -459,6 +459,7 @@ async function ensureB2BAccountTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS order_no TEXT;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS order_number TEXT;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS customer_email TEXT;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
@@ -2369,11 +2370,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const created = await pool.query(
       `INSERT INTO b2b_orders (
-        order_number, customer_email, status, item_count, total_amount,
+        order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
         shipping_method, shipping_details, user_id, items
       )
-      VALUES ($1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb)
+      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb)
       RETURNING id`,
       [
         orderNumber,
@@ -2696,11 +2697,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const created = await pool.query(
       `INSERT INTO b2b_orders (
-        order_number, customer_email, status, item_count, total_amount,
+        order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
         shipping_method, shipping_details, user_id, items
       )
-      VALUES ($1,$2,'payment_pending',$3,$4,'card','iyzico','initializing',$5,$6::jsonb,$7,$8::jsonb)
+      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico','initializing',$5,$6::jsonb,$7,$8::jsonb)
       RETURNING id, order_number`,
       [
         orderNumber,
@@ -2958,11 +2959,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     await pool.query(
       `INSERT INTO b2b_orders (
-        order_number, customer_email, status, item_count, total_amount,
+        order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
         shipping_method, shipping_details, user_id, items
       )
-      VALUES ($1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb,$7,$8::jsonb)`,
+      VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb,$7,$8::jsonb)`,
       [
         orderNumber,
         email,
