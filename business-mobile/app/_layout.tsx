@@ -11,9 +11,10 @@ export default function RootLayout() {
   const [showManagedSplash, setShowManagedSplash] = useState(true);
 
   useEffect(() => {
+    if (!branding.loaded) return;
     const timer = setTimeout(() => setShowManagedSplash(false), MANAGED_SPLASH_DURATION_MS);
     return () => clearTimeout(timer);
-  }, []);
+  }, [branding.loaded, branding.business_mobile_splash]);
 
   return (
     <View style={styles.root}>
@@ -22,9 +23,18 @@ export default function RootLayout() {
         <Stack.Screen name="login" />
       </Stack>
 
-      {showManagedSplash && branding.business_mobile_splash ? (
+      {showManagedSplash && (branding.business_mobile_splash || branding.business_mobile_logo) ? (
         <View style={styles.splash} pointerEvents="none">
-          <Image source={{ uri: branding.business_mobile_splash }} style={styles.splashImage} resizeMode="contain" />
+          <Image
+            source={{
+              uri:
+                branding.business_mobile_splash ||
+                branding.business_mobile_logo ||
+                "",
+            }}
+            style={styles.splashImage}
+            resizeMode="contain"
+          />
         </View>
       ) : null}
     </View>
