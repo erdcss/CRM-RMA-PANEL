@@ -186,6 +186,29 @@ function formatIban(value: string) {
   return value.replace(/\s+/g, "").replace(/(.{4})/g, "$1 ").trim();
 }
 
+function formatCardNumber(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 19);
+  return digits.match(/.{1,4}/g)?.join(" ") || "";
+}
+
+function isValidCardNumber(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length < 15 || digits.length > 19) return false;
+
+  let sum = 0;
+  let doubleDigit = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum % 10 === 0;
+}
+
 function decodeBase64Html(value: string) {
   try {
     const binary = window.atob(value);
@@ -481,8 +504,16 @@ export default function B2BPaymentPage() {
     if (!shipping) return;
 
     const cleanCard = cardNumber.replace(/\D/g, "");
-    if (cardHolderName.trim().length < 2 || cleanCard.length < 15 || cleanCard.length > 19) {
-      toast({ title: "Kart bilgilerini kontrol edin", variant: "destructive" });
+    if (cardHolderName.trim().length < 2) {
+      toast({ title: "Kart üzerindeki isim soyismi kontrol edin", variant: "destructive" });
+      return;
+    }
+    if (!isValidCardNumber(cleanCard)) {
+      toast({
+        title: "Kart numarasını kontrol edin",
+        description: "Kart numarası eksik veya geçersiz görünüyor.",
+        variant: "destructive",
+      });
       return;
     }
     if (!/^(0[1-9]|1[0-2])$/.test(expireMonth) || !/^\d{2,4}$/.test(expireYear)) {
@@ -833,7 +864,8 @@ export default function B2BPaymentPage() {
                             autoComplete="cc-number"
                             inputMode="numeric"
                             value={cardNumber}
-                            onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, "").slice(0, 19))}
+                            maxLength={23}
+                            onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                             placeholder="0000 0000 0000 0000"
                           />
                         </div>
