@@ -214,6 +214,24 @@ function cleanOrderQuantity(value: unknown) {
   return Number.isFinite(qty) ? qty : 0;
 }
 
+function isValidPaymentCardNumber(value: string) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length < 15 || digits.length > 19) return false;
+
+  let sum = 0;
+  let shouldDouble = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
 function requestIp(req: Request) {
   const forwarded = req.headers["x-forwarded-for"];
   const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
@@ -2270,8 +2288,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (cardHolderName.length < 2) {
       return res.status(400).json({ error: "Kart üzerindeki isim soyisim zorunludur" });
     }
-    if (cardNumber.length < 15 || cardNumber.length > 19) {
-      return res.status(400).json({ error: "Kart numarası geçersiz" });
+    if (!isValidPaymentCardNumber(cardNumber)) {
+      return res.status(400).json({
+        error: "Kart numarası eksik veya geçersiz. Lütfen kart üzerindeki numarayı kontrol edin.",
+      });
     }
     if (!/^(0[1-9]|1[0-2])$/.test(expireMonth) || !/^\d{2}$/.test(expireYear)) {
       return res.status(400).json({ error: "Kart son kullanım tarihi geçersiz" });
@@ -2466,6 +2486,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         threeDSHtmlContent: payment.threeDSHtmlContent,
       });
     } catch (error) {
+      const providerMessage =
+        error instanceof Error ? error.message : "Kartlı ödeme başlatılamadı";
+
+      console.error("iyzico 3DS initialize failed", {
+        order: orderNumber,
+        cardBin: cardNumber.slice(0, 8),
+        cardLength: cardNumber.length,
+        installment,
+        paidPrice: installmentTotal,
+        message: providerMessage,
+      });
+
       await pool.query(
         `UPDATE b2b_orders
          SET status = 'payment_failed',
@@ -2473,8 +2505,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
          WHERE id = $1`,
         [orderId],
       );
+
+      const friendlyMessage = /kart num/i.test(providerMessage)
+        ? "Kart numarası iyzico tarafından geçersiz bulundu. Kart numarasını kontrol edip tekrar deneyin."
+        : providerMessage;
+
       return res.status(502).json({
-        error: error instanceof Error ? error.message : "Kartlı ödeme başlatılamadı",
+        error: friendlyMessage,
       });
     }
   });
