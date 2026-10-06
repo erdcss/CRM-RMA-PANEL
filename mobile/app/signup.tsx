@@ -18,11 +18,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { useMobileBranding } from '@/lib/branding';
 
 const PRIVACY_URL = 'https://crm-rma.up.railway.app/privacy';
 const TERMS_VERSION = '18.08.2026';
 
 export default function SignupScreen() {
+  const branding = useMobileBranding();
   const router = useRouter();
   const { signUp } = useAuth();
   const params = useLocalSearchParams<{ companyName?:string; fullName?:string; city?:string; district?:string; phone?:string; businessCategory?:string }>();
@@ -99,7 +101,15 @@ export default function SignupScreen() {
         </Pressable>
 
         <View style={styles.hero}>
-          <Image source={require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
+          <Image
+            source={
+              branding.b2b_mobile_logo
+                ? { uri: branding.b2b_mobile_logo }
+                : require('../assets/logo.png')
+            }
+            style={styles.logoImage}
+            contentFit="contain"
+          />
           <Text style={styles.title}>Çalışkan B2B Üyeliği</Text>
           <Text style={styles.subtitle}>Toptan satın alma hesabınızı tamamlayın</Text>
         </View>
