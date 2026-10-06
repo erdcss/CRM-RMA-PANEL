@@ -2355,7 +2355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const callbackBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const isCartCheckout = Array.isArray(req.body?.items) && req.body.items.length > 0;
     const callbackUrl =
-      `${callbackBase}/api/b2b/payments/iyzico/3ds/callback${isCartCheckout ? "?cart=1" : ""}`;
+      `${callbackBase}/api/b2b/payments/iyzico/3ds/callback?order=${encodeURIComponent(orderNumber)}${isCartCheckout ? "&cart=1" : ""}`;
 
     const orderItems = checkout.items.map((entry) => ({
       productId: entry.product.id,
@@ -2515,22 +2515,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 </body>
 </html>`);
     };
-    const paymentId = String(req.body?.paymentId || "").trim();
-    const conversationId = String(req.body?.conversationId || "").trim();
+    const callbackOrder = String(req.query?.order || "").trim();
+    let paymentId = String(req.body?.paymentId || "").trim();
+    let conversationId =
+      String(req.body?.conversationId || "").trim() || callbackOrder;
     const conversationData = String(req.body?.conversationData || "").trim();
     const callbackStatus = String(req.body?.status || "").toLowerCase();
+    const mdStatus = String(req.body?.mdStatus || "").trim();
 
-    if (!paymentId || !conversationId || callbackStatus !== "success") {
+    if ((!paymentId || !conversationId) && callbackOrder) {
+      const stored = await pool.query(
+        `SELECT order_number, payment_id
+         FROM b2b_orders
+         WHERE order_number = $1
+         LIMIT 1`,
+        [callbackOrder],
+      ).catch(() => ({ rows: [] as any[] }));
+      const row = stored.rows[0];
+      if (!conversationId && row?.order_number) {
+        conversationId = String(row.order_number);
+      }
+      if (!paymentId && row?.payment_id) {
+        paymentId = String(row.payment_id);
+      }
+    }
+
+    console.info("iyzico 3DS callback received", {
+      order: conversationId || callbackOrder || null,
+      hasPaymentId: Boolean(paymentId),
+      hasConversationData: Boolean(conversationData),
+      status: callbackStatus || null,
+      mdStatus: mdStatus || null,
+    });
+
+    if (!paymentId || !conversationId) {
       if (conversationId) {
         await pool.query(
           `UPDATE b2b_orders
-           SET status = 'payment_failed', payment_status = '3ds_failed'
+           SET status = 'payment_failed', payment_status = '3ds_callback_incomplete'
            WHERE order_number = $1`,
           [conversationId],
         ).catch(() => undefined);
       }
       return topRedirect(
-        `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`,
+        `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId || callbackOrder)}${cartQuery}`,
       );
     }
 
@@ -2571,6 +2599,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         Number(payment.fraudStatus ?? 1) !== -1;
 
       if (!success) {
+        console.warn("iyzico 3DS auth rejected", {
+          order: order.order_number,
+          status: payment.status || null,
+          fraudStatus: payment.fraudStatus ?? null,
+          errorCode: payment.errorCode || null,
+          errorMessage: payment.errorMessage || null,
+          callbackStatus: callbackStatus || null,
+          mdStatus: mdStatus || null,
+        });
         await client.query(
           `UPDATE b2b_orders
            SET status = 'payment_failed',
