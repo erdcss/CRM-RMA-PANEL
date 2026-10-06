@@ -14,6 +14,7 @@ import {
   initializeIyzico3DS,
   initializeIyzicoCheckout,
   isIyzicoConfigured,
+  retrieveIyzicoInstallments,
   retrieveIyzicoCheckout,
 } from "./iyzico";
 import { getPaymentConfig } from "./payment-config";
@@ -2099,6 +2100,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/b2b/payments/iyzico/installments", requireB2B, async (req, res) => {
+    if (!(await isIyzicoConfigured())) {
+      return res.status(503).json({ error: "iyzico canlı bağlantısı henüz etkin değil" });
+    }
+
+    const binNumber = String(req.body?.binNumber || "")
+      .replace(/\D/g, "")
+      .slice(0, 8);
+    if (!/^\d{8}$/.test(binNumber)) {
+      return res.status(400).json({ error: "Kartın ilk 8 hanesini girin" });
+    }
+
+    try {
+      const rawItems = Array.isArray(req.body?.items)
+        ? req.body.items
+        : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
+      const checkout = await checkoutItems(rawItems);
+      const result = await retrieveIyzicoInstallments(checkout.total, binNumber);
+      const detail = Array.isArray(result.installmentDetails)
+        ? result.installmentDetails[0]
+        : undefined;
+
+      if (!detail || !Array.isArray(detail.installmentPrices)) {
+        return res.status(404).json({
+          error: "Bu kart için iyzico taksit bilgisi bulunamadı",
+        });
+      }
+
+      const options = detail.installmentPrices
+        .map((item) => {
+          const installmentNumber = Number(item.installmentNumber);
+          const installmentPrice = Number(item.installmentPrice);
+          const totalPrice = Number(item.totalPrice);
+          const commissionRate =
+            checkout.total > 0
+              ? Number((((totalPrice / checkout.total) - 1) * 100).toFixed(2))
+              : 0;
+
+          return {
+            installmentNumber,
+            installmentPrice: Number(installmentPrice.toFixed(2)),
+            totalPrice: Number(totalPrice.toFixed(2)),
+            commissionRate,
+          };
+        })
+        .filter(
+          (item) =>
+            [1, 2, 3, 6, 9, 12].includes(item.installmentNumber) &&
+            Number.isFinite(item.installmentPrice) &&
+            item.installmentPrice > 0 &&
+            Number.isFinite(item.totalPrice) &&
+            item.totalPrice > 0,
+        )
+        .sort((a, b) => a.installmentNumber - b.installmentNumber);
+
+      if (!options.length) {
+        return res.status(404).json({
+          error: "Bu kart için kullanılabilir taksit seçeneği bulunamadı",
+        });
+      }
+
+      return res.json({
+        binNumber,
+        price: checkout.total,
+        bankName: detail.bankName || "",
+        bankCode: detail.bankCode || null,
+        cardType: detail.cardType || "",
+        cardAssociation: detail.cardAssociation || "",
+        cardFamilyName: detail.cardFamilyName || "",
+        commercial: Number(detail.commercial || 0),
+        force3ds: Number(detail.force3ds || 0),
+        options,
+      });
+    } catch (error) {
+      return res.status(502).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "iyzico taksit seçenekleri alınamadı",
+      });
+    }
+  });
+
   app.post("/api/b2b/payments/iyzico/3ds/initialize", requireB2B, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     if (!(await isIyzicoConfigured())) {
@@ -2157,6 +2241,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
+    let installmentTotal = checkout.total;
+    let installmentRate = 0;
+    try {
+      const installmentInfo = await retrieveIyzicoInstallments(
+        checkout.total,
+        cardNumber.slice(0, 8),
+      );
+      const detail = Array.isArray(installmentInfo.installmentDetails)
+        ? installmentInfo.installmentDetails[0]
+        : undefined;
+      const selected = detail?.installmentPrices?.find(
+        (item) => Number(item.installmentNumber) === installment,
+      );
+
+      if (!selected) {
+        return res.status(400).json({
+          error: "Seçilen taksit bu kart için iyzico tarafından desteklenmiyor",
+        });
+      }
+
+      installmentTotal = Number(Number(selected.totalPrice).toFixed(2));
+      if (!Number.isFinite(installmentTotal) || installmentTotal <= 0) {
+        throw new Error("iyzico geçerli taksit toplamı döndürmedi");
+      }
+      installmentRate = Number(
+        (((installmentTotal / checkout.total) - 1) * 100).toFixed(2),
+      );
+    } catch (error) {
+      return res.status(502).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Taksit bilgisi iyzico üzerinden doğrulanamadı",
+      });
+    }
+
     const city = String(address.city || "").trim();
     const postalCode = String(address.postal_code || "").trim();
     const addressText = String(address.address_line || "").trim();
@@ -2201,7 +2321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderNumber,
         email,
         checkout.itemCount,
-        total,
+        installmentTotal,
         shipping.method,
         JSON.stringify(shipping.details),
         user.id,
@@ -2215,7 +2335,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locale: "tr",
         conversationId: orderNumber,
         price: total,
-        paidPrice: total,
+        paidPrice: installmentTotal,
         currency: "TRY",
         installment,
         paymentChannel: "WEB",
@@ -2281,6 +2401,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({
         orderNumber,
         paymentId: payment.paymentId,
+        paidPrice: installmentTotal,
+        installment,
+        installmentRate,
         threeDSHtmlContent: payment.threeDSHtmlContent,
       });
     } catch (error) {
