@@ -4,11 +4,13 @@ import { AppState } from 'react-native';
 export type MobileBranding = {
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
+  loaded?: boolean;
 };
 
 type MobileBrandingResponse = {
   logo?: string | null;
   splash?: string | null;
+  updatedAt?: number | null;
 };
 
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
@@ -30,15 +32,15 @@ async function fetchBusinessBranding(): Promise<MobileBranding> {
   }
 
   const payload = (await response.json()) as MobileBrandingResponse;
-
   return {
     business_mobile_logo: payload.logo || null,
     business_mobile_splash: payload.splash || null,
+    loaded: true,
   };
 }
 
 export function useMobileBranding() {
-  const [branding, setBranding] = useState<MobileBranding>({});
+  const [branding, setBranding] = useState<MobileBranding>({ loaded: false });
 
   useEffect(() => {
     let active = true;
@@ -50,9 +52,10 @@ export function useMobileBranding() {
         if (active) setBranding(next);
       } catch {
         if (active) {
+          setBranding((current) => ({ ...current, loaded: true }));
           retryTimer = setTimeout(() => {
             void load();
-          }, 1500);
+          }, 1800);
         }
       }
     };
@@ -60,9 +63,7 @@ export function useMobileBranding() {
     void load();
 
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        void load();
-      }
+      if (state === 'active') void load();
     });
 
     return () => {
