@@ -10,7 +10,7 @@ export async function registerB2BPush(){
  const projectId=Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
  const token=(await Notifications.getExpoPushTokenAsync(projectId?{projectId}:undefined)).data;
  const session=await localAuth.getSession(); if(!session?.access_token)return false;
- const api=(process.env.EXPO_PUBLIC_API_URL||"").replace(/\/$/,"");
+ const api=(process.env.EXPO_PUBLIC_API_URL||"https://admin.ecalisgan.com").replace(/\/$/,"");
  const r=await fetch(`${api}/api/push/register`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({app:"b2b",expoToken:token,platform:Platform.OS})});
  return r.ok;
 }
