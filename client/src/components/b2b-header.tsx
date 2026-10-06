@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { LogIn, PackageSearch, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { B2BWordmark } from "@/components/b2b-wordmark";
+import { useBranding } from "@/hooks/use-branding";
 import { useB2BCart } from "@/lib/b2b-cart";
 
 type SessionUser = {
@@ -28,6 +28,7 @@ async function loadSession(): Promise<SessionUser | null> {
 }
 
 export function B2BHeader({ middle }: { middle?: ReactNode }) {
+  const { data: branding } = useBranding();
   const { itemCount } = useB2BCart();
   const { data: session } = useQuery({
     queryKey: ["/api/auth/me"],
@@ -42,9 +43,19 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[70px] max-w-6xl items-center gap-3 px-4">
+      <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-3 px-4">
         <Link href="/" className="flex shrink-0 items-center">
-          <B2BWordmark compact className="w-[185px] sm:w-[220px]" />
+          {branding?.b2b_logo ? (
+            <img
+              src={branding.b2b_logo}
+              alt="Çalışkan B2B"
+              className="h-9 w-auto max-w-[150px] object-contain object-left sm:h-10 sm:max-w-[175px]"
+            />
+          ) : (
+            <span className="text-sm font-black tracking-tight text-slate-950 sm:text-base">
+              ÇALIŞKAN <span className="text-[10px] align-top">B2B</span>
+            </span>
+          )}
         </Link>
 
         {middle ? <div className="mx-auto hidden w-full max-w-xl md:block">{middle}</div> : <div className="flex-1" />}
