@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 export type MobileBranding = {
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
+  updatedAt?: number | null;
   loaded?: boolean;
 };
 
@@ -32,9 +33,13 @@ async function fetchBusinessBranding(): Promise<MobileBranding> {
   }
 
   const payload = (await response.json()) as MobileBrandingResponse;
+  const logo = payload.logo || null;
+  const splash = payload.splash || logo;
+
   return {
-    business_mobile_logo: payload.logo || null,
-    business_mobile_splash: payload.splash || null,
+    business_mobile_logo: logo,
+    business_mobile_splash: splash,
+    updatedAt: payload.updatedAt || Date.now(),
     loaded: true,
   };
 }
