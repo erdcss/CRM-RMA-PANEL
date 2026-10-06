@@ -2562,6 +2562,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
     }
 
+    if (callbackStatus !== "success" || mdStatus !== "1") {
+      const paymentStatus = "3ds_failed_md_" + (mdStatus || "unknown");
+      await pool.query(
+        `UPDATE b2b_orders
+         SET status = 'payment_failed',
+             payment_status = $2
+         WHERE order_number = $1`,
+        [conversationId, paymentStatus],
+      ).catch(() => undefined);
+
+      console.warn("iyzico 3DS bank verification failed", {
+        order: conversationId,
+        callbackStatus: callbackStatus || null,
+        mdStatus: mdStatus || null,
+      });
+
+      return topRedirect(
+        `${redirectBase}/odeme?result=failed&reason=3ds&mdStatus=${encodeURIComponent(mdStatus || "unknown")}&order=${encodeURIComponent(conversationId)}${cartQuery}`,
+      );
+    }
+
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
