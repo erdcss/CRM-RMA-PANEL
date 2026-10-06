@@ -11,8 +11,10 @@
     "android": "expo start --android",
     "typecheck": "tsc --noEmit",
     "fix:deps": "expo install --fix",
-    "build:ios": "node scripts/prepare-niimbot-sdk.js && eas build --platform ios --profile production",
-    "submit:ios": "eas submit --platform ios --profile production --latest"
+    "build:ios": "node scripts/sync-mobile-branding.cjs b2b && node scripts/prepare-niimbot-sdk.js && eas build --platform ios --profile production",
+    "submit:ios": "eas submit --platform ios --profile production --latest",
+    "sync:branding": "node scripts/sync-mobile-branding.cjs b2b",
+    "build:android": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform android --profile production"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
