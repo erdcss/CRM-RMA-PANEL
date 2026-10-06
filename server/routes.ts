@@ -7,7 +7,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
 import { pool } from "./db";
-import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
 import {
   completeIyzico3DS,
@@ -52,12 +52,101 @@ function verifyPassword(password: string, stored: string): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+type MobileAuthPayload = {
+  uid: number;
+  exp: number;
+};
+
+function mobileAuthSecret() {
+  return (
+    process.env.MOBILE_AUTH_SECRET ||
+    process.env.SESSION_SECRET ||
+    "local-rma-panel-session-secret"
+  );
+}
+
+function issueMobileAuthToken(userId: number) {
+  const payload: MobileAuthPayload = {
+    uid: userId,
+    exp: Date.now() + 1000 * 60 * 60 * 24 * 30,
+  };
+  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const signature = createHmac("sha256", mobileAuthSecret())
+    .update(encoded)
+    .digest("base64url");
+  return `${encoded}.${signature}`;
+}
+
+function mobileTokenUserId(req: Request): number | undefined {
+  const authorization = String(req.headers.authorization || "").trim();
+  if (!authorization.toLowerCase().startsWith("bearer ")) return undefined;
+
+  const token = authorization.slice(7).trim();
+  const [encoded, signature] = token.split(".");
+  if (!encoded || !signature) return undefined;
+
+  const expected = createHmac("sha256", mobileAuthSecret())
+    .update(encoded)
+    .digest("base64url");
+
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (
+    actualBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(actualBuffer, expectedBuffer)
+  ) {
+    return undefined;
+  }
+
+  try {
+    const payload = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8"),
+    ) as MobileAuthPayload;
+
+    if (
+      !Number.isFinite(payload.uid) ||
+      !Number.isFinite(payload.exp) ||
+      payload.exp <= Date.now()
+    ) {
+      return undefined;
+    }
+
+    return Number(payload.uid);
+  } catch {
+    return undefined;
+  }
+}
+
 function sessionUserId(req: Request): number | undefined {
-  return (req.session as { userId?: number }).userId;
+  return (
+    (req.session as { userId?: number }).userId ||
+    mobileTokenUserId(req)
+  );
+}
+
+function authResponseUser(user: any, usernameOverride?: string) {
+  const username = String(usernameOverride || user.username || "").trim();
+  return {
+    id: user.id,
+    username,
+    email: username,
+    role: user.role,
+    appAccess: user.appAccess,
+    isActive: user.isActive === 1 || user.isActive === true,
+  };
+}
+
+function authResponse(user: any, usernameOverride?: string) {
+  const profile = authResponseUser(user, usernameOverride);
+  return {
+    ...profile,
+    user: profile,
+    token: issueMobileAuthToken(Number(user.id)),
+  };
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if ((req.session as { userId?: number }).userId) {
+  if (sessionUserId(req)) {
     return next();
   }
   return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
@@ -1108,7 +1197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/auth/me", async (req, res) => {
-    const userId = (req.session as { userId?: number }).userId;
+    const userId = sessionUserId(req);
     if (!userId) {
       return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
     }
