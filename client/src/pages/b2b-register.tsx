@@ -2,9 +2,11 @@ import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 
 import { B2BRegistrationForm } from "@/components/b2b-registration-form";
-import { B2BWordmark } from "@/components/b2b-wordmark";
+import { useBranding } from "@/hooks/use-branding";
 
 export default function B2BRegister() {
+  const { data: branding } = useBranding();
+
   return (
     <div className="min-h-screen bg-[#f6f7f9] px-4 py-6">
       <div className="mx-auto max-w-lg">
@@ -17,8 +19,16 @@ export default function B2BRegister() {
         </Link>
 
         <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
-          <div className="flex items-center gap-5 border-b p-5 sm:p-6">
-            <B2BWordmark compact className="w-[205px] sm:w-[225px]" />
+          <div className="flex items-center gap-4 border-b p-5 sm:p-6">
+            {branding?.b2b_logo ? (
+              <img
+                src={branding.b2b_logo}
+                alt="Çalışkan B2B"
+                className="h-10 w-auto max-w-[160px] object-contain"
+              />
+            ) : (
+              <div className="text-base font-black">ÇALIŞKAN B2B</div>
+            )}
             <div className="min-w-0">
               <div className="text-lg font-black">Firma hesabı oluştur</div>
               <div className="text-sm text-slate-500">Yeni B2B müşteri başvurusu</div>
