@@ -15,9 +15,10 @@ export default function RootLayout() {
   const [showManagedSplash, setShowManagedSplash] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowManagedSplash(false), 1400);
+    if (!branding.loaded) return;
+    const timer = setTimeout(() => setShowManagedSplash(false), 1600);
     return () => clearTimeout(timer);
-  }, []);
+  }, [branding.loaded, branding.b2b_mobile_splash]);
 
   return (
     <SafeAreaProvider>
@@ -31,9 +32,19 @@ export default function RootLayout() {
         </AlertProvider>
       </AuthProvider>
 
-      {showManagedSplash && branding.b2b_mobile_splash ? (
+      {showManagedSplash ? (
         <View style={styles.splash} pointerEvents="none">
-          <Image source={{ uri: branding.b2b_mobile_splash }} style={styles.splashImage} contentFit="contain" />
+          <Image
+            source={
+              branding.b2b_mobile_splash
+                ? { uri: branding.b2b_mobile_splash }
+                : branding.b2b_mobile_logo
+                  ? { uri: branding.b2b_mobile_logo }
+                  : require('../assets/logo.png')
+            }
+            style={styles.splashImage}
+            contentFit="contain"
+          />
         </View>
       ) : null}
     </SafeAreaProvider>
