@@ -313,6 +313,46 @@ export default function B2BPaymentPage() {
   );
   const payableTotal = selectedInstallment?.totalPrice ?? preview?.total ?? 0;
 
+  useEffect(() => {
+    const completeFromUrl = (rawUrl: string) => {
+      try {
+        const url = new URL(rawUrl, window.location.origin);
+        if (url.origin !== window.location.origin || url.pathname !== "/odeme") return;
+        const paymentResult = url.searchParams.get("result");
+        if (paymentResult !== "success" && paymentResult !== "failed") return;
+
+        if (paymentResult === "success" && url.searchParams.get("cart") === "1") {
+          clearB2BCart();
+        }
+        window.location.replace(url.toString());
+      } catch {
+        // Ignore malformed/cross-origin callback payloads.
+      }
+    };
+
+    const onPaymentMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const payload = event.data as { type?: string; url?: string } | null;
+      if (
+        !payload ||
+        payload.type !== "caliskan-b2b-payment-result" ||
+        typeof payload.url !== "string"
+      ) {
+        return;
+      }
+      completeFromUrl(payload.url);
+    };
+
+    window.addEventListener("message", onPaymentMessage);
+    return () => window.removeEventListener("message", onPaymentMessage);
+  }, []);
+
+  useEffect(() => {
+    if (result === "success" && cartMode) {
+      clearB2BCart();
+    }
+  }, [cartMode, result]);
+
   const selectedAddressId =
     addressId ||
     String(addresses.find((item) => item.is_default)?.id || addresses[0]?.id || "");
@@ -758,7 +798,27 @@ export default function B2BPaymentPage() {
 
                   {threeDSHtml ? (
                     <div className="mt-4 overflow-hidden rounded-xl border">
-                      <iframe title="3D Secure Doğrulama" srcDoc={threeDSHtml} className="h-[520px] w-full bg-white" />
+                      <iframe
+                        title="3D Secure Doğrulama"
+                        srcDoc={threeDSHtml}
+                        className="h-[520px] w-full bg-white"
+                        onLoad={(event) => {
+                          try {
+                            const href = event.currentTarget.contentWindow?.location.href || "";
+                            const url = new URL(href);
+                            const paymentResult = url.searchParams.get("result");
+                            if (
+                              url.origin === window.location.origin &&
+                              url.pathname === "/odeme" &&
+                              (paymentResult === "success" || paymentResult === "failed")
+                            ) {
+                              window.location.replace(url.toString());
+                            }
+                          } catch {
+                            // Expected while the iframe is on iyzico/bank cross-origin pages.
+                          }
+                        }}
+                      />
                     </div>
                   ) : (
                     <>
