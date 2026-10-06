@@ -106,6 +106,59 @@ export async function retrieveIyzicoCheckout(token: string) {
 }
 
 
+export type IyzicoInstallmentPrice = {
+  installmentPrice?: number | string;
+  totalPrice?: number | string;
+  installmentNumber?: number;
+};
+
+export type IyzicoInstallmentDetail = {
+  binNumber?: string;
+  price?: number | string;
+  cardType?: string;
+  cardAssociation?: string;
+  cardFamilyName?: string;
+  bankCode?: number;
+  bankName?: string;
+  force3ds?: number;
+  forceCvc?: number;
+  commercial?: number;
+  installmentPrices?: IyzicoInstallmentPrice[];
+};
+
+export type IyzicoInstallmentResponse = {
+  status?: string;
+  locale?: string;
+  conversationId?: string;
+  installmentDetails?: IyzicoInstallmentDetail[];
+};
+
+export async function retrieveIyzicoInstallments(
+  price: number,
+  binNumber: string,
+  conversationId?: string,
+) {
+  const normalizedPrice = Number(Number(price).toFixed(2));
+  const normalizedBin = String(binNumber || "").replace(/\D/g, "").slice(0, 8);
+  if (!/^\d{8}$/.test(normalizedBin)) {
+    throw new Error("Taksit sorgulaması için 8 haneli kart BIN bilgisi gerekir");
+  }
+  if (!Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
+    throw new Error("Taksit sorgulaması için geçerli bir ödeme tutarı gerekir");
+  }
+
+  return iyzicoPost<IyzicoInstallmentResponse>(
+    "/payment/iyzipos/installment",
+    {
+      locale: "tr",
+      price: normalizedPrice,
+      binNumber: normalizedBin,
+      ...(conversationId ? { conversationId } : {}),
+    },
+  );
+}
+
+
 export type Iyzico3DSInitializeResponse = {
   status?: string;
   threeDSHtmlContent?: string;
