@@ -1,6 +1,7 @@
 import { localAuth } from './supabase';
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const session = await localAuth.getSession();
@@ -13,8 +14,6 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!API_URL) throw new Error('EXPO_PUBLIC_API_URL tanımlı değil.');
-
   const authHeaders = await getAuthHeaders();
   let response: Response;
   try {
