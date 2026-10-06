@@ -1196,6 +1196,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
   });
 
+  app.get("/api/auth/session", async (req, res) => {
+    const userId = sessionUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: "Oturum bulunamadı" });
+    }
+
+    const user = await storage.getUser(userId);
+    if (!user || user.isActive !== 1) {
+      return res.status(401).json({ error: "Oturum geçersiz" });
+    }
+
+    return res.json({ user: authResponseUser(user) });
+  });
+
   app.get("/api/auth/me", async (req, res) => {
     const userId = sessionUserId(req);
     if (!userId) {
@@ -1256,13 +1270,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       (req.session as { userId?: number }).userId = adminUser.id;
-      return res.json({
-        id: adminUser.id,
-        username: primaryAdminEmail,
-        role: "super_admin",
-        appAccess: adminUser.appAccess,
-        isActive: true,
-      });
+      return res.json(
+        authResponse(
+          { ...adminUser, role: "super_admin", isActive: 1 },
+          primaryAdminEmail,
+        ),
+      );
     }
 
     if (
@@ -1272,13 +1285,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       verifyPassword(password, localUser.password)
     ) {
       (req.session as { userId?: number }).userId = localUser.id;
-      return res.json({
-        id: localUser.id,
-        username: isPrimaryAdminAttempt ? primaryAdminEmail : localUser.username,
-        role: localUser.role,
-        appAccess: localUser.appAccess,
-        isActive: true,
-      });
+      return res.json(
+        authResponse(
+          localUser,
+          isPrimaryAdminAttempt ? primaryAdminEmail : localUser.username,
+        ),
+      );
     }
 
     const supabaseUrl = (process.env.SUPABASE_URL || "").replace(/\/$/, "");
@@ -1311,13 +1323,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
 
             (req.session as { userId?: number }).userId = adminUser.id;
-            return res.json({
-              id: adminUser.id,
-              username: primaryAdminEmail || primaryAdminAuthEmail,
-              role: "super_admin",
-              appAccess: adminUser.appAccess,
-              isActive: true,
-            });
+            return res.json(
+              authResponse(
+                { ...adminUser, role: "super_admin", isActive: 1 },
+                primaryAdminEmail || primaryAdminAuthEmail,
+              ),
+            );
           }
         }
       } catch (error) {
@@ -1366,23 +1377,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashPassword(randomBytes(32).toString("hex")),
       });
 
+      const payload = authResponse(user);
       return res.json({
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        appAccess: user.appAccess,
-        isActive: true,
+        ...payload,
         mustChangePassword: true,
+        user: { ...payload.user, mustChangePassword: true },
       });
     }
 
+    const payload = authResponse(user);
     return res.json({
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      appAccess: user.appAccess,
-      isActive: true,
+      ...payload,
       mustChangePassword: false,
+      user: { ...payload.user, mustChangePassword: false },
     });
   });
 
