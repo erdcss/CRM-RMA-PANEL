@@ -430,6 +430,8 @@ function buildOrderSnapshots(
   const source = String(context.source || "B2B mağaza").slice(0, 120);
   const entryPath = String(context.entryPath || "").slice(0, 500);
   const previousPath = String(context.previousPath || "").slice(0, 500);
+  const cartMode = context.cartMode === true;
+  const productId = String(context.productId || "").slice(0, 120);
 
   const billingDetails = {
     companyName: String(user.companyName || ""),
@@ -475,6 +477,8 @@ function buildOrderSnapshots(
     source,
     entryPath,
     previousPath,
+    cartMode,
+    productId: productId || null,
     stages: [
       source,
       "Ödeme sayfası",
