@@ -449,6 +449,11 @@ export default function B2BPaymentPage() {
             ...orderPayload(),
             addressId: selectedAddressId,
             shipping,
+            checkoutContext: {
+              source: cartMode ? "Sipariş listesi / sepet" : "Ürün detayı",
+              entryPath: window.location.pathname + window.location.search,
+              previousPath: document.referrer || "",
+            },
           });
           const payload = await response.json() as {
             orderNumber?: string;
@@ -620,6 +625,11 @@ export default function B2BPaymentPage() {
         ...orderPayload(),
         addressId: selectedAddressId,
         shipping,
+        checkoutContext: {
+          source: cartMode ? "Sipariş listesi / sepet" : "Ürün detayı",
+          entryPath: window.location.pathname + window.location.search,
+          previousPath: document.referrer || "",
+        },
       });
       const payload = await response.json();
       setEftOrder(payload);
