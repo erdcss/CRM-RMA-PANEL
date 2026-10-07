@@ -526,37 +526,70 @@ export default function B2BPaymentPage() {
     const shipping = shippingPayload();
     if (!shipping) return;
 
+    const cleanCard = cardNumber.replace(/\D/g, "");
+    if (cardHolderName.trim().length < 2) {
+      toast({ title: "Kart üzerindeki isim soyismi kontrol edin", variant: "destructive" });
+      return;
+    }
+    if (!isValidCardNumber(cleanCard)) {
+      toast({
+        title: "Kart numarasını kontrol edin",
+        description: "Kart numarası eksik veya geçersiz görünüyor.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!/^(0[1-9]|1[0-2])$/.test(expireMonth) || !/^\d{2,4}$/.test(expireYear)) {
+      toast({ title: "Son kullanım tarihini kontrol edin", variant: "destructive" });
+      return;
+    }
+    if (!/^\d{3,4}$/.test(cvc)) {
+      toast({ title: "CVV bilgisini kontrol edin", variant: "destructive" });
+      return;
+    }
+    if (!selectedInstallment) {
+      toast({
+        title: "Taksit seçeneği doğrulanamadı",
+        description: "Kartınıza ait güncel iyzico taksit seçeneklerinin yüklenmesini bekleyin.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setBusy(true);
     try {
-      const response = await apiRequest("POST", "/api/b2b/payments/iyzico/initialize", {
+      const response = await apiRequest("POST", "/api/b2b/payments/iyzico/3ds/initialize", {
         ...orderPayload(),
         addressId: selectedAddressId,
         shipping,
+        installment,
+        card: {
+          cardHolderName: cardHolderName.trim(),
+          cardNumber: cleanCard,
+          expireMonth,
+          expireYear,
+          cvc,
+        },
       });
       const payload = await response.json() as {
         orderNumber?: string;
-        paymentPageUrl?: string;
+        threeDSHtmlContent?: string;
       };
 
-      if (!payload.paymentPageUrl) {
-        throw new Error("iyzico güvenli ödeme sayfası oluşturulamadı");
+      if (!payload.threeDSHtmlContent) {
+        throw new Error("3D Secure ekranı oluşturulamadı");
       }
 
-      const paymentUrl = new URL(payload.paymentPageUrl);
-      if (
-        paymentUrl.protocol !== "https:" ||
-        !paymentUrl.hostname.toLowerCase().endsWith(".iyzipay.com")
-      ) {
-        throw new Error("iyzico ödeme adresi doğrulanamadı");
-      }
-
-      window.location.assign(paymentUrl.toString());
+      setCardNumber("");
+      setCvc("");
+      setThreeDSHtml(decodeBase64Html(payload.threeDSHtmlContent));
     } catch (err) {
       toast({
         title: "Kartlı ödeme başlatılamadı",
         description: err instanceof Error ? err.message : "Bir hata oluştu",
         variant: "destructive",
       });
+    } finally {
       setBusy(false);
     }
   }
