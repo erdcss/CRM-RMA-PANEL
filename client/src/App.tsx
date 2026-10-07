@@ -30,6 +30,7 @@ import AdminOrders from "@/pages/admin-orders";
 import AdminApplications from "@/pages/admin-applications";
 import AdminHomepage from "@/pages/admin-homepage";
 import AdminPaymentSettingsPage from "@/pages/admin-payment-settings";
+import AdminReels from "@/pages/admin-reels";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
@@ -81,6 +82,7 @@ function Router() {
       <Route path="/basvurular" component={AdminApplications} />
       <Route path="/ana-sayfa" component={AdminHomepage} />
       <Route path="/odeme-ekrani" component={AdminPaymentSettingsPage} />
+      <Route path="/reelsler" component={AdminReels} />
       <Route component={NotFound} />
     </Switch>
   );
