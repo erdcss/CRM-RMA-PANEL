@@ -5,6 +5,7 @@ import {
   getPublicPaymentSettings,
   savePaymentSettings,
 } from "./payment-config";
+import { retrieveIyzicoCheckout } from "./iyzico";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -34,6 +35,19 @@ CREATE TABLE IF NOT EXISTS b2b_orders (
   status TEXT NOT NULL DEFAULT 'pending',
   item_count INTEGER NOT NULL DEFAULT 0,
   total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  payment_method TEXT,
+  payment_provider TEXT,
+  payment_status TEXT,
+  payment_id TEXT,
+  payment_token TEXT,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  card_last4 TEXT,
+  card_association TEXT,
+  billing_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb,
+  checkout_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+  cancel_requested_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -173,6 +187,12 @@ async function ensureDashboardSchema() {
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_token TEXT`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS card_last4 TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS card_association TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS billing_details JSONB NOT NULL DEFAULT '{}'::jsonb`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS checkout_trace JSONB NOT NULL DEFAULT '{}'::jsonb`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS cancel_requested_at TIMESTAMPTZ`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
       ];
 
