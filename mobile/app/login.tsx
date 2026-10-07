@@ -120,6 +120,20 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>{submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}</Text>
             </Pressable>
 
+            <Pressable
+              style={styles.quickEntryButton}
+              onPress={() => router.replace('/(tabs)/products')}
+            >
+              <Ionicons name="flash-outline" size={19} color={colors.primary} />
+              <View style={styles.quickEntryTextGroup}>
+                <Text style={styles.quickEntryTitle}>Hızlı Giriş</Text>
+                <Text style={styles.quickEntrySubtitle}>
+                  Ürünleri üyelik olmadan görüntüle
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+            </Pressable>
+
             <Pressable style={styles.signupToggle} onPress={toggleSignup}>
               <Text style={styles.linkText}>{signupOpen ? 'Üyelik Formunu Kapat' : 'Hemen Üye Ol'}</Text>
               <Ionicons name={signupOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
@@ -205,6 +219,30 @@ const styles = StyleSheet.create({
   buttonText: {
     ...typography.bodyMedium,
     color: colors.surface},
+  quickEntryButton: {
+    minHeight: 58,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  quickEntryTextGroup: {
+    flex: 1,
+  },
+  quickEntryTitle: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  quickEntrySubtitle: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
   forgotButton: { alignItems:'flex-end', paddingVertical: spacing.xs },
   forgotText: { ...typography.bodyMedium, color: colors.primary },
   signupToggle: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap: spacing.xs, paddingVertical: spacing.sm },
