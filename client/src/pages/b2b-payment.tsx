@@ -261,6 +261,9 @@ export default function B2BPaymentPage() {
   const [installment, setInstallment] = useState<number>(1);
   const [threeDSHtml, setThreeDSHtml] = useState("");
   const [checkoutFrameUrl, setCheckoutFrameUrl] = useState("");
+  const [checkoutFrameLoading, setCheckoutFrameLoading] = useState(false);
+  const [checkoutFrameError, setCheckoutFrameError] = useState("");
+  const [checkoutFrameRevision, setCheckoutFrameRevision] = useState(0);
 
   const [busy, setBusy] = useState(false);
   const [eftOrder, setEftOrder] = useState<{
@@ -395,6 +398,99 @@ export default function B2BPaymentPage() {
     addressId ||
     String(addresses.find((item) => item.is_default)?.id || addresses[0]?.id || "");
 
+  const cardCheckoutReady = Boolean(
+    method === "card" &&
+      preview &&
+      settings?.iyzicoConfigured &&
+      billingAccount?.taxNumber &&
+      selectedAddressId &&
+      (
+        shippingMethod === "cargo" ||
+        (shippingMethod === "freight" &&
+          freightCompany.trim() &&
+          freightPhone.replace(/\D/g, "").length >= 7) ||
+        (shippingMethod === "pickup" && pickupTime)
+      )
+  );
+
+  const cardCheckoutContext = JSON.stringify({
+    addressId: selectedAddressId,
+    shippingMethod,
+    freightCompany: freightCompany.trim(),
+    freightPhone: freightPhone.trim(),
+    pickupTime,
+    cartMode,
+    productId,
+    qty,
+    total: preview?.total || 0,
+    revision: checkoutFrameRevision,
+  });
+
+  useEffect(() => {
+    if (!cardCheckoutReady) {
+      setCheckoutFrameUrl("");
+      setCheckoutFrameError("");
+      setCheckoutFrameLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setCheckoutFrameLoading(true);
+        setCheckoutFrameError("");
+        setCheckoutFrameUrl("");
+
+        try {
+          const shipping = shippingPayload();
+          if (!shipping) return;
+
+          const response = await apiRequest("POST", "/api/b2b/payments/iyzico/initialize", {
+            ...orderPayload(),
+            addressId: selectedAddressId,
+            shipping,
+          });
+          const payload = await response.json() as {
+            orderNumber?: string;
+            paymentPageUrl?: string;
+          };
+
+          if (!payload.paymentPageUrl) {
+            throw new Error("iyzico ödeme formu oluşturulamadı");
+          }
+
+          const paymentUrl = new URL(payload.paymentPageUrl);
+          if (
+            paymentUrl.protocol !== "https:" ||
+            !paymentUrl.hostname.toLowerCase().endsWith(".iyzipay.com")
+          ) {
+            throw new Error("iyzico ödeme adresi doğrulanamadı");
+          }
+
+          // iyzico Checkout Form'un resmi iframe modu.
+          paymentUrl.searchParams.set("iframe", "true");
+
+          if (!cancelled) {
+            setCheckoutFrameUrl(paymentUrl.toString());
+          }
+        } catch (err) {
+          if (!cancelled) {
+            setCheckoutFrameError(
+              err instanceof Error ? err.message : "Kart ödeme formu hazırlanamadı",
+            );
+          }
+        } finally {
+          if (!cancelled) setCheckoutFrameLoading(false);
+        }
+      })();
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [cardCheckoutContext, cardCheckoutReady]);
+
   function orderPayload() {
     if (!preview) return {};
     if (cartMode) {
@@ -507,60 +603,6 @@ export default function B2BPaymentPage() {
       toast({ title: "Kopyalandı", description: label });
     } catch {
       toast({ title: "Kopyalanamadı", variant: "destructive" });
-    }
-  }
-
-  async function startCardPayment() {
-    if (!preview || !selectedAddressId) {
-      toast({ title: "Teslimat adresi seçin", variant: "destructive" });
-      return;
-    }
-    if (!billingAccount?.taxNumber) {
-      toast({
-        title: "Vergi numarası eksik",
-        description: "Firma bilgilerinizde vergi numarası bulunmalıdır.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const shipping = shippingPayload();
-    if (!shipping) return;
-
-    setBusy(true);
-    try {
-      const response = await apiRequest("POST", "/api/b2b/payments/iyzico/initialize", {
-        ...orderPayload(),
-        addressId: selectedAddressId,
-        shipping,
-      });
-      const payload = await response.json() as {
-        orderNumber?: string;
-        paymentPageUrl?: string;
-      };
-
-      if (!payload.paymentPageUrl) {
-        throw new Error("iyzico ödeme formu oluşturulamadı");
-      }
-
-      const paymentUrl = new URL(payload.paymentPageUrl);
-      if (
-        paymentUrl.protocol !== "https:" ||
-        !paymentUrl.hostname.toLowerCase().endsWith(".iyzipay.com")
-      ) {
-        throw new Error("iyzico ödeme adresi doğrulanamadı");
-      }
-
-      paymentUrl.searchParams.set("iframe", "true");
-      setCheckoutFrameUrl(paymentUrl.toString());
-    } catch (err) {
-      toast({
-        title: "Kartlı ödeme başlatılamadı",
-        description: err instanceof Error ? err.message : "Bir hata oluştu",
-        variant: "destructive",
-      });
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -822,12 +864,18 @@ export default function B2BPaymentPage() {
               </div>
 
               {method === "card" ? (
-                <div className="rounded-2xl border bg-white p-5">
+                <div
+                  className="rounded-2xl border bg-white p-5"
+                  data-b2b-card-fields="persistent"
+                >
+                  {/* HARD RULE:
+                      Kart alanı hiçbir koşulda buton-only/redirect-only yapıya çevrilmez.
+                      Kart girişi ve 3D Secure aynı ödeme kartı içerisinde iyzico Checkout Form ile kalır. */}
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-bold">Kart Bilgileri</h3>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Kart bilgileri ve 3D Secure doğrulaması bu alanın içerisinde iyzico tarafından güvenli şekilde alınır.
+                        Kart bilgileri, taksit seçimi ve 3D Secure doğrulaması bu alanın içinde iyzico tarafından güvenli şekilde yönetilir.
                         Kart bilgileriniz Çalışkan B2B sunucularında saklanmaz.
                       </p>
                     </div>
@@ -836,85 +884,92 @@ export default function B2BPaymentPage() {
                     </div>
                   </div>
 
-                  {checkoutFrameUrl ? (
-                    <div className="mt-4">
-                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-bold">Güvenli Ödeme</div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            Kartınızı girin, taksitinizi seçin ve gerekiyorsa 3D Secure doğrulamasını tamamlayın.
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCheckoutFrameUrl("")}
-                        >
-                          İptal
-                        </Button>
-                      </div>
-
-                      <div className="overflow-hidden rounded-xl border bg-white">
-                        <iframe
-                          title="iyzico Güvenli Ödeme"
-                          src={checkoutFrameUrl}
-                          className="h-[720px] w-full bg-white"
-                          allow="payment *"
-                          referrerPolicy="strict-origin-when-cross-origin"
-                          onLoad={(event) => {
-                            try {
-                              const href = event.currentTarget.contentWindow?.location.href || "";
-                              const url = new URL(href);
-                              const paymentResult = url.searchParams.get("result");
-                              if (
-                                url.origin === window.location.origin &&
-                                url.pathname === "/odeme" &&
-                                (paymentResult === "success" || paymentResult === "failed")
-                              ) {
-                                window.location.replace(url.toString());
-                              }
-                            } catch {
-                              // iyzico/banka sayfası farklı origin üzerindeyken tarayıcı erişimi engeller.
-                            }
-                          }}
-                        />
-                      </div>
+                  {!cardCheckoutReady ? (
+                    <div className="mt-4 rounded-xl border border-dashed bg-slate-50 p-5 text-sm text-slate-600">
+                      {!selectedAddressId
+                        ? "Kart alanını açmak için teslimat adresi seçin."
+                        : !billingAccount?.taxNumber
+                          ? "Firma vergi numarası eksik. Firma bilgilerinizi tamamlayın."
+                          : shippingMethod === "freight" &&
+                              (!freightCompany.trim() || freightPhone.replace(/\D/g, "").length < 7)
+                            ? "Kart alanını açmak için ambar firma adı ve telefonunu tamamlayın."
+                            : shippingMethod === "pickup" && !pickupTime
+                              ? "Kart alanını açmak için teslim alma saatini seçin."
+                              : "Kart ödeme formu hazırlanıyor…"}
                     </div>
-                  ) : (
-                    <>
-                      <div className="mt-4 rounded-xl border bg-slate-50 p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm text-slate-500">Ödenecek tutar</span>
-                          <span className="text-lg font-black text-slate-950">{formatMoney(preview.total)}</span>
+                  ) : null}
+
+                  {checkoutFrameLoading && !checkoutFrameUrl ? (
+                    <div className="mt-4 overflow-hidden rounded-xl border bg-white p-4">
+                      <div className="animate-pulse space-y-4" aria-label="Kart formu hazırlanıyor">
+                        <div className="h-4 w-40 rounded bg-slate-200" />
+                        <div className="h-11 rounded-lg bg-slate-100" />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="h-11 rounded-lg bg-slate-100" />
+                          <div className="h-11 rounded-lg bg-slate-100" />
                         </div>
-                        <div className="mt-2 text-xs leading-5 text-slate-500">
-                          Kart numaranızı ödeme formunda girdiğinizde iyzico bankanızı ve kullanılabilir taksitleri otomatik gösterecek.
-                          3D Secure ekranı da sayfadan ayrılmadan bu kart alanında açılacak.
-                        </div>
+                        <div className="h-11 rounded-lg bg-slate-100" />
                       </div>
+                      <div className="mt-3 text-xs text-slate-500">iyzico güvenli kart alanı hazırlanıyor…</div>
+                    </div>
+                  ) : null}
 
-                      {!settings?.iyzicoConfigured ? (
-                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                          Kartla ödeme henüz canlı iyzico bilgileriyle etkinleştirilmedi.
-                        </div>
-                      ) : null}
-
+                  {checkoutFrameError ? (
+                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                      <div className="font-bold">Kart alanı yüklenemedi</div>
+                      <div className="mt-1">{checkoutFrameError}</div>
                       <Button
-                        className="mt-5 h-11 w-full"
-                        onClick={startCardPayment}
-                        disabled={
-                          busy ||
-                          !settings?.iyzicoConfigured ||
-                          !selectedAddressId ||
-                          !billingAccount?.taxNumber
-                        }
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setCheckoutFrameRevision((value) => value + 1)}
                       >
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        {busy ? "Ödeme formu hazırlanıyor…" : `${formatMoney(preview.total)} · Kart Bilgilerini Gir`}
+                        Tekrar Dene
                       </Button>
-                    </>
-                  )}
+                    </div>
+                  ) : null}
+
+                  {checkoutFrameUrl ? (
+                    <div className="mt-4 overflow-hidden rounded-xl border bg-white">
+                      <iframe
+                        title="iyzico Güvenli Kart Ödemesi"
+                        src={checkoutFrameUrl}
+                        className="h-[760px] w-full bg-white"
+                        allow="payment *"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        onLoad={(event) => {
+                          try {
+                            const href = event.currentTarget.contentWindow?.location.href || "";
+                            const url = new URL(href);
+                            const paymentResult = url.searchParams.get("result");
+                            if (
+                              url.origin === window.location.origin &&
+                              url.pathname === "/odeme" &&
+                              (paymentResult === "success" || paymentResult === "failed")
+                            ) {
+                              window.location.replace(url.toString());
+                            }
+                          } catch {
+                            // iyzico/banka içeriği farklı origin üzerindeyken tarayıcı erişimi engeller.
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <span>Ödenecek tutar: <b className="text-slate-900">{formatMoney(preview.total)}</b></span>
+                    {checkoutFrameUrl ? (
+                      <button
+                        type="button"
+                        className="font-semibold text-blue-700 hover:underline"
+                        onClick={() => setCheckoutFrameRevision((value) => value + 1)}
+                      >
+                        Kart formunu yenile
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-2xl border bg-white p-5">
