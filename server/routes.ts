@@ -2119,6 +2119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id,
           sku,
           name,
+          category,
           price,
           stock,
           min_order_qty,
