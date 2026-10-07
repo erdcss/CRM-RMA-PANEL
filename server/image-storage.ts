@@ -45,3 +45,32 @@ export async function persistProductImageUrl(imageUrl?: string): Promise<string 
   }
   return imageUrl;
 }
+
+
+export async function saveVideoDataUrl(dataUrl: string): Promise<string> {
+  const match = dataUrl.match(/^data:video\/([\w+.-]+);base64,(.+)$/i);
+  if (!match) {
+    throw new Error("Geçersiz video formatı");
+  }
+
+  const mime = match[1].toLowerCase();
+  const ext =
+    mime.includes("webm") ? "webm" :
+    mime.includes("quicktime") ? "mov" :
+    mime.includes("m4v") ? "m4v" :
+    "mp4";
+
+  const base64 = match[2].replace(/\s/g, "");
+  const buffer = Buffer.from(base64, "base64");
+
+  if (buffer.length === 0) {
+    throw new Error("Video verisi boş");
+  }
+  if (buffer.length > 10 * 1024 * 1024) {
+    throw new Error("Video 10MB sınırını aşıyor");
+  }
+
+  const filename = `${nanoid()}.${ext}`;
+  await fs.promises.writeFile(path.join(uploadsDir, filename), buffer);
+  return `/uploads/${filename}`;
+}
