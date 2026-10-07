@@ -207,6 +207,7 @@ type CheckoutProduct = {
   minOrderQty: number;
   unitsPerBox: number;
   maxBoxQty: number;
+  image: string | null;
 };
 
 function cleanOrderQuantity(value: unknown) {
@@ -259,7 +260,8 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
   }
 
   const result = await pool.query(
-    `SELECT id, sku, name, category, price, stock, min_order_qty, units_per_box
+    `SELECT id, sku, name, category, price, stock, min_order_qty, units_per_box,
+            image_data, images
      FROM b2b_products
      WHERE id::text = $1
        AND is_active IS DISTINCT FROM FALSE
@@ -293,6 +295,12 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
     minOrderQty,
     unitsPerBox,
     maxBoxQty,
+    image:
+      typeof row.image_data === "string" && row.image_data.trim()
+        ? row.image_data
+        : Array.isArray(row.images) && typeof row.images[0] === "string"
+          ? row.images[0]
+          : null,
   };
 }
 
@@ -492,6 +500,12 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_details JSONB NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS card_last4 TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS card_association TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS billing_details JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS checkout_trace JSONB NOT NULL DEFAULT '{}'::jsonb;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS cancel_requested_at TIMESTAMPTZ;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
     CREATE INDEX IF NOT EXISTS b2b_orders_user_idx ON b2b_orders(user_id, created_at DESC);
