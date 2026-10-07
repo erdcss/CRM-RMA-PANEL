@@ -2483,9 +2483,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       `INSERT INTO b2b_orders (
         order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
-        shipping_method, shipping_details, user_id, items
+        shipping_method, shipping_details, user_id, items,
+        billing_details, shipping_address, checkout_trace
       )
-      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb)
+      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb)
       RETURNING id`,
       [
         orderNumber,
@@ -2885,6 +2886,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       total: entry.total,
       image: entry.product.image,
     }));
+    const { billingDetails, shippingAddress, checkoutTrace } = buildOrderSnapshots(
+      user,
+      address,
+      shipping,
+      req.body?.checkoutContext,
+    );
 
     const created = await pool.query(
       `INSERT INTO b2b_orders (
@@ -2904,6 +2911,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
+        JSON.stringify(billingDetails),
+        JSON.stringify(shippingAddress),
+        JSON.stringify(checkoutTrace),
       ],
     );
 
@@ -3119,6 +3129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     let checkout: Awaited<ReturnType<typeof checkoutItems>>;
+    let address: any;
     let shipping: ShippingSelection;
 
     try {
@@ -3126,7 +3137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
       checkout = await checkoutItems(rawItems);
-      await checkoutAddress(user.id, req.body?.addressId);
+      address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
     } catch (error) {
       return res.status(400).json({
@@ -3148,14 +3159,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       total: entry.total,
       image: entry.product.image,
     }));
+    const { billingDetails, shippingAddress, checkoutTrace } = buildOrderSnapshots(
+      user,
+      address,
+      shipping,
+      req.body?.checkoutContext,
+    );
 
     await pool.query(
       `INSERT INTO b2b_orders (
         order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
-        shipping_method, shipping_details, user_id, items
+        shipping_method, shipping_details, user_id, items,
+        billing_details, shipping_address, checkout_trace
       )
-      VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb,$7,$8::jsonb)`,
+      VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb)`,
       [
         orderNumber,
         email,
@@ -3165,6 +3183,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
+        JSON.stringify(billingDetails),
+        JSON.stringify(shippingAddress),
+        JSON.stringify(checkoutTrace),
       ],
     );
 
