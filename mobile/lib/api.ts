@@ -110,6 +110,20 @@ export type CatalogCustomer = {
   createdAt: string;
 };
 
+export type B2BProduct = {
+  id: string | number;
+  sku?: string | null;
+  name: string;
+  price?: string | number | null;
+  stock?: number | null;
+  min_order_qty?: number | null;
+  units_per_box?: number | null;
+  image_data?: string | null;
+  images?: string[] | null;
+  barcode?: string | null;
+  collection_name?: string | null;
+};
+
 export type SupplierItem = {
   id: number;
   productId: number;
@@ -237,6 +251,7 @@ export const rmaApi = {
     request<CatalogProduct[]>(`/api/catalog-products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  listB2BProducts: () => request<B2BProduct[]>('/api/b2b/products'),
   getDashboardStats: () => request<DashboardStats>('/api/stats/dashboard'),
   updateProduct: (id: number, payload: UpdateProductPayload) =>
     request<RmaProduct>(`/api/products/${id}`, {
