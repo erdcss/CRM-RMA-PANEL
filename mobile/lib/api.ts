@@ -2,6 +2,13 @@ import { localAuth } from './supabase';
 
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
+export const API_BASE_URL = API_URL;
+
+export function absoluteMediaUrl(value?: string | null) {
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+  return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
+}
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const session = await localAuth.getSession();
@@ -122,6 +129,78 @@ export type B2BProduct = {
   images?: string[] | null;
   barcode?: string | null;
   collection_name?: string | null;
+};
+
+export type B2BHomepage = {
+  categories: string[];
+};
+
+export type B2BReel = {
+  id: string | number;
+  title: string;
+  video_url: string;
+  thumbnail_url?: string | null;
+  product_id?: string | null;
+  sort_order?: number | null;
+  created_at?: string | null;
+};
+
+export type B2BAccount = {
+  id: number;
+  email?: string | null;
+  companyName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  companyCategory?: string | null;
+  taxNumber?: string | null;
+  taxOffice?: string | null;
+  taxVerified?: boolean;
+};
+
+export type B2BAddress = {
+  id: number;
+  title: string;
+  recipient?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  district?: string | null;
+  address_line: string;
+  postal_code?: string | null;
+  is_default?: boolean;
+};
+
+export type B2BPaymentMethod = {
+  id: number;
+  provider?: string | null;
+  brand?: string | null;
+  last4?: string | null;
+  holder_name?: string | null;
+  is_default?: boolean;
+};
+
+export type B2BReturn = {
+  id: number;
+  order_number?: string | null;
+  status?: string | null;
+  reason?: string | null;
+  created_at?: string | null;
+};
+
+export type B2BInvoice = {
+  id: number;
+  invoice_number?: string | null;
+  order_number?: string | null;
+  total_amount?: string | number | null;
+  download_url?: string | null;
+  created_at?: string | null;
+};
+
+export type B2BSupportTicket = {
+  id: number;
+  subject: string;
+  message: string;
+  status?: string | null;
+  created_at?: string | null;
 };
 
 export type SupplierItem = {
@@ -252,6 +331,19 @@ export const rmaApi = {
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listB2BProducts: () => request<B2BProduct[]>('/api/b2b/products'),
+  getB2BHomepage: () => request<B2BHomepage>('/api/public/homepage'),
+  listB2BReels: () => request<B2BReel[]>('/api/public/reels'),
+  getB2BAccount: () => request<B2BAccount>('/api/b2b/account'),
+  listB2BAddresses: () => request<B2BAddress[]>('/api/b2b/addresses'),
+  listB2BPaymentMethods: () => request<B2BPaymentMethod[]>('/api/b2b/payment-methods'),
+  listB2BReturns: () => request<B2BReturn[]>('/api/b2b/my-returns'),
+  listB2BInvoices: () => request<B2BInvoice[]>('/api/b2b/my-invoices'),
+  listB2BSupport: () => request<B2BSupportTicket[]>('/api/b2b/support'),
+  createB2BSupport: (subject: string, message: string) =>
+    request<B2BSupportTicket>('/api/b2b/support', {
+      method: 'POST',
+      body: JSON.stringify({ subject, message }),
+    }),
   getDashboardStats: () => request<DashboardStats>('/api/stats/dashboard'),
   updateProduct: (id: number, payload: UpdateProductPayload) =>
     request<RmaProduct>(`/api/products/${id}`, {
