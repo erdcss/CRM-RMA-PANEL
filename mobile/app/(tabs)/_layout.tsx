@@ -11,12 +11,15 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Ana Sayfa' }} />
-      <Tabs.Screen name="records" options={{ title: 'Kayıtlar' }} />
-      <Tabs.Screen name="new-rma" options={{ title: 'Yeni RMA' }} />
-      <Tabs.Screen name="suppliers" options={{ title: 'Tedarikçiler' }} />
-      <Tabs.Screen name="products" options={{ title: 'Ürünler' }} />
-      <Tabs.Screen name="customers" options={{ title: 'Müşteriler' }} />
+      <Tabs.Screen name="menu" options={{ title: 'Menü' }} />
+      <Tabs.Screen name="discover" options={{ title: 'Keşfet' }} />
       <Tabs.Screen name="profile" options={{ title: 'Hesabım' }} />
+
+      <Tabs.Screen name="products" options={{ href: null }} />
+      <Tabs.Screen name="records" options={{ href: null }} />
+      <Tabs.Screen name="new-rma" options={{ href: null }} />
+      <Tabs.Screen name="suppliers" options={{ href: null }} />
+      <Tabs.Screen name="customers" options={{ href: null }} />
     </Tabs>
   );
 }
