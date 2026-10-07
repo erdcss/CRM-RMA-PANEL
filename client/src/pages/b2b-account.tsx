@@ -70,7 +70,13 @@ async function getJson<T>(url: string): Promise<T> {
 
 export default function B2BAccount() {
   const { toast } = useToast();
-  const [tab, setTab] = useState<Tab>("company");
+  const query = new URLSearchParams(window.location.search);
+  const requestedTab = query.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(
+    requestedTab && tabs.some((item) => item.key === requestedTab)
+      ? requestedTab
+      : "company",
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
