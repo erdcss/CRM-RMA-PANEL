@@ -2400,6 +2400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       totalUnits: entry.totalUnits,
       unitPrice: entry.product.price,
       total: entry.total,
+      image: entry.product.image,
     }));
 
     const created = await pool.query(
@@ -2803,6 +2804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       totalUnits: entry.totalUnits,
       unitPrice: entry.product.price,
       total: entry.total,
+      image: entry.product.image,
     }));
 
     const created = await pool.query(
@@ -3064,6 +3066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       totalUnits: entry.totalUnits,
       unitPrice: entry.product.price,
       total: entry.total,
+      image: entry.product.image,
     }));
 
     await pool.query(
