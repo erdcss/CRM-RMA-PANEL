@@ -291,6 +291,10 @@ export default function AdminOrders() {
                                 {current.checkout_trace?.entryPath ? (
                                   <div>Ödeme yolu: {current.checkout_trace.entryPath}</div>
                                 ) : null}
+                                <div>
+                                  Kaynak: {current.checkout_trace?.cartMode ? "Sipariş listesi / sepet" : "Ürün detayı"}
+                                  {current.checkout_trace?.productId ? ` · Ürün ID: ${current.checkout_trace.productId}` : ""}
+                                </div>
                               </div>
                             </div>
                           </div>
