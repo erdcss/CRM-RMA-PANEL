@@ -453,6 +453,8 @@ export default function B2BPaymentPage() {
               source: cartMode ? "Sipariş listesi / sepet" : "Ürün detayı",
               entryPath: window.location.pathname + window.location.search,
               previousPath: document.referrer || "",
+              cartMode,
+              productId: productId || null,
             },
           });
           const payload = await response.json() as {
@@ -629,6 +631,8 @@ export default function B2BPaymentPage() {
           source: cartMode ? "Sipariş listesi / sepet" : "Ürün detayı",
           entryPath: window.location.pathname + window.location.search,
           previousPath: document.referrer || "",
+          cartMode,
+          productId: productId || null,
         },
       });
       const payload = await response.json();
