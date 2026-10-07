@@ -63,7 +63,7 @@ export const localAuth = {
   async signIn(email: string, password: string): Promise<AuthSession> {
     let response: Response;
     try {
-      response = await fetch(`${API_URL}/api/auth/login`, {
+      response = await fetch(`${API_URL}/api/b2b/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ export const localAuth = {
 
     const payload = await parse(response);
     if (!payload?.token || !payload?.user) {
-      throw new Error('Mobil oturum oluşturulamadı. Lütfen tekrar deneyin.');
+      throw new Error('B2B mobil oturumu oluşturulamadı. Lütfen tekrar deneyin.');
     }
 
     await AsyncStorage.setItem(KEY, String(payload.token));
