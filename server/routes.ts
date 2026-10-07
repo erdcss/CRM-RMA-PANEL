@@ -3229,6 +3229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                    payment_id = $2,
                    card_last4 = $3,
                    card_association = $4,
+                   total_amount = COALESCE(NULLIF($5::numeric, 0), total_amount),
                    checkout_trace = COALESCE(checkout_trace, '{}'::jsonb) ||
                      jsonb_build_object('completedAt', NOW(), 'result', 'SUCCESS')
                WHERE id = $1`,
@@ -3237,6 +3238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 payment.paymentId || null,
                 payment.lastFourDigits || null,
                 payment.cardAssociation || null,
+                Number(payment.paidPrice || payment.price || 0),
               ],
             );
             await client.query("COMMIT");
@@ -3254,6 +3256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                payment_id = $2,
                card_last4 = $3,
                card_association = $4,
+               total_amount = COALESCE(NULLIF($5::numeric, 0), total_amount),
                checkout_trace = COALESCE(checkout_trace, '{}'::jsonb) ||
                  jsonb_build_object('completedAt', NOW(), 'result', 'SUCCESS')
            WHERE id = $1`,
@@ -3262,6 +3265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             payment.paymentId || null,
             payment.lastFourDigits || null,
             payment.cardAssociation || null,
+            Number(payment.paidPrice || payment.price || 0),
           ],
         );
       } else {
