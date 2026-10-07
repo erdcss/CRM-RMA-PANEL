@@ -30,7 +30,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (session && onAuthScreen) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/products');
     }
   }, [session, loading, onAuthScreen, onGuestProducts, router]);
 
