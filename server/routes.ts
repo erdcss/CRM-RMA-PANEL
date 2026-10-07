@@ -3071,9 +3071,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               `UPDATE b2b_orders
                SET status = 'paid_stock_review',
                    payment_status = 'SUCCESS',
-                   payment_id = $2
+                   payment_id = $2,
+                   card_last4 = $3,
+                   card_association = $4,
+                   checkout_trace = COALESCE(checkout_trace, '{}'::jsonb) ||
+                     jsonb_build_object('completedAt', NOW(), 'result', 'SUCCESS')
                WHERE id = $1`,
-              [order.id, payment.paymentId || null],
+              [
+                order.id,
+                payment.paymentId || null,
+                payment.lastFourDigits || null,
+                payment.cardAssociation || null,
+              ],
             );
             await client.query("COMMIT");
             return res.redirect(
@@ -3087,18 +3096,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `UPDATE b2b_orders
            SET status = 'paid',
                payment_status = 'SUCCESS',
-               payment_id = $2
+               payment_id = $2,
+               card_last4 = $3,
+               card_association = $4,
+               checkout_trace = COALESCE(checkout_trace, '{}'::jsonb) ||
+                 jsonb_build_object('completedAt', NOW(), 'result', 'SUCCESS')
            WHERE id = $1`,
-          [order.id, payment.paymentId || null],
+          [
+            order.id,
+            payment.paymentId || null,
+            payment.lastFourDigits || null,
+            payment.cardAssociation || null,
+          ],
         );
       } else {
         await client.query(
           `UPDATE b2b_orders
            SET status = 'payment_failed',
                payment_status = 'FAILURE',
-               payment_id = $2
+               payment_id = $2,
+               card_last4 = $3,
+               card_association = $4,
+               checkout_trace = COALESCE(checkout_trace, '{}'::jsonb) ||
+                 jsonb_build_object('completedAt', NOW(), 'result', 'FAILURE')
            WHERE id = $1`,
-          [order.id, payment.paymentId || null],
+          [
+            order.id,
+            payment.paymentId || null,
+            payment.lastFourDigits || null,
+            payment.cardAssociation || null,
+          ],
         );
       }
 
