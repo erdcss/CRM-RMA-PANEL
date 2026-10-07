@@ -3477,7 +3477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
        WHERE id::text = $1
          AND LOWER(COALESCE(customer_email, '')) = $2
          AND status IN ('paid','paid_stock_review')
-         AND COALESCE(cancel_requested_at, to_timestamp(0)) = to_timestamp(0)
+         AND cancel_requested_at IS NULL
        RETURNING id, order_number, status, cancel_requested_at`,
       [id, email],
     );
