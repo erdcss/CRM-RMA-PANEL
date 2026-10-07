@@ -282,7 +282,7 @@ export default function HomeScreen() {
                         color={colors.textSecondary}
                       />
                       <Text style={styles.lockedPriceText}>
-                        Fiyat için giriş yapın
+                        Fiyat bilgisi giriş yapıldıktan sonra listelenir
                       </Text>
                     </Pressable>
                   )}
