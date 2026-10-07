@@ -416,6 +416,76 @@ async function bankTransferSettings() {
   return config.bankTransfer;
 }
 
+function buildOrderSnapshots(
+  user: any,
+  address: any,
+  shipping: ShippingSelection,
+  rawContext: unknown,
+) {
+  const context =
+    rawContext && typeof rawContext === "object"
+      ? rawContext as Record<string, unknown>
+      : {};
+
+  const source = String(context.source || "B2B mağaza").slice(0, 120);
+  const entryPath = String(context.entryPath || "").slice(0, 500);
+  const previousPath = String(context.previousPath || "").slice(0, 500);
+
+  const billingDetails = {
+    companyName: String(user.companyName || ""),
+    taxNumber: String(user.taxNumber || ""),
+    taxOffice: String(user.taxOffice || ""),
+    recipient: String(address.recipient || ""),
+    phone: String(address.phone || ""),
+    addressLine: String(address.address_line || ""),
+    district: String(address.district || ""),
+    city: String(address.city || ""),
+    postalCode: String(address.postal_code || ""),
+  };
+
+  const shippingAddress =
+    shipping.method === "pickup"
+      ? {
+          method: shipping.method,
+          recipient: String(address.recipient || ""),
+          phone: String(address.phone || ""),
+          addressLine: shipping.details.address,
+          district: "Bağcılar",
+          city: "İstanbul",
+          postalCode: "34218",
+          pickupTime: shipping.details.pickupTime,
+        }
+      : {
+          method: shipping.method,
+          recipient: String(address.recipient || ""),
+          phone: String(address.phone || ""),
+          addressLine: String(address.address_line || ""),
+          district: String(address.district || ""),
+          city: String(address.city || ""),
+          postalCode: String(address.postal_code || ""),
+          ...(shipping.method === "cargo"
+            ? { carrier: shipping.details.carrier }
+            : {
+                freightCompany: shipping.details.companyName,
+                freightPhone: shipping.details.phone,
+              }),
+        };
+
+  const checkoutTrace = {
+    source,
+    entryPath,
+    previousPath,
+    stages: [
+      source,
+      "Ödeme sayfası",
+      "iyzico güvenli ödeme",
+    ],
+    capturedAt: new Date().toISOString(),
+  };
+
+  return { billingDetails, shippingAddress, checkoutTrace };
+}
+
 async function ensureB2BAccountTables() {
   if (!pool) return;
 
