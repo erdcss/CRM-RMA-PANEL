@@ -3422,13 +3422,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const email = String(user.email || user.username || "").toLowerCase();
     const result = await pool.query(
       `SELECT id, order_number, customer_email, status, item_count, total_amount,
-              payment_method, payment_status, shipping_method, shipping_details, created_at
+              payment_method, payment_status, shipping_method, shipping_details,
+              card_last4, card_association, cancel_requested_at, created_at
        FROM b2b_orders
        WHERE LOWER(COALESCE(customer_email, '')) = $1
+         AND COALESCE(status, '') <> 'payment_failed'
+         AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+         AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
        ORDER BY created_at DESC`,
       [email],
     );
     return res.json(result.rows);
+  });
+
+  app.get("/api/b2b/my-orders/:id", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const email = String(user.email || user.username || "").toLowerCase();
+    const id = String(req.params.id || "").trim();
+
+    const result = await pool.query(
+      `SELECT *
+       FROM b2b_orders
+       WHERE id::text = $1
+         AND LOWER(COALESCE(customer_email, '')) = $2
+         AND COALESCE(status, '') <> 'payment_failed'
+         AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+         AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+       LIMIT 1`,
+      [id, email],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ error: "Sipariş bulunamadı" });
+    }
+
+    return res.json(await hydrateB2BOrderDetail(result.rows[0]));
+  });
+
+  app.post("/api/b2b/my-orders/:id/cancel", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const email = String(user.email || user.username || "").toLowerCase();
+    const id = String(req.params.id || "").trim();
+
+    const result = await pool.query(
+      `UPDATE b2b_orders
+       SET status = 'cancel_requested',
+           cancel_requested_at = NOW()
+       WHERE id::text = $1
+         AND LOWER(COALESCE(customer_email, '')) = $2
+         AND status IN ('paid','paid_stock_review')
+         AND COALESCE(cancel_requested_at, to_timestamp(0)) = to_timestamp(0)
+       RETURNING id, order_number, status, cancel_requested_at`,
+      [id, email],
+    );
+
+    if (!result.rows[0]) {
+      return res.status(409).json({
+        error: "Bu sipariş için iptal talebi oluşturulamıyor veya talep zaten mevcut",
+      });
+    }
+
+    await pool.query(
+      `INSERT INTO b2b_support_tickets (user_id, subject, message)
+       VALUES ($1,$2,$3)`,
+      [
+        user.id,
+        `Sipariş iptal talebi · ${result.rows[0].order_number}`,
+        `Müşteri ${result.rows[0].order_number} numaralı sipariş için iptal talebi oluşturdu.`,
+      ],
+    ).catch(() => undefined);
+
+    return res.json(result.rows[0]);
   });
 
   app.get("/api/b2b/my-returns", requireB2B, async (_req, res) => {
