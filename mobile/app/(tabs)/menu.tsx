@@ -36,7 +36,7 @@ export default function MenuScreen() {
     router.push({
       pathname: '/(tabs)',
       params: { category },
-    });
+    } as never);
   };
 
   return (
