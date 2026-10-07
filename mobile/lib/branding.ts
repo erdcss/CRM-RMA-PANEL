@@ -15,28 +15,54 @@ type MobileBrandingResponse = {
   updatedAt?: number | null;
 };
 
+type PublicBrandingResponse = {
+  b2b_logo?: string | null;
+  b2b_mobile_logo?: string | null;
+  b2b_mobile_splash?: string | null;
+};
+
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 
 async function fetchB2BBranding(): Promise<MobileBranding> {
-  const response = await fetch(
-    `${API_URL}/api/public/mobile-branding/b2b?t=${Date.now()}`,
-    {
-      headers: {
-        Accept: 'application/json',
-        'Cache-Control': 'no-cache',
-      },
-    },
-  );
+  const cacheBust = Date.now();
+  const headers = {
+    Accept: 'application/json',
+    'Cache-Control': 'no-cache',
+  };
 
-  if (!response.ok) {
-    throw new Error(`Mobil marka bilgisi alınamadı (HTTP ${response.status})`);
+  const [mobileResponse, publicResponse] = await Promise.all([
+    fetch(`${API_URL}/api/public/mobile-branding/b2b?t=${cacheBust}`, { headers }),
+    fetch(`${API_URL}/api/public/branding?t=${cacheBust}`, { headers }),
+  ]);
+
+  if (!mobileResponse.ok && !publicResponse.ok) {
+    throw new Error(
+      `Mobil marka bilgisi alınamadı (HTTP ${mobileResponse.status}/${publicResponse.status})`,
+    );
   }
 
-  const payload = (await response.json()) as MobileBrandingResponse;
+  const mobile = mobileResponse.ok
+    ? ((await mobileResponse.json()) as MobileBrandingResponse)
+    : {};
+  const branding = publicResponse.ok
+    ? ((await publicResponse.json()) as PublicBrandingResponse)
+    : {};
+
   return {
-    b2b_mobile_logo: payload.logo || null,
-    b2b_mobile_splash: payload.splash || null,
+    // Uygulama içinde ana B2B logosu her zaman güncel marka logosunu takip eder.
+    // Mobil özel logo ancak ana logo yoksa yedek olarak kullanılır.
+    b2b_mobile_logo:
+      branding.b2b_logo ||
+      branding.b2b_mobile_logo ||
+      mobile.logo ||
+      null,
+    b2b_mobile_splash:
+      branding.b2b_mobile_splash ||
+      mobile.splash ||
+      branding.b2b_logo ||
+      mobile.logo ||
+      null,
     loaded: true,
   };
 }
