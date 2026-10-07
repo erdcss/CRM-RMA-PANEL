@@ -368,7 +368,7 @@ function AddressCard({
 }
 
 function printA5Order(order: any, logo: string) {
-  const popup = window.open("", "_blank", "noopener,noreferrer,width=900,height=1100");
+  const popup = window.open("", "_blank", "width=900,height=1100");
   if (!popup) return;
 
   const items = Array.isArray(order.items) ? order.items : [];
