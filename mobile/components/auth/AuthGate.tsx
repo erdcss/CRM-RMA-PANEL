@@ -2,10 +2,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 
-import { PackageDrawer } from '@/components/packages/PackageDrawer';
-import { PackageDrawerTrigger } from '@/components/packages/PackageDrawerTrigger';
 import { useAuth } from '@/contexts/AuthContext';
-import { PackageDrawerProvider } from '@/contexts/PackageDrawerContext';
 import { colors } from '@/constants/theme';
 
 function isAuthRoute(segment: string | undefined) {
@@ -18,53 +15,20 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const currentRoute = segments[0];
   const onAuthScreen = isAuthRoute(currentRoute);
-  const onGuestProducts =
-    currentRoute === '(tabs)' && segments[1] === 'products';
 
   useEffect(() => {
     if (loading) return;
 
-    if (!session && !onAuthScreen && !onGuestProducts) {
-      router.replace('/login');
-      return;
-    }
-
     if (session && onAuthScreen) {
-      router.replace('/(tabs)/products');
+      router.replace('/(tabs)');
     }
-  }, [session, loading, onAuthScreen, onGuestProducts, router]);
+  }, [session, loading, onAuthScreen, router]);
 
   if (loading) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
-    );
-  }
-
-  if (!session && !onAuthScreen && !onGuestProducts) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
-
-  if (session && onAuthScreen) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator color={colors.primary} size="large" />
-      </View>
-    );
-  }
-
-  if (session) {
-    return (
-      <PackageDrawerProvider>
-        {children}
-        <PackageDrawer />
-        <PackageDrawerTrigger />
-      </PackageDrawerProvider>
     );
   }
 
@@ -83,15 +47,6 @@ export function RootStack() {
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
       <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
-      <Stack.Screen name="record/[id]/index" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="record/[id]/product/[productId]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="customer/[id]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="package/scan" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="package/[id]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="supplier/[code]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="supplier/[code]/ship" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="supplier/product/[id]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="settings/barcode" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }
