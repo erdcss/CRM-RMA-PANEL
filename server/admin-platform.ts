@@ -1253,8 +1253,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     try {
       const result = await pool.query(`
         SELECT id, order_number, customer_email, status, item_count, total_amount,
-               payment_method, payment_provider, payment_status, created_at
+               payment_method, payment_provider, payment_status, card_last4,
+               card_association, cancel_requested_at, created_at
         FROM b2b_orders
+        WHERE COALESCE(status, '') <> 'payment_failed'
+          AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+          AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
         ORDER BY created_at DESC
         LIMIT 250
       `);
@@ -1262,6 +1266,32 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Admin orders load failed:", error);
       res.status(500).json({ error: "Siparişler alınamadı" });
+    }
+  });
+
+  app.get("/api/admin/orders/:id", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+
+    try {
+      const result = await pool.query(
+        `SELECT *
+         FROM b2b_orders
+         WHERE id::text = $1
+           AND COALESCE(status, '') <> 'payment_failed'
+           AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+           AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+         LIMIT 1`,
+        [String(req.params.id || "")],
+      );
+
+      if (!result.rows[0]) {
+        return res.status(404).json({ error: "Sipariş bulunamadı" });
+      }
+
+      return res.json(await hydrateAdminOrderDetail(result.rows[0]));
+    } catch (error) {
+      console.error("Admin order detail load failed:", error);
+      return res.status(500).json({ error: "Sipariş detayı alınamadı" });
     }
   });
 
