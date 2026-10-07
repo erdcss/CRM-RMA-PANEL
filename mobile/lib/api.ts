@@ -129,6 +129,7 @@ export type B2BProduct = {
   images?: string[] | null;
   barcode?: string | null;
   collection_name?: string | null;
+  category?: string | null;
 };
 
 export type B2BHomepage = {
