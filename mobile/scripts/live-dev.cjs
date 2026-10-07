@@ -5,7 +5,7 @@ const mobileRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(mobileRoot, "..");
 const branch = process.env.LIVE_DEV_BRANCH || "main";
 const connectionMode = process.argv.includes("--tunnel") ? "--tunnel" : "--lan";
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+const isWindows = process.platform === "win32";
 
 let syncing = false;
 let warnedDirty = false;
@@ -111,19 +111,20 @@ console.log(
 syncFromGitHub();
 const timer = setInterval(syncFromGitHub, 4000);
 
-const expo = spawn(
-  npx,
-  ["expo", "start", "--dev-client", connectionMode],
-  {
-    cwd: mobileRoot,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      APP_VARIANT: "development",
-    },
-    shell: false,
+const expoCommand = isWindows ? "cmd.exe" : "npx";
+const expoArgs = isWindows
+  ? ["/d", "/s", "/c", `npx expo start --dev-client ${connectionMode}`]
+  : ["expo", "start", "--dev-client", connectionMode];
+
+const expo = spawn(expoCommand, expoArgs, {
+  cwd: mobileRoot,
+  stdio: "inherit",
+  env: {
+    ...process.env,
+    APP_VARIANT: "development",
   },
-);
+  shell: false,
+});
 
 function stop(signal) {
   clearInterval(timer);
