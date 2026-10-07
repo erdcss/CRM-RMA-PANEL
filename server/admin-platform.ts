@@ -6,6 +6,7 @@ import {
   savePaymentSettings,
 } from "./payment-config";
 import { retrieveIyzicoCheckout } from "./iyzico";
+import { saveVideoDataUrl } from "./image-storage";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -75,8 +76,21 @@ CREATE TABLE IF NOT EXISTS b2b_products (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS b2b_reels (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  video_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  product_id TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS b2b_products_stock_idx ON b2b_products (stock);
 CREATE INDEX IF NOT EXISTS b2b_products_created_at_idx ON b2b_products (created_at DESC);
+CREATE INDEX IF NOT EXISTS b2b_reels_active_sort_idx ON b2b_reels (is_active, sort_order, created_at DESC);
 `;
 
 const BRANDING_KEYS = [
@@ -768,6 +782,123 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Admin homepage config update failed:", error);
       return res.status(500).json({ error: "Ana sayfa ayarları kaydedilemedi" });
+    }
+  });
+
+  app.get("/api/public/reels", async (_req, res) => {
+    if (!pool) return res.json([]);
+    try {
+      const result = await pool.query(
+        `SELECT id, title, video_url, thumbnail_url, product_id, sort_order, created_at
+         FROM b2b_reels
+         WHERE is_active = TRUE
+         ORDER BY sort_order ASC, created_at DESC`,
+      );
+      return res.json(result.rows);
+    } catch (error) {
+      console.error("Public reels load failed:", error);
+      return res.status(500).json({ error: "Reels alınamadı" });
+    }
+  });
+
+  app.get("/api/admin/reels", requireAdmin, async (_req, res) => {
+    if (!pool) return res.json([]);
+    try {
+      const result = await pool.query(
+        `SELECT id, title, video_url, thumbnail_url, product_id, sort_order, is_active, created_at, updated_at
+         FROM b2b_reels
+         ORDER BY sort_order ASC, created_at DESC`,
+      );
+      return res.json(result.rows);
+    } catch (error) {
+      console.error("Admin reels load failed:", error);
+      return res.status(500).json({ error: "Reels alınamadı" });
+    }
+  });
+
+  app.post("/api/admin/reels/upload", requireAdmin, async (req, res) => {
+    try {
+      const dataUrl = typeof req.body?.dataUrl === "string" ? req.body.dataUrl : "";
+      if (!dataUrl) return res.status(400).json({ error: "Video dosyası bulunamadı" });
+      const url = await saveVideoDataUrl(dataUrl);
+      return res.status(201).json({ url });
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "Video yüklenemedi",
+      });
+    }
+  });
+
+  app.post("/api/admin/reels", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const title = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 180) : "";
+    const videoUrl = typeof req.body?.videoUrl === "string" ? req.body.videoUrl.trim().slice(0, 4000) : "";
+    const thumbnailUrl = typeof req.body?.thumbnailUrl === "string" ? req.body.thumbnailUrl.trim().slice(0, 4000) : "";
+    const productId = req.body?.productId == null ? "" : String(req.body.productId).trim().slice(0, 120);
+    const sortOrder = Number.isFinite(Number(req.body?.sortOrder)) ? Math.trunc(Number(req.body.sortOrder)) : 0;
+    const isActive = req.body?.isActive !== false;
+
+    if (!title || !videoUrl) {
+      return res.status(400).json({ error: "Reels başlığı ve video zorunludur" });
+    }
+
+    try {
+      const result = await pool.query(
+        `INSERT INTO b2b_reels (title, video_url, thumbnail_url, product_id, sort_order, is_active)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         RETURNING *`,
+        [title, videoUrl, thumbnailUrl || null, productId || null, sortOrder, isActive],
+      );
+      return res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error("Admin reel create failed:", error);
+      return res.status(500).json({ error: "Reels kaydedilemedi" });
+    }
+  });
+
+  app.patch("/api/admin/reels/:id", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const id = String(req.params.id || "").trim();
+    const title = typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 180) : "";
+    const videoUrl = typeof req.body?.videoUrl === "string" ? req.body.videoUrl.trim().slice(0, 4000) : "";
+    const thumbnailUrl = typeof req.body?.thumbnailUrl === "string" ? req.body.thumbnailUrl.trim().slice(0, 4000) : "";
+    const productId = req.body?.productId == null ? "" : String(req.body.productId).trim().slice(0, 120);
+    const sortOrder = Number.isFinite(Number(req.body?.sortOrder)) ? Math.trunc(Number(req.body.sortOrder)) : 0;
+    const isActive = req.body?.isActive !== false;
+
+    if (!title || !videoUrl) {
+      return res.status(400).json({ error: "Reels başlığı ve video zorunludur" });
+    }
+
+    try {
+      const result = await pool.query(
+        `UPDATE b2b_reels
+         SET title=$2, video_url=$3, thumbnail_url=$4, product_id=$5,
+             sort_order=$6, is_active=$7, updated_at=NOW()
+         WHERE id::text=$1
+         RETURNING *`,
+        [id, title, videoUrl, thumbnailUrl || null, productId || null, sortOrder, isActive],
+      );
+      if (!result.rows[0]) return res.status(404).json({ error: "Reels bulunamadı" });
+      return res.json(result.rows[0]);
+    } catch (error) {
+      console.error("Admin reel update failed:", error);
+      return res.status(500).json({ error: "Reels güncellenemedi" });
+    }
+  });
+
+  app.delete("/api/admin/reels/:id", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try {
+      const result = await pool.query(
+        "DELETE FROM b2b_reels WHERE id::text = $1 RETURNING id",
+        [String(req.params.id || "")],
+      );
+      if (!result.rows[0]) return res.status(404).json({ error: "Reels bulunamadı" });
+      return res.json({ ok: true });
+    } catch (error) {
+      console.error("Admin reel delete failed:", error);
+      return res.status(500).json({ error: "Reels silinemedi" });
     }
   });
 
