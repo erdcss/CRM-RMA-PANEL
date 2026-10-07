@@ -43,6 +43,18 @@
         "resourceClass": "m-medium"
       },
       "environment": "production"
+    },
+    "development-ui": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "APP_VARIANT": "development",
+        "EXPO_UI_DEV_CLIENT": "1",
+        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+      }
     }
   },
   "submit": {
