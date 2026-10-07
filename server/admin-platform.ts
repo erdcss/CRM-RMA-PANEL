@@ -1369,11 +1369,17 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           FROM b2b_orders
           WHERE (created_at AT TIME ZONE 'Europe/Istanbul')::date =
                 (NOW() AT TIME ZONE 'Europe/Istanbul')::date
+            AND COALESCE(status, '') <> 'payment_failed'
+            AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
         `),
         pool.query(`
           SELECT id, order_number, customer_email, status, item_count, total_amount,
                  payment_method, payment_provider, payment_status, created_at
           FROM b2b_orders
+          WHERE COALESCE(status, '') <> 'payment_failed'
+            AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
           ORDER BY created_at DESC
           LIMIT 6
         `),
