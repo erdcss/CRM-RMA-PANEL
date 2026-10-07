@@ -2734,13 +2734,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const user = (res.locals as any).b2bUser;
-    const identityNumber =
-      typeof req.body?.identityNumber === "string"
-        ? req.body.identityNumber.replace(/\D/g, "").slice(0, 11)
-        : "";
+    const identityNumber = String(user.taxNumber || "")
+      .replace(/\D/g, "")
+      .slice(0, 50);
 
-    if (!/^\d{11}$/.test(identityNumber)) {
-      return res.status(400).json({ error: "Kartlı ödeme için 11 haneli T.C. kimlik numarası gerekiyor" });
+    if (identityNumber.length < 5) {
+      return res.status(400).json({
+        error: "Kartlı ödeme için firma vergi numarası hesap bilgilerinde bulunmalıdır",
+      });
     }
 
     let checkout: Awaited<ReturnType<typeof checkoutItems>>;
@@ -2823,7 +2824,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentGroup: "PRODUCT",
         callbackUrl,
         enabledInstallments: [1, 2, 3, 6, 9, 12],
-        paymentSource: "CaliskanB2B",
         buyer: {
           id: String(user.id),
           name: firstName,
