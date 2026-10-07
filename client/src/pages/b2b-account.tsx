@@ -320,8 +320,11 @@ function InvoicesPanel() {
 
 function SupportPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"] }) {
   const { data = [] } = useQuery<any[]>({ queryKey: ["/api/b2b/support"], queryFn: () => getJson("/api/b2b/support") });
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const orderNumber = new URLSearchParams(window.location.search).get("order") || "";
+  const [subject, setSubject] = useState(orderNumber ? `Sipariş desteği · ${orderNumber}` : "");
+  const [message, setMessage] = useState(
+    orderNumber ? `${orderNumber} numaralı siparişim hakkında destek almak istiyorum.` : "",
+  );
 
   return (
     <Panel title="Destek Hattı" description="Sipariş, ürün, iade veya hesap konularında destek talebi oluşturun.">
