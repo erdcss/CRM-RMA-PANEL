@@ -330,38 +330,172 @@ export default function B2BOrders() {
               </div>
             ) : (
               <div className="divide-y">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="grid gap-3 px-4 py-4 text-sm sm:grid-cols-[160px_1fr_140px_140px] sm:items-center"
-                  >
-                    <div>
-                      <div className="text-xs text-slate-400">Sipariş No</div>
-                      <div className="font-bold">{order.order_number || `#${order.id}`}</div>
+                {orders.map((order) => {
+                  const opened = selectedOrderId === String(order.id);
+                  const detail = opened ? orderDetail : null;
+                  const canCancel =
+                    ["paid", "paid_stock_review"].includes(String(order.status || "")) &&
+                    !order.cancel_requested_at;
+
+                  return (
+                    <div key={order.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedOrderId((current) =>
+                            current === String(order.id) ? "" : String(order.id),
+                          )
+                        }
+                        className="grid w-full gap-3 px-4 py-4 text-left text-sm hover:bg-slate-50 sm:grid-cols-[170px_1fr_140px_120px_32px] sm:items-center"
+                      >
+                        <div>
+                          <div className="text-xs text-slate-400">Sipariş No</div>
+                          <div className="font-bold">{order.order_number || `#${order.id}`}</div>
+                        </div>
+                        <div>
+                          <div className="font-medium">{statusLabel(order.status)}</div>
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            {order.payment_method === "bank_transfer"
+                              ? "Havale / EFT"
+                              : order.payment_method === "card"
+                                ? `Kart / iyzico${order.card_last4 ? ` · •••• ${order.card_last4}` : ""}`
+                                : "Ödeme yöntemi belirtilmedi"}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-slate-400">Toplam</div>
+                          <div className="font-bold">{money(Number(order.total_amount || 0))}</div>
+                        </div>
+                        <div className="text-slate-500 sm:text-right">
+                          {order.created_at
+                            ? new Date(order.created_at).toLocaleDateString("tr-TR")
+                            : "—"}
+                        </div>
+                        <div className="flex justify-end text-slate-400">
+                          {opened ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      {opened ? (
+                        <div className="border-t bg-slate-50/60 px-4 py-5 sm:px-5">
+                          {detailLoading || !detail ? (
+                            <div className="py-8 text-center text-sm text-slate-500">Sipariş detayı yükleniyor…</div>
+                          ) : (
+                            <div className="space-y-5">
+                              <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="rounded-xl border bg-white p-4">
+                                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                    <CreditCard className="h-4 w-4" />
+                                    Ödeme
+                                  </div>
+                                  <div className="mt-2 font-bold">{money(Number(detail.total_amount || 0))}</div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {detail.payment_method === "card"
+                                      ? `${detail.card_association || "Kart"}${detail.card_last4 ? ` · •••• ${detail.card_last4}` : ""}`
+                                      : "Havale / EFT"}
+                                  </div>
+                                </div>
+
+                                <div className="rounded-xl border bg-white p-4">
+                                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                    <PackageCheck className="h-4 w-4" />
+                                    Sipariş
+                                  </div>
+                                  <div className="mt-2 font-bold">{statusLabel(detail.status)}</div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    {Array.isArray(detail.items) ? detail.items.length : 0} ürün çeşidi · {Number(detail.item_count || 0)} adet
+                                  </div>
+                                </div>
+
+                                <div className="rounded-xl border bg-white p-4">
+                                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                    <MapPin className="h-4 w-4" />
+                                    Teslimat
+                                  </div>
+                                  <div className="mt-2 text-sm font-semibold">
+                                    {detail.shipping_address?.city || "—"} {detail.shipping_address?.district || ""}
+                                  </div>
+                                  <div className="mt-1 line-clamp-2 text-xs text-slate-500">
+                                    {detail.shipping_address?.addressLine || "Adres bilgisi yok"}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="overflow-hidden rounded-xl border bg-white">
+                                <div className="border-b px-4 py-3 font-bold">Sipariş İçeriği</div>
+                                <div className="divide-y">
+                                  {(Array.isArray(detail.items) ? detail.items : []).map((item: any, index: number) => (
+                                    <div key={item.productId || index} className="grid gap-3 p-4 sm:grid-cols-[72px_minmax(0,1fr)_150px] sm:items-center">
+                                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-lg border bg-white">
+                                        {item.image ? (
+                                          <img src={item.image} alt={item.name || "Ürün"} className="h-full w-full object-contain p-1" />
+                                        ) : (
+                                          <PackageSearch className="h-7 w-7 text-slate-300" />
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="font-bold">{item.name || "Ürün"}</div>
+                                        <div className="mt-1 text-xs text-slate-500">Stok Kodu: {item.sku || "—"}</div>
+                                        <div className="mt-2 text-sm">
+                                          <b>{Number(item.quantity || 0)} koli</b>
+                                          <span className="text-slate-500"> · Koli içi {Number(item.unitsPerBox || 0)} adet · Toplam {Number(item.totalUnits || 0)} adet</span>
+                                        </div>
+                                      </div>
+                                      <div className="sm:text-right">
+                                        <div className="text-xs text-slate-400">Ürün toplamı</div>
+                                        <div className="font-bold">{money(Number(item.total || 0))}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="grid gap-4 lg:grid-cols-2">
+                                <div className="rounded-xl border bg-white p-4">
+                                  <div className="mb-2 font-bold">Fatura Adresi</div>
+                                  <div className="text-sm font-semibold">{detail.billing_details?.companyName || "—"}</div>
+                                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                                    VKN: {detail.billing_details?.taxNumber || "—"} · {detail.billing_details?.taxOffice || "Vergi dairesi yok"}
+                                    <br />
+                                    {formatAddress(detail.billing_details)}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border bg-white p-4">
+                                  <div className="mb-2 font-bold">Teslimat Adresi</div>
+                                  <div className="text-sm font-semibold">{detail.shipping_address?.recipient || "—"}</div>
+                                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                                    {formatAddress(detail.shipping_address)}
+                                    {detail.shipping_address?.phone ? <><br />{detail.shipping_address.phone}</> : null}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap gap-2">
+                                <Button asChild variant="outline">
+                                  <Link href={`/hesabim?tab=support&order=${encodeURIComponent(detail.order_number || "")}`}>
+                                    <Headphones className="mr-2 h-4 w-4" />
+                                    Destek ile İletişim
+                                  </Link>
+                                </Button>
+                                {canCancel ? (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                                    onClick={() => void requestCancellation(order)}
+                                  >
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                    Siparişi İptal Et
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                    <div>
-                      <div className="font-medium">{statusLabel(order.status)}</div>
-                      <div className="mt-0.5 text-xs text-slate-500">
-                        {order.payment_method === "bank_transfer"
-                          ? "Havale / EFT"
-                          : order.payment_method === "card"
-                            ? "Kart / iyzico"
-                            : "Ödeme yöntemi belirtilmedi"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-400">Toplam</div>
-                      <div className="font-bold">
-                        {money(Number(order.total_amount || 0))}
-                      </div>
-                    </div>
-                    <div className="text-slate-500 sm:text-right">
-                      {order.created_at
-                        ? new Date(order.created_at).toLocaleDateString("tr-TR")
-                        : "—"}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -369,4 +503,14 @@ export default function B2BOrders() {
       </main>
     </div>
   );
+}
+
+function formatAddress(value: any) {
+  if (!value || typeof value !== "object") return "—";
+  return [
+    value.addressLine,
+    value.district,
+    value.city,
+    value.postalCode,
+  ].filter(Boolean).join(", ") || "—";
 }
