@@ -18,11 +18,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const currentRoute = segments[0];
   const onAuthScreen = isAuthRoute(currentRoute);
+  const onGuestProducts =
+    currentRoute === '(tabs)' && segments[1] === 'products';
 
   useEffect(() => {
     if (loading) return;
 
-    if (!session && !onAuthScreen) {
+    if (!session && !onAuthScreen && !onGuestProducts) {
       router.replace('/login');
       return;
     }
@@ -30,7 +32,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     if (session && onAuthScreen) {
       router.replace('/(tabs)');
     }
-  }, [session, loading, onAuthScreen, router]);
+  }, [session, loading, onAuthScreen, onGuestProducts, router]);
 
   if (loading) {
     return (
@@ -40,7 +42,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!session && !onAuthScreen) {
+  if (!session && !onAuthScreen && !onGuestProducts) {
     return (
       <View style={styles.loader}>
         <ActivityIndicator color={colors.primary} size="large" />
