@@ -1,16 +1,26 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  Headphones,
+  MapPin,
   Minus,
+  PackageCheck,
   PackageSearch,
   Plus,
   ShoppingBag,
   Trash2,
+  XCircle,
 } from "lucide-react";
 
 import { B2BHeader } from "@/components/b2b-header";
 import { Button } from "@/components/ui/button";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import {
   removeB2BCartItem,
   updateB2BCartQuantity,
@@ -44,17 +54,56 @@ function statusLabel(value?: string | null) {
       return "Ödeme başarısız";
     case "awaiting_bank_transfer":
       return "Havale bekleniyor";
+    case "awaiting_bank_confirmation":
+      return "Havale kontrol ediliyor";
+    case "cancel_requested":
+      return "İptal talebi alındı";
+    case "paid_stock_review":
+      return "Ödendi · stok kontrolü";
     default:
       return value || "Bekliyor";
   }
 }
 
 export default function B2BOrders() {
+  const { toast } = useToast();
   const { items, itemCount, totalUnits, total } = useB2BCart();
+  const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/b2b/my-orders"],
     queryFn: loadOrders,
   });
+
+  const { data: orderDetail, isLoading: detailLoading } = useQuery<any>({
+    queryKey: ["/api/b2b/my-orders/detail", selectedOrderId],
+    queryFn: async () => {
+      const response = await fetch(`/api/b2b/my-orders/${encodeURIComponent(selectedOrderId)}`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Sipariş detayı alınamadı");
+      return response.json();
+    },
+    enabled: Boolean(selectedOrderId),
+  });
+
+  async function requestCancellation(order: any) {
+    if (!window.confirm(`${order.order_number || "Sipariş"} için iptal talebi oluşturulsun mu?`)) return;
+    try {
+      await apiRequest("POST", `/api/b2b/my-orders/${encodeURIComponent(String(order.id))}/cancel`);
+      toast({
+        title: "İptal talebi alındı",
+        description: "Siparişiniz incelenmek üzere destek ekibine iletildi.",
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/b2b/my-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/b2b/my-orders/detail", String(order.id)] });
+    } catch (error) {
+      toast({
+        title: "İptal talebi oluşturulamadı",
+        description: error instanceof Error ? error.message : "Bir hata oluştu",
+        variant: "destructive",
+      });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
