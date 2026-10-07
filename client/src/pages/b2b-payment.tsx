@@ -219,6 +219,20 @@ function decodeBase64Html(value: string) {
   }
 }
 
+function openThreeDSInTopWindow(value: string) {
+  const html = decodeBase64Html(value);
+  if (!html.trim()) {
+    throw new Error("3D Secure doğrulama içeriği çözümlenemedi");
+  }
+
+  // 3DS banka doğrulaması iframe içinde bazı bankalarda başarısız olabiliyor.
+  // iyzico'nun döndürdüğü HTML'i ana tarayıcı penceresinde çalıştırarak
+  // banka/ACS sayfasının top-level context'te açılmasını sağlıyoruz.
+  document.open();
+  document.write(html);
+  document.close();
+}
+
 export default function B2BPaymentPage() {
   const { toast } = useToast();
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -553,7 +567,8 @@ export default function B2BPaymentPage() {
 
       setCardNumber("");
       setCvc("");
-      setThreeDSHtml(decodeBase64Html(payload.threeDSHtmlContent));
+      openThreeDSInTopWindow(payload.threeDSHtmlContent);
+      return;
     } catch (err) {
       toast({
         title: "Kartlı ödeme başlatılamadı",
