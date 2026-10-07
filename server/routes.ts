@@ -1349,6 +1349,161 @@ async function initDatabase(): Promise<void> {
   console.error("Database failed to connect after retries - app running without DB");
 }
 
+async function hydrateB2BOrderItems(rawItems: unknown) {
+  if (!pool) return Array.isArray(rawItems) ? rawItems : [];
+  const items = Array.isArray(rawItems) ? rawItems.map((item) => ({ ...(item || {}) })) : [];
+  const ids = Array.from(
+    new Set(
+      items
+        .map((item: any) => String(item?.productId || "").trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (!ids.length) return items;
+
+  const products = await pool.query(
+    `SELECT id::text AS id, image_data, images
+     FROM b2b_products
+     WHERE id::text = ANY($1::text[])`,
+    [ids],
+  );
+
+  const imageById = new Map<string, string | null>();
+  for (const row of products.rows) {
+    const image =
+      typeof row.image_data === "string" && row.image_data.trim()
+        ? row.image_data
+        : Array.isArray(row.images) && typeof row.images[0] === "string"
+          ? row.images[0]
+          : null;
+    imageById.set(String(row.id), image);
+  }
+
+  return items.map((item: any) => ({
+    ...item,
+    image:
+      typeof item?.image === "string" && item.image.trim()
+        ? item.image
+        : imageById.get(String(item?.productId || "")) || null,
+  }));
+}
+
+function hasObjectValues(value: unknown) {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.keys(value as Record<string, unknown>).length,
+  );
+}
+
+async function hydrateB2BOrderDetail(row: any) {
+  if (!pool) return row;
+
+  let cardLast4 = String(row.card_last4 || "").trim();
+  let cardAssociation = String(row.card_association || "").trim();
+
+  if (
+    !cardLast4 &&
+    row.payment_token &&
+    String(row.payment_status || "").toUpperCase() === "SUCCESS"
+  ) {
+    try {
+      const payment = await retrieveIyzicoCheckout(String(row.payment_token));
+      cardLast4 = String(payment.lastFourDigits || "").trim();
+      cardAssociation = String(payment.cardAssociation || "").trim();
+
+      if (cardLast4 || cardAssociation) {
+        await pool.query(
+          `UPDATE b2b_orders
+           SET card_last4 = COALESCE(NULLIF($2, ''), card_last4),
+               card_association = COALESCE(NULLIF($3, ''), card_association)
+           WHERE id::text = $1`,
+          [String(row.id), cardLast4, cardAssociation],
+        );
+      }
+    } catch (error) {
+      console.warn(
+        "Legacy order card summary could not be refreshed:",
+        error instanceof Error ? error.message : "unknown",
+      );
+    }
+  }
+
+  let billingDetails = hasObjectValues(row.billing_details)
+    ? row.billing_details
+    : {};
+  let shippingAddress = hasObjectValues(row.shipping_address)
+    ? row.shipping_address
+    : {};
+
+  if ((!hasObjectValues(billingDetails) || !hasObjectValues(shippingAddress)) && row.user_id) {
+    const fallback = await pool.query(
+      `SELECT
+         u.company_name,
+         u.tax_number,
+         u.tax_office,
+         a.recipient,
+         a.phone,
+         a.city,
+         a.district,
+         a.address_line,
+         a.postal_code
+       FROM users u
+       LEFT JOIN LATERAL (
+         SELECT recipient, phone, city, district, address_line, postal_code
+         FROM b2b_addresses
+         WHERE user_id = u.id
+         ORDER BY is_default DESC, created_at DESC
+         LIMIT 1
+       ) a ON TRUE
+       WHERE u.id = $1
+       LIMIT 1`,
+      [row.user_id],
+    );
+    const info = fallback.rows[0] || {};
+
+    if (!hasObjectValues(billingDetails)) {
+      billingDetails = {
+        companyName: info.company_name || "",
+        taxNumber: info.tax_number || "",
+        taxOffice: info.tax_office || "",
+        recipient: info.recipient || "",
+        phone: info.phone || "",
+        addressLine: info.address_line || "",
+        district: info.district || "",
+        city: info.city || "",
+        postalCode: info.postal_code || "",
+      };
+    }
+
+    if (!hasObjectValues(shippingAddress)) {
+      shippingAddress = {
+        method: row.shipping_method || "cargo",
+        recipient: info.recipient || "",
+        phone: info.phone || "",
+        addressLine: info.address_line || "",
+        district: info.district || "",
+        city: info.city || "",
+        postalCode: info.postal_code || "",
+        ...(row.shipping_details && typeof row.shipping_details === "object"
+          ? row.shipping_details
+          : {}),
+      };
+    }
+  }
+
+  return {
+    ...row,
+    items: await hydrateB2BOrderItems(row.items),
+    billing_details: billingDetails,
+    shipping_address: shippingAddress,
+    card_last4: cardLast4 || null,
+    card_association: cardAssociation || null,
+  };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   initDatabase()
     .then(() => ensureB2BAccountTables())
