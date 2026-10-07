@@ -122,7 +122,7 @@ export default function LoginScreen() {
 
             <Pressable
               style={styles.quickEntryButton}
-              onPress={() => router.replace('/(tabs)/products')}
+              onPress={() => router.replace('/(tabs)')}
             >
               <Ionicons name="flash-outline" size={19} color={colors.primary} />
               <View style={styles.quickEntryTextGroup}>
