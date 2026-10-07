@@ -853,50 +853,218 @@ export default function B2BPaymentPage() {
 
               {method === "card" ? (
                 <div className="rounded-2xl border bg-white p-5">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold">iyzico Güvenli Kart Ödemesi</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">
-                        Kart bilgileri, banka doğrulaması ve kartınıza uygun taksit seçenekleri
-                        iyzico'nun güvenli ödeme sayfasında alınır. Kart bilgileriniz Çalışkan B2B
-                        sunucularında tutulmaz.
-                      </p>
-                    </div>
-                  </div>
+                  <h3 className="font-bold">Kart Bilgileri</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Kart bilgileriniz iyzico ödeme servislerine güvenli şekilde iletilir ve sipariş kaydında saklanmaz.
+                    3D Secure doğrulaması bu alanın içerisinde açılır.
+                  </p>
 
-                  <div className="mt-4 rounded-xl border bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-3 text-sm">
-                      <span className="text-slate-500">Ödenecek tutar</span>
-                      <span className="text-lg font-black text-slate-950">{formatMoney(preview.total)}</span>
-                    </div>
-                    <div className="mt-2 text-xs leading-5 text-slate-500">
-                      Kart numaranızı girdiğinizde iyzico, kartın bankasını ve desteklenen taksitleri
-                      otomatik olarak gösterecektir. 3D Secure doğrulaması iyzico tarafından yönetilir.
-                    </div>
-                  </div>
+                  {threeDSHtml ? (
+                    <div className="mt-4">
+                      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-bold">3D Secure Doğrulama</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Bankanızın doğrulama ekranındaki işlemi tamamlayın.
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setThreeDSHtml("")}
+                        >
+                          Kart bilgilerine dön
+                        </Button>
+                      </div>
 
-                  {!settings?.iyzicoConfigured ? (
-                    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                      Kartla ödeme henüz canlı iyzico bilgileriyle etkinleştirilmedi.
+                      <div className="overflow-hidden rounded-xl border bg-white">
+                        <iframe
+                          title="3D Secure Doğrulama"
+                          srcDoc={threeDSHtml}
+                          className="h-[560px] w-full bg-white"
+                          allow="payment *"
+                          onLoad={(event) => {
+                            try {
+                              const href = event.currentTarget.contentWindow?.location.href || "";
+                              const url = new URL(href);
+                              const paymentResult = url.searchParams.get("result");
+                              if (
+                                url.origin === window.location.origin &&
+                                url.pathname === "/odeme" &&
+                                (paymentResult === "success" || paymentResult === "failed")
+                              ) {
+                                window.location.replace(url.toString());
+                              }
+                            } catch {
+                              // Banka/iyzico sayfası farklı origin üzerindeyken erişim beklenen şekilde engellenir.
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
-                  ) : null}
+                  ) : (
+                    <>
+                      <div className="mt-4 grid gap-4">
+                        <div className="space-y-2">
+                          <Label>Kart Üzerindeki İsim Soyisim</Label>
+                          <Input
+                            autoComplete="cc-name"
+                            value={cardHolderName}
+                            onChange={(event) => setCardHolderName(event.target.value)}
+                            placeholder="AD SOYAD"
+                          />
+                        </div>
 
-                  <Button
-                    className="mt-5 h-11 w-full"
-                    onClick={startCardPayment}
-                    disabled={
-                      busy ||
-                      !settings?.iyzicoConfigured ||
-                      !selectedAddressId ||
-                      !billingAccount?.taxNumber
-                    }
-                  >
-                    <ShieldCheck className="mr-2 h-4 w-4" />
-                    {busy ? "iyzico hazırlanıyor…" : `${formatMoney(preview.total)} · Güvenli Ödemeye Geç`}
-                  </Button>
+                        <div className="space-y-2">
+                          <Label>Kart Numarası</Label>
+                          <Input
+                            autoComplete="cc-number"
+                            inputMode="numeric"
+                            value={cardNumber}
+                            maxLength={23}
+                            onChange={(event) => setCardNumber(formatCardNumber(event.target.value))}
+                            placeholder="0000 0000 0000 0000"
+                          />
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Ay</Label>
+                            <Input
+                              autoComplete="cc-exp-month"
+                              inputMode="numeric"
+                              maxLength={2}
+                              value={expireMonth}
+                              onChange={(event) => setExpireMonth(event.target.value.replace(/\D/g, "").slice(0, 2))}
+                              placeholder="AA"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Yıl</Label>
+                            <Input
+                              autoComplete="cc-exp-year"
+                              inputMode="numeric"
+                              maxLength={4}
+                              value={expireYear}
+                              onChange={(event) => setExpireYear(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                              placeholder="YY"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>CVV</Label>
+                            <Input
+                              autoComplete="cc-csc"
+                              type="password"
+                              inputMode="numeric"
+                              maxLength={4}
+                              value={cvc}
+                              onChange={(event) => setCvc(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                              placeholder="***"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-5">
+                        <div className="flex flex-wrap items-end justify-between gap-2">
+                          <div>
+                            <Label>Taksit Seçenekleri</Label>
+                            {installmentData?.bankName ? (
+                              <div className="mt-1 text-xs text-slate-500">
+                                {installmentData.bankName}
+                                {installmentData.cardFamilyName ? ` · ${installmentData.cardFamilyName}` : ""}
+                                {installmentData.cardType ? ` · ${installmentData.cardType.replace(/_/g, " ")}` : ""}
+                              </div>
+                            ) : null}
+                          </div>
+                          {cardBin.length === 8 && installmentsLoading ? (
+                            <span className="text-xs text-slate-500">iyzico oranları alınıyor…</span>
+                          ) : null}
+                        </div>
+
+                        {cardBin.length < 8 ? (
+                          <div className="mt-2 rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-slate-500">
+                            Kartınızın ilk 8 hanesini girdiğinizde bankanıza özel güncel iyzico taksit seçenekleri gösterilir.
+                          </div>
+                        ) : installmentError ? (
+                          <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                            {installmentError instanceof Error
+                              ? installmentError.message
+                              : "Taksit seçenekleri alınamadı."}
+                          </div>
+                        ) : installmentsLoading && !installmentData ? (
+                          <div className="mt-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-500">
+                            Kart ve banka bilgileri iyzico üzerinden doğrulanıyor…
+                          </div>
+                        ) : (
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                            {(installmentData?.options || []).map((option) => {
+                              const count = option.installmentNumber;
+                              const active = installment === count;
+                              return (
+                                <button
+                                  key={count}
+                                  type="button"
+                                  onClick={() => setInstallment(count)}
+                                  className={`rounded-xl border p-3 text-left transition ${active ? "border-slate-950 bg-slate-950 text-white" : "bg-white hover:border-slate-400"}`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold">
+                                      {count === 1 ? "Tek Çekim" : `${count} Taksit`}
+                                    </span>
+                                    {count > 1 ? (
+                                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${active ? "bg-white/15" : "bg-slate-100 text-slate-600"}`}>
+                                        %{option.commissionRate.toLocaleString("tr-TR", {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className={`mt-2 text-sm font-semibold ${active ? "text-white" : "text-slate-800"}`}>
+                                    {count === 1
+                                      ? formatMoney(option.totalPrice)
+                                      : `${formatMoney(option.installmentPrice)} × ${count}`}
+                                  </div>
+                                  <div className={`mt-1 text-xs ${active ? "text-slate-300" : "text-slate-500"}`}>
+                                    Toplam {formatMoney(option.totalPrice)}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <p className="mt-2 text-xs text-slate-500">
+                          Yalnızca iyzico'nun bu kart için döndürdüğü seçenekler gösterilir.
+                        </p>
+                      </div>
+
+                      {!settings?.iyzicoConfigured ? (
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                          Kartla ödeme henüz canlı iyzico bilgileriyle etkinleştirilmedi.
+                        </div>
+                      ) : null}
+
+                      <Button
+                        className="mt-5 h-11 w-full"
+                        onClick={startCardPayment}
+                        disabled={
+                          busy ||
+                          !settings?.iyzicoConfigured ||
+                          !selectedAddressId ||
+                          !billingAccount?.taxNumber ||
+                          cardBin.length !== 8 ||
+                          installmentsLoading ||
+                          !selectedInstallment
+                        }
+                      >
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        {busy ? "3D Secure hazırlanıyor…" : `${formatMoney(payableTotal)} Kart ile Öde`}
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="rounded-2xl border bg-white p-5">
