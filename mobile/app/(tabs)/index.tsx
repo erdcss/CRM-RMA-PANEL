@@ -246,7 +246,16 @@ export default function HomeScreen() {
               product.price !== undefined;
 
             return (
-              <View key={String(product.id)} style={styles.productCard}>
+              <Pressable
+                key={String(product.id)}
+                style={styles.productCard}
+                onPress={() =>
+                  router.push({
+                    pathname: '/product/[id]',
+                    params: { id: String(product.id) },
+                  } as never)
+                }
+              >
                 <View style={styles.productImageWrap}>
                   {image ? (
                     <Image
@@ -292,7 +301,7 @@ export default function HomeScreen() {
                     {Number(product.min_order_qty || 1)}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
