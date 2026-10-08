@@ -2841,6 +2841,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const redirectBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
+    const rawMobileReturnUrl = String(req.query?.mobileReturnUrl || "").trim();
+    const mobileReturnUrl =
+      /^(caliskanb2b|caliskanb2b-dev):\/\/payment-result(?:\?|$)/i.test(rawMobileReturnUrl)
+        ? rawMobileReturnUrl
+        : "";
+    const mobileResultUrl = (result: "success" | "failed", orderNumber?: string, stockReview?: boolean) => {
+      if (!mobileReturnUrl) return "";
+      const separator = mobileReturnUrl.includes("?") ? "&" : "?";
+      const params = new URLSearchParams({ result });
+      if (orderNumber) params.set("order", orderNumber);
+      if (stockReview) params.set("stock", "review");
+      return `${mobileReturnUrl}${separator}${params.toString()}`;
+    };
     const topRedirect = (url: string) => {
       const target = JSON.stringify(url);
       return res
@@ -3097,7 +3110,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const contactName = String(address.recipient || `${firstName} ${lastName}`).trim().slice(0, 180);
     const callbackBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const isCartCheckout = Array.isArray(req.body?.items) && req.body.items.length > 0;
-    const callbackUrl = `${callbackBase}/api/b2b/payments/iyzico/callback${isCartCheckout ? "?cart=1" : ""}`;
+    const requestedMobileReturnUrl =
+      typeof req.body?.mobileReturnUrl === "string"
+        ? req.body.mobileReturnUrl.trim().slice(0, 500)
+        : "";
+    const mobileReturnUrl =
+      /^(caliskanb2b|caliskanb2b-dev):\/\/payment-result(?:\?|$)/i.test(requestedMobileReturnUrl)
+        ? requestedMobileReturnUrl
+        : "";
+    const callbackQuery = new URLSearchParams();
+    if (isCartCheckout) callbackQuery.set("cart", "1");
+    if (mobileReturnUrl) callbackQuery.set("mobileReturnUrl", mobileReturnUrl);
+    const callbackSuffix = callbackQuery.toString() ? `?${callbackQuery.toString()}` : "";
+    const callbackUrl = `${callbackBase}/api/b2b/payments/iyzico/callback${callbackSuffix}`;
     const addressText = String(address.address_line || "").trim();
     const gsm = String(address.phone || "").trim();
     const orderItems = checkout.items.map((entry) => ({
@@ -3235,7 +3260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
 
     if (!token) {
-      return res.redirect(303, `${redirectBase}/odeme?result=failed`);
+      const mobileUrl = mobileResultUrl("failed");
+      return res.redirect(303, mobileUrl || `${redirectBase}/odeme?result=failed`);
     }
 
     const client = await pool.connect();
@@ -3253,14 +3279,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const order = orderResult.rows[0];
       if (!order) {
         await client.query("ROLLBACK");
-        return res.redirect(303, `${redirectBase}/odeme?result=failed`);
+        const mobileUrl = mobileResultUrl("failed");
+      return res.redirect(303, mobileUrl || `${redirectBase}/odeme?result=failed`);
       }
 
       if (order.payment_status === "SUCCESS") {
         await client.query("COMMIT");
+        const mobileUrl = mobileResultUrl("success", order.order_number);
         return res.redirect(
           303,
-          `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
+          mobileUrl || `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
         );
       }
 
@@ -3312,9 +3340,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ],
             );
             await client.query("COMMIT");
+            const mobileUrl = mobileResultUrl("success", order.order_number, true);
             return res.redirect(
               303,
-              `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}&stock=review`,
+              mobileUrl || `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}&stock=review`,
             );
           }
         }
@@ -3360,11 +3389,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       await client.query("COMMIT");
 
+      const mobileUrl = mobileResultUrl(
+        success ? "success" : "failed",
+        order.order_number,
+      );
       return res.redirect(
         303,
-        success
-          ? `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`
-          : `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
+        mobileUrl ||
+          (success
+            ? `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`
+            : `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`),
       );
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
