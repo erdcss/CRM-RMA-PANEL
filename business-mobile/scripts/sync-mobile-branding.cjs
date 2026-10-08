@@ -67,6 +67,10 @@ async function main() {
   const logoPath = await saveAsset("logo", branding.logo);
   const splashPath = await saveAsset("splash", branding.splash || branding.logo);
 
+  if (target === "business" && (!logoPath || !splashPath)) {
+    throw new Error("Çalışkan Business logo/splash görselleri admin panelinden alınamadı");
+  }
+
   if (!fs.existsSync(appJsonPath)) {
     throw new Error("app.json bulunamadı");
   }
@@ -104,9 +108,9 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.warn(
-    "Mobil marka görselleri build öncesi senkronize edilemedi; mevcut yerel assetlerle devam edilecek:",
+  console.error(
+    "Mobil marka görselleri build öncesi senkronize edilemedi:",
     error instanceof Error ? error.message : String(error),
   );
-  process.exit(0);
+  process.exit(target === "business" ? 1 : 0);
 });
