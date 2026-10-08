@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  ImageBackground,
+  Keyboard,
+  TextInput,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -28,6 +32,16 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [activeField, setActiveField] = useState<'email' | 'password' | null>(null);
+  const inputRef = useRef<TextInput>(null);
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
+  useEffect(() => {
+    Animated.timing(floatAnim,{toValue:activeField ? 1 : 0,duration:260,useNativeDriver:true}).start();
+    if(activeField){const t=setTimeout(()=>inputRef.current?.focus(),290);return ()=>clearTimeout(t);}
+  },[activeField,floatAnim]);
+  const dismissField = () => { Keyboard.dismiss();setActiveField(null); };
+
 
   const [passwordSetupVisible, setPasswordSetupVisible] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -99,129 +113,64 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Pressable style={styles.back} onPress={() => router.replace('/(tabs)')}>
-          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
-          <Text style={styles.backText}>Mağazaya dön</Text>
-        </Pressable>
-
-        <View style={styles.card}>
-          <View style={styles.brandRow}>
-            <BrandLogo uri={branding.b2b_mobile_logo} style={styles.logo} />
-            <Text style={styles.customerLabel}>Müşteri Girişi</Text>
-          </View>
-
-          <View style={styles.form}>
-            <Text style={styles.title}>İşletme hesabınıza giriş yapın</Text>
-            <Text style={styles.subtitle}>
-              Web sitesinde kullandığınız Çalışkan B2B hesabı mobil uygulamada da aynıdır.
-            </Text>
-
-            <FormField
-              label="E-posta"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              placeholder="ornek@firma.com"
-            />
-
-            <FormField
-              label="Şifre"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              placeholder="••••••••"
-              rightSlot={
-                <Pressable
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword((current) => !current)}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color={colors.textMuted}
-                  />
-                </Pressable>
-              }
-            />
-
-            <Pressable
-              style={[styles.primaryButton, submitting && styles.disabled]}
-              onPress={handleLogin}
-              disabled={submitting}
-            >
-              <Ionicons name="log-in-outline" size={19} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>
-                {submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.secondaryButton}
-              onPress={() => router.push('/signup')}
-            >
-              <Ionicons name="person-add-outline" size={19} color={colors.text} />
-              <Text style={styles.secondaryButtonText}>Firma Hesabı Aç</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.quickEntry}
-              onPress={() => router.replace('/(tabs)')}
-            >
-              <Ionicons name="storefront-outline" size={19} color={colors.textSecondary} />
-              <View style={styles.quickText}>
-                <Text style={styles.quickTitle}>Üyelik olmadan ürünleri incele</Text>
-                <Text style={styles.quickSubtitle}>
-                  Fiyatlar giriş yaptıktan sonra görüntülenir.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </Pressable>
-
-            <Pressable
-              style={styles.helpButton}
-              onPress={async () => {
-                if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
-                  appAlert(
-                    'E-posta gerekli',
-                    'Şifre yenileme için hesabınıza ait e-posta adresini giriş alanına yazın.',
-                  );
-                  return;
-                }
-
-                try {
-                  const result = await forgotPassword(email);
-                  appAlert(
-                    'Şifre yenileme',
-                    result.message ||
-                      'Hesap uygunsa yeni tek kullanımlık şifre e-posta adresinize gönderildi.',
-                  );
-                } catch (error) {
-                  appAlert(
-                    'Şifre yenilenemedi',
-                    error instanceof Error
-                      ? error.message
-                      : 'Lütfen daha sonra tekrar deneyin.',
-                  );
-                }
-              }}
-            >
-              <Ionicons name="key-outline" size={18} color={colors.textMuted} />
-              <Text style={styles.helpText}>Şifremi Unuttum</Text>
-            </Pressable>
-          </View>
+    <View style={styles.heroScreen}>
+      {branding.b2b_mobile_splash ? <ImageBackground source={{uri:branding.b2b_mobile_splash}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/> : <View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#171717'}]}/>}
+      <View style={styles.heroShade}/>
+      <ScrollView contentContainerStyle={styles.heroContent} keyboardShouldPersistTaps="handled">
+        <BrandLogo uri={branding.b2b_mobile_logo} style={styles.heroLogo}/>
+        <View style={{flexGrow:1,minHeight:130}}/>
+        <View style={styles.heroCard}>
+          <Text style={styles.heroTitle}>Hoş <Text style={{color:'#FFCC00'}}>Geldiniz</Text></Text>
+          <Text style={styles.heroSubtitle}>Çalışkan B2B platformuna giriş yaparak işinizi daha ileriye taşıyın.</Text>
+          <Pressable style={styles.heroField} onPress={()=>setActiveField('email')} accessibilityLabel="E-posta adresi">
+            <Ionicons name="mail-outline" size={21} color="#FFCC00"/>
+            <Text style={[styles.heroFieldText,!email&&{color:'#999'}]} numberOfLines={1}>{email||'Kullanıcı Adı veya E-posta'}</Text>
+            {validEmail?<Ionicons name="checkmark-circle" size={19} color="#FFCC00"/>:null}
+          </Pressable>
+          <Pressable style={styles.heroField} onPress={()=>setActiveField('password')} accessibilityLabel="Şifre">
+            <Ionicons name="lock-closed-outline" size={21} color="#FFCC00"/>
+            <Text style={[styles.heroFieldText,!password&&{color:'#999'}]}>{password?(showPassword?password:'••••••••'):'Şifre'}</Text>
+          </Pressable>
+          <Pressable style={{alignSelf:'flex-end',paddingVertical:12}} onPress={async()=>{
+            if(!validEmail){appAlert('E-posta gerekli','Şifre yenilemek için e-posta adresinizi girin.');setActiveField('email');return;}
+            try{const result=await forgotPassword(email);appAlert('Şifre yenileme',result.message||'E-postanızı kontrol edin.');}
+            catch(error){appAlert('Şifre yenilenemedi',error instanceof Error?error.message:'Lütfen tekrar deneyin.');}
+          }}><Text style={{color:'#FFCC00',fontWeight:'700'}}>Şifremi Unuttum</Text></Pressable>
+          <Pressable style={[styles.heroPrimary,submitting&&styles.disabled]} onPress={handleLogin} disabled={submitting}>
+            <Text style={styles.heroPrimaryText}>{submitting?'Giriş yapılıyor…':'Giriş Yap  →'}</Text>
+          </Pressable>
+          <Text style={{color:'#AAA',textAlign:'center',marginVertical:13}}>veya</Text>
+          <Pressable style={styles.heroSecondary} onPress={()=>router.push('/signup')}>
+            <Ionicons name="business-outline" size={20} color="#FFCC00"/>
+            <Text style={{color:'#FFF',fontWeight:'800',fontSize:16}}>İşletmemi Kaydet</Text>
+          </Pressable>
         </View>
       </ScrollView>
-
+      {activeField?(
+        <View style={styles.focusOverlay}>
+          {branding.b2b_mobile_splash?<ImageBackground source={{uri:branding.b2b_mobile_splash}} blurRadius={20} resizeMode="cover" style={StyleSheet.absoluteFillObject}/>:<View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#151515'}]}/>}
+          <View style={styles.focusDim}/>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={dismissField}/>
+          <KeyboardAvoidingView style={{flex:1,justifyContent:'flex-end'}} behavior={Platform.OS==='ios'?'padding':'height'}>
+            <Animated.View style={[styles.focusSheet,{opacity:floatAnim,transform:[{translateY:floatAnim.interpolate({inputRange:[0,1],outputRange:[120,0]})}]}]}>
+              <View style={styles.focusHandle}/>
+              <Ionicons name={activeField==='email'?'mail-outline':'lock-closed-outline'} size={28} color="#FFCC00" style={{alignSelf:'center'}}/>
+              <Text style={styles.focusTitle}>{activeField==='email'?'E-posta Adresiniz':'Şifreniz'}</Text>
+              <Text style={styles.focusHint}>{activeField==='email'?'Hesabınıza giriş yapmak için kayıtlı e-posta adresinizi girin.':'Hesabınıza giriş yapmak için şifrenizi girin.'}</Text>
+              <View style={styles.focusInputRow}>
+                <TextInput key={activeField} ref={inputRef} style={styles.focusInput} value={activeField==='email'?email:password}
+                  onChangeText={activeField==='email'?setEmail:setPassword} placeholder={activeField==='email'?'ornek@eposta.com':'Şifrenizi girin'}
+                  placeholderTextColor="#888" keyboardType={activeField==='email'?'email-address':'default'}
+                  autoCapitalize="none" autoCorrect={false} autoComplete={activeField==='email'?'email':'password'}
+                  secureTextEntry={activeField==='password'&&!showPassword} returnKeyType="done" onSubmitEditing={dismissField}/>
+                {activeField==='email'&&validEmail?<Ionicons name="checkmark-circle" size={21} color="#FFCC00"/>:null}
+                {activeField==='password'?<Pressable onPress={()=>setShowPassword(v=>!v)}><Ionicons name={showPassword?'eye-off-outline':'eye-outline'} size={23} color="#FFCC00"/></Pressable>:null}
+              </View>
+              <Pressable onPress={dismissField} style={{alignSelf:'flex-end',padding:12}}><Text style={{color:'#FFCC00',fontWeight:'800'}}>Tamam</Text></Pressable>
+            </Animated.View>
+          </KeyboardAvoidingView>
+        </View>
+      ):null}
       <Modal
         visible={passwordSetupVisible}
         animationType="slide"
@@ -291,6 +240,27 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  heroScreen:{flex:1,backgroundColor:'#101010'},
+  heroShade:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.38)'},
+  heroContent:{flexGrow:1,paddingHorizontal:20,paddingTop:58,paddingBottom:38},
+  heroLogo:{width:240,height:90,alignSelf:'center'},
+  heroCard:{borderRadius:25,borderWidth:1,borderColor:'rgba(255,204,0,.6)',backgroundColor:'rgba(10,10,10,.94)',padding:22},
+  heroTitle:{fontSize:32,fontWeight:'900',color:'#FFF'},
+  heroSubtitle:{color:'#C8C8C8',fontSize:14,lineHeight:21,marginTop:8,marginBottom:21},
+  heroField:{height:56,borderRadius:12,borderWidth:1,borderColor:'#555',backgroundColor:'#1A1A1A',flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:14,marginBottom:12},
+  heroFieldText:{flex:1,fontSize:15,color:'#FFF'},
+  heroPrimary:{height:54,borderRadius:12,backgroundColor:'#FFCC00',alignItems:'center',justifyContent:'center'},
+  heroPrimaryText:{fontWeight:'900',fontSize:18,color:'#101010'},
+  heroSecondary:{height:52,borderRadius:12,borderWidth:1,borderColor:'#FFCC00',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
+  focusOverlay:{...StyleSheet.absoluteFillObject,zIndex:40},
+  focusDim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.6)'},
+  focusSheet:{borderTopLeftRadius:27,borderTopRightRadius:27,borderWidth:1,borderColor:'#60512A',backgroundColor:'rgba(16,17,18,.98)',paddingHorizontal:24,paddingTop:10,paddingBottom:12},
+  focusHandle:{width:48,height:5,borderRadius:4,backgroundColor:'#999',alignSelf:'center',marginBottom:22},
+  focusTitle:{fontSize:26,fontWeight:'900',color:'#FFF',textAlign:'center',marginTop:12},
+  focusHint:{color:'#CCC',fontSize:14,lineHeight:21,textAlign:'center',marginTop:8,marginBottom:20},
+  focusInputRow:{minHeight:58,borderRadius:12,borderWidth:2,borderColor:'#FFCC00',backgroundColor:'#222',flexDirection:'row',alignItems:'center',paddingHorizontal:14},
+  focusInput:{flex:1,color:'#FFF',fontSize:16,paddingVertical:14},
+
   screen: {
     flex: 1,
     backgroundColor: colors.background,
