@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -34,10 +34,17 @@ export default function RootLayout() {
 
       {showManagedSplash ? (
         <View style={styles.splash} pointerEvents="none">
-          <BrandLogo
-            uri={branding.b2b_mobile_splash || branding.b2b_mobile_logo}
-            style={styles.splashImage}
-          />
+          {branding.b2b_mobile_splash ? (
+            <ImageBackground source={{uri:branding.b2b_mobile_splash}} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          ) : <View style={[StyleSheet.absoluteFillObject, {backgroundColor:'#141414'}]} />}
+          <View style={styles.splashShade} />
+          <View style={styles.splashLogoBox}>
+            <BrandLogo uri={branding.b2b_mobile_logo} style={styles.splashImage} />
+          </View>
+          <View style={styles.splashBottom}>
+            <View style={styles.splashProgressTrack}><View style={styles.splashProgress} /></View>
+            <Text style={styles.splashCaption}>Yükleniyor...</Text>
+          </View>
         </View>
       ) : null}
     </SafeAreaProvider>
@@ -50,10 +57,16 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: '#111111',
   },
+  splashShade:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.25)'},
+  splashLogoBox:{position:'absolute',top:'15%',alignItems:'center'},
+  splashBottom:{position:'absolute',bottom:65,width:'68%',alignItems:'center'},
+  splashProgressTrack:{height:6,width:'100%',borderRadius:5,backgroundColor:'#555',overflow:'hidden'},
+  splashProgress:{height:6,width:'55%',borderRadius:5,backgroundColor:'#FFCC00'},
+  splashCaption:{color:'#FFF',marginTop:12,fontSize:14},
   splashImage: {
-    width: '82%',
-    height: '82%',
+    width: 260,
+    height: 100,
   },
 });
