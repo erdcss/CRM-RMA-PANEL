@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,7 +18,12 @@ import { Screen } from '@/components/ui/Screen';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
+import {
+  absoluteMediaUrl,
+  rmaApi,
+  type B2BOrderSummary,
+  type B2BProduct,
+} from '@/lib/api';
 import { useMobileBranding } from '@/lib/branding';
 
 function money(value: string | number | null | undefined) {
@@ -26,6 +33,28 @@ function money(value: string | number | null | undefined) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} ₺`;
+}
+
+function orderStatusLabel(value?: string | null) {
+  const status = String(value || '').toLowerCase();
+  if (status === 'paid') return 'Ödeme alındı';
+  if (status === 'paid_stock_review') return 'Stok kontrolünde';
+  if (status === 'awaiting_bank_transfer') return 'Havale bekleniyor';
+  if (status === 'bank_transfer_notified') return 'Havale bildirildi';
+  if (status === 'cancel_requested') return 'İptal talebi alındı';
+  if (status === 'completed') return 'Tamamlandı';
+  if (status === 'cancelled') return 'İptal edildi';
+  return status ? status.replace(/_/g, ' ') : 'Sipariş güncellendi';
+}
+
+function shortDate(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('tr-TR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
 }
 
 function productImage(product: B2BProduct) {
@@ -49,7 +78,10 @@ export default function HomeScreen() {
   const [categories, setCategories] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [notifications, setNotifications] = useState<B2BOrderSummary[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const notificationDrawer = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
     const [productResult, homepageResult] = await Promise.allSettled([
@@ -69,6 +101,32 @@ export default function HomeScreen() {
   useEffect(() => {
     void load();
   }, [load, session?.access_token]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (!session) {
+      setNotifications([]);
+      return () => {
+        active = false;
+      };
+    }
+
+    void rmaApi
+      .listB2BOrders()
+      .then((rows) => {
+        if (active) {
+          setNotifications(Array.isArray(rows) ? rows.slice(0, 8) : []);
+        }
+      })
+      .catch(() => {
+        if (active) setNotifications([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [session?.access_token]);
 
   useEffect(() => {
     if (typeof params.category === 'string') {
@@ -97,6 +155,17 @@ export default function HomeScreen() {
     });
   }, [products, query, selectedCategory]);
 
+  const toggleNotifications = () => {
+    const next = !notificationsOpen;
+    setNotificationsOpen(next);
+    Animated.timing(notificationDrawer, {
+      toValue: next ? 1 : 0,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -120,13 +189,133 @@ export default function HomeScreen() {
         contentContainerStyle={styles.page}
       >
         <View style={styles.topRow}>
-          <BrandLogo uri={branding.b2b_mobile_logo} style={styles.logo} />
+          <BrandLogo
+            uri={branding.b2b_web_logo || branding.b2b_mobile_logo}
+            style={styles.logo}
+          />
 
-          <Pressable style={styles.notificationButton}>
-            <Ionicons name="notifications-outline" size={22} color={colors.text} />
-            <View style={styles.notificationDot} />
+          <Pressable
+            style={[
+              styles.notificationButton,
+              notificationsOpen && styles.notificationButtonActive,
+            ]}
+            onPress={toggleNotifications}
+          >
+            <Ionicons
+              name={notificationsOpen ? 'notifications' : 'notifications-outline'}
+              size={22}
+              color={colors.text}
+            />
+            {notifications.length > 0 ? <View style={styles.notificationDot} /> : null}
           </Pressable>
         </View>
+
+        <Animated.View
+          pointerEvents={notificationsOpen ? 'auto' : 'none'}
+          style={[
+            styles.notificationDrawer,
+            {
+              maxHeight: notificationDrawer.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 360],
+              }),
+              opacity: notificationDrawer,
+              transform: [
+                {
+                  translateY: notificationDrawer.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-8, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.notificationDrawerHeader}>
+            <View>
+              <Text style={styles.notificationDrawerEyebrow}>BİLDİRİMLER</Text>
+              <Text style={styles.notificationDrawerTitle}>
+                Son sipariş hareketleri
+              </Text>
+            </View>
+            <Pressable
+              style={styles.notificationClose}
+              onPress={toggleNotifications}
+            >
+              <Ionicons name="close" size={18} color={colors.text} />
+            </Pressable>
+          </View>
+
+          {!session ? (
+            <View style={styles.notificationEmpty}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={17}
+                color={colors.textMuted}
+              />
+              <Text style={styles.notificationEmptyTitle}>
+                Bildirimler için giriş yapın
+              </Text>
+              <Text style={styles.notificationEmptyText}>
+                Sipariş ve ödeme hareketleri hesabınızla giriş yaptıktan sonra burada listelenir.
+              </Text>
+            </View>
+          ) : notifications.length === 0 ? (
+            <View style={styles.notificationEmpty}>
+              <Ionicons
+                name="notifications-off-outline"
+                size={24}
+                color={colors.textMuted}
+              />
+              <Text style={styles.notificationEmptyTitle}>
+                Yeni bildirim yok
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.notificationList}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
+              {notifications.map((item, index) => (
+                <View
+                  key={String(item.id)}
+                  style={[
+                    styles.notificationItem,
+                    index === notifications.length - 1 &&
+                      styles.notificationItemLast,
+                  ]}
+                >
+                  <View style={styles.notificationIcon}>
+                    <Ionicons
+                      name="bag-check-outline"
+                      size={18}
+                      color={colors.text}
+                    />
+                  </View>
+                  <View style={styles.notificationText}>
+                    <Text style={styles.notificationTitle} numberOfLines={1}>
+                      {item.order_number || `Sipariş #${item.id}`}
+                    </Text>
+                    <Text style={styles.notificationSubtitle} numberOfLines={1}>
+                      {orderStatusLabel(item.status)}
+                    </Text>
+                  </View>
+                  <View style={styles.notificationMeta}>
+                    <Text style={styles.notificationDate}>
+                      {shortDate(item.created_at)}
+                    </Text>
+                    {item.total_amount != null ? (
+                      <Text style={styles.notificationAmount}>
+                        {money(item.total_amount)}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </Animated.View>
 
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={20} color={colors.textMuted} />
@@ -203,7 +392,7 @@ export default function HomeScreen() {
               >
                 <Ionicons
                   name={icons[index % icons.length]}
-                  size={24}
+                  size={17}
                   color={active ? '#FFFFFF' : colors.text}
                 />
                 <Text
@@ -336,6 +525,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: 120,
+    position: 'relative',
   },
   topRow: {
     minHeight: 58,
@@ -344,8 +534,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   logo: {
-    width: 150,
-    height: 44,
+    width: 168,
+    height: 46,
   },
   notificationButton: {
     width: 44,
@@ -356,6 +546,130 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  notificationButtonActive: {
+    borderColor: colors.text,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  notificationDrawer: {
+    position: 'absolute',
+    top: 72,
+    right: spacing.lg,
+    width: 330,
+    maxWidth: '90%',
+    zIndex: 50,
+    overflow: 'hidden',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 28,
+    elevation: 18,
+  },
+  notificationDrawerHeader: {
+    minHeight: 66,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  notificationDrawerEyebrow: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+  },
+  notificationDrawerTitle: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  notificationClose: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationList: {
+    maxHeight: 282,
+  },
+  notificationItem: {
+    minHeight: 68,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+  },
+  notificationItemLast: {
+    borderBottomWidth: 0,
+  },
+  notificationIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  notificationTitle: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  notificationSubtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  notificationMeta: {
+    alignItems: 'flex-end',
+  },
+  notificationDate: {
+    ...typography.caption,
+    fontSize: 9,
+    color: colors.textMuted,
+  },
+  notificationAmount: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  notificationEmpty: {
+    minHeight: 150,
+    padding: spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationEmptyTitle: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontWeight: '800',
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  notificationEmptyText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+    textAlign: 'center',
+    lineHeight: 17,
   },
   notificationDot: {
     position: 'absolute',
@@ -417,16 +731,18 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
   },
   categoryCard: {
-    width: 96,
-    minHeight: 104,
-    borderRadius: radius.lg,
+    minWidth: 94,
+    minHeight: 44,
+    borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.sm,
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   categoryCardActive: {
     backgroundColor: '#111827',
