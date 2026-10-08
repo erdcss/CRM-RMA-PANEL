@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -256,21 +255,23 @@ export default function ProductDetailScreen() {
 
               <Pressable
                 style={[
-                  styles.secondaryButton,
+                  styles.checkoutButton,
                   maxBoxes < min && styles.disabledButton,
                 ]}
                 disabled={maxBoxes < min}
                 onPress={() =>
-                  void Linking.openURL(
-                    `https://b2b.ecalisgan.com/urun/${encodeURIComponent(
-                      String(product.id),
-                    )}`,
-                  )
+                  router.push({
+                    pathname: '/checkout',
+                    params: {
+                      productId: String(product.id),
+                      qty: String(effectiveQuantity),
+                    },
+                  } as never)
                 }
               >
-                <Ionicons name="bag-handle-outline" size={18} color={colors.text} />
-                <Text style={styles.secondaryButtonText}>
-                  Sipariş İçin Web Mağazasını Aç
+                <Ionicons name="bag-check-outline" size={19} color="#FFFFFF" />
+                <Text style={styles.checkoutButtonText}>
+                  Siparişi Tamamla
                 </Text>
               </Pressable>
             </View>
@@ -531,23 +532,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     fontWeight: '700',
   },
-  secondaryButton: {
-    minHeight: 50,
+  checkoutButton: {
+    minHeight: 52,
     marginTop: spacing.md,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: '#111827',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
   },
-  secondaryButtonText: {
+  checkoutButtonText: {
     ...typography.bodyMedium,
-    color: colors.text,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontWeight: '900',
   },
   disabledButton: {
     opacity: 0.5,
