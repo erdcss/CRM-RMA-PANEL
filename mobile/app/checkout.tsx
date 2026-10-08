@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -198,10 +197,13 @@ export default function CheckoutScreen() {
         throw new Error('Güvenli ödeme bağlantısı doğrulanamadı.');
       }
 
-      const supported = await Linking.canOpenURL(result.paymentPageUrl);
-      if (!supported) throw new Error('iyzico ödeme sayfası açılamadı.');
-
-      await Linking.openURL(result.paymentPageUrl);
+      router.push({
+        pathname: '/payment-card',
+        params: {
+          url: result.paymentPageUrl,
+          order: result.orderNumber,
+        },
+      } as never);
     } catch (error) {
       appAlert(
         'Kart ödemesi başlatılamadı',
