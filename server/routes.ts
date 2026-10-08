@@ -18,6 +18,7 @@ import {
   retrieveIyzicoCheckout,
 } from "./iyzico";
 import { getPaymentConfig } from "./payment-config";
+import { ensureMobilePushTable, registerMobilePushToken, sendPushToApp } from "./push-notifications";
 
 let dbReady = false;
 
@@ -1534,11 +1535,67 @@ async function hydrateB2BOrderDetail(row: any) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   initDatabase()
-    .then(() => ensureB2BAccountTables())
+    .then(async () => {
+      await ensureB2BAccountTables();
+      await ensureMobilePushTable();
+    })
     .catch(err => console.error("DB/B2B account init error:", err));
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
+  });
+
+  app.post("/api/push/register", requireAuth, async (req, res) => {
+    const userId = sessionUserId(req);
+    if (!userId) return res.status(401).json({ error: "Oturum bulunamadı" });
+
+    const user = await storage.getUser(userId);
+    if (!user || user.isActive !== 1) {
+      return res.status(401).json({ error: "Oturum geçersiz" });
+    }
+
+    const appName = req.body?.app === "business" ? "business" : req.body?.app === "b2b" ? "b2b" : "";
+    if (!appName) return res.status(400).json({ error: "Geçersiz uygulama bilgisi" });
+
+    if (appName === "business" && !["admin", "super_admin"].includes(user.role)) {
+      return res.status(403).json({ error: "Business bildirimi için yönetici hesabı gerekiyor" });
+    }
+    if (appName === "b2b" && user.role !== "b2b_customer") {
+      return res.status(403).json({ error: "B2B bildirimi için müşteri hesabı gerekiyor" });
+    }
+
+    try {
+      await registerMobilePushToken({
+        userId,
+        app: appName,
+        expoToken: String(req.body?.expoToken || ""),
+        platform: typeof req.body?.platform === "string" ? req.body.platform.slice(0, 30) : undefined,
+      });
+      return res.json({ ok: true });
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : "Push token kaydedilemedi",
+      });
+    }
+  });
+
+  app.get("/api/admin/b2b-support", requireAdmin, async (_req, res) => {
+    if (!pool) return res.json([]);
+    const result = await pool.query(
+      `SELECT
+         t.id,
+         t.subject,
+         t.message,
+         t.status,
+         t.created_at,
+         u.email AS customer_email,
+         u.company_name AS customer_name
+       FROM b2b_support_tickets t
+       LEFT JOIN users u ON u.id = t.user_id
+       ORDER BY t.created_at DESC
+       LIMIT 200`,
+    );
+    return res.json(result.rows);
   });
 
   app.get("/api/auth/session", async (req, res) => {
@@ -3543,6 +3600,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ],
     );
 
+    void sendPushToApp("business", {
+      title: "Yeni sipariş",
+      body: `${orderNumber} · ${Number(total).toLocaleString("tr-TR")} ₺ · Havale/EFT`,
+      data: { type: "order", orderNumber },
+    });
+
     return res.status(201).json({
       orderNumber,
       total,
@@ -3572,6 +3635,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!result.rows[0]) {
       return res.status(404).json({ error: "Havale/EFT siparişi bulunamadı" });
     }
+
+    void sendPushToApp("business", {
+      title: "Havale bildirimi",
+      body: `${result.rows[0].order_number} için müşteri ödeme yaptığını bildirdi.`,
+      data: { type: "order", orderNumber: result.rows[0].order_number },
+    });
 
     return res.json(result.rows[0]);
   });
@@ -3667,6 +3736,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ],
     ).catch(() => undefined);
 
+    void sendPushToApp("business", {
+      title: "Sipariş iptal talebi",
+      body: `${result.rows[0].order_number} için müşteri iptal talebi oluşturdu.`,
+      data: { type: "support", orderNumber: result.rows[0].order_number },
+    });
+
     return res.json(result.rows[0]);
   });
 
@@ -3726,6 +3801,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
        RETURNING id, subject, message, status, created_at`,
       [user.id, subject, message],
     );
+
+    void sendPushToApp("business", {
+      title: "Yeni destek mesajı",
+      body: subject,
+      data: { type: "support", ticketId: result.rows[0]?.id },
+    });
+
     return res.status(201).json(result.rows[0]);
   });
 
