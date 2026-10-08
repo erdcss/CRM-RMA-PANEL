@@ -184,6 +184,50 @@ export type B2BPaymentMethod = {
   is_default?: boolean;
 };
 
+export type B2BPaymentSettings = {
+  iyzicoConfigured: boolean;
+  bankTransfer: {
+    enabled: boolean;
+    bankName: string;
+    accountHolder: string;
+    iban: string;
+  };
+};
+
+export type B2BCheckoutProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  minOrderQty: number;
+  unitsPerBox: number;
+  maxBoxQty: number;
+  image?: string | null;
+};
+
+export type B2BCheckoutPreview = {
+  product: B2BCheckoutProduct;
+  quantity: number;
+  totalUnits: number;
+  total: number;
+  currency: 'TRY';
+  iyzicoConfigured: boolean;
+};
+
+export type B2BBankTransferOrder = {
+  orderNumber: string;
+  total: number;
+  transferDescription: string;
+  bankTransfer: {
+    enabled: boolean;
+    bankName: string;
+    accountHolder: string;
+    iban: string;
+  };
+};
+
 export type B2BReturn = {
   id: number;
   order_number?: string | null;
@@ -344,6 +388,53 @@ export const rmaApi = {
   getB2BAccount: () => request<B2BAccount>('/api/b2b/account'),
   listB2BAddresses: () => request<B2BAddress[]>('/api/b2b/addresses'),
   listB2BPaymentMethods: () => request<B2BPaymentMethod[]>('/api/b2b/payment-methods'),
+  getB2BPaymentSettings: () =>
+    request<B2BPaymentSettings>('/api/public/payment-settings'),
+  getB2BCheckoutPreview: (productId: string | number, quantity: number) =>
+    request<B2BCheckoutPreview>(
+      `/api/b2b/checkout/preview?productId=${encodeURIComponent(String(productId))}&qty=${Math.max(1, Math.trunc(quantity))}`,
+    ),
+  createB2BAddress: (payload: {
+    title: string;
+    recipient: string;
+    phone: string;
+    city: string;
+    district: string;
+    addressLine: string;
+    postalCode: string;
+  }) =>
+    request<B2BAddress>('/api/b2b/addresses', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  initializeB2BIyzicoCheckout: (payload: {
+    productId: string | number;
+    quantity: number;
+    addressId: string | number;
+    shipping: Record<string, unknown>;
+    checkoutContext?: Record<string, unknown>;
+    mobileReturnUrl?: string;
+  }) =>
+    request<{ orderNumber: string; paymentPageUrl: string; tokenExpireTime?: number | null }>(
+      '/api/b2b/payments/iyzico/initialize',
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+  createB2BBankTransferOrder: (payload: {
+    productId: string | number;
+    quantity: number;
+    addressId: string | number;
+    shipping: Record<string, unknown>;
+    checkoutContext?: Record<string, unknown>;
+  }) =>
+    request<B2BBankTransferOrder>('/api/b2b/payments/bank-transfer', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  confirmB2BBankTransfer: (orderNumber: string) =>
+    request<{ id: string | number; order_number: string; status: string; payment_status: string }>(
+      `/api/b2b/payments/bank-transfer/${encodeURIComponent(orderNumber)}/confirm`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
   listB2BReturns: () => request<B2BReturn[]>('/api/b2b/my-returns'),
   listB2BInvoices: () => request<B2BInvoice[]>('/api/b2b/my-invoices'),
   listB2BSupport: () => request<B2BSupportTicket[]>('/api/b2b/support'),
