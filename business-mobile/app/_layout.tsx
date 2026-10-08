@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
-import "react-native-url-polyfill/auto";
 import { useMobileBranding } from "../lib/branding";
 
 const MANAGED_SPLASH_DURATION_MS = 1400;
