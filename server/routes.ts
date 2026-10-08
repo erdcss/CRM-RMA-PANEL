@@ -2691,7 +2691,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const orderNumber = newB2BOrderNumber();
-    const transferCode = await newBankTransferCode();
     const total = checkout.total;
     const email = String(user.email || user.username || "").trim();
     const firstName = String(user.firstName || user.companyName || "Müşteri").trim().slice(0, 120);
@@ -3174,17 +3173,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         checkout.itemCount,
         total,
-        transferCode,
         shipping.method,
         JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
         JSON.stringify(billingDetails),
         JSON.stringify(shippingAddress),
-        JSON.stringify({
-          ...checkoutTrace,
-          bankTransferCode: transferCode,
-        }),
+        JSON.stringify(checkoutTrace),
       ],
     );
 
@@ -3475,6 +3470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const orderNumber = newB2BOrderNumber();
+    const transferCode = await newBankTransferCode();
     const total = checkout.total;
     const email = String(user.email || user.username || "").trim();
     const orderItems = checkout.items.map((entry) => ({
@@ -3508,13 +3504,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         checkout.itemCount,
         total,
+        transferCode,
         shipping.method,
         JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
         JSON.stringify(billingDetails),
         JSON.stringify(shippingAddress),
-        JSON.stringify(checkoutTrace),
+        JSON.stringify({
+          ...checkoutTrace,
+          bankTransferCode: transferCode,
+        }),
       ],
     );
 
