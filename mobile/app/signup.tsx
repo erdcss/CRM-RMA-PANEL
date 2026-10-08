@@ -1,8 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,267 +8,329 @@ import {
   Text,
   View,
 } from 'react-native';
-import { appAlert } from '@/lib/appAlert';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useMobileBranding } from '@/lib/branding';
+import { appAlert } from '@/lib/appAlert';
 
-const PRIVACY_URL = 'https://crm-rma.up.railway.app/privacy';
-const TERMS_VERSION = '18.08.2026';
+const COMPANY_CATEGORIES = [
+  'Elektrik & Elektronik',
+  'Ev Gereçleri',
+  'Yapı & Hırdavat',
+  'Otomotiv',
+  'Gıda',
+  'Tekstil',
+  'Kozmetik & Kişisel Bakım',
+  'Petshop',
+  'Market & Perakende',
+  'Toptan Ticaret',
+  'Diğer',
+];
+
+function isValidVknChecksum(value: string) {
+  if (!/^\d{10}$/.test(value)) return false;
+
+  const digits = value.split('').map(Number);
+  const control = digits[9];
+  const total = digits.slice(0, 9).reduce((sum, digit, index) => {
+    const shifted = (digit + 9 - index) % 10;
+    const weighted = shifted === 9 ? 9 : (shifted * 2 ** (9 - index)) % 9;
+    return sum + weighted;
+  }, 0);
+
+  return (10 - (total % 10)) % 10 === control;
+}
 
 export default function SignupScreen() {
-  const branding = useMobileBranding();
   const router = useRouter();
-  const { signUp } = useAuth();
-  const params = useLocalSearchParams<{ companyName?:string; fullName?:string; city?:string; district?:string; phone?:string; businessCategory?:string }>();
-  const companyName = String(params.companyName || '');
-  const fullName = String(params.fullName || '');
-  const city = String(params.city || '');
-  const district = String(params.district || '');
-  const phone = String(params.phone || '');
-  const businessCategory = String(params.businessCategory || '');
+  const branding = useMobileBranding();
+  const { registerApplication, verifyTaxNumber } = useAuth();
+
+  const [companyName, setCompanyName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [companyCategory, setCompanyCategory] = useState('');
+  const [taxNumber, setTaxNumber] = useState('');
+  const [taxOffice, setTaxOffice] = useState('');
+  const [taxValid, setTaxValid] = useState(false);
+  const [taxVerified, setTaxVerified] = useState(false);
+  const [taxChecking, setTaxChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [agreementVisible, setAgreementVisible] = useState(false);
+  const [completed, setCompleted] = useState(false);
 
-  const validateForm = () => {
-    if (!email.trim() || !password) {
-      appAlert('Eksik bilgi', 'E-posta ve şifre girin.');
-      return false;
+  useEffect(() => {
+    setTaxOffice('');
+    setTaxVerified(false);
+
+    if (taxNumber.length !== 10) {
+      setTaxValid(false);
+      return;
     }
 
-    if (password.length < 6) {
-      appAlert('Zayıf şifre', 'Şifre en az 6 karakter olmalıdır.');
-      return false;
+    const checksumValid = isValidVknChecksum(taxNumber);
+    setTaxValid(checksumValid);
+    if (!checksumValid) return;
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setTaxChecking(true);
+      try {
+        const result = await verifyTaxNumber(taxNumber);
+        if (!active) return;
+        setTaxValid(Boolean(result.valid));
+        setTaxVerified(Boolean(result.verified));
+        setTaxOffice(result.taxOffice || '');
+        if (result.companyName) {
+          setCompanyName((current) => current.trim() || result.companyName || '');
+        }
+      } catch {
+        // Web ile aynı davranış: dış vergi servisi ulaşılamıyorsa
+        // doğru kontrol basamağına sahip VKN başvuruyu engellemez.
+        if (!active) return;
+        setTaxValid(checksumValid);
+        setTaxVerified(false);
+        setTaxOffice('');
+      } finally {
+        if (active) setTaxChecking(false);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [taxNumber, verifyTaxNumber]);
+
+  const submit = async () => {
+    if (companyName.trim().length < 2) {
+      appAlert('Eksik bilgi', 'Firma ismini girin.');
+      return;
+    }
+    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+      appAlert('Eksik bilgi', 'İsim ve soy isim girin.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      appAlert('E-posta geçersiz', 'Geçerli bir e-posta adresi girin.');
+      return;
+    }
+    if (!companyCategory) {
+      appAlert('Kategori seçin', 'Firma kategorinizi listeden seçin.');
+      return;
+    }
+    if (!taxValid) {
+      appAlert('Vergi numarası geçersiz', 'Geçerli 10 haneli vergi numarası girin.');
+      return;
     }
 
-    if (password !== confirmPassword) {
-      appAlert('Şifre uyuşmuyor', 'Şifre tekrarı eşleşmiyor.');
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleSignup = () => {
-    if (!validateForm()) return;
-    setAgreementVisible(true);
-  };
-
-  const confirmAgreementAndSignup = async () => {
     setSubmitting(true);
     try {
-      await signUp(email, password);
-      setAgreementVisible(false);
-      appAlert('Kayıt başarılı', 'Hesabınız oluşturuldu. Giriş yapabilirsiniz.');
+      await registerApplication({
+        companyName: companyName.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        companyCategory,
+        taxNumber,
+      });
+      setCompleted(true);
     } catch (error) {
       appAlert(
-        'Kayıt başarısız',
-        error instanceof Error ? error.message : 'Hesap oluşturulamadı.',
+        'Başvuru oluşturulamadı',
+        error instanceof Error ? error.message : 'Lütfen tekrar deneyin.',
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  const openPrivacyPolicy = async () => {
-    try {
-      await Linking.openURL(PRIVACY_URL);
-    } catch {
-      appAlert('Bağlantı açılamadı', 'Gizlilik Politikası ve KVKK metni açılamadı.');
-    }
-  };
+  if (completed) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.completed}>
+          <View style={styles.successIcon}>
+            <Ionicons name="checkmark" size={34} color="#FFFFFF" />
+          </View>
+          <Text style={styles.successTitle}>Başvurunuz alındı</Text>
+          <Text style={styles.successText}>
+            Başvurunuz yönetici onayına gönderildi. Onaylandıktan sonra tek
+            kullanımlık giriş şifreniz e-posta adresinize gönderilecektir.
+          </Text>
+          <Pressable style={styles.primaryButton} onPress={() => router.replace('/login')}>
+            <Text style={styles.primaryButtonText}>Giriş Ekranına Dön</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={() => router.replace('/(tabs)')}>
+            <Text style={styles.secondaryButtonText}>Ürünleri İncele</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
         <Pressable style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
+          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
           <Text style={styles.backText}>Giriş</Text>
         </Pressable>
 
-        <View style={styles.hero}>
+        <View style={styles.brandHeader}>
           <Image
             source={
               branding.b2b_mobile_logo
                 ? { uri: branding.b2b_mobile_logo }
                 : require('../assets/logo.png')
             }
-            style={styles.logoImage}
+            style={styles.logo}
             contentFit="contain"
           />
-          <Text style={styles.title}>Çalışkan B2B Üyeliği</Text>
-          <Text style={styles.subtitle}>Toptan satın alma hesabınızı tamamlayın</Text>
+          <Text style={styles.title}>Firma hesabı oluştur</Text>
+          <Text style={styles.subtitle}>
+            Web sitesi ve mobil uygulama aynı Çalışkan B2B hesabını kullanır.
+          </Text>
         </View>
 
-        <View style={styles.form}>
-          <View style={styles.businessSummary}>
-            <Text style={styles.summaryTitle}>{companyName || 'Firma bilgileri'}</Text>
-            <Text style={styles.summaryText}>{fullName}</Text>
-            <Text style={styles.summaryText}>{[city, district].filter(Boolean).join(' / ')}</Text>
-            <Text style={styles.summaryText}>{phone}</Text>
-            <Text style={styles.summaryText}>{businessCategory}</Text>
-          </View>
+        <View style={styles.card}>
           <FormField
-            label="E-posta"
+            label="Firma İsmi"
+            value={companyName}
+            onChangeText={setCompanyName}
+            placeholder="Firma unvanı"
+          />
+
+          <View style={styles.row}>
+            <View style={styles.rowField}>
+              <FormField
+                label="İsim"
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Ad"
+              />
+            </View>
+            <View style={styles.rowField}>
+              <FormField
+                label="Soy İsim"
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Soyad"
+              />
+            </View>
+          </View>
+
+          <FormField
+            label="E-posta Adresi"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            placeholder="ornek@caliskangroup.com"
-          />
-          <FormField
-            label="Şifre"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            placeholder="En az 6 karakter"
-            rightSlot={
-              <Pressable style={styles.eyeButton} onPress={() => setShowPassword((v) => !v)}>
-                <Ionicons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={colors.textMuted}
-                />
-              </Pressable>
-            }
-          />
-          <FormField
-            label="Şifre Tekrar"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry={!showPassword}
-            placeholder="Şifrenizi tekrar girin"
+            placeholder="ornek@firma.com"
           />
 
-          <View style={styles.agreementNotice}>
-            <Ionicons name="document-text-outline" size={20} color={colors.primary} />
-            <Text style={styles.agreementNoticeText}>
-              Hesap oluşturmadan önce Kullanıcı Sözleşmesi'ni okuyup onaylamanız gerekir.
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Firma Kategorisi</Text>
+            <View style={styles.categoryGrid}>
+              {COMPANY_CATEGORIES.map((category) => {
+                const selected = companyCategory === category;
+                return (
+                  <Pressable
+                    key={category}
+                    style={[
+                      styles.categoryChip,
+                      selected && styles.categoryChipSelected,
+                    ]}
+                    onPress={() => setCompanyCategory(category)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selected && styles.categoryChipTextSelected,
+                      ]}
+                    >
+                      {category}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.helperText}>
+              Kategori serbest metin değildir; web sitesindeki aynı listeden seçilir.
+            </Text>
+          </View>
+
+          <FormField
+            label="Vergi Numarası"
+            value={taxNumber}
+            onChangeText={(value) =>
+              setTaxNumber(value.replace(/\D/g, '').slice(0, 10))
+            }
+            keyboardType="number-pad"
+            placeholder="10 hane"
+            rightSlot={
+              <View style={styles.taxStatus}>
+                {taxChecking ? (
+                  <Ionicons name="sync-outline" size={19} color={colors.textMuted} />
+                ) : taxVerified ? (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                ) : taxNumber.length === 10 && taxValid ? (
+                  <Ionicons name="checkmark-circle-outline" size={20} color={colors.textMuted} />
+                ) : null}
+              </View>
+            }
+          />
+
+          <View style={styles.taxOfficeBox}>
+            <Text style={styles.taxOfficeLabel}>Vergi Dairesi</Text>
+            <Text style={styles.taxOfficeValue}>
+              {taxChecking
+                ? 'Sorgulanıyor…'
+                : taxOffice || (taxValid ? 'Dış servis doğrulaması bekleniyor' : 'VKN ile otomatik belirlenir')}
+            </Text>
+          </View>
+
+          <View style={styles.notice}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+            <Text style={styles.noticeText}>
+              Başvuru sırasında şifre oluşturulmaz. Başvurunuz onaylandıktan sonra
+              tek kullanımlık şifre e-postanıza gönderilir. İlk girişte kalıcı
+              şifrenizi oluşturursunuz.
             </Text>
           </View>
 
           <Pressable
-            style={[styles.button, submitting && styles.buttonDisabled]}
-            onPress={handleSignup}
-            disabled={submitting}
+            style={[
+              styles.primaryButton,
+              (submitting || taxChecking) && styles.disabled,
+            ]}
+            onPress={submit}
+            disabled={submitting || taxChecking}
           >
-            <Text style={styles.buttonText}>{submitting ? 'Kaydediliyor…' : 'Sözleşmeyi Oku ve Devam Et'}</Text>
+            <Ionicons name="person-add-outline" size={19} color="#FFFFFF" />
+            <Text style={styles.primaryButtonText}>
+              {submitting ? 'Başvuru gönderiliyor…' : 'Başvuruyu Gönder'}
+            </Text>
           </Pressable>
 
-          <Pressable style={styles.linkButton} onPress={() => router.push('/login' as never)}>
-            <Text style={styles.linkText}>Zaten hesabınız var mı? Giriş yapın</Text>
+          <Pressable style={styles.loginLink} onPress={() => router.replace('/login')}>
+            <Text style={styles.loginLinkText}>
+              Zaten hesabınız var mı? Giriş yapın
+            </Text>
           </Pressable>
         </View>
       </ScrollView>
-
-      <Modal
-        visible={agreementVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => !submitting && setAgreementVisible(false)}
-      >
-        <View style={styles.modalScreen}>
-          <View style={styles.modalHeader}>
-            <View style={styles.modalHeaderText}>
-              <Text style={styles.modalTitle}>Kullanıcı Sözleşmesi</Text>
-              <Text style={styles.modalVersion}>Sürüm: {TERMS_VERSION}</Text>
-            </View>
-            <Pressable
-              style={styles.modalClose}
-              onPress={() => setAgreementVisible(false)}
-              disabled={submitting}
-              accessibilityLabel="Sözleşmeyi kapat"
-            >
-              <Ionicons name="close" size={24} color={colors.text} />
-            </Pressable>
-          </View>
-
-          <ScrollView style={styles.termsScroll} contentContainerStyle={styles.termsContent}>
-            <Text style={styles.termsLead}>
-              Bu sözleşme, Çalışkan RMA uygulamasına hesap oluşturan kullanıcı ile hizmet sağlayıcı arasındaki uygulama kullanım koşullarını düzenler.
-            </Text>
-
-            <Text style={styles.termsHeading}>1. Hizmetin kapsamı</Text>
-            <Text style={styles.termsText}>
-              Çalışkan RMA; RMA, iade, değişim, servis, müşteri, ürün ve ilgili operasyon kayıtlarının yönetilmesine yardımcı olan bir yazılım hizmetidir. Kullanıcı, uygulamayı yalnızca hukuka ve kullanım amacına uygun şekilde kullanmayı kabul eder.
-            </Text>
-
-            <Text style={styles.termsHeading}>2. Hesap ve güvenlik</Text>
-            <Text style={styles.termsText}>
-              Kullanıcı, kayıt sırasında verdiği bilgilerin doğruluğundan ve hesabının güvenliğinden sorumludur. Şifre ve giriş bilgileri üçüncü kişilerle paylaşılmamalıdır. Yetkisiz kullanım fark edildiğinde gerekli güvenlik önlemleri alınmalıdır.
-            </Text>
-
-            <Text style={styles.termsHeading}>3. Kullanıcı tarafından girilen veriler</Text>
-            <Text style={styles.termsText}>
-              Uygulamaya girilen müşteri, ürün, servis ve diğer iş kayıtlarının hukuka uygun olarak elde edilmesi ve sisteme aktarılması kullanıcının sorumluluğundadır. Kullanıcı, yetkisi bulunmayan veya hukuka aykırı içerikleri sisteme yüklememelidir.
-            </Text>
-
-            <Text style={styles.termsHeading}>4. Kişisel veriler ve gizlilik</Text>
-            <Text style={styles.termsText}>
-              Kişisel verilerin işlenmesine ilişkin bilgilendirme, Kullanıcı Sözleşmesi'nden ayrı olarak Gizlilik Politikası ve KVKK Aydınlatma Metni'nde yer alır. Bu metni ayrıca inceleyebilirsiniz.
-            </Text>
-            <Pressable style={styles.privacyButton} onPress={openPrivacyPolicy}>
-              <Text style={styles.privacyButtonText}>Gizlilik Politikası ve KVKK Metnini Aç</Text>
-              <Ionicons name="open-outline" size={18} color={colors.primary} />
-            </Pressable>
-
-            <Text style={styles.termsHeading}>5. Hizmetin kullanılabilirliği</Text>
-            <Text style={styles.termsText}>
-              Güvenlik, bakım, güncelleme veya teknik nedenlerle hizmette geçici kesintiler ya da değişiklikler olabilir. Hizmetin güvenli ve sürdürülebilir biçimde devamı için uygulama özellikleri güncellenebilir.
-            </Text>
-
-            <Text style={styles.termsHeading}>6. Hesabın sona erdirilmesi</Text>
-            <Text style={styles.termsText}>
-              Kullanıcı uygulamadaki hesap silme özelliğini kullanarak hesabının kapatılmasını talep edebilir. Hukuka aykırı kullanım, güvenlik ihlali veya sözleşmeye esaslı aykırılık halinde hesabın kullanımı sınırlandırılabilir veya sonlandırılabilir.
-            </Text>
-
-            <Text style={styles.termsHeading}>7. Fikri mülkiyet</Text>
-            <Text style={styles.termsText}>
-              Çalışkan RMA'nın yazılımı, tasarımı, markası ve hizmete ait diğer fikri unsurlar üzerindeki haklar ilgili hak sahiplerine aittir. Kullanıcıya yalnızca hizmetten yararlanmak amacıyla sınırlı kullanım hakkı verilir.
-            </Text>
-
-            <Text style={styles.termsHeading}>8. Sözleşme değişiklikleri</Text>
-            <Text style={styles.termsText}>
-              Kullanım koşullarında önemli bir değişiklik yapılması halinde güncel metin uygulama içinde veya uygun bir iletişim kanalıyla kullanıcıya sunulabilir. Güncel sözleşme sürümü bu ekranda gösterilir.
-            </Text>
-
-            <Text style={styles.termsHeading}>9. İletişim</Text>
-            <Text style={styles.termsText}>
-              Sözleşme, hesap veya kişisel verilerle ilgili talepler için erdemcls94@gmail.com adresinden iletişim kurulabilir.
-            </Text>
-
-            <Text style={styles.termsFootnote}>
-              “Okudum ve Onaylıyorum” düğmesine bastığınızda bu Kullanıcı Sözleşmesi'ni kabul ederek hesap oluşturma işlemini tamamlarsınız.
-            </Text>
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <Pressable
-              style={[styles.confirmButton, submitting && styles.buttonDisabled]}
-              onPress={confirmAgreementAndSignup}
-              disabled={submitting}
-            >
-              <Ionicons name="checkmark-circle-outline" size={20} color={colors.surface} />
-              <Text style={styles.buttonText}>
-                {submitting ? 'Hesap oluşturuluyor…' : 'Okudum ve Onaylıyorum'}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -278,154 +338,199 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background},
+    backgroundColor: colors.background,
+  },
   content: {
-    flexGrow: 1,
-    padding: spacing.xxl,
-    paddingTop: spacing.xxxl + spacing.xl,
-    gap: spacing.xl},
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
   back: {
+    minHeight: minTouchTarget,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    alignSelf: 'flex-start',
-    minHeight: minTouchTarget,
-    paddingHorizontal: spacing.xs},
+    gap: spacing.xs,
+  },
   backText: {
     ...typography.bodyMedium,
-    color: colors.text},
-  hero: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.sm},
-  logoImage: {
-    width: 96,
-    height: 96},
+    color: colors.textSecondary,
+  },
+  brandHeader: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  logo: {
+    width: 150,
+    height: 44,
+    marginBottom: spacing.lg,
+  },
   title: {
     ...typography.largeTitle,
-    color: colors.text},
+    color: colors.text,
+    fontWeight: '900',
+  },
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
-    textAlign: 'center'},
-  form: {
-    gap: spacing.lg},
-  businessSummary: { padding:spacing.md, borderRadius:radius.md, backgroundColor:colors.surface, gap:4 },
-  summaryTitle: { ...typography.bodyMedium, color:colors.text },
-  summaryText: { ...typography.caption, color:colors.textSecondary },
-  eyeButton: {
+    marginTop: spacing.xs,
+  },
+  card: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  rowField: {
+    flex: 1,
+  },
+  fieldGroup: {
+    gap: spacing.sm,
+  },
+  label: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontWeight: '700',
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  categoryChip: {
+    minHeight: 38,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryChipSelected: {
+    backgroundColor: '#111827',
+    borderColor: '#111827',
+  },
+  categoryChipText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  categoryChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  helperText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  taxStatus: {
     position: 'absolute',
     right: spacing.md,
     top: 12,
     width: 32,
     height: 32,
     alignItems: 'center',
-    justifyContent: 'center'},
-  agreementNotice: {
+    justifyContent: 'center',
+  },
+  taxOfficeBox: {
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.md,
+  },
+  taxOfficeLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  taxOfficeValue: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    marginTop: 2,
+  },
+  notice: {
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface},
-  agreementNoticeText: {
-    ...typography.body,
+  },
+  noticeText: {
+    ...typography.caption,
     color: colors.textSecondary,
-    flex: 1},
-  button: {
-    marginTop: spacing.sm,
-    minHeight: minTouchTarget,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center'},
-  buttonDisabled: {
-    opacity: 0.7},
-  buttonText: {
-    ...typography.bodyMedium,
-    color: colors.surface,
-    textAlign: 'center'},
-  linkButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm},
-  linkText: {
-    ...typography.bodyMedium,
-    color: colors.primary},
-  modalScreen: {
     flex: 1,
-    backgroundColor: colors.background},
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingVertical: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface},
-  modalHeaderText: {
-    flex: 1},
-  modalTitle: {
-    ...typography.title,
-    color: colors.text},
-  modalVersion: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 2},
-  modalClose: {
-    width: minTouchTarget,
-    height: minTouchTarget,
-    alignItems: 'center',
-    justifyContent: 'center'},
-  termsScroll: {
-    flex: 1},
-  termsContent: {
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl},
-  termsLead: {
-    ...typography.bodyMedium,
-    color: colors.text,
-    lineHeight: 23,
-    marginBottom: spacing.lg},
-  termsHeading: {
-    ...typography.bodyMedium,
-    color: colors.text,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm},
-  termsText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    lineHeight: 22},
-  privacyButton: {
-    marginTop: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.primary},
-  privacyButtonText: {
-    ...typography.bodyMedium,
-    color: colors.primary,
-    flex: 1},
-  termsFootnote: {
-    ...typography.caption,
-    color: colors.textMuted,
     lineHeight: 18,
-    marginTop: spacing.xl},
-  modalFooter: {
-    padding: spacing.lg,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    backgroundColor: colors.surface},
-  confirmButton: {
-    minHeight: minTouchTarget + 4,
+  },
+  primaryButton: {
+    minHeight: 52,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    backgroundColor: '#111827',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg}});
+    paddingHorizontal: spacing.lg,
+  },
+  primaryButtonText: {
+    ...typography.bodyMedium,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    minHeight: 50,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  secondaryButtonText: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  loginLink: {
+    minHeight: minTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginLinkText: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
+  },
+  disabled: {
+    opacity: 0.6,
+  },
+  completed: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.xxl,
+  },
+  successIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: radius.full,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successTitle: {
+    ...typography.largeTitle,
+    color: colors.text,
+    fontWeight: '900',
+    marginTop: spacing.xl,
+  },
+  successText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+});
