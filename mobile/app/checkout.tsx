@@ -498,8 +498,17 @@ export default function CheckoutScreen() {
           {paymentMethod === 'bank_transfer' && !bankOrder ? (
             <View style={styles.bankPreview}>
               <InfoLine label="Banka" value={settings?.bankTransfer.bankName || '—'} />
-              <InfoLine label="Hesap sahibi" value={settings?.bankTransfer.accountHolder || '—'} />
-              <InfoLine label="IBAN" value={settings?.bankTransfer.iban || '—'} last />
+              <CopyRow
+                label="İsim Soyisim / Hesap Sahibi"
+                value={settings?.bankTransfer.accountHolder || '—'}
+              />
+              <CopyRow
+                label="IBAN"
+                value={settings?.bankTransfer.iban || '—'}
+              />
+              <Text style={styles.bankPreviewHint}>
+                Sipariş oluşturulduğunda açıklama alanına yapıştırmanız için size özel CLK ile başlayan 6 haneli kod oluşturulur.
+              </Text>
             </View>
           ) : null}
 
@@ -508,12 +517,25 @@ export default function CheckoutScreen() {
               <View style={styles.successMark}>
                 <Ionicons name="checkmark" size={22} color="#FFFFFF" />
               </View>
-              <Text style={styles.bankOrderTitle}>Havale sipariş kodunuz hazır</Text>
+              <Text style={styles.bankOrderTitle}>Havale / EFT bilgileriniz hazır</Text>
               <Text style={styles.orderCode}>{bankOrder.orderNumber}</Text>
+              <CopyRow
+                label="İsim Soyisim / Hesap Sahibi"
+                value={bankOrder.bankTransfer.accountHolder}
+              />
               <CopyRow label="IBAN" value={bankOrder.bankTransfer.iban} />
-              <CopyRow label="Açıklama" value={bankOrder.transferDescription} />
+              <CopyRow
+                label="Açıklama Kodu"
+                value={bankOrder.transferCode || bankOrder.transferDescription}
+              />
+              <View style={styles.transferCodeBox}>
+                <Text style={styles.transferCodeLabel}>Açıklamaya yapıştırılacak kod</Text>
+                <Text style={styles.transferCodeValue}>
+                  {bankOrder.transferCode || bankOrder.transferDescription}
+                </Text>
+              </View>
               <Text style={styles.bankHint}>
-                Havale açıklamasına sipariş kodunu eksiksiz yazın.
+                Havale/EFT açıklama alanına yalnızca bu CLK kodunu eksiksiz yapıştırın.
               </Text>
               <Pressable style={styles.primaryButton} onPress={confirmBankTransfer} disabled={busy}>
                 <Text style={styles.primaryButtonText}>
@@ -749,10 +771,39 @@ const styles = StyleSheet.create({
   secureTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '800' },
   secureText: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
   bankPreview: { borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, paddingHorizontal: spacing.md },
+  bankPreviewHint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    paddingVertical: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
   bankOrder: { borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, padding: spacing.lg, alignItems: 'stretch' },
   successMark: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   bankOrderTitle: { ...typography.subtitle, color: colors.text, fontWeight: '900', textAlign: 'center', marginTop: spacing.sm },
   orderCode: { ...typography.title, color: colors.text, fontWeight: '900', textAlign: 'center', marginVertical: spacing.md },
+  transferCodeBox: {
+    marginTop: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  transferCodeLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  transferCodeValue: {
+    fontSize: 24,
+    lineHeight: 30,
+    color: colors.text,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginTop: spacing.xs,
+  },
   copyRow: { minHeight: 60, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   copyLabel: { ...typography.caption, color: colors.textMuted },
   copyValue: { ...typography.bodyMedium, color: colors.text, fontWeight: '800', marginTop: 2 },
