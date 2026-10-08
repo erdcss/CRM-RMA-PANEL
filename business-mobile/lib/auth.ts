@@ -1,7 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 const API = (process.env.EXPO_PUBLIC_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
-const KEY = "caliskan_business_token";
 
 export type BusinessAuthUser = {
   id: number;
@@ -12,7 +9,14 @@ export type BusinessAuthUser = {
   isActive: boolean;
 };
 
-export async function signIn(email: string, password: string) {
+type BusinessSession = {
+  user: BusinessAuthUser;
+  token: string;
+};
+
+let currentSession: BusinessSession | null = null;
+
+export async function signIn(email: string, password: string): Promise<BusinessSession> {
   let response: Response;
 
   try {
@@ -23,7 +27,7 @@ export async function signIn(email: string, password: string) {
         Accept: "application/json",
       },
       body: JSON.stringify({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
       }),
     });
@@ -50,41 +54,26 @@ export async function signIn(email: string, password: string) {
     throw new Error("Bu hesabın Çalışkan Business erişimi yok");
   }
 
-  await AsyncStorage.setItem(KEY, token);
-  return { user, token };
+  currentSession = { user, token };
+  return currentSession;
 }
 
 export async function getBusinessSession() {
-  const token = await AsyncStorage.getItem(KEY);
-  if (!token) return null;
+  return currentSession;
+}
 
-  try {
-    const response = await fetch(`${API}/api/auth/session`, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      await AsyncStorage.removeItem(KEY);
-      return null;
-    }
-
-    const payload = await response.json();
-    return payload?.user ? { token, user: payload.user as BusinessAuthUser } : null;
-  } catch {
-    return null;
-  }
+export function getBusinessToken() {
+  return currentSession?.token || "";
 }
 
 export async function signOut() {
-  const token = await AsyncStorage.getItem(KEY);
+  const token = currentSession?.token;
+  currentSession = null;
+
   if (token) {
     await fetch(`${API}/api/auth/logout`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     }).catch(() => undefined);
   }
-  await AsyncStorage.removeItem(KEY);
 }
