@@ -18,6 +18,7 @@ import { signIn, signOut, type BusinessAuthUser } from "./lib/auth";
 import { apiFetch } from "./lib/api";
 import { ADMIN_MODULE_GROUPS, getAdminModule } from "./lib/admin-modules";
 import { useMobileBranding } from "./lib/branding";
+import { listenBusinessNotificationPress, registerBusinessPush } from "./lib/push";
 
 type Screen =
   | { name: "login" }
@@ -77,6 +78,21 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 900);
     return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    void registerBusinessPush().catch((error) => {
+      console.warn("Business push registration failed:", error);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    const subscription = listenBusinessNotificationPress((type) => {
+      if (type === "order") setScreen({ name: "orders" });
+      if (type === "support") setScreen({ name: "support" });
+    });
+    return () => subscription.remove();
   }, []);
 
   const openMainTab = (tab: MainTab) => setScreen({ name: tab });
@@ -530,7 +546,7 @@ function SupportScreen() {
   const load = useCallback(async () => {
     setError("");
     try {
-      const result = await apiFetch<SupportItem[]>("/api/tickets");
+      const result = await apiFetch<SupportItem[]>("/api/admin/b2b-support");
       setItems(Array.isArray(result) ? result : []);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Destek kayıtları alınamadı");
