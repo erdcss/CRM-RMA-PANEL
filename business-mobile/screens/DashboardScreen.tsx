@@ -95,8 +95,7 @@ export function DashboardScreen({
         </View>
 
         <View style={s.heroCopy}>
-          <Text style={s.heroTitle}>Yönetim{"
-"}Dashboard</Text>
+          <Text style={s.heroTitle}>Yönetim{"\\n"}Dashboard</Text>
           <Text style={s.heroSub}>
             İşletmenizi tek ekrandan yönetin, her zaman bir adım önde olun.
           </Text>
