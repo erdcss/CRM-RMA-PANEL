@@ -489,7 +489,7 @@ export default function CheckoutScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.secureTitle}>iyzico Güvenli Kart Ödemesi</Text>
                 <Text style={styles.secureText}>
-                  Kart bilgileriniz Çalışkan B2B sunucularında tutulmaz. Güvenli iyzico ödeme sayfası açılır ve işlem tamamlanınca otomatik olarak uygulamaya dönersiniz.
+                  Kart bilgilerinizi uygulama içindeki güvenli iyzico formunda girersiniz. Kart verileri Çalışkan B2B tarafından saklanmaz; ödeme tamamlandığında sonuç ekranı uygulama içinde açılır.
                 </Text>
               </View>
             </View>
