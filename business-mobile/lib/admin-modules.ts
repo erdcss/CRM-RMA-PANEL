@@ -16,13 +16,13 @@ export const ADMIN_MODULE_GROUPS: AdminModuleGroup[] = [
     title: "Yönetim",
     items: [
       { slug: "dashboard", title: "Dashboard", description: "Canlı operasyon ve yönetim özeti.", route: "/dashboard" },
-      { slug: "ana-sayfa", title: "Ana Sayfa", description: "Web ana sayfası içerik yönetimi." },
+      { slug: "ana-sayfa", title: "Ana Sayfa", description: "Web ana sayfası içerik yönetimi.", endpoint: "/api/admin/homepage" },
       { slug: "basvurular", title: "Başvurular", description: "B2B başvuru ve onay süreçleri.", endpoint: "/api/admin/b2b-applications" },
-      { slug: "odeme-ekrani", title: "Ödeme Ekranı", description: "Ödeme ayarları ve yönetimi." },
-      { slug: "reelsler", title: "Reelsler", description: "Reels içerik yönetimi." },
+      { slug: "odeme-ekrani", title: "Ödeme Ekranı", description: "Ödeme ayarları ve yönetimi.", endpoint: "/api/admin/payment-settings" },
+      { slug: "reelsler", title: "Reelsler", description: "Reels içerik yönetimi.", endpoint: "/api/admin/reels" },
       { slug: "yapay-zeka", title: "Yapay Zeka", description: "Yönetim asistanı ve AI araçları." },
-      { slug: "ayarlar", title: "Ayarlar", description: "Sistem, marka ve mobil uygulama ayarları." },
-      { slug: "yoneticiler", title: "Yöneticiler", description: "Yönetici hesapları ve yetkiler." },
+      { slug: "ayarlar", title: "Ayarlar", description: "Sistem, marka ve mobil uygulama ayarları.", endpoint: "/api/admin/branding" },
+      { slug: "yoneticiler", title: "Yöneticiler", description: "Yönetici hesapları ve yetkiler.", endpoint: "/api/admin/users" },
     ],
   },
   {
