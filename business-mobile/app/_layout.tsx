@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { Stack } from "expo-router";
 import "react-native-url-polyfill/auto";
 import { useMobileBranding } from "../lib/branding";
@@ -18,23 +18,24 @@ export default function RootLayout() {
 
   return (
     <View style={styles.root}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
+      <Stack initialRouteName="login" screenOptions={{ headerShown: false, animation: "fade" }}>
         <Stack.Screen name="login" />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="menu" />
+        <Stack.Screen name="module/[slug]" />
       </Stack>
 
-      {showManagedSplash && (branding.business_mobile_splash || branding.business_mobile_logo) ? (
+      {showManagedSplash ? (
         <View style={styles.splash} pointerEvents="none">
-          <Image
-            source={{
-              uri:
-                branding.business_mobile_splash ||
-                branding.business_mobile_logo ||
-                "",
-            }}
-            style={styles.splashImage}
-            resizeMode="contain"
-          />
+          {branding.business_mobile_splash || branding.business_mobile_logo ? (
+            <Image
+              source={{ uri: branding.business_mobile_splash || branding.business_mobile_logo || "" }}
+              style={styles.splashImage}
+              resizeMode="contain"
+            />
+          ) : branding.loaded ? (
+            <Text style={styles.splashFallback}>Çalışkan Business</Text>
+          ) : null}
         </View>
       ) : null}
     </View>
@@ -53,5 +54,11 @@ const styles = StyleSheet.create({
   splashImage: {
     width: "82%",
     height: "82%",
+  },
+  splashFallback: {
+    color: "#FFFFFF",
+    fontSize: 28,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
 });
