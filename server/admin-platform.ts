@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS b2b_orders (
   payment_status TEXT,
   payment_id TEXT,
   payment_token TEXT,
+  transfer_code TEXT,
   shipping_method TEXT,
   shipping_details JSONB NOT NULL DEFAULT '{}'::jsonb,
   user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -201,6 +202,7 @@ async function ensureDashboardSchema() {
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_status TEXT`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_id TEXT`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS payment_token TEXT`,
+        `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS transfer_code TEXT`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_method TEXT`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_details JSONB NOT NULL DEFAULT '{}'::jsonb`,
         `ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
@@ -229,6 +231,11 @@ async function ensureDashboardSchema() {
       await pool.query(
         `CREATE INDEX IF NOT EXISTS b2b_orders_created_at_idx
          ON b2b_orders (created_at DESC)`,
+      );
+      await pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS b2b_orders_transfer_code_unique_idx
+         ON b2b_orders (transfer_code)
+         WHERE transfer_code IS NOT NULL AND transfer_code <> ''`,
       );
 
       // Existing order rows may predate order_number. Give them a stable
