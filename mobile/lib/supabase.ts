@@ -159,7 +159,7 @@ export const localAuth = {
 
     await parse(response);
 
-    const session = await this.getSession();
+    const session = await localAuth.getSession();
     if (!session) {
       throw new Error('Yeni şifre kaydedildi fakat oturum yenilenemedi. Yeni şifrenizle giriş yapın.');
     }
