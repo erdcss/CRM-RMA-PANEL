@@ -11,11 +11,40 @@ export type AuthUser = {
   role: string;
   appAccess: string;
   isActive: boolean;
+  mustChangePassword?: boolean;
 };
 
 export type AuthSession = {
   access_token: string;
   user: AuthUser;
+};
+
+export type RegistrationPayload = {
+  companyName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  companyCategory: string;
+  taxNumber: string;
+};
+
+export type RegistrationResult = {
+  id: string | number;
+  username: string;
+  status: 'pending' | string;
+  taxVerified?: boolean;
+  taxOffice?: string | null;
+  message?: string;
+};
+
+export type TaxVerification = {
+  valid: boolean;
+  verified: boolean;
+  taxNumber: string;
+  taxOffice?: string | null;
+  companyName?: string | null;
+  serviceConfigured?: boolean;
+  message?: string;
 };
 
 async function parse(response: Response) {
@@ -24,6 +53,23 @@ async function parse(response: Response) {
     throw new Error(payload.error || payload.message || 'İşlem başarısız');
   }
   return payload;
+}
+
+async function requestPublic(path: string, body: Record<string, unknown>) {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error('Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.');
+  }
+  return parse(response);
 }
 
 export const localAuth = {
@@ -55,7 +101,7 @@ export const localAuth = {
         user: payload.user as AuthUser,
       };
     } catch {
-      // Network interruption should not destroy a valid saved login token.
+      // Geçici ağ kesintisinde kayıtlı tokenı silmeyiz.
       return null;
     }
   },
@@ -70,7 +116,7 @@ export const localAuth = {
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password,
         }),
       });
@@ -83,11 +129,50 @@ export const localAuth = {
       throw new Error('B2B mobil oturumu oluşturulamadı. Lütfen tekrar deneyin.');
     }
 
+    const user = {
+      ...(payload.user as AuthUser),
+      mustChangePassword: Boolean(payload.mustChangePassword ?? payload.user?.mustChangePassword),
+    };
+
     await AsyncStorage.setItem(KEY, String(payload.token));
     return {
       access_token: String(payload.token),
-      user: payload.user as AuthUser,
+      user,
     };
+  },
+
+  async completeInitialPassword(password: string, passwordAgain: string): Promise<AuthSession> {
+    const token = await AsyncStorage.getItem(KEY);
+    if (!token) {
+      throw new Error('Oturum bulunamadı. Tek kullanımlık şifrenizle tekrar giriş yapın.');
+    }
+
+    const response = await fetch(`${API_URL}/api/b2b/change-initial-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ password, passwordAgain }),
+    });
+
+    await parse(response);
+
+    const session = await this.getSession();
+    if (!session) {
+      throw new Error('Yeni şifre kaydedildi fakat oturum yenilenemedi. Yeni şifrenizle giriş yapın.');
+    }
+    session.user.mustChangePassword = false;
+    return session;
+  },
+
+  async registerApplication(payload: RegistrationPayload): Promise<RegistrationResult> {
+    return requestPublic('/api/b2b/register', payload) as Promise<RegistrationResult>;
+  },
+
+  async verifyTaxNumber(taxNumber: string): Promise<TaxVerification> {
+    return requestPublic('/api/b2b/tax-verify', { taxNumber }) as Promise<TaxVerification>;
   },
 
   async signOut() {
