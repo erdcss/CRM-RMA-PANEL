@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.lg,
     right: spacing.lg,
-    bottom: spacing.xxl,
+    bottom: spacing.xl,
   },
   reelTitle: {
     ...typography.title,
