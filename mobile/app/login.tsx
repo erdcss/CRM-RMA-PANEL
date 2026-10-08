@@ -62,6 +62,8 @@ export default function LoginScreen() {
       appAlert(
         'Giriş başarısız',
         error instanceof Error ? error.message : 'E-posta veya şifre hatalı.',
+        undefined,
+        'error',
       );
     } finally {
       setSubmitting(false);
