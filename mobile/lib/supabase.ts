@@ -175,6 +175,12 @@ export const localAuth = {
     return requestPublic('/api/b2b/tax-verify', { taxNumber }) as Promise<TaxVerification>;
   },
 
+  async forgotPassword(email: string): Promise<{ ok: boolean; message?: string }> {
+    return requestPublic('/api/b2b/forgot-password', {
+      email: email.trim().toLowerCase(),
+    }) as Promise<{ ok: boolean; message?: string }>;
+  },
+
   async signOut() {
     const token = await AsyncStorage.getItem(KEY);
     if (token) {
