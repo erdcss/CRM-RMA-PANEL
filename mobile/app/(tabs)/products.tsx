@@ -158,7 +158,15 @@ export default function ProductsScreen() {
           const hasPrice = session && item.price !== null && item.price !== undefined;
 
           return (
-            <View style={styles.card}>
+            <Pressable
+              style={styles.card}
+              onPress={() =>
+                router.push({
+                  pathname: '/product/[id]',
+                  params: { id: String(item.id) },
+                } as never)
+              }
+            >
               <View style={styles.imageBox}>
                 {image ? (
                   <Image source={{ uri: image }} style={styles.image} contentFit="contain" />
@@ -206,7 +214,7 @@ export default function ProductsScreen() {
                   )}
                 </View>
               </View>
-            </View>
+            </Pressable>
           );
         }}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
