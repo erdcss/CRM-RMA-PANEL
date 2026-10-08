@@ -4,7 +4,11 @@ const path = require("node:path");
 const mobileRoot = path.resolve(__dirname, "..");
 const packagePath = path.join(mobileRoot, "package.json");
 
-if (process.env.EXPO_UI_DEV_CLIENT !== "1") {
+const skipNiimbot =
+  process.env.EXPO_UI_DEV_CLIENT === "1" ||
+  process.env.EXPO_SKIP_NIIMBOT === "1";
+
+if (!skipNiimbot) {
   console.log("[eas-preinstall] Standard native build: NIIMBOT autolinking unchanged.");
   process.exit(0);
 }
@@ -19,4 +23,4 @@ excluded.add("niimbot-printer");
 pkg.expo.autolinking.ios.exclude = Array.from(excluded);
 
 fs.writeFileSync(packagePath, JSON.stringify(pkg, null, 2) + "\n");
-console.log("[eas-preinstall] UI development build: NIIMBOT iOS native module excluded from autolinking.");
+console.log("[eas-preinstall] NIIMBOT iOS native module excluded from autolinking for this build profile.");
