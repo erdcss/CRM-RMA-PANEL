@@ -1410,7 +1410,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       const result = await pool.query(`
         SELECT id, order_number, customer_email, status, item_count, total_amount,
                payment_method, payment_provider, payment_status, card_last4,
-               card_association, cancel_requested_at, created_at
+               card_association, shipping_method, shipping_details, billing_details,
+               shipping_address, items, cancel_requested_at, created_at
         FROM b2b_orders
         WHERE COALESCE(status, '') <> 'payment_failed'
           AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
@@ -1448,6 +1449,170 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Admin order detail load failed:", error);
       return res.status(500).json({ error: "Sipariş detayı alınamadı" });
+    }
+  });
+
+  app.get("/api/admin/b2b-customers", requireAdmin, async (_req, res) => {
+    if (!pool) return res.json([]);
+
+    try {
+      const result = await pool.query(`
+        SELECT
+          u.id,
+          u.company_name,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.tax_number,
+          u.tax_office,
+          u.is_active,
+          u.application_status,
+          u.created_at,
+          a.recipient,
+          a.phone,
+          a.city,
+          a.district,
+          a.address_line,
+          a.postal_code,
+          COALESCE(o.total_orders, 0)::int AS total_orders,
+          COALESCE(o.total_revenue, 0)::numeric AS total_revenue,
+          o.last_order_at
+        FROM users u
+        LEFT JOIN LATERAL (
+          SELECT recipient, phone, city, district, address_line, postal_code
+          FROM b2b_addresses
+          WHERE user_id = u.id
+          ORDER BY is_default DESC, created_at DESC
+          LIMIT 1
+        ) a ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT
+            COUNT(*)::int AS total_orders,
+            COALESCE(SUM(total_amount), 0)::numeric AS total_revenue,
+            MAX(created_at) AS last_order_at
+          FROM b2b_orders
+          WHERE user_id = u.id
+            AND COALESCE(status, '') <> 'payment_failed'
+            AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+        ) o ON TRUE
+        WHERE u.role = 'b2b_customer'
+        ORDER BY COALESCE(o.total_revenue, 0) DESC, u.created_at DESC
+        LIMIT 500
+      `);
+
+      const customers = result.rows.map((row: any) => {
+        const revenue = Number(row.total_revenue || 0);
+        const orders = Number(row.total_orders || 0);
+        const active = Number(row.is_active || 0) === 1;
+        const segment = !active
+          ? 'riskli'
+          : revenue >= 100000 || orders >= 25
+            ? 'vip'
+            : orders <= 1
+              ? 'yeni'
+              : 'aktif';
+
+        return {
+          ...row,
+          contact_name:
+            [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+            row.recipient ||
+            row.email,
+          segment,
+          current_balance: 0,
+          credit_limit: 0,
+        };
+      });
+
+      return res.json(customers);
+    } catch (error) {
+      console.error("Admin B2B customers load failed:", error);
+      return res.status(500).json({ error: "Müşteriler alınamadı" });
+    }
+  });
+
+  app.get("/api/admin/b2b-customers/:id", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+
+    try {
+      const customer = await pool.query(
+        `SELECT
+           u.id,
+           u.company_name,
+           u.first_name,
+           u.last_name,
+           u.email,
+           u.tax_number,
+           u.tax_office,
+           u.is_active,
+           u.application_status,
+           u.created_at
+         FROM users u
+         WHERE u.id::text = $1 AND u.role = 'b2b_customer'
+         LIMIT 1`,
+        [String(req.params.id || "")],
+      );
+
+      if (!customer.rows[0]) {
+        return res.status(404).json({ error: "Müşteri bulunamadı" });
+      }
+
+      const [addresses, orders] = await Promise.all([
+        pool.query(
+          `SELECT id, title, recipient, phone, city, district, address_line, postal_code,
+                  is_default, created_at
+           FROM b2b_addresses
+           WHERE user_id = $1
+           ORDER BY is_default DESC, created_at DESC`,
+          [customer.rows[0].id],
+        ),
+        pool.query(
+          `SELECT id, order_number, customer_email, status, item_count, total_amount,
+                  payment_method, payment_status, created_at
+           FROM b2b_orders
+           WHERE user_id = $1
+             AND COALESCE(status, '') <> 'payment_failed'
+             AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+             AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+           ORDER BY created_at DESC
+           LIMIT 100`,
+          [customer.rows[0].id],
+        ),
+      ]);
+
+      const totalRevenue = orders.rows.reduce(
+        (sum: number, order: any) => sum + Number(order.total_amount || 0),
+        0,
+      );
+      const active = Number(customer.rows[0].is_active || 0) === 1;
+      const segment = !active
+        ? 'riskli'
+        : totalRevenue >= 100000 || orders.rows.length >= 25
+          ? 'vip'
+          : orders.rows.length <= 1
+            ? 'yeni'
+            : 'aktif';
+
+      return res.json({
+        ...customer.rows[0],
+        contact_name:
+          [customer.rows[0].first_name, customer.rows[0].last_name]
+            .filter(Boolean)
+            .join(' ') ||
+          addresses.rows[0]?.recipient ||
+          customer.rows[0].email,
+        segment,
+        total_orders: orders.rows.length,
+        total_revenue: totalRevenue,
+        current_balance: 0,
+        credit_limit: 0,
+        addresses: addresses.rows,
+        orders: orders.rows,
+      });
+    } catch (error) {
+      console.error("Admin B2B customer detail failed:", error);
+      return res.status(500).json({ error: "Müşteri detayı alınamadı" });
     }
   });
 
@@ -1504,6 +1669,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         recentOrders,
         returns,
         recentReturns,
+        support,
+        lowStock,
+        todayRevenue,
         topSearches,
         topViewedProducts,
       ] = await Promise.all([
@@ -1555,6 +1723,26 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           LIMIT 6
         `),
         pool.query(`
+          SELECT COUNT(*)::int AS count
+          FROM b2b_support_tickets
+          WHERE COALESCE(status, 'open') NOT IN ('closed','resolved','done')
+        `),
+        pool.query(`
+          SELECT COUNT(*)::int AS count
+          FROM b2b_products
+          WHERE is_active = TRUE
+            AND stock <= GREATEST(5, units_per_box)
+        `),
+        pool.query(`
+          SELECT COALESCE(SUM(total_amount), 0)::numeric AS amount
+          FROM b2b_orders
+          WHERE (created_at AT TIME ZONE 'Europe/Istanbul')::date =
+                (NOW() AT TIME ZONE 'Europe/Istanbul')::date
+            AND COALESCE(status, '') <> 'payment_failed'
+            AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+        `),
+        pool.query(`
           SELECT event_value AS query, COUNT(*)::int AS count
           FROM analytics_events
           WHERE event_type = 'search'
@@ -1585,6 +1773,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         conversionRate,
         orderCount: todayOrders,
         activeReturns: Number(returns.rows[0]?.count || 0),
+        openSupport: Number(support.rows[0]?.count || 0),
+        lowStock: Number(lowStock.rows[0]?.count || 0),
+        todayRevenue: Number(todayRevenue.rows[0]?.amount || 0),
         recentOrders: recentOrders.rows,
         recentReturns: recentReturns.rows,
         topSearches: topSearches.rows,
