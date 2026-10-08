@@ -275,6 +275,18 @@ export type B2BThreeDSInitialize = {
   threeDSHtml?: string;
 };
 
+export type B2BOrderSummary = {
+  id: string | number;
+  order_number?: string | null;
+  status?: string | null;
+  item_count?: number | null;
+  total_amount?: string | number | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+  shipping_method?: string | null;
+  created_at?: string | null;
+};
+
 export type B2BReturn = {
   id: number;
   order_number?: string | null;
@@ -553,6 +565,7 @@ export const rmaApi = {
       `/api/b2b/payments/bank-transfer/${encodeURIComponent(orderNumber)}/confirm`,
       { method: 'POST', body: JSON.stringify({}) },
     ),
+  listB2BOrders: () => request<B2BOrderSummary[]>('/api/b2b/my-orders'),
   listB2BReturns: () => request<B2BReturn[]>('/api/b2b/my-returns'),
   listB2BInvoices: () => request<B2BInvoice[]>('/api/b2b/my-invoices'),
   listB2BSupport: () => request<B2BSupportTicket[]>('/api/b2b/support'),
