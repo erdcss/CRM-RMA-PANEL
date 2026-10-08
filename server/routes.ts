@@ -1681,7 +1681,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "E-posta ve şifre gerekli" });
     }
 
-    const user = await storage.getUserByUsername(identifier);
+    const user =
+      (await storage.getUserByUsername(identifier)) ||
+      (await storage.getUserByEmail(identifier));
+
     if (!user || !verifyPassword(password, user.password)) {
       return res.status(401).json({ error: "E-posta veya şifre hatalı" });
     }
@@ -1736,7 +1739,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({ ok: true, message: genericMessage });
     }
 
-    const user = await storage.getUserByUsername(email);
+    const user =
+      (await storage.getUserByUsername(email)) ||
+      (await storage.getUserByEmail(email));
+
     if (
       !user ||
       user.role !== "b2b_customer" ||
