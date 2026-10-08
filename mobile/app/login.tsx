@@ -1,15 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  Animated,
 } from 'react-native';
-import { appAlert } from '@/lib/appAlert';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,23 +17,23 @@ import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useMobileBranding } from '@/lib/branding';
+import { appAlert } from '@/lib/appAlert';
 
 export default function LoginScreen() {
   const branding = useMobileBranding();
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, completeInitialPassword } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [signupOpen, setSignupOpen] = useState(false);
-  const signupAnim = useRef(new Animated.Value(0)).current;
-  const [companyName, setCompanyName] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [city, setCity] = useState('');
-  const [district, setDistrict] = useState('');
-  const [phone, setPhone] = useState('');
-  const [businessCategory, setBusinessCategory] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const [passwordSetupVisible, setPasswordSetupVisible] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordAgain, setNewPasswordAgain] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
@@ -44,7 +43,15 @@ export default function LoginScreen() {
 
     setSubmitting(true);
     try {
-      await signIn(email, password);
+      const session = await signIn(email, password);
+
+      if (session.user.mustChangePassword) {
+        setPassword('');
+        setPasswordSetupVisible(true);
+        return;
+      }
+
+      router.replace('/(tabs)');
     } catch (error) {
       appAlert(
         'Giriş başarısız',
@@ -55,17 +62,32 @@ export default function LoginScreen() {
     }
   };
 
-  const toggleSignup = () => {
-    const next = !signupOpen;
-    setSignupOpen(next);
-    Animated.timing(signupAnim, { toValue: next ? 1 : 0, duration: 280, useNativeDriver: false }).start();
-  };
+  const saveInitialPassword = async () => {
+    if (newPassword.length < 8) {
+      appAlert('Şifre çok kısa', 'Yeni şifre en az 8 karakter olmalıdır.');
+      return;
+    }
+    if (newPassword !== newPasswordAgain) {
+      appAlert('Şifreler eşleşmiyor', 'Yeni şifre ve tekrarı aynı olmalıdır.');
+      return;
+    }
 
-  const goToSignup = () => {
-    router.push({
-      pathname: '/signup',
-      params: { companyName, fullName, city, district, phone, businessCategory },
-    } as never);
+    setSavingPassword(true);
+    try {
+      await completeInitialPassword(newPassword, newPasswordAgain);
+      setPasswordSetupVisible(false);
+      setNewPassword('');
+      setNewPasswordAgain('');
+      appAlert('Şifreniz oluşturuldu', 'Çalışkan B2B hesabınız kullanıma hazır.');
+      router.replace('/(tabs)');
+    } catch (error) {
+      appAlert(
+        'Şifre oluşturulamadı',
+        error instanceof Error ? error.message : 'Lütfen tekrar deneyin.',
+      );
+    } finally {
+      setSavingPassword(false);
+    }
   };
 
   return (
@@ -73,15 +95,35 @@ export default function LoginScreen() {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.mainContent}>
-          <View style={styles.hero}>
-            <Image source={branding.b2b_mobile_logo ? { uri: branding.b2b_mobile_logo } : require('../assets/logo.png')} style={styles.logoImage} contentFit="contain" />
-            <Text style={styles.title}>Çalışkan B2B</Text>
-            <Text style={styles.subtitle}>Toptan satın alma hesabınıza giriş yapın</Text>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Pressable style={styles.back} onPress={() => router.replace('/(tabs)')}>
+          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+          <Text style={styles.backText}>Mağazaya dön</Text>
+        </Pressable>
+
+        <View style={styles.card}>
+          <View style={styles.brandRow}>
+            <Image
+              source={
+                branding.b2b_mobile_logo
+                  ? { uri: branding.b2b_mobile_logo }
+                  : require('../assets/logo.png')
+              }
+              style={styles.logo}
+              contentFit="contain"
+            />
+            <Text style={styles.customerLabel}>Müşteri Girişi</Text>
           </View>
 
           <View style={styles.form}>
+            <Text style={styles.title}>İşletme hesabınıza giriş yapın</Text>
+            <Text style={styles.subtitle}>
+              Web sitesinde kullandığınız Çalışkan B2B hesabı mobil uygulamada da aynıdır.
+            </Text>
+
             <FormField
               label="E-posta"
               value={email}
@@ -89,8 +131,9 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              placeholder="ornek@caliskangroup.com"
+              placeholder="ornek@firma.com"
             />
+
             <FormField
               label="Şifre"
               value={password}
@@ -98,7 +141,10 @@ export default function LoginScreen() {
               secureTextEntry={!showPassword}
               placeholder="••••••••"
               rightSlot={
-                <Pressable style={styles.eyeButton} onPress={() => setShowPassword((v) => !v)}>
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword((current) => !current)}
+                >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
@@ -108,64 +154,119 @@ export default function LoginScreen() {
               }
             />
 
-            <Pressable style={styles.forgotButton} onPress={() => appAlert('Şifremi Unuttum', 'Şifre sıfırlama bağlantısı e-posta adresinize gönderilecektir.')}>
-              <Text style={styles.forgotText}>Şifremi Unuttum</Text>
-            </Pressable>
-
             <Pressable
-              style={[styles.button, submitting && styles.buttonDisabled]}
+              style={[styles.primaryButton, submitting && styles.disabled]}
               onPress={handleLogin}
               disabled={submitting}
             >
-              <Text style={styles.buttonText}>{submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}</Text>
+              <Ionicons name="log-in-outline" size={19} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>
+                {submitting ? 'Giriş yapılıyor…' : 'Giriş Yap'}
+              </Text>
             </Pressable>
 
             <Pressable
-              style={styles.quickEntryButton}
+              style={styles.secondaryButton}
+              onPress={() => router.push('/signup')}
+            >
+              <Ionicons name="person-add-outline" size={19} color={colors.text} />
+              <Text style={styles.secondaryButtonText}>Firma Hesabı Aç</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.quickEntry}
               onPress={() => router.replace('/(tabs)')}
             >
-              <Ionicons name="flash-outline" size={19} color={colors.primary} />
-              <View style={styles.quickEntryTextGroup}>
-                <Text style={styles.quickEntryTitle}>Hızlı Giriş</Text>
-                <Text style={styles.quickEntrySubtitle}>
-                  Ürünleri üyelik olmadan görüntüle
+              <Ionicons name="storefront-outline" size={19} color={colors.textSecondary} />
+              <View style={styles.quickText}>
+                <Text style={styles.quickTitle}>Üyelik olmadan ürünleri incele</Text>
+                <Text style={styles.quickSubtitle}>
+                  Fiyatlar giriş yaptıktan sonra görüntülenir.
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </Pressable>
 
-            <Pressable style={styles.signupToggle} onPress={toggleSignup}>
-              <Text style={styles.linkText}>{signupOpen ? 'Üyelik Formunu Kapat' : 'Hemen Üye Ol'}</Text>
-              <Ionicons name={signupOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.primary} />
+            <Pressable
+              style={styles.helpButton}
+              onPress={() =>
+                appAlert(
+                  'Giriş desteği',
+                  'Web sitesindeki hesabınız mobil uygulamada da geçerlidir. Başvurunuz onaylandıysa e-postanıza gönderilen tek kullanımlık şifreyle giriş yapın. İlk girişte yeni şifrenizi uygulamada oluşturabilirsiniz.',
+                )
+              }
+            >
+              <Ionicons name="help-circle-outline" size={18} color={colors.textMuted} />
+              <Text style={styles.helpText}>Giriş yapamıyorum</Text>
             </Pressable>
-
-            <Animated.View style={[styles.signupPanel, {
-              maxHeight: signupAnim.interpolate({ inputRange:[0,1], outputRange:[0,620] }),
-              opacity: signupAnim,
-            }]}>
-              <View style={styles.signupFields}>
-                <Text style={styles.signupTitle}>Toptan Satış Üyeliği</Text>
-                <Text style={styles.signupDescription}>Firmanıza ait bilgileri girerek Çalışkan B2B üyeliğinizi oluşturun.</Text>
-                <FormField label="Firma İsmi" value={companyName} onChangeText={setCompanyName} placeholder="Firma ünvanı" />
-                <FormField label="İsim Soy İsim" value={fullName} onChangeText={setFullName} placeholder="Ad Soyad" />
-                <View style={styles.row}>
-                  <View style={styles.rowField}><FormField label="İl" value={city} onChangeText={setCity} placeholder="İstanbul" /></View>
-                  <View style={styles.rowField}><FormField label="İlçe" value={district} onChangeText={setDistrict} placeholder="İlçe" /></View>
-                </View>
-                <FormField label="Telefon Numarası" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="05xx xxx xx xx" />
-                <FormField label="İşletme Kategorisi" value={businessCategory} onChangeText={setBusinessCategory} placeholder="Elektronik, market, yapı market..." />
-                <Pressable style={styles.outlineButton} onPress={goToSignup}>
-                  <Text style={styles.outlineButtonText}>Üyeliğe Devam Et</Text>
-                </Pressable>
-              </View>
-            </Animated.View>
           </View>
         </View>
-
-        <View style={styles.poweredBy}>
-          <Text style={styles.poweredByText}>POWERED BY Orvian</Text>
-        </View>
       </ScrollView>
+
+      <Modal
+        visible={passwordSetupVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => undefined}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalScreen}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.modalContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.modalIcon}>
+              <Ionicons name="key-outline" size={30} color="#FFFFFF" />
+            </View>
+            <Text style={styles.modalTitle}>Yeni şifrenizi oluşturun</Text>
+            <Text style={styles.modalSubtitle}>
+              Yönetici onayından sonra gönderilen tek kullanımlık şifre yalnızca ilk giriş içindir.
+              Devam etmek için en az 8 karakterli kalıcı şifrenizi belirleyin.
+            </Text>
+
+            <FormField
+              label="Yeni Şifre"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry={!showNewPassword}
+              placeholder="En az 8 karakter"
+              rightSlot={
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowNewPassword((current) => !current)}
+                >
+                  <Ionicons
+                    name={showNewPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.textMuted}
+                  />
+                </Pressable>
+              }
+            />
+
+            <FormField
+              label="Yeni Şifre Tekrar"
+              value={newPasswordAgain}
+              onChangeText={setNewPasswordAgain}
+              secureTextEntry={!showNewPassword}
+              placeholder="Şifrenizi tekrar girin"
+            />
+
+            <Pressable
+              style={[styles.primaryButton, savingPassword && styles.disabled]}
+              onPress={saveInitialPassword}
+              disabled={savingPassword}
+            >
+              <Ionicons name="checkmark-circle-outline" size={19} color="#FFFFFF" />
+              <Text style={styles.primaryButtonText}>
+                {savingPassword ? 'Kaydediliyor…' : 'Şifremi Oluştur'}
+              </Text>
+            </Pressable>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -173,32 +274,64 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background},
+    backgroundColor: colors.background,
+  },
   content: {
     flexGrow: 1,
-    padding: spacing.xxl,
-    paddingTop: spacing.xxxl,
-    paddingBottom: spacing.xl},
-  mainContent: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: spacing.xxl},
-  hero: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
+  },
+  back: {
+    minHeight: minTouchTarget,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm},
-  logoImage: {
-    width: 120,
-    height: 120,
-    marginBottom: spacing.sm},
+    gap: spacing.xs,
+  },
+  backText: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
+  },
+  card: {
+    marginTop: spacing.lg,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  brandRow: {
+    minHeight: 72,
+    paddingHorizontal: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  logo: {
+    width: 150,
+    height: 44,
+  },
+  customerLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  form: {
+    padding: spacing.xl,
+    gap: spacing.lg,
+  },
   title: {
-    ...typography.largeTitle,
-    color: colors.text},
+    ...typography.title,
+    color: colors.text,
+    fontWeight: '900',
+  },
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
-    textAlign: 'center'},
-  form: {
-    gap: spacing.lg},
+    marginTop: -spacing.sm,
+  },
   eyeButton: {
     position: 'absolute',
     right: spacing.md,
@@ -206,68 +339,101 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     alignItems: 'center',
-    justifyContent: 'center'},
-  button: {
-    marginTop: spacing.sm,
-    minHeight: minTouchTarget,
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    minHeight: 50,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    backgroundColor: '#111827',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center'},
-  buttonDisabled: {
-    opacity: 0.7},
-  buttonText: {
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  primaryButtonText: {
     ...typography.bodyMedium,
-    color: colors.surface},
-  quickEntryButton: {
-    minHeight: 58,
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    minHeight: 50,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.border,
     backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  secondaryButtonText: {
+    ...typography.bodyMedium,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  quickEntry: {
+    minHeight: 70,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+    paddingHorizontal: spacing.md,
   },
-  quickEntryTextGroup: {
+  quickText: {
     flex: 1,
   },
-  quickEntryTitle: {
+  quickTitle: {
     ...typography.bodyMedium,
-    color: colors.primary,
+    color: colors.text,
     fontWeight: '700',
   },
-  quickEntrySubtitle: {
+  quickSubtitle: {
     ...typography.caption,
     color: colors.textMuted,
     marginTop: 2,
   },
-  forgotButton: { alignItems:'flex-end', paddingVertical: spacing.xs },
-  forgotText: { ...typography.bodyMedium, color: colors.primary },
-  signupToggle: { flexDirection:'row', alignItems:'center', justifyContent:'center', gap: spacing.xs, paddingVertical: spacing.sm },
-  signupPanel: { overflow:'hidden' },
-  signupFields: { gap: spacing.md, paddingTop: spacing.sm },
-  signupTitle: { ...typography.title, color: colors.text },
-  signupDescription: { ...typography.body, color: colors.textSecondary },
-  row: { flexDirection:'row', gap: spacing.md },
-  rowField: { flex:1 },
-  outlineButton: { minHeight:minTouchTarget, borderRadius:radius.md, borderWidth:1, borderColor:colors.primary, alignItems:'center', justifyContent:'center', marginTop:spacing.sm },
-  outlineButtonText: { ...typography.bodyMedium, color:colors.primary },
-  linkButton: {
-    alignItems: 'center',
-    paddingVertical: spacing.sm},
-  linkText: {
-    ...typography.bodyMedium,
-    color: colors.primary},
-  poweredBy: {
+  helpButton: {
+    minHeight: minTouchTarget,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.sm},
-  poweredByText: {
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: '500',
-    letterSpacing: 2,
-    color: colors.textMuted}});
+    gap: spacing.xs,
+  },
+  helpText: {
+    ...typography.bodyMedium,
+    color: colors.textSecondary,
+  },
+  disabled: {
+    opacity: 0.6,
+  },
+  modalScreen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalContent: {
+    flexGrow: 1,
+    padding: spacing.xxl,
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  modalIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.full,
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitle: {
+    ...typography.largeTitle,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  modalSubtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+});
