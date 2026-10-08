@@ -29,6 +29,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     overflow: 'hidden',
+    paddingTop: 6,
   },
   content: {
     flex: 1,
