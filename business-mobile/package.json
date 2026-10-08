@@ -3,24 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "main": "index.js",
-  "packageManager": "npm@10.9.2",
+  "packageManager": "npm@10.9.9",
+  "engines": {
+    "node": "22.x",
+    "npm": "10.x"
+  },
   "scripts": {
     "start": "expo start",
     "ios": "expo start --ios",
     "android": "expo start --android",
     "web": "expo start --web",
+    "build": "expo export --platform web",
     "build:web": "expo export --platform web",
     "start:web": "node scripts/serve-web.js",
-    "build": "expo export --platform web",
-    "sync:branding": "node scripts/sync-mobile-branding.cjs business"
+    "sync:branding": "node scripts/sync-mobile-branding.cjs business",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "expo": "^57.0.27",
-    "expo-status-bar": "~57.0.1",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "react-native": "0.86.3",
-    "react-native-safe-area-context": "~5.7.0",
+    "expo": "~54.0.37",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
     "react-native-web": "^0.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2"
   }
 }
