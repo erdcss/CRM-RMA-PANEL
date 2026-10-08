@@ -219,6 +219,7 @@ export type B2BCheckoutPreview = {
 export type B2BBankTransferOrder = {
   orderNumber: string;
   total: number;
+  transferCode: string;
   transferDescription: string;
   bankTransfer: {
     enabled: boolean;
