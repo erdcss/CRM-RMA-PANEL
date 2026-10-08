@@ -491,7 +491,17 @@ export default function CheckoutScreen() {
     );
   }
 
-  const image = absoluteMediaUrl(preview.product.image);
+  const checkoutLines =
+    'items' in preview
+      ? preview.items
+      : [
+          {
+            product: preview.product,
+            quantity: preview.quantity,
+            totalUnits: preview.totalUnits,
+            total: preview.total,
+          },
+        ];
 
   return (
     <Screen>
@@ -514,23 +524,45 @@ export default function CheckoutScreen() {
         </View>
 
         <Section title="Sipariş Özeti" icon="bag-handle-outline">
-          <View style={styles.productRow}>
-            <View style={styles.productImageWrap}>
-              {image ? (
-                <Image source={{ uri: image }} style={styles.productImage} contentFit="contain" />
-              ) : (
-                <Ionicons name="cube-outline" size={34} color={colors.textMuted} />
-              )}
-            </View>
-            <View style={styles.productText}>
-              <Text style={styles.productSku}>{preview.product.sku || 'STOK'}</Text>
-              <Text style={styles.productName}>{preview.product.name}</Text>
-              <Text style={styles.productMeta}>
-                {preview.quantity} koli × {preview.product.unitsPerBox} adet = {preview.totalUnits} adet
-              </Text>
-            </View>
-            <Text style={styles.lineTotal}>{money(preview.total)}</Text>
-          </View>
+          {checkoutLines.map((line, index) => {
+            const lineImage = absoluteMediaUrl(line.product.image);
+            return (
+              <View
+                key={String(line.product.id)}
+                style={[
+                  styles.productRow,
+                  index > 0 && styles.productRowDivider,
+                ]}
+              >
+                <View style={styles.productImageWrap}>
+                  {lineImage ? (
+                    <Image
+                      source={{ uri: lineImage }}
+                      style={styles.productImage}
+                      contentFit="contain"
+                    />
+                  ) : (
+                    <Ionicons
+                      name="cube-outline"
+                      size={34}
+                      color={colors.textMuted}
+                    />
+                  )}
+                </View>
+                <View style={styles.productText}>
+                  <Text style={styles.productSku}>
+                    {line.product.sku || 'STOK'}
+                  </Text>
+                  <Text style={styles.productName}>{line.product.name}</Text>
+                  <Text style={styles.productMeta}>
+                    {line.quantity} koli × {line.product.unitsPerBox} adet ={' '}
+                    {line.totalUnits} adet
+                  </Text>
+                </View>
+                <Text style={styles.lineTotal}>{money(line.total)}</Text>
+              </View>
+            );
+          })}
 
           <View style={styles.summaryLine}>
             <Text style={styles.summaryLabel}>Ürün toplamı</Text>
@@ -1109,6 +1141,12 @@ const styles = StyleSheet.create({
   sectionTitle: { ...typography.subtitle, color: colors.text, fontWeight: '900' },
   sectionBody: { padding: spacing.lg, gap: spacing.sm },
   productRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
+  productRowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    paddingTop: spacing.md,
+    marginTop: spacing.md,
+  },
   productImageWrap: { width: 76, height: 76, borderRadius: radius.md, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   productImage: { width: '100%', height: '100%' },
   productText: { flex: 1 },
