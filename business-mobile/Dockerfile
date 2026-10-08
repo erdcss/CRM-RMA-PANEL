@@ -1,13 +1,16 @@
-# Railway deterministic Business Mobile web build
+# Railway Business Mobile web build
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
+# During Expo SDK upgrades package.json may change before the lock file is
+# regenerated locally. Railway must still be able to build the web preview,
+# so install from package.json and refresh the lock in the build container.
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+RUN npm install --include=dev --no-audit --no-fund
 
 COPY . .
 RUN npm run build
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
