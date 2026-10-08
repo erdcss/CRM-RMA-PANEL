@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 export type MobileBranding = {
+  b2b_web_logo?: string | null;
   b2b_mobile_logo?: string | null;
   b2b_mobile_splash?: string | null;
   business_mobile_logo?: string | null;
@@ -66,6 +67,7 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
     : {};
 
   return {
+    b2b_web_logo: normalizeBrandAsset(branding.b2b_logo) || null,
     // Mobil uygulamada önce mobil için yüklenen marka varlığını kullan.
     // Web logosu yalnızca mobil logo yoksa yedek olarak devreye girer.
     b2b_mobile_logo:
