@@ -229,6 +229,36 @@ export type B2BBankTransferOrder = {
   };
 };
 
+export type B2BInstallmentOption = {
+  installmentNumber: number;
+  installmentPrice: number;
+  totalPrice: number;
+  commissionRate: number;
+};
+
+export type B2BInstallmentLookup = {
+  binNumber: string;
+  price: number;
+  bankName: string;
+  bankCode: number | null;
+  cardType: string;
+  cardAssociation: string;
+  cardFamilyName: string;
+  commercial: number;
+  force3ds: number;
+  options: B2BInstallmentOption[];
+};
+
+export type B2BThreeDSInitialize = {
+  orderNumber: string;
+  paymentId: string;
+  paidPrice: number;
+  installment: number;
+  installmentRate: number;
+  threeDSHtmlContent: string;
+  threeDSHtml?: string;
+};
+
 export type B2BReturn = {
   id: number;
   order_number?: string | null;
@@ -420,6 +450,35 @@ export const rmaApi = {
       '/api/b2b/payments/iyzico/initialize',
       { method: 'POST', body: JSON.stringify(payload) },
     ),
+  getB2BInstallments: (payload: {
+    productId: string | number;
+    quantity: number;
+    binNumber: string;
+  }) =>
+    request<B2BInstallmentLookup>('/api/b2b/payments/iyzico/installments', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  initializeB2BThreeDS: (payload: {
+    productId: string | number;
+    quantity: number;
+    addressId: string | number;
+    shipping: Record<string, unknown>;
+    card: {
+      cardHolderName: string;
+      cardNumber: string;
+      expireMonth: string;
+      expireYear: string;
+      cvc: string;
+    };
+    installment: number;
+    checkoutContext?: Record<string, unknown>;
+    mobileReturnUrl?: string;
+  }) =>
+    request<B2BThreeDSInitialize>('/api/b2b/payments/iyzico/3ds/initialize', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   createB2BBankTransferOrder: (payload: {
     productId: string | number;
     quantity: number;
