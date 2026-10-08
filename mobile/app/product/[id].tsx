@@ -13,7 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
 
 function money(value: string | number | null | undefined) {
