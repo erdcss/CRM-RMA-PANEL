@@ -1026,7 +1026,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#0B0B0B",
   },
-  splashImage: { width: "82%", height: "82%" },
+  splashImage: { width: "100%", height: "100%" },
   splashText: { color: "#FFF", fontSize: 28, fontWeight: "600" },
 
   loginScreen: { flex: 1, backgroundColor: "#0B0B0B" },
