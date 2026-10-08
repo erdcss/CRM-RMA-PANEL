@@ -358,7 +358,7 @@ export default function HomeScreen() {
           >
             <Ionicons
               name="apps-outline"
-              size={24}
+              size={17}
               color={!selectedCategory ? '#FFFFFF' : colors.text}
             />
             <Text
