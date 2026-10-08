@@ -18,6 +18,7 @@ import { signIn, signOut, type BusinessAuthUser } from "./lib/auth";
 import { apiFetch } from "./lib/api";
 import { ADMIN_MODULE_GROUPS, getAdminModule } from "./lib/admin-modules";
 import { useMobileBranding } from "./lib/branding";
+import BrandedLogin from "./BrandedLogin";
 
 type Screen =
   | { name: "login" }
@@ -64,8 +65,9 @@ export default function App() {
       <StatusBar style={screen.name === "login" ? "light" : "dark"} />
       <View style={styles.root}>
         {screen.name === "login" ? (
-          <LoginScreen
+          <BrandedLogin
             logo={branding.business_mobile_logo}
+            background={branding.business_mobile_splash}
             onSuccess={(nextUser) => {
               setUser(nextUser);
               setScreen({ name: "dashboard" });
@@ -106,7 +108,7 @@ export default function App() {
                     "",
                 }}
                 style={styles.splashImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             ) : branding.loaded ? (
               <Text style={styles.splashText}>Çalışkan Business</Text>
@@ -635,7 +637,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#0B0B0B",
   },
-  splashImage: { width: "82%", height: "82%" },
+  splashImage: { width: "100%", height: "100%" },
   splashText: { color: "#FFF", fontSize: 28, fontWeight: "800" },
 
   loginScreen: { flex: 1, backgroundColor: "#0B0B0B" },
