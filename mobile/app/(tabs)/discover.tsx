@@ -81,7 +81,12 @@ export default function DiscoverScreen() {
                 {item.product_id ? (
                   <Pressable
                     style={styles.productButton}
-                    onPress={() => router.push('/(tabs)')}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/product/[id]',
+                        params: { id: String(item.product_id) },
+                      } as never)
+                    }
                   >
                     <Text style={styles.productButtonText}>Ürünü Gör</Text>
                     <Ionicons name="arrow-forward" size={14} color={colors.text} />
