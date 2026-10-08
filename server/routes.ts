@@ -3140,6 +3140,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       await client.query("COMMIT");
 
+      void sendPushToApp("business", {
+        title: "Yeni sipariş",
+        body: `${order.order_number} · Kart ödemesi başarılı`,
+        data: { type: "order", orderNumber: order.order_number },
+      });
+
       return topRedirect(
         mobileResultUrl("success", order.order_number, stockReview) ||
           `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}${stockReview ? "&stock=review" : ""}`,
@@ -3455,6 +3461,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ],
             );
             await client.query("COMMIT");
+            void sendPushToApp("business", {
+              title: "Yeni sipariş",
+              body: `${order.order_number} · Ödeme başarılı · Stok kontrolü gerekli`,
+              data: { type: "order", orderNumber: order.order_number },
+            });
             const mobileUrl = mobileResultUrl("success", order.order_number, true);
             return res.redirect(
               303,
@@ -3503,6 +3514,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await client.query("COMMIT");
+
+      if (success) {
+        void sendPushToApp("business", {
+          title: "Yeni sipariş",
+          body: `${order.order_number} · Kart ödemesi başarılı`,
+          data: { type: "order", orderNumber: order.order_number },
+        });
+      }
 
       const mobileUrl = mobileResultUrl(
         success ? "success" : "failed",
