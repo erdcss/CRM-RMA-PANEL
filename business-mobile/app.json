@@ -18,16 +18,11 @@
       "package": "com.caliskangroup.business",
       "versionCode": 1
     },
-    "plugins": [
-      "expo-notifications"
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
         "projectId": "aa005486-76a0-41cd-92de-33c2070a73f1"
       }
-    },
-    "notification": {
-      "color": "#1D4ED8"
     }
   }
 }
