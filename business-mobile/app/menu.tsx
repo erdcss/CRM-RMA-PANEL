@@ -37,7 +37,7 @@ export default function BusinessMenu() {
                 key={item.slug}
                 style={s.row}
                 activeOpacity={0.75}
-                onPress={() => router.push({ pathname: "/module/[slug]", params: { slug: item.slug } } as any)}
+                onPress={() => item.route ? router.push(item.route as any) : router.push({ pathname: "/module/[slug]", params: { slug: item.slug } } as any)}
               >
                 <View style={s.rowText}>
                   <Text style={s.rowTitle}>{item.title}</Text>
