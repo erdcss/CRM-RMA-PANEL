@@ -1128,8 +1128,19 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xxxl },
-  back: { minHeight: minTouchTarget, alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  page: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxxl },
+  back: {
+    minHeight: minTouchTarget,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   backText: { ...typography.bodyMedium, color: colors.textSecondary },
   header: { marginTop: spacing.lg, marginBottom: spacing.xl },
   eyebrow: { ...typography.caption, color: colors.textMuted, fontWeight: '800', letterSpacing: 1.2 },
