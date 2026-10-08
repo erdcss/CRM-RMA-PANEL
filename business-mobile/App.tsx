@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -168,7 +168,7 @@ function AdminShell({
 }: {
   active: MainTab;
   onTab: (tab: MainTab) => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <SafeAreaView style={styles.adminSafeArea} edges={["top", "left", "right"]}>
