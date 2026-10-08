@@ -9,6 +9,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.gl
   index: { label: 'Ana Sayfa', icon: 'home-outline', activeIcon: 'home' },
   menu: { label: 'Menü', icon: 'grid-outline', activeIcon: 'grid' },
   discover: { label: 'Keşfet', icon: 'play-circle-outline', activeIcon: 'play-circle' },
+  orders: { label: 'Siparişler', icon: 'list-outline', activeIcon: 'list' },
   profile: { label: 'Hesabım', icon: 'person-outline', activeIcon: 'person' },
 };
 
@@ -73,8 +74,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 64,
-    paddingHorizontal: 6,
+    minHeight: 66,
+    paddingHorizontal: 4,
   },
   iosGlass: {
     marginHorizontal: 4,
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   iconWrap: {
-    minWidth: 36,
+    minWidth: 32,
     height: 30,
     borderRadius: radius.full,
     alignItems: 'center',
@@ -112,8 +113,8 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.caption,
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 9,
+    lineHeight: 12,
     color: colors.textMuted,
     fontWeight: '600',
   },
