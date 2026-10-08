@@ -3,7 +3,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { nanoid } from "nanoid";
 
-const uploadsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
+const uploadsDir = process.env.UPLOADS_DIR
+  ? path.resolve(process.env.UPLOADS_DIR)
+  : path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 export function getUploadsDir() {
