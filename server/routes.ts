@@ -2958,7 +2958,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ).catch(() => undefined);
       }
       return topRedirect(
-        `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId || callbackOrder)}${cartQuery}`,
+        mobileResultUrl("failed", conversationId || callbackOrder) ||
+          `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId || callbackOrder)}${cartQuery}`,
       );
     }
 
@@ -2979,7 +2980,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       return topRedirect(
-        `${redirectBase}/odeme?result=failed&reason=3ds&mdStatus=${encodeURIComponent(mdStatus || "unknown")}&order=${encodeURIComponent(conversationId)}${cartQuery}`,
+        mobileResultUrl("failed", conversationId) ||
+          `${redirectBase}/odeme?result=failed&reason=3ds&mdStatus=${encodeURIComponent(mdStatus || "unknown")}&order=${encodeURIComponent(conversationId)}${cartQuery}`,
       );
     }
 
@@ -2998,13 +3000,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!order) {
         await client.query("ROLLBACK");
-        return topRedirect(`${redirectBase}/odeme?result=failed`);
+        return topRedirect(
+          mobileResultUrl("failed", conversationId) ||
+            `${redirectBase}/odeme?result=failed`,
+        );
       }
 
       if (order.payment_status === "SUCCESS") {
         await client.query("COMMIT");
         return topRedirect(
-          `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
+          mobileResultUrl("success", order.order_number) ||
+            `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
         );
       }
 
@@ -3038,7 +3044,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         await client.query("COMMIT");
         return topRedirect(
-          `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
+          mobileResultUrl("failed", order.order_number) ||
+            `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(order.order_number)}${cartQuery}`,
         );
       }
 
@@ -3077,12 +3084,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await client.query("COMMIT");
 
       return topRedirect(
-        `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}${stockReview ? "&stock=review" : ""}`,
+        mobileResultUrl("success", order.order_number, stockReview) ||
+          `${redirectBase}/odeme?result=success&order=${encodeURIComponent(order.order_number)}${cartQuery}${stockReview ? "&stock=review" : ""}`,
       );
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       console.error("iyzico 3DS callback failed:", error instanceof Error ? error.message : "unknown");
-      return topRedirect(`${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`);
+      return topRedirect(
+        mobileResultUrl("failed", conversationId) ||
+          `${redirectBase}/odeme?result=failed&order=${encodeURIComponent(conversationId)}${cartQuery}`,
+      );
     } finally {
       client.release();
     }
