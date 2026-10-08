@@ -55,10 +55,29 @@
         "EXPO_UI_DEV_CLIENT": "1",
         "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
       }
+    },
+    "testflight": {
+      "extends": "production",
+      "autoIncrement": true,
+      "env": {
+        "EAS_NO_VCS": "1",
+        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com",
+        "EXPO_SKIP_NIIMBOT": "1"
+      },
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "environment": "production"
     }
   },
   "submit": {
     "production": {
+      "ios": {
+        "appleTeamId": "U3WGSDJCT2",
+        "ascAppId": "6802286663"
+      }
+    },
+    "testflight": {
       "ios": {
         "appleTeamId": "U3WGSDJCT2",
         "ascAppId": "6802286663"
