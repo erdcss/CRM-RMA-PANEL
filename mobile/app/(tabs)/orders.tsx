@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: 210,
+    paddingBottom: 330,
     gap: spacing.sm,
   },
   itemCard: {
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xxl,
-    paddingBottom: 150,
+    paddingBottom: 250,
   },
   emptyIcon: {
     width: 70,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.md,
     right: spacing.md,
-    bottom: spacing.sm,
+    bottom: spacing.md,
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: colors.border,
