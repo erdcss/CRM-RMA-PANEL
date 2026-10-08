@@ -9,11 +9,11 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { FormField } from '@/components/forms/FormField';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useMobileBranding } from '@/lib/branding';
@@ -114,15 +114,7 @@ export default function LoginScreen() {
 
         <View style={styles.card}>
           <View style={styles.brandRow}>
-            <Image
-              source={
-                branding.b2b_mobile_logo
-                  ? { uri: branding.b2b_mobile_logo }
-                  : require('../assets/logo.png')
-              }
-              style={styles.logo}
-              contentFit="contain"
-            />
+            <BrandLogo uri={branding.b2b_mobile_logo} style={styles.logo} />
             <Text style={styles.customerLabel}>Müşteri Girişi</Text>
           </View>
 
