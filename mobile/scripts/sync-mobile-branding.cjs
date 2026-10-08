@@ -8,9 +8,10 @@ const assetsDir = path.join(root, "assets");
 const api = (process.env.EXPO_PUBLIC_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
 
 function extensionFromMime(mime) {
+  if (mime === "image/png") return "png";
   if (mime === "image/jpeg") return "jpg";
   if (mime === "image/webp") return "webp";
-  return "png";
+  return null;
 }
 
 async function readAsset(value) {
@@ -47,6 +48,12 @@ async function saveAsset(name, value) {
   if (!asset || !asset.buffer.length) return null;
   fs.mkdirSync(assetsDir, { recursive: true });
   const ext = extensionFromMime(asset.mime);
+  if (!ext) {
+    console.warn(
+      `Mobil marka görseli native build için desteklenmeyen formatta (${asset.mime}); mevcut yerel asset korunacak.`,
+    );
+    return null;
+  }
   const filename = `managed-${name}.${ext}`;
   const filePath = path.join(assetsDir, filename);
   fs.writeFileSync(filePath, asset.buffer);
