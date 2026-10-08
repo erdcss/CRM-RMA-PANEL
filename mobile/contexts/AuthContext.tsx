@@ -25,6 +25,7 @@ type AuthContextValue = {
   completeInitialPassword: (password: string, passwordAgain: string) => Promise<AuthSession>;
   registerApplication: (payload: RegistrationPayload) => Promise<RegistrationResult>;
   verifyTaxNumber: (taxNumber: string) => Promise<TaxVerification>;
+  forgotPassword: (email: string) => Promise<{ ok: boolean; message?: string }>;
   signOut: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 };
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       registerApplication: (payload) => localAuth.registerApplication(payload),
       verifyTaxNumber: (taxNumber) => localAuth.verifyTaxNumber(taxNumber),
+      forgotPassword: (email) => localAuth.forgotPassword(email),
       async signOut() {
         await localAuth.signOut();
         setSession(null);
