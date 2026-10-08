@@ -80,6 +80,9 @@ async function main() {
 
   if (logoPath) {
     expo.icon = logoPath;
+    expo.ios = expo.ios || {};
+    expo.ios.icon = logoPath;
+
     expo.android = expo.android || {};
     expo.android.adaptiveIcon = {
       ...(expo.android.adaptiveIcon || {}),
@@ -91,19 +94,47 @@ async function main() {
   }
 
   if (splashPath) {
+    const splashBackground = target === "business" ? "#0B0B0B" : "#FFFFFF";
+
+    // Keep legacy splash config as a fallback for tooling that still reads it.
     expo.splash = {
       ...(expo.splash || {}),
       image: splashPath,
-      resizeMode: "contain",
-      backgroundColor:
-        expo.splash?.backgroundColor ||
-        (target === "business" ? "#0B0B0B" : "#FFFFFF"),
+      resizeMode: "cover",
+      backgroundColor: splashBackground,
     };
+
+    // SDK 57: native release/TestFlight splash is configured with expo-splash-screen.
+    // iOS uses the admin-uploaded image as a full-screen cover image.
+    expo.plugins = Array.isArray(expo.plugins) ? expo.plugins : [];
+    expo.plugins = expo.plugins.filter((plugin) => {
+      if (typeof plugin === "string") return plugin !== "expo-splash-screen";
+      return !(Array.isArray(plugin) && plugin[0] === "expo-splash-screen");
+    });
+    expo.plugins.push([
+      "expo-splash-screen",
+      {
+        backgroundColor: splashBackground,
+        image: splashPath,
+        resizeMode: "cover",
+        enableFullScreenImage_legacy: true,
+        ios: {
+          backgroundColor: splashBackground,
+          image: splashPath,
+          resizeMode: "cover",
+        },
+        android: {
+          backgroundColor: splashBackground,
+          image: logoPath || splashPath,
+          resizeMode: "contain",
+        },
+      },
+    ]);
   }
 
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
-    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · splash=${Boolean(splashPath)}`,
+    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · splash=${Boolean(splashPath)} · iosFullScreenSplash=${Boolean(splashPath)}`,
   );
 }
 
