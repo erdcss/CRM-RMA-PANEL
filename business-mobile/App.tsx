@@ -6,19 +6,17 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { signIn, signOut, type BusinessAuthUser } from "./lib/auth";
 import { apiFetch } from "./lib/api";
 import { ADMIN_MODULE_GROUPS, getAdminModule } from "./lib/admin-modules";
 import { useMobileBranding } from "./lib/branding";
-import BrandedLogin from "./BrandedLogin";
 
 type Screen =
   | { name: "login" }
@@ -50,73 +48,70 @@ type DashboardOverview = {
 
 export default function App() {
   const branding = useMobileBranding();
-  const [showSplash, setShowSplash] = useState(true);
   const [screen, setScreen] = useState<Screen>({ name: "login" });
   const [user, setUser] = useState<BusinessAuthUser | null>(null);
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    if (!branding.loaded) return;
-    const timer = setTimeout(() => setShowSplash(false), 1200);
+    const timer = setTimeout(() => setShowSplash(false), 900);
     return () => clearTimeout(timer);
-  }, [branding.loaded, branding.business_mobile_splash]);
+  }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style={screen.name === "login" ? "light" : "dark"} />
-      <View style={styles.root}>
-        {screen.name === "login" ? (
-          <BrandedLogin
-            logo={branding.business_mobile_logo}
-            background={branding.business_mobile_splash}
-            onSuccess={(nextUser) => {
-              setUser(nextUser);
-              setScreen({ name: "dashboard" });
-            }}
-          />
-        ) : screen.name === "dashboard" ? (
-          <DashboardScreen
-            user={user}
-            onMenu={() => setScreen({ name: "menu" })}
-            onModule={(slug) => setScreen({ name: "module", slug })}
-          />
-        ) : screen.name === "menu" ? (
-          <MenuScreen
-            onBack={() => setScreen({ name: "dashboard" })}
-            onDashboard={() => setScreen({ name: "dashboard" })}
-            onModule={(slug) => setScreen({ name: "module", slug })}
-            onLogout={async () => {
-              await signOut();
-              setUser(null);
-              setScreen({ name: "login" });
-            }}
-          />
-        ) : (
-          <ModuleScreen
-            slug={screen.slug}
-            onBack={() => setScreen({ name: "menu" })}
-          />
-        )}
+    <View style={styles.root}>
+      <StatusBar
+        barStyle={screen.name === "login" ? "light-content" : "dark-content"}
+        backgroundColor={screen.name === "login" ? "#0B0B0B" : "#FFFFFF"}
+      />
 
-        {showSplash ? (
-          <View style={styles.splash} pointerEvents="none">
-            {branding.business_mobile_splash || branding.business_mobile_logo ? (
-              <Image
-                source={{
-                  uri:
-                    branding.business_mobile_splash ||
-                    branding.business_mobile_logo ||
-                    "",
-                }}
-                style={styles.splashImage}
-                resizeMode="cover"
-              />
-            ) : branding.loaded ? (
-              <Text style={styles.splashText}>Çalışkan Business</Text>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
-    </SafeAreaProvider>
+      {screen.name === "login" ? (
+        <LoginScreen
+          logo={branding.business_mobile_logo}
+          onSuccess={(nextUser) => {
+            setUser(nextUser);
+            setScreen({ name: "dashboard" });
+          }}
+        />
+      ) : screen.name === "dashboard" ? (
+        <DashboardScreen
+          user={user}
+          onMenu={() => setScreen({ name: "menu" })}
+          onModule={(slug) => setScreen({ name: "module", slug })}
+        />
+      ) : screen.name === "menu" ? (
+        <MenuScreen
+          onBack={() => setScreen({ name: "dashboard" })}
+          onDashboard={() => setScreen({ name: "dashboard" })}
+          onModule={(slug) => setScreen({ name: "module", slug })}
+          onLogout={async () => {
+            await signOut();
+            setUser(null);
+            setScreen({ name: "login" });
+          }}
+        />
+      ) : (
+        <ModuleScreen slug={screen.slug} onBack={() => setScreen({ name: "menu" })} />
+      )}
+
+      {showSplash ? (
+        <View style={styles.splash} pointerEvents="none">
+          {branding.business_mobile_splash || branding.business_mobile_logo ? (
+            <Image
+              source={{
+                uri:
+                  branding.business_mobile_splash ||
+                  branding.business_mobile_logo ||
+                  "",
+              }}
+              style={styles.splashImage}
+              resizeMode="contain"
+            />
+          ) : (
+            <Text style={styles.splashText}>Çalışkan Business</Text>
+          )}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -134,8 +129,8 @@ function LoginScreen({
   const [message, setMessage] = useState("");
 
   const submit = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !password) {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized || !password) {
       setMessage("E-posta ve şifrenizi eksiksiz girin.");
       return;
     }
@@ -143,7 +138,7 @@ function LoginScreen({
     setBusy(true);
     setMessage("");
     try {
-      const session = await signIn(normalizedEmail, password);
+      const session = await signIn(normalized, password);
       onSuccess(session.user);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Giriş başarısız");
@@ -153,74 +148,71 @@ function LoginScreen({
   };
 
   return (
-    <SafeAreaView style={styles.loginScreen}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <KeyboardAvoidingView
+      style={styles.loginScreen}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <ScrollView
+        contentContainerStyle={styles.loginContent}
+        keyboardShouldPersistTaps="handled"
       >
-        <ScrollView
-          contentContainerStyle={styles.loginContent}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive"
-        >
-          {logo ? (
-            <Image source={{ uri: logo }} style={styles.loginLogo} resizeMode="contain" />
-          ) : null}
-          <Text style={styles.loginTitle}>Çalışkan Business</Text>
+        {logo ? (
+          <Image source={{ uri: logo }} style={styles.loginLogo} resizeMode="contain" />
+        ) : null}
+        <Text style={styles.loginTitle}>Çalışkan Business</Text>
 
+        <TextInput
+          style={styles.input}
+          placeholder="E-posta"
+          placeholderTextColor="#737373"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="username"
+          autoComplete="email"
+          returnKeyType="next"
+        />
+
+        <View style={styles.passwordRow}>
           <TextInput
-            style={styles.input}
-            placeholder="E-posta"
+            style={styles.passwordInput}
+            placeholder="Şifre"
             placeholderTextColor="#737373"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="username"
-            autoComplete="email"
-            returnKeyType="next"
-            value={email}
-            onChangeText={setEmail}
+            textContentType="password"
+            autoComplete="password"
+            returnKeyType="go"
+            onSubmitEditing={() => void submit()}
           />
-
-          <View style={styles.passwordRow}>
-            <TextInput
-              style={styles.passwordInput}
-              placeholder="Şifre"
-              placeholderTextColor="#737373"
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-              autoCorrect={false}
-              textContentType="password"
-              autoComplete="password"
-              returnKeyType="go"
-              value={password}
-              onChangeText={setPassword}
-              onSubmitEditing={() => void submit()}
-            />
-            <TouchableOpacity
-              style={styles.showButton}
-              onPress={() => setShowPassword((value) => !value)}
-            >
-              <Text style={styles.showButtonText}>
-                {showPassword ? "Gizle" : "Göster"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <TouchableOpacity
-            style={[styles.loginButton, busy && styles.disabled]}
-            disabled={busy}
-            onPress={() => void submit()}
+            style={styles.showButton}
+            onPress={() => setShowPassword((value) => !value)}
           >
-            <Text style={styles.loginButtonText}>
-              {busy ? "Giriş yapılıyor…" : "Giriş Yap"}
+            <Text style={styles.showButtonText}>
+              {showPassword ? "Gizle" : "Göster"}
             </Text>
           </TouchableOpacity>
+        </View>
 
-          {message ? <Text style={styles.loginError}>{message}</Text> : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        <TouchableOpacity
+          style={[styles.loginButton, busy && styles.disabled]}
+          disabled={busy}
+          onPress={() => void submit()}
+        >
+          <Text style={styles.loginButtonText}>
+            {busy ? "Giriş yapılıyor…" : "Giriş Yap"}
+          </Text>
+        </TouchableOpacity>
+
+        {message ? <Text style={styles.loginError}>{message}</Text> : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -234,8 +226,8 @@ function DashboardScreen({
   onModule: (slug: string) => void;
 }) {
   const [data, setData] = useState<DashboardOverview | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -257,7 +249,7 @@ function DashboardScreen({
   }, [load]);
 
   return (
-    <SafeAreaView style={styles.adminScreen}>
+    <View style={styles.adminScreen}>
       <View style={styles.topbar}>
         <View style={styles.topbarText}>
           <Text style={styles.brand}>Çalışkan Business</Text>
@@ -343,17 +335,13 @@ function DashboardScreen({
                       <Text style={styles.listTitle}>
                         {order.order_number || `#${order.id}`}
                       </Text>
-                      <Text style={styles.smallMuted}>
-                        {order.customer_email || "—"}
-                      </Text>
+                      <Text style={styles.smallMuted}>{order.customer_email || "—"}</Text>
                     </View>
                     <View style={styles.listSide}>
                       <Text style={styles.amount}>
                         {Number(order.total_amount || 0).toLocaleString("tr-TR")} ₺
                       </Text>
-                      <Text style={styles.smallMuted}>
-                        {order.status || "Bekliyor"}
-                      </Text>
+                      <Text style={styles.smallMuted}>{order.status || "Bekliyor"}</Text>
                     </View>
                   </View>
                 ))
@@ -371,9 +359,7 @@ function DashboardScreen({
                       <Text style={styles.listTitle}>
                         {item.name || item.brand || `İade #${item.id}`}
                       </Text>
-                      <Text style={styles.smallMuted}>
-                        {item.customer_name || "—"}
-                      </Text>
+                      <Text style={styles.smallMuted}>{item.customer_name || "—"}</Text>
                     </View>
                     <Text style={styles.smallMuted}>{item.status || "Bekliyor"}</Text>
                   </View>
@@ -383,7 +369,7 @@ function DashboardScreen({
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -399,7 +385,7 @@ function MenuScreen({
   onLogout: () => void | Promise<void>;
 }) {
   return (
-    <SafeAreaView style={styles.adminScreen}>
+    <View style={styles.adminScreen}>
       <Header title="Tüm Modüller" subtitle="Çalışkan Admin mobil yönetim menüsü" onBack={onBack} />
       <ScrollView contentContainerStyle={styles.menuContent}>
         {ADMIN_MODULE_GROUPS.map((group) => (
@@ -427,7 +413,7 @@ function MenuScreen({
           <Text style={styles.logoutText}>Çıkış Yap</Text>
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -444,6 +430,7 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
       setRefreshing(false);
       return;
     }
+
     setError("");
     try {
       setData(await apiFetch<any>(module.endpoint));
@@ -461,9 +448,9 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
 
   if (!module) {
     return (
-      <SafeAreaView style={styles.adminScreen}>
+      <View style={styles.adminScreen}>
         <Header title="Modül bulunamadı" onBack={onBack} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -472,6 +459,7 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
     : Array.isArray(data?.data)
       ? data.data
       : [];
+
   const objectEntries =
     data && !Array.isArray(data) && typeof data === "object"
       ? Object.entries(data).filter(([, value]) => {
@@ -486,7 +474,7 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
       : [];
 
   return (
-    <SafeAreaView style={styles.adminScreen}>
+    <View style={styles.adminScreen}>
       <Header title={module.title} subtitle={module.description} onBack={onBack} />
       <ScrollView
         contentContainerStyle={styles.moduleContent}
@@ -548,12 +536,12 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>{module.title}</Text>
             <Text style={styles.emptyText}>
-              Bu modülün mobil işlem ekranı hazırlanıyor. Menü ve yetki yapısı admin paneliyle eşlendi.
+              Bu modülün mobil işlem ekranı hazırlanıyor.
             </Text>
           </View>
         ) : null}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -628,8 +616,7 @@ function itemSubtitle(item: any) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8F9FA" },
-  flex: { flex: 1 },
+  root: { flex: 1, backgroundColor: "#F8F9FA", paddingTop: Platform.OS === "android" ? 24 : 0 },
   splash: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -637,7 +624,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#0B0B0B",
   },
-  splashImage: { width: "100%", height: "100%" },
+  splashImage: { width: "82%", height: "82%" },
   splashText: { color: "#FFF", fontSize: 28, fontWeight: "800" },
 
   loginScreen: { flex: 1, backgroundColor: "#0B0B0B" },
@@ -645,14 +632,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 28,
-    paddingBottom: 36,
+    paddingVertical: 36,
   },
-  loginLogo: {
-    width: 104,
-    height: 104,
-    alignSelf: "center",
-    marginBottom: 18,
-  },
+  loginLogo: { width: 104, height: 104, alignSelf: "center", marginBottom: 18 },
   loginTitle: {
     color: "#FFF",
     fontSize: 28,
@@ -703,9 +685,9 @@ const styles = StyleSheet.create({
 
   adminScreen: { flex: 1, backgroundColor: "#F8F9FA" },
   topbar: {
-    minHeight: 64,
+    minHeight: 72,
     paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: "#FFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E5E9",
@@ -725,18 +707,8 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: "#FFF", fontWeight: "800", fontSize: 13 },
   dashboardContent: { padding: 16, paddingBottom: 42 },
-  kicker: {
-    fontSize: 11,
-    fontWeight: "800",
-    color: "#1D4ED8",
-    letterSpacing: 1.1,
-  },
-  dashboardTitle: {
-    marginTop: 5,
-    fontSize: 28,
-    fontWeight: "900",
-    color: "#18212F",
-  },
+  kicker: { fontSize: 11, fontWeight: "800", color: "#1D4ED8", letterSpacing: 1.1 },
+  dashboardTitle: { marginTop: 5, fontSize: 28, fontWeight: "900", color: "#18212F" },
   dashboardSubtitle: {
     marginTop: 7,
     color: "#667085",
@@ -755,12 +727,7 @@ const styles = StyleSheet.create({
     borderColor: "#E2E5E9",
   },
   metricTitle: { color: "#667085", fontSize: 12, fontWeight: "600" },
-  metricValue: {
-    marginTop: 11,
-    color: "#18212F",
-    fontSize: 25,
-    fontWeight: "900",
-  },
+  metricValue: { marginTop: 11, color: "#18212F", fontSize: 25, fontWeight: "900" },
   sectionTitle: {
     marginTop: 24,
     marginBottom: 10,
@@ -809,7 +776,7 @@ const styles = StyleSheet.create({
   loader: { marginVertical: 36 },
 
   header: {
-    minHeight: 68,
+    minHeight: 70,
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: "#FFF",
@@ -818,12 +785,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  backButton: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
   backText: { fontSize: 36, color: "#1D4ED8", lineHeight: 38 },
   headerText: { flex: 1, paddingRight: 12 },
   headerTitle: { fontSize: 21, fontWeight: "900", color: "#18212F" },
