@@ -44,8 +44,8 @@ syncFromGitHub();
 const timer = setInterval(syncFromGitHub, 4000);
 const expoCommand = isWindows ? "cmd.exe" : "npx";
 const expoArgs = isWindows
-  ? ["/d", "/s", "/c", `npx expo start --go ${connectionMode} --clear`]
-  : ["expo", "start", "--go", connectionMode, "--clear"];
+  ? ["/d", "/s", "/c", `npx expo start --go ${connectionMode} --clear --port 8091`]
+  : ["expo", "start", "--go", connectionMode, "--clear", "--port", "8091"];
 
 const expo = spawn(expoCommand, expoArgs, {
   cwd: mobileRoot, stdio: "inherit",
