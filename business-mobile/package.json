@@ -12,7 +12,6 @@
     "start": "expo start",
     "ios": "expo start --ios",
     "android": "expo start --android",
-    "typecheck": "tsc --noEmit",
     "dev:live": "node scripts/live-dev.cjs --lan",
     "dev:live:tunnel": "node scripts/live-dev.cjs --tunnel"
   },
@@ -20,9 +19,5 @@
     "expo": "^57.0.27",
     "react": "19.2.3",
     "react-native": "0.86.3"
-  },
-  "devDependencies": {
-    "@types/react": "~19.2.4",
-    "typescript": "~6.0.3"
   }
 }
