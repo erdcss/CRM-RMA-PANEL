@@ -18,6 +18,7 @@ ENV PORT=8080
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/package.json ./package.json
 
 EXPOSE 8080
 CMD ["node", "scripts/serve-web.js"]
