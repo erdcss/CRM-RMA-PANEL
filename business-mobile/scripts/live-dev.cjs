@@ -39,13 +39,13 @@ function syncFromGitHub() {
   } finally { syncing = false; }
 }
 
-console.log(`[business-live-dev] Starting Çalışkan Business Dev (${connectionMode.slice(2)}).`);
+console.log(`[business-live-dev] Starting Çalışkan Business Expo Go (${connectionMode.slice(2)}).`);
 syncFromGitHub();
 const timer = setInterval(syncFromGitHub, 4000);
 const expoCommand = isWindows ? "cmd.exe" : "npx";
 const expoArgs = isWindows
-  ? ["/d", "/s", "/c", `npx expo start --dev-client ${connectionMode}`]
-  : ["expo", "start", "--dev-client", connectionMode];
+  ? ["/d", "/s", "/c", `npx expo start --go ${connectionMode} --clear`]
+  : ["expo", "start", "--go", connectionMode, "--clear"];
 
 const expo = spawn(expoCommand, expoArgs, {
   cwd: mobileRoot, stdio: "inherit",
