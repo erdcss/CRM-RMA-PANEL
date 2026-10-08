@@ -134,6 +134,7 @@ function authResponseUser(user: any, usernameOverride?: string) {
     role: user.role,
     appAccess: user.appAccess,
     isActive: user.isActive === 1 || user.isActive === true,
+    mustChangePassword: user.mustChangePassword === 1 || user.mustChangePassword === true,
   };
 }
 
