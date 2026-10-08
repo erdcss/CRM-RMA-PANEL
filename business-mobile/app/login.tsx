@@ -36,7 +36,7 @@ export default function BusinessLogin() {
     setMessage("");
     try {
       await signIn(normalizedEmail, password);
-      router.replace("/");
+      router.replace("/dashboard");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Giriş başarısız");
     } finally {
