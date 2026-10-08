@@ -599,15 +599,215 @@ export default function CheckoutScreen() {
           ) : null}
 
           {paymentMethod === 'card' ? (
-            <View style={styles.secureBox}>
-              <View style={styles.secureIcon}>
-                <Ionicons name="shield-checkmark" size={24} color="#FFFFFF" />
+            <View style={styles.cardPaymentBox}>
+              <View style={styles.secureBox}>
+                <View style={styles.secureIcon}>
+                  <Ionicons name="shield-checkmark" size={24} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.secureTitle}>iyzico 3D Secure Kart Ödemesi</Text>
+                  <Text style={styles.secureText}>
+                    Kart bilgileriniz yalnızca ödeme işlemi için iyzico'ya iletilir; Çalışkan B2B tarafından saklanmaz.
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.secureTitle}>iyzico Güvenli Kart Ödemesi</Text>
-                <Text style={styles.secureText}>
-                  Kart bilgilerinizi uygulama içindeki güvenli iyzico formunda girersiniz. Kart verileri Çalışkan B2B tarafından saklanmaz; ödeme tamamlandığında sonuç ekranı uygulama içinde açılır.
+
+              <View style={styles.cardVisual}>
+                <View style={styles.cardVisualTop}>
+                  <Text style={styles.cardBrandText}>
+                    {installments?.cardAssociation || 'Banka / Kredi Kartı'}
+                  </Text>
+                  <Ionicons name="card-outline" size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.cardNumberPreview}>
+                  {formatCardNumber(cardNumber) || '•••• •••• •••• ••••'}
                 </Text>
+                <View style={styles.cardVisualBottom}>
+                  <View>
+                    <Text style={styles.cardMetaLabel}>KART SAHİBİ</Text>
+                    <Text style={styles.cardMetaValue}>
+                      {cardHolderName.trim().toUpperCase() || 'İSİM SOYİSİM'}
+                    </Text>
+                  </View>
+                  <View style={styles.cardExpiryPreview}>
+                    <Text style={styles.cardMetaLabel}>SKT</Text>
+                    <Text style={styles.cardMetaValue}>
+                      {expireMonth || 'AA'}/{expireYear || 'YY'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.cardFields}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Kart Üzerindeki İsim Soyisim</Text>
+                  <TextInput
+                    value={cardHolderName}
+                    onChangeText={setCardHolderName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    placeholder="İsim Soyisim"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.input}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Kart Numarası</Text>
+                  <TextInput
+                    value={formatCardNumber(cardNumber)}
+                    onChangeText={(value) =>
+                      setCardNumber(value.replace(/\D/g, '').slice(0, 19))
+                    }
+                    keyboardType="number-pad"
+                    placeholder="0000 0000 0000 0000"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.input}
+                    maxLength={23}
+                  />
+                </View>
+
+                <View style={styles.cardDateRow}>
+                  <View style={styles.cardDateField}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Ay</Text>
+                      <TextInput
+                        value={expireMonth}
+                        onChangeText={(value) => {
+                          const digits = value.replace(/\D/g, '').slice(0, 2);
+                          setExpireMonth(digits);
+                        }}
+                        keyboardType="number-pad"
+                        placeholder="AA"
+                        placeholderTextColor={colors.textMuted}
+                        style={styles.input}
+                        maxLength={2}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.cardDateField}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Yıl</Text>
+                      <TextInput
+                        value={expireYear}
+                        onChangeText={(value) =>
+                          setExpireYear(value.replace(/\D/g, '').slice(0, 2))
+                        }
+                        keyboardType="number-pad"
+                        placeholder="YY"
+                        placeholderTextColor={colors.textMuted}
+                        style={styles.input}
+                        maxLength={2}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.cardDateField}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>CVV</Text>
+                      <TextInput
+                        value={cvc}
+                        onChangeText={(value) =>
+                          setCvc(value.replace(/\D/g, '').slice(0, 4))
+                        }
+                        keyboardType="number-pad"
+                        placeholder="***"
+                        placeholderTextColor={colors.textMuted}
+                        style={styles.input}
+                        secureTextEntry
+                        maxLength={4}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.installmentSection}>
+                <View style={styles.installmentHeader}>
+                  <View>
+                    <Text style={styles.installmentTitle}>Taksit Seçenekleri</Text>
+                    <Text style={styles.installmentSubtitle}>
+                      Kartın ilk 8 hanesine göre iyzico üzerinden hesaplanır.
+                    </Text>
+                  </View>
+                  {installments?.bankName ? (
+                    <Text style={styles.bankBadge}>{installments.bankName}</Text>
+                  ) : null}
+                </View>
+
+                {cardNumber.replace(/\D/g, '').length < 8 ? (
+                  <View style={styles.installmentInfo}>
+                    <Ionicons name="information-circle-outline" size={19} color={colors.textSecondary} />
+                    <Text style={styles.installmentInfoText}>
+                      Taksit oranlarını görmek için kart numarasının ilk 8 hanesini girin.
+                    </Text>
+                  </View>
+                ) : installmentsLoading ? (
+                  <View style={styles.installmentInfo}>
+                    <Ionicons name="sync-outline" size={19} color={colors.textSecondary} />
+                    <Text style={styles.installmentInfoText}>Taksit seçenekleri sorgulanıyor…</Text>
+                  </View>
+                ) : installmentsError ? (
+                  <View style={styles.installmentInfo}>
+                    <Ionicons name="alert-circle-outline" size={19} color={colors.warning} />
+                    <Text style={styles.installmentInfoText}>{installmentsError}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.installmentGrid}>
+                    {(installments?.options || []).map((option) => {
+                      const active = option.installmentNumber === installment;
+                      return (
+                        <Pressable
+                          key={option.installmentNumber}
+                          style={[
+                            styles.installmentCard,
+                            active && styles.installmentCardActive,
+                          ]}
+                          onPress={() => setInstallment(option.installmentNumber)}
+                        >
+                          <View style={styles.installmentCardTop}>
+                            <Text
+                              style={[
+                                styles.installmentCount,
+                                active && styles.installmentTextActive,
+                              ]}
+                            >
+                              {option.installmentNumber === 1
+                                ? 'Tek Çekim'
+                                : `${option.installmentNumber} Taksit`}
+                            </Text>
+                            <View style={[styles.radio, active && styles.radioActive]}>
+                              {active ? <View style={styles.radioDot} /> : null}
+                            </View>
+                          </View>
+                          <Text
+                            style={[
+                              styles.installmentAmount,
+                              active && styles.installmentTextActive,
+                            ]}
+                          >
+                            {option.installmentNumber === 1
+                              ? money(option.totalPrice)
+                              : `${money(option.installmentPrice)} × ${option.installmentNumber}`}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.installmentRate,
+                              active && styles.installmentRateActive,
+                            ]}
+                          >
+                            {option.commissionRate > 0
+                              ? `+% ${option.commissionRate.toLocaleString('tr-TR')}`
+                              : 'Komisyonsuz'}
+                            {' · '}
+                            Toplam {money(option.totalPrice)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             </View>
           ) : null}
@@ -692,7 +892,7 @@ export default function CheckoutScreen() {
               {busy
                 ? 'Hazırlanıyor…'
                 : paymentMethod === 'card'
-                  ? `${money(preview.total)} · Güvenli Ödemeye Geç`
+                  ? `${money(payableTotal)} · Ödemeyi Tamamla`
                   : `${money(preview.total)} · Havale Siparişi Oluştur`}
             </Text>
           </Pressable>
