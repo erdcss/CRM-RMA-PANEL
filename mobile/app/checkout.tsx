@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
@@ -23,6 +24,7 @@ import {
   type B2BBankTransferOrder,
   type B2BCheckoutPreview,
   type B2BPaymentSettings,
+  type B2BInstallmentLookup,
 } from '@/lib/api';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 
@@ -52,6 +54,29 @@ function scheme() {
   return configured || 'caliskanb2b';
 }
 
+function formatCardNumber(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 19);
+  return digits.match(/.{1,4}/g)?.join(' ') || '';
+}
+
+function validCardNumber(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 15 || digits.length > 19) return false;
+
+  let sum = 0;
+  let doubleDigit = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum % 10 === 0;
+}
+
 export default function CheckoutScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ productId?: string; qty?: string }>();
@@ -73,6 +98,15 @@ export default function CheckoutScreen() {
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [addressForm, setAddressForm] = useState(EMPTY_ADDRESS);
   const [bankOrder, setBankOrder] = useState<B2BBankTransferOrder | null>(null);
+  const [cardHolderName, setCardHolderName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [expireMonth, setExpireMonth] = useState('');
+  const [expireYear, setExpireYear] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [installment, setInstallment] = useState(1);
+  const [installments, setInstallments] = useState<B2BInstallmentLookup | null>(null);
+  const [installmentsLoading, setInstallmentsLoading] = useState(false);
+  const [installmentsError, setInstallmentsError] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -114,6 +148,58 @@ export default function CheckoutScreen() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const bin = cardNumber.replace(/\D/g, '').slice(0, 8);
+
+    if (
+      paymentMethod !== 'card' ||
+      !preview ||
+      bin.length !== 8
+    ) {
+      setInstallments(null);
+      setInstallmentsError('');
+      setInstallment(1);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(() => {
+      setInstallmentsLoading(true);
+      setInstallmentsError('');
+
+      rmaApi
+        .getB2BInstallments({
+          productId,
+          quantity,
+          binNumber: bin,
+        })
+        .then((result) => {
+          if (!active) return;
+          setInstallments(result);
+          const available = result.options || [];
+          if (!available.some((option) => option.installmentNumber === installment)) {
+            setInstallment(available[0]?.installmentNumber || 1);
+          }
+        })
+        .catch((error) => {
+          if (!active) return;
+          setInstallments(null);
+          setInstallment(1);
+          setInstallmentsError(
+            error instanceof Error ? error.message : 'Taksit seçenekleri alınamadı.',
+          );
+        })
+        .finally(() => {
+          if (active) setInstallmentsLoading(false);
+        });
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [cardNumber, installment, paymentMethod, preview, productId, quantity]);
+
   const selectedAddress = useMemo(
     () => addresses.find((item) => String(item.id) === addressId) || null,
     [addresses, addressId],
@@ -139,11 +225,27 @@ export default function CheckoutScreen() {
     (freightCompany.trim().length >= 2 &&
       freightPhone.replace(/\D/g, '').length >= 7);
 
+  const cardFormValid =
+    cardHolderName.trim().length >= 2 &&
+    validCardNumber(cardNumber) &&
+    /^(0[1-9]|1[0-2])$/.test(expireMonth) &&
+    /^\d{2}$/.test(expireYear) &&
+    /^\d{3,4}$/.test(cvc);
+
+  const selectedInstallment = installments?.options?.find(
+    (option) => option.installmentNumber === installment,
+  );
+  const payableTotal = selectedInstallment?.totalPrice ?? preview?.total ?? 0;
+
   const canPay = Boolean(
     preview &&
       selectedAddress &&
       shippingValid &&
-      ((paymentMethod === 'card' && settings?.iyzicoConfigured) ||
+      ((paymentMethod === 'card' &&
+        settings?.iyzicoConfigured &&
+        cardFormValid &&
+        !installmentsLoading &&
+        (!installments || installments.options.some((option) => option.installmentNumber === installment))) ||
         (paymentMethod === 'bank_transfer' && settings?.bankTransfer.enabled)),
   );
 
@@ -174,34 +276,49 @@ export default function CheckoutScreen() {
 
   const startCardPayment = async () => {
     if (!preview || !selectedAddress || !canPay || busy) return;
+
     setBusy(true);
     try {
       const mobileReturnUrl = `${scheme()}://payment-result`;
-      const result = await rmaApi.initializeB2BIyzicoCheckout({
+      const result = await rmaApi.initializeB2BThreeDS({
         productId,
         quantity,
         addressId: selectedAddress.id,
         shipping: shippingPayload,
         mobileReturnUrl,
+        installment,
+        card: {
+          cardHolderName: cardHolderName.trim(),
+          cardNumber: cardNumber.replace(/\D/g, ''),
+          expireMonth,
+          expireYear,
+          cvc,
+        },
         checkoutContext: {
-          source: 'Çalışkan B2B Mobil',
+          source: 'Çalışkan B2B Mobil · Kart',
           entryPath: `/checkout?productId=${productId}&qty=${quantity}`,
           previousPath: `/product/${productId}`,
           cartMode: false,
           productId,
           platform: 'mobile',
+          installment,
         },
       });
 
-      if (!/^https:\/\//i.test(result.paymentPageUrl)) {
-        throw new Error('Güvenli ödeme bağlantısı doğrulanamadı.');
+      const html = result.threeDSHtml || '';
+      if (!html.trim()) {
+        throw new Error('3D Secure doğrulama ekranı hazırlanamadı.');
       }
+
+      const storageKey = `caliskan_3ds_html_${result.orderNumber}`;
+      await AsyncStorage.setItem(storageKey, html);
 
       router.push({
         pathname: '/payment-card',
         params: {
-          url: result.paymentPageUrl,
+          mode: '3ds',
           order: result.orderNumber,
+          storageKey,
         },
       } as never);
     } catch (error) {
