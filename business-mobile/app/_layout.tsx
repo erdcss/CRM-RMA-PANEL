@@ -31,7 +31,7 @@ export default function RootLayout() {
             <Image
               source={{ uri: branding.business_mobile_splash || branding.business_mobile_logo || "" }}
               style={styles.splashImage}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           ) : branding.loaded ? (
             <Text style={styles.splashFallback}>Çalışkan Business</Text>
@@ -52,8 +52,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#0B0B0B",
   },
   splashImage: {
-    width: "82%",
-    height: "82%",
+    width: "100%",
+    height: "100%",
   },
   splashFallback: {
     color: "#FFFFFF",
