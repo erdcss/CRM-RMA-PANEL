@@ -59,10 +59,7 @@ export default function BusinessLogin() {
           {branding.business_mobile_logo ? (
             <Image source={{ uri: branding.business_mobile_logo }} style={s.logo} resizeMode="contain" />
           ) : null}
-          <Text style={s.title}>Yönetici Girişi</Text>
-          <Text style={s.description}>
-            Web yönetim panelinden oluşturulan Çalışkan Business hesabınızla giriş yapın.
-          </Text>
+          <Text style={s.title}>Çalışkan Business</Text>
 
           <Text style={s.label}>E-posta</Text>
           <TextInput
@@ -122,8 +119,7 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
   content: { flexGrow: 1, justifyContent: "center", padding: 28, paddingBottom: 36 },
   logo: { width: 112, height: 112, alignSelf: "center", marginBottom: 20 },
-  title: { color: "#FFF", fontSize: 28, fontWeight: "700", marginBottom: 8 },
-  description: { color: "#B8B8B8", fontSize: 16, lineHeight: 24, marginBottom: 24 },
+  title: { color: "#FFF", fontSize: 28, fontWeight: "700", marginBottom: 28, textAlign: "center" },
   label: { color: "#E8E8E8", fontSize: 14, fontWeight: "600", marginBottom: 8 },
   input: {
     minHeight: 52,
