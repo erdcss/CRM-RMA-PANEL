@@ -1,26 +1,23 @@
-# Railway Business Mobile web build
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
-# During Expo SDK upgrades package.json may change before the lock file is
-# regenerated locally. Railway must still be able to build the web preview,
-# so install from package.json and refresh the lock in the build container.
 COPY package.json package-lock.json ./
-RUN npm install --include=dev --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
+
+# Web-only dependencies are installed only inside Railway's build image.
+# They are intentionally not part of the iPhone Expo Go dependency graph.
+RUN npm install --no-save --package-lock=false --no-audit --no-fund react-dom@19.2.3 react-native-web@0.21.4
 
 COPY . .
 RUN npm run build
-RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/scripts ./scripts
 
 EXPOSE 8080
-CMD ["npm", "run", "start:web"]
+CMD ["node", "scripts/serve-web.js"]
