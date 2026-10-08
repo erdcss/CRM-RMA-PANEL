@@ -235,7 +235,7 @@ export default function LoginScreen() {
           </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
