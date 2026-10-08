@@ -252,6 +252,22 @@ function newB2BOrderNumber() {
   return `CLK-${stamp}-${randomBytes(3).toString("hex").toUpperCase()}`;
 }
 
+async function newBankTransferCode() {
+  if (!pool) throw new Error("Veritabanı bağlantısı yok");
+
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const randomValue = randomBytes(4).readUInt32BE(0) % 1_000_000;
+    const code = `CLK${String(randomValue).padStart(6, "0")}`;
+    const exists = await pool.query(
+      `SELECT 1 FROM b2b_orders WHERE transfer_code = $1 LIMIT 1`,
+      [code],
+    );
+    if (!exists.rows[0]) return code;
+  }
+
+  throw new Error("Benzersiz havale açıklama kodu oluşturulamadı");
+}
+
 async function checkoutProduct(productId: unknown, quantity: unknown): Promise<CheckoutProduct> {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
@@ -2675,6 +2691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const orderNumber = newB2BOrderNumber();
+    const transferCode = await newBankTransferCode();
     const total = checkout.total;
     const email = String(user.email || user.username || "").trim();
     const firstName = String(user.firstName || user.companyName || "Müşteri").trim().slice(0, 120);
@@ -3157,13 +3174,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         checkout.itemCount,
         total,
+        transferCode,
         shipping.method,
         JSON.stringify(shipping.details),
         user.id,
         JSON.stringify(orderItems),
         JSON.stringify(billingDetails),
         JSON.stringify(shippingAddress),
-        JSON.stringify(checkoutTrace),
+        JSON.stringify({
+          ...checkoutTrace,
+          bankTransferCode: transferCode,
+        }),
       ],
     );
 
@@ -3477,11 +3498,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await pool.query(
       `INSERT INTO b2b_orders (
         order_no, order_number, customer_email, status, item_count, total_amount,
-        payment_method, payment_provider, payment_status,
+        payment_method, payment_provider, payment_status, transfer_code,
         shipping_method, shipping_details, user_id, items,
         billing_details, shipping_address, checkout_trace
       )
-      VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb)`,
+      VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6,$7::jsonb,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb)`,
       [
         orderNumber,
         email,
@@ -3501,7 +3522,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderNumber,
       total,
       bankTransfer: bank,
-      transferDescription: orderNumber,
+      transferCode,
+      transferDescription: transferCode,
     });
   });
 
