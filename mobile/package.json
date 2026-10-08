@@ -20,7 +20,7 @@
     "dev:metro": "expo start --dev-client --lan",
     "dev:metro:tunnel": "expo start --dev-client --tunnel",
     "device:register": "eas device:create",
-    "build:dev:ios": "eas build --platform ios --profile development-ui",
+    "build:dev:ios": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform ios --profile development-ui --clear-cache",
     "eas-build-pre-install": "node scripts/eas-preinstall.cjs"
   },
   "dependencies": {
