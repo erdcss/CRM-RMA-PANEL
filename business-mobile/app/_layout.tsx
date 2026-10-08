@@ -20,6 +20,7 @@ export default function RootLayout() {
       <Stack initialRouteName="login" screenOptions={{ headerShown: false, animation: "fade" }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="index" />
+        <Stack.Screen name="dashboard" />
         <Stack.Screen name="menu" />
         <Stack.Screen name="module/[slug]" />
       </Stack>
