@@ -126,10 +126,15 @@ export type B2BProduct = {
   min_order_qty?: number | null;
   units_per_box?: number | null;
   image_data?: string | null;
+  image_url?: string | null;
   images?: string[] | null;
   barcode?: string | null;
   collection_name?: string | null;
   category?: string | null;
+  brand?: string | null;
+  description?: string | null;
+  features?: string[] | null;
+  variants?: Array<Record<string, string>> | null;
 };
 
 export type B2BHomepage = {
@@ -332,6 +337,8 @@ export const rmaApi = {
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listB2BProducts: () => request<B2BProduct[]>('/api/b2b/products'),
+  getB2BProduct: (id: string | number) =>
+    request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
   getB2BHomepage: () => request<B2BHomepage>('/api/public/homepage'),
   listB2BReels: () => request<B2BReel[]>('/api/public/reels'),
   getB2BAccount: () => request<B2BAccount>('/api/b2b/account'),
