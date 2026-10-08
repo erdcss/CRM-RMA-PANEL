@@ -23,10 +23,12 @@ import {
   type B2BAddress,
   type B2BBankTransferOrder,
   type B2BCheckoutPreview,
+  type B2BCheckoutCartPreview,
   type B2BPaymentSettings,
   type B2BInstallmentLookup,
 } from '@/lib/api';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { clearOrderList, getOrderList } from '@/lib/b2b-order-list';
 
 type PaymentMethod = 'card' | 'bank_transfer';
 type ShippingMethod = 'cargo' | 'freight' | 'pickup';
@@ -79,13 +81,15 @@ function validCardNumber(value: string) {
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ productId?: string; qty?: string }>();
+  const params = useLocalSearchParams<{ productId?: string; qty?: string; list?: string }>();
   const { session } = useAuth();
 
   const productId = String(params.productId || '');
   const quantity = Math.max(1, Number.parseInt(String(params.qty || '1'), 10) || 1);
+  const listMode = String(params.list || '') === '1';
 
-  const [preview, setPreview] = useState<B2BCheckoutPreview | null>(null);
+  const [orderItems, setOrderItems] = useState<Array<{ productId: string; quantity: number }>>([]);
+  const [preview, setPreview] = useState<B2BCheckoutPreview | B2BCheckoutCartPreview | null>(null);
   const [settings, setSettings] = useState<B2BPaymentSettings | null>(null);
   const [addresses, setAddresses] = useState<B2BAddress[]>([]);
   const [account, setAccount] = useState<any>(null);
@@ -111,15 +115,39 @@ export default function CheckoutScreen() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!session || !productId) return;
+    if (!session) return;
+    if (!listMode && !productId) return;
+
     setLoading(true);
     try {
+      let checkoutRequest: Promise<B2BCheckoutPreview | B2BCheckoutCartPreview>;
+
+      if (listMode) {
+        const saved = await getOrderList();
+        const items = saved.map((item) => ({
+          productId: item.productId,
+          quantity: item.boxQuantity,
+        }));
+
+        if (!items.length) {
+          throw new Error('Sipariş listeniz boş.');
+        }
+
+        setOrderItems(items);
+        checkoutRequest = rmaApi.getB2BCheckoutCartPreview(items);
+      } else {
+        const items = [{ productId, quantity }];
+        setOrderItems(items);
+        checkoutRequest = rmaApi.getB2BCheckoutPreview(productId, quantity);
+      }
+
       const [previewData, settingsData, addressData, accountData] = await Promise.all([
-        rmaApi.getB2BCheckoutPreview(productId, quantity),
+        checkoutRequest,
         rmaApi.getB2BPaymentSettings(),
         rmaApi.listB2BAddresses(),
         rmaApi.getB2BAccount(),
       ]);
+
       setPreview(previewData);
       setSettings(settingsData);
       setAddresses(addressData);
@@ -142,7 +170,7 @@ export default function CheckoutScreen() {
     } finally {
       setLoading(false);
     }
-  }, [productId, quantity, session]);
+  }, [listMode, productId, quantity, session]);
 
   useEffect(() => {
     void load();
@@ -167,12 +195,18 @@ export default function CheckoutScreen() {
       setInstallmentsLoading(true);
       setInstallmentsError('');
 
-      rmaApi
-        .getB2BInstallments({
-          productId,
-          quantity,
-          binNumber: bin,
-        })
+      const request = listMode
+        ? rmaApi.getB2BInstallmentsForItems({
+            items: orderItems,
+            binNumber: bin,
+          })
+        : rmaApi.getB2BInstallments({
+            productId,
+            quantity,
+            binNumber: bin,
+          });
+
+      request
         .then((result) => {
           if (!active) return;
           setInstallments(result);
@@ -200,7 +234,7 @@ export default function CheckoutScreen() {
       active = false;
       clearTimeout(timer);
     };
-  }, [cardNumber, paymentMethod, preview, productId, quantity]);
+  }, [cardNumber, listMode, orderItems, paymentMethod, preview, productId, quantity]);
 
   const selectedAddress = useMemo(
     () => addresses.find((item) => String(item.id) === addressId) || null,
@@ -282,9 +316,7 @@ export default function CheckoutScreen() {
     setBusy(true);
     try {
       const mobileReturnUrl = `${scheme()}://payment-result`;
-      const result = await rmaApi.initializeB2BThreeDS({
-        productId,
-        quantity,
+      const paymentPayload = {
         addressId: selectedAddress.id,
         shipping: shippingPayload,
         mobileReturnUrl,
@@ -297,15 +329,32 @@ export default function CheckoutScreen() {
           cvc,
         },
         checkoutContext: {
-          source: 'Çalışkan B2B Mobil · Kart',
-          entryPath: `/checkout?productId=${productId}&qty=${quantity}`,
-          previousPath: `/product/${productId}`,
-          cartMode: false,
-          productId,
+          source: listMode
+            ? 'Çalışkan B2B Mobil · Sipariş Listesi'
+            : 'Çalışkan B2B Mobil · Kart',
+          entryPath: listMode
+            ? '/checkout?list=1'
+            : `/checkout?productId=${productId}&qty=${quantity}`,
+          previousPath: listMode
+            ? '/(tabs)/orders'
+            : `/product/${productId}`,
+          cartMode: listMode,
+          productId: listMode ? null : productId,
           platform: 'mobile',
           installment,
         },
-      });
+      };
+
+      const result = listMode
+        ? await rmaApi.initializeB2BThreeDSForItems({
+            ...paymentPayload,
+            items: orderItems,
+          })
+        : await rmaApi.initializeB2BThreeDS({
+            ...paymentPayload,
+            productId,
+            quantity,
+          });
 
       const html = result.threeDSHtml || '';
       if (!html.trim()) {
@@ -321,6 +370,7 @@ export default function CheckoutScreen() {
           mode: '3ds',
           order: result.orderNumber,
           storageKey,
+          ...(listMode ? { clearList: '1' } : {}),
         },
       } as never);
     } catch (error) {
@@ -339,20 +389,35 @@ export default function CheckoutScreen() {
     if (!preview || !selectedAddress || !canPay || busy) return;
     setBusy(true);
     try {
-      const order = await rmaApi.createB2BBankTransferOrder({
-        productId,
-        quantity,
-        addressId: selectedAddress.id,
-        shipping: shippingPayload,
-        checkoutContext: {
-          source: 'Çalışkan B2B Mobil',
-          entryPath: `/checkout?productId=${productId}&qty=${quantity}`,
-          previousPath: `/product/${productId}`,
-          cartMode: false,
-          productId,
-          platform: 'mobile',
-        },
-      });
+      const checkoutContext = {
+        source: listMode
+          ? 'Çalışkan B2B Mobil · Sipariş Listesi'
+          : 'Çalışkan B2B Mobil',
+        entryPath: listMode
+          ? '/checkout?list=1'
+          : `/checkout?productId=${productId}&qty=${quantity}`,
+        previousPath: listMode
+          ? '/(tabs)/orders'
+          : `/product/${productId}`,
+        cartMode: listMode,
+        productId: listMode ? null : productId,
+        platform: 'mobile',
+      };
+
+      const order = listMode
+        ? await rmaApi.createB2BBankTransferOrderForItems({
+            items: orderItems,
+            addressId: selectedAddress.id,
+            shipping: shippingPayload,
+            checkoutContext,
+          })
+        : await rmaApi.createB2BBankTransferOrder({
+            productId,
+            quantity,
+            addressId: selectedAddress.id,
+            shipping: shippingPayload,
+            checkoutContext,
+          });
       setBankOrder(order);
       appAlert(
         'Havale siparişiniz oluşturuldu',
@@ -377,6 +442,9 @@ export default function CheckoutScreen() {
     setBusy(true);
     try {
       await rmaApi.confirmB2BBankTransfer(bankOrder.orderNumber);
+      if (listMode) {
+        await clearOrderList();
+      }
       router.replace({
         pathname: '/payment-result',
         params: { result: 'success', order: bankOrder.orderNumber, method: 'bank_transfer' },
