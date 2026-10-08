@@ -626,8 +626,11 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
       if (target === "b2b") {
         return res.json({
-          logo: branding.b2b_mobile_logo,
-          splash: branding.b2b_mobile_splash,
+          logo: branding.b2b_mobile_logo || branding.b2b_logo,
+          splash:
+            branding.b2b_mobile_splash ||
+            branding.b2b_mobile_logo ||
+            branding.b2b_logo,
           updatedAt: Date.now(),
         });
       }
