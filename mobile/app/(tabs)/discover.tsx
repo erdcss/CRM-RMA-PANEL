@@ -27,6 +27,7 @@ function ReelCard({
   const router = useRouter();
   const videoRef = useRef<Video>(null);
   const [paused, setPaused] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
 
   const videoUrl = absoluteMediaUrl(item.video_url);
@@ -44,14 +45,14 @@ function ReelCard({
   const playing = active && !paused && !videoError;
 
   useEffect(() => {
-    if (!videoRef.current || videoError) return;
+    if (!videoRef.current || !loaded || videoError) return;
 
     if (playing) {
-      void videoRef.current.playAsync().catch(() => setVideoError(true));
+      void videoRef.current.playAsync().catch(() => undefined);
     } else {
       void videoRef.current.pauseAsync().catch(() => undefined);
     }
-  }, [playing, videoError]);
+  }, [loaded, playing, videoError]);
 
   return (
     <View style={[styles.reelPage, { height }]}>
@@ -74,16 +75,20 @@ function ReelCard({
             useNativeControls={false}
             progressUpdateIntervalMillis={250}
             onLoad={() => {
+              setLoaded(true);
               if (playing) {
-                void videoRef.current?.playAsync().catch(() => setVideoError(true));
+                void videoRef.current?.playAsync().catch(() => undefined);
               }
             }}
             onReadyForDisplay={() => {
               if (playing) {
-                void videoRef.current?.playAsync().catch(() => setVideoError(true));
+                void videoRef.current?.playAsync().catch(() => undefined);
               }
             }}
-            onError={() => setVideoError(true)}
+            onError={() => {
+              setLoaded(false);
+              setVideoError(true);
+            }}
             pointerEvents="none"
           />
         ) : poster ? (
