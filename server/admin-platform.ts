@@ -6,7 +6,10 @@ import {
   savePaymentSettings,
 } from "./payment-config";
 import { retrieveIyzicoCheckout } from "./iyzico";
-import { saveVideoDataUrl } from "./image-storage";
+import {
+  ensureReelVideoCompatibility,
+  saveVideoDataUrl,
+} from "./image-storage";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -804,7 +807,15 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
          WHERE is_active = TRUE
          ORDER BY sort_order ASC, created_at DESC`,
       );
-      return res.json(result.rows);
+
+      const rows = await Promise.all(
+        result.rows.map(async (row) => ({
+          ...row,
+          video_url: await ensureReelVideoCompatibility(String(row.video_url || "")),
+        })),
+      );
+
+      return res.json(rows);
     } catch (error) {
       console.error("Public reels load failed:", error);
       return res.status(500).json({ error: "Reels alınamadı" });
