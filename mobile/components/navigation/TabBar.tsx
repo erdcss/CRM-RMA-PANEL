@@ -31,7 +31,12 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
           : { paddingBottom: Math.max(insets.bottom, 6) },
       ]}
     >
-      <View style={styles.container}>
+      <View
+        style={[
+          styles.container,
+          Platform.OS === 'ios' ? styles.iosGlass : styles.androidBar,
+        ]}
+      >
         {routes.map(({ route, index }) => {
           const focused = state.index === index;
           const config = TAB_CONFIG[route.name];
@@ -67,10 +72,6 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   safeWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: 'transparent',
     paddingHorizontal: Platform.OS === 'ios' ? 12 : 0,
     paddingTop: 6,
@@ -82,10 +83,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   iosGlass: {
-    backgroundColor: 'transparent',
+    marginHorizontal: 4,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
   },
   androidBar: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+    elevation: 10,
   },
   tab: {
     flex: 1,
@@ -102,7 +114,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapActive: {
-    backgroundColor: 'transparent',
+    backgroundColor:
+      Platform.OS === 'ios'
+        ? 'rgba(15,23,42,0.07)'
+        : colors.surfaceSecondary,
   },
   label: {
     ...typography.caption,
