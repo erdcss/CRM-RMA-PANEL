@@ -31,7 +31,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
           : { paddingBottom: Math.max(insets.bottom, 6) },
       ]}
     >
-      <View style={[styles.container, Platform.OS === 'ios' ? styles.iosGlass : styles.androidBar]}>
+      <View style={styles.container}>
         {routes.map(({ route, index }) => {
           const focused = state.index === index;
           const config = TAB_CONFIG[route.name];
@@ -78,21 +78,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   iosGlass: {
-    marginHorizontal: 4,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.86)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.92)',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
+    backgroundColor: 'transparent',
   },
   androidBar: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    elevation: 10,
+    backgroundColor: 'transparent',
   },
   tab: {
     flex: 1,
@@ -109,7 +98,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapActive: {
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(15,23,42,0.07)' : colors.surfaceSecondary,
+    backgroundColor: 'transparent',
   },
   label: {
     ...typography.caption,
