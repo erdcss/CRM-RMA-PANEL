@@ -3258,6 +3258,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
     const redirectBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const cartQuery = String(req.query?.cart || "") === "1" ? "&cart=1" : "";
+    const rawMobileReturnUrl = String(req.query?.mobileReturnUrl || "").trim();
+    const mobileReturnUrl =
+      /^(caliskanb2b|caliskanb2b-dev):\/\/payment-result(?:\?|$)/i.test(rawMobileReturnUrl)
+        ? rawMobileReturnUrl
+        : "";
+    const mobileResultUrl = (
+      result: "success" | "failed",
+      orderNumber?: string,
+      stockReview?: boolean,
+    ) => {
+      if (!mobileReturnUrl) return "";
+      const separator = mobileReturnUrl.includes("?") ? "&" : "?";
+      const params = new URLSearchParams({ result });
+      if (orderNumber) params.set("order", orderNumber);
+      if (stockReview) params.set("stock", "review");
+      return `${mobileReturnUrl}${separator}${params.toString()}`;
+    };
 
     if (!token) {
       const mobileUrl = mobileResultUrl("failed");
@@ -3280,7 +3297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!order) {
         await client.query("ROLLBACK");
         const mobileUrl = mobileResultUrl("failed");
-      return res.redirect(303, mobileUrl || `${redirectBase}/odeme?result=failed`);
+        return res.redirect(303, mobileUrl || `${redirectBase}/odeme?result=failed`);
       }
 
       if (order.payment_status === "SUCCESS") {
@@ -3403,7 +3420,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
       console.error("iyzico callback failed:", error);
-      return res.redirect(303, `${redirectBase}/odeme?result=failed`);
+      const mobileUrl = mobileResultUrl("failed");
+      return res.redirect(303, mobileUrl || `${redirectBase}/odeme?result=failed`);
     } finally {
       client.release();
     }
