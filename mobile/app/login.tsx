@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -22,7 +22,7 @@ import { appAlert } from '@/lib/appAlert';
 export default function LoginScreen() {
   const branding = useMobileBranding();
   const router = useRouter();
-  const { signIn, completeInitialPassword } = useAuth();
+  const { session, signIn, completeInitialPassword } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +34,12 @@ export default function LoginScreen() {
   const [newPasswordAgain, setNewPasswordAgain] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  useEffect(() => {
+    if (session?.user?.mustChangePassword) {
+      setPasswordSetupVisible(true);
+    }
+  }, [session?.user?.mustChangePassword]);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
