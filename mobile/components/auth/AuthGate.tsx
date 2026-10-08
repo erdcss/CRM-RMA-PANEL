@@ -19,7 +19,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    if (session && onAuthScreen) {
+    if (session?.user?.mustChangePassword && !onAuthScreen) {
+      router.replace('/login');
+      return;
+    }
+
+    if (session && !session.user.mustChangePassword && onAuthScreen) {
       router.replace('/(tabs)');
     }
   }, [session, loading, onAuthScreen, router]);
@@ -46,6 +51,7 @@ export function RootStack() {
     >
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
       <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="product/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
     </Stack>
   );
