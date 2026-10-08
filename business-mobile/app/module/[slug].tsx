@@ -51,6 +51,13 @@ export default function AdminModuleScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+  const objectEntries =
+    data && !Array.isArray(data) && typeof data === "object"
+      ? Object.entries(data).filter(([, value]) => {
+          const type = typeof value;
+          return value == null || type === "string" || type === "number" || type === "boolean";
+        })
+      : [];
 
   if (!module) {
     return (
@@ -77,8 +84,19 @@ export default function AdminModuleScreen() {
         {loading ? <ActivityIndicator size="large" color="#1D4ED8" style={{ marginTop: 40 }} /> : null}
         {!!error ? <View style={s.errorBox}><Text style={s.error}>{error}</Text></View> : null}
 
-        {!loading && module.endpoint && rows.length === 0 && !error ? (
+        {!loading && module.endpoint && rows.length === 0 && objectEntries.length === 0 && !error ? (
           <View style={s.empty}><Text style={s.emptyTitle}>Kayıt bulunamadı</Text><Text style={s.emptyText}>Web paneli ile aynı veri kaynağı kontrol edildi.</Text></View>
+        ) : null}
+
+        {objectEntries.length > 0 ? (
+          <View style={s.objectCard}>
+            {objectEntries.map(([key, value]) => (
+              <View key={key} style={s.objectRow}>
+                <Text style={s.objectKey}>{key.replace(/_/g, " ")}</Text>
+                <Text style={s.objectValue}>{compactValue(value)}</Text>
+              </View>
+            ))}
+          </View>
         ) : null}
 
         {rows.map((item: any, index: number) => (
@@ -125,6 +143,10 @@ const s = StyleSheet.create({
   cardSub: { marginTop: 5, color: "#667085", fontSize: 13 },
   meta: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
   metaText: { fontSize: 12, color: "#344054", fontWeight: "600" },
+  objectCard: { borderRadius: 14, borderWidth: 1, borderColor: "#E2E5E9", backgroundColor: "#FFF", overflow: "hidden", marginBottom: 12 },
+  objectRow: { minHeight: 52, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#E2E5E9", flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
+  objectKey: { flex: 1, color: "#667085", fontSize: 12, fontWeight: "700", textTransform: "capitalize" },
+  objectValue: { flex: 1, color: "#18212F", fontSize: 13, fontWeight: "700", textAlign: "right" },
   info: { borderRadius: 16, borderWidth: 1, borderColor: "#D0D5DD", backgroundColor: "#FFF", padding: 18 },
   infoTitle: { fontSize: 18, fontWeight: "800", color: "#18212F" },
   infoText: { marginTop: 8, fontSize: 14, lineHeight: 21, color: "#667085" },
