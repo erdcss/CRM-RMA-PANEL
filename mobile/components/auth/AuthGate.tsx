@@ -19,6 +19,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
+    if (!session && !onAuthScreen) {
+      router.replace('/login');
+      return;
+    }
+
     if (session?.user?.mustChangePassword && !onAuthScreen) {
       router.replace('/login');
       return;
