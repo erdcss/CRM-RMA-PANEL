@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
@@ -119,15 +120,7 @@ export default function HomeScreen() {
         contentContainerStyle={styles.page}
       >
         <View style={styles.topRow}>
-          <Image
-            source={
-              branding.b2b_mobile_logo
-                ? { uri: branding.b2b_mobile_logo }
-                : require('../../assets/logo.png')
-            }
-            style={styles.logo}
-            contentFit="contain"
-          />
+          <BrandLogo uri={branding.b2b_mobile_logo} style={styles.logo} />
 
           <Pressable style={styles.notificationButton}>
             <Ionicons name="notifications-outline" size={22} color={colors.text} />
