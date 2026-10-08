@@ -1221,18 +1221,25 @@ async function sendTemporaryPasswordEmail(input: {
   firstName?: string | null;
   companyName?: string | null;
   temporaryPassword: string;
+  reason?: "approval" | "reset";
 }): Promise<void> {
   const loginUrl =
     process.env.B2B_PUBLIC_URL?.trim() ||
     process.env.RAILWAY_SERVICE_CALISKAN_B2B_WEB_URL?.trim() ||
     "https://b2b.ecalisgan.com/uye-girisi";
 
-  const subject = "Çalışkan B2B hesabınız onaylandı";
+  const reset = input.reason === "reset";
+  const subject = reset
+    ? "Çalışkan B2B şifre yenileme"
+    : "Çalışkan B2B hesabınız onaylandı";
   const greeting = input.firstName?.trim() ? `Merhaba ${input.firstName.trim()},` : "Merhaba,";
+  const intro = reset
+    ? "Çalışkan B2B hesabınız için yeni bir tek kullanımlık giriş şifresi oluşturuldu."
+    : "Çalışkan B2B başvurunuz onaylandı.";
   const text = [
     greeting,
     "",
-    "Çalışkan B2B başvurunuz onaylandı.",
+    intro,
     `Tek kullanımlık giriş şifreniz: ${input.temporaryPassword}`,
     "",
     "Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan hemen sonra yeni şifrenizi oluşturmanız istenecektir.",
@@ -1241,9 +1248,9 @@ async function sendTemporaryPasswordEmail(input: {
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#0f172a">
-      <h2 style="margin:0 0 16px">Çalışkan B2B hesabınız onaylandı</h2>
+      <h2 style="margin:0 0 16px">${reset ? "Çalışkan B2B şifre yenileme" : "Çalışkan B2B hesabınız onaylandı"}</h2>
       <p>${escapeHtml(greeting)}</p>
-      <p>${escapeHtml(input.companyName || "Firma")} başvurunuz yönetici tarafından onaylandı.</p>
+      <p>${escapeHtml(intro)}</p>
       <div style="margin:22px 0;padding:18px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc">
         <div style="font-size:12px;color:#64748b;margin-bottom:6px">Tek kullanımlık şifreniz</div>
         <div style="font-size:26px;font-weight:700;letter-spacing:2px">${escapeHtml(input.temporaryPassword)}</div>
@@ -1713,6 +1720,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       mustChangePassword: false,
       user: { ...payload.user, mustChangePassword: false },
     });
+  });
+
+  app.post("/api/b2b/forgot-password", async (req, res) => {
+    const email =
+      typeof req.body?.email === "string"
+        ? req.body.email.trim().toLowerCase()
+        : "";
+
+    // Hesap var/yok bilgisini dışarı sızdırmamak için her durumda aynı yanıt kullanılır.
+    const genericMessage =
+      "Hesap uygunsa yeni tek kullanımlık şifre e-posta adresinize gönderildi.";
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return res.json({ ok: true, message: genericMessage });
+    }
+
+    const user = await storage.getUserByUsername(email);
+    if (
+      !user ||
+      user.role !== "b2b_customer" ||
+      user.isActive !== 1 ||
+      user.applicationStatus !== "approved" ||
+      !user.email
+    ) {
+      return res.json({ ok: true, message: genericMessage });
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+
+    try {
+      await sendTemporaryPasswordEmail({
+        to: user.email,
+        firstName: user.firstName,
+        companyName: user.companyName,
+        temporaryPassword,
+        reason: "reset",
+      });
+
+      await storage.updateUser(user.id, {
+        password: hashPassword(temporaryPassword),
+        mustChangePassword: 1,
+        credentialsSentAt: new Date(),
+      });
+
+      return res.json({ ok: true, message: genericMessage });
+    } catch (error) {
+      console.error("B2B forgot-password email failed:", error);
+      return res.status(503).json({
+        error: "Şifre yenileme e-postası şu anda gönderilemedi. Lütfen daha sonra tekrar deneyin.",
+      });
+    }
   });
 
   app.post("/api/b2b/change-initial-password", async (req, res) => {
