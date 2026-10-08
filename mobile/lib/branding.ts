@@ -24,6 +24,22 @@ type PublicBrandingResponse = {
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 
+function normalizeBrandAsset(value?: string | null) {
+  const clean = typeof value === 'string' ? value.trim() : '';
+  if (!clean) return null;
+  if (
+    clean.startsWith('data:image/') ||
+    clean.startsWith('https://') ||
+    clean.startsWith('http://')
+  ) {
+    return clean;
+  }
+  if (clean.startsWith('/')) {
+    return `${API_URL}${clean}`;
+  }
+  return `${API_URL}/${clean}`;
+}
+
 async function fetchB2BBranding(): Promise<MobileBranding> {
   const cacheBust = Date.now();
   const headers = {
@@ -50,18 +66,19 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
     : {};
 
   return {
-    // Uygulama içinde ana B2B logosu her zaman güncel marka logosunu takip eder.
-    // Mobil özel logo ancak ana logo yoksa yedek olarak kullanılır.
+    // Mobil uygulamada önce mobil için yüklenen marka varlığını kullan.
+    // Web logosu yalnızca mobil logo yoksa yedek olarak devreye girer.
     b2b_mobile_logo:
-      branding.b2b_logo ||
-      branding.b2b_mobile_logo ||
-      mobile.logo ||
+      normalizeBrandAsset(branding.b2b_mobile_logo) ||
+      normalizeBrandAsset(mobile.logo) ||
+      normalizeBrandAsset(branding.b2b_logo) ||
       null,
     b2b_mobile_splash:
-      branding.b2b_mobile_splash ||
-      mobile.splash ||
-      branding.b2b_logo ||
-      mobile.logo ||
+      normalizeBrandAsset(branding.b2b_mobile_splash) ||
+      normalizeBrandAsset(mobile.splash) ||
+      normalizeBrandAsset(branding.b2b_mobile_logo) ||
+      normalizeBrandAsset(mobile.logo) ||
+      normalizeBrandAsset(branding.b2b_logo) ||
       null,
     loaded: true,
   };
