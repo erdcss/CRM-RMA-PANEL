@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { C } from "../ui/theme";
 
@@ -8,7 +9,7 @@ export function PageHeader({
 }: {
   title: string;
   subtitle?: string;
-  right?: React.ReactNode;
+  right?: ReactNode;
 }) {
   return (
     <View style={s.header}>
