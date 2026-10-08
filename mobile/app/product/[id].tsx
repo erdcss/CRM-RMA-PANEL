@@ -14,6 +14,8 @@ import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
+import { addToOrderList } from '@/lib/b2b-order-list';
+import { appAlert } from '@/lib/appAlert';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -259,19 +261,30 @@ export default function ProductDetailScreen() {
                   maxBoxes < min && styles.disabledButton,
                 ]}
                 disabled={maxBoxes < min}
-                onPress={() =>
-                  router.push({
-                    pathname: '/checkout',
-                    params: {
-                      productId: String(product.id),
-                      qty: String(effectiveQuantity),
-                    },
-                  } as never)
-                }
+                onPress={async () => {
+                  await addToOrderList({
+                    productId: String(product.id),
+                    sku: String(product.sku || ''),
+                    name: product.name || 'Ürün',
+                    image,
+                    unitPrice: Number(product.price || 0),
+                    unitsPerBox: pack,
+                    boxQuantity: effectiveQuantity,
+                    minOrderQty: min,
+                    stock,
+                  });
+
+                  appAlert(
+                    'Siparişlere eklendi',
+                    `${product.name || 'Ürün'} · ${effectiveQuantity} koli sipariş listenize eklendi.`,
+                    undefined,
+                    'success',
+                  );
+                }}
               >
-                <Ionicons name="bag-check-outline" size={19} color="#FFFFFF" />
+                <Ionicons name="list-outline" size={19} color="#FFFFFF" />
                 <Text style={styles.checkoutButtonText}>
-                  Siparişi Tamamla
+                  Siparişlere Ekle
                 </Text>
               </Pressable>
             </View>
