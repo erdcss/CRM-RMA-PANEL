@@ -177,9 +177,11 @@ export default function CheckoutScreen() {
           if (!active) return;
           setInstallments(result);
           const available = result.options || [];
-          if (!available.some((option) => option.installmentNumber === installment)) {
-            setInstallment(available[0]?.installmentNumber || 1);
-          }
+          setInstallment((current) =>
+            available.some((option) => option.installmentNumber === current)
+              ? current
+              : available[0]?.installmentNumber || 1,
+          );
         })
         .catch((error) => {
           if (!active) return;
@@ -198,7 +200,7 @@ export default function CheckoutScreen() {
       active = false;
       clearTimeout(timer);
     };
-  }, [cardNumber, installment, paymentMethod, preview, productId, quantity]);
+  }, [cardNumber, paymentMethod, preview, productId, quantity]);
 
   const selectedAddress = useMemo(
     () => addresses.find((item) => String(item.id) === addressId) || null,
@@ -468,7 +470,9 @@ export default function CheckoutScreen() {
           </View>
           <View style={[styles.summaryLine, styles.summaryTotal]}>
             <Text style={styles.totalLabel}>Ödenecek toplam</Text>
-            <Text style={styles.totalValue}>{money(preview.total)}</Text>
+            <Text style={styles.totalValue}>
+              {money(paymentMethod === 'card' ? payableTotal : preview.total)}
+            </Text>
           </View>
         </Section>
 
