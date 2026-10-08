@@ -19,11 +19,15 @@ export function DashboardScreen({
   user,
   onOrders,
   onSupport,
+  onProducts,
+  onCustomers,
   onModule,
 }: {
   user: BusinessAuthUser | null;
   onOrders: () => void;
   onSupport: () => void;
+  onProducts: () => void;
+  onCustomers: () => void;
   onModule: (slug: string) => void;
 }) {
   const [data, setData] = useState<DashboardOverview | null>(null);
@@ -143,8 +147,8 @@ export function DashboardScreen({
           <View style={s.quickGrid}>
             <QuickCard title="Siparişler" subtitle="Siparişleri yönet" icon="▱" onPress={onOrders} />
             <QuickCard title="Destek" subtitle="Talep ve mesajlar" icon="◌" onPress={onSupport} />
-            <QuickCard title="Ürünler" subtitle="Ürünleri düzenle" icon="□" onPress={() => onModule("urunler")} />
-            <QuickCard title="Müşteriler" subtitle="Müşteri yönetimi" icon="◎" onPress={() => onModule("musteriler")} />
+            <QuickCard title="Ürünler" subtitle="Ürünleri düzenle" icon="□" onPress={onProducts} />
+            <QuickCard title="Müşteriler" subtitle="Müşteri yönetimi" icon="◎" onPress={onCustomers} />
           </View>
 
           <SectionTitle title="Son Siparişler" action="Tümünü Gör" onAction={onOrders} />
