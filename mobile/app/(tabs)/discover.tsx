@@ -7,7 +7,7 @@ import {
   View,
   type ViewToken,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { Audio, Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -25,6 +25,7 @@ function ReelCard({
   height: number;
 }) {
   const router = useRouter();
+  const videoRef = useRef<Video>(null);
   const [paused, setPaused] = useState(false);
   const [videoError, setVideoError] = useState(false);
 
@@ -35,10 +36,22 @@ function ReelCard({
     if (active) {
       setPaused(false);
       setVideoError(false);
+    } else {
+      void videoRef.current?.pauseAsync().catch(() => undefined);
     }
   }, [active]);
 
   const playing = active && !paused && !videoError;
+
+  useEffect(() => {
+    if (!videoRef.current || videoError) return;
+
+    if (playing) {
+      void videoRef.current.playAsync().catch(() => setVideoError(true));
+    } else {
+      void videoRef.current.pauseAsync().catch(() => undefined);
+    }
+  }, [playing, videoError]);
 
   return (
     <View style={[styles.reelPage, { height }]}>
@@ -48,17 +61,28 @@ function ReelCard({
       >
         {videoUrl && !videoError ? (
           <Video
+            ref={videoRef}
             source={{ uri: videoUrl }}
             style={styles.video}
             resizeMode={ResizeMode.COVER}
             posterSource={poster ? { uri: poster } : undefined}
             usePoster={Boolean(poster)}
-            shouldPlay={playing}
+            shouldPlay={false}
             isLooping
             isMuted={false}
             volume={1}
             useNativeControls={false}
             progressUpdateIntervalMillis={250}
+            onLoad={() => {
+              if (playing) {
+                void videoRef.current?.playAsync().catch(() => setVideoError(true));
+              }
+            }}
+            onReadyForDisplay={() => {
+              if (playing) {
+                void videoRef.current?.playAsync().catch(() => setVideoError(true));
+              }
+            }}
             onError={() => setVideoError(true)}
             pointerEvents="none"
           />
@@ -136,6 +160,12 @@ export default function DiscoverScreen() {
   const [viewportHeight, setViewportHeight] = useState(0);
 
   useEffect(() => {
+    void Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    }).catch(() => undefined);
+
     rmaApi
       .listB2BReels()
       .then((data) => setReels(Array.isArray(data) ? data : []))
