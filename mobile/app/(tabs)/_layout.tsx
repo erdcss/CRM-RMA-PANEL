@@ -11,6 +11,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Ana Sayfa' }} />
       <Tabs.Screen name="menu" options={{ title: 'Menü' }} />
       <Tabs.Screen name="discover" options={{ title: 'Keşfet' }} />
+      <Tabs.Screen name="orders" options={{ title: 'Sipariş Listesi' }} />
       <Tabs.Screen name="profile" options={{ title: 'Hesabım' }} />
       <Tabs.Screen name="products" options={{ href: null }} />
     </Tabs>
