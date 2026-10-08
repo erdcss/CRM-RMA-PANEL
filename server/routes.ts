@@ -2699,8 +2699,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const gsm = String(address.phone || "").trim();
     const callbackBase = String(process.env.B2B_PUBLIC_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
     const isCartCheckout = Array.isArray(req.body?.items) && req.body.items.length > 0;
+    const requestedMobileReturnUrl =
+      typeof req.body?.mobileReturnUrl === "string"
+        ? req.body.mobileReturnUrl.trim().slice(0, 500)
+        : "";
+    const mobileReturnUrl =
+      /^(caliskanb2b|caliskanb2b-dev):\/\/payment-result(?:\?|$)/i.test(requestedMobileReturnUrl)
+        ? requestedMobileReturnUrl
+        : "";
+    const callbackQuery = new URLSearchParams({
+      order: orderNumber,
+    });
+    if (isCartCheckout) callbackQuery.set("cart", "1");
+    if (mobileReturnUrl) callbackQuery.set("mobileReturnUrl", mobileReturnUrl);
     const callbackUrl =
-      `${callbackBase}/api/b2b/payments/iyzico/3ds/callback?order=${encodeURIComponent(orderNumber)}${isCartCheckout ? "&cart=1" : ""}`;
+      `${callbackBase}/api/b2b/payments/iyzico/3ds/callback?${callbackQuery.toString()}`;
 
     const orderItems = checkout.items.map((entry) => ({
       productId: entry.product.id,
@@ -2753,7 +2766,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paidPrice: installmentTotal,
         currency: "TRY",
         installment,
-        paymentChannel: "WEB",
+        paymentChannel: mobileReturnUrl ? "MOBILE" : "WEB",
         basketId: orderNumber,
         paymentGroup: "PRODUCT",
         callbackUrl,
@@ -2820,6 +2833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         installment,
         installmentRate,
         threeDSHtmlContent: payment.threeDSHtmlContent,
+        threeDSHtml: Buffer.from(payment.threeDSHtmlContent, "base64").toString("utf8"),
       });
     } catch (error) {
       const providerMessage =
