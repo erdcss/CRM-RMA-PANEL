@@ -67,6 +67,10 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
 const styles = StyleSheet.create({
   safeWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'transparent',
     paddingHorizontal: Platform.OS === 'ios' ? 12 : 0,
     paddingTop: 6,
