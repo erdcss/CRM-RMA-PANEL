@@ -21,7 +21,8 @@
     "dev:metro:tunnel": "expo start --dev-client --tunnel",
     "device:register": "eas device:create",
     "build:dev:ios": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform ios --profile development-ui --clear-cache",
-    "eas-build-pre-install": "node scripts/eas-preinstall.cjs"
+    "eas-build-pre-install": "node scripts/eas-preinstall.cjs",
+    "build:testflight": "node scripts/sync-mobile-branding.cjs b2b && node scripts/prepare-niimbot-sdk.js && eas build --platform ios --profile production --clear-cache --auto-submit"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
