@@ -13,10 +13,13 @@
     "start:web": "node scripts/serve-web.js",
     "dev:live": "node scripts/live-dev.cjs --lan",
     "dev:live:tunnel": "node scripts/live-dev.cjs --tunnel",
-    "sync:branding": "node scripts/sync-mobile-branding.cjs business"
+    "sync:branding": "node scripts/sync-mobile-branding.cjs business",
+    "eas-build-pre-install": "npm run sync:branding"
   },
   "dependencies": {
-    "expo": "^57.0.27",
+    "expo": "~57.0.27",
+    "expo-constants": "~57.0.21",
+    "expo-notifications": "~57.0.21",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.3",
