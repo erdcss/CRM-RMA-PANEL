@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { appAlert } from '@/lib/appAlert';
+import { clearOrderList } from '@/lib/b2b-order-list';
 
 function loadWebView() {
   try {
@@ -43,12 +44,14 @@ export default function PaymentCardScreen() {
     url?: string;
     order?: string;
     storageKey?: string;
+    clearList?: string;
   }>();
 
   const mode = String(params.mode || '');
   const initialUrl = String(params.url || '');
   const orderNumber = String(params.order || '');
   const storageKey = String(params.storageKey || '');
+  const shouldClearList = String(params.clearList || '') === '1';
 
   const WebView = useMemo(() => loadWebView(), []);
   const [threeDSHtml, setThreeDSHtml] = useState('');
@@ -119,6 +122,9 @@ export default function PaymentCardScreen() {
 
     if (storageKey) {
       await AsyncStorage.removeItem(storageKey).catch(() => undefined);
+    }
+    if (result === 'success' && shouldClearList) {
+      await clearOrderList().catch(() => undefined);
     }
 
     router.replace({
