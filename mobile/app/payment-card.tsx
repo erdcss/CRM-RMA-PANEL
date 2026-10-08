@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { WebView } from 'react-native-webview';
 import * as ExpoLinking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -19,6 +18,17 @@ function isTrustedInitialUrl(value: string) {
   }
 }
 
+function loadWebView() {
+  try {
+    const module = require('react-native-webview') as {
+      WebView?: React.ComponentType<any>;
+    };
+    return module.WebView || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function PaymentCardScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ url?: string; order?: string }>();
@@ -27,6 +37,7 @@ export default function PaymentCardScreen() {
 
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const WebView = useMemo(() => loadWebView(), []);
 
   const safeUrl = useMemo(() => {
     if (!isTrustedInitialUrl(initialUrl)) return '';
@@ -69,6 +80,25 @@ export default function PaymentCardScreen() {
           <Text style={styles.errorTitle}>Güvenli ödeme sayfası doğrulanamadı</Text>
           <Text style={styles.errorText}>
             Ödeme oturumu geçersiz veya süresi dolmuş olabilir.
+          </Text>
+          <Pressable style={styles.primaryButton} onPress={() => router.back()}>
+            <Text style={styles.primaryButtonText}>Ödeme Sayfasına Dön</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!WebView) {
+    return (
+      <Screen>
+        <View style={styles.center}>
+          <View style={styles.errorIcon}>
+            <Ionicons name="build-outline" size={34} color="#FFFFFF" />
+          </View>
+          <Text style={styles.errorTitle}>Kart ödeme modülü bu development build içinde yok</Text>
+          <Text style={styles.errorText}>
+            Uygulamanın diğer bölümlerini kullanabilirsiniz. Kart ödemesini uygulama içinde açmak için güncel iOS development build kurulmalıdır.
           </Text>
           <Pressable style={styles.primaryButton} onPress={() => router.back()}>
             <Text style={styles.primaryButtonText}>Ödeme Sayfasına Dön</Text>
