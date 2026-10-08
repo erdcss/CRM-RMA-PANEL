@@ -22,7 +22,7 @@ import { appAlert } from '@/lib/appAlert';
 export default function LoginScreen() {
   const branding = useMobileBranding();
   const router = useRouter();
-  const { session, signIn, completeInitialPassword } = useAuth();
+  const { session, signIn, completeInitialPassword, forgotPassword } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -195,15 +195,34 @@ export default function LoginScreen() {
 
             <Pressable
               style={styles.helpButton}
-              onPress={() =>
-                appAlert(
-                  'Giriş desteği',
-                  'Web sitesindeki hesabınız mobil uygulamada da geçerlidir. Başvurunuz onaylandıysa e-postanıza gönderilen tek kullanımlık şifreyle giriş yapın. İlk girişte yeni şifrenizi uygulamada oluşturabilirsiniz.',
-                )
-              }
+              onPress={async () => {
+                if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+                  appAlert(
+                    'E-posta gerekli',
+                    'Şifre yenileme için hesabınıza ait e-posta adresini giriş alanına yazın.',
+                  );
+                  return;
+                }
+
+                try {
+                  const result = await forgotPassword(email);
+                  appAlert(
+                    'Şifre yenileme',
+                    result.message ||
+                      'Hesap uygunsa yeni tek kullanımlık şifre e-posta adresinize gönderildi.',
+                  );
+                } catch (error) {
+                  appAlert(
+                    'Şifre yenilenemedi',
+                    error instanceof Error
+                      ? error.message
+                      : 'Lütfen daha sonra tekrar deneyin.',
+                  );
+                }
+              }}
             >
-              <Ionicons name="help-circle-outline" size={18} color={colors.textMuted} />
-              <Text style={styles.helpText}>Giriş yapamıyorum</Text>
+              <Ionicons name="key-outline" size={18} color={colors.textMuted} />
+              <Text style={styles.helpText}>Şifremi Unuttum</Text>
             </Pressable>
           </View>
         </View>
