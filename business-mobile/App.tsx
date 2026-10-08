@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { signIn, signOut, type BusinessAuthUser } from "./lib/auth";
 import { apiFetch } from "./lib/api";
 import { ADMIN_MODULE_GROUPS, getAdminModule } from "./lib/admin-modules";
@@ -21,6 +22,9 @@ import { useMobileBranding } from "./lib/branding";
 type Screen =
   | { name: "login" }
   | { name: "dashboard" }
+  | { name: "orders" }
+  | { name: "support" }
+  | { name: "settings" }
   | { name: "menu" }
   | { name: "module"; slug: string };
 
@@ -30,13 +34,7 @@ type DashboardOverview = {
   conversionRate: number;
   orderCount: number;
   activeReturns: number;
-  recentOrders?: Array<{
-    id: string | number;
-    order_number?: string | null;
-    customer_email?: string | null;
-    status?: string | null;
-    total_amount?: string | number | null;
-  }>;
+  recentOrders?: AdminOrder[];
   recentReturns?: Array<{
     id: string | number;
     name?: string | null;
@@ -45,6 +43,30 @@ type DashboardOverview = {
     status?: string | null;
   }>;
 };
+
+type AdminOrder = {
+  id: string | number;
+  order_number?: string | null;
+  customer_email?: string | null;
+  customer_name?: string | null;
+  status?: string | null;
+  total_amount?: string | number | null;
+  payment_status?: string | null;
+  created_at?: string | null;
+};
+
+type SupportItem = {
+  id: string | number;
+  title?: string | null;
+  subject?: string | null;
+  code?: string | null;
+  customer_name?: string | null;
+  customerName?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+type MainTab = "dashboard" | "orders" | "support" | "settings";
 
 export default function App() {
   const branding = useMobileBranding();
@@ -57,61 +79,104 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  const openMainTab = (tab: MainTab) => setScreen({ name: tab });
+
   return (
-    <View style={styles.root}>
-      <StatusBar
-        barStyle={screen.name === "login" ? "light-content" : "dark-content"}
-        backgroundColor={screen.name === "login" ? "#0B0B0B" : "#FFFFFF"}
-      />
+    <SafeAreaProvider>
+      <View style={styles.root}>
+        <StatusBar
+          barStyle={screen.name === "login" ? "light-content" : "dark-content"}
+          backgroundColor={screen.name === "login" ? "#0B0B0B" : "#F5F6F8"}
+        />
 
-      {screen.name === "login" ? (
-        <LoginScreen
-          logo={branding.business_mobile_logo}
-          onSuccess={(nextUser) => {
-            setUser(nextUser);
-            setScreen({ name: "dashboard" });
-          }}
-        />
-      ) : screen.name === "dashboard" ? (
-        <DashboardScreen
-          user={user}
-          onMenu={() => setScreen({ name: "menu" })}
-          onModule={(slug) => setScreen({ name: "module", slug })}
-        />
-      ) : screen.name === "menu" ? (
-        <MenuScreen
-          onBack={() => setScreen({ name: "dashboard" })}
-          onDashboard={() => setScreen({ name: "dashboard" })}
-          onModule={(slug) => setScreen({ name: "module", slug })}
-          onLogout={async () => {
-            await signOut();
-            setUser(null);
-            setScreen({ name: "login" });
-          }}
-        />
-      ) : (
-        <ModuleScreen slug={screen.slug} onBack={() => setScreen({ name: "menu" })} />
-      )}
-
-      {showSplash ? (
-        <View style={styles.splash} pointerEvents="none">
-          {branding.business_mobile_splash || branding.business_mobile_logo ? (
-            <Image
-              source={{
-                uri:
-                  branding.business_mobile_splash ||
-                  branding.business_mobile_logo ||
-                  "",
-              }}
-              style={styles.splashImage}
-              resizeMode="contain"
+        {screen.name === "login" ? (
+          <LoginScreen
+            logo={branding.business_mobile_logo}
+            onSuccess={(nextUser) => {
+              setUser(nextUser);
+              setScreen({ name: "dashboard" });
+            }}
+          />
+        ) : screen.name === "dashboard" ? (
+          <AdminShell active="dashboard" onTab={openMainTab}>
+            <DashboardScreen
+              user={user}
+              onModule={(slug) => setScreen({ name: "module", slug })}
             />
-          ) : (
-            <Text style={styles.splashText}>Çalışkan Business</Text>
-          )}
-        </View>
-      ) : null}
-    </View>
+          </AdminShell>
+        ) : screen.name === "orders" ? (
+          <AdminShell active="orders" onTab={openMainTab}>
+            <OrdersScreen />
+          </AdminShell>
+        ) : screen.name === "support" ? (
+          <AdminShell active="support" onTab={openMainTab}>
+            <SupportScreen />
+          </AdminShell>
+        ) : screen.name === "settings" ? (
+          <AdminShell active="settings" onTab={openMainTab}>
+            <SettingsScreen
+              user={user}
+              onAllModules={() => setScreen({ name: "menu" })}
+              onModule={(slug) => setScreen({ name: "module", slug })}
+              onLogout={async () => {
+                await signOut();
+                setUser(null);
+                setScreen({ name: "login" });
+              }}
+            />
+          </AdminShell>
+        ) : screen.name === "menu" ? (
+          <MenuScreen
+            onBack={() => setScreen({ name: "settings" })}
+            onDashboard={() => setScreen({ name: "dashboard" })}
+            onModule={(slug) => setScreen({ name: "module", slug })}
+          />
+        ) : (
+          <ModuleScreen
+            slug={screen.slug}
+            onBack={() => setScreen({ name: "settings" })}
+          />
+        )}
+
+        {showSplash ? (
+          <View style={styles.splash} pointerEvents="none">
+            {branding.business_mobile_splash || branding.business_mobile_logo ? (
+              <Image
+                source={{
+                  uri:
+                    branding.business_mobile_splash ||
+                    branding.business_mobile_logo ||
+                    "",
+                }}
+                style={styles.splashImage}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={styles.splashText}>Çalışkan Business</Text>
+            )}
+          </View>
+        ) : null}
+      </View>
+    </SafeAreaProvider>
+  );
+}
+
+function AdminShell({
+  active,
+  onTab,
+  children,
+}: {
+  active: MainTab;
+  onTab: (tab: MainTab) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <SafeAreaView style={styles.adminSafeArea} edges={["top", "left", "right"]}>
+      <View style={styles.adminShell}>
+        {children}
+        <GlassTabBar active={active} onTab={onTab} />
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -148,81 +213,81 @@ function LoginScreen({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.loginScreen}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <ScrollView
-        contentContainerStyle={styles.loginContent}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView style={styles.loginScreen}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {logo ? (
-          <Image source={{ uri: logo }} style={styles.loginLogo} resizeMode="contain" />
-        ) : null}
-        <Text style={styles.loginTitle}>Çalışkan Business</Text>
+        <ScrollView
+          contentContainerStyle={styles.loginContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {logo ? (
+            <Image source={{ uri: logo }} style={styles.loginLogo} resizeMode="contain" />
+          ) : null}
+          <Text style={styles.loginTitle}>Çalışkan Business</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="E-posta"
-          placeholderTextColor="#737373"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="username"
-          autoComplete="email"
-          returnKeyType="next"
-        />
-
-        <View style={styles.passwordRow}>
           <TextInput
-            style={styles.passwordInput}
-            placeholder="Şifre"
+            style={styles.input}
+            placeholder="E-posta"
             placeholderTextColor="#737373"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            value={email}
+            onChangeText={setEmail}
             autoCapitalize="none"
             autoCorrect={false}
-            textContentType="password"
-            autoComplete="password"
-            returnKeyType="go"
-            onSubmitEditing={() => void submit()}
+            keyboardType="email-address"
+            textContentType="username"
+            autoComplete="email"
+            returnKeyType="next"
           />
+
+          <View style={styles.passwordRow}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Şifre"
+              placeholderTextColor="#737373"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
+              autoComplete="password"
+              returnKeyType="go"
+              onSubmitEditing={() => void submit()}
+            />
+            <TouchableOpacity
+              style={styles.showButton}
+              onPress={() => setShowPassword((value) => !value)}
+            >
+              <Text style={styles.showButtonText}>
+                {showPassword ? "Gizle" : "Göster"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity
-            style={styles.showButton}
-            onPress={() => setShowPassword((value) => !value)}
+            style={[styles.loginButton, busy && styles.disabled]}
+            disabled={busy}
+            onPress={() => void submit()}
           >
-            <Text style={styles.showButtonText}>
-              {showPassword ? "Gizle" : "Göster"}
+            <Text style={styles.loginButtonText}>
+              {busy ? "Giriş yapılıyor…" : "Giriş Yap"}
             </Text>
           </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity
-          style={[styles.loginButton, busy && styles.disabled]}
-          disabled={busy}
-          onPress={() => void submit()}
-        >
-          <Text style={styles.loginButtonText}>
-            {busy ? "Giriş yapılıyor…" : "Giriş Yap"}
-          </Text>
-        </TouchableOpacity>
-
-        {message ? <Text style={styles.loginError}>{message}</Text> : null}
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {message ? <Text style={styles.loginError}>{message}</Text> : null}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 function DashboardScreen({
   user,
-  onMenu,
   onModule,
 }: {
   user: BusinessAuthUser | null;
-  onMenu: () => void;
   onModule: (slug: string) => void;
 }) {
   const [data, setData] = useState<DashboardOverview | null>(null);
@@ -249,126 +314,381 @@ function DashboardScreen({
   }, [load]);
 
   return (
-    <View style={styles.adminScreen}>
-      <View style={styles.topbar}>
-        <View style={styles.topbarText}>
-          <Text style={styles.brand}>Çalışkan Business</Text>
-          <Text style={styles.smallMuted} numberOfLines={1}>
-            {user?.email || user?.username || "Yönetici"}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.primaryButton} onPress={onMenu}>
-          <Text style={styles.primaryButtonText}>Menü</Text>
-        </TouchableOpacity>
+    <ScrollView
+      style={styles.page}
+      contentContainerStyle={styles.dashboardContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load();
+          }}
+        />
+      }
+    >
+      <View style={styles.topIdentity}>
+        <Text style={styles.brand}>Çalışkan Business</Text>
+        <Text style={styles.userEmail} numberOfLines={1}>
+          {user?.email || user?.username || "Yönetici"}
+        </Text>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.dashboardContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              void load();
-            }}
-          />
-        }
-      >
-        <Text style={styles.kicker}>CANLI OPERASYON</Text>
+      <View style={styles.heroBlock}>
+        <Text style={styles.kicker}>Canlı operasyon</Text>
         <Text style={styles.dashboardTitle}>Yönetim Dashboard</Text>
         <Text style={styles.dashboardSubtitle}>
-          Admin web paneli ile aynı veri kaynağını kullanan mobil yönetim merkezi.
+          Admin web paneli ile aynı verileri mobilde anlık takip edin.
         </Text>
+      </View>
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#2563EB" style={styles.loader} />
+      ) : (
+        <>
+          <View style={styles.metrics}>
+            <Metric title="Oturum kullanıcısı" value={data?.sessionUsers ?? 0} />
+            <Metric title="Canlı kullanıcı" value={data?.liveUsers ?? 0} />
+            <Metric
+              title="Dönüşüm oranı"
+              value={`%${Number(data?.conversionRate ?? 0).toLocaleString("tr-TR", {
+                maximumFractionDigits: 1,
+              })}`}
+            />
+            <Metric title="Bugünkü sipariş" value={data?.orderCount ?? 0} />
+            <Metric title="Aktif iade" value={data?.activeReturns ?? 0} />
           </View>
-        ) : null}
 
-        {loading ? (
-          <ActivityIndicator size="large" color="#1D4ED8" style={styles.loader} />
-        ) : (
-          <>
-            <View style={styles.metrics}>
-              <Metric title="Oturum Kullanıcısı" value={data?.sessionUsers ?? 0} />
-              <Metric title="Canlı Kullanıcı" value={data?.liveUsers ?? 0} />
-              <Metric
-                title="Dönüşüm Oranı"
-                value={`%${Number(data?.conversionRate ?? 0).toLocaleString("tr-TR", {
-                  maximumFractionDigits: 1,
-                })}`}
-              />
-              <Metric title="Bugünkü Sipariş" value={data?.orderCount ?? 0} />
-              <Metric title="Aktif İade" value={data?.activeReturns ?? 0} />
-            </View>
+          <SectionTitle title="Hızlı işlemler" />
+          <View style={styles.quickGrid}>
+            {[
+              ["Ürünler", "urunler"],
+              ["Stok durumu", "stok-durumu"],
+              ["İade işlemleri", "iade-islemleri"],
+              ["Başvurular", "basvurular"],
+              ["RMA kayıtları", "kayitlar"],
+              ["Müşteriler", "musteriler"],
+            ].map(([title, slug]) => (
+              <TouchableOpacity
+                key={slug}
+                style={styles.quickCard}
+                onPress={() => onModule(slug)}
+                activeOpacity={0.72}
+              >
+                <Text style={styles.quickTitle}>{title}</Text>
+                <Text style={styles.quickArrow}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-            <SectionTitle title="Hızlı İşlemler" />
-            <View style={styles.quickGrid}>
-              {[
-                ["Siparişler", "siparisler"],
-                ["Ürünler", "urunler"],
-                ["Stok Durumu", "stok-durumu"],
-                ["İade İşlemleri", "iade-islemleri"],
-                ["Başvurular", "basvurular"],
-                ["RMA Kayıtları", "kayitlar"],
-              ].map(([title, slug]) => (
-                <TouchableOpacity
-                  key={slug}
-                  style={styles.quickCard}
-                  onPress={() => onModule(slug)}
-                >
-                  <Text style={styles.quickTitle}>{title}</Text>
-                  <Text style={styles.quickArrow}>›</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          <SectionTitle title="Son siparişler" />
+          <View style={styles.panel}>
+            {(data?.recentOrders || []).length === 0 ? (
+              <Text style={styles.emptyText}>Henüz sipariş kaydı yok.</Text>
+            ) : (
+              data?.recentOrders?.slice(0, 5).map((order) => (
+                <OrderRow key={String(order.id)} order={order} />
+              ))
+            )}
+          </View>
 
-            <SectionTitle title="Son Siparişler" />
-            <View style={styles.panel}>
-              {(data?.recentOrders || []).length === 0 ? (
-                <Text style={styles.emptyText}>Henüz sipariş kaydı yok.</Text>
-              ) : (
-                data?.recentOrders?.slice(0, 6).map((order) => (
-                  <View key={String(order.id)} style={styles.listRow}>
-                    <View style={styles.listMain}>
-                      <Text style={styles.listTitle}>
-                        {order.order_number || `#${order.id}`}
-                      </Text>
-                      <Text style={styles.smallMuted}>{order.customer_email || "—"}</Text>
-                    </View>
-                    <View style={styles.listSide}>
-                      <Text style={styles.amount}>
-                        {Number(order.total_amount || 0).toLocaleString("tr-TR")} ₺
-                      </Text>
-                      <Text style={styles.smallMuted}>{order.status || "Bekliyor"}</Text>
-                    </View>
+          <SectionTitle title="Son iadeler" />
+          <View style={styles.panel}>
+            {(data?.recentReturns || []).length === 0 ? (
+              <Text style={styles.emptyText}>Henüz iade kaydı yok.</Text>
+            ) : (
+              data?.recentReturns?.slice(0, 4).map((item) => (
+                <View key={String(item.id)} style={styles.listRow}>
+                  <View style={styles.listMain}>
+                    <Text style={styles.listTitle}>
+                      {item.name || item.brand || `İade #${item.id}`}
+                    </Text>
+                    <Text style={styles.smallMuted}>{item.customer_name || "—"}</Text>
                   </View>
-                ))
-              )}
-            </View>
+                  <Text style={styles.statusText}>{item.status || "Bekliyor"}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        </>
+      )}
+    </ScrollView>
+  );
+}
 
-            <SectionTitle title="Son İadeler" />
-            <View style={styles.panel}>
-              {(data?.recentReturns || []).length === 0 ? (
-                <Text style={styles.emptyText}>Henüz iade kaydı yok.</Text>
-              ) : (
-                data?.recentReturns?.slice(0, 5).map((item) => (
-                  <View key={String(item.id)} style={styles.listRow}>
-                    <View style={styles.listMain}>
-                      <Text style={styles.listTitle}>
-                        {item.name || item.brand || `İade #${item.id}`}
-                      </Text>
-                      <Text style={styles.smallMuted}>{item.customer_name || "—"}</Text>
-                    </View>
-                    <Text style={styles.smallMuted}>{item.status || "Bekliyor"}</Text>
+function OrdersScreen() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const result = await apiFetch<AdminOrder[]>("/api/admin/orders");
+      setOrders(Array.isArray(result) ? result : []);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Siparişler alınamadı");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const waiting = orders.filter((order) =>
+    ["pending", "paid_stock_review", "processing", "new"].includes(
+      String(order.status || "").toLowerCase(),
+    ),
+  ).length;
+
+  return (
+    <ScrollView
+      style={styles.page}
+      contentContainerStyle={styles.tabPageContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load();
+          }}
+        />
+      }
+    >
+      <PageHeading
+        eyebrow="Sipariş yönetimi"
+        title="Siparişler"
+        description="Web panelindeki siparişleri aynı veri kaynağından yönetin."
+      />
+
+      <View style={styles.summaryRow}>
+        <SummaryCard title="Toplam" value={orders.length} />
+        <SummaryCard title="İşlem bekleyen" value={waiting} />
+      </View>
+
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#2563EB" style={styles.loader} />
+      ) : (
+        <View style={styles.stackGap}>
+          {orders.length === 0 ? (
+            <EmptyCard title="Sipariş bulunamadı" text="Henüz görüntülenecek sipariş yok." />
+          ) : (
+            orders.map((order) => (
+              <View key={String(order.id)} style={styles.orderCard}>
+                <View style={styles.orderCardTop}>
+                  <View style={styles.listMain}>
+                    <Text style={styles.orderNumber}>
+                      {order.order_number || `#${order.id}`}
+                    </Text>
+                    <Text style={styles.orderCustomer}>
+                      {order.customer_name || order.customer_email || "Müşteri bilgisi yok"}
+                    </Text>
                   </View>
-                ))
-              )}
-            </View>
-          </>
-        )}
-      </ScrollView>
+                  <View style={styles.statusPill}>
+                    <Text style={styles.statusPillText}>{order.status || "Bekliyor"}</Text>
+                  </View>
+                </View>
+                <View style={styles.orderCardBottom}>
+                  <Text style={styles.orderMeta}>
+                    {order.payment_status ? `Ödeme: ${order.payment_status}` : "Ödeme bilgisi yok"}
+                  </Text>
+                  <Text style={styles.orderAmount}>
+                    {Number(order.total_amount || 0).toLocaleString("tr-TR")} ₺
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function SupportScreen() {
+  const [items, setItems] = useState<SupportItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const result = await apiFetch<SupportItem[]>("/api/tickets");
+      setItems(Array.isArray(result) ? result : []);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Destek kayıtları alınamadı");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const openCount = items.filter((item) =>
+    ["open", "pending", "new", "active"].includes(String(item.status || "").toLowerCase()),
+  ).length;
+
+  return (
+    <ScrollView
+      style={styles.page}
+      contentContainerStyle={styles.tabPageContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void load();
+          }}
+        />
+      }
+    >
+      <PageHeading
+        eyebrow="Destek merkezi"
+        title="Destek"
+        description="RMA ve destek kayıtlarını mobil uygulamadan takip edin."
+      />
+
+      <View style={styles.summaryRow}>
+        <SummaryCard title="Toplam kayıt" value={items.length} />
+        <SummaryCard title="Açık kayıt" value={openCount} />
+      </View>
+
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#2563EB" style={styles.loader} />
+      ) : (
+        <View style={styles.stackGap}>
+          {items.length === 0 ? (
+            <EmptyCard title="Destek kaydı yok" text="Açık destek veya RMA kaydı bulunmuyor." />
+          ) : (
+            items.map((item) => (
+              <View key={String(item.id)} style={styles.supportCard}>
+                <View style={styles.supportDot} />
+                <View style={styles.listMain}>
+                  <Text style={styles.supportTitle}>
+                    {item.subject || item.title || item.code || `Kayıt #${item.id}`}
+                  </Text>
+                  <Text style={styles.supportSubtitle}>
+                    {item.customer_name || item.customerName || "Müşteri bilgisi yok"}
+                  </Text>
+                </View>
+                <Text style={styles.statusText}>{item.status || "Açık"}</Text>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+function SettingsScreen({
+  user,
+  onAllModules,
+  onModule,
+  onLogout,
+}: {
+  user: BusinessAuthUser | null;
+  onAllModules: () => void;
+  onModule: (slug: string) => void;
+  onLogout: () => void | Promise<void>;
+}) {
+  return (
+    <ScrollView style={styles.page} contentContainerStyle={styles.tabPageContent}>
+      <PageHeading
+        eyebrow="Uygulama"
+        title="Ayarlar"
+        description="Hesap, yönetim modülleri ve uygulama seçenekleri."
+      />
+
+      <View style={styles.profileCard}>
+        <View style={styles.profileAvatar}>
+          <Text style={styles.profileAvatarText}>
+            {(user?.email || user?.username || "Y").slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.listMain}>
+          <Text style={styles.profileName}>Yönetici hesabı</Text>
+          <Text style={styles.profileEmail}>{user?.email || user?.username || "—"}</Text>
+        </View>
+      </View>
+
+      <SectionTitle title="Yönetim" />
+      <View style={styles.settingsPanel}>
+        <SettingsRow title="Tüm modüller" subtitle="Admin web panelindeki tüm bölümler" onPress={onAllModules} />
+        <SettingsRow title="Marka ayarları" subtitle="Logo, splash ve görünüm seçenekleri" onPress={() => onModule("ayarlar")} />
+        <SettingsRow title="Yöneticiler" subtitle="Kullanıcı ve yetki yönetimi" onPress={() => onModule("yoneticiler")} />
+      </View>
+
+      <SectionTitle title="Oturum" />
+      <TouchableOpacity style={styles.logoutCard} onPress={() => void onLogout()}>
+        <Text style={styles.logoutCardText}>Çıkış yap</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+function GlassTabBar({
+  active,
+  onTab,
+}: {
+  active: MainTab;
+  onTab: (tab: MainTab) => void;
+}) {
+  const tabs: Array<{ key: MainTab; label: string; icon: string }> = [
+    { key: "dashboard", label: "Ana Sayfa", icon: "⌂" },
+    { key: "orders", label: "Siparişler", icon: "≡" },
+    { key: "support", label: "Destek", icon: "?" },
+    { key: "settings", label: "Ayarlar", icon: "⚙" },
+  ];
+
+  return (
+    <View style={styles.tabBarWrap} pointerEvents="box-none">
+      <View style={styles.glassTabBar}>
+        {tabs.map((tab) => {
+          const selected = active === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tabButton, selected && styles.tabButtonActive]}
+              onPress={() => onTab(tab.key)}
+              activeOpacity={0.78}
+            >
+              <View style={[styles.tabIconWrap, selected && styles.tabIconWrapActive]}>
+                <Text style={[styles.tabIcon, selected && styles.tabIconActive]}>{tab.icon}</Text>
+              </View>
+              <Text style={[styles.tabLabel, selected && styles.tabLabelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -377,43 +697,39 @@ function MenuScreen({
   onBack,
   onDashboard,
   onModule,
-  onLogout,
 }: {
   onBack: () => void;
   onDashboard: () => void;
   onModule: (slug: string) => void;
-  onLogout: () => void | Promise<void>;
 }) {
   return (
-    <View style={styles.adminScreen}>
-      <Header title="Tüm Modüller" subtitle="Çalışkan Admin mobil yönetim menüsü" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.menuContent}>
-        {ADMIN_MODULE_GROUPS.map((group) => (
-          <View key={group.title} style={styles.menuGroup}>
-            <Text style={styles.menuGroupTitle}>{group.title}</Text>
-            {group.items.map((item) => (
-              <TouchableOpacity
-                key={item.slug}
-                style={styles.menuRow}
-                onPress={() =>
-                  item.slug === "dashboard" ? onDashboard() : onModule(item.slug)
-                }
-              >
-                <View style={styles.listMain}>
-                  <Text style={styles.menuRowTitle}>{item.title}</Text>
-                  <Text style={styles.menuRowDescription}>{item.description}</Text>
-                </View>
-                <Text style={styles.menuChevron}>›</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-
-        <TouchableOpacity style={styles.logoutButton} onPress={() => void onLogout()}>
-          <Text style={styles.logoutText}>Çıkış Yap</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
+    <SafeAreaView style={styles.fullPageSafe}>
+      <View style={styles.adminScreen}>
+        <Header title="Tüm modüller" subtitle="Çalışkan Admin mobil yönetim menüsü" onBack={onBack} />
+        <ScrollView contentContainerStyle={styles.menuContent}>
+          {ADMIN_MODULE_GROUPS.map((group) => (
+            <View key={group.title} style={styles.menuGroup}>
+              <Text style={styles.menuGroupTitle}>{group.title}</Text>
+              {group.items.map((item) => (
+                <TouchableOpacity
+                  key={item.slug}
+                  style={styles.menuRow}
+                  onPress={() =>
+                    item.slug === "dashboard" ? onDashboard() : onModule(item.slug)
+                  }
+                >
+                  <View style={styles.listMain}>
+                    <Text style={styles.menuRowTitle}>{item.title}</Text>
+                    <Text style={styles.menuRowDescription}>{item.description}</Text>
+                  </View>
+                  <Text style={styles.menuChevron}>›</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -448,9 +764,11 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
 
   if (!module) {
     return (
-      <View style={styles.adminScreen}>
-        <Header title="Modül bulunamadı" onBack={onBack} />
-      </View>
+      <SafeAreaView style={styles.fullPageSafe}>
+        <View style={styles.adminScreen}>
+          <Header title="Modül bulunamadı" onBack={onBack} />
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -474,73 +792,85 @@ function ModuleScreen({ slug, onBack }: { slug: string; onBack: () => void }) {
       : [];
 
   return (
-    <View style={styles.adminScreen}>
-      <Header title={module.title} subtitle={module.description} onBack={onBack} />
-      <ScrollView
-        contentContainerStyle={styles.moduleContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              void load();
-            }}
-          />
-        }
-      >
-        {loading ? (
-          <ActivityIndicator size="large" color="#1D4ED8" style={styles.loader} />
-        ) : null}
+    <SafeAreaView style={styles.fullPageSafe}>
+      <View style={styles.adminScreen}>
+        <Header title={module.title} subtitle={module.description} onBack={onBack} />
+        <ScrollView
+          contentContainerStyle={styles.moduleContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void load();
+              }}
+            />
+          }
+        >
+          {loading ? (
+            <ActivityIndicator size="large" color="#2563EB" style={styles.loader} />
+          ) : null}
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
-        {objectEntries.length > 0 ? (
-          <View style={styles.panel}>
-            {objectEntries.map(([key, value]) => (
-              <View key={key} style={styles.settingRow}>
-                <Text style={styles.settingKey}>{key.replace(/_/g, " ")}</Text>
-                <Text style={styles.settingValue}>{compactValue(value)}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
+          {objectEntries.length > 0 ? (
+            <View style={styles.panel}>
+              {objectEntries.map(([key, value]) => (
+                <View key={key} style={styles.settingRow}>
+                  <Text style={styles.settingKey}>{key.replace(/_/g, " ")}</Text>
+                  <Text style={styles.settingValue}>{compactValue(value)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
-        {rows.map((item: any, index: number) => (
-          <View key={String(item?.id ?? index)} style={styles.recordCard}>
-            <Text style={styles.recordTitle}>{itemTitle(item, index)}</Text>
-            {itemSubtitle(item) ? (
-              <Text style={styles.recordSubtitle}>{compactValue(itemSubtitle(item))}</Text>
-            ) : null}
-            {item?.status !== undefined ? (
-              <Text style={styles.recordMeta}>Durum: {compactValue(item.status)}</Text>
-            ) : null}
-          </View>
-        ))}
+          {rows.map((item: any, index: number) => (
+            <View key={String(item?.id ?? index)} style={styles.recordCard}>
+              <Text style={styles.recordTitle}>{itemTitle(item, index)}</Text>
+              {itemSubtitle(item) ? (
+                <Text style={styles.recordSubtitle}>{compactValue(itemSubtitle(item))}</Text>
+              ) : null}
+              {item?.status !== undefined ? (
+                <Text style={styles.recordMeta}>Durum: {compactValue(item.status)}</Text>
+              ) : null}
+            </View>
+          ))}
 
-        {!loading &&
-        module.endpoint &&
-        rows.length === 0 &&
-        objectEntries.length === 0 &&
-        !error ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>Kayıt bulunamadı</Text>
-            <Text style={styles.emptyText}>Admin web ile aynı veri kaynağı kontrol edildi.</Text>
-          </View>
-        ) : null}
+          {!loading &&
+          module.endpoint &&
+          rows.length === 0 &&
+          objectEntries.length === 0 &&
+          !error ? (
+            <EmptyCard title="Kayıt bulunamadı" text="Admin web ile aynı veri kaynağı kontrol edildi." />
+          ) : null}
 
-        {!module.endpoint ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>{module.title}</Text>
-            <Text style={styles.emptyText}>
-              Bu modülün mobil işlem ekranı hazırlanıyor.
-            </Text>
-          </View>
-        ) : null}
-      </ScrollView>
+          {!module.endpoint ? (
+            <EmptyCard title={module.title} text="Bu modülün mobil işlem ekranı hazırlanıyor." />
+          ) : null}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function PageHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <View style={styles.pageHeading}>
+      <Text style={styles.pageEyebrow}>{eyebrow}</Text>
+      <Text style={styles.pageTitle}>{title}</Text>
+      <Text style={styles.pageDescription}>{description}</Text>
     </View>
   );
 }
@@ -576,8 +906,63 @@ function Metric({ title, value }: { title: string; value: string | number }) {
   );
 }
 
+function SummaryCard({ title, value }: { title: string; value: number }) {
+  return (
+    <View style={styles.summaryCard}>
+      <Text style={styles.summaryTitle}>{title}</Text>
+      <Text style={styles.summaryValue}>{value}</Text>
+    </View>
+  );
+}
+
 function SectionTitle({ title }: { title: string }) {
   return <Text style={styles.sectionTitle}>{title}</Text>;
+}
+
+function OrderRow({ order }: { order: AdminOrder }) {
+  return (
+    <View style={styles.listRow}>
+      <View style={styles.listMain}>
+        <Text style={styles.listTitle}>{order.order_number || `#${order.id}`}</Text>
+        <Text style={styles.smallMuted}>{order.customer_email || order.customer_name || "—"}</Text>
+      </View>
+      <View style={styles.listSide}>
+        <Text style={styles.amount}>
+          {Number(order.total_amount || 0).toLocaleString("tr-TR")} ₺
+        </Text>
+        <Text style={styles.statusText}>{order.status || "Bekliyor"}</Text>
+      </View>
+    </View>
+  );
+}
+
+function SettingsRow({
+  title,
+  subtitle,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.settingsRow} onPress={onPress} activeOpacity={0.72}>
+      <View style={styles.listMain}>
+        <Text style={styles.settingsRowTitle}>{title}</Text>
+        <Text style={styles.settingsRowSubtitle}>{subtitle}</Text>
+      </View>
+      <Text style={styles.settingsChevron}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
+function EmptyCard({ title, text }: { title: string; text: string }) {
+  return (
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyText}>{text}</Text>
+    </View>
+  );
 }
 
 function compactValue(value: unknown) {
@@ -616,7 +1001,8 @@ function itemSubtitle(item: any) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#F8F9FA", paddingTop: Platform.OS === "android" ? 24 : 0 },
+  root: { flex: 1, backgroundColor: "#F5F6F8" },
+  flex: { flex: 1 },
   splash: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -625,7 +1011,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0B0B0B",
   },
   splashImage: { width: "82%", height: "82%" },
-  splashText: { color: "#FFF", fontSize: 28, fontWeight: "800" },
+  splashText: { color: "#FFF", fontSize: 28, fontWeight: "600" },
 
   loginScreen: { flex: 1, backgroundColor: "#0B0B0B" },
   loginContent: {
@@ -638,7 +1024,7 @@ const styles = StyleSheet.create({
   loginTitle: {
     color: "#FFF",
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: "600",
     textAlign: "center",
     marginBottom: 28,
   },
@@ -652,6 +1038,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 16,
     marginBottom: 14,
+    fontWeight: "400",
   },
   passwordRow: {
     minHeight: 54,
@@ -669,9 +1056,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     color: "#FFF",
     fontSize: 16,
+    fontWeight: "400",
   },
   showButton: { paddingHorizontal: 15, paddingVertical: 14 },
-  showButtonText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+  showButtonText: { color: "#FFF", fontWeight: "500", fontSize: 13 },
   loginButton: {
     minHeight: 54,
     borderRadius: 13,
@@ -679,126 +1067,340 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  loginButtonText: { color: "#111", fontWeight: "800", fontSize: 16 },
+  loginButtonText: { color: "#111", fontWeight: "600", fontSize: 16 },
   loginError: { color: "#FFB4B4", marginTop: 12, lineHeight: 20 },
   disabled: { opacity: 0.6 },
 
-  adminScreen: { flex: 1, backgroundColor: "#F8F9FA" },
-  topbar: {
-    minHeight: 72,
+  adminSafeArea: { flex: 1, backgroundColor: "#F5F6F8" },
+  fullPageSafe: { flex: 1, backgroundColor: "#F5F6F8" },
+  adminShell: { flex: 1, backgroundColor: "#F5F6F8" },
+  adminScreen: { flex: 1, backgroundColor: "#F5F6F8" },
+  page: { flex: 1, backgroundColor: "#F5F6F8" },
+
+  dashboardContent: {
     paddingHorizontal: 18,
-    paddingVertical: 12,
-    backgroundColor: "#FFF",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E5E9",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    paddingTop: 12,
+    paddingBottom: 126,
   },
-  topbarText: { flex: 1, paddingRight: 12 },
-  brand: { fontSize: 18, fontWeight: "900", color: "#18212F" },
-  primaryButton: {
-    minHeight: 38,
-    paddingHorizontal: 15,
-    borderRadius: 10,
-    backgroundColor: "#1D4ED8",
-    alignItems: "center",
-    justifyContent: "center",
+  tabPageContent: {
+    paddingHorizontal: 18,
+    paddingTop: 24,
+    paddingBottom: 126,
   },
-  primaryButtonText: { color: "#FFF", fontWeight: "800", fontSize: 13 },
-  dashboardContent: { padding: 16, paddingBottom: 42 },
-  kicker: { fontSize: 11, fontWeight: "800", color: "#1D4ED8", letterSpacing: 1.1 },
-  dashboardTitle: { marginTop: 5, fontSize: 28, fontWeight: "900", color: "#18212F" },
-  dashboardSubtitle: {
-    marginTop: 7,
-    color: "#667085",
+  topIdentity: {
+    marginBottom: 34,
+  },
+  brand: {
+    fontSize: 21,
+    fontWeight: "600",
+    color: "#172033",
+  },
+  userEmail: {
+    marginTop: 5,
+    color: "#7A8497",
     fontSize: 13,
-    lineHeight: 19,
-    marginBottom: 18,
+    fontWeight: "400",
   },
+  heroBlock: {
+    marginBottom: 24,
+  },
+  kicker: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#2563EB",
+    marginBottom: 7,
+  },
+  dashboardTitle: {
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "600",
+    color: "#172033",
+  },
+  dashboardSubtitle: {
+    marginTop: 9,
+    color: "#778196",
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "400",
+  },
+
   metrics: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metric: {
     width: "48%",
-    minHeight: 96,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: "#FFF",
+    minHeight: 116,
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: "#E2E5E9",
+    borderColor: "#E5E8EE",
   },
-  metricTitle: { color: "#667085", fontSize: 12, fontWeight: "600" },
-  metricValue: { marginTop: 11, color: "#18212F", fontSize: 25, fontWeight: "900" },
+  metricTitle: { color: "#778196", fontSize: 13, fontWeight: "400" },
+  metricValue: {
+    marginTop: 16,
+    color: "#172033",
+    fontSize: 30,
+    fontWeight: "600",
+  },
+
   sectionTitle: {
-    marginTop: 24,
-    marginBottom: 10,
-    fontSize: 18,
-    color: "#18212F",
-    fontWeight: "900",
+    marginTop: 28,
+    marginBottom: 12,
+    fontSize: 20,
+    color: "#172033",
+    fontWeight: "600",
   },
   quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   quickCard: {
     width: "48%",
-    minHeight: 64,
-    paddingHorizontal: 14,
-    borderRadius: 13,
+    minHeight: 72,
+    paddingHorizontal: 15,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E2E5E9",
-    backgroundColor: "#FFF",
+    borderColor: "#E5E8EE",
+    backgroundColor: "#FFFFFF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  quickTitle: { color: "#18212F", fontWeight: "800", fontSize: 13 },
-  quickArrow: { color: "#1D4ED8", fontSize: 24 },
+  quickTitle: { color: "#172033", fontWeight: "500", fontSize: 14 },
+  quickArrow: { color: "#2563EB", fontSize: 25, fontWeight: "400" },
+
   panel: {
     overflow: "hidden",
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E2E5E9",
-    backgroundColor: "#FFF",
+    borderColor: "#E5E8EE",
+    backgroundColor: "#FFFFFF",
   },
   listRow: {
-    minHeight: 70,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    minHeight: 72,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E2E5E9",
+    borderBottomColor: "#E6E9EF",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   listMain: { flex: 1, paddingRight: 12 },
   listSide: { alignItems: "flex-end" },
-  listTitle: { color: "#18212F", fontWeight: "800", fontSize: 14 },
-  amount: { color: "#18212F", fontWeight: "800", fontSize: 13 },
-  smallMuted: { color: "#667085", fontSize: 11, marginTop: 3 },
-  emptyText: { padding: 18, color: "#667085", textAlign: "center", fontSize: 13 },
-  loader: { marginVertical: 36 },
+  listTitle: { color: "#172033", fontWeight: "500", fontSize: 14 },
+  amount: { color: "#172033", fontWeight: "600", fontSize: 13 },
+  smallMuted: { color: "#8A93A4", fontSize: 12, marginTop: 4, fontWeight: "400" },
+  statusText: { color: "#667085", fontSize: 12, marginTop: 4, fontWeight: "400" },
+
+  pageHeading: { marginBottom: 24 },
+  pageEyebrow: {
+    color: "#2563EB",
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: 7,
+  },
+  pageTitle: {
+    color: "#172033",
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "600",
+  },
+  pageDescription: {
+    color: "#778196",
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "400",
+    marginTop: 8,
+  },
+  summaryRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
+  summaryCard: {
+    flex: 1,
+    minHeight: 98,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E8EE",
+    padding: 16,
+  },
+  summaryTitle: { color: "#778196", fontSize: 13, fontWeight: "400" },
+  summaryValue: { color: "#172033", fontSize: 28, fontWeight: "600", marginTop: 10 },
+  stackGap: { gap: 10 },
+
+  orderCard: {
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E8EE",
+    padding: 16,
+  },
+  orderCardTop: { flexDirection: "row", alignItems: "flex-start" },
+  orderNumber: { color: "#172033", fontSize: 15, fontWeight: "600" },
+  orderCustomer: { color: "#858FA1", fontSize: 12, marginTop: 5, fontWeight: "400" },
+  orderCardBottom: {
+    marginTop: 16,
+    paddingTop: 13,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E7EAF0",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  orderMeta: { color: "#858FA1", fontSize: 12, fontWeight: "400" },
+  orderAmount: { color: "#172033", fontSize: 15, fontWeight: "600" },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#EEF4FF",
+  },
+  statusPillText: { color: "#2563EB", fontSize: 11, fontWeight: "500" },
+
+  supportCard: {
+    minHeight: 78,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E8EE",
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  supportDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: "#2563EB",
+    marginRight: 12,
+  },
+  supportTitle: { color: "#172033", fontSize: 14, fontWeight: "500" },
+  supportSubtitle: { color: "#858FA1", fontSize: 12, marginTop: 4, fontWeight: "400" },
+
+  profileCard: {
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E8EE",
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  profileAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: "#EEF4FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 13,
+  },
+  profileAvatarText: { color: "#2563EB", fontSize: 19, fontWeight: "600" },
+  profileName: { color: "#172033", fontSize: 15, fontWeight: "500" },
+  profileEmail: { color: "#858FA1", fontSize: 12, marginTop: 4, fontWeight: "400" },
+  settingsPanel: {
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E8EE",
+    backgroundColor: "#FFFFFF",
+  },
+  settingsRow: {
+    minHeight: 70,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E6E9EF",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  settingsRowTitle: { color: "#172033", fontSize: 14, fontWeight: "500" },
+  settingsRowSubtitle: { color: "#858FA1", fontSize: 12, marginTop: 4, fontWeight: "400" },
+  settingsChevron: { color: "#A0A8B6", fontSize: 24, fontWeight: "400" },
+  logoutCard: {
+    minHeight: 54,
+    borderRadius: 18,
+    backgroundColor: "#FFF5F5",
+    borderWidth: 1,
+    borderColor: "#FFD6D6",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutCardText: { color: "#C24141", fontSize: 14, fontWeight: "500" },
+
+  tabBarWrap: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: Platform.OS === "ios" ? 10 : 14,
+  },
+  glassTabBar: {
+    minHeight: 72,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.92)",
+    backgroundColor: "rgba(250,251,253,0.92)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 7,
+    paddingVertical: 7,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 14,
+  },
+  tabButton: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabButtonActive: {
+    backgroundColor: "rgba(37,99,235,0.09)",
+  },
+  tabIconWrap: {
+    height: 25,
+    minWidth: 25,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabIconWrapActive: {
+    transform: [{ scale: 1.03 }],
+  },
+  tabIcon: {
+    color: "#7F8898",
+    fontSize: 20,
+    lineHeight: 22,
+    fontWeight: "400",
+  },
+  tabIconActive: { color: "#2563EB" },
+  tabLabel: {
+    marginTop: 3,
+    color: "#7F8898",
+    fontSize: 10,
+    fontWeight: "400",
+  },
+  tabLabelActive: { color: "#2563EB", fontWeight: "500" },
 
   header: {
     minHeight: 70,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E5E9",
+    borderBottomColor: "#E5E8EE",
     flexDirection: "row",
     alignItems: "center",
   },
   backButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center" },
-  backText: { fontSize: 36, color: "#1D4ED8", lineHeight: 38 },
+  backText: { fontSize: 34, color: "#2563EB", lineHeight: 36, fontWeight: "400" },
   headerText: { flex: 1, paddingRight: 12 },
-  headerTitle: { fontSize: 21, fontWeight: "900", color: "#18212F" },
-  headerSubtitle: { marginTop: 2, color: "#667085", fontSize: 12 },
+  headerTitle: { fontSize: 20, fontWeight: "600", color: "#172033" },
+  headerSubtitle: { marginTop: 2, color: "#7D8798", fontSize: 12, fontWeight: "400" },
 
   menuContent: { padding: 16, paddingBottom: 40 },
   menuGroup: { marginBottom: 22 },
   menuGroupTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#667085",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#7D8798",
     marginBottom: 8,
     paddingHorizontal: 4,
   },
@@ -806,78 +1408,72 @@ const styles = StyleSheet.create({
     minHeight: 72,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E2E5E9",
-    borderRadius: 14,
-    backgroundColor: "#FFF",
+    borderColor: "#E5E8EE",
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
     marginBottom: 8,
     flexDirection: "row",
     alignItems: "center",
   },
-  menuRowTitle: { fontSize: 16, fontWeight: "800", color: "#18212F" },
-  menuRowDescription: { fontSize: 12, color: "#667085", marginTop: 4 },
-  menuChevron: { fontSize: 28, color: "#98A2B3" },
-  logoutButton: {
-    minHeight: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D92D20",
-  },
-  logoutText: { color: "#D92D20", fontWeight: "800" },
+  menuRowTitle: { fontSize: 15, fontWeight: "500", color: "#172033" },
+  menuRowDescription: { fontSize: 12, color: "#858FA1", marginTop: 4, fontWeight: "400" },
+  menuChevron: { fontSize: 26, color: "#A0A8B6", fontWeight: "400" },
 
   moduleContent: { padding: 16, paddingBottom: 40 },
   recordCard: {
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#E2E5E9",
-    backgroundColor: "#FFF",
+    borderColor: "#E5E8EE",
+    backgroundColor: "#FFFFFF",
     padding: 14,
     marginBottom: 10,
   },
-  recordTitle: { fontSize: 15, fontWeight: "800", color: "#18212F" },
-  recordSubtitle: { marginTop: 5, color: "#667085", fontSize: 13 },
-  recordMeta: { marginTop: 10, color: "#344054", fontSize: 12, fontWeight: "700" },
+  recordTitle: { fontSize: 15, fontWeight: "500", color: "#172033" },
+  recordSubtitle: { marginTop: 5, color: "#858FA1", fontSize: 13, fontWeight: "400" },
+  recordMeta: { marginTop: 10, color: "#667085", fontSize: 12, fontWeight: "400" },
   settingRow: {
     minHeight: 52,
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#E2E5E9",
+    borderBottomColor: "#E5E8EE",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   settingKey: {
     flex: 1,
-    color: "#667085",
+    color: "#858FA1",
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "400",
     textTransform: "capitalize",
   },
   settingValue: {
     flex: 1,
-    color: "#18212F",
+    color: "#172033",
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "500",
     textAlign: "right",
   },
+
   emptyCard: {
-    borderRadius: 14,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#E2E5E9",
-    backgroundColor: "#FFF",
+    borderColor: "#E5E8EE",
+    backgroundColor: "#FFFFFF",
     padding: 22,
     alignItems: "center",
   },
-  emptyTitle: { fontWeight: "800", color: "#18212F" },
+  emptyTitle: { fontWeight: "500", color: "#172033", fontSize: 15 },
+  emptyText: { paddingTop: 7, color: "#858FA1", textAlign: "center", fontSize: 13, fontWeight: "400" },
+  loader: { marginVertical: 36 },
   errorBox: {
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#FDA29B",
     backgroundColor: "#FEF3F2",
     marginBottom: 14,
   },
-  errorText: { color: "#B42318", fontWeight: "600", fontSize: 13 },
+  errorText: { color: "#B42318", fontWeight: "400", fontSize: 13 },
 });
