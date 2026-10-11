@@ -11,12 +11,12 @@ export function absoluteMediaUrl(value?: string | null) {
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const session = await localAuth.getSession();
-  const userId = session?.user?.id;
-  if (!userId) return {};
+  // Revalidating /api/auth/session for every product/order request serializes
+  // otherwise parallel requests and adds an unnecessary network roundtrip.
+  const { token, userId } = await localAuth.getRequestCredentials();
   return {
-    'X-Owner-User-Id': userId,
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    ...(userId ? { 'X-Owner-User-Id': userId } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
@@ -439,7 +439,7 @@ export const rmaApi = {
     request<CatalogProduct[]>(`/api/catalog-products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
-  listB2BProducts: () => request<B2BProduct[]>('/api/b2b/products'),
+  listB2BProducts: () => request<B2BProduct[]>('/api/b2b/products?mobile=1'),
   getB2BProduct: (id: string | number) =>
     request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
   getB2BHomepage: () => request<B2BHomepage>('/api/public/homepage'),
