@@ -243,10 +243,11 @@ export default function Ayarlar() {
                   <div className="sm:col-span-2">
                     <AssetUploader
                       title="Giriş Ekranı Görseli"
-                      description="Çalışkan B2B mobil giriş ve İşletmemi Kaydet ekranlarında kullanılacak dikey arka plan. Splash görselinden bağımsızdır; ekran üzerindeki form ve düğmeler uygulama tarafından oluşturulur."
+                      description="Önerilen 1080×1920 dikey PNG, JPEG veya WebP. Giriş ve İşletmemi Kaydet ekranlarının arka planıdır; splash ekranından bağımsızdır. Form alanlarını görsele eklemeyin."
                       value={values.b2b_mobile_login_background}
                       onChange={(value) => setAsset("b2b_mobile_login_background", value)}
                       cover
+                      portrait
                     />
                   </div>
                 </CardContent>
@@ -444,6 +445,7 @@ function AssetUploader({
   onChange,
   square = false,
   cover = false,
+  portrait = false,
 }: {
   title: string;
   description: string;
@@ -451,6 +453,7 @@ function AssetUploader({
   onChange: (value: string | null) => void;
   square?: boolean;
   cover?: boolean;
+  portrait?: boolean;
 }) {
   async function handleFile(file?: File) {
     if (!file) return;
@@ -465,7 +468,7 @@ function AssetUploader({
   return (
     <div className="rounded-2xl border bg-muted/20 p-4">
       <div className="flex items-start gap-4">
-        <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-background ${square ? "h-20 w-20" : "h-20 w-28"}`}>
+        <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-background ${portrait ? "h-44 w-24" : square ? "h-20 w-20" : "h-20 w-28"}`}>
           {value ? (
             <img src={value} alt={title} className={cover ? "h-full w-full object-cover" : "h-full w-full object-contain p-2"} />
           ) : (
