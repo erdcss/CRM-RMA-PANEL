@@ -1,0 +1,22 @@
+name: B2B Branding Build
+on:
+  push:
+    paths:
+      - 'server/admin-platform.ts'
+      - 'client/src/pages/ayarlar.tsx'
+      - 'client/src/hooks/use-branding.ts'
+      - '.github/workflows/b2b-branding-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run build
