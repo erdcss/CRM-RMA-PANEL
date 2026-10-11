@@ -13,117 +13,117 @@ export type MobileBranding = {
 
 type MobileBrandingResponse = {
   logo?: string | null;
+  webLogo?: string | null;
   splash?: string | null;
   loginBackground?: string | null;
   updatedAt?: number | null;
 };
 
-type PublicBrandingResponse = {
-  b2b_logo?: string | null;
-  b2b_mobile_logo?: string | null;
-  b2b_mobile_splash?: string | null;
-  b2b_mobile_login_background?: string | null;
-};
-
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
+const BRANDING_TTL_MS = 60_000;
+const RETRY_MS = 15_000;
+
+// All screens share the same image URLs and the same network request.
+let cachedBranding: MobileBranding = { loaded: false };
+let lastSuccess = 0;
+let lastAttempt = 0;
+let pending: Promise<void> | null = null;
+let appSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+const listeners = new Set<(next: MobileBranding) => void>();
+
+function publish(next: MobileBranding) {
+  cachedBranding = next;
+  listeners.forEach((listener) => listener(next));
+}
 
 function normalizeBrandAsset(value?: string | null) {
   const clean = typeof value === 'string' ? value.trim() : '';
   if (!clean) return null;
-  if (
-    clean.startsWith('data:image/') ||
-    clean.startsWith('https://') ||
-    clean.startsWith('http://')
-  ) {
+  if (clean.startsWith('data:image/') || clean.startsWith('https://') || clean.startsWith('http://')) {
     return clean;
   }
-  if (clean.startsWith('/')) {
-    return `${API_URL}${clean}`;
-  }
-  return `${API_URL}/${clean}`;
+  return `${API_URL}/${clean.replace(/^\//, '')}`;
 }
 
 async function fetchB2BBranding(): Promise<MobileBranding> {
-  const cacheBust = Date.now();
-  const headers = {
-    Accept: 'application/json',
-    'Cache-Control': 'no-cache',
-  };
-
-  const [mobileResponse, publicResponse] = await Promise.all([
-    fetch(`${API_URL}/api/public/mobile-branding/b2b?t=${cacheBust}`, { headers }),
-    fetch(`${API_URL}/api/public/branding?t=${cacheBust}`, { headers }),
-  ]);
-
-  if (!mobileResponse.ok && !publicResponse.ok) {
-    throw new Error(
-      `Mobil marka bilgisi alınamadı (HTTP ${mobileResponse.status}/${publicResponse.status})`,
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7_000);
+  try {
+    const response = await fetch(
+      `${API_URL}/api/public/mobile-branding/b2b?t=${Date.now()}`,
+      {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      },
     );
+    if (!response.ok) throw new Error(`Mobil marka bilgisi alınamadı: ${response.status}`);
+    const branding = (await response.json()) as MobileBrandingResponse;
+    const logo = normalizeBrandAsset(branding.logo);
+    return {
+      b2b_web_logo: normalizeBrandAsset(branding.webLogo) || logo,
+      b2b_mobile_logo: logo,
+      b2b_mobile_splash: normalizeBrandAsset(branding.splash) || logo,
+      b2b_mobile_login_background: normalizeBrandAsset(branding.loginBackground),
+      loaded: true,
+    };
+  } finally {
+    clearTimeout(timeout);
   }
+}
 
-  const mobile = mobileResponse.ok
-    ? ((await mobileResponse.json()) as MobileBrandingResponse)
-    : {};
-  const branding = publicResponse.ok
-    ? ((await publicResponse.json()) as PublicBrandingResponse)
-    : {};
+function refreshBranding(): Promise<void> {
+  if (pending) return pending;
+  const now = Date.now();
+  if (lastSuccess && now - lastSuccess < BRANDING_TTL_MS) return Promise.resolve();
+  if (lastAttempt && now - lastAttempt < RETRY_MS) return Promise.resolve();
 
-  return {
-    b2b_web_logo: normalizeBrandAsset(branding.b2b_logo) || null,
-    // Mobil uygulamada önce mobil için yüklenen marka varlığını kullan.
-    // Web logosu yalnızca mobil logo yoksa yedek olarak devreye girer.
-    b2b_mobile_logo:
-      normalizeBrandAsset(branding.b2b_mobile_logo) ||
-      normalizeBrandAsset(mobile.logo) ||
-      normalizeBrandAsset(branding.b2b_logo) ||
-      null,
-    b2b_mobile_splash:
-      normalizeBrandAsset(branding.b2b_mobile_splash) ||
-      normalizeBrandAsset(mobile.splash) ||
-      normalizeBrandAsset(branding.b2b_mobile_logo) ||
-      normalizeBrandAsset(mobile.logo) ||
-      normalizeBrandAsset(branding.b2b_logo) ||
-      null,
-    b2b_mobile_login_background:
-      normalizeBrandAsset(mobile.loginBackground) ||
-      normalizeBrandAsset(branding.b2b_mobile_login_background) ||
-      null,
-    loaded: true,
-  };
+  lastAttempt = now;
+  pending = fetchB2BBranding()
+    .then((branding) => {
+      lastSuccess = Date.now();
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
+      publish(branding);
+    })
+    .catch(() => {
+      if (!cachedBranding.loaded) publish({ ...cachedBranding, loaded: true });
+      if (!retryTimer && listeners.size > 0) {
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (AppState.currentState === 'active') void refreshBranding();
+        }, RETRY_MS + 1000);
+      }
+    })
+    .finally(() => {
+      pending = null;
+    });
+  return pending;
 }
 
 export function useMobileBranding() {
-  const [branding, setBranding] = useState<MobileBranding>({ loaded: false });
+  const [branding, setBranding] = useState<MobileBranding>(() => cachedBranding);
 
   useEffect(() => {
-    let active = true;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    listeners.add(setBranding);
+    setBranding(cachedBranding);
 
-    const load = async () => {
-      try {
-        const next = await fetchB2BBranding();
-        if (active) setBranding(next);
-      } catch {
-        if (active) {
-          setBranding((current) => ({ ...current, loaded: true }));
-          retryTimer = setTimeout(() => {
-            void load();
-          }, 1800);
-        }
-      }
-    };
-
-    void load();
-
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void load();
-    });
+    if (!appSubscription) {
+      appSubscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void refreshBranding();
+      });
+    }
+    void refreshBranding();
 
     return () => {
-      active = false;
-      if (retryTimer) clearTimeout(retryTimer);
-      subscription.remove();
+      listeners.delete(setBranding);
+      if (listeners.size === 0) {
+        appSubscription?.remove();
+        appSubscription = null;
+        if (retryTimer) clearTimeout(retryTimer);
+        retryTimer = null;
+      }
     };
   }, []);
 
