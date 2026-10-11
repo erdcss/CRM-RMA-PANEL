@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ImageBackground, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -10,15 +10,17 @@ import { AlertProvider } from '@/contexts/AlertContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useMobileBranding } from '@/lib/branding';
 
+const SPLASH_DURATION_MS = 5_000;
+
 export default function RootLayout() {
   const branding = useMobileBranding();
   const [showManagedSplash, setShowManagedSplash] = useState(true);
 
+  // Only once per cold app launch. Branding refreshes must not restart the splash.
   useEffect(() => {
-    if (!branding.loaded) return;
-    const timer = setTimeout(() => setShowManagedSplash(false), 1600);
+    const timer = setTimeout(() => setShowManagedSplash(false), SPLASH_DURATION_MS);
     return () => clearTimeout(timer);
-  }, [branding.loaded, branding.b2b_mobile_splash]);
+  }, []);
 
   return (
     <SafeAreaProvider>
@@ -33,18 +35,20 @@ export default function RootLayout() {
       </AuthProvider>
 
       {showManagedSplash ? (
-        <View style={styles.splash} pointerEvents="none">
+        <View style={styles.splash} pointerEvents="auto">
           {branding.b2b_mobile_splash ? (
-            <ImageBackground source={{uri:branding.b2b_mobile_splash}} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-          ) : <View style={[StyleSheet.absoluteFillObject, {backgroundColor:'#141414'}]} />}
-          <View style={styles.splashShade} />
-          <View style={styles.splashLogoBox}>
-            <BrandLogo uri={branding.b2b_mobile_logo} style={styles.splashImage} />
-          </View>
-          <View style={styles.splashBottom}>
-            <View style={styles.splashProgressTrack}><View style={styles.splashProgress} /></View>
-            <Text style={styles.splashCaption}>Yükleniyor...</Text>
-          </View>
+            <ImageBackground
+              source={{ uri: branding.b2b_mobile_splash }}
+              resizeMode="cover"
+              style={StyleSheet.absoluteFillObject}
+            />
+          ) : (
+            <BrandLogo
+              uri={branding.b2b_mobile_logo}
+              style={styles.fallbackLogo}
+            />
+          )}
+          <StatusBar style="light" />
         </View>
       ) : null}
     </SafeAreaProvider>
@@ -55,18 +59,9 @@ const styles = StyleSheet.create({
   splash: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#111111',
+    alignItems: 'center',
+    backgroundColor: '#101010',
   },
-  splashShade:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.25)'},
-  splashLogoBox:{position:'absolute',top:'15%',alignItems:'center'},
-  splashBottom:{position:'absolute',bottom:65,width:'68%',alignItems:'center'},
-  splashProgressTrack:{height:6,width:'100%',borderRadius:5,backgroundColor:'#555',overflow:'hidden'},
-  splashProgress:{height:6,width:'55%',borderRadius:5,backgroundColor:'#FFCC00'},
-  splashCaption:{color:'#FFF',marginTop:12,fontSize:14},
-  splashImage: {
-    width: 260,
-    height: 100,
-  },
+  fallbackLogo: { width: 250, height: 100 },
 });
