@@ -169,7 +169,7 @@ export default function ProductsScreen() {
             >
               <View style={styles.imageBox}>
                 {image ? (
-                  <Image source={{ uri: image }} style={styles.image} contentFit="contain" />
+                  <Image source={{ uri: image }} style={styles.image} contentFit="contain" cachePolicy="memory-disk" />
                 ) : (
                   <Ionicons name="cube-outline" size={34} color={colors.textMuted} />
                 )}
