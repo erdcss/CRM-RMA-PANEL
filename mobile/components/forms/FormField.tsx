@@ -7,26 +7,30 @@ type FormFieldProps = TextInputProps & {
   hint?: string;
   rightSlot?: React.ReactNode;
   compact?: boolean;
+  appearance?: 'default' | 'dark';
 };
 
-export function FormField({ label, hint, rightSlot, compact, style, ...props }: FormFieldProps) {
+export function FormField({ label, hint, rightSlot, compact, appearance = 'default', style, ...props }: FormFieldProps) {
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
-      <Text style={[styles.label, compact && styles.labelCompact]}>{label}</Text>
+      <Text style={[styles.label, compact && styles.labelCompact, appearance === 'dark' && styles.darkLabel]}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
           {...props}
-          placeholderTextColor={colors.textMuted}
-          style={[styles.input, compact && styles.inputCompact, style, rightSlot ? styles.inputWithSlot : null]}
+          placeholderTextColor={appearance === 'dark' ? '#9CA3AF' : colors.textMuted}
+          style={[styles.input, compact && styles.inputCompact, appearance === 'dark' && styles.darkInput, style, rightSlot ? styles.inputWithSlot : null]}
         />
         {rightSlot}
       </View>
-      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+      {hint ? <Text style={[styles.hint, appearance === 'dark' && styles.darkHint]}>{hint}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  darkLabel: { color: '#F5F5F5', fontWeight: '600' },
+  darkInput: { backgroundColor: '#1B1B1B', borderColor: '#525252', color: '#FFFFFF' },
+  darkHint: { color: '#BDBDBD' },
   wrap: {
     gap: spacing.sm,
   },
