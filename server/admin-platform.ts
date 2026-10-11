@@ -637,33 +637,79 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  // Send tiny metadata to the mobile client; transfer large data-url images
+  // only when the native image component actually needs to display them.
+  app.get("/api/public/mobile-image/:asset", async (req, res) => {
+    const keys: Record<string, BrandingKey> = {
+      "b2b-logo": "b2b_mobile_logo",
+      "b2b-web-logo": "b2b_logo",
+      "b2b-splash": "b2b_mobile_splash",
+      "b2b-login": "b2b_mobile_login_background",
+    };
+    const key = keys[String(req.params.asset || "")];
+    if (!key) return res.status(404).end();
+    if (!pool) return res.status(404).end();
+
+    try {
+      const result = await pool.query(
+        "SELECT value FROM platform_settings WHERE key = $1 LIMIT 1",
+        [key],
+      );
+      const value = result.rows[0]?.value;
+      if (typeof value !== "string") return res.status(404).end();
+
+      const match = /^data:(image\/(?:png|jpeg|webp|gif|svg\+xml));base64,([a-zA-Z0-9+/=]+)$/s.exec(value);
+      if (!match) return res.status(415).end();
+
+      res.setHeader("Content-Type", match[1]);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(Buffer.from(match[2], "base64"));
+    } catch (error) {
+      console.error("Public mobile image load failed:", error);
+      return res.status(500).end();
+    }
+  });
+
   app.get("/api/public/mobile-branding/:app", async (req, res) => {
     try {
-      const branding = await brandingMap();
       const target = String(req.params.app || "").toLowerCase();
+      res.setHeader("Cache-Control", "no-store, max-age=0");
 
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
+      if (target === "b2b") {
+        const assetKeys = [
+          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_splash",
+          "b2b_mobile_login_background",
+        ];
+        const found = pool
+          ? await pool.query(
+              "SELECT key FROM platform_settings WHERE key = ANY($1::text[]) AND LENGTH(value) > 0",
+              [assetKeys],
+            )
+          : { rows: [] as Array<{ key: string }> };
+        const available = new Set(found.rows.map((row) => String(row.key)));
+        const logo = available.has("b2b_mobile_logo") ? "b2b-logo"
+          : available.has("b2b_logo") ? "b2b-web-logo" : null;
+        const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : logo;
+        const webLogo = available.has("b2b_logo") ? "b2b-web-logo" : logo;
+        const login = available.has("b2b_mobile_login_background") ? "b2b-login" : null;
+        const version = Date.now();
+        const image = (asset: string | null) =>
+          asset ? `/api/public/mobile-image/${asset}?v=${version}` : null;
 
-      if (target === "business") {
         return res.json({
-          logo: branding.business_mobile_logo,
-          splash: branding.business_mobile_splash,
-          updatedAt: Date.now(),
+          logo: image(logo),
+          webLogo: image(webLogo),
+          splash: image(splash),
+          loginBackground: image(login),
+          updatedAt: version,
         });
       }
 
-      if (target === "b2b") {
+      if (target === "business") {
+        const branding = await brandingMap();
         return res.json({
-          logo: branding.b2b_mobile_logo || branding.b2b_logo,
-          splash:
-            branding.b2b_mobile_splash ||
-            branding.b2b_mobile_logo ||
-            branding.b2b_logo,
-          loginBackground: branding.b2b_mobile_login_background
-            ? "/api/public/branding-image/b2b-mobile-login?t=" + Date.now()
-            : null,
+          logo: branding.business_mobile_logo,
+          splash: branding.business_mobile_splash,
           updatedAt: Date.now(),
         });
       }
