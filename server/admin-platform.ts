@@ -579,9 +579,34 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     console.error("Platform tables could not be prepared:", error);
   });
 
+  // Large mobile background images are served separately instead of being
+  // repeated as base64 in every public branding JSON response.
+  app.get("/api/public/branding-image/b2b-mobile-login", async (_req, res) => {
+    try {
+      const branding = await brandingMap();
+      const value = branding.b2b_mobile_login_background;
+      if (!value) return res.status(404).end();
+      const match = /^data:(image\\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=]+)$/s.exec(value);
+      if (!match) return res.status(415).end();
+      res.setHeader("Content-Type", match[1]);
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.send(Buffer.from(match[2], "base64"));
+    } catch (error) {
+      console.error("Mobile login background request failed:", error);
+      return res.status(500).end();
+    }
+  });
+
   app.get("/api/public/branding", async (_req, res) => {
     try {
-      res.json(await brandingMap());
+      const branding = await brandingMap();
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.json({
+        ...branding,
+        b2b_mobile_login_background: branding.b2b_mobile_login_background
+          ? "/api/public/branding-image/b2b-mobile-login"
+          : null,
+      });
     } catch (error) {
       console.error("Public branding load failed:", error);
       res.json({});
@@ -636,7 +661,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             branding.b2b_mobile_splash ||
             branding.b2b_mobile_logo ||
             branding.b2b_logo,
-          loginBackground: branding.b2b_mobile_login_background || null,
+          loginBackground: branding.b2b_mobile_login_background
+            ? "/api/public/branding-image/b2b-mobile-login?t=" + Date.now()
+            : null,
           updatedAt: Date.now(),
         });
       }
@@ -943,6 +970,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         if (typeof rawValue !== "string") continue;
         if (!rawValue.startsWith("data:image/")) {
           return res.status(400).json({ error: `${key} için yalnızca görsel yüklenebilir` });
+        }
+        if (
+          key === "b2b_mobile_login_background" &&
+          !/^data:image\\/(?:png|jpeg|webp);base64,/.test(rawValue)
+        ) {
+          return res.status(400).json({ error: "Giriş ekranı için PNG, JPEG veya WebP görsel yükleyin." });
         }
         if (rawValue.length > 10_000_000) {
           return res.status(413).json({ error: `${key} görseli çok büyük` });
