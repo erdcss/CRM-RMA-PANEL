@@ -2247,11 +2247,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
 
+  // Load encoded product images only when an image is actually displayed.
+  // The mobile catalog requests lightweight URLs instead of megabytes of base64.
+  app.get("/api/b2b/product-image/:id", async (req, res) => {
+    if (!pool) return res.status(404).end();
+    const imageIndex = req.query.index == null ? -1 : Number(req.query.index);
+    if (!Number.isInteger(imageIndex) || imageIndex < -1 || imageIndex > 25) {
+      return res.status(400).end();
+    }
+    try {
+      const result = imageIndex < 0
+        ? await pool.query(
+            `SELECT image_data AS asset FROM b2b_products
+             WHERE id::text = $1 AND is_active IS DISTINCT FROM FALSE LIMIT 1`,
+            [String(req.params.id)],
+          )
+        : await pool.query(
+            `SELECT images ->> $2::int AS asset FROM b2b_products
+             WHERE id::text = $1 AND is_active IS DISTINCT FROM FALSE LIMIT 1`,
+            [String(req.params.id), imageIndex],
+          );
+      const asset = result.rows[0]?.asset;
+      if (typeof asset !== "string") return res.status(404).end();
+
+      const match = /^data:(image\/(?:png|jpeg|webp|gif));base64,([a-zA-Z0-9+/=]+)$/s.exec(asset);
+      if (!match) return res.status(404).end();
+
+      res.setHeader("Content-Type", match[1]);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(Buffer.from(match[2], "base64"));
+    } catch (error) {
+      console.error("B2B product image load failed:", error);
+      return res.status(500).end();
+    }
+  });
+
   app.get("/api/b2b/products", async (req, res) => {
     if (!pool) return res.json([]);
 
     try {
       const priceVisible = await canViewB2BPrices(req);
+      const mobile = req.query.mobile === "1";
+      // Compact payload omits raw base64 pictures and all but the first gallery
+      // image. The unmodified endpoint stays compatible with existing web clients.
+      const imagesSql = mobile
+        ? `
+          CASE
+            WHEN image_data LIKE 'data:image/%' THEN
+              '/api/b2b/product-image/' || id::text || '?v=' ||
+              EXTRACT(EPOCH FROM updated_at)::bigint::text
+            ELSE image_data
+          END AS image_data,
+          CASE
+            WHEN jsonb_typeof(images) = 'array' AND jsonb_array_length(images) > 0 THEN
+              jsonb_build_array(
+                CASE
+                  WHEN LEFT(images ->> 0, 11) = 'data:image/' THEN
+                    '/api/b2b/product-image/' || id::text || '?index=0&v=' ||
+                    EXTRACT(EPOCH FROM updated_at)::bigint::text
+                  ELSE images ->> 0
+                END
+              )
+            ELSE '[]'::jsonb
+          END AS images
+        `
+        : `image_data, images`;
+
       const result = await pool.query(`
         SELECT
           id,
@@ -2262,8 +2323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stock,
           min_order_qty,
           units_per_box,
-          image_data,
-          images,
+          ${imagesSql},
           barcode,
           collection_name
         FROM b2b_products
