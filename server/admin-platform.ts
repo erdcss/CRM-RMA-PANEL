@@ -365,6 +365,25 @@ async function brandingMap() {
   return defaults;
 }
 
+// Return asset references instead of multi-megabyte data URLs on each page load.
+async function brandingReferences(): Promise<Record<BrandingKey, string | null>> {
+  const refs = Object.fromEntries(
+    BRANDING_KEYS.map((key) => [key, null]),
+  ) as Record<BrandingKey, string | null>;
+  if (!pool) return refs;
+  const result = await pool.query(
+    "SELECT key, updated_at FROM platform_settings WHERE key = ANY($1::text[])",
+    [BRANDING_KEYS],
+  );
+  for (const row of result.rows) {
+    if (!(BRANDING_KEYS as readonly string[]).includes(row.key)) continue;
+    const revision = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+    refs[row.key as BrandingKey] =
+      `/api/public/branding-asset/${encodeURIComponent(row.key)}?v=${revision}`;
+  }
+  return refs;
+}
+
 function normalizeHomepageCategories(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
@@ -597,16 +616,33 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  app.get("/api/public/branding-asset/:key", async (req, res) => {
+    const key = String(req.params.key || "");
+    if (!(BRANDING_KEYS as readonly string[]).includes(key)) return res.status(404).end();
+    if (!pool) return res.status(404).end();
+    try {
+      const result = await pool.query(
+        "SELECT value FROM platform_settings WHERE key = $1 LIMIT 1",
+        [key],
+      );
+      const value = result.rows[0]?.value;
+      if (typeof value !== "string") return res.status(404).end();
+      const match = /^data:(image\/(?:png|jpeg|webp|gif|svg\+xml));base64,([a-zA-Z0-9+/=]+)$/s.exec(value);
+      if (!match) return res.status(415).end();
+      res.setHeader("Content-Type", match[1]);
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(Buffer.from(match[2], "base64"));
+    } catch (error) {
+      console.error("Branding image load failed:", error);
+      return res.status(500).end();
+    }
+  });
+
   app.get("/api/public/branding", async (_req, res) => {
     try {
-      const branding = await brandingMap();
       res.setHeader("Cache-Control", "no-store, max-age=0");
-      res.json({
-        ...branding,
-        b2b_mobile_login_background: branding.b2b_mobile_login_background
-          ? "/api/public/branding-image/b2b-mobile-login"
-          : null,
-      });
+      res.json(await brandingReferences());
     } catch (error) {
       console.error("Public branding load failed:", error);
       res.json({});
@@ -814,7 +850,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.get("/api/admin/branding", requireAdmin, async (_req, res) => {
     try {
-      res.json(await brandingMap());
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.json(await brandingReferences());
     } catch (error) {
       console.error("Admin branding load failed:", error);
       res.status(500).json({ error: "Marka ayarları alınamadı" });
@@ -1036,7 +1073,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         );
       }
 
-      res.json(await brandingMap());
+      res.json(await brandingReferences());
     } catch (error) {
       console.error("Branding update failed:", error);
       res.status(500).json({ error: "Marka ayarları kaydedilemedi" });
