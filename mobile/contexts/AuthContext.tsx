@@ -37,10 +37,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    localAuth
-      .getSession()
-      .then(setSession)
-      .finally(() => setLoading(false));
+    let active = true;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    // Finish session detection before the 5-second launch splash expires,
+    // even when an offline request hangs. The saved token is not deleted.
+    const deadline = new Promise<null>((resolve) => {
+      timeout = setTimeout(() => resolve(null), 4_500);
+    });
+
+    void Promise.race([localAuth.getSession().catch(() => null), deadline])
+      .then((nextSession) => {
+        if (active) setSession(nextSession);
+      })
+      .finally(() => {
+        if (timeout) clearTimeout(timeout);
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+      if (timeout) clearTimeout(timeout);
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(
