@@ -83,9 +83,9 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const notificationDrawer = useRef(new Animated.Value(0)).current;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (forceRefresh = false) => {
     const [productResult, homepageResult] = await Promise.allSettled([
-      rmaApi.listB2BProducts(),
+      rmaApi.listB2BProducts(forceRefresh),
       rmaApi.getB2BHomepage(),
     ]);
 
@@ -169,7 +169,7 @@ export default function HomeScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await load();
+      await load(true);
     } finally {
       setRefreshing(false);
     }
