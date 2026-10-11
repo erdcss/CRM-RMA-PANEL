@@ -425,6 +425,33 @@ function parseApiError(body: string, status: number) {
   }
 }
 
+// Multiple tabs can request the same catalog at once. Share the in-flight
+// request and reuse the result briefly; force refresh bypasses the cache.
+const CATALOG_CACHE_MS = 30_000;
+let catalogCache: { key: string; loadedAt: number; rows: B2BProduct[] } | null = null;
+let catalogPending: { key: string; promise: Promise<B2BProduct[]> } | null = null;
+
+async function loadMobileCatalog(forceRefresh = false): Promise<B2BProduct[]> {
+  const { token } = await localAuth.getRequestCredentials();
+  const key = token || 'guest';
+  if (!forceRefresh && catalogCache?.key === key && Date.now() - catalogCache.loadedAt < CATALOG_CACHE_MS) {
+    return catalogCache.rows;
+  }
+  if (catalogPending?.key === key) return catalogPending.promise;
+
+  const promise = request<B2BProduct[]>('/api/b2b/products?mobile=1')
+    .then((rows) => {
+      const result = Array.isArray(rows) ? rows : [];
+      catalogCache = { key, loadedAt: Date.now(), rows: result };
+      return result;
+    })
+    .finally(() => {
+      if (catalogPending?.promise === promise) catalogPending = null;
+    });
+  catalogPending = { key, promise };
+  return promise;
+}
+
 export const rmaApi = {
   listTickets: () => request<RmaTicket[]>('/api/tickets'),
   getTicket: (id: number) => request<RmaTicket>(`/api/tickets/${id}`),
@@ -439,7 +466,7 @@ export const rmaApi = {
     request<CatalogProduct[]>(`/api/catalog-products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
-  listB2BProducts: () => request<B2BProduct[]>('/api/b2b/products?mobile=1'),
+  listB2BProducts: (forceRefresh = false) => loadMobileCatalog(forceRefresh),
   getB2BProduct: (id: string | number) =>
     request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
   getB2BHomepage: () => request<B2BHomepage>('/api/public/homepage'),
