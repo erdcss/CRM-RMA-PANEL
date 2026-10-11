@@ -18,7 +18,7 @@ import { Screen } from '@/components/ui/Screen';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { rmaApi, type B2BProduct } from '@/lib/api';
+import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -31,13 +31,13 @@ function money(value: string | number | null | undefined) {
 
 function productImage(product: B2BProduct) {
   if (typeof product.image_data === 'string' && product.image_data.trim()) {
-    return product.image_data;
+    return absoluteMediaUrl(product.image_data);
   }
   if (Array.isArray(product.images)) {
     const first = product.images.find(
       (item) => typeof item === 'string' && item.trim(),
     );
-    if (first) return first;
+    if (first) return absoluteMediaUrl(first);
   }
   return null;
 }
@@ -57,7 +57,7 @@ export default function ProductsScreen() {
     setError('');
 
     try {
-      const data = await rmaApi.listB2BProducts();
+      const data = await rmaApi.listB2BProducts(refresh);
       setProducts(Array.isArray(data) ? data : []);
     } catch (loadError) {
       setError(
