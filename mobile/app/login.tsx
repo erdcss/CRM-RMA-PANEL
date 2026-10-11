@@ -17,7 +17,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { FormField } from '@/components/forms/FormField';
-import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useMobileBranding } from '@/lib/branding';
@@ -114,11 +113,10 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.heroScreen}>
-      {branding.b2b_mobile_splash ? <ImageBackground source={{uri:branding.b2b_mobile_splash}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/> : <View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#171717'}]}/>}
+      {branding.b2b_mobile_login_background ? <ImageBackground source={{uri:branding.b2b_mobile_login_background}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/> : <View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#171717'}]}/>}
       <View style={styles.heroShade}/>
       <ScrollView contentContainerStyle={styles.heroContent} keyboardShouldPersistTaps="handled">
-        <BrandLogo uri={branding.b2b_mobile_logo} style={styles.heroLogo}/>
-        <View style={{flexGrow:1,minHeight:130}}/>
+        <View style={{flexGrow:1,minHeight:80}}/>
         <View style={styles.heroCard}>
           <Text style={styles.heroTitle}>Hoş <Text style={{color:'#FFCC00'}}>Geldiniz</Text></Text>
           <Text style={styles.heroSubtitle}>Çalışkan B2B platformuna giriş yaparak işinizi daha ileriye taşıyın.</Text>
@@ -148,7 +146,7 @@ export default function LoginScreen() {
       </ScrollView>
       {activeField?(
         <View style={styles.focusOverlay}>
-          {branding.b2b_mobile_splash?<ImageBackground source={{uri:branding.b2b_mobile_splash}} blurRadius={20} resizeMode="cover" style={StyleSheet.absoluteFillObject}/>:<View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#151515'}]}/>}
+          {branding.b2b_mobile_login_background?<ImageBackground source={{uri:branding.b2b_mobile_login_background}} blurRadius={20} resizeMode="cover" style={StyleSheet.absoluteFillObject}/>:<View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#151515'}]}/>}
           <View style={styles.focusDim}/>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={dismissField}/>
           <KeyboardAvoidingView style={{flex:1,justifyContent:'flex-end'}} behavior={Platform.OS==='ios'?'padding':'height'}>
@@ -242,8 +240,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   heroScreen:{flex:1,backgroundColor:'#101010'},
   heroShade:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.38)'},
-  heroContent:{flexGrow:1,paddingHorizontal:20,paddingTop:58,paddingBottom:38},
-  heroLogo:{width:240,height:90,alignSelf:'center'},
+  heroContent:{flexGrow:1,paddingHorizontal:20,paddingTop:40,paddingBottom:38},
   heroCard:{borderRadius:25,borderWidth:1,borderColor:'rgba(255,204,0,.6)',backgroundColor:'rgba(10,10,10,.94)',padding:22},
   heroTitle:{fontSize:32,fontWeight:'900',color:'#FFF'},
   heroSubtitle:{color:'#C8C8C8',fontSize:14,lineHeight:21,marginTop:8,marginBottom:21},
