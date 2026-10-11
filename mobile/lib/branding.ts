@@ -5,6 +5,7 @@ export type MobileBranding = {
   b2b_web_logo?: string | null;
   b2b_mobile_logo?: string | null;
   b2b_mobile_splash?: string | null;
+  b2b_mobile_login_background?: string | null;
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
   loaded?: boolean;
@@ -13,6 +14,7 @@ export type MobileBranding = {
 type MobileBrandingResponse = {
   logo?: string | null;
   splash?: string | null;
+  loginBackground?: string | null;
   updatedAt?: number | null;
 };
 
@@ -20,6 +22,7 @@ type PublicBrandingResponse = {
   b2b_logo?: string | null;
   b2b_mobile_logo?: string | null;
   b2b_mobile_splash?: string | null;
+  b2b_mobile_login_background?: string | null;
 };
 
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
@@ -81,6 +84,10 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
       normalizeBrandAsset(branding.b2b_mobile_logo) ||
       normalizeBrandAsset(mobile.logo) ||
       normalizeBrandAsset(branding.b2b_logo) ||
+      null,
+    b2b_mobile_login_background:
+      normalizeBrandAsset(mobile.loginBackground) ||
+      normalizeBrandAsset(branding.b2b_mobile_login_background) ||
       null,
     loaded: true,
   };
