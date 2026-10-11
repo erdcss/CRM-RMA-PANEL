@@ -20,6 +20,7 @@ export function BrandLogo({
       source={!failed && uri ? { uri } : require('../../assets/logo.png')}
       style={style}
       contentFit="contain"
+      cachePolicy="memory-disk"
       onError={() => setFailed(true)}
     />
   );
