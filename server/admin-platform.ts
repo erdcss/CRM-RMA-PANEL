@@ -104,6 +104,7 @@ const BRANDING_KEYS = [
   "b2b_favicon",
   "b2b_mobile_logo",
   "b2b_mobile_splash",
+  "b2b_mobile_login_background",
   "business_mobile_logo",
   "business_mobile_splash",
 ] as const;
@@ -346,6 +347,7 @@ async function brandingMap() {
     b2b_favicon: null,
     b2b_mobile_logo: null,
     b2b_mobile_splash: null,
+    b2b_mobile_login_background: null,
     business_mobile_logo: null,
     business_mobile_splash: null,
   };
@@ -634,6 +636,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             branding.b2b_mobile_splash ||
             branding.b2b_mobile_logo ||
             branding.b2b_logo,
+          loginBackground: branding.b2b_mobile_login_background || null,
           updatedAt: Date.now(),
         });
       }
