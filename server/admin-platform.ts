@@ -586,7 +586,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       const branding = await brandingMap();
       const value = branding.b2b_mobile_login_background;
       if (!value) return res.status(404).end();
-      const match = /^data:(image\\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=]+)$/s.exec(value);
+      const match = /^data:(image\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=]+)$/s.exec(value);
       if (!match) return res.status(415).end();
       res.setHeader("Content-Type", match[1]);
       res.setHeader("Cache-Control", "no-store, max-age=0");
@@ -973,7 +973,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         }
         if (
           key === "b2b_mobile_login_background" &&
-          !/^data:image\\/(?:png|jpeg|webp);base64,/.test(rawValue)
+          !/^data:image\/(?:png|jpeg|webp);base64,/.test(rawValue)
         ) {
           return res.status(400).json({ error: "Giriş ekranı için PNG, JPEG veya WebP görsel yükleyin." });
         }
