@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,7 +13,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { FormField } from '@/components/forms/FormField';
-import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useMobileBranding } from '@/lib/branding';
@@ -153,9 +153,13 @@ export default function SignupScreen() {
   if (completed) {
     return (
       <View style={styles.screen}>
+        {branding.b2b_mobile_login_background ? (
+          <ImageBackground source={{ uri: branding.b2b_mobile_login_background }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : null}
+        <View style={styles.sceneDim} />
         <View style={styles.completed}>
           <View style={styles.successIcon}>
-            <Ionicons name="checkmark" size={34} color="#FFFFFF" />
+            <Ionicons name="checkmark" size={34} color="#101010" />
           </View>
           <Text style={styles.successTitle}>Başvurunuz alındı</Text>
           <Text style={styles.successText}>
@@ -165,31 +169,32 @@ export default function SignupScreen() {
           <Pressable style={styles.primaryButton} onPress={() => router.replace('/login')}>
             <Text style={styles.primaryButtonText}>Giriş Ekranına Dön</Text>
           </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={() => router.replace('/(tabs)')}>
-            <Text style={styles.secondaryButtonText}>Ürünleri İncele</Text>
-          </Pressable>
         </View>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.screen}>
+      {branding.b2b_mobile_login_background ? (
+        <ImageBackground source={{ uri: branding.b2b_mobile_login_background }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+      ) : null}
+      <View style={styles.sceneDim} />
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
         <Pressable style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+          <Ionicons name="chevron-back" size={20} color="#FFCC00" />
           <Text style={styles.backText}>Giriş</Text>
         </Pressable>
 
         <View style={styles.brandHeader}>
-          <BrandLogo uri={branding.b2b_mobile_logo} style={styles.logo} />
-          <Text style={styles.title}>Firma hesabı oluştur</Text>
+          <Text style={styles.title}>İşletmemi <Text style={styles.accent}>Kaydet</Text></Text>
           <Text style={styles.subtitle}>
             Web sitesi ve mobil uygulama aynı Çalışkan B2B hesabını kullanır.
           </Text>
@@ -198,6 +203,7 @@ export default function SignupScreen() {
         <View style={styles.card}>
           <FormField
             label="Firma İsmi"
+            appearance="dark"
             value={companyName}
             onChangeText={setCompanyName}
             placeholder="Firma unvanı"
@@ -207,6 +213,7 @@ export default function SignupScreen() {
             <View style={styles.rowField}>
               <FormField
                 label="İsim"
+            appearance="dark"
                 value={firstName}
                 onChangeText={setFirstName}
                 placeholder="Ad"
@@ -215,6 +222,7 @@ export default function SignupScreen() {
             <View style={styles.rowField}>
               <FormField
                 label="Soy İsim"
+            appearance="dark"
                 value={lastName}
                 onChangeText={setLastName}
                 placeholder="Soyad"
@@ -224,6 +232,7 @@ export default function SignupScreen() {
 
           <FormField
             label="E-posta Adresi"
+            appearance="dark"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -265,6 +274,7 @@ export default function SignupScreen() {
 
           <FormField
             label="Vergi Numarası"
+            appearance="dark"
             value={taxNumber}
             onChangeText={(value) =>
               setTaxNumber(value.replace(/\D/g, '').slice(0, 10))
@@ -274,11 +284,11 @@ export default function SignupScreen() {
             rightSlot={
               <View style={styles.taxStatus}>
                 {taxChecking ? (
-                  <Ionicons name="sync-outline" size={19} color={colors.textMuted} />
+                  <Ionicons name="sync-outline" size={19} color="#FFCC00" />
                 ) : taxVerified ? (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+                  <Ionicons name="checkmark-circle" size={20} color="#FFCC00" />
                 ) : taxNumber.length === 10 && taxValid ? (
-                  <Ionicons name="checkmark-circle-outline" size={20} color={colors.textMuted} />
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#FFCC00" />
                 ) : null}
               </View>
             }
@@ -294,7 +304,7 @@ export default function SignupScreen() {
           </View>
 
           <View style={styles.notice}>
-            <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+            <Ionicons name="information-circle-outline" size={20} color="#FFCC00" />
             <Text style={styles.noticeText}>
               Başvuru sırasında şifre oluşturulmaz. Başvurunuz onaylandıktan sonra
               tek kullanımlık şifre e-postanıza gönderilir. İlk girişte kalıcı
@@ -310,7 +320,7 @@ export default function SignupScreen() {
             onPress={submit}
             disabled={submitting || taxChecking}
           >
-            <Ionicons name="person-add-outline" size={19} color="#FFFFFF" />
+            <Ionicons name="person-add-outline" size={19} color="#101010" />
             <Text style={styles.primaryButtonText}>
               {submitting ? 'Başvuru gönderiliyor…' : 'Başvuruyu Gönder'}
             </Text>
@@ -323,18 +333,20 @@ export default function SignupScreen() {
           </Pressable>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  flex: { flex: 1 },
+  sceneDim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.65)' },
+  accent: { color: '#FFCC00' },
+  screen: { flex: 1, backgroundColor: '#101010' },
   content: {
+    flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.xxxl,
     paddingBottom: spacing.xxxl,
   },
   back: {
@@ -346,86 +358,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: '#575757',
+    backgroundColor: 'rgba(12,12,12,0.83)',
   },
-  backText: {
-    ...typography.bodyMedium,
-    color: colors.textSecondary,
-  },
-  brandHeader: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  logo: {
-    width: 150,
-    height: 44,
-    marginBottom: spacing.lg,
-  },
-  title: {
-    ...typography.largeTitle,
-    color: colors.text,
-    fontWeight: '900',
-  },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-  },
+  backText: { ...typography.bodyMedium, color: '#FFCC00', fontWeight: '700' },
+  brandHeader: { marginTop: spacing.lg, marginBottom: spacing.xl },
+  title: { ...typography.largeTitle, color: '#FFFFFF', fontWeight: '900' },
+  subtitle: { ...typography.body, color: '#D5D5D5', marginTop: spacing.xs },
   card: {
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: 'rgba(255,204,0,0.45)',
+    backgroundColor: 'rgba(12,12,12,0.95)',
     padding: spacing.xl,
     gap: spacing.lg,
   },
-  row: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  rowField: {
-    flex: 1,
-  },
-  fieldGroup: {
-    gap: spacing.sm,
-  },
-  label: {
-    ...typography.bodyMedium,
-    color: colors.text,
-    fontWeight: '700',
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
+  row: { flexDirection: 'row', gap: spacing.md },
+  rowField: { flex: 1 },
+  fieldGroup: { gap: spacing.sm },
+  label: { ...typography.bodyMedium, color: '#FFFFFF', fontWeight: '700' },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   categoryChip: {
-    minHeight: 38,
+    minHeight: 40,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: '#555555',
+    backgroundColor: '#202020',
     paddingHorizontal: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryChipSelected: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
-  },
-  categoryChipText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: '700',
-  },
-  categoryChipTextSelected: {
-    color: '#FFFFFF',
-  },
-  helperText: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
+  categoryChipSelected: { backgroundColor: '#FFCC00', borderColor: '#FFCC00' },
+  categoryChipText: { ...typography.caption, color: '#EBEBEB', fontWeight: '700' },
+  categoryChipTextSelected: { color: '#101010' },
+  helperText: { ...typography.caption, color: '#BBBBBB' },
   taxStatus: {
     position: 'absolute',
     right: spacing.md,
@@ -435,99 +401,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  taxOfficeBox: {
-    borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
-    padding: spacing.md,
-  },
-  taxOfficeLabel: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-  taxOfficeValue: {
-    ...typography.bodyMedium,
-    color: colors.text,
-    marginTop: 2,
-  },
+  taxOfficeBox: { borderRadius: radius.md, backgroundColor: '#242424', padding: spacing.md },
+  taxOfficeLabel: { ...typography.caption, color: '#BBBBBB' },
+  taxOfficeValue: { ...typography.bodyMedium, color: '#FFFFFF', marginTop: 2 },
   notice: {
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: '#444444',
+    backgroundColor: '#222222',
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
   },
-  noticeText: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    flex: 1,
-    lineHeight: 18,
-  },
+  noticeText: { ...typography.caption, color: '#D5D5D5', flex: 1, lineHeight: 18 },
   primaryButton: {
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: radius.md,
-    backgroundColor: '#111827',
+    backgroundColor: '#FFCC00',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  primaryButtonText: {
-    ...typography.bodyMedium,
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
+  primaryButtonText: { ...typography.bodyMedium, color: '#101010', fontWeight: '900' },
   secondaryButton: {
     minHeight: 50,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#FFCC00',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
     marginTop: spacing.sm,
   },
-  secondaryButtonText: {
-    ...typography.bodyMedium,
-    color: colors.text,
-    fontWeight: '800',
-  },
-  loginLink: {
-    minHeight: minTouchTarget,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loginLinkText: {
-    ...typography.bodyMedium,
-    color: colors.textSecondary,
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-  completed: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xxl,
-  },
+  secondaryButtonText: { ...typography.bodyMedium, color: '#FFCC00', fontWeight: '800' },
+  loginLink: { minHeight: minTouchTarget, alignItems: 'center', justifyContent: 'center' },
+  loginLinkText: { ...typography.bodyMedium, color: '#FFCC00', fontWeight: '700' },
+  disabled: { opacity: 0.6 },
+  completed: { flex: 1, justifyContent: 'center', padding: spacing.xxl },
   successIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: radius.full,
-    backgroundColor: colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 70, height: 70, borderRadius: radius.full, backgroundColor: '#FFCC00',
+    alignItems: 'center', justifyContent: 'center',
   },
-  successTitle: {
-    ...typography.largeTitle,
-    color: colors.text,
-    fontWeight: '900',
-    marginTop: spacing.xl,
-  },
-  successText: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.lg,
-  },
+  successTitle: { ...typography.largeTitle, color: '#FFFFFF', fontWeight: '900', marginTop: spacing.xl },
+  successText: { ...typography.body, color: '#DADADA', marginTop: spacing.sm, marginBottom: spacing.lg },
 });
