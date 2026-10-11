@@ -483,7 +483,7 @@ function AssetUploader({
                 Görsel Yükle
                 <input
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  accept={cover ? "image/png,image/jpeg,image/webp" : "image/png,image/jpeg,image/webp,image/svg+xml"}
                   className="hidden"
                   onChange={(event) => void handleFile(event.target.files?.[0])}
                 />
