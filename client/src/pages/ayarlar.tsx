@@ -224,7 +224,7 @@ export default function Ayarlar() {
                     <Smartphone className="h-5 w-5" />
                     Çalışkan B2B Mobile
                   </CardTitle>
-                  <CardDescription>Mobil B2B uygulamasının logo ve splash varlıkları.</CardDescription>
+                  <CardDescription>Çalışkan B2B mobil uygulamasının logo, 5 saniyelik splash ve giriş ekranı görsellerini ayrı yönetin.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <AssetUploader
@@ -240,6 +240,15 @@ export default function Ayarlar() {
                     value={values.b2b_mobile_splash}
                     onChange={(value) => setAsset("b2b_mobile_splash", value)}
                   />
+                  <div className="sm:col-span-2">
+                    <AssetUploader
+                      title="Giriş Ekranı Görseli"
+                      description="Çalışkan B2B mobil giriş ve İşletmemi Kaydet ekranlarında kullanılacak dikey arka plan. Splash görselinden bağımsızdır; ekran üzerindeki form ve düğmeler uygulama tarafından oluşturulur."
+                      value={values.b2b_mobile_login_background}
+                      onChange={(value) => setAsset("b2b_mobile_login_background", value)}
+                      cover
+                    />
+                  </div>
                 </CardContent>
               </Card>
 
@@ -434,12 +443,14 @@ function AssetUploader({
   value,
   onChange,
   square = false,
+  cover = false,
 }: {
   title: string;
   description: string;
   value?: string | null;
   onChange: (value: string | null) => void;
   square?: boolean;
+  cover?: boolean;
 }) {
   async function handleFile(file?: File) {
     if (!file) return;
@@ -456,7 +467,7 @@ function AssetUploader({
       <div className="flex items-start gap-4">
         <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-background ${square ? "h-20 w-20" : "h-20 w-28"}`}>
           {value ? (
-            <img src={value} alt={title} className="h-full w-full object-contain p-2" />
+            <img src={value} alt={title} className={cover ? "h-full w-full object-cover" : "h-full w-full object-contain p-2"} />
           ) : (
             <ImageIcon className="h-7 w-7 text-muted-foreground" />
           )}
