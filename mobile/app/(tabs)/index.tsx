@@ -444,6 +444,7 @@ export default function HomeScreen() {
                       source={{ uri: image }}
                       style={styles.productImage}
                       contentFit="contain"
+                      cachePolicy="memory-disk"
                     />
                   ) : (
                     <Ionicons
