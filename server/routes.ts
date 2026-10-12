@@ -2022,7 +2022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // administrator. No tax number, payment card, or privileged account access.
   app.post("/api/admin/b2b-review-account", requireAdmin, async (req, res) => {
     const email = String(req.body?.email || "").trim().toLowerCase();
-    if (!/^\\S+@\\S+\\.\\S+$/.test(email) || email.length > 254) {
+    if (email.length > 254 || email.includes(" ") || email.split("@").length !== 2 || !email.split("@")[1].includes(".")) {
       return res.status(400).json({ error: "Geçerli bir inceleme e-posta adresi girin." });
     }
     try {
