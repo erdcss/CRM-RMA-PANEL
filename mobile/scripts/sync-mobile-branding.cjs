@@ -119,6 +119,14 @@ async function main() {
     };
   }
 
+  // Remove stale managed copies so no previously selected logo is bundled.
+  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath)]);
+  for (const filename of fs.readdirSync(assetsDir)) {
+    if (/^managed-(?:logo|splash)\.(?:png|jpg|webp)$/.test(filename) && !activeFiles.has(filename)) {
+      fs.unlinkSync(path.join(assetsDir, filename));
+    }
+  }
+
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
     `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · splash=${Boolean(splashPath)}`,
