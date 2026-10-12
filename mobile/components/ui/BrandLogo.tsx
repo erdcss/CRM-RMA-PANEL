@@ -15,9 +15,12 @@ export function BrandLogo({
     setFailed(false);
   }, [uri]);
 
+  // No bundled legacy logo: only show the image configured in the admin panel.
+  if (!uri || failed) return null;
+
   return (
     <Image
-      source={!failed && uri ? { uri } : require('../../assets/logo.png')}
+      source={{ uri }}
       style={style}
       contentFit="contain"
       cachePolicy="memory-disk"
