@@ -240,6 +240,7 @@ export default function Ayarlar() {
                     description="Açılışta 5 saniye gösterilecek PNG görsel. TestFlight build için zorunludur."
                     value={values.b2b_mobile_splash}
                     onChange={(value) => setAsset("b2b_mobile_splash", value)}
+                    pngOnly
                   />
                   <div className="sm:col-span-2">
                     <AssetUploader
