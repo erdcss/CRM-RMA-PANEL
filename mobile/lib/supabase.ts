@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
+const PRODUCTION_API_URL = 'https://b2b.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 const KEY = 'caliskan_auth_token';
 
