@@ -53,10 +53,24 @@ async function runCase(withSplash) {
     const config = JSON.parse(fs.readFileSync(path.join(tmp, "app.json"), "utf8"));
     if (withSplash) {
       assert.equal(result.code, 0, result.out);
-      assert.equal(config.expo.icon, "./assets/managed-logo.png");
-      assert.equal(config.expo.splash.image, "./assets/managed-splash.png");
-      assert.ok(fs.statSync(path.join(tmp, "assets/managed-logo.png")).size > 50);
-      assert.ok(fs.statSync(path.join(tmp, "assets/managed-splash.png")).size > 50);
+      assert.match(config.expo.icon, /^\.\/assets\/managed-logo-[a-f0-9]{12}\.png$/);
+      assert.match(config.expo.splash.image, /^\.\/assets\/managed-splash-[a-f0-9]{12}\.png$/);
+      const logoFile = path.join(tmp, config.expo.icon);
+      const splashFile = path.join(tmp, config.expo.splash.image);
+      assert.ok(fs.statSync(logoFile).size > 50);
+      assert.ok(fs.statSync(splashFile).size > 50);
+
+      // Repeating sync must reuse the same files rather than overwrite files
+      // that may be held open in Windows Photos.
+      const logoModifiedAt = fs.statSync(logoFile).mtimeMs;
+      const splashModifiedAt = fs.statSync(splashFile).mtimeMs;
+      const second = await launch([script, "b2b"], {
+        cwd: tmp,
+        env: { ...process.env, EXPO_PUBLIC_API_URL: "http://127.0.0.1:" + port },
+      });
+      assert.equal(second.code, 0, second.out);
+      assert.equal(fs.statSync(logoFile).mtimeMs, logoModifiedAt);
+      assert.equal(fs.statSync(splashFile).mtimeMs, splashModifiedAt);
     } else {
       assert.notEqual(result.code, 0, result.out);
       assert.equal(config.expo.icon, undefined);
