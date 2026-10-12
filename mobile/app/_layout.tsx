@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppAlertBridge } from '@/components/ui/AppAlertBridge';
-import { BrandLogo } from '@/components/ui/BrandLogo';
 import { AuthGate, RootStack } from '@/components/auth/AuthGate';
 import { AlertProvider } from '@/contexts/AlertContext';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -43,10 +42,7 @@ export default function RootLayout() {
               style={StyleSheet.absoluteFillObject}
             />
           ) : (
-            <BrandLogo
-              uri={branding.b2b_mobile_logo}
-              style={styles.fallbackLogo}
-            />
+            <View style={StyleSheet.absoluteFillObject} />
           )}
           <StatusBar style="light" />
         </View>
@@ -63,5 +59,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#101010',
   },
-  fallbackLogo: { width: 250, height: 100 },
 });
