@@ -6,57 +6,64 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppAlertBridge } from '@/components/ui/AppAlertBridge';
 import { AuthGate, RootStack } from '@/components/auth/AuthGate';
 import { AlertProvider } from '@/contexts/AlertContext';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { useMobileBranding } from '@/lib/branding';
 
 const SPLASH_DURATION_MS = 5_000;
 
-export default function RootLayout() {
+function AppContent() {
   const branding = useMobileBranding();
-  const [showManagedSplash, setShowManagedSplash] = useState(true);
+  const { loading } = useAuth();
+  const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
 
-  // Only once per cold app launch. Branding refreshes must not restart the splash.
+  // Splash is the only rendered screen at cold launch. Keep it visible while
+  // restoring auth so no intermediate login, loading spinner or tab flashes.
   useEffect(() => {
-    const timer = setTimeout(() => setShowManagedSplash(false), SPLASH_DURATION_MS);
+    const timer = setTimeout(() => setMinimumSplashFinished(true), SPLASH_DURATION_MS);
     return () => clearTimeout(timer);
   }, []);
 
+  if (!minimumSplashFinished || loading) {
+    return (
+      <View style={styles.splash}>
+        {branding.b2b_mobile_splash ? (
+          <ImageBackground
+            source={{ uri: branding.b2b_mobile_splash }}
+            resizeMode="cover"
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : null}
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <AppAlertBridge />
+      <AuthGate>
+        <StatusBar style="dark" />
+        <RootStack />
+      </AuthGate>
+    </>
+  );
+}
+
+export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
         <AlertProvider>
-          <AppAlertBridge />
-          <AuthGate>
-            <StatusBar style="dark" />
-            <RootStack />
-          </AuthGate>
+          <AppContent />
         </AlertProvider>
       </AuthProvider>
-
-      {showManagedSplash ? (
-        <View style={styles.splash} pointerEvents="auto">
-          {branding.b2b_mobile_splash ? (
-            <ImageBackground
-              source={{ uri: branding.b2b_mobile_splash }}
-              resizeMode="cover"
-              style={StyleSheet.absoluteFillObject}
-            />
-          ) : (
-            <View style={StyleSheet.absoluteFillObject} />
-          )}
-          <StatusBar style="light" />
-        </View>
-      ) : null}
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   splash: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1,
     backgroundColor: '#101010',
   },
 });
