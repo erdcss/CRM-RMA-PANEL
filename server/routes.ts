@@ -2018,6 +2018,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // A dedicated customer-only reviewer account, created by an authenticated
+  // administrator. No tax number, payment card, or privileged account access.
+  app.post("/api/admin/b2b-review-account", requireAdmin, async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!/^\\S+@\\S+\\.\\S+$/.test(email) || email.length > 254) {
+      return res.status(400).json({ error: "Geçerli bir inceleme e-posta adresi girin." });
+    }
+    try {
+      const existing = (await storage.getUserByUsername(email)) || (await storage.getUserByEmail(email));
+      if (existing) {
+        return res.status(409).json({
+          error: "Bu e-posta adresi zaten kayıtlı. Başka bir inceleme adresi seçin; mevcut hesabın şifresi değiştirilmedi.",
+        });
+      }
+
+      const password = randomBytes(24).toString("base64url");
+      const reviewer = await storage.createUser({
+        username: email,
+        password: hashPassword(password),
+        role: "b2b_customer",
+        appAccess: "b2b",
+        isActive: 1,
+        companyName: "Çalışkan B2B - Apple İnceleme",
+        firstName: "Apple",
+        lastName: "Review",
+        email,
+        companyCategory: "Diğer",
+        taxNumber: null,
+        taxOffice: null,
+        taxVerified: 0,
+        applicationStatus: "approved",
+        mustChangePassword: 0,
+        approvedAt: new Date(),
+        credentialsSentAt: null,
+      });
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(201).json({
+        id: reviewer.id,
+        email,
+        password,
+        message: "Apple inceleme hesabı oluşturuldu. Şifre yalnızca bu yanıt içinde gösterilir.",
+      });
+    } catch (error) {
+      console.error("Apple reviewer account creation failed:", error);
+      return res.status(500).json({ error: "İnceleme hesabı oluşturulamadı." });
+    }
+  });
+
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
     const allUsers = await storage.listUsers();
     const applications = allUsers
