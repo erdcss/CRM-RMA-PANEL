@@ -23,29 +23,29 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (!minimumSplashFinished || loading) {
-    return (
-      <View style={styles.splash}>
-        {branding.b2b_mobile_splash ? (
-          <ImageBackground
-            source={{ uri: branding.b2b_mobile_splash }}
-            resizeMode="cover"
-            style={StyleSheet.absoluteFillObject}
-          />
-        ) : null}
-        <StatusBar style="light" />
-      </View>
-    );
-  }
-
+  // Keep Expo Router mounted from the first render. The fully opaque splash
+  // masks it until both the five-second minimum and auth recovery finish.
+  const showSplash = !minimumSplashFinished || loading;
   return (
-    <>
+    <View style={styles.root}>
       <AppAlertBridge />
       <AuthGate>
         <StatusBar style="dark" />
         <RootStack />
       </AuthGate>
-    </>
+      {showSplash ? (
+        <View style={styles.splash} pointerEvents="auto">
+          {branding.b2b_mobile_splash ? (
+            <ImageBackground
+              source={{ uri: branding.b2b_mobile_splash }}
+              resizeMode="cover"
+              style={StyleSheet.absoluteFillObject}
+            />
+          ) : null}
+          <StatusBar style="light" />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -62,8 +62,10 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#101010' },
   splash: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
     backgroundColor: '#101010',
   },
 });
