@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { createHash } = require("node:crypto");
 
 const target = process.argv[2] === "business" ? "business" : "b2b";
 const root = process.cwd();
@@ -58,9 +59,14 @@ async function saveAsset(name, value) {
   if (!ext) {
     throw new Error("Mobil marka görseli native build için desteklenmeyen formatta: " + asset.mime);
   }
-  const filename = `managed-${name}.${ext}`;
+  // Content-addressed filenames prevent Windows image viewers from locking
+  // a previously generated file during the next TestFlight build.
+  const digest = createHash("sha256").update(asset.buffer).digest("hex").slice(0, 12);
+  const filename = `managed-${name}-${digest}.${ext}`;
   const filePath = path.join(assetsDir, filename);
-  fs.writeFileSync(filePath, asset.buffer);
+  if (!fs.existsSync(filePath) || fs.statSync(filePath).size !== asset.buffer.length) {
+    fs.writeFileSync(filePath, asset.buffer);
+  }
   return `./assets/${filename}`;
 }
 
@@ -119,11 +125,20 @@ async function main() {
     };
   }
 
-  // Remove stale managed copies so no previously selected logo is bundled.
+  // Only files referenced by app.json are bundled. Older unreferenced files
+  // may be locked by Windows Photos; cleanup should never block a valid build.
   const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath)]);
   for (const filename of fs.readdirSync(assetsDir)) {
-    if (/^managed-(?:logo|splash)\.(?:png|jpg|webp)$/.test(filename) && !activeFiles.has(filename)) {
-      fs.unlinkSync(path.join(assetsDir, filename));
+    if (
+      /^managed-(?:logo|splash)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
+      !activeFiles.has(filename)
+    ) {
+      try {
+        fs.unlinkSync(path.join(assetsDir, filename));
+      } catch (error) {
+        if (!["EBUSY", "EACCES", "EPERM"].includes(error?.code)) throw error;
+        console.warn(`[brand-sync] Eski ${filename} dosyası açık, temizleme daha sonra yapılacak.`);
+      }
     }
   }
 
