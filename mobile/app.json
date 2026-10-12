@@ -6,16 +6,12 @@
     "orientation": "portrait",
     "scheme": "caliskanb2b",
     "userInterfaceStyle": "automatic",
-    "icon": "./assets/icon.png",
     "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#111111"
+      "backgroundColor": "#101010"
     },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.caliskangroup.rma",
-      "buildNumber": "55",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Ürün fotoğrafı çekmek ve koli barkodu taramak için kamera erişimi gerekir.",
@@ -27,8 +23,7 @@
     "android": {
       "package": "com.caliskangroup.rma",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#111111"
+        "backgroundColor": "#101010"
       }
     },
     "plugins": [
