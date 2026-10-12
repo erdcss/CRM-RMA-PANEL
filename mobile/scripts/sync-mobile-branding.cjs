@@ -85,6 +85,9 @@ async function main() {
   if (target === "b2b" && !logoPath.endsWith(".png")) {
     throw new Error("iOS uygulama simgesi için admin paneline PNG mobil logo yükleyin.");
   }
+  if (target === "b2b" && !splashPath.endsWith(".png")) {
+    throw new Error("iOS açılış görseli için admin paneline PNG splash yükleyin.");
+  }
 
   if (!fs.existsSync(appJsonPath)) {
     throw new Error("app.json bulunamadı");
