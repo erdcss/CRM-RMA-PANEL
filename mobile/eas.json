@@ -11,7 +11,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com"
       }
     },
     "development-device": {
@@ -21,7 +21,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com"
       }
     },
     "preview": {
@@ -30,14 +30,14 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
         "EAS_NO_VCS": "1",
-        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -53,7 +53,7 @@
       "env": {
         "APP_VARIANT": "development",
         "EXPO_UI_DEV_CLIENT": "1",
-        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com"
       }
     },
     "testflight": {
@@ -61,7 +61,7 @@
       "autoIncrement": true,
       "env": {
         "EAS_NO_VCS": "1",
-        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com",
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com",
         "EXPO_SKIP_NIIMBOT": "1"
       },
       "ios": {
