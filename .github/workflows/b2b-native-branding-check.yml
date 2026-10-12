@@ -1,0 +1,21 @@
+name: B2B Native Branding Check
+on:
+  push:
+    paths:
+      - 'mobile/scripts/sync-mobile-branding.cjs'
+      - 'mobile/scripts/check-brand-sync.cjs'
+      - 'mobile/app.json'
+      - '.github/workflows/b2b-native-branding-check.yml'
+  workflow_dispatch:
+jobs:
+  verify-brand-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate native branding script
+        run: node --check mobile/scripts/sync-mobile-branding.cjs
+      - name: Validate admin-only brand sync
+        run: node mobile/scripts/check-brand-sync.cjs
