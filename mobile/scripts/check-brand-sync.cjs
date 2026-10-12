@@ -48,7 +48,7 @@ async function runCase(withSplash) {
     const port = server.address().port;
     const result = await launch([script, "b2b"], {
       cwd: tmp,
-      env: { ...process.env, EXPO_PUBLIC_API_URL: "http://127.0.0.1:" + port },
+      env: { ...process.env, EXPO_PUBLIC_BRANDING_API_URL: "http://127.0.0.1:" + port },
     });
     const config = JSON.parse(fs.readFileSync(path.join(tmp, "app.json"), "utf8"));
     if (withSplash) {
@@ -66,7 +66,7 @@ async function runCase(withSplash) {
       const splashModifiedAt = fs.statSync(splashFile).mtimeMs;
       const second = await launch([script, "b2b"], {
         cwd: tmp,
-        env: { ...process.env, EXPO_PUBLIC_API_URL: "http://127.0.0.1:" + port },
+        env: { ...process.env, EXPO_PUBLIC_BRANDING_API_URL: "http://127.0.0.1:" + port },
       });
       assert.equal(second.code, 0, second.out);
       assert.equal(fs.statSync(logoFile).mtimeMs, logoModifiedAt);
