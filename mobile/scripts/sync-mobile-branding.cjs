@@ -6,7 +6,7 @@ const target = process.argv[2] === "business" ? "business" : "b2b";
 const root = process.cwd();
 const appJsonPath = path.join(root, "app.json");
 const assetsDir = path.join(root, "assets");
-const api = (process.env.EXPO_PUBLIC_API_URL || "https://b2b.ecalisgan.com").replace(/\/$/, "");
+const api = (process.env.EXPO_PUBLIC_BRANDING_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
 
 function extensionFromMime(mime) {
   if (mime === "image/png") return "png";
