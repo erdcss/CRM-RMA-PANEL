@@ -9,10 +9,12 @@ import {
   RefreshCw,
   ShieldCheck,
   Copy,
+  KeyRound,
   XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +46,10 @@ type Application = {
 
 export default function AdminApplications() {
   const { toast } = useToast();
+  const [reviewEmail, setReviewEmail] = useState("caliskanb2b.review@gmail.com");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewCredentials, setReviewCredentials] = useState<{ email: string; password: string } | null>(null);
   const [fallbackCredential, setFallbackCredential] = useState<{
     email: string;
     password: string;
@@ -108,6 +114,23 @@ export default function AdminApplications() {
     },
   });
 
+  async function createReviewAccount() {
+    setReviewBusy(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/b2b-review-account", { email: reviewEmail });
+      const payload = await response.json();
+      if (!response.ok || !payload.password) throw new Error(payload.error || "İnceleme hesabı oluşturulamadı");
+      setReviewCredentials({ email: payload.email, password: payload.password });
+      setReviewDialogOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/b2b-applications"] });
+      toast({ title: "Apple inceleme hesabı hazır", description: "Giriş bilgilerini App Store Connect'e kaydedin." });
+    } catch (error) {
+      toast({ title: "İnceleme hesabı oluşturulamadı", description: error instanceof Error ? error.message : "İşlem başarısız", variant: "destructive" });
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   const pending = data.filter((item) => item.applicationStatus === "pending");
   const approved = data.filter((item) => item.applicationStatus === "approved");
   const rejected = data.filter((item) => item.applicationStatus === "rejected");
@@ -120,6 +143,18 @@ export default function AdminApplications() {
           <p className="mt-1 text-sm text-muted-foreground">
             B2B firma üyelik başvurularını inceleyin, onaylayın ve giriş bilgilerini yönetin.
           </p>
+        </div>
+
+        <div className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-slate-950">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-bold"><KeyRound className="h-5 w-5" /> Apple App Store İnceleme Hesabı</h2>
+              <p className="mt-1 max-w-2xl text-sm text-slate-700">
+                Yalnızca Apple incelemesi için aktif B2B müşteri hesabı oluşturur. Vergi numarası, SMS doğrulaması ve ilk girişte şifre değiştirme gerektirmez. Şifre sadece bir kez gösterilir.
+              </p>
+            </div>
+            <Button type="button" onClick={() => setReviewDialogOpen(true)}>İnceleme Hesabı Oluştur</Button>
+          </div>
         </div>
 
         <div className="mb-6 grid gap-3 sm:grid-cols-3">
@@ -251,6 +286,45 @@ export default function AdminApplications() {
           )}
         </div>
       </div>
+
+      <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apple inceleme hesabı oluştur</DialogTitle>
+            <DialogDescription>
+              Hesap Apple inceleme süresince aktif kalacak. Başka bir hesaba ait e-posta adresini kullanmayın.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="space-y-2 text-sm font-medium">
+            <span>Test hesabı e-posta adresi</span>
+            <Input type="email" autoComplete="off" value={reviewEmail} onChange={(event) => setReviewEmail(event.target.value)} />
+          </label>
+          <Button disabled={reviewBusy || !reviewEmail.includes("@")} onClick={() => void createReviewAccount()}>
+            {reviewBusy ? "Oluşturuluyor…" : "Hesabı Oluştur"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(reviewCredentials)} onOpenChange={(open) => { if (!open) setReviewCredentials(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apple inceleme hesabı oluşturuldu</DialogTitle>
+            <DialogDescription>Bu giriş bilgilerini App Store Connect → App Review Information alanına kaydedin. Şifreyi kapattıktan sonra tekrar görüntüleyemezsiniz.</DialogDescription>
+          </DialogHeader>
+          {reviewCredentials ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">E-posta</div><code className="break-all">{reviewCredentials.email}</code></div>
+              <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Şifre</div><code className="break-all">{reviewCredentials.password}</code></div>
+              <Button onClick={() => {
+                void navigator.clipboard.writeText(`Username: ${reviewCredentials.email}\nPassword: ${reviewCredentials.password}`)
+                  .then(() => toast({ title: "Giriş bilgileri kopyalandı" }))
+                  .catch(() => toast({ title: "Panoya kopyalanamadı", variant: "destructive" }));
+              }}><Copy className="mr-2 h-4 w-4" /> Giriş Bilgilerini Kopyala</Button>
+              <p className="text-xs text-muted-foreground">Parolayı Apple inceleme ekibi dışında paylaşmayın. İncelemeden önce girişin çalıştığını test edin.</p>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={Boolean(fallbackCredential)}
