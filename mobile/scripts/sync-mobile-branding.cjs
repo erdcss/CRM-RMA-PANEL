@@ -26,14 +26,19 @@ async function readAsset(value) {
     };
   }
 
-  if (/^https?:\/\//i.test(value)) {
-    const response = await fetch(value, {
+  if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
+    const imageUrl = new URL(value, api).toString();
+    const response = await fetch(imageUrl, {
       headers: { Accept: "image/*", "Cache-Control": "no-cache" },
       redirect: "follow",
     });
-    if (!response.ok) return null;
-    const mime = (response.headers.get("content-type") || "image/png").split(";")[0].toLowerCase();
-    if (!mime.startsWith("image/")) return null;
+    if (!response.ok) {
+      throw new Error("Admin görseli indirilemedi: HTTP " + response.status + " (" + imageUrl + ")");
+    }
+    const mime = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+    if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) {
+      throw new Error("Admin görseli geçersiz formatta: " + (mime || "bilinmiyor"));
+    }
     return {
       mime,
       buffer: Buffer.from(await response.arrayBuffer()),
@@ -45,14 +50,13 @@ async function readAsset(value) {
 
 async function saveAsset(name, value) {
   const asset = await readAsset(value);
-  if (!asset || !asset.buffer.length) return null;
+  if (!asset || !asset.buffer.length) {
+    throw new Error("Admin panelindeki " + name + " görseli eksik; eski logo kullanılmayacak.");
+  }
   fs.mkdirSync(assetsDir, { recursive: true });
   const ext = extensionFromMime(asset.mime);
   if (!ext) {
-    console.warn(
-      `Mobil marka görseli native build için desteklenmeyen formatta (${asset.mime}); mevcut yerel asset korunacak.`,
-    );
-    return null;
+    throw new Error("Mobil marka görseli native build için desteklenmeyen formatta: " + asset.mime);
   }
   const filename = `managed-${name}.${ext}`;
   const filePath = path.join(assetsDir, filename);
@@ -71,8 +75,16 @@ async function main() {
   }
 
   const branding = await response.json();
+  if (target === "b2b" && (!branding.logo || !branding.splash)) {
+    throw new Error(
+      "Çalışkan B2B için admin panelinde Mobil Logo ve Splash Ekranı görsellerinin ikisi de yüklenmeli. Eski görselle build alınmayacak.",
+    );
+  }
   const logoPath = await saveAsset("logo", branding.logo);
-  const splashPath = await saveAsset("splash", branding.splash || branding.logo);
+  const splashPath = await saveAsset("splash", branding.splash);
+  if (target === "b2b" && !logoPath.endsWith(".png")) {
+    throw new Error("iOS uygulama simgesi için admin paneline PNG mobil logo yükleyin.");
+  }
 
   if (!fs.existsSync(appJsonPath)) {
     throw new Error("app.json bulunamadı");
@@ -97,7 +109,7 @@ async function main() {
     expo.splash = {
       ...(expo.splash || {}),
       image: splashPath,
-      resizeMode: "contain",
+      resizeMode: "cover",
       backgroundColor:
         expo.splash?.backgroundColor ||
         (target === "business" ? "#0B0B0B" : "#FFFFFF"),
@@ -111,9 +123,9 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.warn(
-    "Mobil marka görselleri build öncesi senkronize edilemedi; mevcut yerel assetlerle devam edilecek:",
+  console.error(
+    "[brand-sync] Build iptal edildi; eksik admin görsellerinin yerine eski logo kullanılmayacak:",
     error instanceof Error ? error.message : String(error),
   );
-  process.exit(0);
+  process.exit(1);
 });
