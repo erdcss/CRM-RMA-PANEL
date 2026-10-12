@@ -19,8 +19,8 @@ type MobileBrandingResponse = {
   updatedAt?: number | null;
 };
 
-const PRODUCTION_API_URL = 'https://b2b.ecalisgan.com';
-const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
+const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
+const API_URL = (process.env.EXPO_PUBLIC_BRANDING_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 const BRANDING_TTL_MS = 60_000;
 const RETRY_MS = 15_000;
 
