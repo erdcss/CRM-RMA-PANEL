@@ -38,6 +38,7 @@ import B2BRegister from "@/pages/b2b-register";
 import B2BAccount from "@/pages/b2b-account";
 import B2BOrders from "@/pages/b2b-orders";
 import B2BPaymentPage from "@/pages/b2b-payment";
+import B2BSupport from "@/pages/b2b-support";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
@@ -156,6 +157,8 @@ function B2BWebsite() {
         <Route path="/hesabim" component={B2BAccount} />
         <Route path="/siparislerim" component={B2BOrders} />
         <Route path="/odeme" component={B2BPaymentPage} />
+        <Route path="/destek" component={B2BSupport} />
+        <Route path="/support" component={B2BSupport} />
         <Route component={B2BStorefront} />
       </Switch>
     </div>
