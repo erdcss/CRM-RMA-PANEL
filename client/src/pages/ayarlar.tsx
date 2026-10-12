@@ -229,14 +229,15 @@ export default function Ayarlar() {
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <AssetUploader
                     title="Uygulama Logosu"
-                    description="Mobil marka ikonu."
+                    description="iOS/Android simgesi için 1024×1024 PNG yükleyin. TestFlight build öncesi zorunludur."
                     value={values.b2b_mobile_logo}
                     onChange={(value) => setAsset("b2b_mobile_logo", value)}
                     square
+                    pngOnly
                   />
                   <AssetUploader
                     title="Splash Ekranı"
-                    description="Uygulama açılış görseli."
+                    description="Açılışta 5 saniye gösterilecek PNG görsel. TestFlight build için zorunludur."
                     value={values.b2b_mobile_splash}
                     onChange={(value) => setAsset("b2b_mobile_splash", value)}
                   />
@@ -446,6 +447,7 @@ function AssetUploader({
   square = false,
   cover = false,
   portrait = false,
+  pngOnly = false,
 }: {
   title: string;
   description: string;
@@ -454,11 +456,20 @@ function AssetUploader({
   square?: boolean;
   cover?: boolean;
   portrait?: boolean;
+  pngOnly?: boolean;
 }) {
+  const { toast } = useToast();
   async function handleFile(file?: File) {
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
-    if (file.size > 7_000_000) return;
+    if (pngOnly && file.type !== "image/png") {
+      toast({ title: "PNG gerekli", description: "iOS simgesi için PNG formatında görsel seçin.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 7_000_000) {
+      toast({ title: "Görsel çok büyük", description: "En fazla 7 MB görsel yükleyin.", variant: "destructive" });
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => onChange(String(reader.result || ""));
@@ -486,7 +497,7 @@ function AssetUploader({
                 Görsel Yükle
                 <input
                   type="file"
-                  accept={cover ? "image/png,image/jpeg,image/webp" : "image/png,image/jpeg,image/webp,image/svg+xml"}
+                  accept={pngOnly ? "image/png" : cover ? "image/png,image/jpeg,image/webp" : "image/png,image/jpeg,image/webp,image/svg+xml"}
                   className="hidden"
                   onChange={(event) => void handleFile(event.target.files?.[0])}
                 />
