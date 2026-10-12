@@ -723,10 +723,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             )
           : { rows: [] as Array<{ key: string }> };
         const available = new Set(found.rows.map((row) => String(row.key)));
-        const logo = available.has("b2b_mobile_logo") ? "b2b-logo"
-          : available.has("b2b_logo") ? "b2b-web-logo" : null;
-        const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : logo;
-        const webLogo = available.has("b2b_logo") ? "b2b-web-logo" : logo;
+        // The B2B mobile app must never fall back to an old web logo.
+        const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
+        const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
+        const webLogo = logo;
         const login = available.has("b2b_mobile_login_background") ? "b2b-login" : null;
         const version = Date.now();
         const image = (asset: string | null) =>
