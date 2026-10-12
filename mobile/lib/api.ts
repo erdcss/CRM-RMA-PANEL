@@ -1,6 +1,6 @@
 import { localAuth } from './supabase';
 
-const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
+const PRODUCTION_API_URL = 'https://b2b.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 export const API_BASE_URL = API_URL;
 
