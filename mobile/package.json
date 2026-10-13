@@ -14,7 +14,7 @@
     "build:ios": "node scripts/sync-mobile-branding.cjs b2b && node scripts/prepare-niimbot-sdk.js && eas build --platform ios --profile production",
     "submit:ios": "eas submit --platform ios --profile production --latest",
     "sync:branding": "node scripts/sync-mobile-branding.cjs b2b",
-    "build:android": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform android --profile production",
+    "build:android": "npm run build:android:aab",
     "dev:live": "node scripts/live-dev.cjs --lan",
     "dev:live:tunnel": "node scripts/live-dev.cjs --tunnel",
     "dev:metro": "expo start --dev-client --lan",
@@ -22,7 +22,9 @@
     "device:register": "eas device:create",
     "build:dev:ios": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform ios --profile development-ui --clear-cache",
     "eas-build-pre-install": "node scripts/eas-preinstall.cjs",
-    "build:testflight": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform ios --profile testflight --clear-cache --auto-submit"
+    "build:testflight": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform ios --profile testflight --clear-cache --auto-submit",
+    "build:android:apk": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform android --profile android-apk",
+    "build:android:aab": "node scripts/sync-mobile-branding.cjs b2b && eas build --platform android --profile android-aab"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
