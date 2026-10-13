@@ -131,6 +131,22 @@ export default function AdminApplications() {
     }
   }
 
+  async function resetReviewPassword() {
+    if (!reviewEmail.trim() || !window.confirm("Bu hesabın mevcut şifresi geçersiz olacak. Devam edilsin mi?")) return;
+    setReviewBusy(true);
+    try {
+      const response = await apiRequest("POST", "/api/admin/b2b-review-account/reset-password", { email: reviewEmail.trim() });
+      const payload = await response.json();
+      if (!response.ok || !payload.password) throw new Error(payload.error || "Şifre yenilenemedi");
+      setReviewCredentials({ email: payload.email, password: payload.password });
+      toast({ title: "Apple inceleme şifresi yenilendi", description: "Yeni şifreyi TestFlight ve App Store Connect'te kullanın." });
+    } catch (error) {
+      toast({ title: "Şifre yenilenemedi", description: error instanceof Error ? error.message : "Tekrar deneyin", variant: "destructive" });
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
   const pending = data.filter((item) => item.applicationStatus === "pending");
   const approved = data.filter((item) => item.applicationStatus === "approved");
   const rejected = data.filter((item) => item.applicationStatus === "rejected");
@@ -153,7 +169,10 @@ export default function AdminApplications() {
                 Yalnızca Apple incelemesi için aktif B2B müşteri hesabı oluşturur. Vergi numarası, SMS doğrulaması ve ilk girişte şifre değiştirme gerektirmez. Şifre sadece bir kez gösterilir.
               </p>
             </div>
-            <Button type="button" onClick={() => setReviewDialogOpen(true)}>İnceleme Hesabı Oluştur</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" disabled={reviewBusy} onClick={() => void resetReviewPassword()}>Mevcut Hesabın Şifresini Yenile</Button>
+              <Button type="button" onClick={() => setReviewDialogOpen(true)}>İnceleme Hesabı Oluştur</Button>
+            </div>
           </div>
         </div>
 
