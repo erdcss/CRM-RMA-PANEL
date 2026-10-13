@@ -14,7 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { persistLocalImage } from '@/lib/attachments';
+import { persistLocalImage } from '@/lib/local-images';
 
 type ProductImagePickerProps = {
   imageUri?: string | null;
