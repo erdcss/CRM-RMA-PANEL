@@ -221,7 +221,7 @@ export default function HomeScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.text}
+            tintColor={palette.text}
           />
         }
         contentContainerStyle={styles.page}
@@ -293,7 +293,7 @@ export default function HomeScreen() {
               style={styles.notificationClose}
               onPress={toggleNotifications}
             >
-              <Ionicons name="close" size={18} color={colors.text} />
+              <Ionicons name="close" size={18} color={palette.text} />
             </Pressable>
           </View>
 
@@ -302,7 +302,7 @@ export default function HomeScreen() {
               <Ionicons
                 name="lock-closed-outline"
                 size={17}
-                color={colors.textMuted}
+                color={palette.muted}
               />
               <Text style={styles.notificationEmptyTitle}>
                 Bildirimler için giriş yapın
@@ -316,7 +316,7 @@ export default function HomeScreen() {
               <Ionicons
                 name="notifications-off-outline"
                 size={24}
-                color={colors.textMuted}
+                color={palette.muted}
               />
               <Text style={styles.notificationEmptyTitle}>
                 Yeni bildirim yok
@@ -341,7 +341,7 @@ export default function HomeScreen() {
                     <Ionicons
                       name="bag-check-outline"
                       size={18}
-                      color={colors.text}
+                      color={palette.text}
                     />
                   </View>
                   <View style={styles.notificationText}>
@@ -369,18 +369,18 @@ export default function HomeScreen() {
         </Animated.View>
 
         <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={20} color={colors.textMuted} />
+          <Ionicons name="search-outline" size={20} color={palette.muted} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder="Ürün veya stok kodu ara"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={palette.muted}
             style={styles.searchInput}
             returnKeyType="search"
           />
           {query ? (
             <Pressable onPress={() => setQuery('')}>
-              <Ionicons name="close-circle" size={19} color={colors.textMuted} />
+              <Ionicons name="close-circle" size={19} color={palette.muted} />
             </Pressable>
           ) : null}
         </View>
@@ -425,7 +425,7 @@ export default function HomeScreen() {
             <Ionicons
               name="apps-outline"
               size={17}
-              color={!selectedCategory ? '#FFFFFF' : colors.text}
+              color={!selectedCategory ? '#FFFFFF' : palette.text}
             />
             <Text
               style={[
@@ -459,7 +459,7 @@ export default function HomeScreen() {
                 <Ionicons
                   name={icons[index % icons.length]}
                   size={17}
-                  color={active ? '#FFFFFF' : colors.text}
+                  color={active ? '#FFFFFF' : palette.text}
                 />
                 <Text
                   numberOfLines={2}
@@ -541,7 +541,7 @@ export default function HomeScreen() {
                     <Ionicons
                       name="cube-outline"
                       size={38}
-                      color={colors.textMuted}
+                      color={palette.muted}
                     />
                   )}
                 </View>
@@ -562,7 +562,7 @@ export default function HomeScreen() {
                       <Ionicons
                         name="lock-closed-outline"
                         size={13}
-                        color={colors.textSecondary}
+                        color={palette.textSecondary}
                       />
                       <Text style={styles.lockedPriceText}>
                         Fiyat bilgisi giriş yapıldıktan sonra listelenir
@@ -582,7 +582,7 @@ export default function HomeScreen() {
 
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={36} color={colors.textMuted} />
+            <Ionicons name="cube-outline" size={36} color={palette.muted} />
             <Text style={styles.emptyTitle}>Ürün bulunamadı</Text>
             <Text style={styles.emptyText}>
               Arama veya kategori filtresini değiştirin.
