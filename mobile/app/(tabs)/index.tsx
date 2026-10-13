@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
 import { BrandLogo } from '@/components/ui/BrandLogo';
+import { B2B_HEADER_LOGO } from '@/assets/header-logo';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
@@ -225,7 +226,7 @@ export default function HomeScreen() {
         </Animated.View> : null}
         <View style={styles.topRow}>
           <BrandLogo
-            uri={branding.b2b_mobile_logo || branding.b2b_web_logo}
+            uri={B2B_HEADER_LOGO}
             style={styles.logo}
           />
 
