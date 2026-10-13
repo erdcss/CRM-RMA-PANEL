@@ -12,6 +12,7 @@ import * as ExpoLinking from 'expo-linking';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { appAlert } from '@/lib/appAlert';
 import { clearOrderList } from '@/lib/b2b-order-list';
@@ -38,6 +39,8 @@ function isTrustedCheckoutUrl(value: string) {
 }
 
 export default function PaymentCardScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
@@ -139,7 +142,7 @@ export default function PaymentCardScreen() {
 
   if (!WebView) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.center}>
           <View style={styles.errorIcon}>
             <Ionicons name="build-outline" size={34} color="#FFFFFF" />
@@ -165,9 +168,9 @@ export default function PaymentCardScreen() {
 
   if (loadingHtml) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.text} />
+          <ActivityIndicator size="large" color={palette.text} />
           <Text style={styles.loaderText}>3D Secure hazırlanıyor…</Text>
         </View>
       </Screen>
@@ -176,7 +179,7 @@ export default function PaymentCardScreen() {
 
   if (!hasContent || failed) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.center}>
           <View style={styles.errorIcon}>
             <Ionicons name="close" size={34} color="#FFFFFF" />
@@ -194,11 +197,11 @@ export default function PaymentCardScreen() {
   }
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={21} color={colors.text} />
+            <Ionicons name="chevron-back" size={21} color={palette.text} />
           </Pressable>
 
           <View style={styles.headerText}>
@@ -217,7 +220,7 @@ export default function PaymentCardScreen() {
           <Ionicons
             name="lock-closed-outline"
             size={17}
-            color={colors.textSecondary}
+            color={palette.textSecondary}
           />
           <Text style={styles.securityText}>
             Bankanızdan gelen doğrulama kodunu bu ekranda girin. İşlem tamamlandığında sipariş sonucu otomatik açılır.
@@ -227,7 +230,7 @@ export default function PaymentCardScreen() {
         <View style={styles.webviewWrap}>
           {loadingPage ? (
             <View style={styles.loader}>
-              <ActivityIndicator size="large" color={colors.text} />
+              <ActivityIndicator size="large" color={palette.text} />
               <Text style={styles.loaderText}>Banka doğrulama ekranı yükleniyor…</Text>
             </View>
           ) : null}
@@ -295,17 +298,17 @@ export default function PaymentCardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: palette.background,
   },
   header: {
     minHeight: 66,
     paddingHorizontal: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    backgroundColor: colors.surface,
+    borderBottomColor: palette.border,
+    backgroundColor: palette.surface,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -316,19 +319,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
   },
   headerText: {
     flex: 1,
   },
   title: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   subtitle: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: 1,
   },
   secureBadge: {
@@ -344,7 +347,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     flexDirection: 'row',
@@ -353,7 +356,7 @@ const styles = StyleSheet.create({
   },
   securityText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     flex: 1,
     lineHeight: 17,
   },
@@ -362,25 +365,25 @@ const styles = StyleSheet.create({
     margin: spacing.md,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     overflow: 'hidden',
   },
   webview: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
   },
   loader: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     paddingHorizontal: spacing.xl,
   },
   loaderText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: spacing.md,
     textAlign: 'center',
   },
@@ -400,14 +403,14 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     textAlign: 'center',
     marginTop: spacing.md,
   },
   errorText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
   },
