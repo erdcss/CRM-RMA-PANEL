@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useAppearance } from '@/contexts/AppearanceContext';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,6 +65,7 @@ export default function ProfileScreen() {
   const { section } = useLocalSearchParams<{ section: string }>();
   const active: AccountSection = SECTIONS.some(x => x.key === section) ? section as AccountSection : 'company';
   const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const [account, setAccount] = useState<B2BAccount | null>(null);
   const [addresses, setAddresses] = useState<B2BAddress[]>([]);
   const [payments, setPayments] = useState<B2BPaymentMethod[]>([]);
@@ -326,9 +327,9 @@ export default function ProfileScreen() {
               style={styles.settingsRow}
               onPress={() => void Linking.openURL(`${API_BASE_URL}/privacy`)}
             >
-              <Ionicons name="shield-checkmark-outline" size={20} color={colors.text} />
+              <Ionicons name="shield-checkmark-outline" size={20} color={palette.text} />
               <Text style={styles.settingsLabel}>Gizlilik Politikası ve KVKK</Text>
-              <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+              <Ionicons name="open-outline" size={18} color={palette.muted} />
             </Pressable>
             <View style={styles.divider} />
             <Pressable
@@ -339,7 +340,7 @@ export default function ProfileScreen() {
               <Text style={[styles.settingsLabel, { color: colors.danger }]}>
                 Çıkış Yap
               </Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={18} color={palette.muted} />
             </Pressable>
           </Panel>
         ) : null}
@@ -357,6 +358,8 @@ function Panel({
   subtitle: string;
   children: React.ReactNode;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={styles.panel}>
       <View style={styles.panelHeader}>
@@ -377,6 +380,8 @@ function InfoRow({
   value?: string | null;
   last?: boolean;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={[styles.infoRow, last && { borderBottomWidth: 0 }]}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -398,10 +403,12 @@ function ListCard({
   badge?: string;
   last?: boolean;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={[styles.listRow, last && { borderBottomWidth: 0 }]}>
       <View style={styles.listIcon}>
-        <Ionicons name={icon} size={19} color={colors.text} />
+        <Ionicons name={icon} size={19} color={palette.text} />
       </View>
       <View style={styles.listText}>
         <Text style={styles.listTitle}>{title}</Text>
@@ -415,10 +422,12 @@ function ListCard({
 }
 
 function EmptyText({ text }: { text: string }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return <Text style={styles.emptyText}>{text}</Text>;
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   page: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
@@ -441,13 +450,13 @@ const styles = StyleSheet.create({
   },
   guestTitle: {
     ...typography.largeTitle,
-    color: colors.text,
+    color: palette.text,
     marginTop: spacing.lg,
     fontWeight: '900',
   },
   guestText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: spacing.sm,
   },
@@ -475,17 +484,17 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   companyName: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     marginTop: 2,
   },
   email: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: 1,
   },
   sectionTabs: {
@@ -496,8 +505,8 @@ const styles = StyleSheet.create({
     minHeight: 42,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -509,7 +518,7 @@ const styles = StyleSheet.create({
   },
   sectionTabText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     fontWeight: '700',
   },
   sectionTabTextActive: {
@@ -517,24 +526,24 @@ const styles = StyleSheet.create({
   },
   panel: {
     borderRadius: radius.xl,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     overflow: 'hidden',
   },
   panelHeader: {
     padding: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: palette.border,
   },
   panelTitle: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
   panelSubtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 2,
   },
   panelBody: {
@@ -543,23 +552,23 @@ const styles = StyleSheet.create({
   infoRow: {
     minHeight: 52,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: palette.border,
     justifyContent: 'center',
   },
   infoLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   infoValue: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     marginTop: 2,
     fontWeight: '700',
   },
   listRow: {
     minHeight: 68,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: palette.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
@@ -568,7 +577,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -577,18 +586,18 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
   listSubtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 2,
   },
   badge: {
     ...typography.caption,
-    color: colors.text,
-    backgroundColor: colors.surfaceSecondary,
+    color: palette.text,
+    backgroundColor: palette.surfaceSecondary,
     borderRadius: radius.full,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -599,11 +608,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: palette.border,
+    backgroundColor: palette.background,
     paddingHorizontal: spacing.md,
     ...typography.body,
-    color: colors.text,
+    color: palette.text,
     marginBottom: spacing.sm,
   },
   messageInput: {
@@ -640,15 +649,15 @@ const styles = StyleSheet.create({
   settingsLabel: {
     flex: 1,
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.borderLight,
+    backgroundColor: palette.border,
   },
   emptyText: {
     ...typography.body,
-    color: colors.textMuted,
+    color: palette.muted,
     paddingVertical: spacing.lg,
     textAlign: 'center',
   },
