@@ -28,6 +28,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       pointerEvents="box-none"
       style={[
         styles.safeWrap,
+        { backgroundColor: palette.background },
         Platform.OS === 'ios'
           ? { paddingBottom: Math.max(insets.bottom, 8) }
           : { paddingBottom: Math.max(insets.bottom, 6) },
@@ -37,7 +38,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         style={[
           styles.container,
           Platform.OS === 'ios' ? styles.iosGlass : styles.androidBar,
-          { backgroundColor: palette.surface, borderColor: palette.border },
+          { backgroundColor: palette.background, borderColor: palette.border, shadowOpacity: 0 },
         ]}
       >
         {routes.map(({ route, index }) => {
@@ -88,9 +89,9 @@ const styles = StyleSheet.create({
   iosGlass: {
     marginHorizontal: 4,
     borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.92)',
+    borderColor: 'transparent',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.14,
