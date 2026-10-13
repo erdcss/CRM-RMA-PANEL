@@ -2424,7 +2424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Geçersiz barkod" });
     }
     try {
-      const digits = /^\\d+$/.test(code) ? code : null;
+      const digits = /^\d+$/.test(code) ? code : null;
       const result = await pool.query(
         `SELECT id::text AS id, name, barcode
          FROM b2b_products
