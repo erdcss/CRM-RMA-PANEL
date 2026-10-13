@@ -116,8 +116,6 @@ function ReelCard({
           </View>
         ) : null}
 
-        <View style={styles.gradientTop} />
-        <View style={styles.gradientBottom} />
       </Pressable>
 
       {videoError ? (
@@ -333,22 +331,6 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
-  },
-  gradientTop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: 130,
-    backgroundColor: 'rgba(0,0,0,0.22)',
-  },
-  gradientBottom: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 260,
-    backgroundColor: 'rgba(0,0,0,0.34)',
   },
   topBar: {
     position: 'absolute',
