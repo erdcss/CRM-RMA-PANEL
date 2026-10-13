@@ -8,9 +8,9 @@ import { useAppearance } from '@/contexts/AppearanceContext';
 
 const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }> = {
   index: { label: 'Ana Sayfa', icon: 'home-outline', activeIcon: 'home' },
-  menu: { label: 'Menü', icon: 'grid-outline', activeIcon: 'grid' },
-  discover: { label: 'Keşfet', icon: 'play-circle-outline', activeIcon: 'play-circle' },
-  orders: { label: 'Siparişler', icon: 'list-outline', activeIcon: 'list' },
+  menu: { label: 'Kategoriler', icon: 'grid-outline', activeIcon: 'grid' },
+  discover: { label: 'Reels', icon: 'play-circle-outline', activeIcon: 'play-circle' },
+  orders: { label: 'Sepetim', icon: 'cart-outline', activeIcon: 'cart' },
   profile: { label: 'Hesabım', icon: 'person-outline', activeIcon: 'person' },
 };
 
