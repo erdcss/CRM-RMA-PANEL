@@ -7,7 +7,7 @@ import { AppAlertBridge } from '@/components/ui/AppAlertBridge';
 import { AuthGate, RootStack } from '@/components/auth/AuthGate';
 import { AlertProvider } from '@/contexts/AlertContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { AppearanceProvider } from '@/contexts/AppearanceContext';
+import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
 
 const SPLASH_DURATION_MS = 5_000;
@@ -15,6 +15,7 @@ const SPLASH_DURATION_MS = 5_000;
 function AppContent() {
   const branding = useMobileBranding();
   const { loading } = useAuth();
+  const { mode } = useAppearance();
   const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
 
   // Splash is the only rendered screen at cold launch. Keep it visible while
@@ -31,7 +32,7 @@ function AppContent() {
     <View style={styles.root}>
       <AppAlertBridge />
       <AuthGate>
-        <StatusBar style="dark" />
+        <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
         <RootStack />
       </AuthGate>
       {showSplash ? (
