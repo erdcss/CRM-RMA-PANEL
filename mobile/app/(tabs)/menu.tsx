@@ -4,10 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { rmaApi } from '@/lib/api';
 
 export default function MenuScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const [categories, setCategories] = useState<string[]>([]);
 
@@ -40,7 +43,7 @@ export default function MenuScreen() {
   };
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <ScrollView contentContainerStyle={styles.page}>
         <View style={styles.header}>
           <Text style={styles.eyebrow}>ÇALIŞKAN B2B</Text>
@@ -72,7 +75,7 @@ export default function MenuScreen() {
                 <Ionicons
                   name={icons[index % icons.length]}
                   size={22}
-                  color={colors.text}
+                  color={palette.text}
                 />
               </View>
               <View style={styles.textGroup}>
@@ -84,7 +87,7 @@ export default function MenuScreen() {
               <Ionicons
                 name="chevron-forward"
                 size={19}
-                color={colors.textMuted}
+                color={palette.muted}
               />
             </Pressable>
           ))}
@@ -92,7 +95,7 @@ export default function MenuScreen() {
 
         {categories.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="grid-outline" size={34} color={colors.textMuted} />
+            <Ionicons name="grid-outline" size={34} color={palette.muted} />
             <Text style={styles.emptyTitle}>Kategori bulunamadı</Text>
             <Text style={styles.emptyText}>
               Admin panelde ana sayfa kategorileri eklendiğinde burada listelenecek.
@@ -104,7 +107,7 @@ export default function MenuScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   page: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
@@ -115,19 +118,19 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     fontWeight: '800',
     letterSpacing: 1.3,
   },
   title: {
     ...typography.largeTitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: spacing.xs,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: spacing.xs,
     maxWidth: 320,
   },
@@ -160,9 +163,9 @@ const styles = StyleSheet.create({
   item: {
     minHeight: 74,
     borderRadius: radius.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     paddingHorizontal: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,7 +175,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radius.lg,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -181,12 +184,12 @@ const styles = StyleSheet.create({
   },
   itemTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
   itemSubtitle: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: 2,
   },
   empty: {
@@ -197,12 +200,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     marginTop: spacing.sm,
   },
   emptyText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
   },
