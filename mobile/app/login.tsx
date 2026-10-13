@@ -35,6 +35,9 @@ export default function LoginScreen() {
   const formTranslate = useRef(new Animated.Value(14)).current;
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const keyboardLift = useRef(new Animated.Value(0)).current;
+  const [androidKeyboardOpen, setAndroidKeyboardOpen] = useState(false);
   const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
 
   useEffect(() => {
@@ -43,6 +46,34 @@ export default function LoginScreen() {
       Animated.timing(formTranslate, { toValue: 0, duration: 350, useNativeDriver: true }),
     ]).start();
   }, [formOpacity, formTranslate]);
+
+  // Android resizes the available viewport above the keyboard. Animate the
+  // card's final lift, and scroll it into view on short displays.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setAndroidKeyboardOpen(true);
+      Animated.spring(keyboardLift, {
+        toValue: -12,
+        damping: 19,
+        stiffness: 190,
+        mass: 0.85,
+        useNativeDriver: true,
+      }).start();
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setAndroidKeyboardOpen(false);
+      Animated.spring(keyboardLift, {
+        toValue: 0,
+        damping: 19,
+        stiffness: 190,
+        mass: 0.85,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, [keyboardLift]);
 
   const [passwordSetupVisible, setPasswordSetupVisible] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -119,13 +150,14 @@ export default function LoginScreen() {
       <View style={styles.heroShade}/>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={styles.heroContent}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
-          <View style={styles.heroSpacer} />
-          <Animated.View style={[styles.heroCard, { opacity: formOpacity, transform: [{ translateY: formTranslate }] }]}>
+          <View style={[styles.heroSpacer, androidKeyboardOpen && styles.heroSpacerKeyboard]} />
+          <Animated.View style={[styles.heroCard, { opacity: formOpacity, transform: [{ translateY: Animated.add(formTranslate, keyboardLift) }] }]}>
             <Text style={styles.heroTitle}>Hoş <Text style={styles.heroAccent}>Geldiniz</Text></Text>
             <Text style={styles.heroSubtitle}>Çalışkan B2B platformuna giriş yaparak işinizi daha ileriye taşıyın.</Text>
 
@@ -293,6 +325,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   flex:{flex:1},
   heroSpacer:{flexGrow:1,minHeight:72},
+  heroSpacerKeyboard:{minHeight:10},
   heroAccent:{color:'#FFCC00'},
   fieldLabel:{color:'#E9E9E9',fontSize:13,fontWeight:'700',marginBottom:8},
   fieldInput:{flex:1,minWidth:0,fontSize:16,color:'#FFFFFF',height:'100%',paddingVertical:0},
