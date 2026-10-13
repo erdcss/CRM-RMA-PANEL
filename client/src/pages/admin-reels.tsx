@@ -46,6 +46,7 @@ export default function AdminReels() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [uploading, setUploading] = useState(false);
+  const [migratingId, setMigratingId] = useState<string | null>(null);
 
   const { data: reels = [], isLoading } = useQuery<Reel[]>({
     queryKey: ["/api/admin/reels"],
@@ -97,6 +98,22 @@ export default function AdminReels() {
     await apiRequest("DELETE", `/api/admin/reels/${id}`);
     await queryClient.invalidateQueries({ queryKey: ["/api/admin/reels"] });
   };
+
+  async function migrateReel(id: string | number) {
+    const key = String(id);
+    setMigratingId(key);
+    try {
+      const response = await apiRequest("POST", `/api/admin/reels/${key}/migrate`, {});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Video dönüştürülemedi");
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/reels"] });
+      toast({ title: "Video mobil uyumlu hâle getirildi", description: "Yeni MP4 bağlantısı kaydedildi." });
+    } catch (error) {
+      toast({ title: "Video dönüştürülemedi", description: error instanceof Error ? error.message : "Videoyu yeniden yükleyin.", variant: "destructive" });
+    } finally {
+      setMigratingId(null);
+    }
+  }
 
   const uploadFile = async (file?: File) => {
     if (!file) return;
@@ -204,7 +221,7 @@ export default function AdminReels() {
                   {uploading ? "Yükleniyor…" : "Video Yükle"}
                 </Button>
               </div>
-              <p className="text-xs text-slate-500">MP4/MOV/WEBM, en fazla 10MB. İsterseniz doğrudan video URL de kullanabilirsiniz.</p>
+              <p className="text-xs text-slate-500">MP4/MOV/WEBM, en fazla 10MB. Yüklenen dosyalar H.264 MP4 olarak dönüştürülür ve iOS/Android için ortak depolanır. Harici URL'nin mobil uyumluluğunu ayrıca doğrulayın.</p>
             </div>
 
             <div className="space-y-2">
@@ -277,7 +294,13 @@ export default function AdminReels() {
                       <span>{reel.is_active ? "Yayında" : "Pasif"}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {!reel.video_url.startsWith("/api/public/reels/media/") ? (
+                      <Button type="button" size="sm" variant="outline" disabled={migratingId === String(reel.id)}
+                        onClick={() => void migrateReel(reel.id)}>
+                        {migratingId === String(reel.id) ? "Dönüştürülüyor…" : "Mobil MP4'e Dönüştür"}
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="outline"
