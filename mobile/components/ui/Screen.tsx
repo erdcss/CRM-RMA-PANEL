@@ -3,6 +3,7 @@ import { StyleSheet, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '@/constants/theme';
+import { useAppearance } from '@/contexts/AppearanceContext';
 
 type ScreenProps = {
   children: ReactNode;
@@ -11,10 +12,11 @@ type ScreenProps = {
 };
 
 export function Screen({ children, style, edges = ['top'] }: ScreenProps) {
+  const { palette } = useAppearance();
   const safeEdges = Array.from(new Set(['top', ...edges])) as ('top' | 'bottom' | 'left' | 'right')[];
 
   return (
-    <SafeAreaView style={[styles.screen, style]} edges={safeEdges}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: palette.background }, style]} edges={safeEdges}>
       {children}
     </SafeAreaView>
   );
