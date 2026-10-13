@@ -24,7 +24,8 @@
       "package": "com.caliskangroup.rma",
       "adaptiveIcon": {
         "backgroundColor": "#101010"
-      }
+      },
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       [
