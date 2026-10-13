@@ -1,11 +1,15 @@
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function PaymentResultScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const params = useLocalSearchParams<{
     result?: string;
@@ -18,7 +22,7 @@ export default function PaymentResultScreen() {
   const bankTransfer = params.method === 'bank_transfer';
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <View style={styles.page}>
         <View
           style={[
@@ -75,7 +79,7 @@ export default function PaymentResultScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   page: {
     flex: 1,
     paddingHorizontal: spacing.xxl,
@@ -91,14 +95,14 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.largeTitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     textAlign: 'center',
     marginTop: spacing.xl,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: spacing.sm,
     lineHeight: 22,
@@ -107,17 +111,17 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: spacing.xl,
     borderRadius: radius.lg,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     padding: spacing.lg,
     alignItems: 'center',
   },
   orderLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   orderNumber: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: spacing.xs,
   },
@@ -143,8 +147,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -152,7 +156,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
 });
