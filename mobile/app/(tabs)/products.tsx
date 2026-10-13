@@ -15,6 +15,7 @@ import { AppHeader } from '@/components/ui/AppHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -43,6 +44,8 @@ function productImage(product: B2BProduct) {
 }
 
 export default function ProductsScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const { session } = useAuth();
   const [query, setQuery] = useState('');
@@ -102,7 +105,7 @@ export default function ProductsScreen() {
 
   if (loading && products.length === 0) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <AppHeader title="Ürünler" subtitle="Çalışkan B2B ürün kataloğu" rightSlot={rightSlot} />
         <LoadingState />
       </Screen>
@@ -110,7 +113,7 @@ export default function ProductsScreen() {
   }
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <AppHeader
         title="Ürünler"
         subtitle={`${filteredProducts.length} ürün`}
@@ -171,7 +174,7 @@ export default function ProductsScreen() {
                 {image ? (
                   <Image source={{ uri: image }} style={styles.image} contentFit="contain" cachePolicy="memory-disk" />
                 ) : (
-                  <Ionicons name="cube-outline" size={34} color={colors.textMuted} />
+                  <Ionicons name="cube-outline" size={34} color={palette.muted} />
                 )}
               </View>
 
@@ -234,7 +237,7 @@ export default function ProductsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xxxl,
@@ -258,7 +261,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -267,12 +270,12 @@ const styles = StyleSheet.create({
   },
   guestNoticeTitle: {
     ...typography.bodyMedium,
-    color: colors.primaryDark,
+    color: palette.text,
     fontWeight: '700',
   },
   guestNoticeSubtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 2,
   },
   loginButton: {
@@ -281,7 +284,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.primary,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -294,9 +297,9 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     gap: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     borderRadius: radius.lg,
     padding: spacing.md,
   },
@@ -305,8 +308,8 @@ const styles = StyleSheet.create({
     height: 92,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.borderLight,
-    backgroundColor: colors.surfaceSecondary,
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -321,7 +324,7 @@ const styles = StyleSheet.create({
   },
   productName: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
   },
   metaRow: {
     marginTop: spacing.xs,
@@ -329,11 +332,11 @@ const styles = StyleSheet.create({
   },
   metaText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
   },
   minOrder: {
     ...typography.caption,
-    color: colors.text,
+    color: palette.text,
     marginTop: spacing.xs,
     fontWeight: '600',
   },
@@ -342,11 +345,11 @@ const styles = StyleSheet.create({
   },
   priceLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   price: {
     ...typography.title2,
-    color: colors.text,
+    color: palette.text,
     marginTop: 2,
   },
   lockedPrice: {
@@ -360,7 +363,7 @@ const styles = StyleSheet.create({
   },
   lockedPriceText: {
     ...typography.caption,
-    color: colors.primaryDark,
+    color: palette.text,
     flex: 1,
     fontWeight: '600',
   },
