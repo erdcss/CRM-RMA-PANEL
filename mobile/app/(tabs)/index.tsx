@@ -460,7 +460,7 @@ export default function HomeScreen() {
                   <Text style={styles.searchResultSku} numberOfLines={1}>{product.sku || product.barcode || 'Ürün'}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={palette.muted} />
-              </Press>;
+              </Pressable>;
             })}
             {!filtered.length ? <Text style={styles.searchResultEmpty}>Aramanızla eşleşen ürün bulunamadı.</Text> : null}
           </View>
