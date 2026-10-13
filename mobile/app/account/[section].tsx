@@ -281,14 +281,14 @@ export default function ProfileScreen() {
               value={supportSubject}
               onChangeText={setSupportSubject}
               placeholder="Konu"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={palette.muted}
               style={styles.input}
             />
             <TextInput
               value={supportMessage}
               onChangeText={setSupportMessage}
               placeholder="Mesajınızı yazın"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor={palette.muted}
               multiline
               style={[styles.input, styles.messageInput]}
             />
