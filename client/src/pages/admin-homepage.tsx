@@ -7,9 +7,16 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
+type HomeCategoryCard = { category: string; label: string; imageId: string };
+
 type HomepageConfig = {
   categories: string[];
   detectedCategories: string[];
+  banners: HomeBanner[];
+  categoryCards: HomeCategoryCard[];
+  sliderAutoPlay: boolean;
+  sliderIntervalMs: number;
 };
 
 async function loadHomepageConfig(): Promise<HomepageConfig> {
@@ -28,10 +35,20 @@ export default function AdminHomepage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [newCategory, setNewCategory] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
+  const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
+  const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
 
   useEffect(() => {
-    if (data?.categories) setCategories(data.categories);
-  }, [data?.categories]);
+    if (!data) return;
+    setCategories(data.categories || []);
+    setBanners(data.banners || []);
+    setCategoryCards(data.categoryCards || []);
+    setSliderAutoPlay(data.sliderAutoPlay !== false);
+    setSliderIntervalMs(data.sliderIntervalMs || 5000);
+  }, [data]);
 
   const suggestions = useMemo(() => {
     const selected = new Set(categories.map((item) => item.toLocaleLowerCase("tr-TR")));
@@ -39,6 +56,47 @@ export default function AdminHomepage() {
       (item) => !selected.has(item.toLocaleLowerCase("tr-TR")),
     );
   }, [categories, data?.detectedCategories]);
+
+  function updateCategoryCard(category: string, change: Partial<HomeCategoryCard>) {
+    setCategoryCards((current) => {
+      const prior = current.find((entry) => entry.category === category);
+      return [...current.filter((entry) => entry.category !== category), { category, label: category, imageId: "", ...prior, ...change }];
+    });
+  }
+
+  async function uploadMedia(file: File, onReady: (id: string) => void) {
+    if (file.size > 3 * 1024 * 1024) {
+      toast({ title: "Görsel büyük", description: "En fazla 3 MB PNG, JPEG, WebP veya GIF yüklenebilir.", variant: "destructive" });
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Görsel okunamadı"));
+        reader.readAsDataURL(file);
+      });
+      const response = await fetch("/api/admin/homepage/media", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataUrl }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Görsel kaydedilemedi");
+      onReady(String(result.id));
+      toast({ title: "Görsel yüklendi", description: "Yayımlamak için değişiklikleri kaydedin." });
+    } catch (error) {
+      toast({ title: "Görsel yüklenemedi", description: error instanceof Error ? error.message : "Tekrar deneyin", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function addBanner() {
+    const id = Array.from(crypto.getRandomValues(new Uint8Array(16))).map((x) => x.toString(16).padStart(2, "0")).join("");
+    setBanners((items) => [...items, { id, title: "", subtitle: "", buttonText: "Ürünleri Keşfet", imageId: "" }].slice(0, 12));
+  }
 
   function addCategory(raw: string) {
     const clean = raw.trim().replace(/\s+/g, " ");
@@ -67,9 +125,11 @@ export default function AdminHomepage() {
   async function save() {
     setSaving(true);
     try {
-      const response = await apiRequest("PUT", "/api/admin/homepage", { categories });
+      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), banners, sliderAutoPlay, sliderIntervalMs });
       const result = await response.json() as HomepageConfig;
       setCategories(result.categories || []);
+      setBanners(result.banners || []);
+      setCategoryCards(result.categoryCards || []);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage"] }),
         queryClient.invalidateQueries({ queryKey: ["/api/public/homepage"] }),
@@ -100,7 +160,7 @@ export default function AdminHomepage() {
             <div>
               <h1 className="text-2xl font-black tracking-tight">Ana Sayfa</h1>
               <p className="text-sm text-muted-foreground">
-                B2B web sitesinin ana sayfa bölümlerini buradan yönetin.
+                B2B mobil uygulamasının banner, kategori ve vitrin bölümlerini buradan yönetin.
               </p>
             </div>
           </div>
@@ -165,10 +225,29 @@ export default function AdminHomepage() {
                         setCategories((current) =>
                           current.map((item, itemIndex) => itemIndex === index ? value : item),
                         );
+                        setCategoryCards((current) => current.map(card => card.category === category ? { ...card, category: value } : card));
                       }}
                       className="h-9"
                     />
 
+                    <div className="flex min-w-[190px] flex-col gap-1.5">
+                      <Input
+                        className="h-8 text-xs"
+                        placeholder="Mobil görünen başlık"
+                        value={categoryCards.find((entry) => entry.category === category)?.label ?? category}
+                        onChange={(event) => updateCategoryCard(category, { label: event.target.value })}
+                        maxLength={80}
+                        aria-label={category + " mobil başlığı"}
+                      />
+                      <label className="cursor-pointer text-xs font-semibold text-amber-700">
+                        Görsel/GIF Yükle
+                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading}
+                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadMedia(file, (imageId) => updateCategoryCard(category, { imageId })); event.target.value = ""; }} />
+                      </label>
+                    </div>
+                    {categoryCards.find((entry) => entry.category === category)?.imageId ? (
+                      <img alt="" className="h-11 w-11 rounded-md object-cover" src={`/api/public/homepage/media/${categoryCards.find((entry) => entry.category === category)?.imageId}`} />
+                    ) : null}
                     <Button
                       type="button"
                       size="icon"
@@ -243,6 +322,56 @@ export default function AdminHomepage() {
                 )}
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border bg-background shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
+            <div>
+              <h2 className="text-lg font-bold">Mobil Ana Sayfa Bannerları</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Görseller ve metinler mobil uygulamada kaydırılabilir slider olarak görünür.</p>
+            </div>
+            <Button type="button" variant="outline" onClick={addBanner} disabled={banners.length >= 12}><Plus className="mr-2 h-4 w-4" /> Banner Ekle</Button>
+          </div>
+          <div className="space-y-4 p-5">
+            <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-muted/20 p-4">
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" checked={sliderAutoPlay} onChange={(e) => setSliderAutoPlay(e.target.checked)} />
+                Otomatik kaydır
+              </label>
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                Süre (saniye)
+                <Input type="number" min={2.5} max={15} step={0.5} value={sliderIntervalMs / 1000} className="w-24"
+                  onChange={(e) => setSliderIntervalMs(Math.max(2500, Math.min(15000, Math.round(Number(e.target.value || 5) * 1000))))} />
+              </label>
+              <span className="text-xs text-muted-foreground">2,5–15 saniye arasında ayarlanabilir.</span>
+            </div>
+
+            {banners.length ? banners.map((banner, index) => (
+              <div key={banner.id} className="rounded-xl border p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <strong className="text-sm">Banner {index + 1}</strong>
+                  <div className="flex gap-1">
+                    <Button size="icon" variant="ghost" aria-label="Yukarı taşı" disabled={!index} onClick={() => setBanners(items => { const next = [...items]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}><ArrowUp className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" aria-label="Aşağı taşı" disabled={index >= banners.length - 1} onClick={() => setBanners(items => { const next = [...items]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}><ArrowDown className="h-4 w-4" /></Button>
+                    <Button size="icon" variant="ghost" aria-label="Bannerı sil" onClick={() => setBanners(items => items.filter(x => x.id !== banner.id))}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1 text-xs font-semibold">Başlık<Input maxLength={120} value={banner.title} onChange={e => setBanners(items => items.map(x => x.id === banner.id ? { ...x, title: e.target.value } : x))} /></label>
+                  <label className="space-y-1 text-xs font-semibold">Buton metni<Input maxLength={45} value={banner.buttonText} onChange={e => setBanners(items => items.map(x => x.id === banner.id ? { ...x, buttonText: e.target.value } : x))} /></label>
+                  <label className="space-y-1 text-xs font-semibold md:col-span-2">Açıklama<Input maxLength={240} value={banner.subtitle} onChange={e => setBanners(items => items.map(x => x.id === banner.id ? { ...x, subtitle: e.target.value } : x))} /></label>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-4">
+                  <label className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-muted">
+                    {banner.imageId ? "Görseli Değiştir" : "Banner Görseli Ekle"}
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading}
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void uploadMedia(file, (imageId) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId } : x))); e.target.value = ""; }} />
+                  </label>
+                  {banner.imageId ? <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title || "Banner önizlemesi"} className="h-24 max-w-[230px] rounded-lg object-cover" /> : null}
+                </div>
+              </div>
+            )) : <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Banner bulunmuyor. Yeni bir banner ekleyerek başlayın.</p>}
           </div>
         </section>
       </div>
