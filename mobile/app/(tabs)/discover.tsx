@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Linking,
   Pressable,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
@@ -32,6 +34,7 @@ function ReelCard({
   const [videoError, setVideoError] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [retry, setRetry] = useState(0);
+  const [errorDetail, setErrorDetail] = useState('');
 
   const videoUrl = absoluteMediaUrl(item.video_url);
   const sourceUrl = videoUrl && retry ? `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}retry=${retry}` : videoUrl;
@@ -66,44 +69,69 @@ function ReelCard({
         onPress={() => setPaused((value) => !value)}
       >
         {videoUrl && !videoError ? (
-          <Video
-            ref={videoRef}
-            source={{ uri: sourceUrl! }}
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            posterSource={poster ? { uri: poster } : undefined}
-            shouldPlay={playing}
-            usePoster={false}
-            isLooping
-            isMuted={false}
-            volume={1}
-            useNativeControls={false}
-            progressUpdateIntervalMillis={250}
-            onLoad={() => {
-              setLoaded(true);
-              setBuffering(false);
-              if (playing) {
-                void videoRef.current?.playAsync().catch(() => setVideoError(true));
-              }
-            }}
-            onPlaybackStatusUpdate={(status) => {
-              if (!status.isLoaded) {
-                if (status.error) { setVideoError(true); setBuffering(false); }
-                return;
-              }
-              setBuffering(status.isBuffering);
-            }}
-            onError={() => {
-              setLoaded(false);
-              setBuffering(false);
-              setVideoError(true);
-            }}
-            pointerEvents="none"
-          />
-        ) : poster ? (
+          <>
+            <Video
+              key={String(item.id) + '-' + retry}
+              ref={videoRef}
+              source={{ uri: sourceUrl! }}
+              style={styles.video}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={playing}
+              isLooping
+              isMuted={false}
+              volume={1}
+              useNativeControls={false}
+              progressUpdateIntervalMillis={500}
+              onLoadStart={() => { setLoaded(false); setBuffering(true); }}
+              onLoad={() => {
+                setLoaded(true);
+                setBuffering(false);
+                if (playing) {
+                  void videoRef.current?.playAsync().catch((error) => {
+                    setErrorDetail(error instanceof Error ? error.message : String(error));
+                    setVideoError(true);
+                  });
+                }
+              }}
+              onPlaybackStatusUpdate={(status) => {
+                if (!status.isLoaded) {
+                  if (status.error) {
+                    setErrorDetail(status.error);
+                    setVideoError(true);
+                    setBuffering(false);
+                  }
+                  return;
+                }
+                setBuffering(Boolean(status.isBuffering));
+              }}
+              onError={(error) => {
+                setLoaded(false);
+                setBuffering(false);
+                setErrorDetail(String(error || 'Video formatı veya bağlantı hatası'));
+                setVideoError(true);
+              }}
+              pointerEvents="none"
+            />
+            {!loaded && poster ? (
+              <Image
+                source={{ uri: poster }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                pointerEvents="none"
+              />
+            ) : null}
+            {buffering && active ? (
+              <View style={styles.loadingIndicator} pointerEvents="none">
+                <ActivityIndicator color="#FFFFFF" size="large" />
+              </View>
+            ) : null}
+          </>
+        ) : videoError ? (
           <View style={styles.posterWrap}>
-            <VideoFallback />
+            {poster ? <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <VideoFallback />}
           </View>
+        ) : poster ? (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
         ) : (
           <VideoFallback />
         )}
@@ -121,7 +149,7 @@ function ReelCard({
       {videoError ? (
         <Pressable
           style={[styles.playOverlay, { zIndex: 10 }]}
-          onPress={() => { setVideoError(false); setLoaded(false); setBuffering(true); setPaused(false); setRetry(value => value + 1); }}
+          onPress={() => { setVideoError(false); setErrorDetail(''); setLoaded(false); setBuffering(true); setPaused(false); setRetry(value => value + 1); }}
           accessibilityRole="button"
           accessibilityLabel="Videoyu yeniden dene"
         >
@@ -129,6 +157,7 @@ function ReelCard({
             <Ionicons name="refresh" size={28} color="#FFFFFF" />
           </View>
           <Text style={{ color: '#FFFFFF', marginTop: 16, fontWeight: '800' }}>Videoyu yeniden dene</Text>
+          <Text style={styles.errorDetails} numberOfLines={2}>{errorDetail || 'Video açılamadı. Bağlantıyı kontrol edin.'}</Text>
         </Pressable>
       ) : null}
 
@@ -292,6 +321,8 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#050505',
   },
+  loadingIndicator: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
+  errorDetails: { color: '#E2E8F0', marginTop: 8, fontSize: 11, paddingHorizontal: 36, textAlign: 'center' },
   posterWrap: {
     flex: 1,
     backgroundColor: '#111827',
