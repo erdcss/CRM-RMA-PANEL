@@ -229,20 +229,29 @@ export default function HomeScreen() {
             style={styles.logo}
           />
 
-          <Pressable
-            style={[
-              styles.notificationButton,
-              notificationsOpen && styles.notificationButtonActive,
-            ]}
-            onPress={toggleNotifications}
-          >
-            <Ionicons
-              name={notificationsOpen ? 'notifications' : 'notifications-outline'}
-              size={22}
-              color={palette.text}
-            />
-            {notifications.length > 0 ? <View style={styles.notificationDot} /> : null}
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Pressable
+              style={styles.notificationButton}
+              onPress={() => router.push('/(tabs)/orders')}
+              accessibilityRole="button"
+              accessibilityLabel="Sipariş listesine git"
+            >
+              <Ionicons name="cart-outline" size={23} color={palette.text} />
+            </Pressable>
+            <Pressable
+              style={[styles.notificationButton, notificationsOpen && styles.notificationButtonActive]}
+              onPress={toggleNotifications}
+              accessibilityRole="button"
+              accessibilityLabel="Bildirimleri aç"
+            >
+              <Ionicons
+                name={notificationsOpen ? 'notifications' : 'notifications-outline'}
+                size={22}
+                color={palette.text}
+              />
+              {notifications.length > 0 ? <View style={styles.notificationDot} /> : null}
+            </Pressable>
+          </View>
         </View>
 
         <Animated.View
