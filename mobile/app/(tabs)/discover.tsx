@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -9,7 +10,7 @@ import {
 } from 'react-native';
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -29,6 +30,7 @@ function ReelCard({
   const [paused, setPaused] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [buffering, setBuffering] = useState(true);
   const [retry, setRetry] = useState(0);
 
   const videoUrl = absoluteMediaUrl(item.video_url);
@@ -39,6 +41,7 @@ function ReelCard({
     if (active) {
       setPaused(false);
       setVideoError(false);
+      setBuffering(true);
     } else {
       void videoRef.current?.pauseAsync().catch(() => undefined);
     }
@@ -69,8 +72,8 @@ function ReelCard({
             style={styles.video}
             resizeMode={ResizeMode.COVER}
             posterSource={poster ? { uri: poster } : undefined}
-            usePoster={Boolean(poster)}
             shouldPlay={playing}
+            usePoster={false}
             isLooping
             isMuted={false}
             volume={1}
@@ -78,17 +81,21 @@ function ReelCard({
             progressUpdateIntervalMillis={250}
             onLoad={() => {
               setLoaded(true);
+              setBuffering(false);
               if (playing) {
                 void videoRef.current?.playAsync().catch(() => setVideoError(true));
               }
             }}
-            onReadyForDisplay={() => {
-              if (playing) {
-                void videoRef.current?.playAsync().catch(() => undefined);
+            onPlaybackStatusUpdate={(status) => {
+              if (!status.isLoaded) {
+                if (status.error) { setVideoError(true); setBuffering(false); }
+                return;
               }
+              setBuffering(status.isBuffering);
             }}
             onError={() => {
               setLoaded(false);
+              setBuffering(false);
               setVideoError(true);
             }}
             pointerEvents="none"
@@ -116,7 +123,7 @@ function ReelCard({
       {videoError ? (
         <Pressable
           style={[styles.playOverlay, { zIndex: 10 }]}
-          onPress={() => { setVideoError(false); setLoaded(false); setPaused(false); setRetry(value => value + 1); }}
+          onPress={() => { setVideoError(false); setLoaded(false); setBuffering(true); setPaused(false); setRetry(value => value + 1); }}
           accessibilityRole="button"
           accessibilityLabel="Videoyu yeniden dene"
         >
@@ -127,6 +134,13 @@ function ReelCard({
         </Pressable>
       ) : null}
 
+      {videoError && videoUrl ? (
+        <Pressable style={styles.openExternally} accessibilityRole="button"
+          onPress={() => void Linking.openURL(videoUrl).catch(() => undefined)}>
+          <Text style={{ color:'#FFFFFF', fontWeight:'800', fontSize:12 }}>Videoyu tarayıcıda aç</Text>
+          <Ionicons name="open-outline" color="#FFFFFF" size={16} />
+        </Pressable>
+      ) : null}
       <View style={styles.topBar} pointerEvents="none">
         <View>
           <Text style={styles.eyebrow}>ÇALIŞKAN B2B</Text>
@@ -178,6 +192,8 @@ export default function DiscoverScreen() {
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   const [viewportHeight, setViewportHeight] = useState(0);
 
   useEffect(() => {
@@ -221,7 +237,7 @@ export default function DiscoverScreen() {
             renderItem={({ item, index }) => (
               <ReelCard
                 item={item}
-                active={index === activeIndex}
+                active={focused && index === activeIndex}
                 height={viewportHeight}
               />
             )}
@@ -301,6 +317,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.xs,
   },
+  openExternally: { position:'absolute', zIndex:15, bottom:175, alignSelf:'center', backgroundColor:'#33373D', borderRadius:12, padding:12, flexDirection:'row', alignItems:'center', gap:8 },
   playOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
