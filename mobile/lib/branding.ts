@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 export type MobileBranding = {
   b2b_web_logo?: string | null;
   b2b_mobile_logo?: string | null;
+  b2b_mobile_header_logo?: string | null;
   b2b_mobile_splash?: string | null;
   b2b_mobile_login_background?: string | null;
   business_mobile_logo?: string | null;
@@ -14,6 +15,7 @@ export type MobileBranding = {
 type MobileBrandingResponse = {
   logo?: string | null;
   webLogo?: string | null;
+  headerLogo?: string | null;
   splash?: string | null;
   loginBackground?: string | null;
   updatedAt?: number | null;
@@ -65,6 +67,7 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
       // The app uses only the mobile assets configured in Admin settings.
       b2b_web_logo: logo,
       b2b_mobile_logo: logo,
+      b2b_mobile_header_logo: normalizeBrandAsset(branding.headerLogo),
       b2b_mobile_splash: normalizeBrandAsset(branding.splash),
       b2b_mobile_login_background: normalizeBrandAsset(branding.loginBackground),
       loaded: true,
