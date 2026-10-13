@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
+import { useAppearance } from '@/contexts/AppearanceContext';
 
 const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }> = {
   index: { label: 'Ana Sayfa', icon: 'home-outline', activeIcon: 'home' },
@@ -17,6 +18,7 @@ const VISIBLE_TABS = new Set(Object.keys(TAB_CONFIG));
 
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { palette, mode } = useAppearance();
   const routes = state.routes
     .map((route, index) => ({ route, index }))
     .filter(({ route }) => VISIBLE_TABS.has(route.name));
@@ -35,6 +37,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         style={[
           styles.container,
           Platform.OS === 'ios' ? styles.iosGlass : styles.androidBar,
+          { backgroundColor: palette.surface, borderColor: palette.border },
         ]}
       >
         {routes.map(({ route, index }) => {
@@ -54,14 +57,14 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
 
           return (
             <Pressable key={route.key} onPress={onPress} style={styles.tab}>
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+              <View style={[styles.iconWrap, focused && styles.iconWrapActive, focused && { backgroundColor: mode === 'dark' ? '#383C40' : '#FFF1A8' }]}>
                 <Ionicons
                   name={focused ? config.activeIcon : config.icon}
                   size={21}
-                  color={focused ? colors.text : colors.textMuted}
+                  color={focused ? (mode === 'dark' ? '#FFCD00' : '#191919') : palette.textSecondary}
                 />
               </View>
-              <Text style={[styles.label, focused && styles.labelActive]}>{config.label}</Text>
+              <Text style={[styles.label, focused && styles.labelActive, { color: focused ? (mode === 'dark' ? '#FFCD00' : palette.text) : palette.textSecondary }]}>{config.label}</Text>
             </Pressable>
           );
         })}
