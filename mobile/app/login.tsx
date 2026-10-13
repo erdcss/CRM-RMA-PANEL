@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +25,7 @@ import { appAlert } from '@/lib/appAlert';
 
 export default function LoginScreen() {
   const branding = useMobileBranding();
+  const installedRevision = String(Constants.expoConfig?.extra?.sourceRevision || 'eski-build');
   const router = useRouter();
   const { session, signIn, completeInitialPassword, forgotPassword } = useAuth();
 
@@ -240,6 +242,7 @@ export default function LoginScreen() {
               <Ionicons name="business-outline" size={20} color="#FFCC00" />
               <Text style={styles.registerText}>İşletmemi Kaydet</Text>
             </Pressable>
+            <Text selectable style={styles.buildMark}>Kod: {installedRevision}</Text>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -335,6 +338,7 @@ const styles = StyleSheet.create({
   heroPrimary:{height:54,borderRadius:12,backgroundColor:'#FFCC00',alignItems:'center',justifyContent:'center'},
   heroPrimaryText:{fontWeight:'900',fontSize:18,color:'#101010'},
   heroSecondary:{height:52,borderRadius:12,borderWidth:1,borderColor:'#FFCC00',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10},
+  buildMark:{color:'#A8A8A8',fontSize:10,textAlign:'center',marginTop:12},
   focusOverlay:{...StyleSheet.absoluteFillObject,zIndex:40},
   focusDim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.6)'},
   focusSheet:{borderTopLeftRadius:27,borderTopRightRadius:27,borderWidth:1,borderColor:'#60512A',backgroundColor:'rgba(16,17,18,.98)',paddingHorizontal:24,paddingTop:10,paddingBottom:12},
