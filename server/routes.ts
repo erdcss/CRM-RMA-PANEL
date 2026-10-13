@@ -2393,6 +2393,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Exact barcode lookup; never rely on a truncated client-side product list.
+  app.get("/api/b2b/products/by-barcode/:code", async (req, res) => {
+    if (!pool) return res.status(404).json({ error: "Ürün bulunamadı" });
+    const code = String(req.params.code || "").trim();
+    if (!/^[A-Za-z0-9-]{4,60}$/.test(code)) {
+      return res.status(400).json({ error: "Geçersiz barkod" });
+    }
+    try {
+      const digits = /^\\d+$/.test(code) ? code : null;
+      const result = await pool.query(
+        `SELECT id::text AS id, name, barcode
+         FROM b2b_products
+         WHERE is_active IS DISTINCT FROM FALSE
+         AND (TRIM(barcode) = $1
+           OR ($2::text IS NOT NULL AND regexp_replace(COALESCE(barcode, ''), '[^0-9]', '', 'g') = $2))
+         ORDER BY created_at DESC LIMIT 1`,
+        [code, digits],
+      );
+      if (!result.rows[0]) return res.status(404).json({ error: "Bu barkodla eşleşen ürün bulunamadı." });
+      return res.json({ id: result.rows[0].id, name: result.rows[0].name, barcode: result.rows[0].barcode });
+    } catch (error) {
+      console.error("B2B barcode lookup failed:", error);
+      return res.status(500).json({ error: "Barkod sorgulaması tamamlanamadı." });
+    }
+  });
+
   app.get("/api/b2b/products/:id", async (req, res) => {
     if (!pool) return res.status(404).json({ error: "Ürün bulunamadı" });
 
