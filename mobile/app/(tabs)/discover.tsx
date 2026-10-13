@@ -29,8 +29,10 @@ function ReelCard({
   const [paused, setPaused] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   const videoUrl = absoluteMediaUrl(item.video_url);
+  const sourceUrl = videoUrl && retry ? `${videoUrl}${videoUrl.includes('?') ? '&' : '?'}retry=${retry}` : videoUrl;
   const poster = absoluteMediaUrl(item.thumbnail_url);
 
   useEffect(() => {
@@ -63,12 +65,12 @@ function ReelCard({
         {videoUrl && !videoError ? (
           <Video
             ref={videoRef}
-            source={{ uri: videoUrl }}
+            source={{ uri: sourceUrl! }}
             style={styles.video}
             resizeMode={ResizeMode.COVER}
             posterSource={poster ? { uri: poster } : undefined}
             usePoster={Boolean(poster)}
-            shouldPlay={false}
+            shouldPlay={playing}
             isLooping
             isMuted={false}
             volume={1}
@@ -77,7 +79,7 @@ function ReelCard({
             onLoad={() => {
               setLoaded(true);
               if (playing) {
-                void videoRef.current?.playAsync().catch(() => undefined);
+                void videoRef.current?.playAsync().catch(() => setVideoError(true));
               }
             }}
             onReadyForDisplay={() => {
@@ -99,7 +101,7 @@ function ReelCard({
           <VideoFallback />
         )}
 
-        {!playing ? (
+        {!playing && !videoError ? (
           <View style={styles.playOverlay}>
             <View style={styles.playButton}>
               <Ionicons name="play" size={30} color="#FFFFFF" />
@@ -110,6 +112,20 @@ function ReelCard({
         <View style={styles.gradientTop} />
         <View style={styles.gradientBottom} />
       </Pressable>
+
+      {videoError ? (
+        <Pressable
+          style={[styles.playOverlay, { zIndex: 10 }]}
+          onPress={() => { setVideoError(false); setLoaded(false); setPaused(false); setRetry(value => value + 1); }}
+          accessibilityRole="button"
+          accessibilityLabel="Videoyu yeniden dene"
+        >
+          <View style={styles.playButton}>
+            <Ionicons name="refresh" size={28} color="#FFFFFF" />
+          </View>
+          <Text style={{ color: '#FFFFFF', marginTop: 16, fontWeight: '800' }}>Videoyu yeniden dene</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.topBar} pointerEvents="none">
         <View>
