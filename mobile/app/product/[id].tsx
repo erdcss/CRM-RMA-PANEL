@@ -218,7 +218,7 @@ export default function ProductDetailScreen() {
                     name="remove"
                     size={20}
                     color={
-                      effectiveQuantity <= min ? colors.textMuted : colors.text
+                      effectiveQuantity <= min ? palette.muted : palette.text
                     }
                   />
                 </Pressable>
@@ -237,8 +237,8 @@ export default function ProductDetailScreen() {
                     size={20}
                     color={
                       effectiveQuantity >= maxBoxes
-                        ? colors.textMuted
-                        : colors.text
+                        ? palette.muted
+                        : palette.text
                     }
                   />
                 </Pressable>
