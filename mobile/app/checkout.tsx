@@ -15,6 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { appAlert } from '@/lib/appAlert';
 import {
@@ -80,6 +81,8 @@ function validCardNumber(value: string) {
 }
 
 export default function CheckoutScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const params = useLocalSearchParams<{ productId?: string; qty?: string; list?: string }>();
   const { session } = useAuth();
@@ -463,7 +466,7 @@ export default function CheckoutScreen() {
 
   if (!session) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.center}>
           <View style={styles.centerIcon}>
             <Ionicons name="lock-closed-outline" size={30} color="#FFFFFF" />
@@ -482,9 +485,9 @@ export default function CheckoutScreen() {
 
   if (loading || !preview) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.center}>
-          <Ionicons name="bag-check-outline" size={38} color={colors.textMuted} />
+          <Ionicons name="bag-check-outline" size={38} color={palette.muted} />
           <Text style={styles.centerTitle}>Ödeme hazırlanıyor…</Text>
         </View>
       </Screen>
@@ -504,14 +507,14 @@ export default function CheckoutScreen() {
         ];
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <ScrollView
         contentContainerStyle={styles.page}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         <Pressable style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+          <Ionicons name="chevron-back" size={20} color={palette.textSecondary} />
           <Text style={styles.backText}>Ürüne dön</Text>
         </Pressable>
 
@@ -545,7 +548,7 @@ export default function CheckoutScreen() {
                     <Ionicons
                       name="cube-outline"
                       size={34}
-                      color={colors.textMuted}
+                      color={palette.muted}
                     />
                   )}
                 </View>
@@ -613,7 +616,7 @@ export default function CheckoutScreen() {
             style={styles.outlineButton}
             onPress={() => setAddressFormOpen((current) => !current)}
           >
-            <Ionicons name="add" size={18} color={colors.text} />
+            <Ionicons name="add" size={18} color={palette.text} />
             <Text style={styles.outlineButtonText}>Yeni Adres Ekle</Text>
           </Pressable>
 
@@ -842,14 +845,14 @@ export default function CheckoutScreen() {
 
                 {cardNumber.replace(/\D/g, '').length < 8 ? (
                   <View style={styles.installmentInfo}>
-                    <Ionicons name="information-circle-outline" size={19} color={colors.textSecondary} />
+                    <Ionicons name="information-circle-outline" size={19} color={palette.textSecondary} />
                     <Text style={styles.installmentInfoText}>
                       Taksit oranlarını görmek için kart numarasının ilk 8 hanesini girin.
                     </Text>
                   </View>
                 ) : installmentsLoading ? (
                   <View style={styles.installmentInfo}>
-                    <Ionicons name="sync-outline" size={19} color={colors.textSecondary} />
+                    <Ionicons name="sync-outline" size={19} color={palette.textSecondary} />
                     <Text style={styles.installmentInfoText}>Taksit seçenekleri sorgulanıyor…</Text>
                   </View>
                 ) : installmentsError ? (
@@ -1003,7 +1006,7 @@ export default function CheckoutScreen() {
         ) : null}
 
         <View style={styles.securityFooter}>
-          <Ionicons name="shield-checkmark-outline" size={18} color={colors.textMuted} />
+          <Ionicons name="shield-checkmark-outline" size={18} color={palette.muted} />
           <Text style={styles.securityText}>
             Ödeme bilgileri güvenli bağlantı üzerinden işlenir.
           </Text>
@@ -1022,11 +1025,13 @@ function Section({
   icon: keyof typeof Ionicons.glyphMap;
   children: React.ReactNode;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionIcon}>
-          <Ionicons name={icon} size={19} color={colors.text} />
+          <Ionicons name={icon} size={19} color={palette.text} />
         </View>
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
@@ -1044,6 +1049,8 @@ function InfoLine({
   value: string;
   last?: boolean;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={[styles.infoLine, last && { borderBottomWidth: 0 }]}>
       <Text style={styles.infoLineLabel}>{label}</Text>
@@ -1065,6 +1072,8 @@ function ChoiceCard({
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <Pressable style={[styles.choiceCard, active && styles.choiceCardActive]} onPress={onPress}>
       <View style={[styles.choiceIcon, active && styles.choiceIconActive]}>
@@ -1094,6 +1103,8 @@ function Input({
   keyboardType?: 'default' | 'phone-pad' | 'number-pad';
   multiline?: boolean;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.inputLabel}>{label}</Text>
@@ -1110,6 +1121,8 @@ function Input({
 }
 
 function CopyRow({ label, value }: { label: string; value: string }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <Pressable
       style={styles.copyRow}
@@ -1122,12 +1135,12 @@ function CopyRow({ label, value }: { label: string; value: string }) {
         <Text style={styles.copyLabel}>{label}</Text>
         <Text style={styles.copyValue}>{value}</Text>
       </View>
-      <Ionicons name="copy-outline" size={19} color={colors.textSecondary} />
+      <Ionicons name="copy-outline" size={19} color={palette.textSecondary} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   page: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxxl },
   back: {
     minHeight: minTouchTarget,
@@ -1138,79 +1151,79 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
   },
-  backText: { ...typography.bodyMedium, color: colors.textSecondary },
+  backText: { ...typography.bodyMedium, color: palette.textSecondary },
   header: { marginTop: spacing.lg, marginBottom: spacing.xl },
-  eyebrow: { ...typography.caption, color: colors.textMuted, fontWeight: '800', letterSpacing: 1.2 },
-  title: { ...typography.largeTitle, color: colors.text, fontWeight: '900', marginTop: spacing.xs },
-  subtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
-  section: { borderRadius: radius.xl, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: spacing.md },
-  sectionHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  sectionIcon: { width: 34, height: 34, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { ...typography.subtitle, color: colors.text, fontWeight: '900' },
+  eyebrow: { ...typography.caption, color: palette.muted, fontWeight: '800', letterSpacing: 1.2 },
+  title: { ...typography.largeTitle, color: palette.text, fontWeight: '900', marginTop: spacing.xs },
+  subtitle: { ...typography.body, color: palette.textSecondary, marginTop: spacing.xs },
+  section: { borderRadius: radius.xl, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', marginBottom: spacing.md },
+  sectionHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: palette.border },
+  sectionIcon: { width: 34, height: 34, borderRadius: radius.md, backgroundColor: palette.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { ...typography.subtitle, color: palette.text, fontWeight: '900' },
   sectionBody: { padding: spacing.lg, gap: spacing.sm },
   productRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
   productRowDivider: {
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    borderTopColor: palette.border,
     paddingTop: spacing.md,
     marginTop: spacing.md,
   },
   productImageWrap: { width: 76, height: 76, borderRadius: radius.md, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   productImage: { width: '100%', height: '100%' },
   productText: { flex: 1 },
-  productSku: { ...typography.caption, color: colors.textMuted },
-  productName: { ...typography.bodyMedium, color: colors.text, fontWeight: '800', marginTop: 2 },
-  productMeta: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.xs },
-  lineTotal: { ...typography.bodyMedium, color: colors.text, fontWeight: '900' },
-  summaryLine: { minHeight: 44, borderTopWidth: 1, borderTopColor: colors.borderLight, marginTop: spacing.sm, paddingTop: spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryLabel: { ...typography.body, color: colors.textSecondary },
-  summaryValue: { ...typography.bodyMedium, color: colors.text, fontWeight: '800' },
+  productSku: { ...typography.caption, color: palette.muted },
+  productName: { ...typography.bodyMedium, color: palette.text, fontWeight: '800', marginTop: 2 },
+  productMeta: { ...typography.caption, color: palette.textSecondary, marginTop: spacing.xs },
+  lineTotal: { ...typography.bodyMedium, color: palette.text, fontWeight: '900' },
+  summaryLine: { minHeight: 44, borderTopWidth: 1, borderTopColor: palette.border, marginTop: spacing.sm, paddingTop: spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryLabel: { ...typography.body, color: palette.textSecondary },
+  summaryValue: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
   summaryTotal: { minHeight: 52 },
-  totalLabel: { ...typography.subtitle, color: colors.text, fontWeight: '900' },
-  totalValue: { ...typography.title, color: colors.text, fontWeight: '900' },
-  infoLine: { minHeight: 50, borderBottomWidth: 1, borderBottomColor: colors.borderLight, justifyContent: 'center' },
-  infoLineLabel: { ...typography.caption, color: colors.textMuted },
-  infoLineValue: { ...typography.bodyMedium, color: colors.text, fontWeight: '700', marginTop: 2 },
-  selectCard: { minHeight: 76, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  selectCardActive: { borderColor: colors.text, backgroundColor: '#FAFAFA' },
-  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  totalLabel: { ...typography.subtitle, color: palette.text, fontWeight: '900' },
+  totalValue: { ...typography.title, color: palette.text, fontWeight: '900' },
+  infoLine: { minHeight: 50, borderBottomWidth: 1, borderBottomColor: palette.border, justifyContent: 'center' },
+  infoLineLabel: { ...typography.caption, color: palette.muted },
+  infoLineValue: { ...typography.bodyMedium, color: palette.text, fontWeight: '700', marginTop: 2 },
+  selectCard: { minHeight: 76, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  selectCardActive: { borderColor: palette.text, backgroundColor: '#FAFAFA' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   radioActive: { borderColor: '#111827' },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#111827' },
   selectText: { flex: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
-  selectTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '800' },
-  selectSubtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 3 },
-  badge: { ...typography.caption, color: colors.text, backgroundColor: colors.surfaceSecondary, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full, overflow: 'hidden' },
-  outlineButton: { minHeight: 46, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
-  outlineButtonText: { ...typography.bodyMedium, color: colors.text, fontWeight: '800' },
-  formBox: { borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, padding: spacing.md, gap: spacing.md },
+  selectTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
+  selectSubtitle: { ...typography.caption, color: palette.textSecondary, marginTop: 3 },
+  badge: { ...typography.caption, color: palette.text, backgroundColor: palette.surfaceSecondary, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full, overflow: 'hidden' },
+  outlineButton: { minHeight: 46, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
+  outlineButtonText: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
+  formBox: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, padding: spacing.md, gap: spacing.md },
   inputGroup: { gap: spacing.xs },
-  inputLabel: { ...typography.caption, color: colors.textSecondary, fontWeight: '700' },
-  input: { minHeight: 46, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: spacing.md, ...typography.body, color: colors.text },
+  inputLabel: { ...typography.caption, color: palette.textSecondary, fontWeight: '700' },
+  input: { minHeight: 46, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, paddingHorizontal: spacing.md, ...typography.body, color: palette.text },
   inputMultiline: { minHeight: 92, paddingTop: spacing.md, textAlignVertical: 'top' },
   twoColumns: { flexDirection: 'row', gap: spacing.sm },
   half: { flex: 1 },
-  choiceCard: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  choiceCardActive: { borderColor: colors.text, backgroundColor: '#FAFAFA' },
-  choiceIcon: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
+  choiceCard: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  choiceCardActive: { borderColor: palette.text, backgroundColor: '#FAFAFA' },
+  choiceIcon: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: palette.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
   choiceIconActive: { backgroundColor: '#111827' },
-  choiceTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '800' },
-  choiceSubtitle: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
+  choiceTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
+  choiceSubtitle: { ...typography.caption, color: palette.muted, marginTop: 2 },
   pickupTimes: { flexDirection: 'row', gap: spacing.sm },
-  timeChip: { flex: 1, minHeight: 42, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  timeChip: { flex: 1, minHeight: 42, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   timeChipActive: { backgroundColor: '#111827', borderColor: '#111827' },
-  timeText: { ...typography.bodyMedium, color: colors.text },
+  timeText: { ...typography.bodyMedium, color: palette.text },
   timeTextActive: { color: '#FFFFFF' },
   cardPaymentBox: {
     gap: spacing.md,
   },
-  secureBox: { borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, padding: spacing.md, flexDirection: 'row', gap: spacing.md },
+  secureBox: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, padding: spacing.md, flexDirection: 'row', gap: spacing.md },
   secureIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
-  secureTitle: { ...typography.bodyMedium, color: colors.text, fontWeight: '800' },
-  secureText: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
+  secureTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
+  secureText: { ...typography.caption, color: palette.textSecondary, marginTop: 2, lineHeight: 18 },
   cardVisual: {
     minHeight: 190,
     borderRadius: radius.xl,
@@ -1260,7 +1273,7 @@ const styles = StyleSheet.create({
   },
   cardFields: {
     borderRadius: radius.lg,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     padding: spacing.md,
     gap: spacing.md,
   },
@@ -1274,8 +1287,8 @@ const styles = StyleSheet.create({
   installmentSection: {
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: spacing.md,
     gap: spacing.md,
   },
@@ -1287,19 +1300,19 @@ const styles = StyleSheet.create({
   },
   installmentTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   installmentSubtitle: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: 2,
   },
   bankBadge: {
     ...typography.caption,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     paddingHorizontal: spacing.sm,
     paddingVertical: 5,
     borderRadius: radius.full,
@@ -1308,7 +1321,7 @@ const styles = StyleSheet.create({
   installmentInfo: {
     minHeight: 54,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1316,7 +1329,7 @@ const styles = StyleSheet.create({
   },
   installmentInfoText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     flex: 1,
     lineHeight: 18,
   },
@@ -1327,8 +1340,8 @@ const styles = StyleSheet.create({
     minHeight: 78,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: spacing.md,
   },
   installmentCardActive: {
@@ -1343,18 +1356,18 @@ const styles = StyleSheet.create({
   },
   installmentCount: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   installmentAmount: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: spacing.xs,
   },
   installmentRate: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: 2,
   },
   installmentTextActive: {
@@ -1363,55 +1376,55 @@ const styles = StyleSheet.create({
   installmentRateActive: {
     color: '#CBD5E1',
   },
-  bankPreview: { borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, paddingHorizontal: spacing.md },
+  bankPreview: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, paddingHorizontal: spacing.md },
   bankPreviewHint: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     lineHeight: 18,
     paddingVertical: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: palette.border,
   },
-  bankOrder: { borderRadius: radius.lg, backgroundColor: colors.surfaceSecondary, padding: spacing.lg, alignItems: 'stretch' },
+  bankOrder: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, padding: spacing.lg, alignItems: 'stretch' },
   successMark: { width: 44, height: 44, borderRadius: radius.full, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
-  bankOrderTitle: { ...typography.subtitle, color: colors.text, fontWeight: '900', textAlign: 'center', marginTop: spacing.sm },
-  orderCode: { ...typography.title, color: colors.text, fontWeight: '900', textAlign: 'center', marginVertical: spacing.md },
+  bankOrderTitle: { ...typography.subtitle, color: palette.text, fontWeight: '900', textAlign: 'center', marginTop: spacing.sm },
+  orderCode: { ...typography.title, color: palette.text, fontWeight: '900', textAlign: 'center', marginVertical: spacing.md },
   transferCodeBox: {
     marginTop: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: spacing.md,
     alignItems: 'center',
   },
   transferCodeLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   transferCodeValue: {
     fontSize: 24,
     lineHeight: 30,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     letterSpacing: 2,
     marginTop: spacing.xs,
   },
-  copyRow: { minHeight: 60, borderTopWidth: 1, borderTopColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  copyLabel: { ...typography.caption, color: colors.textMuted },
-  copyValue: { ...typography.bodyMedium, color: colors.text, fontWeight: '800', marginTop: 2 },
-  bankHint: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md, textAlign: 'center' },
+  copyRow: { minHeight: 60, borderTopWidth: 1, borderTopColor: palette.border, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  copyLabel: { ...typography.caption, color: palette.muted },
+  copyValue: { ...typography.bodyMedium, color: palette.text, fontWeight: '800', marginTop: 2 },
+  bankHint: { ...typography.caption, color: palette.textSecondary, marginTop: spacing.md, textAlign: 'center' },
   warningBox: { borderRadius: radius.md, backgroundColor: colors.warningSoft, padding: spacing.md, flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  warningText: { ...typography.caption, color: colors.textSecondary, flex: 1 },
+  warningText: { ...typography.caption, color: palette.textSecondary, flex: 1 },
   payButton: { minHeight: 58, borderRadius: radius.lg, backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
   payButtonText: { ...typography.bodyMedium, color: '#FFFFFF', fontWeight: '900' },
   primaryButton: { minHeight: 50, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   primaryButtonText: { ...typography.bodyMedium, color: '#FFFFFF', fontWeight: '800' },
   disabled: { opacity: 0.45 },
   securityFooter: { marginTop: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
-  securityText: { ...typography.caption, color: colors.textMuted },
+  securityText: { ...typography.caption, color: palette.muted },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.xxl },
   centerIcon: { width: 64, height: 64, borderRadius: radius.full, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
-  centerTitle: { ...typography.title, color: colors.text, fontWeight: '900', textAlign: 'center', marginTop: spacing.lg },
-  centerText: { ...typography.body, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.sm },
+  centerTitle: { ...typography.title, color: palette.text, fontWeight: '900', textAlign: 'center', marginTop: spacing.lg },
+  centerText: { ...typography.body, color: palette.textSecondary, textAlign: 'center', marginTop: spacing.sm },
 });
