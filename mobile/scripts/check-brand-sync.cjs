@@ -59,6 +59,9 @@ async function runCase(withSplash) {
       const splashFile = path.join(tmp, config.expo.splash.image);
       assert.ok(fs.statSync(logoFile).size > 50);
       assert.ok(fs.statSync(splashFile).size > 50);
+      const runtimeModule = path.join(tmp, "lib", "managed-splash.ts");
+      assert.match(fs.readFileSync(runtimeModule, "utf8"), /require\('\.\.\/assets\/managed-splash-[a-f0-9]{12}\.png'\)/);
+
 
       // Repeating sync must reuse the same files rather than overwrite files
       // that may be held open in Windows Photos.
