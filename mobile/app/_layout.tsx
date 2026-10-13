@@ -7,6 +7,7 @@ import { AppAlertBridge } from '@/components/ui/AppAlertBridge';
 import { AuthGate, RootStack } from '@/components/auth/AuthGate';
 import { AlertProvider } from '@/contexts/AlertContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AppearanceProvider } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
 
 const SPLASH_DURATION_MS = 5_000;
@@ -52,11 +53,13 @@ function AppContent() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <AppearanceProvider>
       <AuthProvider>
         <AlertProvider>
           <AppContent />
         </AlertProvider>
       </AuthProvider>
+      </AppearanceProvider>
     </SafeAreaProvider>
   );
 }
