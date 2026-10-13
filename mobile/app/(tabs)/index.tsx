@@ -13,6 +13,8 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
+import { appAlert } from '@/lib/appAlert';
 
 import { Screen } from '@/components/ui/Screen';
 import { BrandLogo } from '@/components/ui/BrandLogo';
@@ -25,6 +27,8 @@ import {
   type B2BOrderSummary,
   type B2BProduct,
   type B2BReel,
+  type HomeBanner,
+  type HomeCategoryCard,
 } from '@/lib/api';
 import { useMobileBranding } from '@/lib/branding';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
@@ -86,6 +90,16 @@ export default function HomeScreen() {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
+  const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
+  const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
+  const [bannerWidth, setBannerWidth] = useState(0);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const bannerScrollRef = useRef<ScrollView>(null);
+  const bannerIndexRef = useRef(0);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const scanLockedRef = useRef(false);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [notifications, setNotifications] = useState<B2BOrderSummary[]>([]);
@@ -129,6 +143,10 @@ export default function HomeScreen() {
 
     if (homepageResult.status === 'fulfilled') {
       setCategories(homepageResult.value.categories || []);
+      setCategoryCards(homepageResult.value.categoryCards || []);
+      setBanners(homepageResult.value.banners || []);
+      setSliderAutoPlay(homepageResult.value.sliderAutoPlay !== false);
+      setSliderIntervalMs(homepageResult.value.sliderIntervalMs || 5000);
     }
   }, []);
 
@@ -178,7 +196,7 @@ export default function HomeScreen() {
 
     return products.filter((product) => {
       const matchesCategory =
-        !category ||
+        Boolean(search) || !category ||
         String(product.category || '').toLocaleLowerCase('tr-TR') === category;
 
       const matchesSearch =
@@ -192,6 +210,42 @@ export default function HomeScreen() {
       return matchesCategory && matchesSearch;
     });
   }, [products, query, selectedCategory]);
+
+  useEffect(() => {
+    bannerIndexRef.current = 0;
+    setBannerIndex(0);
+  }, [banners.length]);
+
+  useEffect(() => {
+    if (!sliderAutoPlay || banners.length < 2 || bannerWidth <= 0 || query.trim()) return;
+    const timer = setInterval(() => {
+      const next = (bannerIndexRef.current + 1) % banners.length;
+      bannerIndexRef.current = next;
+      setBannerIndex(next);
+      bannerScrollRef.current?.scrollTo({ x: next * bannerWidth, animated: true });
+    }, Math.min(15000, Math.max(2500, sliderIntervalMs)));
+    return () => clearInterval(timer);
+  }, [bannerWidth, banners.length, query, sliderAutoPlay, sliderIntervalMs]);
+
+  const handleScannedBarcode = async (value: string) => {
+    if (scanLockedRef.current) return;
+    scanLockedRef.current = true;
+    setScannerOpen(false);
+    try {
+      const product = await rmaApi.findB2BProductByBarcode(value);
+      router.push({ pathname: '/product/[id]', params: { id: String(product.id) } } as never);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Barkod sorgulanamadı';
+      appAlert(
+        /bulunamad|404/i.test(message) ? 'Ürün bulunamadı' : 'Barkod sorgulama hatası',
+        /bulunamad|404/i.test(message) ? 'Okutulan barkodla eşleşen kayıtlı ürün bulunamadı.' : message,
+        undefined,
+        'error',
+      );
+    } finally {
+      setTimeout(() => { scanLockedRef.current = false; }, 1000);
+    }
+  };
 
   const toggleNotifications = () => {
     const next = !notificationsOpen;
