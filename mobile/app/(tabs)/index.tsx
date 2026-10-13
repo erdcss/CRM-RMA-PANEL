@@ -25,6 +25,8 @@ import {
   type B2BProduct,
 } from '@/lib/api';
 import { useMobileBranding } from '@/lib/branding';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -73,6 +75,11 @@ export default function HomeScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
   const branding = useMobileBranding();
   const { session } = useAuth();
+  const { palette, mode } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
+  const [welcome, setWelcome] = useState(false);
+  const welcomeFade = useRef(new Animated.Value(0)).current;
+  const welcomeShift = useRef(new Animated.Value(-24)).current;
 
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -82,6 +89,30 @@ export default function HomeScreen() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const notificationDrawer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    let valid = true;
+    const key = 'caliskan_b2b_welcome_' + session.user.id;
+    void AsyncStorage.getItem(key).then(value => {
+      if (!valid || value) return;
+      setWelcome(true);
+      void AsyncStorage.setItem(key, '1');
+      Animated.parallel([
+        Animated.timing(welcomeFade, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.spring(welcomeShift, { toValue: 0, tension: 65, friction: 10, useNativeDriver: true }),
+      ]).start();
+    }).catch(() => undefined);
+    return () => { valid = false; };
+  }, [session?.user?.id, welcomeFade, welcomeShift]);
+
+  useEffect(() => {
+    if (!welcome) return;
+    const timer = setTimeout(() => {
+      Animated.timing(welcomeFade, { toValue: 0, duration: 280, useNativeDriver: true }).start(() => setWelcome(false));
+    }, 3400);
+    return () => clearTimeout(timer);
+  }, [welcome, welcomeFade]);
 
   const load = useCallback(async (forceRefresh = false) => {
     const [productResult, homepageResult] = await Promise.allSettled([
@@ -176,7 +207,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -188,9 +219,13 @@ export default function HomeScreen() {
         }
         contentContainerStyle={styles.page}
       >
+        {welcome ? <Animated.View pointerEvents="none" style={[styles.welcomeToast, { opacity: welcomeFade, transform: [{ translateY: welcomeShift }] }]}>
+          <Ionicons name="checkmark-circle" size={20} color="#FFCD00" />
+          <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
+        </Animated.View> : null}
         <View style={styles.topRow}>
           <BrandLogo
-            uri={branding.b2b_web_logo || branding.b2b_mobile_logo}
+            uri={branding.b2b_mobile_logo || branding.b2b_web_logo}
             style={styles.logo}
           />
 
@@ -204,7 +239,7 @@ export default function HomeScreen() {
             <Ionicons
               name={notificationsOpen ? 'notifications' : 'notifications-outline'}
               size={22}
-              color={colors.text}
+              color={palette.text}
             />
             {notifications.length > 0 ? <View style={styles.notificationDot} /> : null}
           </Pressable>
@@ -521,36 +556,38 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   page: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: 120,
     position: 'relative',
   },
+  welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
+  welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
   topRow: {
-    minHeight: 58,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   logo: {
-    width: 168,
-    height: 46,
+    width: 192,
+    height: 53,
   },
   notificationButton: {
     width: 44,
     height: 44,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   notificationButtonActive: {
-    borderColor: colors.text,
-    backgroundColor: colors.surfaceSecondary,
+    borderColor: palette.text,
+    backgroundColor: palette.surfaceSecondary,
   },
   notificationDrawer: {
     position: 'absolute',
@@ -562,8 +599,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.16,
@@ -578,18 +615,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: palette.border,
   },
   notificationDrawerEyebrow: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.1,
   },
   notificationDrawerTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: 2,
   },
@@ -597,7 +634,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -611,7 +648,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    borderBottomColor: palette.border,
   },
   notificationItemLast: {
     borderBottomWidth: 0,
@@ -620,7 +657,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -630,12 +667,12 @@ const styles = StyleSheet.create({
   },
   notificationTitle: {
     ...typography.caption,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   notificationSubtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 2,
   },
   notificationMeta: {
@@ -644,11 +681,11 @@ const styles = StyleSheet.create({
   notificationDate: {
     ...typography.caption,
     fontSize: 9,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   notificationAmount: {
     ...typography.caption,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: 2,
   },
@@ -660,14 +697,14 @@ const styles = StyleSheet.create({
   },
   notificationEmptyTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: spacing.sm,
     textAlign: 'center',
   },
   notificationEmptyText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: spacing.xs,
     textAlign: 'center',
     lineHeight: 17,
@@ -681,15 +718,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#EF4444',
     borderWidth: 1,
-    borderColor: colors.surface,
+    borderColor: palette.surface,
   },
   searchBox: {
     marginTop: spacing.md,
     minHeight: 52,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     paddingHorizontal: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
@@ -698,7 +735,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     ...typography.body,
-    color: colors.text,
+    color: palette.text,
   },
   sectionHeader: {
     marginTop: spacing.xxl,
@@ -710,22 +747,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.title2,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
   sectionSubtitle: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 2,
   },
   sectionAction: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '700',
   },
   productCount: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   categories: {
     gap: spacing.sm,
@@ -736,8 +773,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -751,7 +788,7 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     ...typography.caption,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -767,8 +804,8 @@ const styles = StyleSheet.create({
     width: '48%',
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     overflow: 'hidden',
   },
   productImageWrap: {
@@ -787,18 +824,18 @@ const styles = StyleSheet.create({
   sku: {
     ...typography.caption,
     fontSize: 10,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   productName: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     minHeight: 42,
     marginTop: 3,
     fontWeight: '700',
   },
   price: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     marginTop: spacing.sm,
     fontWeight: '800',
   },
@@ -806,7 +843,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     minHeight: 34,
     borderRadius: radius.sm,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -814,13 +851,13 @@ const styles = StyleSheet.create({
   },
   lockedPriceText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     fontWeight: '600',
     flex: 1,
   },
   meta: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     fontSize: 10,
     marginTop: spacing.sm,
   },
@@ -831,12 +868,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     marginTop: spacing.sm,
   },
   emptyText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: spacing.xs,
   },
   memberBanner: {
