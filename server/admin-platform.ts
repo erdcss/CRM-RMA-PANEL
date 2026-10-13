@@ -11,7 +11,7 @@ import {
   saveVideoDataUrl,
 } from "./image-storage";
 import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
-import { registerReelMediaRoutes, saveCompatibleReelVideo } from "./reels-media";
+import { registerReelMediaRoutes, saveCompatibleReelVideo, migrateLegacyReelVideo } from "./reels-media";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -959,6 +959,22 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch (error) {
       console.error("Admin reels load failed:", error);
       return res.status(500).json({ error: "Reels alınamadı" });
+    }
+  });
+
+  app.post("/api/admin/reels/:id/migrate", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try {
+      const existing = await pool.query("SELECT video_url FROM b2b_reels WHERE id::text=$1 LIMIT 1", [String(req.params.id)]);
+      if (!existing.rows[0]) return res.status(404).json({ error: "Reels bulunamadı" });
+      const current = String(existing.rows[0].video_url || "");
+      if (current.startsWith("/api/public/reels/media/")) return res.json({ url: current, alreadyCompatible: true });
+      const url = await migrateLegacyReelVideo(current);
+      await pool.query("UPDATE b2b_reels SET video_url=$2, updated_at=NOW() WHERE id::text=$1", [String(req.params.id), url]);
+      return res.json({ url, migrated: true });
+    } catch (error) {
+      console.error("Reels migration failed:", error);
+      return res.status(422).json({ error: error instanceof Error ? error.message : "Video dönüştürülemedi" });
     }
   });
 
