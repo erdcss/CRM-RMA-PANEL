@@ -54,6 +54,8 @@ export function RootStack() {
         animation: 'slide_from_right',
       }}
     >
+      <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="account/[section]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
       <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="product" options={{ animation: 'slide_from_right' }} />
