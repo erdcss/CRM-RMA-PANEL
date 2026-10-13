@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ImageBackground, StyleSheet, View } from 'react-native';
+import { ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -9,6 +9,7 @@ import { AlertProvider } from '@/contexts/AlertContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
+import { managedSplash } from '@/lib/managed-splash';
 
 const SPLASH_DURATION_MS = 5_000;
 
@@ -37,13 +38,16 @@ function AppContent() {
       </AuthGate>
       {showSplash ? (
         <View style={styles.splash} pointerEvents="auto">
-          {branding.b2b_mobile_splash ? (
-            <ImageBackground
-              source={{ uri: branding.b2b_mobile_splash }}
-              resizeMode="cover"
-              style={StyleSheet.absoluteFillObject}
-            />
-          ) : null}
+          {managedSplash ? (
+            <ImageBackground source={managedSplash} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          ) : branding.b2b_mobile_splash ? (
+            <ImageBackground source={{ uri: branding.b2b_mobile_splash }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          ) : (
+            <View style={styles.splashFallback}>
+              <Text style={styles.splashBrand}>ÇALIŞKAN</Text>
+              <Text style={styles.splashSub}>B2B</Text>
+            </View>
+          )}
           <StatusBar style="light" />
         </View>
       ) : null}
@@ -70,6 +74,9 @@ const styles = StyleSheet.create({
   splash: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
-    backgroundColor: '#101010',
+    backgroundColor: '#FFCD00',
   },
+  splashFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFCD00' },
+  splashBrand: { color: '#101010', fontSize: 35, fontWeight: '900', letterSpacing: 1 },
+  splashSub: { color: '#101010', fontSize: 24, fontWeight: '900', alignSelf: 'center' },
 });
