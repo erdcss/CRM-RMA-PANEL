@@ -10,6 +10,7 @@ import {
   ensureReelVideoCompatibility,
   saveVideoDataUrl,
 } from "./image-storage";
+import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -103,6 +104,7 @@ const BRANDING_KEYS = [
   "b2b_logo",
   "b2b_favicon",
   "b2b_mobile_logo",
+  "b2b_mobile_header_logo",
   "b2b_mobile_splash",
   "b2b_mobile_login_background",
   "business_mobile_logo",
@@ -597,6 +599,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   await ensurePlatformTables().catch((error) => {
     console.error("Platform tables could not be prepared:", error);
   });
+  registerHomepageMediaRoutes(app, requireAdmin);
 
   // Large mobile background images are served separately instead of being
   // repeated as base64 in every public branding JSON response.
@@ -666,7 +669,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     try {
       const config = await homepageConfig();
       res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.json({ categories: config.categories });
+      return res.json({ categories: config.categories, ...await getMobileHomeLayout() });
     } catch (error) {
       console.error("Public homepage config load failed:", error);
       return res.json({ categories: [] });
@@ -678,6 +681,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/mobile-image/:asset", async (req, res) => {
     const keys: Record<string, BrandingKey> = {
       "b2b-logo": "b2b_mobile_logo",
+      "b2b-header": "b2b_mobile_header_logo",
       "b2b-web-logo": "b2b_logo",
       "b2b-splash": "b2b_mobile_splash",
       "b2b-login": "b2b_mobile_login_background",
@@ -714,6 +718,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       if (target === "b2b") {
         const assetKeys = [
           "b2b_logo", "b2b_mobile_logo", "b2b_mobile_splash",
+          "b2b_mobile_header_logo",
           "b2b_mobile_login_background",
         ];
         const found = pool
@@ -726,6 +731,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         // The B2B mobile app must never fall back to an old web logo.
         const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
         const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
+        const headerLogo = available.has("b2b_mobile_header_logo") ? "b2b-header" : null;
         const webLogo = logo;
         const login = available.has("b2b_mobile_login_background") ? "b2b-login" : null;
         const version = Date.now();
@@ -734,6 +740,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
         return res.json({
           logo: image(logo),
+          headerLogo: image(headerLogo),
           webLogo: image(webLogo),
           splash: image(splash),
           loginBackground: image(login),
@@ -880,7 +887,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.get("/api/admin/homepage", requireAdmin, async (_req, res) => {
     try {
-      return res.json(await homepageConfig());
+      return res.json({ ...await homepageConfig(), ...await getMobileHomeLayout() });
     } catch (error) {
       console.error("Admin homepage config load failed:", error);
       return res.status(500).json({ error: "Ana sayfa ayarları alınamadı" });
@@ -891,6 +898,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
 
     const categories = normalizeHomepageCategories(req.body?.categories);
+    const containsLayout = ["banners", "categoryCards", "sliderAutoPlay", "sliderIntervalMs"].some(key => Object.prototype.hasOwnProperty.call(req.body || {}, key));
 
     try {
       await pool.query(
@@ -901,9 +909,11 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         [JSON.stringify(categories)],
       );
 
+      if (containsLayout) await saveMobileHomeLayout(req.body);
       return res.json({
         categories,
         detectedCategories: await detectedProductCategories(),
+        ...await getMobileHomeLayout(),
       });
     } catch (error) {
       console.error("Admin homepage config update failed:", error);
