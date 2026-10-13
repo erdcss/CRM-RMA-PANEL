@@ -2066,6 +2066,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Rotate only the dedicated Apple reviewer account, never a regular customer.
+  app.post("/api/admin/b2b-review-account/reset-password", requireAdmin, async (req, res) => {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!email || email.length > 254) return res.status(400).json({ error: "İnceleme hesabı e-postası gerekli" });
+    try {
+      const user = (await storage.getUserByEmail(email)) || (await storage.getUserByUsername(email));
+      if (!user || user.role !== "b2b_customer" ||
+          user.companyName !== "Çalışkan B2B - Apple İnceleme") {
+        return res.status(404).json({ error: "Bu adreste Apple inceleme hesabı bulunamadı." });
+      }
+      const password = randomBytes(24).toString("base64url");
+      await storage.updateUser(user.id, {
+        password: hashPassword(password), mustChangePassword: 0,
+        isActive: 1, applicationStatus: "approved",
+      });
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ email, password, message: "İnceleme şifresi yenilendi; önceki şifre artık geçersiz." });
+    } catch (error) {
+      console.error("Apple reviewer password reset failed:", error);
+      return res.status(500).json({ error: "İnceleme hesabı şifresi yenilenemedi." });
+    }
+  });
+
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
     const allUsers = await storage.listUsers();
     const applications = allUsers
