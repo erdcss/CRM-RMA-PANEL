@@ -137,8 +137,14 @@ export type B2BProduct = {
   variants?: Array<Record<string, string>> | null;
 };
 
+export type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
+export type HomeCategoryCard = { category: string; label: string; imageId: string };
 export type B2BHomepage = {
   categories: string[];
+  banners?: HomeBanner[];
+  categoryCards?: HomeCategoryCard[];
+  sliderAutoPlay?: boolean;
+  sliderIntervalMs?: number;
 };
 
 export type B2BReel = {
@@ -470,6 +476,10 @@ export const rmaApi = {
   getB2BProduct: (id: string | number) =>
     request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
   getB2BHomepage: () => request<B2BHomepage>('/api/public/homepage'),
+  findB2BProductByBarcode: (barcode: string) =>
+    request<{ id: string; name: string; barcode: string }>(
+      `/api/b2b/products/by-barcode/${encodeURIComponent(barcode.trim())}`
+    ),
   listB2BReels: () => request<B2BReel[]>('/api/public/reels'),
   getB2BAccount: () => request<B2BAccount>('/api/b2b/account'),
   listB2BAddresses: () => request<B2BAddress[]>('/api/b2b/addresses'),
