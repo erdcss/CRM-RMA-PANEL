@@ -31,7 +31,7 @@ export default function ProfileScreen() {
   const fullName = [account?.firstName, account?.lastName].filter(Boolean).join(' ').trim();
   const displayName = fullName || account?.companyName || user?.email?.split('@')[0] || 'Çalışkan B2B';
   const openRow = (key: string) => {
-    if (key === 'orders') router.push('/(tabs)/orders');
+    if (key === 'orders') router.push('/my-orders');
     else if (key === 'settings') router.push('/settings');
     else router.push({ pathname: '/account/[section]', params: { section: key } } as never);
   };
