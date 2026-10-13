@@ -24,6 +24,7 @@ import {
   rmaApi,
   type B2BOrderSummary,
   type B2BProduct,
+  type B2BReel,
 } from '@/lib/api';
 import { useMobileBranding } from '@/lib/branding';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
@@ -83,6 +84,7 @@ export default function HomeScreen() {
   const welcomeShift = useRef(new Animated.Value(-24)).current;
 
   const [products, setProducts] = useState<B2BProduct[]>([]);
+  const [reels, setReels] = useState<B2BReel[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -133,6 +135,10 @@ export default function HomeScreen() {
   useEffect(() => {
     void load();
   }, [load, session?.access_token]);
+
+  useEffect(() => {
+    void rmaApi.listB2BReels().then(items => setReels(Array.isArray(items) ? items.slice(0, 6) : [])).catch(() => setReels([]));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -379,6 +385,21 @@ export default function HomeScreen() {
           ) : null}
         </View>
 
+        <View style={styles.heroBanner}>
+          <View style={styles.heroIconCircle}><Ionicons name="cube-outline" size={30} color="#FFCD00" /></View>
+          <Text style={styles.heroEyebrow}>ÇALIŞKAN B2B · TOPTAN TEDARİK</Text>
+          <Text style={styles.heroTitle}>İşinizi daha güçlü yarınlara taşıyın.</Text>
+          <Text style={styles.heroDescription}>Geniş ürün yelpazesi ve işletmelere özel avantajlarla yanınızdayız.</Text>
+          <Pressable
+            style={({ pressed }) => [styles.heroAction, pressed && { opacity: 0.82 }]}
+            onPress={() => router.push('/(tabs)/menu')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.heroActionText}>Alışverişe Başla</Text>
+            <Ionicons name="arrow-forward" size={16} color="#171717" />
+          </Pressable>
+        </View>
+
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Kategoriler</Text>
@@ -453,6 +474,31 @@ export default function HomeScreen() {
             );
           })}
         </ScrollView>
+
+        {reels.length > 0 ? <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Reels Videoları</Text>
+            <Pressable onPress={() => router.push('/(tabs)/discover')} accessibilityRole="button">
+              <Text style={styles.sectionAction}>Tümünü Gör  →</Text>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+            {reels.slice(0, 4).map(reel => (
+              <Pressable
+                key={String(reel.id)}
+                style={styles.reelPreviewCard}
+                onPress={() => router.push('/(tabs)/discover')}
+                accessibilityLabel={reel.title || 'Reels videosu'}
+              >
+                {reel.thumbnail_url ? <Image source={{ uri: absoluteMediaUrl(reel.thumbnail_url) || '' }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}
+                <View style={styles.reelPreviewOverlay}>
+                  <Ionicons name="play-circle" size={34} color="#FFCD00" />
+                  <Text style={styles.reelPreviewText} numberOfLines={2}>{reel.title || 'Ürün videosu'}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </> : null}
 
         <View style={styles.sectionHeader}>
           <View>
@@ -575,6 +621,16 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
   welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
+  heroBanner: { backgroundColor:'#17191C', borderWidth:1,borderColor:'#3E3930',borderRadius:18,padding:20,marginTop:18,overflow:'hidden' },
+  heroIconCircle:{ width:48,height:48,borderRadius:13,backgroundColor:'#2D2A1F',alignItems:'center',justifyContent:'center',marginBottom:18 },
+  heroEyebrow:{ color:'#FFCD00',fontSize:10,fontWeight:'900',letterSpacing:1.2,marginBottom:8 },
+  heroTitle:{ color:'#FFFFFF',fontSize:25,fontWeight:'900',lineHeight:30,maxWidth:'96%' },
+  heroDescription:{ color:'#D3D6DA',fontSize:13,lineHeight:20,marginTop:10,maxWidth:'93%' },
+  heroAction:{ backgroundColor:'#FFCD00',height:44,alignSelf:'flex-start',paddingHorizontal:16,borderRadius:11,flexDirection:'row',alignItems:'center',gap:9,marginTop:18 },
+  heroActionText:{ color:'#151515',fontSize:13,fontWeight:'900' },
+  reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
+  reelPreviewOverlay:{ flex:1,justifyContent:'space-between',padding:12,backgroundColor:'rgba(0,0,0,0.4)' },
+  reelPreviewText:{ color:'#FFFFFF',fontSize:12,fontWeight:'800' },
   topRow: {
     minHeight: 64,
     flexDirection: 'row',
@@ -779,16 +835,16 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     paddingRight: spacing.lg,
   },
   categoryCard: {
-    minWidth: 94,
-    minHeight: 44,
+    minWidth: 106,
+    minHeight: 94,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.surface,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
+    gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
