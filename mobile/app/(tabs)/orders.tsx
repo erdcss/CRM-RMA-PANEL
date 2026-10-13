@@ -165,8 +165,8 @@ export default function OrderListScreen() {
                           size={17}
                           color={
                             item.boxQuantity <= item.minOrderQty
-                              ? colors.textMuted
-                              : colors.text
+                              ? palette.muted
+                              : palette.text
                           }
                         />
                       </Pressable>
@@ -186,8 +186,8 @@ export default function OrderListScreen() {
                           size={17}
                           color={
                             item.boxQuantity >= maxBoxes
-                              ? colors.textMuted
-                              : colors.text
+                              ? palette.muted
+                              : palette.text
                           }
                         />
                       </Pressable>
