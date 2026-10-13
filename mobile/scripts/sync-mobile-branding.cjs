@@ -142,6 +142,20 @@ async function main() {
     }
   }
 
+  // Bundle the actual splash PNG into the JavaScript render tree too. Native
+  // splash display can finish before remote branding metadata is loaded.
+  // A literal require path is necessary for Metro to include the image.
+  if (target === "b2b") {
+    const libDir = path.join(root, "lib");
+    fs.mkdirSync(libDir, { recursive: true });
+    const runtimePath = path.join(libDir, "managed-splash.ts");
+    const filename = path.basename(splashPath);
+    const source = `import type { ImageSourcePropType } from 'react-native';\nexport const managedSplash: ImageSourcePropType = require('../assets/${filename}');\n`;
+    if (!fs.existsSync(runtimePath) || fs.readFileSync(runtimePath, "utf8") !== source) {
+      fs.writeFileSync(runtimePath, source);
+    }
+  }
+
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
     `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · splash=${Boolean(splashPath)}`,
