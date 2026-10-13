@@ -286,7 +286,7 @@ export default function HomeScreen() {
         </Animated.View> : null}
         <View style={styles.topRow}>
           <BrandLogo
-            uri={B2B_HEADER_LOGO}
+            uri={branding.b2b_mobile_header_logo || B2B_HEADER_LOGO}
             style={styles.logo}
           />
 
@@ -433,26 +433,89 @@ export default function HomeScreen() {
             returnKeyType="search"
           />
           {query ? (
-            <Pressable onPress={() => setQuery('')}>
+            <Pressable onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
               <Ionicons name="close-circle" size={19} color={palette.muted} />
             </Pressable>
           ) : null}
-        </View>
-
-        <View style={styles.heroBanner}>
-          <View style={styles.heroIconCircle}><Ionicons name="cube-outline" size={30} color="#FFCD00" /></View>
-          <Text style={styles.heroEyebrow}>ÇALIŞKAN B2B · TOPTAN TEDARİK</Text>
-          <Text style={styles.heroTitle}>İşinizi daha güçlü yarınlara taşıyın.</Text>
-          <Text style={styles.heroDescription}>Geniş ürün yelpazesi ve işletmelere özel avantajlarla yanınızdayız.</Text>
-          <Pressable
-            style={({ pressed }) => [styles.heroAction, pressed && { opacity: 0.82 }]}
-            onPress={() => router.push('/(tabs)/menu')}
-            accessibilityRole="button"
-          >
-            <Text style={styles.heroActionText}>Alışverişe Başla</Text>
-            <Ionicons name="arrow-forward" size={16} color="#171717" />
+          <Pressable onPress={() => setScannerOpen(true)} style={styles.scanButton}
+            accessibilityRole="button" accessibilityLabel="Barkod oku">
+            <Ionicons name="scan-outline" size={23} color={palette.text} />
           </Pressable>
         </View>
+
+
+        {query.trim() ? (
+          <View style={styles.searchResults}>
+            <Text style={styles.searchResultHeading}>Arama Sonuçları · {filtered.length} ürün</Text>
+            {filtered.slice(0, 50).map((product) => {
+              const picture = productImage(product);
+              return <Pressable key={String(product.id)} style={styles.searchResultRow}
+                onPress={() => router.push({ pathname: '/product/[id]', params: { id: String(product.id) } } as never)}>
+                <View style={styles.searchResultThumb}>
+                  {picture ? <Image source={{ uri: picture }} style={styles.searchResultImage} contentFit="contain" /> :
+                    <Ionicons name="cube-outline" size={27} color={palette.muted} />}
+                </View>
+                <View style={styles.searchResultBody}>
+                  <Text numberOfLines={2} style={styles.searchResultTitle}>{product.name}</Text>
+                  <Text style={styles.searchResultSku} numberOfLines={1}>{product.sku || product.barcode || 'Ürün'}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+              </Press>;
+            })}
+            {!filtered.length ? <Text style={styles.searchResultEmpty}>Aramanızla eşleşen ürün bulunamadı.</Text> : null}
+          </View>
+        ) : (
+          <>
+
+        {banners.length > 0 ? (
+          <View style={styles.carouselContainer} onLayout={(event) => setBannerWidth(event.nativeEvent.layout.width)}>
+            {bannerWidth > 0 ? (
+              <ScrollView ref={bannerScrollRef} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+                scrollEventThrottle={100}
+                onMomentumScrollEnd={(event) => {
+                  const next = Math.round(event.nativeEvent.contentOffset.x / bannerWidth);
+                  bannerIndexRef.current = next;
+                  setBannerIndex(next);
+                }}>
+                {banners.map(banner => (
+                  <View key={banner.id} style={[styles.carouselSlide, { width: bannerWidth }]}>
+                    {banner.imageId ? (
+                      <Image source={{ uri: absoluteMediaUrl(`/api/public/homepage/media/${banner.imageId}`) || '' }}
+                        style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    ) : null}
+                    <View style={styles.carouselOverlay} />
+                    <View style={styles.carouselContent}>
+                      <Text style={styles.carouselTitle} numberOfLines={3}>{banner.title || 'Çalışkan B2B'}</Text>
+                      {banner.subtitle ? <Text style={styles.carouselSubtitle} numberOfLines={3}>{banner.subtitle}</Text> : null}
+                      {banner.buttonText ? (
+                        <Pressable style={styles.carouselButton} onPress={() => router.push('/(tabs)/menu')}>
+                          <Text style={styles.carouselButtonText}>{banner.buttonText}</Text>
+                          <Ionicons name="arrow-forward" size={15} color="#131313" />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
+            {banners.length > 1 ? <View style={styles.carouselDots}>
+              {banners.map((banner, index) => (
+                <View key={banner.id} style={[styles.carouselDot, index === bannerIndex && styles.carouselDotActive]} />
+              ))}
+            </View> : null}
+          </View>
+        ) : (
+          <View style={styles.heroBanner}>
+            <View style={styles.heroIconCircle}><Ionicons name="cube-outline" size={30} color="#FFCD00" /></View>
+            <Text style={styles.heroEyebrow}>ÇALIŞKAN B2B · TOPTAN TEDARİK</Text>
+            <Text style={styles.heroTitle}>İşinizi daha güçlü yarınlara taşıyın.</Text>
+            <Text style={styles.heroDescription}>Geniş ürün yelpazesi ve işletmelere özel avantajlarla yanınızdayız.</Text>
+            <Pressable style={styles.heroAction} onPress={() => router.push('/(tabs)/menu')}>
+              <Text style={styles.heroActionText}>Alışverişe Başla</Text>
+              <Ionicons name="arrow-forward" size={16} color="#171717" />
+            </Pressable>
+          </View>
+        )}
 
         <View style={styles.sectionHeader}>
           <View>
@@ -492,6 +555,7 @@ export default function HomeScreen() {
           </Pressable>
 
           {categories.map((category, index) => {
+            const configured = categoryCards.find((item) => item.category === category);
             const active =
               category.toLocaleLowerCase('tr-TR') ===
               selectedCategory.toLocaleLowerCase('tr-TR');
@@ -510,11 +574,13 @@ export default function HomeScreen() {
                 onPress={() => setSelectedCategory(category)}
                 style={[styles.categoryCard, active && styles.categoryCardActive]}
               >
-                <Ionicons
-                  name={icons[index % icons.length]}
-                  size={17}
-                  color={active ? '#FFFFFF' : palette.text}
-                />
+                {configured?.imageId ? (
+                  <Image source={{ uri: absoluteMediaUrl(`/api/public/homepage/media/${configured.imageId}`) || '' }}
+                    style={styles.categoryImage} contentFit="cover" />
+                ) : (
+                  <Ionicons name={icons[index % icons.length]} size={28}
+                    color={active ? '#FFFFFF' : palette.text} />
+                )}
                 <Text
                   numberOfLines={2}
                   style={[
@@ -522,7 +588,7 @@ export default function HomeScreen() {
                     active && styles.categoryTextActive,
                   ]}
                 >
-                  {category}
+                  {configured?.label || category}
                 </Text>
               </Pressable>
             );
@@ -644,6 +710,8 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
+          </>
+        )}
         {!session ? (
           <Pressable
             style={styles.memberBanner}
@@ -662,6 +730,12 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+      <BarcodeScannerModal visible={scannerOpen} title="Ürün Barkodu Oku" scanMode="lookup"
+        hint="Ürün barkodunu okutun. Eşleşme varsa ürün sayfasına yönlendirilirsiniz."
+        onClose={() => setScannerOpen(false)}
+        onScanned={(value) => void handleScannedBarcode(value)}
+        onScanRejected={(message) => appAlert('Barkod okunamadı', message, undefined, 'error')}
+      />
     </Screen>
   );
 }
@@ -685,6 +759,28 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
   reelPreviewOverlay:{ flex:1,justifyContent:'space-between',padding:12,backgroundColor:'rgba(0,0,0,0.4)' },
   reelPreviewText:{ color:'#FFFFFF',fontSize:12,fontWeight:'800' },
+  scanButton: { width: 44, height: 46, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: palette.border, marginLeft: 2 },
+  searchResults: { gap: 8, marginTop: 15 },
+  searchResultHeading: { color: palette.textSecondary, fontSize: 13, fontWeight: '700', marginBottom: 3 },
+  searchResultRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 12, padding: 8 },
+  searchResultThumb: { width: 56, height: 56, backgroundColor: '#FFFFFF', borderRadius: 9, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  searchResultImage: { width: '100%', height: '100%' },
+  searchResultBody: { flex: 1, minWidth: 0 },
+  searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
+  searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
+  searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
+  carouselContainer: { marginTop: 15, height: 218, borderRadius: 17, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselSlide: { height: 218, justifyContent: 'flex-end', overflow: 'hidden' },
+  carouselOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+  carouselContent: { padding: 20, paddingBottom: 28, maxWidth: '94%' },
+  carouselTitle: { color: '#FFFFFF', fontSize: 23, lineHeight: 28, fontWeight: '900' },
+  carouselSubtitle: { color: '#F0F0F0', fontSize: 13, marginTop: 8, lineHeight: 19 },
+  carouselButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, alignSelf: 'flex-start', borderRadius: 9, backgroundColor: '#FFCD00', minHeight: 38, paddingHorizontal: 13 },
+  carouselButtonText: { color: '#101010', fontSize: 12, fontWeight: '800' },
+  carouselDots: { position: 'absolute', right: 15, bottom: 9, flexDirection: 'row', gap: 6 },
+  carouselDot: { width: 6, height: 6, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
+  carouselDotActive: { width: 19, backgroundColor: '#FFCD00' },
+  categoryImage: { width: 70, height: 67, borderRadius: 8 },
   topRow: {
     minHeight: 64,
     flexDirection: 'row',
@@ -889,8 +985,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     paddingRight: spacing.lg,
   },
   categoryCard: {
-    minWidth: 106,
-    minHeight: 94,
+    width: 112,
+    height: 112,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: palette.border,
