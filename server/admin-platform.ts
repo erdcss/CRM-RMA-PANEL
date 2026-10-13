@@ -11,6 +11,7 @@ import {
   saveVideoDataUrl,
 } from "./image-storage";
 import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
+import { registerReelMediaRoutes, saveCompatibleReelVideo } from "./reels-media";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -600,6 +601,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     console.error("Platform tables could not be prepared:", error);
   });
   registerHomepageMediaRoutes(app, requireAdmin);
+  registerReelMediaRoutes(app, requireAdmin);
 
   // Large mobile background images are served separately instead of being
   // repeated as base64 in every public branding JSON response.
@@ -964,8 +966,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     try {
       const dataUrl = typeof req.body?.dataUrl === "string" ? req.body.dataUrl : "";
       if (!dataUrl) return res.status(400).json({ error: "Video dosyası bulunamadı" });
-      const url = await saveVideoDataUrl(dataUrl);
-      return res.status(201).json({ url });
+      const url = await saveCompatibleReelVideo(dataUrl);
+      return res.status(201).json({ url, format: "H.264/AAC MP4" });
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Video yüklenemedi",
