@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
   getOrderList,
@@ -32,6 +33,8 @@ function money(value: number) {
 }
 
 export default function OrderListScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const [items, setItems] = useState<B2BOrderListItem[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -83,7 +86,7 @@ export default function OrderListScreen() {
   });
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <View>
@@ -132,7 +135,7 @@ export default function OrderListScreen() {
                       <Ionicons
                         name="cube-outline"
                         size={34}
-                        color={colors.textMuted}
+                        color={palette.muted}
                       />
                     )}
                   </Pressable>
@@ -201,7 +204,7 @@ export default function OrderListScreen() {
                       <Ionicons
                         name="trash-outline"
                         size={17}
-                        color={colors.textMuted}
+                        color={palette.muted}
                       />
                     </Pressable>
 
@@ -217,7 +220,7 @@ export default function OrderListScreen() {
         ) : (
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
-              <Ionicons name="list-outline" size={34} color={colors.textMuted} />
+              <Ionicons name="list-outline" size={34} color={palette.muted} />
             </View>
             <Text style={styles.emptyTitle}>Sipariş listeniz boş</Text>
             <Text style={styles.emptyText}>
@@ -257,7 +260,7 @@ export default function OrderListScreen() {
                 <Ionicons
                   name="chevron-up"
                   size={20}
-                  color={colors.text}
+                  color={palette.text}
                 />
               </Animated.View>
             </View>
@@ -310,7 +313,7 @@ export default function OrderListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   screen: {
     flex: 1,
   },
@@ -325,19 +328,19 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     fontWeight: '800',
     letterSpacing: 1.2,
   },
   title: {
     ...typography.largeTitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: spacing.xs,
   },
   subtitle: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: spacing.xs,
     maxWidth: 310,
   },
@@ -364,8 +367,8 @@ const styles = StyleSheet.create({
     minHeight: 120,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: spacing.sm,
     flexDirection: 'row',
     gap: spacing.md,
@@ -391,24 +394,24 @@ const styles = StyleSheet.create({
   sku: {
     ...typography.caption,
     fontSize: 10,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   itemTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: 2,
   },
   itemMeta: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     marginTop: 4,
   },
   quantityRow: {
     marginTop: spacing.sm,
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     borderRadius: radius.full,
     flexDirection: 'row',
     alignItems: 'center',
@@ -424,7 +427,7 @@ const styles = StyleSheet.create({
     minWidth: 34,
     textAlign: 'center',
     ...typography.caption,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   itemRight: {
@@ -436,7 +439,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -445,12 +448,12 @@ const styles = StyleSheet.create({
   },
   units: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     fontWeight: '700',
   },
   total: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: 2,
   },
@@ -465,19 +468,19 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: radius.full,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyTitle: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: spacing.lg,
   },
   emptyText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: spacing.sm,
   },
@@ -502,7 +505,7 @@ const styles = StyleSheet.create({
     bottom: spacing.md,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     backgroundColor: 'rgba(255,255,255,0.98)',
     padding: spacing.md,
     shadowColor: '#0F172A',
@@ -520,11 +523,11 @@ const styles = StyleSheet.create({
   },
   drawerLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   drawerTotal: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: 2,
   },
@@ -535,7 +538,7 @@ const styles = StyleSheet.create({
   },
   drawerToggleText: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     fontWeight: '800',
   },
   drawerDetails: {
@@ -547,28 +550,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    borderTopColor: palette.border,
   },
   detailLineLast: {
     minHeight: 46,
   },
   detailLabel: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
   },
   detailValue: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
   detailTotalLabel: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   detailTotalValue: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
   },
   checkoutButton: {
