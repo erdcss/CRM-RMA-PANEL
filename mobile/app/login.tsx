@@ -217,19 +217,8 @@ export default function LoginScreen() {
 
             <Pressable
               style={styles.forgotButton}
-              onPress={async () => {
-                if (!validEmail) {
-                  appAlert('E-posta gerekli', 'Şifre yenilemek için e-posta adresinizi girin.');
-                  emailRef.current?.focus();
-                  return;
-                }
-                try {
-                  const result = await forgotPassword(email);
-                  appAlert('Şifre yenileme', result.message || 'E-postanızı kontrol edin.');
-                } catch (error) {
-                  appAlert('Şifre yenilenemedi', error instanceof Error ? error.message : 'Lütfen tekrar deneyin.');
-                }
-              }}
+              onPress={() => router.push({ pathname: '/forgot-password', params: { email: email.trim() } } as never)}
+              accessibilityRole="button"
             >
               <Text style={styles.forgotText}>Şifremi Unuttum</Text>
             </Pressable>
