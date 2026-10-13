@@ -754,7 +754,7 @@ export default function CheckoutScreen() {
                     autoCapitalize="words"
                     autoCorrect={false}
                     placeholder="İsim Soyisim"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor={palette.muted}
                     style={styles.input}
                   />
                 </View>
@@ -768,7 +768,7 @@ export default function CheckoutScreen() {
                     }
                     keyboardType="number-pad"
                     placeholder="0000 0000 0000 0000"
-                    placeholderTextColor={colors.textMuted}
+                    placeholderTextColor={palette.muted}
                     style={styles.input}
                     maxLength={23}
                   />
@@ -786,7 +786,7 @@ export default function CheckoutScreen() {
                         }}
                         keyboardType="number-pad"
                         placeholder="AA"
-                        placeholderTextColor={colors.textMuted}
+                        placeholderTextColor={palette.muted}
                         style={styles.input}
                         maxLength={2}
                       />
@@ -803,7 +803,7 @@ export default function CheckoutScreen() {
                         }
                         keyboardType="number-pad"
                         placeholder="YY"
-                        placeholderTextColor={colors.textMuted}
+                        placeholderTextColor={palette.muted}
                         style={styles.input}
                         maxLength={2}
                       />
@@ -820,7 +820,7 @@ export default function CheckoutScreen() {
                         }
                         keyboardType="number-pad"
                         placeholder="***"
-                        placeholderTextColor={colors.textMuted}
+                        placeholderTextColor={palette.muted}
                         style={styles.input}
                         secureTextEntry
                         maxLength={4}
@@ -1077,7 +1077,7 @@ function ChoiceCard({
   return (
     <Pressable style={[styles.choiceCard, active && styles.choiceCardActive]} onPress={onPress}>
       <View style={[styles.choiceIcon, active && styles.choiceIconActive]}>
-        <Ionicons name={icon} size={20} color={active ? '#FFFFFF' : colors.text} />
+        <Ionicons name={icon} size={20} color={active ? '#FFFFFF' : palette.text} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.choiceTitle}>{title}</Text>
@@ -1114,7 +1114,7 @@ function Input({
         keyboardType={keyboardType}
         multiline={multiline}
         style={[styles.input, multiline && styles.inputMultiline]}
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={palette.muted}
       />
     </View>
   );
