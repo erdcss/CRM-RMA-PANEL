@@ -71,7 +71,7 @@ export default function PaymentResultScreen() {
           style={styles.secondaryButton}
           onPress={() => router.replace('/(tabs)/profile')}
         >
-          <Ionicons name="person-outline" size={19} color={colors.text} />
+          <Ionicons name="person-outline" size={19} color={palette.text} />
           <Text style={styles.secondaryText}>Hesabımı Aç</Text>
         </Pressable>
       </View>
