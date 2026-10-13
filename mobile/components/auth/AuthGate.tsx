@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/constants/theme';
 
 function isAuthRoute(segment: string | undefined) {
-  return segment === 'login' || segment === 'signup';
+  return segment === 'login' || segment === 'signup' || segment === 'forgot-password';
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -57,6 +57,7 @@ export function RootStack() {
       <Stack.Screen name="my-orders" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="account/[section]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="forgot-password" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
       <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="product" options={{ animation: 'slide_from_right' }} />
