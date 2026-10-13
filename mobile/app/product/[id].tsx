@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
@@ -37,6 +38,8 @@ function productImage(product?: B2BProduct | null) {
 }
 
 export default function ProductDetailScreen() {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const { session } = useAuth();
@@ -83,9 +86,9 @@ export default function ProductDetailScreen() {
 
   if (loading) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.centerState}>
-          <Ionicons name="cube-outline" size={38} color={colors.textMuted} />
+          <Ionicons name="cube-outline" size={38} color={palette.muted} />
           <Text style={styles.stateTitle}>Ürün yükleniyor…</Text>
         </View>
       </Screen>
@@ -94,9 +97,9 @@ export default function ProductDetailScreen() {
 
   if (!product || error) {
     return (
-      <Screen>
+      <Screen style={{ backgroundColor: palette.background }}>
         <View style={styles.centerState}>
-          <Ionicons name="cube-outline" size={38} color={colors.textMuted} />
+          <Ionicons name="cube-outline" size={38} color={palette.muted} />
           <Text style={styles.stateTitle}>Ürün bulunamadı</Text>
           <Text style={styles.stateText}>{error || 'Ürün bilgisine ulaşılamadı.'}</Text>
           <Pressable style={styles.primaryButton} onPress={() => router.back()}>
@@ -112,13 +115,13 @@ export default function ProductDetailScreen() {
     session?.user?.role === 'b2b_customer' && session?.user?.isActive === true;
 
   return (
-    <Screen>
+    <Screen style={{ backgroundColor: palette.background }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.page}
       >
         <Pressable style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color={colors.textSecondary} />
+          <Ionicons name="chevron-back" size={20} color={palette.textSecondary} />
           <Text style={styles.backText}>Ürünlere dön</Text>
         </Pressable>
 
@@ -298,7 +301,7 @@ export default function ProductDetailScreen() {
                   <Ionicons
                     name="checkmark-circle-outline"
                     size={18}
-                    color={colors.textSecondary}
+                    color={palette.textSecondary}
                   />
                   <Text style={styles.featureText}>{feature}</Text>
                 </View>
@@ -307,7 +310,7 @@ export default function ProductDetailScreen() {
           ) : null}
 
           <View style={styles.shippingBox}>
-            <Ionicons name="car-outline" size={21} color={colors.textSecondary} />
+            <Ionicons name="car-outline" size={21} color={palette.textSecondary} />
             <Text style={styles.shippingText}>
               {loggedIn
                 ? 'Siparişinizi kart veya Havale/EFT ile tamamlayabilirsiniz.'
@@ -329,16 +332,18 @@ function InfoCard({
   label: string;
   value: string;
 }) {
+  const { palette } = useAppearance();
+  const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={styles.infoCard}>
-      <Ionicons name={icon} size={20} color={colors.textSecondary} />
+      <Ionicons name={icon} size={20} color={palette.textSecondary} />
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const buildStyles = (palette: AppPalette) => StyleSheet.create({
   page: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
@@ -354,19 +359,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
   },
   backText: {
     ...typography.bodyMedium,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
   },
   imageCard: {
     aspectRatio: 1,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -379,64 +384,64 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: spacing.lg,
   },
   sku: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   skuStrong: {
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     fontWeight: '700',
   },
   name: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: spacing.xs,
   },
   descriptionBox: {
     marginTop: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     padding: spacing.md,
   },
   description: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
   },
   collection: {
     ...typography.body,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: spacing.sm,
   },
   priceSection: {
     marginTop: spacing.lg,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: palette.border,
     paddingVertical: spacing.lg,
   },
   priceLabel: {
     ...typography.body,
-    color: colors.textMuted,
+    color: palette.muted,
   },
   price: {
     ...typography.largeTitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: 2,
   },
   priceNote: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: spacing.xs,
   },
   lockedPrice: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: spacing.xs,
   },
@@ -466,17 +471,17 @@ const styles = StyleSheet.create({
     minHeight: 110,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     padding: spacing.md,
   },
   infoLabel: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: spacing.md,
   },
   infoValue: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: 2,
   },
@@ -484,17 +489,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     padding: spacing.lg,
   },
   orderTitle: {
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
   },
   orderSubtitle: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: palette.muted,
     marginTop: 2,
   },
   quantityControl: {
@@ -503,7 +508,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
@@ -513,7 +518,7 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
   },
   quantityValue: {
     minWidth: 58,
@@ -521,26 +526,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textAlignVertical: 'center',
     ...typography.bodyMedium,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     lineHeight: 44,
   },
   totalBox: {
     marginTop: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: palette.surfaceSecondary,
     padding: spacing.md,
   },
   totalLabel: {
     ...typography.caption,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
   },
   totalValue: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '900',
     marginTop: spacing.xs,
   },
@@ -574,7 +579,7 @@ const styles = StyleSheet.create({
   },
   featuresTitle: {
     ...typography.subtitle,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginBottom: spacing.sm,
   },
@@ -586,15 +591,15 @@ const styles = StyleSheet.create({
   },
   featureText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     flex: 1,
   },
   shippingBox: {
     marginTop: spacing.lg,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceSecondary,
+    borderColor: palette.border,
+    backgroundColor: palette.surfaceSecondary,
     padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
@@ -602,7 +607,7 @@ const styles = StyleSheet.create({
   },
   shippingText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     flex: 1,
   },
   centerState: {
@@ -613,13 +618,13 @@ const styles = StyleSheet.create({
   },
   stateTitle: {
     ...typography.title,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '800',
     marginTop: spacing.md,
   },
   stateText: {
     ...typography.body,
-    color: colors.textSecondary,
+    color: palette.textSecondary,
     textAlign: 'center',
     marginTop: spacing.xs,
   },
