@@ -38,6 +38,28 @@ export async function saveCompatibleReelVideo(raw: string): Promise<string> {
   return `/api/public/reels/media/${id}`;
 }
 
+export async function migrateLegacyReelVideo(url: string): Promise<string> {
+  if (!/^\/uploads\/[A-Za-z0-9_-]+\.(?:mp4|mov|m4v|webm)$/i.test(url)) {
+    throw new Error("Yalnızca önceden yüklenmiş video dosyaları dönüştürülebilir.");
+  }
+  const file = path.basename(url);
+  const full = path.join(getUploadsDir(), file);
+  let bytes: Buffer;
+  try {
+    bytes = await fs.promises.readFile(full);
+  } catch {
+    const response = await fetch(`https://b2b.ecalisgan.com${url}`, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error("Eski video dosyasına erişilemedi (" + response.status + ").");
+    const declared = Number(response.headers.get("content-length") || 0);
+    if (declared > 10 * 1024 * 1024) throw new Error("Eski video 10 MB sınırını aşıyor.");
+    bytes = Buffer.from(await response.arrayBuffer());
+  }
+  if (bytes.length > 10 * 1024 * 1024) throw new Error("Eski video 10 MB sınırını aşıyor.");
+  const ext = file.split(".").pop()?.toLowerCase();
+  const mime = ext === "webm" ? "video/webm" : ext === "mov" ? "video/quicktime" : "video/mp4";
+  return saveCompatibleReelVideo(`data:${mime};base64,${bytes.toString("base64")}`);
+}
+
 export function registerReelMediaRoutes(app: Express, _requireAdmin: RequestHandler) {
   app.get("/api/public/reels/media/:id", async (req, res) => {
     const id = String(req.params.id || "");
