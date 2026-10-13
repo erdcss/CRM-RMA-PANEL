@@ -506,7 +506,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     borderRadius: radius.xl,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: 'rgba(255,255,255,0.98)',
+    backgroundColor: palette.surface,
     padding: spacing.md,
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: -6 },
