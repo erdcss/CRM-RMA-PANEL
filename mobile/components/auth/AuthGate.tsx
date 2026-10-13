@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useAppearance } from '@/contexts/AppearanceContext';
 import { colors } from '@/constants/theme';
 
 function isAuthRoute(segment: string | undefined) {
@@ -11,6 +12,7 @@ function isAuthRoute(segment: string | undefined) {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
+  const { palette } = useAppearance();
   const segments = useSegments();
   const router = useRouter();
   const currentRoute = segments[0];
@@ -36,7 +38,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <View style={styles.loader}>
+      <View style={[styles.loader, { backgroundColor: palette.background }]}>
         <ActivityIndicator color={colors.primary} size="large" />
       </View>
     );
@@ -46,11 +48,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export function RootStack() {
+  const { palette } = useAppearance();
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: palette.background },
         animation: 'slide_from_right',
       }}
     >
@@ -74,6 +77,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
   },
 });
