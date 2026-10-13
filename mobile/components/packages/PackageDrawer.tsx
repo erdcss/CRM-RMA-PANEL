@@ -13,10 +13,10 @@ import {
 } from 'react-native';
 import { appAlert } from '@/lib/appAlert';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StatusSheet } from '@/components/rma/StatusSheet';
+import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { getStatusLabel, getStatusVariant } from '@/constants/statuses';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
@@ -49,9 +49,8 @@ type SupplierGroup = {
 };
 
 export function PackageDrawer() {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { open, closeDrawer } = usePackageDrawer();
+  const { open, openDrawer, closeDrawer } = usePackageDrawer();
   const slideAnim = useRef(new Animated.Value(DRAWER_WIDTH)).current;
 
   const [loading, setLoading] = useState(false);
@@ -60,6 +59,7 @@ export function PackageDrawer() {
   const [selectedPkg, setSelectedPkg] = useState<RmaPackage | null>(null);
   const [statusProduct, setStatusProduct] = useState<RmaProduct | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const loadPackages = useCallback(async () => {
     try {
@@ -108,10 +108,32 @@ export function PackageDrawer() {
     }
   }, [open, slideAnim, loadPackages]);
 
+  // The old /package/scan route no longer exists. Use the shared native
+  // barcode scanner instead of navigating to a missing screen.
   const openPackageScan = useCallback(() => {
     closeDrawer();
-    setTimeout(() => router.push('/package/scan'), 280);
-  }, [closeDrawer, router]);
+    setTimeout(() => setScannerOpen(true), 280);
+  }, [closeDrawer]);
+
+  const handlePackageScanned = useCallback(async (value: string) => {
+    setScannerOpen(false);
+    const normalized = value.trim();
+    const pkg = packages.find((item) =>
+      item.barcodeValue?.trim() === normalized ||
+      item.qrValue?.trim() === normalized
+    );
+    if (!pkg) {
+      appAlert('Koli bulunamadı', 'Okutulan barkod hazırlanmış bir koliyle eşleşmedi.');
+      return;
+    }
+    try {
+      const detail = await rmaApi.getPackage(pkg.id);
+      setSelectedPkg(detail);
+      setTimeout(openDrawer, 280);
+    } catch (error) {
+      appAlert('Koli açılamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
+    }
+  }, [packages, openDrawer]);
 
   const supplierGroups = useMemo(() => {
     const map = new Map<string, SupplierGroup>();
@@ -285,6 +307,14 @@ export function PackageDrawer() {
           </Animated.View>
         </View>
       </Modal>
+
+      <BarcodeScannerModal
+        visible={scannerOpen}
+        scanMode="lookup"
+        title="Koli Barkodu Tara"
+        onClose={() => setScannerOpen(false)}
+        onScanned={(value) => { void handlePackageScanned(value); }}
+      />
 
       <StatusSheet
         visible={Boolean(statusProduct)}
