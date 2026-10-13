@@ -87,5 +87,5 @@ const styles = StyleSheet.create({
   tag:{ alignSelf:'flex-start',color:'#151515',backgroundColor:'#FFCD00',overflow:'hidden',borderRadius:12,paddingHorizontal:8,paddingVertical:3,marginTop:7,fontSize:10,fontWeight:'800' },
   row:{ minHeight:68,flexDirection:'row',alignItems:'center',gap:12,borderRadius:13,borderWidth:1,paddingHorizontal:13,paddingVertical:9 },
   icon:{ width:42,height:42,borderRadius:11,alignItems:'center',justifyContent:'center' },
-  rowTitle:{ fontSize:14,fontWeight:'750' },rowSubtitle:{ fontSize:12,marginTop:3 },
+  rowTitle:{ fontSize:14,fontWeight:'700' },rowSubtitle:{ fontSize:12,marginTop:3 },
 });
