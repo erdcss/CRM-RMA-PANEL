@@ -55,10 +55,14 @@ export function registerB2BInvoiceDocumentRoutes(
       return res.status(400).json({error:"Geçersiz PDF veya 5 MB dosya sınırı aşıldı"});
     }
     const checksum=createHash("sha256").update(bytes).digest("hex");
+    try { await ensureDocuments(); }
+    catch(error) {
+      console.error("Invoice documents schema unavailable",error);
+      return res.status(503).json({error:"Fatura depolaması hazırlanamadı"});
+    }
     const client=await pool.connect();
     let event:{userId:number;orderNumber:string;total:number;dedupe:string}|null=null;
     try{
-      await ensureDocuments();
       await client.query("BEGIN");
       const lookup=await client.query(`
         SELECT o.id,o.order_number,o.customer_email,o.total_amount,o.user_id,o.status,
