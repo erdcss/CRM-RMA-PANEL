@@ -137,6 +137,26 @@ export default function AdminProductAiImport() {
   const selectedRows = useMemo(() => rows.filter((row) => row.selected), [rows]);
   const waitingImageCount = selectedRows.filter((row) => row.images.length === 0).length;
 
+  function updateRow<K extends keyof ImportRow>(key:string, field:K, value:ImportRow[K]) {
+    setRows((current)=>current.map(row=>row.key===key?{...row,[field]:value}:row));
+  }
+
+  async function setRowImage(key:string,file?:File) {
+    if(!file)return;
+    if(!["image/png","image/jpeg","image/webp"].includes(file.type)) {
+      toast({title:"PNG, JPEG veya WebP görsel seçin",variant:"destructive"});return;
+    }
+    try {
+      const image=await fileToCompressedDataUrl(file);
+      setRows(current=>current.map(row=>row.key===key?{
+        ...row,images:[image],imageStatus:"verified" as const,
+        imageConfidence:1,imageSourceUrl:null,imageReason:"Görsel manuel olarak eklendi.",
+      }:row));
+    } catch(error) {
+      toast({title:"Görsel eklenemedi",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});
+    }
+  }
+
   function addFiles(incoming: File[]) {
     const accepted = incoming.filter(
       (file) => allowedTypes.has(file.type) && file.size <= 10 * 1024 * 1024,
