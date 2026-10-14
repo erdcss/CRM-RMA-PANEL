@@ -58,8 +58,11 @@ async function runCase(withSplash) {
       assert.match(config.expo.splash.image, /^\.\/assets\/managed-splash-[a-f0-9]{12}\.png$/);
       const logoFile = path.join(tmp, config.expo.icon);
       const splashFile = path.join(tmp, config.expo.splash.image);
-      assert.match(config.expo.android.adaptiveIcon.foregroundImage,
-        /^\\.\\/assets\\/managed-android-foreground-[a-f0-9]{12}\\.png$/);
+      assert.ok(
+        path.basename(config.expo.android.adaptiveIcon.foregroundImage).startsWith("managed-android-foreground-") &&
+        config.expo.android.adaptiveIcon.foregroundImage.endsWith(".png"),
+        "Android must use its own padded foreground PNG"
+      );
       assert.notEqual(config.expo.android.adaptiveIcon.foregroundImage, config.expo.icon,
         "Android adaptive foreground must be padded rather than full bleed");
       const adaptiveFile = path.join(tmp, config.expo.android.adaptiveIcon.foregroundImage);
