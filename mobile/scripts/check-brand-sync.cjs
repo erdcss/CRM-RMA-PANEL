@@ -76,10 +76,11 @@ async function runCase(withSplash) {
 
       assert.ok(fs.statSync(logoFile).size > 50);
       assert.ok(fs.statSync(splashFile).size > 50);
-      const headerModule = path.join(tmp, "lib", "managed-header-logo.ts");
-      assert.match(fs.readFileSync(headerModule, "utf8"),
-        /managed-header-logo-[a-f0-9]{12}\.png/);
-      assert.match(result.out, /header=managed-header-logo-[a-f0-9]{12}\.png/);
+      assert.equal(
+        fs.existsSync(path.join(tmp, "lib", "managed-header-logo.ts")),
+        false,
+        "Homepage header logo must no longer be bundled"
+      );
 
       const runtimeModule = path.join(tmp, "lib", "managed-splash.ts");
       assert.match(fs.readFileSync(runtimeModule, "utf8"), /require\('\.\.\/assets\/managed-splash-[a-f0-9]{12}\.png'\)/);
