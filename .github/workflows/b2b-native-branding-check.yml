@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - 'mobile/scripts/sync-mobile-branding.cjs'
+      - 'mobile/scripts/android-adaptive-icon.cjs'
+      - 'mobile/package.json'
+      - 'mobile/package-lock.json'
       - 'mobile/scripts/check-brand-sync.cjs'
       - 'mobile/app.json'
       - '.github/workflows/b2b-native-branding-check.yml'
@@ -15,7 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate native branding script
-        run: node --check mobile/scripts/sync-mobile-branding.cjs
+      - name: Install mobile dependencies
+        run: npm ci --prefix mobile --ignore-scripts
+      - name: Validate native branding scripts
+        run: |
+          node --check mobile/scripts/sync-mobile-branding.cjs
+          node --check mobile/scripts/android-adaptive-icon.cjs
+          node --check mobile/scripts/check-brand-sync.cjs
       - name: Validate admin-only brand sync
         run: node mobile/scripts/check-brand-sync.cjs
