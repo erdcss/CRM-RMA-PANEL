@@ -19,6 +19,7 @@ import {
 } from "./iyzico";
 import { getPaymentConfig } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, sendPushToApp } from "./push-notifications";
+import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 
 let dbReady = false;
 
@@ -2154,6 +2155,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("B2B temporary password email failed after approval:", error);
     }
 
+    void notifyB2BEvent(id, "membership_approved", {}, `membership_approved:${id}`)
+      .catch(error => console.error("Membership approval notification", error));
+
     const { password, ...safeUser } = updated;
     return res.json({
       ...safeUser,
@@ -2317,6 +2321,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
+  registerB2BNotificationCenter(app, requireAdmin, requireB2B);
+  void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
   // Load encoded product images only when an image is actually displayed.
   // The mobile catalog requests lightweight URLs instead of megabytes of base64.
@@ -3302,6 +3308,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         body: `${order.order_number} · Kart ödemesi başarılı`,
         data: { type: "order", orderNumber: order.order_number },
       });
+      if (order.user_id) void notifyB2BEvent(Number(order.user_id),"order_created", {
+        orderNumber: String(order.order_number),
+        amount: Number(order.total_amount||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
+      },`order_created:${order.order_number}`).catch(e=>console.error("Card order notification",e));
+
 
       return topRedirect(
         mobileResultUrl("success", order.order_number, stockReview) ||
@@ -3623,6 +3634,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               body: `${order.order_number} · Ödeme başarılı · Stok kontrolü gerekli`,
               data: { type: "order", orderNumber: order.order_number },
             });
+            if (order.user_id) void notifyB2BEvent(Number(order.user_id),"order_created",{
+              orderNumber:String(order.order_number),
+              amount:Number(order.total_amount||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
+            },`order_created:${order.order_number}`).catch(e=>console.error("Stock review order notification",e));
+
             const mobileUrl = mobileResultUrl("success", order.order_number, true);
             return res.redirect(
               303,
@@ -3781,6 +3797,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       body: `${orderNumber} · ${Number(total).toLocaleString("tr-TR")} ₺ · Havale/EFT`,
       data: { type: "order", orderNumber },
     });
+    void notifyB2BEvent(user.id, "order_created", {
+      orderNumber, amount: Number(total).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
+    }, `order_created:${orderNumber}`).catch(error => console.error("Bank order notification",error));
+
 
     return res.status(201).json({
       orderNumber,
