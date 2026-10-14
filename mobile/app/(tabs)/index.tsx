@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { appAlert } from '@/lib/appAlert';
 
@@ -104,6 +104,7 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [notifications, setNotifications] = useState<B2BOrderSummary[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const notificationDrawer = useRef(new Animated.Value(0)).current;
@@ -184,6 +185,15 @@ export default function HomeScreen() {
       active = false;
     };
   }, [session?.access_token]);
+
+  useFocusEffect(useCallback(() => {
+    let mounted=true;
+    if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; }; }
+    void rmaApi.listB2BNotifications().then(rows => {
+      if (mounted) setUnreadNotifications(rows.filter(row => !row.read_at).length);
+    }).catch(() => undefined);
+    return () => { mounted=false; };
+  }, [session?.user?.id]));
 
   useEffect(() => {
     if (typeof params.category === 'string') {
@@ -302,7 +312,7 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable
               style={[styles.notificationButton, notificationsOpen && styles.notificationButtonActive]}
-              onPress={toggleNotifications}
+              onPress={() => router.push('/notifications' as never)}
               accessibilityRole="button"
               accessibilityLabel="Bildirimleri aç"
             >
@@ -311,7 +321,7 @@ export default function HomeScreen() {
                 size={22}
                 color={palette.text}
               />
-              {notifications.length > 0 ? <View style={styles.notificationDot} /> : null}
+              {unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}
             </Pressable>
           </View>
         </View>
