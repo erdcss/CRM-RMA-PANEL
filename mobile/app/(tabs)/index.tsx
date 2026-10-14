@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Easing,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,56 +16,20 @@ import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { appAlert } from '@/lib/appAlert';
 
 import { Screen } from '@/components/ui/Screen';
-import { BrandLogo } from '@/components/ui/BrandLogo';
-import { B2B_HEADER_LOGO } from '@/assets/header-logo';
-import { managedHeaderLogo } from '@/lib/managed-header-logo';
 import { useAuth } from '@/contexts/AuthContext';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { radius, spacing, typography } from '@/constants/theme';
 import {
   absoluteMediaUrl,
   homepageMediaUrl,
   rmaApi,
   type B2BHomepage,
-  type B2BOrderSummary,
   type B2BProduct,
   type B2BReel,
   type HomeBanner,
   type HomeCategoryCard,
 } from '@/lib/api';
-import { useMobileBranding, refreshMobileBranding } from '@/lib/branding';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-function money(value: string | number | null | undefined) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return '—';
-  return `${numeric.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ₺`;
-}
-
-function orderStatusLabel(value?: string | null) {
-  const status = String(value || '').toLowerCase();
-  if (status === 'paid') return 'Ödeme alındı';
-  if (status === 'paid_stock_review') return 'Stok kontrolünde';
-  if (status === 'awaiting_bank_transfer') return 'Havale bekleniyor';
-  if (status === 'bank_transfer_notified') return 'Havale bildirildi';
-  if (status === 'cancel_requested') return 'İptal talebi alındı';
-  if (status === 'completed') return 'Tamamlandı';
-  if (status === 'cancelled') return 'İptal edildi';
-  return status ? status.replace(/_/g, ' ') : 'Sipariş güncellendi';
-}
-
-function shortDate(value?: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('tr-TR', {
-    day: '2-digit',
-    month: '2-digit',
-  });
-}
 
 function productImage(product: B2BProduct) {
   const raw =
@@ -82,9 +45,8 @@ function productImage(product: B2BProduct) {
 export default function HomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
-  const branding = useMobileBranding();
   const { session } = useAuth();
-  const { palette, mode } = useAppearance();
+  const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [welcome, setWelcome] = useState(false);
   const welcomeFade = useRef(new Animated.Value(0)).current;
@@ -106,11 +68,8 @@ export default function HomeScreen() {
   const scanLockedRef = useRef(false);
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [notifications, setNotifications] = useState<B2BOrderSummary[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const notificationDrawer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -167,34 +126,7 @@ export default function HomeScreen() {
     void rmaApi.listB2BReels().then(items => setReels(Array.isArray(items) ? items.slice(0, 6) : [])).catch(() => setReels([]));
   }, []);
 
-  useEffect(() => {
-    let active = true;
-
-    if (!session) {
-      setNotifications([]);
-      return () => {
-        active = false;
-      };
-    }
-
-    void rmaApi
-      .listB2BOrders()
-      .then((rows) => {
-        if (active) {
-          setNotifications(Array.isArray(rows) ? rows.slice(0, 8) : []);
-        }
-      })
-      .catch(() => {
-        if (active) setNotifications([]);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [session?.access_token]);
-
   useFocusEffect(useCallback(() => {
-    void refreshMobileBranding();
     // Returning from Admin-managed promotions should refresh banners without
     // requiring the customer to close or reinstall the mobile application.
     let homeMounted = true;
@@ -272,17 +204,6 @@ export default function HomeScreen() {
     }
   };
 
-  const toggleNotifications = () => {
-    const next = !notificationsOpen;
-    setNotificationsOpen(next);
-    Animated.timing(notificationDrawer, {
-      toValue: next ? 1 : 0,
-      duration: 240,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
     try {
@@ -309,165 +230,39 @@ export default function HomeScreen() {
           <Ionicons name="checkmark-circle" size={20} color="#FFCD00" />
           <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
         </Animated.View> : null}
-        <View style={styles.topRow}>
-          <BrandLogo
-            uri={branding.b2b_mobile_header_logo || managedHeaderLogo || B2B_HEADER_LOGO}
-            style={styles.logo}
-          />
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Pressable
-              style={styles.notificationButton}
-              onPress={() => router.push('/(tabs)/orders')}
-              accessibilityRole="button"
-              accessibilityLabel="Sipariş listesine git"
-            >
-              <Ionicons name="cart-outline" size={23} color={palette.text} />
-            </Pressable>
-            <Pressable
-              style={[styles.notificationButton, notificationsOpen && styles.notificationButtonActive]}
-              onPress={() => router.push('/notifications' as never)}
-              accessibilityRole="button"
-              accessibilityLabel="Bildirimleri aç"
-            >
-              <Ionicons
-                name={notificationsOpen ? 'notifications' : 'notifications-outline'}
-                size={22}
-                color={palette.text}
-              />
-              {unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}
+        <View style={styles.headerRow}>
+  <View style={[styles.searchBox, styles.headerSearchBox]}>
+            <Ionicons name="search-outline" size={20} color={palette.muted} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Ürün veya stok kodu ara"
+              placeholderTextColor={palette.muted}
+              style={styles.searchInput}
+              returnKeyType="search"
+            />
+            {query ? (
+              <Pressable onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
+                <Ionicons name="close-circle" size={19} color={palette.muted} />
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => setScannerOpen(true)} style={styles.scanButton}
+              accessibilityRole="button" accessibilityLabel="Barkod oku">
+              <Ionicons name="scan-outline" size={23} color={palette.text} />
             </Pressable>
           </View>
-        </View>
-
-        <Animated.View
-          pointerEvents={notificationsOpen ? 'auto' : 'none'}
-          style={[
-            styles.notificationDrawer,
-            {
-              maxHeight: notificationDrawer.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 360],
-              }),
-              opacity: notificationDrawer,
-              transform: [
-                {
-                  translateY: notificationDrawer.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-8, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.notificationDrawerHeader}>
-            <View>
-              <Text style={styles.notificationDrawerEyebrow}>BİLDİRİMLER</Text>
-              <Text style={styles.notificationDrawerTitle}>
-                Son sipariş hareketleri
-              </Text>
-            </View>
-            <Pressable
-              style={styles.notificationClose}
-              onPress={toggleNotifications}
-            >
-              <Ionicons name="close" size={18} color={palette.text} />
-            </Pressable>
-          </View>
-
-          {!session ? (
-            <View style={styles.notificationEmpty}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={17}
-                color={palette.muted}
-              />
-              <Text style={styles.notificationEmptyTitle}>
-                Bildirimler için giriş yapın
-              </Text>
-              <Text style={styles.notificationEmptyText}>
-                Sipariş ve ödeme hareketleri hesabınızla giriş yaptıktan sonra burada listelenir.
-              </Text>
-            </View>
-          ) : notifications.length === 0 ? (
-            <View style={styles.notificationEmpty}>
-              <Ionicons
-                name="notifications-off-outline"
-                size={24}
-                color={palette.muted}
-              />
-              <Text style={styles.notificationEmptyTitle}>
-                Yeni bildirim yok
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.notificationList}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-            >
-              {notifications.map((item, index) => (
-                <View
-                  key={String(item.id)}
-                  style={[
-                    styles.notificationItem,
-                    index === notifications.length - 1 &&
-                      styles.notificationItemLast,
-                  ]}
-                >
-                  <View style={styles.notificationIcon}>
-                    <Ionicons
-                      name="bag-check-outline"
-                      size={18}
-                      color={palette.text}
-                    />
-                  </View>
-                  <View style={styles.notificationText}>
-                    <Text style={styles.notificationTitle} numberOfLines={1}>
-                      {item.order_number || `Sipariş #${item.id}`}
-                    </Text>
-                    <Text style={styles.notificationSubtitle} numberOfLines={1}>
-                      {orderStatusLabel(item.status)}
-                    </Text>
-                  </View>
-                  <View style={styles.notificationMeta}>
-                    <Text style={styles.notificationDate}>
-                      {shortDate(item.created_at)}
-                    </Text>
-                    {item.total_amount != null ? (
-                      <Text style={styles.notificationAmount}>
-                        {money(item.total_amount)}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </Animated.View>
-
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={20} color={palette.muted} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Ürün veya stok kodu ara"
-            placeholderTextColor={palette.muted}
-            style={styles.searchInput}
-            returnKeyType="search"
-          />
-          {query ? (
-            <Pressable onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
-              <Ionicons name="close-circle" size={19} color={palette.muted} />
-            </Pressable>
-          ) : null}
-          <Pressable onPress={() => setScannerOpen(true)} style={styles.scanButton}
-            accessibilityRole="button" accessibilityLabel="Barkod oku">
-            <Ionicons name="scan-outline" size={23} color={palette.text} />
+  
+          <Pressable
+            style={styles.notificationButton}
+            onPress={() => router.push('/notifications' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Bildirimleri aç"
+          >
+            <Ionicons name="notifications-outline" size={23} color={palette.text} />
+            {unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}
           </Pressable>
         </View>
-
 
         {query.trim() ? (
           <View style={styles.searchResults}>
@@ -493,67 +288,82 @@ export default function HomeScreen() {
           <>
 
         {banners.length > 0 ? (
-          <View style={styles.carouselContainer} onLayout={(event) => setBannerWidth(event.nativeEvent.layout.width)}>
-            {bannerWidth > 0 ? (
-              <ScrollView ref={bannerScrollRef} horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-                scrollEventThrottle={100}
-                onMomentumScrollEnd={(event) => {
-                  const next = Math.round(event.nativeEvent.contentOffset.x / bannerWidth);
-                  bannerIndexRef.current = next;
-                  setBannerIndex(next);
-                }}>
-                {banners.map(banner => (
-                  <View key={banner.id} style={[styles.carouselSlide, { width: bannerWidth }]}>
-                    {homepageMediaUrl(banner.imageId) ? (
-                      <Image
-                        source={{ uri: homepageMediaUrl(banner.imageId)! }}
-                        style={styles.carouselImage}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                        transition={180}
-                        onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
-                        onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
-                      />
-                    ) : null}
-                    {failedBannerIds.includes(banner.id) ? (
-                      <View style={styles.bannerError} pointerEvents="none">
-                        <Ionicons name="image-outline" size={20} color="#FFFFFF" />
-                        <Text style={styles.bannerErrorText}>Banner görseli yüklenemedi</Text>
-                      </View>
-                    ) : null}
-                    <View style={styles.carouselOverlay} />
-                    <View style={styles.carouselContent}>
-                      <Text style={styles.carouselTitle} numberOfLines={3}>{banner.title || 'Çalışkan B2B'}</Text>
-                      {banner.subtitle ? <Text style={styles.carouselSubtitle} numberOfLines={3}>{banner.subtitle}</Text> : null}
-                      {banner.buttonText ? (
-                        <Pressable style={styles.carouselButton} onPress={() => router.push('/(tabs)/menu')}>
-                          <Text style={styles.carouselButtonText}>{banner.buttonText}</Text>
-                          <Ionicons name="arrow-forward" size={15} color="#131313" />
-                        </Pressable>
+          <>
+            <View
+              style={styles.carouselContainer}
+              onLayout={(event) => setBannerWidth(event.nativeEvent.layout.width)}
+            >
+              {bannerWidth > 0 ? (
+                <ScrollView
+                  ref={bannerScrollRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  scrollEventThrottle={100}
+                  onMomentumScrollEnd={(event) => {
+                    const next = Math.round(event.nativeEvent.contentOffset.x / bannerWidth);
+                    bannerIndexRef.current = next;
+                    setBannerIndex(next);
+                  }}
+                >
+                  {banners.map((banner) => (
+                    <View key={banner.id} style={[styles.carouselSlide, { width: bannerWidth }]}>
+                      {homepageMediaUrl(banner.imageId) ? (
+                        <Image
+                          source={{ uri: homepageMediaUrl(banner.imageId)! }}
+                          style={styles.carouselImage}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                          transition={180}
+                          onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
+                          onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
+                        />
+                      ) : null}
+                      {failedBannerIds.includes(banner.id) ? (
+                        <View style={styles.bannerError} pointerEvents="none">
+                          <Ionicons name="image-outline" size={20} color="#FFFFFF" />
+                          <Text style={styles.bannerErrorText}>Banner görseli yüklenemedi</Text>
+                        </View>
                       ) : null}
                     </View>
-                  </View>
-                ))}
-              </ScrollView>
+                  ))}
+                </ScrollView>
+              ) : null}
+              {banners.length > 1 ? (
+                <View style={styles.carouselDots} pointerEvents="none">
+                  {banners.map((banner, index) => (
+                    <View
+                      key={banner.id}
+                      style={[styles.carouselDot, index === bannerIndex && styles.carouselDotActive]}
+                    />
+                  ))}
+                </View>
+              ) : null}
+            </View>
+            {(banners[bannerIndex]?.title?.trim() ||
+              banners[bannerIndex]?.subtitle?.trim() ||
+              banners[bannerIndex]?.buttonText?.trim()) ? (
+              <View style={styles.bannerDetails}>
+                {banners[bannerIndex]?.title?.trim() ? (
+                  <Text style={styles.carouselTitle} numberOfLines={2}>
+                    {banners[bannerIndex].title}
+                  </Text>
+                ) : null}
+                {banners[bannerIndex]?.subtitle?.trim() ? (
+                  <Text style={styles.carouselSubtitle} numberOfLines={3}>
+                    {banners[bannerIndex].subtitle}
+                  </Text>
+                ) : null}
+                {banners[bannerIndex]?.buttonText?.trim() ? (
+                  <Pressable style={styles.carouselButton} onPress={() => router.push('/(tabs)/menu')}>
+                    <Text style={styles.carouselButtonText}>{banners[bannerIndex].buttonText}</Text>
+                    <Ionicons name="arrow-forward" size={15} color="#131313" />
+                  </Pressable>
+                ) : null}
+              </View>
             ) : null}
-            {banners.length > 1 ? <View style={styles.carouselDots}>
-              {banners.map((banner, index) => (
-                <View key={banner.id} style={[styles.carouselDot, index === bannerIndex && styles.carouselDotActive]} />
-              ))}
-            </View> : null}
-          </View>
-        ) : (
-          <View style={styles.heroBanner}>
-            <View style={styles.heroIconCircle}><Ionicons name="cube-outline" size={30} color="#FFCD00" /></View>
-            <Text style={styles.heroEyebrow}>ÇALIŞKAN B2B · TOPTAN TEDARİK</Text>
-            <Text style={styles.heroTitle}>İşinizi daha güçlü yarınlara taşıyın.</Text>
-            <Text style={styles.heroDescription}>Geniş ürün yelpazesi ve işletmelere özel avantajlarla yanınızdayız.</Text>
-            <Pressable style={styles.heroAction} onPress={() => router.push('/(tabs)/menu')}>
-              <Text style={styles.heroActionText}>Alışverişe Başla</Text>
-              <Ionicons name="arrow-forward" size={16} color="#171717" />
-            </Pressable>
-          </View>
-        )}
+          </>
+        ) : null}
 
         <View style={styles.sectionHeader}>
           <View>
@@ -787,13 +597,6 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
   welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
-  heroBanner: { backgroundColor:'#17191C', borderWidth:1,borderColor:'#3E3930',borderRadius:18,padding:20,marginTop:18,overflow:'hidden' },
-  heroIconCircle:{ width:48,height:48,borderRadius:13,backgroundColor:'#2D2A1F',alignItems:'center',justifyContent:'center',marginBottom:18 },
-  heroEyebrow:{ color:'#FFCD00',fontSize:10,fontWeight:'900',letterSpacing:1.2,marginBottom:8 },
-  heroTitle:{ color:'#FFFFFF',fontSize:25,fontWeight:'900',lineHeight:30,maxWidth:'96%' },
-  heroDescription:{ color:'#D3D6DA',fontSize:13,lineHeight:20,marginTop:10,maxWidth:'93%' },
-  heroAction:{ backgroundColor:'#FFCD00',height:44,alignSelf:'flex-start',paddingHorizontal:16,borderRadius:11,flexDirection:'row',alignItems:'center',gap:9,marginTop:18 },
-  heroActionText:{ color:'#151515',fontSize:13,fontWeight:'900' },
   reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
   reelPreviewOverlay:{ flex:1,justifyContent:'space-between',padding:12,backgroundColor:'rgba(0,0,0,0.4)' },
   reelPreviewText:{ color:'#FFFFFF',fontSize:12,fontWeight:'800' },
@@ -811,27 +614,24 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
   bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
-  carouselSlide: { height: 218, justifyContent: 'flex-end', overflow: 'hidden' },
-  carouselOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
-  carouselContent: { padding: 20, paddingBottom: 28, maxWidth: '94%' },
-  carouselTitle: { color: '#FFFFFF', fontSize: 23, lineHeight: 28, fontWeight: '900' },
-  carouselSubtitle: { color: '#F0F0F0', fontSize: 13, marginTop: 8, lineHeight: 19 },
-  carouselButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, alignSelf: 'flex-start', borderRadius: 9, backgroundColor: '#FFCD00', minHeight: 38, paddingHorizontal: 13 },
+  carouselSlide: { height: 218, overflow: 'hidden' },
+  bannerDetails: {
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  carouselTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '800' },
+  carouselSubtitle: { color: palette.textSecondary, fontSize: 13, marginTop: 5, lineHeight: 19 },
+  carouselButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, alignSelf: 'flex-start', borderRadius: 9, backgroundColor: '#FFCD00', minHeight: 36, paddingHorizontal: 13 },
   carouselButtonText: { color: '#101010', fontSize: 12, fontWeight: '800' },
   carouselDots: { position: 'absolute', right: 15, bottom: 9, flexDirection: 'row', gap: 6 },
   carouselDot: { width: 6, height: 6, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
   carouselDotActive: { width: 19, backgroundColor: '#FFCD00' },
   categoryImage: { width: 70, height: 67, borderRadius: 8 },
-  topRow: {
-    minHeight: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  logo: {
-    width: 192,
-    height: 53,
-  },
   notificationButton: {
     width: 44,
     height: 44,
@@ -841,130 +641,6 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     backgroundColor: palette.surface,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  notificationButtonActive: {
-    borderColor: palette.text,
-    backgroundColor: palette.surfaceSecondary,
-  },
-  notificationDrawer: {
-    position: 'absolute',
-    top: 72,
-    right: spacing.lg,
-    width: 330,
-    maxWidth: '90%',
-    zIndex: 50,
-    overflow: 'hidden',
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.16,
-    shadowRadius: 28,
-    elevation: 18,
-  },
-  notificationDrawerHeader: {
-    minHeight: 66,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  notificationDrawerEyebrow: {
-    ...typography.caption,
-    color: palette.muted,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-  },
-  notificationDrawerTitle: {
-    ...typography.bodyMedium,
-    color: palette.text,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  notificationClose: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.full,
-    backgroundColor: palette.surfaceSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationList: {
-    maxHeight: 282,
-  },
-  notificationItem: {
-    minHeight: 68,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  notificationItemLast: {
-    borderBottomWidth: 0,
-  },
-  notificationIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: palette.surfaceSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  notificationTitle: {
-    ...typography.caption,
-    color: palette.text,
-    fontWeight: '900',
-  },
-  notificationSubtitle: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 2,
-  },
-  notificationMeta: {
-    alignItems: 'flex-end',
-  },
-  notificationDate: {
-    ...typography.caption,
-    fontSize: 9,
-    color: palette.muted,
-  },
-  notificationAmount: {
-    ...typography.caption,
-    color: palette.text,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  notificationEmpty: {
-    minHeight: 150,
-    padding: spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationEmptyTitle: {
-    ...typography.bodyMedium,
-    color: palette.text,
-    fontWeight: '800',
-    marginTop: spacing.sm,
-    textAlign: 'center',
-  },
-  notificationEmptyText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: spacing.xs,
-    textAlign: 'center',
-    lineHeight: 17,
   },
   notificationDot: {
     position: 'absolute',
@@ -977,6 +653,13 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.surface,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  headerSearchBox: { flex: 1, marginTop: 0, minWidth: 0 },
   searchBox: {
     marginTop: spacing.md,
     minHeight: 52,
