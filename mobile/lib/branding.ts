@@ -77,11 +77,11 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
   }
 }
 
-function refreshBranding(): Promise<void> {
+function refreshBranding(force = false): Promise<void> {
   if (pending) return pending;
   const now = Date.now();
-  if (lastSuccess && now - lastSuccess < BRANDING_TTL_MS) return Promise.resolve();
-  if (lastAttempt && now - lastAttempt < RETRY_MS) return Promise.resolve();
+  if (!force && lastSuccess && now - lastSuccess < BRANDING_TTL_MS) return Promise.resolve();
+  if (lastAttempt && now - lastAttempt < (force ? 5_000 : RETRY_MS)) return Promise.resolve();
 
   lastAttempt = now;
   pending = fetchB2BBranding()
@@ -104,6 +104,11 @@ function refreshBranding(): Promise<void> {
       pending = null;
     });
   return pending;
+}
+
+/** Refresh admin-controlled mobile assets when the home tab becomes visible. */
+export function refreshMobileBranding(): Promise<void> {
+  return refreshBranding(true);
 }
 
 export function useMobileBranding() {
