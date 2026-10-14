@@ -303,7 +303,7 @@ export default function OrderListScreen() {
                 } as never)
               }
             >
-              <Ionicons name="bag-check-outline" size={19} color="#FFFFFF" />
+              <Ionicons name="bag-check-outline" size={19} color="#101010" />
               <Text style={styles.checkoutButtonText}>Siparişi Tamamla</Text>
             </Pressable>
           ) : null}
@@ -578,7 +578,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     minHeight: 52,
     marginTop: spacing.sm,
     borderRadius: radius.md,
-    backgroundColor: '#111827',
+    backgroundColor: '#FFCD00',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -586,7 +586,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   checkoutButtonText: {
     ...typography.bodyMedium,
-    color: '#FFFFFF',
+    color: '#101010',
     fontWeight: '900',
   },
 });
