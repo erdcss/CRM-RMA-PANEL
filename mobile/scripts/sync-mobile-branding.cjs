@@ -203,7 +203,7 @@ async function main() {
 
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
-    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · splash=${Boolean(splashPath)}`,
+    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · header=${headerPath ? path.basename(headerPath) : 'yok'} · splash=${Boolean(splashPath)}`,
   );
 }
 
