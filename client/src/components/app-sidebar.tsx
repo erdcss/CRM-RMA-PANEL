@@ -19,6 +19,7 @@ import {
   Home,
   WalletCards,
   Film,
+  Bell,
 } from "lucide-react";
 import {
   Sidebar,
@@ -51,6 +52,7 @@ const standaloneItems = [
   { title: "Başvurular", url: "/basvurular", icon: ClipboardList },
   { title: "Ödeme Ekranı", url: "/odeme-ekrani", icon: WalletCards },
   { title: "Reelsler", url: "/reelsler", icon: Film },
+  { title: "Bildirimler", url: "/bildirimler", icon: Bell },
   { title: "Ayarlar", url: "/ayarlar", icon: Settings },
   { title: "Yapay Zeka", url: "/yapay-zeka", icon: Sparkles },
 ];
