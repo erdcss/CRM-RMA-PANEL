@@ -11,6 +11,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
+import { openB2BInvoice } from '@/lib/invoice-files';
+import { appAlert } from '@/lib/appAlert';
 
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
@@ -241,20 +243,15 @@ export default function ProfileScreen() {
         ) : null}
 
         {active === 'invoices' ? (
-          <Panel title="Fatura İşlemleri" subtitle="B2B faturalarınız">
+          <Panel title="Faturalarım" subtitle="Faturalarınız güvenli şekilde indirilir ve cihazınızda açılır">
             {invoices.length ? (
               invoices.map((invoice, index) => (
                 <Pressable
                   key={invoice.id}
-                  onPress={() =>
-                    invoice.download_url
-                      ? void Linking.openURL(
-                          invoice.download_url.startsWith('http')
-                            ? invoice.download_url
-                            : `${API_BASE_URL}${invoice.download_url}`,
-                        )
-                      : undefined
-                  }
+                  onPress={() => void openB2BInvoice(invoice.id).catch(error =>
+                    appAlert('Fatura görüntülenemedi',
+                      error instanceof Error ? error.message : 'Dosya açılamadı', undefined, 'error')
+                  )}
                 >
                   <ListCard
                     icon="document-text-outline"
