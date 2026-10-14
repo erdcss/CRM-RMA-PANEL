@@ -1702,7 +1702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     if (isPrimaryAdminAttempt && supabaseUrl && supabaseKey && primaryAdminAuthEmail) {
       try {
-        const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        const supabaseAuthResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1714,8 +1714,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }),
         });
 
-        if (authResponse.ok) {
-          const authPayload = await authResponse.json() as { user?: { email?: string } };
+        if (supabaseAuthResponse.ok) {
+          const authPayload = await supabaseAuthResponse.json() as { user?: { email?: string } };
           const authenticatedEmail = authPayload.user?.email?.trim().toLowerCase();
 
           if (authenticatedEmail === primaryAdminAuthEmail) {
