@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { createHash } = require("node:crypto");
+const { makeAndroidAdaptiveIcon } = require("./android-adaptive-icon.cjs");
 
 const target = process.argv[2] === "business" ? "business" : "b2b";
 const root = process.cwd();
@@ -107,12 +108,14 @@ async function main() {
   const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
   const expo = config.expo || (config.expo = {});
 
+  let androidForegroundPath = null;
   if (logoPath) {
     expo.icon = logoPath;
+    androidForegroundPath = target === "b2b" ? makeAndroidAdaptiveIcon(logoPath, assetsDir) : logoPath;
     expo.android = expo.android || {};
     expo.android.adaptiveIcon = {
       ...(expo.android.adaptiveIcon || {}),
-      foregroundImage: logoPath,
+      foregroundImage: androidForegroundPath,
       backgroundColor:
         expo.android.adaptiveIcon?.backgroundColor ||
         (target === "business" ? "#0B0B0B" : "#FFFFFF"),
@@ -161,10 +164,10 @@ async function main() {
 
   // Only files referenced by app.json are bundled. Older unreferenced files
   // may be locked by Windows Photos; cleanup should never block a valid build.
-  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), ...(headerPath ? [path.basename(headerPath)] : [])]);
+  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), ...(headerPath ? [path.basename(headerPath)] : []), ...(androidForegroundPath ? [path.basename(androidForegroundPath)] : [])]);
   for (const filename of fs.readdirSync(assetsDir)) {
     if (
-      /^managed-(?:logo|splash)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
+      /^managed-(?:logo|splash|android-foreground)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
       !activeFiles.has(filename)
     ) {
       try {
@@ -203,7 +206,7 @@ async function main() {
 
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
-    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · header=${headerPath ? path.basename(headerPath) : 'yok'} · splash=${Boolean(splashPath)}`,
+    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · androidForeground=${androidForegroundPath ? path.basename(androidForegroundPath) : 'yok'} · header=${headerPath ? path.basename(headerPath) : 'yok'} · splash=${Boolean(splashPath)}`,
   );
 }
 
