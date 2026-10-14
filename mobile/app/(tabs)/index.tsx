@@ -31,6 +31,15 @@ import {
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+function money(value: string | number | null | undefined) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  return `${numeric.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ₺`;
+}
+
 function productImage(product: B2BProduct) {
   const raw =
     (typeof product.image_data === 'string' && product.image_data.trim()
