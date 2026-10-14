@@ -4,6 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
+const { PNG } = require("pngjs");
 
 const script = path.resolve(__dirname, "sync-mobile-branding.cjs");
 const samplePng = Buffer.from(
@@ -57,6 +58,18 @@ async function runCase(withSplash) {
       assert.match(config.expo.splash.image, /^\.\/assets\/managed-splash-[a-f0-9]{12}\.png$/);
       const logoFile = path.join(tmp, config.expo.icon);
       const splashFile = path.join(tmp, config.expo.splash.image);
+      assert.match(config.expo.android.adaptiveIcon.foregroundImage,
+        /^\\.\\/assets\\/managed-android-foreground-[a-f0-9]{12}\\.png$/);
+      assert.notEqual(config.expo.android.adaptiveIcon.foregroundImage, config.expo.icon,
+        "Android adaptive foreground must be padded rather than full bleed");
+      const adaptiveFile = path.join(tmp, config.expo.android.adaptiveIcon.foregroundImage);
+      const adaptive = PNG.sync.read(fs.readFileSync(adaptiveFile));
+      assert.equal(adaptive.width, 1024);
+      assert.equal(adaptive.height, 1024);
+      assert.equal(adaptive.data[3], 0, "Outside safe zone must be transparent");
+      assert.ok(adaptive.data[((512 * 1024) + 512) * 4 + 3] > 0,
+        "Logo must remain visible at the icon center");
+
       assert.ok(fs.statSync(logoFile).size > 50);
       assert.ok(fs.statSync(splashFile).size > 50);
       const headerModule = path.join(tmp, "lib", "managed-header-logo.ts");
