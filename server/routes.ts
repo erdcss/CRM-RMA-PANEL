@@ -20,6 +20,7 @@ import {
 import { getPaymentConfig } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, sendPushToApp } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
+import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 
 let dbReady = false;
 
@@ -2322,6 +2323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
+  registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
   // Load encoded product images only when an image is actually displayed.
