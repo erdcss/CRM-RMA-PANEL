@@ -236,12 +236,6 @@ export default function Ayarlar() {
                     pngOnly
                   />
                   <AssetUploader
-                    title="Ana Sayfa Header Logosu"
-                    description="Uygulamanın üst menüsünde görünür. PNG veya şeffaf WebP önerilir. Uygulamayı yeniden derlemeden güncellenir."
-                    value={values.b2b_mobile_header_logo}
-                    onChange={(value) => setAsset("b2b_mobile_header_logo", value)}
-                  />
-                  <AssetUploader
                     title="Splash Ekranı"
                     description="Açılışta 5 saniye gösterilecek PNG görsel. TestFlight build için zorunludur."
                     value={values.b2b_mobile_splash}
