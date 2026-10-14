@@ -110,6 +110,32 @@ export async function notifyB2BEvent(
 export function registerB2BNotificationCenter(
   app:Express, requireAdmin:RequestHandler, requireB2B:RequestHandler,
 ) {
+  // B2B return approvals feed the automatic return notification rule.
+  app.get("/api/admin/b2b-returns",requireAdmin,async(_req,res)=>{
+    try {
+      if(!pool)return res.json([]);
+      const rows=await pool.query(`SELECT r.id,r.order_number,r.status,r.reason,r.created_at,
+        u.email,u.company_name FROM b2b_returns r
+        JOIN users u ON u.id=r.user_id ORDER BY r.created_at DESC LIMIT 200`);
+      return res.json(rows.rows);
+    }catch(error){console.error("B2B returns load",error);return res.status(500).json({error:"B2B iadeleri listelenemedi"});}
+  });
+  app.post("/api/admin/b2b-returns/:id/approve",requireAdmin,async(req,res)=>{
+    try {
+      if(!pool)return res.status(503).json({error:"Veritabanı yok"});
+      const result=await pool.query(`
+        UPDATE b2b_returns SET status='approved'
+        WHERE id::text=$1 AND status NOT IN ('approved','rejected','cancelled')
+        RETURNING id,user_id,order_number`,[String(req.params.id)]);
+      if(!result.rows[0])return res.status(409).json({error:"İade bulunamadı veya zaten sonuçlandırılmış"});
+      const item=result.rows[0];
+      void notifyB2BEvent(Number(item.user_id),"return_approved",{
+        orderNumber:String(item.order_number||""),
+      },`return_approved:${item.id}`).catch(e=>console.error("Return approval push",e));
+      return res.json({ok:true,id:item.id,status:'approved'});
+    }catch(error){console.error("Approve B2B return",error);return res.status(500).json({error:"İade onaylanamadı"});}
+  });
+
   // Admin: manual campaigns and automatic event templates.
   app.get("/api/admin/b2b-notifications",requireAdmin,async(_req,res)=>{
     if (!pool) return res.json({ customers:[], rules:[], recent:[],soundConfigured:false });
