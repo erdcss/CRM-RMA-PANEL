@@ -3,10 +3,18 @@ import { localAuth } from './supabase';
 const PRODUCTION_API_URL = 'https://b2b.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
 export const API_BASE_URL = API_URL;
+// Admin is the source of truth for banner/category configuration and media.
+const ADMIN_CONTENT_URL = (process.env.EXPO_PUBLIC_BRANDING_API_URL || 'https://admin.ecalisgan.com').replace(/\/$/, '');
+
+export function homepageMediaUrl(imageId?: string | null): string | null {
+  if (!imageId || !/^[a-f0-9]{32}$/.test(imageId)) return null;
+  return `${ADMIN_CONTENT_URL}/api/public/homepage/media/${imageId}`;
+}
 
 export function absoluteMediaUrl(value?: string | null) {
   if (!value) return null;
   if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
+  if (value.startsWith('/api/public/homepage/media/')) return `${ADMIN_CONTENT_URL}${value}`;
   return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
@@ -485,7 +493,22 @@ export const rmaApi = {
   listB2BProducts: (forceRefresh = false) => loadMobileCatalog(forceRefresh),
   getB2BProduct: (id: string | number) =>
     request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
-  getB2BHomepage: () => request<B2BHomepage>('/api/public/homepage'),
+  getB2BHomepage: async (): Promise<B2BHomepage> => {
+    // Read the same public configuration that Admin → Ana Sayfa writes.
+    // A separate B2B server can be on an older deployment; fall back only
+    // when the admin content API cannot be reached.
+    try {
+      const response = await fetch(`${ADMIN_CONTENT_URL}/api/public/homepage?t=${Date.now()}`, {
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      });
+      if (!response.ok) throw new Error(`Homepage API HTTP ${response.status}`);
+      const data = await response.json();
+      if (!data || !Array.isArray(data.categories)) throw new Error('Invalid homepage configuration');
+      return data as B2BHomepage;
+    } catch {
+      return request<B2BHomepage>('/api/public/homepage');
+    }
+  },
   findB2BProductByBarcode: (barcode: string) =>
     request<{ id: string; name: string; barcode: string }>(
       `/api/b2b/products/by-barcode/${encodeURIComponent(barcode.trim())}`
