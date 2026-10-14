@@ -1,0 +1,31 @@
+name: B2B Notifications and Invoices Build
+on:
+  push:
+    paths:
+      - 'server/b2b-notification-center.ts'
+      - 'server/b2b-invoice-documents.ts'
+      - 'server/push-notifications.ts'
+      - 'server/routes.ts'
+      - 'client/src/pages/admin-notifications.tsx'
+      - 'client/src/pages/admin-orders.tsx'
+      - 'client/src/pages/admin-returns.tsx'
+      - 'client/src/pages/admin-reels.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/app-sidebar.tsx'
+      - '.github/workflows/b2b-notifications-invoices-build.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: TypeScript check
+        run: npm run check
+      - name: Admin and API build
+        run: npm run build
