@@ -6,6 +6,7 @@ type PushPayload = {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  sound?: 'default' | 'b2b-custom.wav';
 };
 
 export async function ensureMobilePushTable() {
@@ -74,7 +75,8 @@ async function sendExpoMessages(tokens: string[], payload: PushPayload) {
     const chunk = tokens.slice(i, i + 100);
     const messages = chunk.map((to) => ({
       to,
-      sound: "default",
+      sound: payload.sound || "default",
+      channelId: payload.sound === "b2b-custom.wav" ? "b2b-custom" : "default",
       title: payload.title,
       body: payload.body,
       data: payload.data || {},
@@ -139,4 +141,21 @@ export async function sendPushToApp(app: PushApp, payload: PushPayload) {
     .filter(Boolean);
 
   return sendExpoMessages(tokens, payload);
+}
+
+/** Only deliver customer messages to the explicitly selected account(s).
+ * Expo acceptance is not the same as a device delivery receipt.
+ */
+export async function sendPushToUsers(userIds: number[], payload: PushPayload) {
+  if (!pool || !userIds.length) return { sent: 0, tokenCount: 0 };
+  const ids = [...new Set(userIds.filter(id => Number.isSafeInteger(id) && id > 0))];
+  if (!ids.length) return { sent: 0, tokenCount: 0 };
+  const result = await pool.query(
+    `SELECT expo_token FROM mobile_push_tokens
+     WHERE app='b2b' AND active=TRUE AND user_id=ANY($1::int[])`,
+    [ids],
+  );
+  const tokens = result.rows.map(row => String(row.expo_token || "")).filter(Boolean);
+  const outcome = await sendExpoMessages(tokens, payload);
+  return { ...outcome, tokenCount: tokens.length };
 }
