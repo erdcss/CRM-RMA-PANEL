@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { localAuth } from '@/lib/supabase';
 
+if (Platform.OS !== 'web') {
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -11,6 +12,7 @@ Notifications.setNotificationHandler({
     shouldSetBadge: false,
   }),
 });
+}
 
 export async function registerB2BPush():Promise<boolean> {
   if(Platform.OS === 'web') return false;
