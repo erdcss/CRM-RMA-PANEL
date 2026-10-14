@@ -7,10 +7,11 @@ const { spawn } = require("node:child_process");
 const { PNG } = require("pngjs");
 
 const script = path.resolve(__dirname, "sync-mobile-branding.cjs");
-const samplePng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aLZ8AAAAASUVORK5CYII=",
-  "base64",
-);
+// Generate a valid PNG with pngjs rather than relying on an old fixture
+// whose CRC was ignored until the adaptive-icon processor decoded it.
+const sample = new PNG({ width: 4, height: 4 });
+sample.data.fill(255);
+const samplePng = PNG.sync.write(sample);
 
 function launch(args, options) {
   return new Promise((resolve, reject) => {
