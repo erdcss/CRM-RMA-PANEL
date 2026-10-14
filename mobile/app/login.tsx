@@ -40,6 +40,41 @@ export default function LoginScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const keyboardLift = useRef(new Animated.Value(0)).current;
   const [androidKeyboardOpen, setAndroidKeyboardOpen] = useState(false);
+  const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
+  const focusedFieldRef = useRef<'email' | 'password' | null>(null);
+  const cardTopRef = useRef(0);
+  const emailTopRef = useRef(0);
+  const passwordTopRef = useRef(0);
+  const passwordTransition = useRef(new Animated.Value(0)).current;
+
+  const scrollInputAboveKeyboard = (field: 'email' | 'password') => {
+    // Position the active row near the top of the resized Android viewport.
+    // ScrollView handles short screens without cutting off the second field.
+    const fieldTop = field === 'email' ? emailTopRef.current : passwordTopRef.current;
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, cardTopRef.current + fieldTop - 34),
+      animated: true,
+    });
+  };
+
+  const focusLoginField = (field: 'email' | 'password') => {
+    focusedFieldRef.current = field;
+    setFocusedField(field);
+    if (Platform.OS === 'android') {
+      setTimeout(() => scrollInputAboveKeyboard(field), 125);
+    }
+  };
+
+  const advanceToPassword = () => {
+    // The IME's Next / Enter action keeps the keyboard open and brings
+    // the password field into view with a short upward motion.
+    Animated.sequence([
+      Animated.timing(passwordTransition, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.spring(passwordTransition, { toValue: 0, damping: 16, stiffness: 210, useNativeDriver: true }),
+    ]).start();
+    passwordRef.current?.focus();
+    if (Platform.OS === 'android') setTimeout(() => scrollInputAboveKeyboard('password'), 230);
+  };
   const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
 
   useEffect(() => {
@@ -56,16 +91,19 @@ export default function LoginScreen() {
     const show = Keyboard.addListener('keyboardDidShow', () => {
       setAndroidKeyboardOpen(true);
       Animated.spring(keyboardLift, {
-        toValue: -12,
+        toValue: -8,
         damping: 19,
         stiffness: 190,
         mass: 0.85,
         useNativeDriver: true,
       }).start();
-      scrollRef.current?.scrollToEnd({ animated: true });
+      const active = focusedFieldRef.current;
+      if (active) setTimeout(() => scrollInputAboveKeyboard(active), 90);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       setAndroidKeyboardOpen(false);
+      focusedFieldRef.current = null;
+      setFocusedField(null);
       Animated.spring(keyboardLift, {
         toValue: 0,
         damping: 19,
@@ -73,6 +111,7 @@ export default function LoginScreen() {
         mass: 0.85,
         useNativeDriver: true,
       }).start();
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     });
     return () => { show.remove(); hide.remove(); };
   }, [keyboardLift]);
@@ -159,16 +198,22 @@ export default function LoginScreen() {
           keyboardDismissMode="on-drag"
         >
           <View style={[styles.heroSpacer, androidKeyboardOpen && styles.heroSpacerKeyboard]} />
-          <Animated.View style={[styles.heroCard, { opacity: formOpacity, transform: [{ translateY: Animated.add(formTranslate, keyboardLift) }] }]}>
+          <Animated.View
+            onLayout={(event) => { cardTopRef.current = event.nativeEvent.layout.y; }}
+            style={[styles.heroCard, { opacity: formOpacity, transform: [{ translateY: Animated.add(formTranslate, keyboardLift) }] }]}
+          >
             <Text style={styles.heroTitle}>Hoş <Text style={styles.heroAccent}>Geldiniz</Text></Text>
             <Text style={styles.heroSubtitle}>Çalışkan B2B platformuna giriş yaparak işinizi daha ileriye taşıyın.</Text>
 
             <Text style={styles.fieldLabel}>E-posta Adresi</Text>
-            <View style={styles.heroField}>
+            <View onLayout={(event) => { emailTopRef.current = event.nativeEvent.layout.y; }}
+              style={[styles.heroField, focusedField === 'email' && styles.heroFieldFocused]}>
               <Ionicons name="mail-outline" size={21} color="#FFCC00" />
               <TextInput
                 ref={emailRef}
                 style={styles.fieldInput}
+                onFocus={() => focusLoginField('email')}
+                submitBehavior="submit"
                 value={email}
                 onChangeText={setEmail}
                 placeholder="ornek@eposta.com"
@@ -179,7 +224,7 @@ export default function LoginScreen() {
                 autoComplete="email"
                 textContentType="username"
                 returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
+                onSubmitEditing={advanceToPassword}
                 accessibilityLabel="E-posta adresi"
               />
               <View style={styles.fieldAccessory}>
@@ -188,11 +233,15 @@ export default function LoginScreen() {
             </View>
 
             <Text style={styles.fieldLabel}>Şifre</Text>
-            <View style={styles.heroField}>
+            <Animated.View onLayout={(event) => { passwordTopRef.current = event.nativeEvent.layout.y; }}
+              style={[styles.heroField, focusedField === 'password' && styles.heroFieldFocused, {
+                transform: [{ translateY: passwordTransition.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) }],
+              }]}>
               <Ionicons name="lock-closed-outline" size={21} color="#FFCC00" />
               <TextInput
                 ref={passwordRef}
                 style={styles.fieldInput}
+                onFocus={() => focusLoginField('password')}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Şifrenizi girin"
@@ -203,6 +252,7 @@ export default function LoginScreen() {
                 autoComplete="password"
                 textContentType="password"
                 returnKeyType="done"
+                submitBehavior="submit"
                 onSubmitEditing={() => { Keyboard.dismiss(); void handleLogin(); }}
                 accessibilityLabel="Şifre"
               />
@@ -215,7 +265,7 @@ export default function LoginScreen() {
               >
                 <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color="#FFCC00" />
               </Pressable>
-            </View>
+            </Animated.View>
 
             <Pressable
               style={styles.forgotButton}
@@ -317,7 +367,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   flex:{flex:1},
   heroSpacer:{flexGrow:1,minHeight:72},
-  heroSpacerKeyboard:{minHeight:10},
+  heroSpacerKeyboard:{flexGrow:0,minHeight:8},
   heroAccent:{color:'#FFCC00'},
   fieldLabel:{color:'#E9E9E9',fontSize:13,fontWeight:'700',marginBottom:8},
   fieldInput:{flex:1,minWidth:0,fontSize:16,color:'#FFFFFF',height:'100%',paddingVertical:0},
@@ -333,6 +383,7 @@ const styles = StyleSheet.create({
   heroCard:{borderRadius:25,borderWidth:1,borderColor:'rgba(255,204,0,.6)',backgroundColor:'rgba(10,10,10,.94)',padding:22},
   heroTitle:{fontSize:32,fontWeight:'900',color:'#FFF'},
   heroSubtitle:{color:'#C8C8C8',fontSize:14,lineHeight:21,marginTop:8,marginBottom:21},
+  heroFieldFocused:{borderColor:'#FFCD00',borderWidth:1.5},
   heroField:{height:56,borderRadius:12,borderWidth:1,borderColor:'#646464',backgroundColor:'#1A1A1A',flexDirection:'row',alignItems:'center',gap:10,paddingLeft:14,paddingRight:8,marginBottom:12},
   heroFieldText:{flex:1,fontSize:15,color:'#FFF'},
   heroPrimary:{height:54,borderRadius:12,backgroundColor:'#FFCC00',alignItems:'center',justifyContent:'center'},
