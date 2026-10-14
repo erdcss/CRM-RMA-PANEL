@@ -348,7 +348,6 @@ async function brandingMap() {
     b2b_logo: null,
     b2b_favicon: null,
     b2b_mobile_logo: null,
-    b2b_mobile_header_logo: null,
     b2b_mobile_splash: null,
     b2b_mobile_login_background: null,
     business_mobile_logo: null,
