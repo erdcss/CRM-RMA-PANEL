@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -85,6 +85,11 @@ export default function AdminOrders() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoiceUploading, setInvoiceUploading] = useState(false);
+  // Never retain invoice number/file when switching to another customer order.
+  useEffect(() => {
+    setInvoiceNumber("");
+    setInvoiceFile(null);
+  }, [selectedId]);
   const { toast } = useToast();
 
   const { data: detail, isLoading: detailLoading } = useQuery<any>({
