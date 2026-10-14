@@ -10,14 +10,22 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
 import { managedSplash } from '@/lib/managed-splash';
+import { registerB2BPush } from '@/lib/push';
 
 const SPLASH_DURATION_MS = 5_000;
 
 function AppContent() {
   const branding = useMobileBranding();
-  const { loading } = useAuth();
+  const { loading, session } = useAuth();
   const { mode } = useAppearance();
   const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    // Expo push-token registration requires a real native build and user consent.
+    // Failure must never block the app's normal login/navigation.
+    void registerB2BPush();
+  }, [session?.user?.id]);
 
   // Splash is the only rendered screen at cold launch. Keep it visible while
   // restoring auth so no intermediate login, loading spinner or tab flashes.
