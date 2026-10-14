@@ -10,6 +10,8 @@ on:
       - 'client/src/pages/admin-orders.tsx'
       - 'client/src/pages/admin-returns.tsx'
       - 'client/src/pages/admin-reels.tsx'
+      - 'client/src/pages/admin-product-ai-import.tsx'
+      - 'server/admin-platform.ts'
       - 'client/src/App.tsx'
       - 'client/src/components/app-sidebar.tsx'
       - '.github/workflows/b2b-notifications-invoices-build.yml'
