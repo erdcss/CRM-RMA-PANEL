@@ -285,7 +285,7 @@ export default function ProductDetailScreen() {
                   );
                 }}
               >
-                <Ionicons name="list-outline" size={19} color="#FFFFFF" />
+                <Ionicons name="cart-outline" size={22} color="#111827" />
                 <Text style={styles.checkoutButtonText}>
                   Siparişlere Ekle
                 </Text>
@@ -559,7 +559,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     minHeight: 52,
     marginTop: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: '#111827',
+    backgroundColor: '#FACC15',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -568,7 +568,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   checkoutButtonText: {
     ...typography.bodyMedium,
-    color: '#FFFFFF',
+    color: '#111827',
     fontWeight: '900',
   },
   disabledButton: {
