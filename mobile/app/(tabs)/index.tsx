@@ -24,7 +24,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
   absoluteMediaUrl,
+  homepageMediaUrl,
   rmaApi,
+  type B2BHomepage,
   type B2BOrderSummary,
   type B2BProduct,
   type B2BReel,
@@ -93,6 +95,7 @@ export default function HomeScreen() {
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
   const [bannerWidth, setBannerWidth] = useState(0);
@@ -133,6 +136,14 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, [welcome, welcomeFade]);
 
+  const applyHomepage = useCallback((homepage: B2BHomepage) => {
+    setCategories(homepage.categories || []);
+    setCategoryCards(homepage.categoryCards || []);
+    setBanners(homepage.banners || []);
+    setSliderAutoPlay(homepage.sliderAutoPlay !== false);
+    setSliderIntervalMs(homepage.sliderIntervalMs || 5000);
+  }, []);
+
   const load = useCallback(async (forceRefresh = false) => {
     const [productResult, homepageResult] = await Promise.allSettled([
       rmaApi.listB2BProducts(forceRefresh),
@@ -144,13 +155,9 @@ export default function HomeScreen() {
     }
 
     if (homepageResult.status === 'fulfilled') {
-      setCategories(homepageResult.value.categories || []);
-      setCategoryCards(homepageResult.value.categoryCards || []);
-      setBanners(homepageResult.value.banners || []);
-      setSliderAutoPlay(homepageResult.value.sliderAutoPlay !== false);
-      setSliderIntervalMs(homepageResult.value.sliderIntervalMs || 5000);
+      applyHomepage(homepageResult.value);
     }
-  }, []);
+  }, [applyHomepage]);
 
   useEffect(() => {
     void load();
@@ -188,13 +195,19 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     void refreshMobileBranding();
+    // Returning from Admin-managed promotions should refresh banners without
+    // requiring the customer to close or reinstall the mobile application.
+    let homeMounted = true;
+    void rmaApi.getB2BHomepage().then(data => {
+      if (homeMounted) applyHomepage(data);
+    }).catch(() => undefined);
     let mounted=true;
-    if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; }; }
+    if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; homeMounted=false; }; }
     void rmaApi.listB2BNotifications().then(rows => {
       if (mounted) setUnreadNotifications(rows.filter(row => !row.read_at).length);
     }).catch(() => undefined);
-    return () => { mounted=false; };
-  }, [session?.user?.id]));
+    return () => { mounted=false; homeMounted=false; };
+  }, [session?.user?.id, applyHomepage]));
 
   useEffect(() => {
     if (typeof params.category === 'string') {
@@ -491,9 +504,22 @@ export default function HomeScreen() {
                 }}>
                 {banners.map(banner => (
                   <View key={banner.id} style={[styles.carouselSlide, { width: bannerWidth }]}>
-                    {banner.imageId ? (
-                      <Image source={{ uri: absoluteMediaUrl(`/api/public/homepage/media/${banner.imageId}`) || '' }}
-                        style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                    {homepageMediaUrl(banner.imageId) ? (
+                      <Image
+                        source={{ uri: homepageMediaUrl(banner.imageId)! }}
+                        style={styles.carouselImage}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={180}
+                        onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
+                        onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
+                      />
+                    ) : null}
+                    {failedBannerIds.includes(banner.id) ? (
+                      <View style={styles.bannerError} pointerEvents="none">
+                        <Ionicons name="image-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.bannerErrorText}>Banner görseli yüklenemedi</Text>
+                      </View>
                     ) : null}
                     <View style={styles.carouselOverlay} />
                     <View style={styles.carouselContent}>
@@ -587,8 +613,8 @@ export default function HomeScreen() {
                 style={[styles.categoryCard, active && styles.categoryCardActive]}
               >
                 {configured?.imageId ? (
-                  <Image source={{ uri: absoluteMediaUrl(`/api/public/homepage/media/${configured.imageId}`) || '' }}
-                    style={styles.categoryImage} contentFit="cover" />
+                  <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
+                    style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
                 ) : (
                   <Ionicons name={icons[index % icons.length]} size={28}
                     color={active ? '#FFFFFF' : palette.text} />
@@ -781,7 +807,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: 15, height: 218, borderRadius: 17, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselContainer: { marginTop: 15, height: 218, width: '100%', borderRadius: 17, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
+  bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   carouselSlide: { height: 218, justifyContent: 'flex-end', overflow: 'hidden' },
   carouselOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
   carouselContent: { padding: 20, paddingBottom: 28, maxWidth: '94%' },
