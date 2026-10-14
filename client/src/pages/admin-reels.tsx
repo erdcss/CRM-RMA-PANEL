@@ -44,8 +44,11 @@ async function loadJson<T>(url: string): Promise<T> {
 export default function AdminReels() {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const coverRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [uploading, setUploading] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [coverReelId, setCoverReelId] = useState<string | null>(null);
   const [migratingId, setMigratingId] = useState<string | null>(null);
 
   const { data: reels = [], isLoading } = useQuery<Reel[]>({
@@ -112,6 +115,46 @@ export default function AdminReels() {
       toast({ title: "Video dönüştürülemedi", description: error instanceof Error ? error.message : "Videoyu yeniden yükleyin.", variant: "destructive" });
     } finally {
       setMigratingId(null);
+    }
+  }
+
+  async function uploadCover(file?: File, reelId?: string | number) {
+    if (!file) return;
+    if (!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type)) {
+      toast({ title: "JPG, PNG, WebP veya GIF görsel seçin.", variant: "destructive" }); return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      toast({ title: "Kapak görseli en fazla 3 MB olabilir.", variant: "destructive" }); return;
+    }
+    if (reelId != null) setCoverReelId(String(reelId)); else setUploadingCover(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Kapak okunamadı"));
+        reader.readAsDataURL(file);
+      });
+      const response = await apiRequest("POST", "/api/admin/homepage/media", { dataUrl });
+      const result = await response.json();
+      if (!response.ok || !result.url) throw new Error(result.error || "Kapak yüklenemedi");
+      if (reelId != null) {
+        const reel = reels.find((x) => String(x.id) === String(reelId));
+        if (!reel) throw new Error("Reels bulunamadı");
+        await apiRequest("PATCH", `/api/admin/reels/${reelId}`, {
+          title: reel.title, videoUrl: reel.video_url, thumbnailUrl: result.url,
+          productId: reel.product_id || null, sortOrder: reel.sort_order, isActive: reel.is_active,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["/api/admin/reels"] });
+      } else {
+        setForm((prev) => ({ ...prev, thumbnailUrl: result.url }));
+      }
+      toast({ title: "Reels kapağı kaydedildi", description: "Mobil ana sayfada kapak resmi gösterilecek." });
+    } catch (error) {
+      toast({ title: "Kapak yüklenemedi", description: error instanceof Error ? error.message : "Tekrar deneyin", variant: "destructive" });
+    } finally {
+      setUploadingCover(false);
+      setCoverReelId(null);
+      if (coverRef.current) coverRef.current.value = "";
     }
   }
 
@@ -225,12 +268,19 @@ export default function AdminReels() {
             </div>
 
             <div className="space-y-2">
-              <Label>Kapak görseli URL</Label>
-              <Input
-                value={form.thumbnailUrl}
+              <Label>Reels kapak görseli</Label>
+              <div className="flex flex-wrap items-center gap-3">
+                <input ref={coverRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden" onChange={(e) => void uploadCover(e.target.files?.[0])} />
+                <Button type="button" variant="outline" disabled={uploadingCover} onClick={() => coverRef.current?.click()}>
+                  <Upload className="mr-2 h-4 w-4" />{uploadingCover ? "Yükleniyor…" : "Kapak Yükle"}
+                </Button>
+                {form.thumbnailUrl ? <img src={form.thumbnailUrl} alt="Reels kapak önizleme" className="h-20 w-16 rounded-lg border object-cover" /> : null}
+              </div>
+              <Input value={form.thumbnailUrl}
                 onChange={(e) => setForm({ ...form, thumbnailUrl: e.target.value })}
-                placeholder="İsteğe bağlı"
-              />
+                placeholder="Kapak URL'si veya yüklenen görsel" />
+              <p className="text-xs text-slate-500">Ana sayfadaki Reels kartında bu görsel görünür. En fazla 3 MB.</p>
             </div>
 
             <div className="space-y-2">
@@ -275,7 +325,8 @@ export default function AdminReels() {
             <div className="divide-y">
               {reels.map((reel) => (
                 <div key={reel.id} className="grid gap-3 p-4 sm:grid-cols-[120px_minmax(0,1fr)_auto] sm:items-center">
-                  <div className="aspect-[9/16] overflow-hidden rounded-xl bg-slate-950">
+                  <div className="relative aspect-[9/16] overflow-hidden rounded-xl bg-slate-950">
+                    {reel.thumbnail_url ? <img src={reel.thumbnail_url} alt={reel.title + " kapak"} className="absolute inset-0 h-full w-full object-cover" /> : null}
                     <video
                       src={reel.video_url}
                       poster={reel.thumbnail_url || undefined}
@@ -295,6 +346,12 @@ export default function AdminReels() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-2 text-xs font-semibold">
+                      <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden"
+                        disabled={coverReelId === String(reel.id)}
+                        onChange={(e) => { void uploadCover(e.target.files?.[0], reel.id); e.target.value = ""; }} />
+                      {coverReelId === String(reel.id) ? "Kapak yükleniyor…" : reel.thumbnail_url ? "Kapağı Değiştir" : "Kapak Ekle"}
+                    </label>
                     {!reel.video_url.startsWith("/api/public/reels/media/") ? (
                       <Button type="button" size="sm" variant="outline" disabled={migratingId === String(reel.id)}
                         onClick={() => void migrateReel(reel.id)}>
