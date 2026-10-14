@@ -301,6 +301,16 @@ export type B2BReturn = {
   created_at?: string | null;
 };
 
+export type B2BNotification = {
+  id: number;
+  title: string;
+  body: string;
+  source: 'manual' | 'automatic';
+  event_key?: string | null;
+  read_at?: string | null;
+  created_at: string;
+};
+
 export type B2BInvoice = {
   id: number;
   invoice_number?: string | null;
@@ -605,6 +615,10 @@ export const rmaApi = {
   listB2BOrders: () => request<B2BOrderSummary[]>('/api/b2b/my-orders'),
   listB2BReturns: () => request<B2BReturn[]>('/api/b2b/my-returns'),
   listB2BInvoices: () => request<B2BInvoice[]>('/api/b2b/my-invoices'),
+  listB2BNotifications: () => request<B2BNotification[]>('/api/b2b/notifications'),
+  markB2BNotificationRead: (id: number) => request<{id:number;read_at:string}>(
+    `/api/b2b/notifications/${id}/read`,{method:'PATCH'}
+  ),
   listB2BSupport: () => request<B2BSupportTicket[]>('/api/b2b/support'),
   createB2BSupport: (subject: string, message: string) =>
     request<B2BSupportTicket>('/api/b2b/support', {
