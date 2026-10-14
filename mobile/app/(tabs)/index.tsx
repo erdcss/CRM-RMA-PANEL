@@ -31,7 +31,7 @@ import {
   type HomeBanner,
   type HomeCategoryCard,
 } from '@/lib/api';
-import { useMobileBranding } from '@/lib/branding';
+import { useMobileBranding, refreshMobileBranding } from '@/lib/branding';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -187,6 +187,7 @@ export default function HomeScreen() {
   }, [session?.access_token]);
 
   useFocusEffect(useCallback(() => {
+    void refreshMobileBranding();
     let mounted=true;
     if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; }; }
     void rmaApi.listB2BNotifications().then(rows => {
