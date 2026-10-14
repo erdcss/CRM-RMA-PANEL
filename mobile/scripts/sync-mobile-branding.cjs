@@ -130,6 +130,35 @@ async function main() {
     };
   }
 
+  // Custom notification sounds are native resources: uploading a WAV in admin
+  // cannot change sound playback in an already-installed iOS/Android binary.
+  // Bundle the latest configured audio into each new native build.
+  if (target === "b2b") {
+    try {
+      const soundResponse = await fetch(`${api}/api/public/b2b-notification-sound?t=${Date.now()}`,
+        { headers: { Accept: "audio/wav", "Cache-Control": "no-cache" } });
+      if (soundResponse.ok) {
+        const bytes = Buffer.from(await soundResponse.arrayBuffer());
+        if (bytes.length >= 100 && bytes.length <= 512 * 1024 &&
+            bytes.toString("ascii",0,4) === "RIFF" &&
+            bytes.toString("ascii",8,12) === "WAVE") {
+          const filename = "b2b-custom.wav";
+          fs.writeFileSync(path.join(assetsDir, filename), bytes);
+          expo.plugins = Array.isArray(expo.plugins) ? expo.plugins : [];
+          expo.plugins = expo.plugins.filter(p =>
+            !(typeof p === "string" ? p === "expo-notifications" :
+              Array.isArray(p) && p[0] === "expo-notifications"));
+          expo.plugins.push(["expo-notifications", { sounds: ["./assets/b2b-custom.wav"] }]);
+          console.log("[brand-sync] Admin WAV notification sound bundled for iOS and Android");
+        }
+      } else if (soundResponse.status !== 404) {
+        console.warn("[brand-sync] Optional notification sound returned HTTP " + soundResponse.status);
+      }
+    } catch(error) {
+      console.warn("[brand-sync] Optional notification sound unavailable:", String(error?.message || error));
+    }
+  }
+
   // Only files referenced by app.json are bundled. Older unreferenced files
   // may be locked by Windows Photos; cleanup should never block a valid build.
   const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), ...(headerPath ? [path.basename(headerPath)] : [])]);
