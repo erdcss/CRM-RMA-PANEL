@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -110,6 +112,17 @@ export default function CheckoutScreen() {
   const [expireMonth, setExpireMonth] = useState('');
   const [expireYear, setExpireYear] = useState('');
   const [cvc, setCvc] = useState('');
+  const cardRotation = useRef(new Animated.Value(0)).current;
+  const flipCard = useCallback((showBack: boolean) => {
+    Animated.timing(cardRotation, {
+      toValue: showBack ? 1 : 0,
+      duration: 420,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [cardRotation]);
+  const frontRotation = cardRotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] });
+  const backRotation = cardRotation.interpolate({ inputRange: [0, 1], outputRange: ['180deg', '360deg'] });
   const [installment, setInstallment] = useState(1);
   const [installments, setInstallments] = useState<B2BInstallmentLookup | null>(null);
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
@@ -719,30 +732,45 @@ export default function CheckoutScreen() {
                 </View>
               </View>
 
-              <View style={styles.cardVisual}>
-                <View style={styles.cardVisualTop}>
-                  <Text style={styles.cardBrandText}>
-                    {installments?.cardAssociation || 'Banka / Kredi Kartı'}
+              <View style={styles.cardFlipContainer}>
+                <Animated.View style={[styles.cardVisual, styles.cardFace, { transform: [{ rotateY: frontRotation }] }]}>
+                  <View style={styles.cardVisualTop}>
+                    <Text style={styles.cardBrandText}>
+                      {installments?.cardAssociation || 'Banka / Kredi Kartı'}
+                    </Text>
+                    <Text style={styles.cardBankName} numberOfLines={1}>
+                      {installments?.bankName || 'BANKA'}
+                    </Text>
+                  </View>
+                  <Text style={styles.cardNumberPreview}>
+                    {formatCardNumber(cardNumber) || '•••• •••• •••• ••••'}
                   </Text>
-                  <Ionicons name="card-outline" size={24} color="#FFFFFF" />
-                </View>
-                <Text style={styles.cardNumberPreview}>
-                  {formatCardNumber(cardNumber) || '•••• •••• •••• ••••'}
-                </Text>
-                <View style={styles.cardVisualBottom}>
-                  <View>
-                    <Text style={styles.cardMetaLabel}>KART SAHİBİ</Text>
-                    <Text style={styles.cardMetaValue}>
-                      {cardHolderName.trim().toUpperCase() || 'İSİM SOYİSİM'}
-                    </Text>
+                  <View style={styles.cardVisualBottom}>
+                    <View>
+                      <Text style={styles.cardMetaLabel}>KART SAHİBİ</Text>
+                      <Text style={styles.cardMetaValue}>
+                        {cardHolderName.trim().toUpperCase() || 'İSİM SOYİSİM'}
+                      </Text>
+                    </View>
+                    <View style={styles.cardExpiryPreview}>
+                      <Text style={styles.cardMetaLabel}>SKT</Text>
+                      <Text style={styles.cardMetaValue}>
+                        {expireMonth || 'AA'}/{expireYear || 'YY'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.cardExpiryPreview}>
-                    <Text style={styles.cardMetaLabel}>SKT</Text>
-                    <Text style={styles.cardMetaValue}>
-                      {expireMonth || 'AA'}/{expireYear || 'YY'}
-                    </Text>
+                </Animated.View>
+                <Animated.View style={[styles.cardVisual, styles.cardFace, styles.cardBack, { transform: [{ rotateY: backRotation }] }]}>
+                  <View style={styles.cardMagneticStrip} />
+                  <View style={styles.cardCvvRow}>
+                    <View style={styles.cardSignatureStrip} />
+                    <View style={styles.cardCvvBox}>
+                      <Text style={styles.cardCvvLabel}>CVV</Text>
+                      <Text style={styles.cardCvvValue}>{cvc || '•••'}</Text>
+                    </View>
                   </View>
-                </View>
+                  <Text style={styles.cardBackHint}>Kart güvenlik kodu</Text>
+                </Animated.View>
               </View>
 
               <View style={styles.cardFields}>
@@ -815,6 +843,8 @@ export default function CheckoutScreen() {
                       <Text style={styles.inputLabel}>CVV</Text>
                       <TextInput
                         value={cvc}
+                        onFocus={() => flipCard(true)}
+                        onBlur={() => flipCard(false)}
                         onChangeText={(value) =>
                           setCvc(value.replace(/\D/g, '').slice(0, 4))
                         }
@@ -1188,7 +1218,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   infoLineLabel: { ...typography.caption, color: palette.muted },
   infoLineValue: { ...typography.bodyMedium, color: palette.text, fontWeight: '700', marginTop: 2 },
   selectCard: { minHeight: 76, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  selectCardActive: { borderColor: palette.text, backgroundColor: '#FAFAFA' },
+  selectCardActive: { borderColor: palette.text, backgroundColor: palette.surfaceSecondary },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
   radioActive: { borderColor: '#111827' },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#111827' },
@@ -1207,7 +1237,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   twoColumns: { flexDirection: 'row', gap: spacing.sm },
   half: { flex: 1 },
   choiceCard: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  choiceCardActive: { borderColor: palette.text, backgroundColor: '#FAFAFA' },
+  choiceCardActive: { borderColor: palette.text, backgroundColor: palette.surfaceSecondary },
   choiceIcon: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: palette.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
   choiceIconActive: { backgroundColor: '#111827' },
   choiceTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
@@ -1224,6 +1254,17 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   secureIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   secureTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
   secureText: { ...typography.caption, color: palette.textSecondary, marginTop: 2, lineHeight: 18 },
+  cardFlipContainer: { height: 190, position: 'relative' },
+  cardFace: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backfaceVisibility: 'hidden' },
+  cardBankName: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', textAlign: 'right', flexShrink: 1, maxWidth: '50%' },
+  cardBack: { paddingHorizontal: 0, paddingVertical: spacing.lg },
+  cardMagneticStrip: { height: 40, backgroundColor: '#05070C', width: '100%' },
+  cardCvvRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, gap: spacing.sm },
+  cardSignatureStrip: { flex: 1, height: 40, backgroundColor: '#E5E7EB', borderRadius: 3 },
+  cardCvvBox: { minWidth: 75, backgroundColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4 },
+  cardCvvLabel: { color: '#334155', fontSize: 9, fontWeight: '700' },
+  cardCvvValue: { color: '#111827', fontSize: 16, fontWeight: '800', letterSpacing: 2 },
+  cardBackHint: { color: '#CBD5E1', fontSize: 11, marginHorizontal: spacing.lg },
   cardVisual: {
     minHeight: 190,
     borderRadius: radius.xl,
