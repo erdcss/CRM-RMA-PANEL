@@ -349,6 +349,7 @@ async function brandingMap() {
     b2b_logo: null,
     b2b_favicon: null,
     b2b_mobile_logo: null,
+    b2b_mobile_header_logo: null,
     b2b_mobile_splash: null,
     b2b_mobile_login_background: null,
     business_mobile_logo: null,
@@ -1315,7 +1316,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.status(400).json({ error: "Aktarılacak ürün bulunamadı" });
     }
 
-    const parsedProducts = rawProducts.map(parseAdminProductPayload);
+    const parsedProducts: ReturnType<typeof parseAdminProductPayload>[] = rawProducts.map(parseAdminProductPayload);
     const invalid = parsedProducts.findIndex(
       (item) =>
         !item.sku ||
