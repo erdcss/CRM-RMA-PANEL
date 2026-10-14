@@ -89,11 +89,6 @@ async function main() {
   }
   const logoPath = await saveAsset("logo", branding.logo);
   const splashPath = await saveAsset("splash", branding.splash);
-  // Home header is a separate brand asset. Bundle the selected admin image
-  // so the header never falls back to an unrelated hardcoded logo offline.
-  const headerPath = target === "b2b"
-    ? await saveAsset("header-logo", branding.headerLogo || branding.logo)
-    : null;
   if (target === "b2b" && !logoPath.endsWith(".png")) {
     throw new Error("iOS uygulama simgesi için admin paneline PNG mobil logo yükleyin.");
   }
@@ -164,10 +159,10 @@ async function main() {
 
   // Only files referenced by app.json are bundled. Older unreferenced files
   // may be locked by Windows Photos; cleanup should never block a valid build.
-  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), ...(headerPath ? [path.basename(headerPath)] : []), ...(androidForegroundPath ? [path.basename(androidForegroundPath)] : [])]);
+  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), ...(androidForegroundPath ? [path.basename(androidForegroundPath)] : [])]);
   for (const filename of fs.readdirSync(assetsDir)) {
     if (
-      /^managed-(?:logo|splash|android-foreground)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
+      /^managed-(?:logo|splash|android-foreground|header-logo)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
       !activeFiles.has(filename)
     ) {
       try {
@@ -176,17 +171,6 @@ async function main() {
         if (!["EBUSY", "EACCES", "EPERM"].includes(error?.code)) throw error;
         console.warn(`[brand-sync] Eski ${filename} dosyası açık, temizleme daha sonra yapılacak.`);
       }
-    }
-  }
-
-  if (target === "b2b" && headerPath) {
-    const libDir = path.join(root, "lib");
-    fs.mkdirSync(libDir, { recursive: true });
-    const runtimePath = path.join(libDir, "managed-header-logo.ts");
-    const filename = path.basename(headerPath);
-    const source = `import { Image } from 'react-native';\nexport const managedHeaderLogo: string = Image.resolveAssetSource(require('../assets/${filename}')).uri;\n`;
-    if (!fs.existsSync(runtimePath) || fs.readFileSync(runtimePath, "utf8") !== source) {
-      fs.writeFileSync(runtimePath, source);
     }
   }
 
@@ -206,7 +190,7 @@ async function main() {
 
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
-    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · androidForeground=${androidForegroundPath ? path.basename(androidForegroundPath) : 'yok'} · header=${headerPath ? path.basename(headerPath) : 'yok'} · splash=${Boolean(splashPath)}`,
+    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · androidForeground=${androidForegroundPath ? path.basename(androidForegroundPath) : 'yok'} · splash=${Boolean(splashPath)}`,
   );
 }
 
