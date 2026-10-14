@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import {
   ChevronDown,
@@ -79,12 +81,54 @@ export default function AdminOrders() {
   });
   const { data: branding } = useBranding();
   const [selectedId, setSelectedId] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoiceUploading, setInvoiceUploading] = useState(false);
+  const { toast } = useToast();
 
   const { data: detail, isLoading: detailLoading } = useQuery<any>({
     queryKey: ["/api/admin/orders/detail", selectedId],
     queryFn: () => loadJson(`/api/admin/orders/${encodeURIComponent(selectedId)}`),
     enabled: Boolean(selectedId),
   });
+
+  const { data: invoice } = useQuery<{
+    id:number; invoice_number:string; order_number:string; total_amount:number; file_name:string;
+  } | null>({
+    queryKey: ["/api/admin/orders/invoice", selectedId],
+    queryFn: () => loadJson(`/api/admin/orders/${encodeURIComponent(selectedId)}/invoice`),
+    enabled: Boolean(selectedId),
+  });
+
+  async function uploadInvoice(orderId: string) {
+    if (!invoiceFile) { toast({title:"PDF fatura dosyası seçin",variant:"destructive"});return; }
+    const reference = invoiceNumber.trim();
+    if (!reference) { toast({title:"Fatura numarası gerekli",variant:"destructive"});return; }
+    if (invoiceFile.type !== "application/pdf" && !/\.pdf$/i.test(invoiceFile.name)) {
+      toast({title:"Yalnızca PDF dosyası yükleyin",variant:"destructive"});return;
+    }
+    if (invoiceFile.size > 5*1024*1024) {
+      toast({title:"PDF en fazla 5 MB olabilir",variant:"destructive"});return;
+    }
+    setInvoiceUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(String(reader.result||""));
+        reader.onerror=()=>reject(new Error("PDF okunamadı"));
+        reader.readAsDataURL(invoiceFile);
+      });
+      const response=await apiRequest("POST", `/api/admin/orders/${encodeURIComponent(orderId)}/invoice`,
+        {invoiceNumber:reference,dataUrl});
+      const result=await response.json();
+      if(!response.ok||!result.ok)throw new Error(result.error||"PDF yüklenemedi");
+      await queryClient.invalidateQueries({queryKey:["/api/admin/orders/invoice",orderId]});
+      setInvoiceFile(null);
+      toast({title:"Fatura eklendi",description:"Müşterinin Faturalarım bölümüne kaydedildi ve bildirim oluşturuldu."});
+    }catch(error) {
+      toast({title:"Fatura eklenemedi",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});
+    }finally{setInvoiceUploading(false);}
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-muted/20">
@@ -183,6 +227,40 @@ export default function AdminOrders() {
                                 <FileDown className="mr-2 h-4 w-4" />
                                 A5 Yazdır / PDF
                               </Button>
+                            </div>
+
+                            <div className="rounded-xl border bg-background p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <h3 className="font-bold">Sipariş Faturası · PDF</h3>
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Fatura PDF'si müşterinin Hesabım → Faturalarım alanına kaydedilir.
+                                    Müşteriye tarih ve toplam tutar içeren bildirim oluşturulur.
+                                  </p>
+                                </div>
+                                {invoice ? <a className="rounded-lg border px-3 py-2 text-sm font-semibold"
+                                  href={`/api/admin/orders/${encodeURIComponent(selectedId)}/invoice/file`} target="_blank" rel="noreferrer">
+                                  <FileDown className="mr-1 inline h-4 w-4" /> Mevcut faturayı aç
+                                </a> : null}
+                              </div>
+                              {invoice ? <div className="mt-2 text-sm text-emerald-700">
+                                Kayıtlı fatura: {invoice.invoice_number} · {money(Number(invoice.total_amount||0))}
+                              </div> : null}
+                              <div className="mt-3 flex flex-wrap items-center gap-3">
+                                <Input className="max-w-xs" placeholder="Fatura numarası"
+                                  value={invoiceNumber || invoice?.invoice_number || ""}
+                                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                                  maxLength={100} />
+                                <label className="cursor-pointer rounded-lg border px-3 py-2 text-sm">
+                                  <input type="file" accept="application/pdf,.pdf" className="hidden"
+                                    onChange={(e) => setInvoiceFile(e.target.files?.[0] || null)} />
+                                  {invoiceFile ? invoiceFile.name : "PDF Dosyası Seç"}
+                                </label>
+                                <Button disabled={invoiceUploading || !invoiceFile}
+                                  onClick={() => void uploadInvoice(String(order.id))}>
+                                  {invoiceUploading ? "Fatura yükleniyor…" : invoice ? "Faturayı Güncelle" : "Fatura PDF Yükle"}
+                                </Button>
+                              </div>
                             </div>
 
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
