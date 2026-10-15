@@ -42,6 +42,9 @@ import B2BAccount from "@/pages/b2b-account";
 import B2BOrders from "@/pages/b2b-orders";
 import B2BPaymentPage from "@/pages/b2b-payment";
 import B2BSupport from "@/pages/b2b-support";
+import AdminMarketplace from "@/pages/admin-marketplace";
+import MarketplaceSeller from "@/pages/marketplace-seller";
+import { MarketplaceDirectory, MarketplaceShop, MarketplaceBuyerInbox } from "@/pages/marketplace-public";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
@@ -65,6 +68,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/pazaryeri" component={AdminMarketplace} />
       <Route path="/kayitlar" component={Kayitlar} />
       <Route path="/kayit/:id" component={KayitDetay} />
       <Route path="/istatistikler" component={Istatistikler} />
@@ -157,6 +161,10 @@ function B2BWebsite() {
       <Switch>
         <Route path="/" component={B2BStorefront} />
         <Route path="/urun/:id" component={B2BProductPage} />
+        <Route path="/magazalar" component={MarketplaceDirectory} />
+        <Route path="/magaza/:slug">{(params) => <MarketplaceShop slug={params.slug} />}</Route>
+        <Route path="/satici" component={MarketplaceSeller} />
+        <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
         <Route path="/uye-girisi" component={B2BLogin} />
         <Route path="/login" component={B2BLogin} />
         <Route path="/kayit-ol" component={B2BRegister} />
