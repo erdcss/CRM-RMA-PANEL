@@ -112,7 +112,7 @@ async function main() {
   let androidForegroundPath = null;
   if (logoPath) {
     expo.icon = logoPath;
-    androidForegroundPath = target === "b2b" ? makeAndroidAdaptiveIcon(androidIconPath, assetsDir) : logoPath;
+    androidForegroundPath = target === "b2b" ? makeAndroidAdaptiveIcon(androidIconPath, assetsDir, Boolean(branding.androidIcon)) : logoPath;
     expo.android = expo.android || {};
     expo.android.adaptiveIcon = {
       ...(expo.android.adaptiveIcon || {}),
