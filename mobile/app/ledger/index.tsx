@@ -8,7 +8,7 @@ import { rmaApi, type B2BLedgerContact, type B2BLedgerKind, type B2BLedgerWallet
 import { appAlert } from '@/lib/appAlert';
 
 const YELLOW='#FACC15';
-const INITIAL:LedgerReport={today_in:'0',today_out:'0',month_in:'0',month_out:'0',all_out:'0',cash_cents:'0',bank_cents:'0',contacts:0,wallets:0};
+const INITIAL:LedgerReport={today_in:'0',today_out:'0',month_in:'0',month_out:'0',all_out:'0',cash_cents:'0',bank_cents:'0',cash_in:'0',cash_out:'0',contacts:0,wallets:0};
 const money=(cents:unknown)=> (Number(cents||0)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₺';
 const net=(c:B2BLedgerContact)=>BigInt(c.receivable_balance_cents||'0')-BigInt(c.debt_balance_cents||'0');
 type AccountType='cari'|'cash'|'bank';
@@ -113,6 +113,8 @@ export default function DefterHome() {
         {line('Gider / ödeme',money(report.month_out),true)}
         <View style={styles.separator}/>
         <Text style={styles.sectionTitle}>Kasa ve banka özeti</Text>
+        {line('Kasaya giriş toplamı',money(report.cash_in))}
+        {line('Kasadan çıkış toplamı',money(report.cash_out),true)}
         {line('Kasa bakiyesi',money(report.cash_cents))}
         {line('Banka bakiyesi',money(report.bank_cents))}
         <Text style={styles.small}>Bu rapor nakit bazlıdır. Alış ve satış tutarları tahsilat/ödeme gerçekleşene kadar gelir-gider sayılmaz.</Text>
