@@ -11,6 +11,7 @@ type CategoryCard = { category: string; label: string; imageId: string; tags?: s
 type HomepageConfig = {
   categories: string[];
   categoryCards: CategoryCard[];
+  ledgerTileImageId?: string;
   banners: unknown[];
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
@@ -105,7 +106,7 @@ export default function AdminCategoryEdit() {
         .filter(item => item.category !== originalName && item.category !== clean);
       categoryCards.push({ category: clean, label: label.trim() || clean, imageId, tags: selectedTags });
       await apiRequest("PUT", "/api/admin/homepage", {
-        categories, categoryCards, banners: data.banners || [],
+        categories, categoryCards, ledgerTileImageId: data.ledgerTileImageId || '', banners: data.banners || [],
         sliderAutoPlay: data.sliderAutoPlay, sliderIntervalMs: data.sliderIntervalMs,
       });
       await Promise.all([
