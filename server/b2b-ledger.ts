@@ -58,6 +58,9 @@ function ready(): Promise<void> {
 function text(value: unknown, limit: number) {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ").slice(0, limit) : "";
 }
+function noteContent(value: unknown) {
+  return typeof value === "string" ? value.trim().replace(/\r\n?/g, "\n").slice(0, 4000) : "";
+}
 function contactId(value: unknown) {
   const raw = String(value || "");
   return /^[1-9]\d{0,17}$/.test(raw) ? raw : null;
@@ -243,7 +246,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
   });
 
   app.post("/api/b2b/ledger/notes", requireB2B, async (req, res) => {
-    const content = text(req.body?.content,4000);
+    const content = noteContent(req.body?.content);
     const id = req.body?.contactId == null ? null : contactId(req.body.contactId);
     if (!content || (req.body?.contactId != null && !id)) return res.status(400).json({ error: "Not veya firma kimliği geçersiz." });
     try {
@@ -261,7 +264,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
   });
 
   app.patch("/api/b2b/ledger/notes/:id", requireB2B, async (req, res) => {
-    const id = contactId(req.params.id), content = text(req.body?.content,4000);
+    const id = contactId(req.params.id), content = noteContent(req.body?.content);
     if (!id || !content) return res.status(400).json({ error: "Not içeriğini kontrol edin." });
     try {
       await ready();
