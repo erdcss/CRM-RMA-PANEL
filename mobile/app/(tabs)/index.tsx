@@ -63,6 +63,7 @@ export default function HomeScreen() {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [catalogError, setCatalogError] = useState('');
   const [reels, setReels] = useState<B2BReel[]>([]);
+  const [missingReelCovers, setMissingReelCovers] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
@@ -133,15 +134,14 @@ export default function HomeScreen() {
     void load();
   }, [load, session?.access_token]);
 
-  useEffect(() => {
-    void rmaApi.listB2BReels().then(items => setReels(Array.isArray(items) ? items.slice(0, 6) : [])).catch(() => setReels([]));
-  }, []);
-
   useFocusEffect(useCallback(() => {
     // Returning from Admin-managed promotions should refresh banners without
     // requiring the customer to close or reinstall the mobile application.
     // Refresh both the catalog and category metadata when returning from a product.
     void load(true);
+    void rmaApi.listB2BReels()
+      .then(items => setReels(Array.isArray(items) ? items.slice(0, 8) : []))
+      .catch(error => console.warn('Reels list fetch failed:', error));
     let mounted=true;
     if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; }; }
     void rmaApi.listB2BNotifications().then(rows => {
@@ -430,7 +430,19 @@ export default function HomeScreen() {
                 onPress={() => router.push('/(tabs)/discover')}
                 accessibilityLabel={reel.title || 'Reels videosu'}
               >
-                {reel.thumbnail_url ? <Image source={{ uri: absoluteMediaUrl(reel.thumbnail_url) || '' }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}
+                {reel.thumbnail_url && !missingReelCovers.includes(String(reel.id)) ? (
+                  <Image
+                    source={{ uri: absoluteMediaUrl(reel.thumbnail_url) || '' }}
+                    style={styles.reelCoverImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    onError={() => setMissingReelCovers(current => current.includes(String(reel.id)) ? current : [...current, String(reel.id)])}
+                  />
+                ) : (
+                  <View style={styles.reelFallback} pointerEvents="none">
+                    <Ionicons name="videocam-outline" size={36} color="#CBD5E1" />
+                  </View>
+                )}
                 <View style={styles.reelPreviewOverlay}>
                   <Ionicons name="play-circle" size={34} color="#FFCD00" />
                   <Text style={styles.reelPreviewText} numberOfLines={2}>{reel.title || 'Ürün videosu'}</Text>
@@ -573,6 +585,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
   welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
   reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
+  reelCoverImage: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, width: '100%', height: '100%' },
+  reelFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1E293B' },
   reelPreviewOverlay:{ flex:1,justifyContent:'space-between',padding:12,backgroundColor:'rgba(0,0,0,0.4)' },
   reelPreviewText:{ color:'#FFFFFF',fontSize:12,fontWeight:'800' },
   scanButton: { width: 44, height: 46, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: palette.border, marginLeft: 2 },
