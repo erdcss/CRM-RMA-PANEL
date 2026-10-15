@@ -157,17 +157,34 @@ export default function LedgerCurrentAccount() {
     finally{setBusy(false);}
   }
   async function shareStatement(){
-    if(!data||busy)return;
+    if(!data||busy||!id)return;
     setBusy(true);
     try{
-      const rows=movements.map(m=>'<tr><td>'+htmlEscape(m.date)+'</td><td>'+htmlEscape(
-        m.type in NAMES?NAMES[m.type as TransactionType]:
-        ({debt:'BORÇ',payment:'ÖDEME',receivable:'ALACAK',collection:'TAHSİLAT'} as Record<string,string>)[m.type]||m.type
-      )+'</td><td>'+htmlEscape(m.description)+'</td><td>'+htmlEscape(m.related)+'</td><td style="text-align:right">'+htmlEscape(MONEY(m.amount_cents))+'</td></tr>').join('');
+      // All pages come from the authenticated owner-scoped server, including
+      // PDF-imported opening entries and cancelled historical movements.
+      const pages: Array<{
+        type:string;amount_cents:string;effective_on:string;description:string;
+        voided_at?:string|null;operation_type?:string|null;
+        category?:string|null;wallet_name?:string|null;target_name?:string|null;
+      }>=[];
+      let more=true;
+      for(let offset=0;more&&offset<30000;offset+=300){
+        const page=await rmaApi.getLedgerStatementPage(id,offset);
+        pages.push(...page.items);more=page.hasMore;
+      }
+      if(more)throw new Error('Ekstre 30.000 işlem sınırını aşıyor; PDF üretilmedi. Destek ekibiyle görüşün.');
+      const rows=pages.map(m=>{
+        const label=m.operation_type?NAMES[m.operation_type as TransactionType]||m.operation_type:
+          ({debt:'BORÇ',payment:'ÖDEME',receivable:'ALACAK',collection:'TAHSİLAT'} as Record<string,string>)[m.type]||m.type;
+        return '<tr><td>'+htmlEscape(String(m.effective_on).slice(0,10))+'</td><td>'+htmlEscape(label)+'</td><td>'+
+          htmlEscape(m.description)+(m.voided_at?' (İPTAL)':'')+'</td><td>'+
+          htmlEscape([m.wallet_name,m.target_name,m.category].filter(Boolean).join(' · '))+
+          '</td><td style="text-align:right">'+htmlEscape(MONEY(m.amount_cents))+'</td></tr>';
+      }).join('');
       const html='<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+
         'body{font-family:Helvetica,Arial,sans-serif;color:#17202a;padding:25px}h1{font-size:23px}p{font-size:12px}table{width:100%;border-collapse:collapse;font-size:10px}td,th{padding:9px;border-bottom:1px solid #ddd}th{text-align:left;background:#edf2f7}'+
         '</style></head><body><h1>'+htmlEscape(data.name)+'</h1><p>Cari hesap ekstresi · '+htmlEscape(now())+
-        '</p><p>Alacak: '+htmlEscape(MONEY(data.receivable_balance_cents))+
+        ' · '+pages.length+' hareket</p><p>Alacak: '+htmlEscape(MONEY(data.receivable_balance_cents))+
         ' | Borç: '+htmlEscape(MONEY(data.debt_balance_cents))+
         ' | Net: '+htmlEscape(MONEY(totalNet.toString()))+
         '</p><table><thead><tr><th>Tarih</th><th>İşlem</th><th>Açıklama</th><th>İlgili hesap</th><th>Tutar</th></tr></thead><tbody>'+rows+
