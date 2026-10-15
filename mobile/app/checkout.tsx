@@ -1025,7 +1025,7 @@ export default function CheckoutScreen() {
             <Ionicons
               name={paymentMethod === 'card' ? 'lock-closed' : 'business'}
               size={19}
-              color="#FFFFFF"
+              color="#111827"
             />
             <Text style={styles.payButtonText}>
               {busy
@@ -1049,25 +1049,37 @@ export default function CheckoutScreen() {
 }
 
 function Section({
-  title,
-  icon,
-  children,
+  title, icon, children, collapsible = false, defaultCollapsed = false, summaryValue,
 }: {
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   children: React.ReactNode;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  summaryValue?: string;
 }) {
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
+  const [expanded, setExpanded] = useState(!defaultCollapsed);
+  const header = (
+    <>
+      <View style={styles.sectionIcon}>
+        <Ionicons name={icon} size={19} color={palette.text} />
+      </View>
+      <Text style={[styles.sectionTitle,{flex:1}]}>{title}</Text>
+      {collapsible && !expanded && summaryValue ? <Text style={styles.summaryCollapsedTotal}>{summaryValue}</Text>:null}
+      {collapsible ? <Ionicons name={expanded?'chevron-up':'chevron-down'} color={palette.text} size={20}/>:null}
+    </>
+  );
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <View style={styles.sectionIcon}>
-          <Ionicons name={icon} size={19} color={palette.text} />
-        </View>
-        <Text style={styles.sectionTitle}>{title}</Text>
-      </View>
-      <View style={styles.sectionBody}>{children}</View>
+      {collapsible ? (
+        <Pressable style={styles.sectionHeader} accessibilityRole="button"
+          accessibilityState={{expanded}} onPress={() => setExpanded(current=>!current)}>
+          {header}
+        </Pressable>
+      ) : <View style={styles.sectionHeader}>{header}</View>}
+      {expanded ? <View style={styles.sectionBody}>{children}</View>:null}
     </View>
   );
 }
@@ -1109,7 +1121,7 @@ function ChoiceCard({
   return (
     <Pressable style={[styles.choiceCard, active && styles.choiceCardActive]} onPress={onPress}>
       <View style={[styles.choiceIcon, active && styles.choiceIconActive]}>
-        <Ionicons name={icon} size={20} color={active ? '#FFFFFF' : palette.text} />
+        <Ionicons name={icon} size={20} color={active ? '#111827' : palette.text} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.choiceTitle}>{title}</Text>
@@ -1195,6 +1207,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   sectionHeader: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg, borderBottomWidth: 1, borderBottomColor: palette.border },
   sectionIcon: { width: 34, height: 34, borderRadius: radius.md, backgroundColor: palette.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { ...typography.subtitle, color: palette.text, fontWeight: '900' },
+  summaryCollapsedTotal: { fontSize: 12, color: palette.text, fontWeight: '900' },
   sectionBody: { padding: spacing.lg, gap: spacing.sm },
   productRow: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
   productRowDivider: {
@@ -1220,10 +1233,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   infoLineLabel: { ...typography.caption, color: palette.muted },
   infoLineValue: { ...typography.bodyMedium, color: palette.text, fontWeight: '700', marginTop: 2 },
   selectCard: { minHeight: 76, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  selectCardActive: { borderColor: palette.text, backgroundColor: palette.surfaceSecondary },
+  selectCardActive: { borderColor: '#FACC15', borderWidth: 2, backgroundColor: palette.surfaceSecondary },
   radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
-  radioActive: { borderColor: '#111827' },
-  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#111827' },
+  radioActive: { borderColor: '#D4A800' },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#FACC15' },
   selectText: { flex: 1 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   selectTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
@@ -1239,16 +1252,16 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   twoColumns: { flexDirection: 'row', gap: spacing.sm },
   half: { flex: 1 },
   choiceCard: { minHeight: 74, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  choiceCardActive: { borderColor: palette.text, backgroundColor: palette.surfaceSecondary },
+  choiceCardActive: { borderColor: '#FACC15', borderWidth: 2, backgroundColor: palette.surfaceSecondary },
   choiceIcon: { width: 42, height: 42, borderRadius: radius.md, backgroundColor: palette.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
-  choiceIconActive: { backgroundColor: '#111827' },
+  choiceIconActive: { backgroundColor: '#FACC15' },
   choiceTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
   choiceSubtitle: { ...typography.caption, color: palette.muted, marginTop: 2 },
   pickupTimes: { flexDirection: 'row', gap: spacing.sm },
   timeChip: { flex: 1, minHeight: 42, borderRadius: radius.md, borderWidth: 1, borderColor: palette.border, alignItems: 'center', justifyContent: 'center' },
-  timeChipActive: { backgroundColor: '#111827', borderColor: '#111827' },
+  timeChipActive: { backgroundColor: '#FACC15', borderColor: '#FACC15' },
   timeText: { ...typography.bodyMedium, color: palette.text },
-  timeTextActive: { color: '#FFFFFF' },
+  timeTextActive: { color: '#111827' },
   cardPaymentBox: {
     gap: spacing.md,
   },
@@ -1285,11 +1298,11 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     fontWeight: '800',
   },
   cardNumberPreview: {
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 26,
     color: '#FFFFFF',
     fontWeight: '800',
-    letterSpacing: 1.8,
+    letterSpacing: 0.9,
     marginVertical: spacing.lg,
   },
   cardVisualBottom: {
@@ -1388,8 +1401,9 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     padding: spacing.md,
   },
   installmentCardActive: {
-    borderColor: '#111827',
-    backgroundColor: '#111827',
+    borderColor: '#FACC15',
+    borderWidth: 2,
+    backgroundColor: '#FACC15',
   },
   installmentCardTop: {
     flexDirection: 'row',
@@ -1414,10 +1428,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     marginTop: 2,
   },
   installmentTextActive: {
-    color: '#FFFFFF',
+    color: '#111827',
   },
   installmentRateActive: {
-    color: '#CBD5E1',
+    color: '#374151',
   },
   bankPreview: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, paddingHorizontal: spacing.md },
   bankPreviewHint: {
@@ -1459,8 +1473,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   bankHint: { ...typography.caption, color: palette.textSecondary, marginTop: spacing.md, textAlign: 'center' },
   warningBox: { borderRadius: radius.md, backgroundColor: colors.warningSoft, padding: spacing.md, flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   warningText: { ...typography.caption, color: palette.textSecondary, flex: 1 },
-  payButton: { minHeight: 58, borderRadius: radius.lg, backgroundColor: '#111827', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
-  payButtonText: { ...typography.bodyMedium, color: '#FFFFFF', fontWeight: '900' },
+  payButton: { minHeight: 58, borderRadius: radius.lg, backgroundColor: '#FACC15', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
+  payButtonText: { ...typography.bodyMedium, color: '#111827', fontWeight: '900' },
   primaryButton: { minHeight: 50, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   primaryButtonText: { ...typography.bodyMedium, color: '#FFFFFF', fontWeight: '800' },
   disabled: { opacity: 0.45 },
