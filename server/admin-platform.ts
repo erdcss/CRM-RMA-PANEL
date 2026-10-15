@@ -432,6 +432,19 @@ async function detectedProductCategories(): Promise<string[]> {
   }
 }
 
+async function detectedProductTags(): Promise<string[]> {
+  if (!pool) return [];
+  try {
+    await ensureB2BProductSchema();
+    const result = await pool.query(
+      "SELECT DISTINCT TRIM(tag) AS tag FROM b2b_products, UNNEST(tags) AS tag WHERE is_active IS DISTINCT FROM FALSE AND TRIM(tag) <> '' ORDER BY tag LIMIT 200",
+    );
+    return result.rows.map((row) => String(row.tag)).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 async function homepageConfig() {
   const detectedCategories = await detectedProductCategories();
   if (!pool) {
@@ -892,7 +905,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
   app.get("/api/admin/homepage", requireAdmin, async (_req, res) => {
     try {
-      return res.json({ ...await homepageConfig(), ...await getMobileHomeLayout() });
+      return res.json({ ...await homepageConfig(), ...await getMobileHomeLayout(), availableTags: await detectedProductTags() });
     } catch (error) {
       console.error("Admin homepage config load failed:", error);
       return res.status(500).json({ error: "Ana sayfa ayarları alınamadı" });
@@ -918,6 +931,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.json({
         categories,
         detectedCategories: await detectedProductCategories(),
+        availableTags: await detectedProductTags(),
         ...await getMobileHomeLayout(),
       });
     } catch (error) {
