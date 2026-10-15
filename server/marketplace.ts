@@ -183,12 +183,8 @@ async function log(actor:number,action:string,entity:number,notes="") {
   const db=await ready();
   await db.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",[actor,action,entity,notes]);
 }
-async function ownConversation(db:NonNullable<typeof pool>,conversationId:number,customerId:number, supplierId?:number) {
-  const args:unknown[]=[conversationId,customerId];
-  let sql="SELECT c.*, s.owner_user_id FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id WHERE c.id=$1 AND (c.buyer_user_id=$2";
-  if(supplierId) {args.push(supplierId);sql+=" OR c.supplier_id=$3";}
-  sql+=") LIMIT 1";
-  const result=await db.query(sql,args);
+async function ownConversation(db:NonNullable<typeof pool>,conversationId:number,customerId:number) {
+  const result=await db.query("SELECT c.*, s.owner_user_id FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id WHERE c.id=$1 AND (c.buyer_user_id=$2 OR s.owner_user_id=$2) LIMIT 1",[conversationId,customerId]);
   if(!result.rows[0])throw new ApiError(404,"Görüşme bulunamadı");
   return result.rows[0];
 }
