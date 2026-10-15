@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { ArrowLeft, ShoppingCart, Package, Truck, Warehouse, Trash2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-type CartItem={id:number;product_id:number;boxes:number;delivery_mode:string;sku:string;stock:number;company_name:string;
+type CartItem={id:number;supplier_id:number|string;product_id:number;boxes:number;delivery_mode:string;sku:string;stock:number;company_name:string;
   total:number;valid:boolean;content?:{name:string;imageUrl:string;unitsPerBox:number;minBoxes:number}};
 type Group={supplierId:number;companyName:string;deliveryMode:string;subtotal:number;platformFee:number;warehouseFee:number};
 type Cart={items:CartItem[];supplierOrders:Group[];subtotal:number;currency:string;paymentEnabled:boolean;notice:string};
