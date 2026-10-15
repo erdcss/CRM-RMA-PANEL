@@ -105,6 +105,7 @@ const BRANDING_KEYS = [
   "b2b_logo",
   "b2b_favicon",
   "b2b_mobile_logo",
+  "b2b_mobile_android_icon",
   "b2b_mobile_splash",
   "b2b_mobile_login_background",
   "business_mobile_logo",
@@ -682,6 +683,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/mobile-image/:asset", async (req, res) => {
     const keys: Record<string, BrandingKey> = {
       "b2b-logo": "b2b_mobile_logo",
+      "b2b-android-icon": "b2b_mobile_android_icon",
       "b2b-web-logo": "b2b_logo",
       "b2b-splash": "b2b_mobile_splash",
       "b2b-login": "b2b_mobile_login_background",
@@ -717,7 +719,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
       if (target === "b2b") {
         const assetKeys = [
-          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_splash",
+          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_android_icon", "b2b_mobile_splash",
           "b2b_mobile_login_background",
         ];
         const found = pool
@@ -729,6 +731,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         const available = new Set(found.rows.map((row) => String(row.key)));
         // The B2B mobile app must never fall back to an old web logo.
         const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
+        const androidIcon = available.has("b2b_mobile_android_icon") ? "b2b-android-icon" : null;
         const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
         const webLogo = logo;
         const login = available.has("b2b_mobile_login_background") ? "b2b-login" : null;
@@ -738,6 +741,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
         return res.json({
           logo: image(logo),
+          androidIcon: image(androidIcon),
           webLogo: image(webLogo),
           splash: image(splash),
           loginBackground: image(login),
