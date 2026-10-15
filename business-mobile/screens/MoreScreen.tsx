@@ -6,11 +6,13 @@ import { PageHeader, SectionTitle } from "./common";
 export function MoreScreen({
   user,
   onSupport,
+  onMarketplace,
   onModule,
   onLogout,
 }: {
   user: BusinessAuthUser | null;
   onSupport: () => void;
+  onMarketplace: () => void;
   onModule: (slug: string) => void;
   onLogout: () => void | Promise<void>;
 }) {
@@ -28,6 +30,7 @@ export function MoreScreen({
         </View>
       </View>
 
+      {user?.role === "super_admin" ? <MenuCard title="Pazaryeri Yönetim Paneli" subtitle="Tedarikçi, mağaza, ürün ve Reels onayları" onPress={onMarketplace} /> : null}
       <SectionTitle title="Operasyon" />
       <MenuCard title="Destek Merkezi" subtitle="Müşteri talepleri ve mesajlar" onPress={onSupport} />
       <MenuCard title="İade İşlemleri" subtitle="İade ve onay süreçleri" onPress={() => onModule("iade-islemleri")} />
