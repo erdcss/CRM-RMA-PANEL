@@ -954,7 +954,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       const rows = await Promise.all(
         result.rows.map(async (row) => ({
           ...row,
-          video_url: await ensureReelVideoCompatibility(String(row.video_url || "")),
+          video_url: String(row.video_url || "").startsWith("/api/public/reels/media/")
+            ? row.video_url
+            : await ensureReelVideoCompatibility(String(row.video_url || "")).catch((error) => {
+                console.warn("Legacy reel video conversion skipped:", row.id, error);
+                return row.video_url;
+              }),
         })),
       );
 
