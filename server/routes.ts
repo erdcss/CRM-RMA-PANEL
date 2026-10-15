@@ -2362,6 +2362,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/b2b/products", async (req, res) => {
+    // Catalog pricing depends on the requester; never reuse a stale/guest ETag.
+    res.setHeader("Cache-Control", "private, no-store, max-age=0");
+    res.setHeader("Vary", "Authorization, X-Owner-User-Id");
     if (!pool) return res.json([]);
 
     try {
