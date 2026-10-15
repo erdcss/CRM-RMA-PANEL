@@ -65,7 +65,7 @@ const operationItems = [
   { title: "Siparişler", url: "/siparisler", icon: ShoppingCart },
 ];
 
-export function AppSidebar({ username }: { username: string }) {
+export function AppSidebar({ username, role }: { username: string; role: string }) {
   const [location] = useLocation();
   const { setOpenMobile, isMobile } = useSidebar();
   const { data: branding } = useBranding();
@@ -87,10 +87,12 @@ export function AppSidebar({ username }: { username: string }) {
             <p className="truncate text-[11px] text-muted-foreground">Yönetim Merkezi</p>
           </div>
         </div>
+        {role === "super_admin" ? (
         <Link href="/pazaryeri" onClick={() => setOpenMobile(false)} className={"mt-3 flex items-center gap-2 rounded-lg border px-3 py-3 text-xs font-bold transition "+(location.startsWith("/pazaryeri")?"border-amber-400 bg-amber-100 text-slate-950":"border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:border-amber-400")}>
           <Store className="h-4 w-4 shrink-0" />
           <span>Pazaryeri Yönetim Paneli</span>
         </Link>
+        ) : null}
       </SidebarHeader>
 
       <SidebarContent>
