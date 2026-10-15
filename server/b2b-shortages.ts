@@ -36,7 +36,73 @@ function normalized(rows: unknown): Supplier[] {
   });
 }
 
-export function registerB2BShortageRoutes(app: Express, requireB2B: RequestHandler, getOwner: Owner) {
+export function registerB2BShortageRoutes(app: Express, requireB2B: RequestHandler, getOwner: Owner, requireAdmin: RequestHandler) {
+  // Aggregate-only dashboard endpoint; private user lists are not disclosed.
+  // Counts reflect currently saved entries, not a historical event log.
+  app.get("/api/admin/shortage-analytics", requireAdmin, async (_req, res) => {
+    try {
+      await ready();
+      const result = await pool!.query(`
+        WITH supplier_entries AS (
+          SELECT
+            l.user_id,
+            TRIM(REGEXP_REPLACE(COALESCE(s.value->>'name', ''), '[[:space:]]+', ' ', 'g')) AS name,
+            CASE WHEN jsonb_typeof(s.value->'items') = 'array'
+                 THEN s.value->'items' ELSE '[]'::jsonb END AS items
+          FROM b2b_shortage_lists AS l
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(l.data) = 'array' THEN l.data ELSE '[]'::jsonb END
+          ) AS s(value)
+          WHERE jsonb_typeof(s.value) = 'object'
+        ),
+        product_entries AS (
+          SELECT
+            s.user_id,
+            TRIM(REGEXP_REPLACE(COALESCE(p.value->>'name', ''), '[[:space:]]+', ' ', 'g')) AS name,
+            COALESCE(p.value->>'completed' = 'true', FALSE) AS completed
+          FROM supplier_entries AS s
+          CROSS JOIN LATERAL jsonb_array_elements(s.items) AS p(value)
+          WHERE jsonb_typeof(p.value) = 'object'
+        ),
+        top_suppliers AS (
+          SELECT MIN(name) AS name, COUNT(*)::int AS count, COUNT(DISTINCT user_id)::int AS user_count
+          FROM supplier_entries WHERE name <> ''
+          GROUP BY LOWER(name)
+          ORDER BY count DESC, name ASC LIMIT 10
+        ),
+        top_products AS (
+          SELECT
+            MIN(name) AS name, COUNT(*)::int AS count,
+            COUNT(DISTINCT user_id)::int AS user_count,
+            COUNT(*) FILTER (WHERE NOT completed)::int AS pending_count
+          FROM product_entries WHERE name <> ''
+          GROUP BY LOWER(name)
+          ORDER BY count DESC, name ASC LIMIT 10
+        )
+        SELECT
+          (SELECT COUNT(DISTINCT user_id)::int FROM supplier_entries WHERE name <> '') AS user_count,
+          (SELECT COUNT(*)::int FROM supplier_entries WHERE name <> '') AS supplier_count,
+          (SELECT COUNT(*)::int FROM product_entries WHERE name <> '') AS product_count,
+          (SELECT COUNT(*)::int FROM product_entries WHERE name <> '' AND NOT completed) AS pending_count,
+          COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.count DESC, t.name ASC) FROM top_suppliers t), '[]'::jsonb) AS top_suppliers,
+          COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.count DESC, t.name ASC) FROM top_products t), '[]'::jsonb) AS top_products
+      `);
+      const stats = result.rows[0];
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({
+        userCount: stats.user_count,
+        supplierCount: stats.supplier_count,
+        productCount: stats.product_count,
+        pendingCount: stats.pending_count,
+        topSuppliers: stats.top_suppliers,
+        topProducts: stats.top_products,
+      });
+    } catch (error) {
+      console.error("Shortage analytics failed:", error);
+      return res.status(500).json({ error: "Eksik listesi analiz verileri alınamadı" });
+    }
+  });
+
   app.get("/api/b2b/shortages", requireB2B, async (req, res) => {
     try {
       await ready();
