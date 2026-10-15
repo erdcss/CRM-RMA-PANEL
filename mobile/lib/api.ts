@@ -165,7 +165,7 @@ export type LedgerOperationType = 'sale'|'collection'|'purchase'|'payment'|'tran
 export type LedgerOperation = {
   id:string;type:LedgerOperationType;amount_cents:string;effective_on:string;
   category:string;description:string;wallet_name?:string|null;wallet_id?:string|null;
-  target_name?:string|null;target_contact_id?:string|null;created_at:string;
+  target_name?:string|null;source_name?:string|null;target_contact_id?:string|null;created_at:string;
   voided_at?:string|null;void_reason?:string|null;
 };
 export type LedgerReport = {
