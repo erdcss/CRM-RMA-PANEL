@@ -720,6 +720,21 @@ export default function CheckoutScreen() {
             />
           ) : null}
 
+          {settings?.paymentLogos?.length ? (
+            <View style={styles.paymentLogoGallery}>
+              {settings.paymentLogos.map(logo => (
+                <View key={logo.id} style={styles.paymentLogoItem}>
+                  <Image
+                    source={{uri:homepageMediaUrl(logo.imageId)||''}}
+                    style={styles.paymentLogoImage}
+                    contentFit="contain"
+                  />
+                  {logo.label ? <Text numberOfLines={1} style={styles.paymentLogoTitle}>{logo.label}</Text>:null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {paymentMethod === 'card' ? (
             <View style={styles.cardPaymentBox}>
               <View style={styles.secureBox}>
@@ -1265,6 +1280,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   cardPaymentBox: {
     gap: spacing.md,
   },
+  paymentLogoGallery: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
+  paymentLogoItem: { width: 104, borderWidth: 1, borderColor: palette.border, borderRadius: radius.sm, padding: 5, alignItems: 'center', backgroundColor: palette.surface },
+  paymentLogoImage: { width: 88, height: 44 },
+  paymentLogoTitle: { fontSize: 10, color: palette.textSecondary, marginTop: 3, textAlign: 'center' },
   secureBox: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, padding: spacing.md, flexDirection: 'row', gap: spacing.md },
   secureIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   secureTitle: { ...typography.bodyMedium, color: palette.text, fontWeight: '800' },
