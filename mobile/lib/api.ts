@@ -156,6 +156,10 @@ export type B2BHomepage = {
   sliderIntervalMs?: number;
 };
 
+export type B2BShortageItem = { id: string; name: string; completed: boolean };
+export type B2BShortageSupplier = { id: string; name: string; items: B2BShortageItem[] };
+export type B2BShortageList = { suppliers: B2BShortageSupplier[]; revision: number };
+
 export type B2BReel = {
   id: string | number;
   title: string;
@@ -514,7 +518,24 @@ export const rmaApi = {
     request<{ id: string; name: string; barcode: string }>(
       `/api/b2b/products/by-barcode/${encodeURIComponent(barcode.trim())}`
     ),
-  listB2BReels: () => request<B2BReel[]>('/api/public/reels'),
+  listB2BReels: async () => {
+    // Reels and their covers are administered on the admin service.
+    try {
+      const response = await fetch(`${ADMIN_CONTENT_URL}/api/public/reels?t=${Date.now()}`, {
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      });
+      if (!response.ok) throw new Error('Reels cannot be loaded');
+      const rows: unknown = await response.json();
+      if (!Array.isArray(rows)) throw new Error('Invalid reels response');
+      return rows as B2BReel[];
+    } catch {
+      return request<B2BReel[]>('/api/public/reels');
+    }
+  },
+  getB2BShortages: () => request<B2BShortageList>('/api/b2b/shortages'),
+  saveB2BShortages: (payload: B2BShortageList) => request<B2BShortageList>('/api/b2b/shortages', {
+    method: 'PUT', body: JSON.stringify(payload),
+  }),
   getB2BAccount: () => request<B2BAccount>('/api/b2b/account'),
   listB2BAddresses: () => request<B2BAddress[]>('/api/b2b/addresses'),
   listB2BPaymentMethods: () => request<B2BPaymentMethod[]>('/api/b2b/payment-methods'),
