@@ -170,7 +170,7 @@ export type LedgerOperation = {
 };
 export type LedgerReport = {
   today_in:string;today_out:string;month_in:string;month_out:string;all_out:string;
-  cash_cents:string;bank_cents:string;contacts:number;wallets:number;
+  cash_cents:string;bank_cents:string;cash_in:string;cash_out:string;contacts:number;wallets:number;
 };
 export type LedgerCategory = {id:string;name:string};
 export type LedgerStatementRow = {
