@@ -45,6 +45,7 @@ import B2BSupport from "@/pages/b2b-support";
 import AdminMarketplace from "@/pages/admin-marketplace";
 import MarketplaceSeller from "@/pages/marketplace-seller";
 import { MarketplaceDirectory, MarketplaceShop, MarketplaceBuyerInbox } from "@/pages/marketplace-public";
+import MarketplaceCart from "@/pages/marketplace-cart";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
@@ -165,6 +166,7 @@ function B2BWebsite() {
         <Route path="/magaza/:slug">{(params) => <MarketplaceShop slug={params.slug} />}</Route>
         <Route path="/satici" component={MarketplaceSeller} />
         <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
+        <Route path="/pazaryeri-sepetim" component={MarketplaceCart} />
         <Route path="/uye-girisi" component={B2BLogin} />
         <Route path="/login" component={B2BLogin} />
         <Route path="/kayit-ol" component={B2BRegister} />
