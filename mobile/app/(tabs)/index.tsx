@@ -66,6 +66,7 @@ export default function HomeScreen() {
   const [missingReelCovers, setMissingReelCovers] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
+  const [ledgerTileImageId, setLedgerTileImageId] = useState('');
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
@@ -107,6 +108,7 @@ export default function HomeScreen() {
   const applyHomepage = useCallback((homepage: B2BHomepage) => {
     setCategories(homepage.categories || []);
     setCategoryCards(homepage.categoryCards || []);
+    setLedgerTileImageId(homepage.ledgerTileImageId || '');
     setBanners(homepage.banners || []);
     setSliderAutoPlay(homepage.sliderAutoPlay !== false);
     setSliderIntervalMs(homepage.sliderIntervalMs || 5000);
@@ -376,11 +378,18 @@ export default function HomeScreen() {
           contentContainerStyle={styles.categories}
         >
           <Pressable
-            onPress={() => router.push('/(tabs)/products')}
-            style={styles.categoryCard}
+            onPress={() => router.push('/ledger' as never)}
+            style={[styles.categoryCard, styles.ledgerTile]}
+            accessibilityRole="button"
+            accessibilityLabel="Defterim'e git"
           >
-            <Ionicons name="apps-outline" size={17} color={palette.text} />
-            <Text style={styles.categoryText}>Tümü</Text>
+            {ledgerTileImageId ? <Image
+              source={{uri:homepageMediaUrl(ledgerTileImageId)||''}}
+              style={styles.categoryImage}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            /> : <Ionicons name="book-outline" size={27} color={palette.text}/>}
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.categoryText}>Defterim</Text>
           </Pressable>
 
           {categories.map((category, index) => {
@@ -408,7 +417,9 @@ export default function HomeScreen() {
                     color={palette.text} />
                 )}
                 <Text
-                  numberOfLines={2}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.68}
                   style={styles.categoryText}
                 >
                   {configured?.label || category}
@@ -701,7 +712,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     paddingRight: spacing.lg,
   },
   categoryCard: {
-    width: 78,
+    width: 98,
     height: 88,
     borderRadius: radius.md,
     borderWidth: 1,
@@ -710,16 +721,20 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    gap: 4,
+    paddingHorizontal: 3,
     paddingVertical: spacing.xs,
   },
+  ledgerTile: { borderColor: '#EAB308', borderWidth: 1.5 },
   categoryCardActive: {
     backgroundColor: '#111827',
     borderColor: '#111827',
   },
   categoryText: {
     ...typography.caption,
+    fontSize: 11,
+    width: '100%',
+    flexShrink: 1,
     color: palette.text,
     fontWeight: '700',
     textAlign: 'center',
