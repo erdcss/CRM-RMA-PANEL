@@ -464,7 +464,7 @@ async function loadMobileCatalog(forceRefresh = false): Promise<B2BProduct[]> {
   }
   if (catalogPending?.key === key) return catalogPending.promise;
 
-  const promise = request<B2BProduct[]>('/api/b2b/products?mobile=1')
+  const promise = request<B2BProduct[]>(`/api/b2b/products?mobile=1&t=${Date.now()}`, { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } })
     .then((rows) => {
       const result = Array.isArray(rows) ? rows : [];
       catalogCache = { key, loadedAt: Date.now(), rows: result };
