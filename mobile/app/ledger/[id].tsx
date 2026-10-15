@@ -37,7 +37,8 @@ export default function LedgerCurrentAccount() {
   const [requestKey,setRequestKey]=useState(token);
   const [walletId,setWalletId]=useState('');
   const [targetId,setTargetId]=useState('');
-  const [sheet,setSheet]=useState<'options'|'edit'|'wallet'|'target'|'category'|null>(null);
+  const [sheet,setSheet]=useState<'options'|'edit'|'wallet'|'target'|'category'|'cancel'|null>(null);
+  const [cancelId,setCancelId]=useState(''),[cancelReason,setCancelReason]=useState('');
   const [walletName,setWalletName]=useState('');
   const [walletType,setWalletType]=useState<'cash'|'bank'>('bank');
   const [categoryName,setCategoryName]=useState('');
@@ -73,7 +74,7 @@ export default function LedgerCurrentAccount() {
       amount_cents:op.amount_cents,date:String(op.effective_on).slice(0,10),
       description:op.description,category:op.category,
       related:op.type==='transfer'?((op.target_contact_id===id)?'Gelen transfer':'Giden transfer')+(op.target_name?' · '+op.target_name:''):
-        op.wallet_name||'',cancelled:false,
+        op.wallet_name||'',cancelled:Boolean(op.voided_at),
     }));
     const legacy=(data?.entries||[]).filter(e=>!e.operation_id).map(e=>({
       id:'legacy-'+e.id,kind:'old' as const,type:e.type,
@@ -146,6 +147,15 @@ export default function LedgerCurrentAccount() {
       })()},
     ]);
   }
+  async function cancelOperation(){
+    if(!cancelId||cancelReason.trim().length<3||busy)return;
+    setBusy(true);
+    try{
+      await rmaApi.voidLedgerOperation(cancelId,cancelReason.trim());
+      setSheet(null);setCancelId('');setCancelReason('');await load(true);
+    }catch(e){appAlert('İptal edilemedi',e instanceof Error?e.message:'Tekrar deneyin',undefined,'error');}
+    finally{setBusy(false);}
+  }
   async function shareStatement(){
     if(!data||busy)return;
     setBusy(true);
@@ -211,6 +221,10 @@ export default function LedgerCurrentAccount() {
               <Text style={[styles.historyAmount,{color:m.type==='sale'||m.type==='collection'||m.type==='receivable'?'#249966':'#EF5543'}]}>
                 {MONEY(m.amount_cents)}
               </Text>
+              {m.kind==='modern'&&!m.cancelled?<Pressable accessibilityLabel="İşlemi iptal et" onPress={()=>{setCancelId(m.id.slice(3));setCancelReason('');setSheet('cancel');}}>
+                <Ionicons name="close-circle-outline" size={19} color={palette.muted}/>
+              </Pressable>:null}
+              {m.cancelled?<Ionicons name="ban-outline" color={palette.muted} size={17}/>:null}
             </View>)}
         </View>
         <View style={[styles.editor,{borderColor:activeColor}]}>
@@ -310,6 +324,14 @@ export default function LedgerCurrentAccount() {
               {targetId===p.id?<Ionicons name="checkmark-circle" color="#FACC15" size={22}/>:null}
             </Pressable>)}
             {!people.filter(p=>p.id!==id).length?<Text style={styles.small}>Önce Defterim ana sayfasından başka bir cari hesap oluşturun.</Text>:null}
+          </>:null}
+          {sheet==='cancel'?<>
+            <Text style={styles.title}>İşlemi İptal Et</Text>
+            <Text style={styles.small}>Cari ve bağlı kasa/banka/transfer hareketleri birlikte iptal edilir. Kayıt geçmişte korunur.</Text>
+            {input(cancelReason,setCancelReason,'İptal nedeni (en az 3 karakter)',300,true)}
+            <Pressable style={styles.yellowButton} disabled={busy||cancelReason.trim().length<3} onPress={()=>void cancelOperation()}>
+              <Text style={styles.yellowText}>İşlemi iptal et</Text>
+            </Pressable>
           </>:null}
           {sheet==='category'?<>
             <Text style={styles.title}>İşlem Kategorisi</Text>
