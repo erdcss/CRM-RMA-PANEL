@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 
 import { SCAN_BARCODE_TYPES } from '@/constants/barcodeTypes';
 import { normalizeBarcodeScan, type BarcodeScanMode } from '@/lib/shared/barcode-scan';
@@ -36,6 +37,22 @@ export function BarcodeScannerModal({
   const [permission, requestPermission] = useCameraPermissions();
   const [lastValue, setLastValue] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
+  const beepSoundRef = useRef<Audio.Sound | null>(null);
+  useEffect(() => {
+    let active = true;
+    Audio.Sound.createAsync(require('../../assets/scan-beep.wav'))
+      .then(({ sound }) => {
+        if (active) beepSoundRef.current = sound;
+        else void sound.unloadAsync();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      const sound = beepSoundRef.current;
+      beepSoundRef.current = null;
+      if (sound) void sound.unloadAsync();
+    };
+  }, []);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const lastRejectRef = useRef<{ message: string; at: number } | null>(null);
 
@@ -80,6 +97,13 @@ export function BarcodeScannerModal({
 
       lastScanRef.current = { code: value, at: now };
       setLastValue(value);
+      // Only accepted scans produce the confirmation sound.
+      const sound = beepSoundRef.current;
+      if (sound) {
+        void sound.setPositionAsync(0)
+          .then(() => sound.playAsync())
+          .catch(() => undefined);
+      }
       onScanned(value);
     },
     [cameraReady, notifyReject, onScanned, scanMode, visible],
