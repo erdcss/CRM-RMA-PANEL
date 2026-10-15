@@ -209,6 +209,31 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
     finally{client?.release();}
   });
 
+  app.get("/api/b2b/ledger/contacts/:id/statement",requireB2B,async(req,res)=>{
+    const contact=id(req.params.id);
+    const offset=Number(req.query.offset||0);
+    if(!contact||!Number.isSafeInteger(offset)||offset<0||offset>100000)
+      return res.status(400).json({error:"Hesap veya sayfalama hatalı."});
+    try{
+      await ready();
+      const r=await pool!.query(
+        `SELECT e.id::text,e.type,e.amount_cents::text,e.effective_on,e.description,
+          e.voided_at,e.void_reason,o.type AS operation_type,o.category,
+          o.target_contact_id::text,w.name AS wallet_name,t.name AS target_name
+         FROM b2b_ledger_entries e
+         JOIN b2b_ledger_contacts c ON c.id=e.contact_id AND c.user_id=e.user_id
+         LEFT JOIN b2b_ledger_operations o ON o.id=e.operation_id AND o.user_id=e.user_id
+         LEFT JOIN b2b_ledger_wallets w ON w.id=o.wallet_id AND w.user_id=e.user_id
+         LEFT JOIN b2b_ledger_contacts t ON t.id=o.target_contact_id AND t.user_id=e.user_id
+         WHERE e.user_id=$1 AND e.contact_id=$2
+         ORDER BY e.effective_on DESC,e.id DESC LIMIT 301 OFFSET $3`,
+        [owner(res),contact,offset],
+      );
+      res.setHeader("Cache-Control","private,no-store");
+      return res.json({items:r.rows.slice(0,300),hasMore:r.rows.length>300});
+    }catch(err){return fail(res,err);}
+  });
+
   app.get("/api/b2b/ledger/contacts/:id/operations",requireB2B,async(req,res)=>{
     const contact=id(req.params.id);if(!contact)return res.status(400).json({error:"Geçersiz cari."});
     try{await ready();const r=await pool!.query(
