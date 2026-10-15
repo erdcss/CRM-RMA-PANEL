@@ -51,7 +51,7 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
     try{
       await ready();
       const person=owner(res);
-      const [operations,legacy,wallets,counts]=await Promise.all([
+      const [operations,legacy,wallets,cashMovements,counts]=await Promise.all([
         pool!.query(
           "SELECT COALESCE(SUM(CASE WHEN type='collection' AND effective_on=(NOW() AT TIME ZONE 'Europe/Istanbul')::date THEN amount_cents ELSE 0 END),0)::text today_in,"+
           "COALESCE(SUM(CASE WHEN type='payment' AND effective_on=(NOW() AT TIME ZONE 'Europe/Istanbul')::date THEN amount_cents ELSE 0 END),0)::text today_out,"+
@@ -69,6 +69,11 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
         pool!.query(
           "SELECT w.kind, COALESCE(SUM(w.opening_cents + COALESCE((SELECT SUM(CASE WHEN m.direction='in' THEN m.amount_cents ELSE -m.amount_cents END) FROM b2b_ledger_wallet_movements m WHERE m.wallet_id=w.id AND m.user_id=w.user_id AND m.voided_at IS NULL),0)),0)::text balance_cents "+
           "FROM b2b_ledger_wallets w WHERE w.user_id=$1 GROUP BY w.kind",[person]),
+        pool!.query(
+          "SELECT COALESCE(SUM(CASE WHEN m.direction='in' THEN m.amount_cents ELSE 0 END),0)::text AS cash_in,"+
+          "COALESCE(SUM(CASE WHEN m.direction='out' THEN m.amount_cents ELSE 0 END),0)::text AS cash_out "+
+          "FROM b2b_ledger_wallet_movements m JOIN b2b_ledger_wallets w ON w.id=m.wallet_id AND w.user_id=m.user_id "+
+          "WHERE m.user_id=$1 AND m.voided_at IS NULL AND w.kind='cash'",[person]),
         pool!.query("SELECT (SELECT COUNT(*)::int FROM b2b_ledger_contacts WHERE user_id=$1 AND is_archived=FALSE) contacts, "+
           "(SELECT COUNT(*)::int FROM b2b_ledger_wallets WHERE user_id=$1) wallets",[person])
       ]);
@@ -76,7 +81,8 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
       for(const k of ["today_in","today_out","month_in","month_out","all_out"])combined[k]=(BigInt(a[k]||0)+BigInt(b[k]||0)).toString();
       res.setHeader("Cache-Control","private,no-store");
       return res.json({...combined,cash_cents:wallets.rows.find((w:any)=>w.kind==="cash")?.balance_cents||"0",
-        bank_cents:wallets.rows.find((w:any)=>w.kind==="bank")?.balance_cents||"0",...counts.rows[0]});
+        bank_cents:wallets.rows.find((w:any)=>w.kind==="bank")?.balance_cents||"0",
+        cash_in:cashMovements.rows[0]?.cash_in||"0",cash_out:cashMovements.rows[0]?.cash_out||"0",...counts.rows[0]});
     }catch(error){return fail(res,error);}
   });
 
