@@ -166,6 +166,7 @@ export type LedgerOperation = {
   id:string;type:LedgerOperationType;amount_cents:string;effective_on:string;
   category:string;description:string;wallet_name?:string|null;wallet_id?:string|null;
   target_name?:string|null;target_contact_id?:string|null;created_at:string;
+  voided_at?:string|null;void_reason?:string|null;
 };
 export type LedgerReport = {
   today_in:string;today_out:string;month_in:string;month_out:string;all_out:string;
@@ -671,6 +672,7 @@ export const rmaApi = {
     request<B2BLedgerWallet>('/api/b2b/ledger/wallets',{method:'POST',body:JSON.stringify({name,kind})}),
   getLedgerOperations: (id:string) =>
     request<LedgerOperation[]>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}/operations`),
+  voidLedgerOperation: (id:string,reason:string) => request<{voided:boolean}>(`/api/b2b/ledger/operations/${encodeURIComponent(id)}/void`,{method:'POST',body:JSON.stringify({reason})}),
   postLedgerOperation: (payload:{
     contactId:string;type:LedgerOperationType;amount:string;effectiveOn:string;
     description:string;category:string;walletId?:string;targetContactId?:string;requestKey:string;
