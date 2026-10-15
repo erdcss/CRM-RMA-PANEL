@@ -8,7 +8,7 @@ const { PNG } = require("pngjs");
  * Keep the ENTIRE admin logo inside the circular safe zone instead of
  * passing the full-bleed iOS icon as the adaptive foreground.
  */
-function makeAndroidAdaptiveIcon(logoPath, assetsDir) {
+function makeAndroidAdaptiveIcon(logoPath, assetsDir, fullBleed = false) {
   const input = fs.readFileSync(path.join(assetsDir, path.basename(logoPath)));
   const source = PNG.sync.read(input);
   if (!source.width || !source.height || source.width > 4096 || source.height > 4096) {
@@ -18,7 +18,11 @@ function makeAndroidAdaptiveIcon(logoPath, assetsDir) {
   // The safe area is a circle whose diameter is ~62% of the icon canvas.
   // Limit the entire source rectangle's diagonal, so even its corners remain visible.
   const safeDiagonal = size * 0.60;
-  const scale = safeDiagonal / Math.hypot(source.width, source.height);
+  // Android-specific admin artwork is sized to fill the launcher mask;
+  // the shared iOS icon retains conservative safe-zone sizing.
+  const scale = fullBleed
+    ? (size * 0.96) / Math.max(source.width, source.height)
+    : safeDiagonal / Math.hypot(source.width, source.height);
   const width = Math.max(1, Math.round(source.width * scale));
   const height = Math.max(1, Math.round(source.height * scale));
   const left = Math.floor((size - width) / 2);
