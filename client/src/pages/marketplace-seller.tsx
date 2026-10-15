@@ -30,6 +30,24 @@ export default function MarketplaceSeller(){
   const [offer,setOffer]=useState({quoteId:"",amountPerBox:"",deliveryTerms:"",validHours:"72"});
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  async function upload(file:File, target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"){
+    setUploading(true);setMessage("");
+    try{
+      const dataUrl=await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(String(reader.result||""));
+        reader.onerror=()=>reject(new Error("Dosya okunamadı"));
+        reader.readAsDataURL(file);
+      });
+      const result=await send("POST","/api/marketplace/seller/media",{dataUrl}) as {url:string};
+      if(target==="logoUrl"||target==="bannerUrl")setStore(v=>({...v,[target]:result.url}));
+      else if(target==="imageUrl")setProduct(v=>({...v,imageUrl:result.url}));
+      else setReel(v=>({...v,videoUrl:result.url}));
+      setMessage("Medya güvenli biçimde yüklendi.");
+    }catch(e){setMessage(e instanceof Error?e.message:"Medya yüklenemedi");}
+    finally{setUploading(false);}
+  }
   const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0});
   const approved=me.data?.status==="approved";
   const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:approved,staleTime:0});
@@ -63,7 +81,7 @@ export default function MarketplaceSeller(){
               <Field key={key} label={title}><input className={inputStyle} required={key!=="taxOffice"} value={form[key]} onChange={e=>setForm(v=>({...v,[key]:e.target.value}))}/></Field>)}
           </div>
           <Field label="Firma ve ürün grupları"><textarea className={inputStyle} rows={3} value={form.description} onChange={e=>setForm(v=>({...v,description:e.target.value}))}/></Field>
-          <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Başvuruyu Yönetici Onayına Gönder</button>
+          <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Başvuruyu Yönetici Onayına Gönder</button>
         </form>:
         !approved?<div className={boxStyle+" space-y-4"}><ShieldCheck className="h-10 w-10 text-amber-600"/><h2 className="text-xl font-bold">{me.data.company_name}</h2>
           <Notice text={"Başvuru durumu: "+(statusTR[me.data.status]||me.data.status)} />
@@ -90,8 +108,8 @@ export default function MarketplaceSeller(){
               <Field label="Mağaza başlığı"><input required maxLength={120} className={inputStyle} value={store.title} onChange={e=>setStore(v=>({...v,title:e.target.value}))}/></Field>
               <Field label="Tanıtım metni"><input className={inputStyle} value={store.tagline} onChange={e=>setStore(v=>({...v,tagline:e.target.value}))}/></Field>
               <Field label="Tema rengi"><input type="color" className="h-11 w-20 rounded-lg border" value={store.accent} onChange={e=>setStore(v=>({...v,accent:e.target.value}))}/></Field>
-              <Field label="Logo URL (HTTPS)"><input className={inputStyle} value={store.logoUrl} onChange={e=>setStore(v=>({...v,logoUrl:e.target.value}))}/></Field>
-              <Field label="Banner URL (HTTPS)"><input className={inputStyle} value={store.bannerUrl} onChange={e=>setStore(v=>({...v,bannerUrl:e.target.value}))}/></Field>
+              <Field label="Mağaza logosu (JPEG, PNG, WebP)"><input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"logoUrl");}}/><p className="text-xs text-slate-500">{store.logoUrl?"Yüklendi":"En fazla 4 MB"}</p></Field>
+              <Field label="Mağaza bannerı"><input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"bannerUrl");}}/><p className="text-xs text-slate-500">{store.bannerUrl?"Yüklendi":"En fazla 4 MB"}</p></Field>
               <p className="text-xs text-slate-500">Yeni tasarım yönetici onayından geçene dek mevcut yayındaki mağaza aynı kalır.</p>
               <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Tasarımı Onaya Gönder</button>
             </form>
@@ -117,12 +135,13 @@ export default function MarketplaceSeller(){
               ["/api/marketplace/seller/products","/api/marketplace/seller/dashboard"]);}}>
               <h2 className="text-lg font-bold">Ürün ekle / güncelle</h2>
               <div className="grid gap-3 sm:grid-cols-2">
-              {(["sku","name","category","brand","barcode","imageUrl","price","stock","unitsPerBox","minBoxes"] as const).map(key=><Field key={key} label={
-                ({sku:"Stok kodu",name:"Ürün adı",category:"Kategori",brand:"Marka",barcode:"Barkod",imageUrl:"Görsel URL (HTTPS)",
+              {(["sku","name","category","brand","barcode","price","stock","unitsPerBox","minBoxes"] as const).map(key=><Field key={key} label={
+                ({sku:"Stok kodu",name:"Ürün adı",category:"Kategori",brand:"Marka",barcode:"Barkod",imageUrl:"Ürün görseli",
                   price:"Birim fiyat (₺)",stock:"Stok (adet)",unitsPerBox:"Koli içi adet",minBoxes:"Minimum koli"} as Record<string,string>)[key]}>
                 <input className={inputStyle} required={["sku","name","category","imageUrl","price","stock","unitsPerBox","minBoxes"].includes(key)}
                   type={["price","stock","unitsPerBox","minBoxes"].includes(key)?"number":"text"} min={["price","unitsPerBox","minBoxes"].includes(key)?"1":undefined}
                   step={key==="price"?"0.01":undefined} value={product[key]} onChange={e=>setProduct(v=>({...v,[key]:e.target.value}))}/></Field>)}</div>
+              <Field label="Ürün görseli (zorunlu)"><input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"imageUrl");}}/><p className="text-xs text-slate-500">{product.imageUrl?"Görsel yüklendi":"En fazla 4 MB"}</p></Field>
               <Field label="Ürün açıklaması"><textarea className={inputStyle} rows={3} value={product.description} onChange={e=>setProduct(v=>({...v,description:e.target.value}))}/></Field>
               <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white">Ürünü İncelemeye Gönder</button>
             </form>
@@ -141,7 +160,7 @@ export default function MarketplaceSeller(){
               {title:reel.title,videoUrl:reel.videoUrl,productId:reel.productId?Number(reel.productId):null}),["/api/marketplace/seller/dashboard"]);}}>
               <h2 className="text-lg font-bold">Reels Stüdyosu</h2>
               <Field label="Video başlığı"><input className={inputStyle} required value={reel.title} onChange={e=>setReel(v=>({...v,title:e.target.value}))}/></Field>
-              <Field label="Video URL (HTTPS)"><input className={inputStyle} required value={reel.videoUrl} onChange={e=>setReel(v=>({...v,videoUrl:e.target.value}))}/></Field>
+              <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p className="text-xs text-slate-500">{reel.videoUrl?"Video yüklendi":"En fazla 9 MB, MP4 formatı"}</p></Field>
               <Field label="Ürün seç"><select className={inputStyle} value={reel.productId} onChange={e=>setReel(v=>({...v,productId:e.target.value}))}>
                 <option value="">Ürün seçilmedi</option>{products.data?.map(p=><option key={p.id} value={p.id}>{p.latest?.content?.name||p.sku}</option>)}
               </select></Field>
