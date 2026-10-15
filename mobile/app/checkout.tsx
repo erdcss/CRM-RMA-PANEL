@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { appAlert } from '@/lib/appAlert';
 import {
   absoluteMediaUrl,
+  homepageMediaUrl,
   rmaApi,
   type B2BAddress,
   type B2BBankTransferOrder,
@@ -60,13 +61,13 @@ function scheme() {
 }
 
 function formatCardNumber(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 19);
+  const digits = value.replace(/\D/g, '').slice(0, 16);
   return digits.match(/.{1,4}/g)?.join(' ') || '';
 }
 
 function validCardNumber(value: string) {
   const digits = value.replace(/\D/g, '');
-  if (digits.length < 15 || digits.length > 19) return false;
+  if (digits.length !== 16) return false;
 
   let sum = 0;
   let doubleDigit = false;
@@ -110,6 +111,7 @@ export default function CheckoutScreen() {
   const [cardHolderName, setCardHolderName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expireMonth, setExpireMonth] = useState('');
+  const expireYearRef = useRef<TextInput>(null);
   const [expireYear, setExpireYear] = useState('');
   const [cvc, setCvc] = useState('');
   const cardRotation = useRef(new Animated.Value(0)).current;
@@ -282,7 +284,7 @@ export default function CheckoutScreen() {
     validCardNumber(cardNumber) &&
     /^(0[1-9]|1[0-2])$/.test(expireMonth) &&
     /^\d{2}$/.test(expireYear) &&
-    /^\d{3,4}$/.test(cvc);
+    /^\d{3}$/.test(cvc);
 
   const selectedInstallment = installments?.options?.find(
     (option) => option.installmentNumber === installment,
@@ -539,7 +541,7 @@ export default function CheckoutScreen() {
           </Text>
         </View>
 
-        <Section title="Sipariş Özeti" icon="bag-handle-outline">
+        <Section title="Sipariş Özeti" icon="bag-handle-outline" collapsible defaultCollapsed summaryValue={money(paymentMethod === 'card' ? payableTotal : preview.total)}>
           {checkoutLines.map((line, index) => {
             const lineImage = absoluteMediaUrl(line.product.image);
             return (
@@ -742,7 +744,7 @@ export default function CheckoutScreen() {
                       {installments?.bankName || 'BANKA'}
                     </Text>
                   </View>
-                  <Text style={styles.cardNumberPreview}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.cardNumberPreview}>
                     {formatCardNumber(cardNumber) || '•••• •••• •••• ••••'}
                   </Text>
                   <View style={styles.cardVisualBottom}>
@@ -792,13 +794,13 @@ export default function CheckoutScreen() {
                   <TextInput
                     value={formatCardNumber(cardNumber)}
                     onChangeText={(value) =>
-                      setCardNumber(value.replace(/\D/g, '').slice(0, 19))
+                      setCardNumber(value.replace(/\D/g, '').slice(0, 16))
                     }
                     keyboardType="number-pad"
                     placeholder="0000 0000 0000 0000"
                     placeholderTextColor={palette.muted}
                     style={styles.input}
-                    maxLength={23}
+                    maxLength={19}
                   />
                 </View>
 
@@ -811,6 +813,7 @@ export default function CheckoutScreen() {
                         onChangeText={(value) => {
                           const digits = value.replace(/\D/g, '').slice(0, 2);
                           setExpireMonth(digits);
+                          if (digits.length === 2) expireYearRef.current?.focus();
                         }}
                         keyboardType="number-pad"
                         placeholder="AA"
@@ -825,6 +828,7 @@ export default function CheckoutScreen() {
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>Yıl</Text>
                       <TextInput
+                        ref={expireYearRef}
                         value={expireYear}
                         onChangeText={(value) =>
                           setExpireYear(value.replace(/\D/g, '').slice(0, 2))
@@ -846,14 +850,14 @@ export default function CheckoutScreen() {
                         onFocus={() => flipCard(true)}
                         onBlur={() => flipCard(false)}
                         onChangeText={(value) =>
-                          setCvc(value.replace(/\D/g, '').slice(0, 4))
+                          setCvc(value.replace(/\D/g, '').slice(0, 3))
                         }
                         keyboardType="number-pad"
                         placeholder="***"
                         placeholderTextColor={palette.muted}
                         style={styles.input}
                         secureTextEntry
-                        maxLength={4}
+                        maxLength={3}
                       />
                     </View>
                   </View>
@@ -868,9 +872,7 @@ export default function CheckoutScreen() {
                       Kartın ilk 8 hanesine göre iyzico üzerinden hesaplanır.
                     </Text>
                   </View>
-                  {installments?.bankName ? (
-                    <Text style={styles.bankBadge}>{installments.bankName}</Text>
-                  ) : null}
+
                 </View>
 
                 {cardNumber.replace(/\D/g, '').length < 8 ? (
