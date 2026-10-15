@@ -237,7 +237,7 @@ export default function Ayarlar() {
                   />
                   <AssetUploader
                     title="Android Uygulama İkonu"
-                    description="Android için ayrı 1024×1024 PNG yükleyin. Kenarlara taşan tam kare görsel Android adaptive icon güvenli alanına göre işlenir."
+                    description="GEREKLİ: 1024×1024 piksel kare PNG (tercihen şeffaf olmayan, keskin/HD). Arka planı dört kenara kadar doldurun; iç boşluk bırakmayın. Logo ve okunması gereken yazılar merkezdeki yaklaşık 680×680 piksel güvenli daire içinde kalsın. Android simge şeklini cihaz belirler."
                     value={values.b2b_mobile_android_icon}
                     onChange={(value) => setAsset("b2b_mobile_android_icon", value)}
                     square
@@ -245,7 +245,7 @@ export default function Ayarlar() {
                   />
                   <AssetUploader
                     title="Splash Ekranı"
-                    description="Açılışta 5 saniye gösterilecek PNG görsel. TestFlight build için zorunludur."
+                    description="Önerilen: 1080×1920 piksel dikey PNG (9:16), yüksek çözünürlüklü ve kenarlara kadar uzanan tasarım. Android 12+ ilk sistem açılış ekranı üretici/işletim sistemi tarafından kontrol edilir; ardından görsel tam ekran ve kırpılarak (cover) gösterilir."
                     value={values.b2b_mobile_splash}
                     onChange={(value) => setAsset("b2b_mobile_splash", value)}
                     pngOnly
