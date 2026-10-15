@@ -2,11 +2,13 @@
 import { randomBytes } from "crypto";
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
+import { ensureMarketplaceSchema } from "./marketplace";
 
 const MAX_IMAGE = 4 * 1024 * 1024;
 const MAX_VIDEO = 9 * 1024 * 1024;
 let init:Promise<unknown>|undefined;
 async function ready(){
+  await ensureMarketplaceSchema();
   if(!pool)throw new Error("Veritabanı bağlantısı yok");
   if(!init)init=pool.query(`CREATE TABLE IF NOT EXISTS mp_media (
     id TEXT PRIMARY KEY,
