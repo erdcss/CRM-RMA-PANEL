@@ -15,6 +15,7 @@ import { CustomerDetailScreen } from "./screens/CustomerDetailScreen";
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { LoginScreen } from "./screens/LoginScreen";
+import { MarketplaceScreen } from "./screens/MarketplaceScreen";
 import { ModuleScreen } from "./screens/ModuleScreen";
 import { MoreScreen } from "./screens/MoreScreen";
 import { OrderDetailScreen } from "./screens/OrderDetailScreen";
@@ -72,9 +73,21 @@ export default function App() {
             background={branding.business_mobile_splash}
             onSuccess={(nextUser) => {
               setUser(nextUser);
-              setScreen({ name: "dashboard" });
+              setScreen({ name: nextUser.role === "b2b_customer" ? "marketplace" : "dashboard" });
             }}
           />
+        ) : screen.name === "marketplace" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <MarketplaceScreen
+              isSuper={user?.role === "super_admin"}
+              onBack={() => setScreen({ name: "more" })}
+              onLogout={async () => {
+                await signOut();
+                setUser(null);
+                setScreen({ name: "login" });
+              }}
+            />
+          </SafeAreaView>
         ) : screen.name === "dashboard" ? (
           <AdminShell active="dashboard" onTab={openTab}>
             <DashboardScreen
@@ -125,6 +138,7 @@ export default function App() {
             <MoreScreen
               user={user}
               onSupport={() => setScreen({ name: "support" })}
+              onMarketplace={() => setScreen({ name: "marketplace" })}
               onModule={(slug) => setScreen({ name: "module", slug })}
               onLogout={async () => {
                 await signOut();
