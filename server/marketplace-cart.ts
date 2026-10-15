@@ -1,6 +1,7 @@
 
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
+import { ensureMarketplaceSchema } from "./marketplace";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS mp_supplier_order_items (
 `;
 let schema:Promise<unknown>|undefined;
 async function ready(){
+ await ensureMarketplaceSchema();
  if(!pool)throw new Error("PostgreSQL bağlantısı bulunamadı");
  if(!schema)schema=pool.query(DDL).catch(e=>{schema=undefined;throw e;});
  await schema;return pool;
