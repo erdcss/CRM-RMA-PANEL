@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
-import { rmaApi, type B2BLedgerContact, type B2BLedgerKind, type B2BLedgerOverview } from '@/lib/api';
+import { rmaApi, type B2BLedgerContact, type B2BLedgerKind, type B2BLedgerOverview, type B2BLedgerWallet } from '@/lib/api';
 import { appAlert } from '@/lib/appAlert';
 import { radius, spacing } from '@/constants/theme';
 
@@ -23,6 +23,7 @@ export default function LedgerHome() {
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette),[palette]);
   const [contacts,setContacts] = useState<B2BLedgerContact[]>([]);
+  const [wallets,setWallets] = useState<B2BLedgerWallet[]>([]);
   const [overview,setOverview] = useState<B2BLedgerOverview>(EMPTY);
   const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
@@ -39,10 +40,10 @@ export default function LedgerHome() {
   const load=useCallback(async(refresh=false) => {
     if(refresh) setRefreshing(true); else setLoading(true);
     try {
-      const [rows,totals] = await Promise.all([
-        rmaApi.listB2BLedgerContacts(),rmaApi.getB2BLedgerOverview(),
+      const [rows,totals,accounts] = await Promise.all([
+        rmaApi.listB2BLedgerContacts(),rmaApi.getB2BLedgerOverview(),rmaApi.listB2BLedgerWallets(),
       ]);
-      setContacts(rows);setOverview(totals);setError('');
+      setContacts(rows);setOverview(totals);setWallets(accounts);setError('');
     } catch(err) {
       setError(err instanceof Error ? err.message : 'Defterler yüklenemedi');
     } finally {setLoading(false);setRefreshing(false);}
@@ -96,6 +97,10 @@ export default function LedgerHome() {
         <Ionicons name={formOpen?'close':'add-circle-outline'} size={21} color="#111827"/>
         <Text style={styles.addButtonText}>{formOpen?'Yeni defteri kapat':'Yeni Defter Oluştur'}</Text>
       </Pressable>
+      <Pressable style={[styles.addButton,{backgroundColor:palette.surface,borderWidth:1,borderColor:palette.border}]} onPress={()=>router.push('/ledger/import' as never)} accessibilityRole="button">
+        <Ionicons name="document-text-outline" size={20} color={palette.text}/>
+        <Text style={[styles.addButtonText,{color:palette.text}]}>PDF'den İçe Aktar</Text>
+      </Pressable>
       {formOpen ? <View style={styles.form}>
         <Text style={styles.formHeading}>Firma bilgileri</Text>
         <TextInput style={styles.input} placeholder="Firma / müşteri adı *" placeholderTextColor={palette.muted} value={name} onChangeText={setName} maxLength={140}/>
@@ -112,6 +117,18 @@ export default function LedgerHome() {
           {busy?<ActivityIndicator color="#111827"/>:<><Ionicons name="checkmark" color="#111827" size={20}/><Text style={styles.addButtonText}>Defteri Kaydet</Text></>}
         </Pressable>
       </View> : null}
+      {wallets.length?<View style={{gap:8}}>
+        <Text style={styles.formHeading}>Kasa ve Banka Defterleri</Text>
+        {wallets.map(wallet=><Pressable key={wallet.id} style={styles.contact} onPress={()=>router.push({pathname:'/ledger/wallet/[id]',params:{id:wallet.id}} as never)}>
+          <View style={styles.contactIcon}><Ionicons name={wallet.kind==='cash'?'cash-outline':'card-outline'} size={23} color={palette.text}/></View>
+          <View style={{flex:1,gap:4}}>
+            <Text style={styles.contactName}>{wallet.name}</Text>
+            <Text style={styles.contactMeta}>{wallet.kind==='cash'?'Kasa':'Banka'} · {wallet.movement_count} hareket</Text>
+            <Text style={styles.contactBalance}>Bakiye {formatCents(wallet.balance_cents)}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={palette.muted}/>
+        </Pressable>)}
+      </View>:null}
       <TextInput style={styles.input} placeholder="Firma defterlerinde ara..." placeholderTextColor={palette.muted}
         value={query} onChangeText={setQuery}/>
       {error ? <Pressable style={styles.error} onPress={()=>void load(true)}>
