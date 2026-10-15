@@ -2361,6 +2361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  let mobileCatalogTagSchema: Promise<void> | null = null;
   app.get("/api/b2b/products", async (req, res) => {
     // Catalog pricing depends on the requester; never reuse a stale/guest ETag.
     res.setHeader("Cache-Control", "private, no-store, max-age=0");
@@ -2368,6 +2369,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!pool) return res.json([]);
 
     try {
+      // Older installations may not yet have the tag column. Apply once per
+      // process instead of materializing entire base64 product rows as JSON.
+      if (!mobileCatalogTagSchema) {
+        mobileCatalogTagSchema = pool.query(
+          "ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]",
+        ).then(() => {}).catch(error => { mobileCatalogTagSchema = null; throw error; });
+      }
+      await mobileCatalogTagSchema;
       const priceVisible = await canViewB2BPrices(req);
       const mobile = req.query.mobile === "1";
       // Compact payload omits raw base64 pictures and all but the first gallery
@@ -2408,7 +2417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${imagesSql},
           barcode,
           collection_name,
-          to_jsonb(b2b_products) -> 'tags' AS tags
+          tags
         FROM b2b_products
         WHERE is_active IS DISTINCT FROM FALSE
         ORDER BY created_at DESC
