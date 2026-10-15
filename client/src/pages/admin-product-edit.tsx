@@ -35,6 +35,7 @@ type ProductDetail = {
   images?: string[] | null;
   barcode?: string | null;
   collection_name: string | null;
+  tags?: string[] | null;
   variants?: Array<{
     name?: string | null;
     value?: string | null;
@@ -51,6 +52,7 @@ type FormState = {
   brand: string;
   category: string;
   collectionName: string;
+  tags: string;
   barcode: string;
   price: string;
   stock: string;
@@ -74,6 +76,7 @@ function fromProduct(product: ProductDetail): FormState {
     brand: product.brand || "",
     category: product.category || "",
     collectionName: product.collection_name || "",
+    tags: (product.tags || []).join(", "),
     barcode: product.barcode || "",
     price: product.price == null ? "" : String(product.price),
     stock: String(product.stock ?? 0),
@@ -184,6 +187,7 @@ export default function AdminProductEdit() {
         brand: form.brand,
         category: form.category,
         collectionName: form.collectionName,
+        tags: form.tags.split(",").map(tag => tag.trim()).filter(Boolean),
         barcode: form.barcode,
         price: Number(form.price || 0),
         stock: Number(form.stock || 0),
@@ -261,6 +265,7 @@ export default function AdminProductEdit() {
               <Field label="Marka"><Input value={form.brand} onChange={(e) => update("brand", e.target.value)} /></Field>
               <Field label="Kategori"><Input value={form.category} onChange={(e) => update("category", e.target.value)} /></Field>
               <Field label="Koleksiyon"><Input value={form.collectionName} onChange={(e) => update("collectionName", e.target.value)} /></Field>
+              <Field label="Ürün etiketleri (virgülle ayırın)"><Input value={form.tags} onChange={(e) => update("tags", e.target.value)} placeholder="yeni, elektronik, kampanya" /></Field>
               <Field label="Fiyat *"><Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => update("price", e.target.value)} required /></Field>
               <Field label="Stok *"><Input type="number" min="0" value={form.stock} onChange={(e) => update("stock", e.target.value)} required /></Field>
               <Field label="Minimum sipariş *"><Input type="number" min="1" value={form.minOrderQty} onChange={(e) => update("minOrderQty", e.target.value)} required /></Field>
