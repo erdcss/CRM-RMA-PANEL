@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { appAlert } from '@/lib/appAlert';
 
@@ -53,7 +53,6 @@ function productImage(product: B2BProduct) {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ category?: string }>();
   const { session } = useAuth();
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -62,6 +61,7 @@ export default function HomeScreen() {
   const welcomeShift = useRef(new Animated.Value(-24)).current;
 
   const [products, setProducts] = useState<B2BProduct[]>([]);
+  const [catalogError, setCatalogError] = useState('');
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
@@ -76,7 +76,6 @@ export default function HomeScreen() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const scanLockedRef = useRef(false);
   const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -120,6 +119,9 @@ export default function HomeScreen() {
 
     if (productResult.status === 'fulfilled') {
       setProducts(Array.isArray(productResult.value) ? productResult.value : []);
+      setCatalogError('');
+    } else {
+      setCatalogError(productResult.reason instanceof Error ? productResult.reason.message : 'Ürün kataloğu yüklenemedi.');
     }
 
     if (homepageResult.status === 'fulfilled') {
@@ -138,44 +140,25 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => {
     // Returning from Admin-managed promotions should refresh banners without
     // requiring the customer to close or reinstall the mobile application.
-    let homeMounted = true;
-    void rmaApi.getB2BHomepage().then(data => {
-      if (homeMounted) applyHomepage(data);
-    }).catch(() => undefined);
+    // Refresh both the catalog and category metadata when returning from a product.
+    void load(true);
     let mounted=true;
-    if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; homeMounted=false; }; }
+    if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; }; }
     void rmaApi.listB2BNotifications().then(rows => {
       if (mounted) setUnreadNotifications(rows.filter(row => !row.read_at).length);
     }).catch(() => undefined);
-    return () => { mounted=false; homeMounted=false; };
-  }, [session?.user?.id, applyHomepage]));
-
-  useEffect(() => {
-    if (typeof params.category === 'string') {
-      setSelectedCategory(params.category);
-    }
-  }, [params.category]);
+    return () => { mounted=false; };
+  }, [session?.user?.id, load]));
 
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase('tr-TR');
-    const category = selectedCategory.trim().toLocaleLowerCase('tr-TR');
-
-    return products.filter((product) => {
-      const matchesCategory =
-        Boolean(search) || !category ||
-        String(product.category || '').toLocaleLowerCase('tr-TR') === category;
-
-      const matchesSearch =
-        !search ||
-        [product.name, product.sku, product.barcode, product.collection_name]
-          .filter(Boolean)
-          .some((value) =>
-            String(value).toLocaleLowerCase('tr-TR').includes(search),
-          );
-
-      return matchesCategory && matchesSearch;
-    });
-  }, [products, query, selectedCategory]);
+    if (!search) return products;
+    return products.filter(product =>
+      [product.name, product.sku, product.barcode, product.collection_name, product.category, ...(product.tags || [])]
+        .filter(Boolean)
+        .some(value => String(value).toLocaleLowerCase('tr-TR').includes(search)),
+    );
+  }, [products, query]);
 
   useEffect(() => {
     bannerIndexRef.current = 0;
@@ -379,7 +362,7 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Kategoriler</Text>
             <Text style={styles.sectionSubtitle}>Ürün grubunu seçin</Text>
           </View>
-          <Pressable onPress={() => router.push('/(tabs)/menu')}>
+          <Pressable onPress={() => router.push('/(tabs)/products')}>
             <Text style={styles.sectionAction}>Tümü</Text>
           </Pressable>
         </View>
@@ -390,32 +373,15 @@ export default function HomeScreen() {
           contentContainerStyle={styles.categories}
         >
           <Pressable
-            onPress={() => setSelectedCategory('')}
-            style={[
-              styles.categoryCard,
-              !selectedCategory && styles.categoryCardActive,
-            ]}
+            onPress={() => router.push('/(tabs)/products')}
+            style={styles.categoryCard}
           >
-            <Ionicons
-              name="apps-outline"
-              size={17}
-              color={!selectedCategory ? '#FFFFFF' : palette.text}
-            />
-            <Text
-              style={[
-                styles.categoryText,
-                !selectedCategory && styles.categoryTextActive,
-              ]}
-            >
-              Tümü
-            </Text>
+            <Ionicons name="apps-outline" size={17} color={palette.text} />
+            <Text style={styles.categoryText}>Tümü</Text>
           </Pressable>
 
           {categories.map((category, index) => {
             const configured = categoryCards.find((item) => item.category === category);
-            const active =
-              category.toLocaleLowerCase('tr-TR') ===
-              selectedCategory.toLocaleLowerCase('tr-TR');
             const icons: Array<keyof typeof Ionicons.glyphMap> = [
               'home-outline',
               'flash-outline',
@@ -428,22 +394,19 @@ export default function HomeScreen() {
             return (
               <Pressable
                 key={category}
-                onPress={() => setSelectedCategory(category)}
-                style={[styles.categoryCard, active && styles.categoryCardActive]}
+                onPress={() => router.push({ pathname: '/collection/[category]', params: { category } } as never)}
+                style={styles.categoryCard}
               >
                 {configured?.imageId ? (
                   <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
                     style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
                 ) : (
                   <Ionicons name={icons[index % icons.length]} size={28}
-                    color={active ? '#FFFFFF' : palette.text} />
+                    color={palette.text} />
                 )}
                 <Text
                   numberOfLines={2}
-                  style={[
-                    styles.categoryText,
-                    active && styles.categoryTextActive,
-                  ]}
+                  style={styles.categoryText}
                 >
                   {configured?.label || category}
                 </Text>
@@ -562,8 +525,11 @@ export default function HomeScreen() {
             <Ionicons name="cube-outline" size={36} color={palette.muted} />
             <Text style={styles.emptyTitle}>Ürün bulunamadı</Text>
             <Text style={styles.emptyText}>
-              Arama veya kategori filtresini değiştirin.
+              {catalogError || (query.trim() ? 'Başka bir arama yapın.' : 'Katalog henüz boş veya ürünler yüklenemedi.')}
             </Text>
+            <Pressable onPress={() => void load(true)} style={styles.catalogRetry}>
+              <Text style={styles.catalogRetryText}>Ürünleri yeniden yükle</Text>
+            </Pressable>
           </View>
         ) : null}
 
@@ -640,7 +606,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   carouselDots: { position: 'absolute', right: 15, bottom: 9, flexDirection: 'row', gap: 6 },
   carouselDot: { width: 6, height: 6, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
   carouselDotActive: { width: 19, backgroundColor: '#FFCD00' },
-  categoryImage: { width: 70, height: 67, borderRadius: 8 },
+  categoryImage: { width: 49, height: 48, borderRadius: 7 },
   notificationButton: {
     width: 44,
     height: 44,
@@ -718,9 +684,9 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     paddingRight: spacing.lg,
   },
   categoryCard: {
-    width: 112,
-    height: 112,
-    borderRadius: radius.full,
+    width: 78,
+    height: 88,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.surface,
@@ -744,6 +710,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   categoryTextActive: {
     color: '#FFFFFF',
   },
+  catalogRetry: { marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: '#FACC15', borderRadius: radius.md },
+  catalogRetryText: { color: '#111827', fontWeight: '800' },
   productGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
