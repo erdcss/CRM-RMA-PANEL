@@ -36,7 +36,7 @@ export default function MyOrdersScreen() {
     </View>
     <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.text} />} contentContainerStyle={styles.content}>
       {loading ? <ActivityIndicator color={palette.accent} /> : orders.length ? orders.map((order) => (
-        <View key={String(order.id)} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+        <Pressable key={String(order.id)} accessibilityRole="button" accessibilityLabel={`Sipariş detayını aç: ${order.order_number || order.id}`} onPress={() => router.push({ pathname: '/my-orders/[id]', params: { id: String(order.id) } } as never)} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <View style={{ flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12 }}>
             <Text style={{ color: palette.text,fontSize:15,fontWeight:'800',flex:1 }} numberOfLines={1}>{order.order_number || 'Sipariş #'+order.id}</Text>
             <Text style={{ color: palette.accentText,backgroundColor:palette.accent,paddingHorizontal:9,paddingVertical:5,borderRadius:11,fontSize:11,fontWeight:'800' }}>{status(order.status)}</Text>
@@ -45,7 +45,11 @@ export default function MyOrdersScreen() {
             {order.created_at ? new Date(order.created_at).toLocaleDateString('tr-TR') : 'Sipariş'} · {order.item_count || 0} ürün
           </Text>
           <Text style={{ color: palette.text,fontSize:18,fontWeight:'900',marginTop:8 }}>{Number(order.total_amount || 0).toLocaleString('tr-TR',{style:'currency',currency:'TRY'})}</Text>
-        </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 9 }}>
+            <Text style={{ color: palette.textSecondary, fontSize: 12 }}>{order.shipping_method === 'cargo' ? 'PTT Kargo' : order.shipping_method === 'freight' ? 'Ambar / Nakliye' : order.shipping_method === 'pickup' ? 'Mağazadan Teslim' : 'Teslimat türü belirtilmemiş'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ color: palette.text, fontSize: 12, fontWeight: '700' }}>Detaylar</Text><Ionicons name="chevron-forward" size={16} color={palette.text}/></View>
+          </View>
+        </Pressable>
       )) : <View style={styles.empty}>
         <Ionicons name="bag-handle-outline" size={40} color={palette.muted} />
         <Text style={{ color:palette.text,fontSize:17,fontWeight:'800',marginTop:13 }}>Henüz siparişiniz yok</Text>
