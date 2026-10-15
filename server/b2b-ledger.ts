@@ -149,7 +149,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
       await ensureB2BLedgerSchema();
       const [contact, entries, notes] = await Promise.all([
         pool!.query(summaryQuery() + " WHERE c.user_id=$1 AND c.id=$2 GROUP BY c.id", [owner(res),id]),
-        pool!.query(`SELECT id::text, type, amount_cents::text, description, effective_on, created_at, voided_at, void_reason
+        pool!.query(`SELECT id::text, type, amount_cents::text, description, effective_on, created_at, voided_at, void_reason, operation_id::text
           FROM b2b_ledger_entries WHERE user_id=$1 AND contact_id=$2 ORDER BY effective_on DESC, id DESC LIMIT 500`,[owner(res),id]),
         pool!.query(`SELECT id::text, content, created_at, updated_at
           FROM b2b_ledger_notes WHERE user_id=$1 AND contact_id=$2 ORDER BY id DESC LIMIT 150`, [owner(res),id]),
