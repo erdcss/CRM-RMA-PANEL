@@ -2404,7 +2404,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           units_per_box,
           ${imagesSql},
           barcode,
-          collection_name
+          collection_name,
+          to_jsonb(b2b_products) -> 'tags' AS tags
         FROM b2b_products
         WHERE is_active IS DISTINCT FROM FALSE
         ORDER BY created_at DESC
