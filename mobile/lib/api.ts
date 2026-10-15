@@ -173,6 +173,13 @@ export type LedgerReport = {
   cash_cents:string;bank_cents:string;contacts:number;wallets:number;
 };
 export type LedgerCategory = {id:string;name:string};
+export type LedgerStatementRow = {
+  id:string;type:string;amount_cents:string;effective_on:string;description:string;
+  voided_at?:string|null;void_reason?:string|null;operation_type?:string|null;
+  category?:string|null;wallet_name?:string|null;target_name?:string|null;
+  target_contact_id?:string|null;
+};
+
 export type B2BLedgerKind = 'supplier' | 'customer' | 'other';
 export type B2BLedgerMovementType = 'debt' | 'payment' | 'receivable' | 'collection';
 export type B2BLedgerContact = {
@@ -672,6 +679,8 @@ export const rmaApi = {
     request<B2BLedgerWallet>('/api/b2b/ledger/wallets',{method:'POST',body:JSON.stringify({name,kind})}),
   getLedgerOperations: (id:string) =>
     request<LedgerOperation[]>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}/operations`),
+  getLedgerStatementPage: (id:string,offset:number) =>
+    request<{items:LedgerStatementRow[];hasMore:boolean}>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}/statement?offset=${offset}`),
   voidLedgerOperation: (id:string,reason:string) => request<{voided:boolean}>(`/api/b2b/ledger/operations/${encodeURIComponent(id)}/void`,{method:'POST',body:JSON.stringify({reason})}),
   postLedgerOperation: (payload:{
     contactId:string;type:LedgerOperationType;amount:string;effectiveOn:string;
