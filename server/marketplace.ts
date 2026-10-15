@@ -259,6 +259,17 @@ export function registerMarketplaceRoutes(
       [uid,slug,data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description]);
     res.status(201).json(r.rows[0]);
   }));
+  app.patch("/api/marketplace/apply",requireB2B,handle(async(req,res)=>{
+    const data=applicationSchema.parse(req.body);
+    const db=await ready();
+    const q=await db.query(`UPDATE mp_suppliers SET
+      company_name=$1,tax_number=$2,tax_office=$3,contact_name=$4,
+      contact_phone=$5,description=$6,status='pending',review_note='',reviewed_at=NULL
+      WHERE owner_user_id=$7 AND status='rejected' RETURNING id,slug,status`,
+      [data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,userId(res)]);
+    if(!q.rows[0])throw new ApiError(409,"Yalnızca reddedilen başvurular düzeltilerek yeniden gönderilebilir");
+    res.json(q.rows[0]);
+  }));
   app.get("/api/marketplace/seller/dashboard",requireB2B,handle(async(_req,res)=>{
     const s=await supplierFor(res);const db=await ready();
     const [products,stores,reels,followers,conversations,quotes]=await Promise.all([
@@ -460,12 +471,18 @@ export function registerMarketplaceRoutes(
     const db=await ready(),supplierId=id(req.params.id);
     const data=decisionSchema.parse(req.body),actor=sessionUserId(req);
     if(!actor)throw new ApiError(401,"Giriş yapın");
-    const r=await db.query(`UPDATE mp_suppliers SET status=$1,review_note=$2,reviewed_at=NOW()
-      WHERE id=$3 AND status IN ('pending','rejected') RETURNING id,status`,
-      [data.decision,data.note,supplierId]);
-    if(!r.rows[0])throw new ApiError(409,"Başvuru bulunamadı veya zaten değerlendirilmiş");
-    await log(actor,"supplier_"+data.decision,supplierId,data.note);
-    res.json(r.rows[0]);
+    const client=await db.connect();
+    try {
+      await client.query("BEGIN");
+      const r=await client.query(`UPDATE mp_suppliers SET status=$1,review_note=$2,reviewed_at=NOW()
+        WHERE id=$3 AND status='pending' RETURNING id,status`,
+        [data.decision,data.note,supplierId]);
+      if(!r.rows[0])throw new ApiError(409,"Başvuru bulunamadı veya zaten değerlendirilmiş");
+      await client.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
+        [actor,"supplier_"+data.decision,supplierId,data.note]);
+      await client.query("COMMIT");
+      res.json(r.rows[0]);
+    }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
   }));
   app.post("/api/admin/marketplace/reviews/:kind/:id/decision",requireAdmin,handle(async(req,res)=>{
     const db=await ready(),reviewId=id(req.params.id),data=decisionSchema.parse(req.body);
@@ -483,6 +500,13 @@ export function registerMarketplaceRoutes(
       if(!r.rows[0]||r.rows[0].status!=="pending")throw new ApiError(409,"İçerik zaten değerlendirilmiş");
       const own=await client.query(ownerQuery,[reviewId]);
       if(!own.rows[0]||own.rows[0].status!=="approved")throw new ApiError(409,"Önce tedarikçi onaylanmalı");
+      if(data.decision==="approved" && kind==="reel" && r.rows[0].product_id) {
+        const linked=await client.query(`SELECT p.id FROM mp_products p
+          JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
+          WHERE p.id=$1 AND p.supplier_id=$2 AND p.is_enabled=TRUE`,
+          [r.rows[0].product_id,r.rows[0].supplier_id]);
+        if(!linked.rows.length)throw new ApiError(409,"Videoda etiketlenen ürün henüz onaylanmadı");
+      }
       if(data.decision==="approved") {
         const field=kind==="product"?"product_id":"supplier_id";
         if(kind==="reel"){
