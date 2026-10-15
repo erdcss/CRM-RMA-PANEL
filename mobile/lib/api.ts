@@ -161,6 +161,17 @@ export type B2BShortageItem = { id: string; name: string; completed: boolean };
 export type B2BShortageSupplier = { id: string; name: string; items: B2BShortageItem[] };
 export type B2BShortageList = { suppliers: B2BShortageSupplier[]; revision: number };
 
+export type LedgerOperationType = 'sale'|'collection'|'purchase'|'payment'|'transfer';
+export type LedgerOperation = {
+  id:string;type:LedgerOperationType;amount_cents:string;effective_on:string;
+  category:string;description:string;wallet_name?:string|null;wallet_id?:string|null;
+  target_name?:string|null;target_contact_id?:string|null;created_at:string;
+};
+export type LedgerReport = {
+  today_in:string;today_out:string;month_in:string;month_out:string;all_out:string;
+  cash_cents:string;bank_cents:string;contacts:number;wallets:number;
+};
+export type LedgerCategory = {id:string;name:string};
 export type B2BLedgerKind = 'supplier' | 'customer' | 'other';
 export type B2BLedgerMovementType = 'debt' | 'payment' | 'receivable' | 'collection';
 export type B2BLedgerContact = {
@@ -652,6 +663,21 @@ export const rmaApi = {
     request<B2BLedgerWalletDetail>(`/api/b2b/ledger/wallets/${encodeURIComponent(id)}`),
   addB2BLedgerWalletMovement: (id:string,payload:{direction:'in'|'out';amount:string;description:string;effectiveOn:string;requestKey:string}) =>
     request<{id:string}>(`/api/b2b/ledger/wallets/${encodeURIComponent(id)}/movements`,{method:'POST',body:JSON.stringify(payload)}),
+  getLedgerReports: () => request<LedgerReport>('/api/b2b/ledger/reports'),
+  getLedgerCategories: () => request<LedgerCategory[]>('/api/b2b/ledger/categories'),
+  addLedgerCategory: (name:string) => request<LedgerCategory>('/api/b2b/ledger/categories',{method:'POST',body:JSON.stringify({name})}),
+  createLedgerWallet: (name:string,kind:'cash'|'bank') =>
+    request<B2BLedgerWallet>('/api/b2b/ledger/wallets',{method:'POST',body:JSON.stringify({name,kind})}),
+  getLedgerOperations: (id:string) =>
+    request<LedgerOperation[]>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}/operations`),
+  postLedgerOperation: (payload:{
+    contactId:string;type:LedgerOperationType;amount:string;effectiveOn:string;
+    description:string;category:string;walletId?:string;targetContactId?:string;requestKey:string;
+  })=>request<{id:string;alreadySaved:boolean}>('/api/b2b/ledger/operations',{method:'POST',body:JSON.stringify(payload)}),
+  getLedgerGlobalNotes: () => request<B2BLedgerNote[]>('/api/b2b/ledger/notes/global'),
+  addLedgerGlobalNote: (content:string) => request<B2BLedgerNote>('/api/b2b/ledger/notes/global',{method:'POST',body:JSON.stringify({content})}),
+  deleteLedgerContact: (id:string) =>
+    request<{deleted:boolean}>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}`,{method:'DELETE'}),
   listB2BLedgerContacts: () => request<B2BLedgerContact[]>('/api/b2b/ledger/contacts'),
   getB2BLedgerOverview: () => request<B2BLedgerOverview>('/api/b2b/ledger/overview'),
   getB2BLedgerContact: (id: string) => request<B2BLedgerDetail>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}`),
