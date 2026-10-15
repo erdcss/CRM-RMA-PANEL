@@ -143,7 +143,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
         (order_id,supplier_id,delivery_mode,subtotal,platform_fee_estimate,warehouse_fee_estimate)
         VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,[order.rows[0].id,group.supplierId,group.deliveryMode,
           group.subtotal.toFixed(2),group.platformFee.toFixed(2),group.warehouseFee.toFixed(2)]);
-      const its=cart.items.filter(i=>i.supplier_id===group.supplierId&&i.delivery_mode===group.deliveryMode);
+      const its=cart.items.filter(i=>Number(i.supplier_id)===group.supplierId&&i.delivery_mode===group.deliveryMode);
       for(const it of its){
         await client.query(`INSERT INTO mp_supplier_order_items(supplier_order_id,product_id,revision_id,boxes,units_per_box,unit_price,line_total)
           VALUES($1,$2,$3,$4,$5,$6,$7)`,[sub.rows[0].id,it.product_id,it.revision_id,it.boxes,it.unitsPerBox,
