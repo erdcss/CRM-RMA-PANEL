@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS b2b_products (
   images JSONB NOT NULL DEFAULT '[]'::jsonb,
   barcode TEXT,
   collection_name TEXT,
+  tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
   features JSONB NOT NULL DEFAULT '[]'::jsonb,
   variants JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -126,6 +127,7 @@ async function ensureB2BProductSchema() {
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS barcode TEXT`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS collection_name TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS features JSONB NOT NULL DEFAULT '[]'::jsonb`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
@@ -311,6 +313,7 @@ function parseAdminProductPayload(body: any) {
   const category = typeof body?.category === "string" ? body.category.trim().slice(0, 180) : "";
   const description = typeof body?.description === "string" ? body.description.trim().slice(0, 5000) : "";
   const collectionName = typeof body?.collectionName === "string" ? body.collectionName.trim().slice(0, 180) : "";
+  const tags = [...new Set((Array.isArray(body?.tags) ? body.tags : String(body?.tags || "").split(",")).filter((value: unknown): value is string => typeof value === "string").map((value: string) => value.trim().replace(/\s+/g, " ").slice(0, 60)).filter(Boolean))].slice(0, 30);
   const barcode = typeof body?.barcode === "string" ? body.barcode.trim().slice(0, 120) : "";
   const price = Number(body?.price ?? 0);
   const stock = Math.max(0, Number.parseInt(String(body?.stock ?? 0), 10) || 0);
@@ -326,6 +329,7 @@ function parseAdminProductPayload(body: any) {
     category,
     description,
     collectionName,
+    tags,
     barcode,
     price,
     stock,
@@ -1203,6 +1207,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           images,
           barcode,
           collection_name,
+          tags,
           variants,
           is_active,
           created_at,
@@ -1229,7 +1234,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         `SELECT
            id, sku, name, brand, category, description, price, stock,
            min_order_qty, units_per_box, image_data, images, barcode,
-           collection_name, features, variants, is_active, created_at, updated_at
+           collection_name, tags, features, variants, is_active, created_at, updated_at
          FROM b2b_products
          WHERE id::text = $1
          LIMIT 1`,
@@ -1267,9 +1272,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         `INSERT INTO b2b_products (
           sku, name, brand, category, description, price, stock,
           min_order_qty, units_per_box, image_data, images, barcode,
-          collection_name, variants, is_active, updated_at
+          collection_name, tags, variants, is_active, updated_at
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::jsonb,TRUE,NOW())
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::text[],$15::jsonb,TRUE,NOW())
         RETURNING *`,
         [
           product.sku,
@@ -1285,6 +1290,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           JSON.stringify(product.images),
           product.barcode || null,
           product.collectionName || null,
+          product.tags,
           JSON.stringify(product.variants),
         ],
       );
@@ -1514,7 +1520,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
              images = $12::jsonb,
              barcode = $13,
              collection_name = $14,
-             variants = $15::jsonb,
+             tags = $15::text[],
+             variants = $16::jsonb,
              updated_at = NOW()
          WHERE id::text = $1
          RETURNING *`,
@@ -1533,6 +1540,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           JSON.stringify(product.images),
           product.barcode || null,
           product.collectionName || null,
+          product.tags,
           JSON.stringify(product.variants),
         ],
       );
