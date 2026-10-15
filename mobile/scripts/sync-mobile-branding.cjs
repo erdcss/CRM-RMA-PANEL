@@ -89,6 +89,12 @@ async function main() {
   }
   const logoPath = await saveAsset("logo", branding.logo);
   const splashPath = await saveAsset("splash", branding.splash);
+  const androidIconPath = target === "b2b" && branding.androidIcon
+    ? await saveAsset("android-icon", branding.androidIcon)
+    : logoPath;
+  if (target === "b2b" && !androidIconPath.endsWith(".png")) {
+    throw new Error("Android uygulama ikonu PNG formatında olmalı.");
+  }
   if (target === "b2b" && !logoPath.endsWith(".png")) {
     throw new Error("iOS uygulama simgesi için admin paneline PNG mobil logo yükleyin.");
   }
@@ -106,7 +112,7 @@ async function main() {
   let androidForegroundPath = null;
   if (logoPath) {
     expo.icon = logoPath;
-    androidForegroundPath = target === "b2b" ? makeAndroidAdaptiveIcon(logoPath, assetsDir) : logoPath;
+    androidForegroundPath = target === "b2b" ? makeAndroidAdaptiveIcon(androidIconPath, assetsDir) : logoPath;
     expo.android = expo.android || {};
     expo.android.adaptiveIcon = {
       ...(expo.android.adaptiveIcon || {}),
@@ -159,10 +165,10 @@ async function main() {
 
   // Only files referenced by app.json are bundled. Older unreferenced files
   // may be locked by Windows Photos; cleanup should never block a valid build.
-  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), ...(androidForegroundPath ? [path.basename(androidForegroundPath)] : [])]);
+  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), path.basename(androidIconPath), ...(androidForegroundPath ? [path.basename(androidForegroundPath)] : [])]);
   for (const filename of fs.readdirSync(assetsDir)) {
     if (
-      /^managed-(?:logo|splash|android-foreground|header-logo)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
+      /^managed-(?:logo|splash|android-icon|android-foreground|header-logo)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
       !activeFiles.has(filename)
     ) {
       try {
