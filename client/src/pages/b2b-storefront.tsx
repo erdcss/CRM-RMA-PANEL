@@ -137,6 +137,7 @@ export default function B2BStorefront() {
         <Link href="/magazalar" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Tedarikçi Mağazaları</Link>
         <Link href="/satici" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Tedarikçi Ol / Satıcı Paneli</Link>
         <Link href="/mesajlarim" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Mesajlarım ve Teklifler</Link>
+        <Link href="/pazaryeri-sepetim" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Pazaryeri Sepetim</Link>
       </nav>
 
       <main className="mx-auto max-w-6xl px-4 py-6">
