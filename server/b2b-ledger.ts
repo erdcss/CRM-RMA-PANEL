@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS b2b_ledger_notes (
 CREATE INDEX IF NOT EXISTS b2b_ledger_notes_contact_idx ON b2b_ledger_notes(user_id, contact_id, id DESC);
 `;
 let init: Promise<void> | null = null;
-function ready(): Promise<void> {
+export function ensureB2BLedgerSchema(): Promise<void> {
   if (!pool) return Promise.reject(new Error("Veritabanı bulunamadı"));
   if (!init) init = pool.query(TABLES_SQL).then(() => {}).catch(error => { init = null; throw error; });
   return init;
@@ -100,7 +100,7 @@ const CONTACT_TYPES = new Set(["supplier","customer","other"]);
 export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler) {
   app.get("/api/b2b/ledger/contacts", requireB2B, async (_req, res) => {
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         summaryQuery() + " WHERE c.user_id=$1 AND c.is_archived=FALSE GROUP BY c.id ORDER BY c.updated_at DESC, c.id DESC LIMIT 250",
         [owner(res)],
@@ -112,7 +112,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
 
   app.get("/api/b2b/ledger/overview", requireB2B, async (_req, res) => {
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         `SELECT COUNT(DISTINCT c.id)::int AS contact_count,
           COALESCE(SUM(CASE WHEN e.voided_at IS NULL AND e.type='debt' THEN e.amount_cents WHEN e.voided_at IS NULL AND e.type='payment' THEN -e.amount_cents ELSE 0 END),0)::text AS debt_balance_cents,
@@ -130,7 +130,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const kind = String(req.body?.kind || "supplier");
     if (!name || !CONTACT_TYPES.has(kind)) return res.status(400).json({ error: "Firma adı ve türünü kontrol edin." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const count = await pool!.query("SELECT COUNT(*)::int AS count FROM b2b_ledger_contacts WHERE user_id=$1 AND is_archived=FALSE", [owner(res)]);
       if (count.rows[0].count >= 250) return res.status(409).json({ error: "En fazla 250 aktif defter oluşturulabilir." });
       const result = await pool!.query(
@@ -146,7 +146,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const id = contactId(req.params.id);
     if (!id) return res.status(400).json({ error: "Defter kimliği geçersiz." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const [contact, entries, notes] = await Promise.all([
         pool!.query(summaryQuery() + " WHERE c.user_id=$1 AND c.id=$2 GROUP BY c.id", [owner(res),id]),
         pool!.query(`SELECT id::text, type, amount_cents::text, description, effective_on, created_at, voided_at, void_reason
@@ -165,7 +165,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const name = text(req.body?.name,140), kind = String(req.body?.kind || "");
     if (!id || !name || !CONTACT_TYPES.has(kind)) return res.status(400).json({ error: "Firma bilgileri geçersiz." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         `UPDATE b2b_ledger_contacts
          SET name=$3,kind=$4,phone=$5,address=$6,description=$7,updated_at=NOW()
@@ -181,7 +181,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const id = contactId(req.params.id);
     if (!id) return res.status(400).json({ error: "Defter kimliği geçersiz." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         `UPDATE b2b_ledger_contacts SET is_archived=TRUE, updated_at=NOW()
          WHERE id=$1 AND user_id=$2 AND is_archived=FALSE RETURNING id::text`, [id,owner(res)],
@@ -204,7 +204,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
       return res.status(400).json({ error: "Hareket türünü, tutarı ve tarihi kontrol edin." });
     }
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         `INSERT INTO b2b_ledger_entries(user_id,contact_id,type,amount_cents,description,effective_on,request_key)
          SELECT $1,c.id,$3,$4,$5,$6::date,$7::uuid FROM b2b_ledger_contacts c
@@ -234,7 +234,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const id = contactId(req.params.id), reason = text(req.body?.reason,300);
     if (!id || reason.length < 3) return res.status(400).json({ error: "İptal açıklaması en az 3 karakter olmalı." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         `UPDATE b2b_ledger_entries SET voided_at=NOW(),void_reason=$3
          WHERE id=$1 AND user_id=$2 AND voided_at IS NULL RETURNING id::text,voided_at,void_reason`,
@@ -250,7 +250,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const id = req.body?.contactId == null ? null : contactId(req.body.contactId);
     if (!content || (req.body?.contactId != null && !id)) return res.status(400).json({ error: "Not veya firma kimliği geçersiz." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       // Contact-scoped notes are inserted only if the same user owns the contact.
       const result = await pool!.query(
         `INSERT INTO b2b_ledger_notes(user_id,contact_id,content)
@@ -267,7 +267,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const id = contactId(req.params.id), content = noteContent(req.body?.content);
     if (!id || !content) return res.status(400).json({ error: "Not içeriğini kontrol edin." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         "UPDATE b2b_ledger_notes SET content=$3,updated_at=NOW() WHERE id=$1 AND user_id=$2 RETURNING id::text,content,updated_at",
         [id,owner(res),content],
@@ -281,7 +281,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const id = contactId(req.params.id);
     if (!id) return res.status(400).json({ error: "Not kimliği geçersiz." });
     try {
-      await ready();
+      await ensureB2BLedgerSchema();
       const result = await pool!.query(
         "DELETE FROM b2b_ledger_notes WHERE id=$1 AND user_id=$2 RETURNING id::text", [id,owner(res)],
       );
