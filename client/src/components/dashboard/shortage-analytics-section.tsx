@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, ClipboardList, PackageSearch, RefreshCw, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,7 @@ async function loadShortageAnalytics(): Promise<ShortageAnalytics> {
 function SummaryMetric({
   label, value, icon, loading,
 }: {
-  label: string; value: number; icon: React.ReactNode; loading: boolean;
+  label: string; value: number; icon: ReactNode; loading: boolean;
 }) {
   return (
     <div className="flex min-w-0 items-center gap-3 rounded-xl border bg-background/60 p-3">
@@ -56,7 +57,7 @@ function RankingCard({
 }: {
   title: string;
   subtitle: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   rows: RankedName[];
   loading: boolean;
   type: "supplier" | "product";
