@@ -177,7 +177,7 @@ export type LedgerStatementRow = {
   id:string;type:string;amount_cents:string;effective_on:string;description:string;
   voided_at?:string|null;void_reason?:string|null;operation_type?:string|null;
   category?:string|null;wallet_name?:string|null;target_name?:string|null;
-  target_contact_id?:string|null;
+  target_contact_id?:string|null;source_name?:string|null;
 };
 
 export type B2BLedgerKind = 'supplier' | 'customer' | 'other';
