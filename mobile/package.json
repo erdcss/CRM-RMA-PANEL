@@ -5,10 +5,10 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "node scripts/create-scan-beep.cjs && expo start",
-    "build": "expo export --platform web",
+    "build": "node scripts/create-scan-beep.cjs && expo export --platform web",
     "start:web": "node scripts/serve-web.js",
-    "ios": "expo start --ios",
-    "android": "expo start --android",
+    "ios": "node scripts/create-scan-beep.cjs && expo start --ios",
+    "android": "node scripts/create-scan-beep.cjs && expo start --android",
     "typecheck": "tsc --noEmit",
     "fix:deps": "expo install --fix",
     "build:ios": "node scripts/create-scan-beep.cjs && node scripts/prepare-native-release.cjs && node scripts/sync-mobile-branding.cjs b2b && node scripts/prepare-niimbot-sdk.js && eas build --platform ios --profile production",
