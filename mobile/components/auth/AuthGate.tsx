@@ -59,6 +59,8 @@ export function RootStack() {
     >
       <Stack.Screen name="my-orders" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="my-orders/[id]" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="ledger/index" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="ledger/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="account/[section]" options={{ animation: 'slide_from_right' }} />
