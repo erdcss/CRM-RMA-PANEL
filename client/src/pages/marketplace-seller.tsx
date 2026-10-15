@@ -86,7 +86,18 @@ export default function MarketplaceSeller(){
         !approved?<div className={boxStyle+" space-y-4"}><ShieldCheck className="h-10 w-10 text-amber-600"/><h2 className="text-xl font-bold">{me.data.company_name}</h2>
           <Notice text={"Başvuru durumu: "+(statusTR[me.data.status]||me.data.status)} />
           {me.data.review_note?<p className="text-sm">Yönetici notu: {me.data.review_note}</p>:null}
-          <p className="text-sm text-slate-600">Başvurunuz onaylanmadan mağaza ve ürünler yayına alınmaz.</p></div>:
+          <p className="text-sm text-slate-600">Başvurunuz onaylanmadan mağaza ve ürünler yayına alınmaz.</p>
+          {me.data.status==="rejected"?<form className="space-y-3 rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void run(
+            ()=>send("PATCH","/api/marketplace/apply",form),["/api/marketplace/me"]);}}>
+            <h3 className="font-semibold">Başvuruyu düzelt ve tekrar gönder</h3>
+            {(["companyName","taxNumber","taxOffice","contactName","contactPhone","description"] as const).map(k=><Field key={k} label={
+              ({companyName:"Ticari unvan",taxNumber:"VKN / TCKN",taxOffice:"Vergi dairesi",
+                contactName:"Yetkili",contactPhone:"Telefon",description:"Açıklama"} as Record<string,string>)[k]}>
+              <input required={k!=="taxOffice"&&k!=="description"} className={inputStyle} value={form[k]}
+                onChange={e=>setForm(v=>({...v,[k]:e.target.value}))}/></Field>)}
+            <button disabled={busy} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">
+              Yeniden Onaya Gönder</button>
+          </form>:null}</div>:
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
