@@ -73,7 +73,7 @@ export default function LedgerCurrentAccount() {
       id:'op-'+op.id,kind:'modern' as const,type:op.type,
       amount_cents:op.amount_cents,date:String(op.effective_on).slice(0,10),
       description:op.description,category:op.category,
-      related:op.type==='transfer'?((op.target_contact_id===id)?'Gelen transfer':'Giden transfer')+(op.target_name?' · '+op.target_name:''):
+      related:op.type==='transfer'?((op.target_contact_id===id)?'Gelen transfer · '+(op.source_name||'Kaynak cari'):'Giden transfer · '+(op.target_name||'Hedef cari')):
         op.wallet_name||'',cancelled:Boolean(op.voided_at),
     }));
     const legacy=(data?.entries||[]).filter(e=>!e.operation_id).map(e=>({
@@ -165,7 +165,7 @@ export default function LedgerCurrentAccount() {
       const pages: Array<{
         type:string;amount_cents:string;effective_on:string;description:string;
         voided_at?:string|null;operation_type?:string|null;
-        category?:string|null;wallet_name?:string|null;target_name?:string|null;
+        category?:string|null;wallet_name?:string|null;target_name?:string|null;source_name?:string|null;
       }>=[];
       let more=true;
       for(let offset=0;more&&offset<30000;offset+=300){
@@ -178,7 +178,7 @@ export default function LedgerCurrentAccount() {
           ({debt:'BORÇ',payment:'ÖDEME',receivable:'ALACAK',collection:'TAHSİLAT'} as Record<string,string>)[m.type]||m.type;
         return '<tr><td>'+htmlEscape(String(m.effective_on).slice(0,10))+'</td><td>'+htmlEscape(label)+'</td><td>'+
           htmlEscape(m.description)+(m.voided_at?' (İPTAL)':'')+'</td><td>'+
-          htmlEscape([m.wallet_name,m.target_name,m.category].filter(Boolean).join(' · '))+
+          htmlEscape([m.wallet_name,m.target_contact_id===id?m.source_name:m.target_name,m.category].filter(Boolean).join(' · '))+
           '</td><td style="text-align:right">'+htmlEscape(MONEY(m.amount_cents))+'</td></tr>';
       }).join('');
       const html='<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+
