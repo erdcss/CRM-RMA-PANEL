@@ -56,7 +56,7 @@ function AppContent() {
               <Text style={styles.splashSub}>B2B</Text>
             </View>
           )}
-          <StatusBar style="light" />
+          <StatusBar hidden={showSplash} style="light" />
         </View>
       ) : null}
     </View>
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   splash: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 9999,
-    backgroundColor: '#FFCD00',
+    backgroundColor: '#101010',
   },
   splashFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFCD00' },
   splashBrand: { color: '#101010', fontSize: 35, fontWeight: '900', letterSpacing: 1 },
