@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS b2b_ledger_entries (
 );
 CREATE INDEX IF NOT EXISTS b2b_ledger_entries_contact_idx
   ON b2b_ledger_entries(user_id, contact_id, effective_on DESC, id DESC);
+ALTER TABLE b2b_ledger_entries ADD COLUMN IF NOT EXISTS operation_id BIGINT;
 
 CREATE TABLE IF NOT EXISTS b2b_ledger_notes (
   id BIGSERIAL PRIMARY KEY,
