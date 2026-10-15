@@ -225,12 +225,13 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
       const r=await pool!.query(
         `SELECT e.id::text,e.type,e.amount_cents::text,e.effective_on,e.description,
           e.voided_at,e.void_reason,o.type AS operation_type,o.category,
-          o.target_contact_id::text,w.name AS wallet_name,t.name AS target_name
+          o.target_contact_id::text,w.name AS wallet_name,t.name AS target_name,s.name AS source_name
          FROM b2b_ledger_entries e
          JOIN b2b_ledger_contacts c ON c.id=e.contact_id AND c.user_id=e.user_id
          LEFT JOIN b2b_ledger_operations o ON o.id=e.operation_id AND o.user_id=e.user_id
          LEFT JOIN b2b_ledger_wallets w ON w.id=o.wallet_id AND w.user_id=e.user_id
          LEFT JOIN b2b_ledger_contacts t ON t.id=o.target_contact_id AND t.user_id=e.user_id
+         LEFT JOIN b2b_ledger_contacts s ON s.id=o.contact_id AND s.user_id=e.user_id
          WHERE e.user_id=$1 AND e.contact_id=$2
          ORDER BY e.effective_on DESC,e.id DESC LIMIT 301 OFFSET $3`,
         [owner(res),contact,offset],
@@ -244,9 +245,10 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
     const contact=id(req.params.id);if(!contact)return res.status(400).json({error:"Geçersiz cari."});
     try{await ready();const r=await pool!.query(
       "SELECT op.id::text,op.type,op.amount_cents::text,op.effective_on,op.description,op.category,op.wallet_id::text,op.target_contact_id::text,op.created_at,op.voided_at,op.void_reason, "+
-      "w.name AS wallet_name, c2.name AS target_name "+
+      "w.name AS wallet_name, c2.name AS target_name, c1.name AS source_name "+
       "FROM b2b_ledger_operations op LEFT JOIN b2b_ledger_wallets w ON w.id=op.wallet_id AND w.user_id=op.user_id "+
       "LEFT JOIN b2b_ledger_contacts c2 ON c2.id=op.target_contact_id AND c2.user_id=op.user_id "+
+      "LEFT JOIN b2b_ledger_contacts c1 ON c1.id=op.contact_id AND c1.user_id=op.user_id "+
       "WHERE op.user_id=$1 AND (op.contact_id=$2 OR op.target_contact_id=$2) ORDER BY op.effective_on DESC,op.id DESC LIMIT 500",[owner(res),contact]);
       return res.json(r.rows);
     }catch(err){return fail(res,err);}
