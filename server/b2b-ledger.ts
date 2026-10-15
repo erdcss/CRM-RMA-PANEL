@@ -197,7 +197,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     const requestKey = String(req.body?.requestKey || "").trim();
     const dateValid = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) &&
       new Date(date).toISOString().slice(0, 10) === date;
-    if (!id || !FORM_TYPES.has(type) || !cents || !dateValid || !/^[a-f0-9-]{36}$/i.test(requestKey)) {
+    if (!id || !FORM_TYPES.has(type) || !cents || !dateValid || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey)) {
       return res.status(400).json({ error: "Hareket türünü, tutarı ve tarihi kontrol edin." });
     }
     try {
@@ -215,8 +215,13 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
           `SELECT id::text,type,amount_cents::text,description,effective_on,created_at,voided_at, contact_id::text
            FROM b2b_ledger_entries WHERE user_id=$1 AND request_key=$2::uuid LIMIT 1`, [owner(res),requestKey],
         );
-        if (existing.rows[0] && existing.rows[0].contact_id === id) return res.json(existing.rows[0]);
-        return res.status(409).json({ error: "Aynı işlem anahtarı farklı bir kayıt için kullanılmış." });
+        const previous = existing.rows[0];
+        if (previous && previous.contact_id === id && previous.type === type &&
+            previous.amount_cents === cents && previous.description === description &&
+            new Date(previous.effective_on).toISOString().slice(0, 10) === date) {
+          return res.json(previous);
+        }
+        return res.status(409).json({ error: "Bu işlem anahtarı daha önce başka bir hareket için kullanılmış." });
       }
       return res.status(201).json(result.rows[0]);
     } catch (err) { return issue(res, err); }
