@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { createHash } = require("node:crypto");
 const { makeAndroidAdaptiveIcon } = require("./android-adaptive-icon.cjs");
+const { PNG } = require("pngjs");
 
 const target = process.argv[2] === "business" ? "business" : "b2b";
 const root = process.cwd();
@@ -120,6 +121,26 @@ async function main() {
       backgroundColor:
         expo.android.adaptiveIcon?.backgroundColor ||
         (target === "business" ? "#0B0B0B" : "#FFFFFF"),
+    };
+  }
+
+  if (target === "b2b" && splashPath) {
+    // Android 12+ enforces a system-controlled centered splash icon.
+    // Replace that native graphic with a transparent asset, leaving a matching
+    // solid background before the React Native full-bleed branded splash takes over.
+    // This avoids a tiny version of the branded artwork growing to full screen.
+    const transparent = new PNG({ width: 48, height: 48, colorType: 6 });
+    transparent.data.fill(0);
+    const nativePath = path.join(assetsDir, "android-native-splash-transparent.png");
+    const nativeBytes = PNG.sync.write(transparent);
+    if (!fs.existsSync(nativePath) || !fs.readFileSync(nativePath).equals(nativeBytes)) {
+      fs.writeFileSync(nativePath, nativeBytes);
+    }
+    expo.android = expo.android || {};
+    expo.android.splash = {
+      image: "./assets/android-native-splash-transparent.png",
+      resizeMode: "contain",
+      backgroundColor: expo.android.splash?.backgroundColor || "#101010",
     };
   }
 
