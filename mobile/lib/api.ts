@@ -294,6 +294,47 @@ export type B2BThreeDSInitialize = {
   threeDSHtml?: string;
 };
 
+export type B2BOrderAddress = {
+  recipient?: string | null;
+  phone?: string | null;
+  companyName?: string | null;
+  taxNumber?: string | null;
+  taxOffice?: string | null;
+  addressLine?: string | null;
+  city?: string | null;
+  district?: string | null;
+  postalCode?: string | null;
+  pickupTime?: string | null;
+  carrier?: string | null;
+  freightCompany?: string | null;
+  freightPhone?: string | null;
+};
+export type B2BOrderDetail = B2BOrderSummary & {
+  items?: Array<{
+    productId?: string | number;
+    name?: string;
+    sku?: string;
+    image?: string | null;
+    quantity?: number;
+    unitsPerBox?: number;
+    totalUnits?: number;
+    pricePerBox?: number;
+    total?: number;
+  }>;
+  shipping_details?: {
+    carrier?: string;
+    companyName?: string;
+    phone?: string;
+    address?: string;
+    pickupTime?: string;
+  } | null;
+  shipping_address?: B2BOrderAddress | null;
+  billing_details?: B2BOrderAddress | null;
+  card_last4?: string | null;
+  card_association?: string | null;
+  payment_provider?: string | null;
+  cancel_requested_at?: string | null;
+};
 export type B2BOrderSummary = {
   id: string | number;
   order_number?: string | null;
@@ -658,6 +699,8 @@ export const rmaApi = {
       { method: 'POST', body: JSON.stringify({}) },
     ),
   listB2BOrders: () => request<B2BOrderSummary[]>('/api/b2b/my-orders'),
+  getB2BOrderDetail: (id: string | number) =>
+    request<B2BOrderDetail>(`/api/b2b/my-orders/${encodeURIComponent(String(id))}`),
   listB2BReturns: () => request<B2BReturn[]>('/api/b2b/my-returns'),
   listB2BInvoices: () => request<B2BInvoice[]>('/api/b2b/my-invoices'),
   listB2BNotifications: () => request<B2BNotification[]>('/api/b2b/notifications'),
