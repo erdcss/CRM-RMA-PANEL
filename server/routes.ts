@@ -2345,7 +2345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
   registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId);
-  registerMarketplaceMediaRoutes(app, requireB2B);
+  registerMarketplaceMediaRoutes(app, requireB2B, sessionUserId);
   registerMarketplaceCartRoutes(app, requireB2B);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
