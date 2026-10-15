@@ -26,6 +26,7 @@ import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes } from "./marketplace";
+import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 
 let dbReady = false;
 
@@ -2343,6 +2344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
   registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId);
+  registerMarketplaceMediaRoutes(app, requireB2B);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
