@@ -11,7 +11,7 @@ const TABLES = [
   "CREATE TABLE IF NOT EXISTS b2b_ledger_wallet_movements (id BIGSERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, wallet_id BIGINT NOT NULL REFERENCES b2b_ledger_wallets(id) ON DELETE RESTRICT, direction VARCHAR(3) NOT NULL CHECK(direction IN ('in','out')), amount_cents BIGINT NOT NULL CHECK(amount_cents>0 AND amount_cents<=999999999), description VARCHAR(500) NOT NULL DEFAULT '', effective_on DATE NOT NULL DEFAULT CURRENT_DATE, request_key UUID NOT NULL, voided_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(user_id,request_key))"
 ];
 let initialized: Promise<void> | null = null;
-async function ready() {
+export async function ensureB2BLedgerImportSchema() {
   if(!pool) throw Error("Veritabanı bulunamadı");
   if(!initialized) initialized = pool.query(TABLES.join(";\n")+";").then(()=>undefined).catch(err=>{initialized=null;throw err;});
   await Promise.all([initialized,ensureB2BLedgerSchema()]);
@@ -45,7 +45,7 @@ export function registerB2BLedgerImportRoutes(app:Express,requireB2B:RequestHand
       const bytes=Buffer.from(base64.replace(/\s/g,""),"base64");
       const parsed=parseDefterBalancePdf(extractTextLayerPdf(bytes));
       if(!parsed.verified) return invalid(res,"PDF genel toplamı doğrulanamadı; bu dosyanın otomatik aktarımı güvenli değil.");
-      await ready();
+      await ensureB2BLedgerImportSchema();
       const hash=createHash("sha256").update(bytes).digest("hex");
       const existing=await pool!.query("SELECT id,imported_at FROM b2b_ledger_imports WHERE user_id=$1 AND file_hash=$2",[owner(res),hash]);
       if(existing.rows[0]?.imported_at) return res.status(409).json({error:"Bu PDF daha önce içe aktarılmış."});
@@ -75,7 +75,7 @@ export function registerB2BLedgerImportRoutes(app:Express,requireB2B:RequestHand
     if(!pool) return res.status(503).json({error:"Veritabanına erişilemiyor."});
     const client=await pool.connect();
     try {
-      await ready();
+      await ensureB2BLedgerImportSchema();
       await client.query("BEGIN");
       await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE",[owner(res)]);
       const result=await client.query("SELECT extracted,file_name,imported_at,expires_at FROM b2b_ledger_imports WHERE id=$1 AND user_id=$2 FOR UPDATE",[previewId,owner(res)]);
@@ -129,14 +129,14 @@ export function registerB2BLedgerImportRoutes(app:Express,requireB2B:RequestHand
   });
 
   app.get("/api/b2b/ledger/wallets",requireB2B,async(_req,res)=>{
-    try{await ready();const r=await pool!.query(walletSql+" WHERE w.user_id=$1 GROUP BY w.id ORDER BY w.kind,w.id DESC LIMIT 100",[owner(res)]);
+    try{await ensureB2BLedgerImportSchema();const r=await pool!.query(walletSql+" WHERE w.user_id=$1 GROUP BY w.id ORDER BY w.kind,w.id DESC LIMIT 100",[owner(res)]);
       res.setHeader("Cache-Control","private,no-store");return res.json(r.rows);
     }catch(err){return fail(res,err);}
   });
   app.get("/api/b2b/ledger/wallets/:id",requireB2B,async(req,res)=>{
     if(!idOk(req.params.id))return invalid(res,"Geçersiz hesap.");
     try{
-      await ready();
+      await ensureB2BLedgerImportSchema();
       const [account,movements]=await Promise.all([
         pool!.query(walletSql+" WHERE w.user_id=$1 AND w.id=$2 GROUP BY w.id",[owner(res),req.params.id]),
         pool!.query("SELECT id::text,direction,amount_cents::text,description,effective_on,created_at,voided_at FROM b2b_ledger_wallet_movements WHERE user_id=$1 AND wallet_id=$2 ORDER BY id DESC LIMIT 500",
@@ -153,7 +153,7 @@ export function registerB2BLedgerImportRoutes(app:Express,requireB2B:RequestHand
     if(!amount||!["in","out"].includes(direction)||!uuidOk(key)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date)))
       return invalid(res,"Hareket tutarı, türü veya tarihi geçersiz.");
     try{
-      await ready();
+      await ensureB2BLedgerImportSchema();
       const r=await pool!.query(
         "INSERT INTO b2b_ledger_wallet_movements(user_id,wallet_id,direction,amount_cents,description,effective_on,request_key) " +
         "SELECT $1,w.id,$3,$4,$5,$6::date,$7::uuid FROM b2b_ledger_wallets w WHERE w.id=$2 AND w.user_id=$1 " +
