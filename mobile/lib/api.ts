@@ -197,6 +197,7 @@ export type B2BLedgerEntry = {
   created_at: string;
   voided_at?: string | null;
   void_reason?: string | null;
+  operation_id?: string | null;
 };
 export type B2BLedgerNote = {
   id: string;
