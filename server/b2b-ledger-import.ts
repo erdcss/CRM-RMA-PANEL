@@ -152,16 +152,39 @@ export function registerB2BLedgerImportRoutes(app:Express,requireB2B:RequestHand
     const description=typeof req.body?.description==="string"?req.body.description.trim().slice(0,500):"";
     if(!amount||!["in","out"].includes(direction)||!uuidOk(key)||!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date)))
       return invalid(res,"Hareket tutarı, türü veya tarihi geçersiz.");
+    if(!pool)return res.status(503).json({error:"Veritabanı hazır değil."});
+    let client;
     try{
       await ensureB2BLedgerImportSchema();
-      const r=await pool!.query(
-        "INSERT INTO b2b_ledger_wallet_movements(user_id,wallet_id,direction,amount_cents,description,effective_on,request_key) " +
-        "SELECT $1,w.id,$3,$4,$5,$6::date,$7::uuid FROM b2b_ledger_wallets w WHERE w.id=$2 AND w.user_id=$1 " +
-        "ON CONFLICT(user_id,request_key) DO NOTHING RETURNING id::text",
-        [owner(res),req.params.id,direction,amount,description,date,key],
-      );
-      if(!r.rowCount)return res.status(409).json({error:"İşlem daha önce kaydedildi veya hesap bulunamadı; ekranı yenileyin."});
-      return res.status(201).json(r.rows[0]);
-    }catch(err){return fail(res,err);}
+      client=await pool.connect();
+      await client.query("BEGIN");
+      await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE",[owner(res)]);
+      const existing=await client.query(
+        "SELECT id::text,wallet_id::text,direction,amount_cents::text,description,effective_on::text FROM b2b_ledger_wallet_movements WHERE user_id=$1 AND request_key=$2::uuid",
+        [owner(res),key]);
+      if(existing.rows.length){
+        const old=existing.rows[0];
+        const same=old.wallet_id===req.params.id&&old.direction===direction&&old.amount_cents===amount&&
+          old.effective_on===date&&old.description===description;
+        await client.query("ROLLBACK");
+        return same?res.json({id:old.id,alreadySaved:true}):res.status(409).json({error:"Bu işlem anahtarı daha önce farklı kayıt için kullanıldı."});
+      }
+      const wallet=await client.query(
+        "SELECT id,(opening_cents+COALESCE((SELECT SUM(CASE WHEN direction='in' THEN amount_cents ELSE -amount_cents END) FROM b2b_ledger_wallet_movements WHERE wallet_id=w.id AND user_id=$2 AND voided_at IS NULL),0))::text balance "+
+        "FROM b2b_ledger_wallets w WHERE w.id=$1 AND w.user_id=$2",
+        [req.params.id,owner(res)]);
+      if(!wallet.rowCount){await client.query("ROLLBACK");return res.status(404).json({error:"Kasa/banka hesabı bulunamadı."});}
+      if(direction==="out"&&BigInt(wallet.rows[0].balance)<BigInt(amount)){
+        await client.query("ROLLBACK");return res.status(409).json({error:"Hesap bakiyesi yetersiz. Negatif bakiyeye izin verilmiyor."});
+      }
+      const saved=await client.query(
+        "INSERT INTO b2b_ledger_wallet_movements(user_id,wallet_id,direction,amount_cents,description,effective_on,request_key) "+
+        "VALUES($1,$2,$3,$4,$5,$6::date,$7::uuid) RETURNING id::text",
+        [owner(res),req.params.id,direction,amount,description,date,key]);
+      await client.query("COMMIT");return res.status(201).json(saved.rows[0]);
+    }catch(err){
+      if(client)await client.query("ROLLBACK").catch(()=>undefined);
+      return fail(res,err);
+    }finally{client?.release();}
   });
 }
