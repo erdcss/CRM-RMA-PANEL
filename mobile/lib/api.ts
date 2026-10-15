@@ -201,6 +201,24 @@ export type B2BLedgerOverview = {
   debt_balance_cents: string;
   receivable_balance_cents: string;
 };
+export type B2BLedgerPdfRow = { index:number; section:'cash'|'bank'|'cari'; name:string; signedCents:string; exists:boolean };
+export type B2BLedgerPdfPreview = {
+  previewId:string;sourceLabel:string;reportDate:string|null;verified:boolean;
+  totals: Record<'cash'|'bank'|'cari',{count:number;totalCents:string}>;
+  rows:B2BLedgerPdfRow[];
+};
+export type B2BLedgerImportResult = {
+  createdContacts:number;createdWallets:number;skippedExisting:number;skippedByUser:number;
+};
+export type B2BLedgerWallet = {
+  id:string;name:string;kind:'cash'|'bank';opening_cents:string;balance_cents:string;movement_count:number;
+};
+export type B2BLedgerWalletMovement = {
+  id:string;direction:'in'|'out';amount_cents:string;description:string;
+  effective_on:string;created_at:string;voided_at:string|null;
+};
+export type B2BLedgerWalletDetail = B2BLedgerWallet & {movements:B2BLedgerWalletMovement[]};
+
 export type B2BLedgerContactInput = {
   name: string;
   kind: B2BLedgerKind;
@@ -623,6 +641,15 @@ export const rmaApi = {
       return request<B2BReel[]>('/api/public/reels');
     }
   },
+  previewB2BLedgerPdf: (fileName:string,dataBase64:string) =>
+    request<B2BLedgerPdfPreview>('/api/b2b/ledger/import/pdf/preview', {method:'POST',body:JSON.stringify({fileName,dataBase64})}),
+  confirmB2BLedgerPdf: (previewId:string,positiveMeans:'debt'|'receivable',skipIndices:number[]) =>
+    request<B2BLedgerImportResult>('/api/b2b/ledger/import/pdf/confirm', {method:'POST',body:JSON.stringify({previewId,positiveMeans,skipIndices})}),
+  listB2BLedgerWallets: () => request<B2BLedgerWallet[]>('/api/b2b/ledger/wallets'),
+  getB2BLedgerWallet: (id:string) =>
+    request<B2BLedgerWalletDetail>(`/api/b2b/ledger/wallets/${encodeURIComponent(id)}`),
+  addB2BLedgerWalletMovement: (id:string,payload:{direction:'in'|'out';amount:string;description:string;effectiveOn:string;requestKey:string}) =>
+    request<{id:string}>(`/api/b2b/ledger/wallets/${encodeURIComponent(id)}/movements`,{method:'POST',body:JSON.stringify(payload)}),
   listB2BLedgerContacts: () => request<B2BLedgerContact[]>('/api/b2b/ledger/contacts'),
   getB2BLedgerOverview: () => request<B2BLedgerOverview>('/api/b2b/ledger/overview'),
   getB2BLedgerContact: (id: string) => request<B2BLedgerDetail>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}`),
