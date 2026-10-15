@@ -274,6 +274,7 @@ export type B2BPaymentMethod = {
 
 export type B2BPaymentSettings = {
   iyzicoConfigured: boolean;
+  paymentLogos?: Array<{id:string;label:string;imageId:string}>;
   bankTransfer: {
     enabled: boolean;
     bankName: string;
