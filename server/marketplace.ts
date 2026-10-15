@@ -142,18 +142,25 @@ const slugify = (s:string) => s.toLocaleLowerCase("tr-TR")
   .replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u").replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c")
   .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,58);
 const bodyText = (n=200) => z.string().trim().min(1).max(n);
+const mediaUrl=z.string().regex(/^\/api\/marketplace\/media\/[a-f0-9]{32}$/,"Medya uygulama içine yüklenmeli");
+async function verifyMedia(db:NonNullable<typeof pool>,supplierId:number,url:string,video:boolean){
+  const q=await db.query("SELECT mime FROM mp_media WHERE id=$1 AND supplier_id=$2",[url.split("/").pop(),supplierId]);
+  if(!q.rows[0] || (video ? q.rows[0].mime!=="video/mp4" : !String(q.rows[0].mime).startsWith("image/"))){
+    throw new ApiError(400,"Yüklenen medya bu tedarikçiye ait değil");
+  }
+}
 const storeSchema = z.object({
   title: bodyText(120), tagline:z.string().trim().max(250).default(""),
   accent:z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#FACC15"),
-  bannerUrl:z.string().url().regex(/^https:\/\//).max(1500).optional().nullable(),
-  logoUrl:z.string().url().regex(/^https:\/\//).max(1500).optional().nullable(),
+  bannerUrl:mediaUrl.optional().nullable(),
+  logoUrl:mediaUrl.optional().nullable(),
   sections:z.array(z.enum(["banner","categories","products","reels","about"])).min(1).max(10),
 }).strict();
 const productSchema = z.object({
   name:bodyText(220), description:z.string().trim().max(4000).default(""),
   category:bodyText(120), brand:z.string().trim().max(120).default(""),
   barcode:z.string().trim().max(60).default(""),
-  imageUrl:z.string().url().regex(/^https:\/\//).max(1500),
+  imageUrl:mediaUrl,
   price:z.number().finite().positive().max(100000000),
   unitsPerBox:z.number().int().min(1).max(100000),
   minBoxes:z.number().int().min(1).max(100000).default(1)
@@ -267,6 +274,7 @@ export function registerMarketplaceRoutes(
   app.post("/api/marketplace/seller/store",requireB2B,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const content=storeSchema.parse(req.body);
+    for(const url of [content.bannerUrl,content.logoUrl])if(url)await verifyMedia(db,Number(s.id),url,false);
     const r=await db.query("INSERT INTO mp_store_versions(supplier_id,content) VALUES($1,$2) RETURNING id,status,created_at",[s.id,JSON.stringify(content)]);
     res.status(201).json(r.rows[0]);
   }));
@@ -282,6 +290,7 @@ export function registerMarketplaceRoutes(
   app.post("/api/marketplace/seller/products",requireB2B,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const data=z.object({sku:bodyText(90),stock:z.number().int().min(0).max(100000000),product:productSchema}).strict().parse(req.body);
+    await verifyMedia(db,Number(s.id),data.product.imageUrl,false);
     const client=await db.connect();
     try {
       await client.query("BEGIN");
@@ -293,8 +302,9 @@ export function registerMarketplaceRoutes(
   }));
   app.post("/api/marketplace/seller/reels",requireB2B,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
-    const data=z.object({title:bodyText(160),videoUrl:z.string().url().regex(/^https:\/\//).max(1500),
+    const data=z.object({title:bodyText(160),videoUrl:mediaUrl,
       productId:z.number().int().positive().nullable().optional()}).strict().parse(req.body);
+    await verifyMedia(db,Number(s.id),data.videoUrl,true);
     if(data.productId){
       const own=await db.query("SELECT id FROM mp_products WHERE id=$1 AND supplier_id=$2",[data.productId,s.id]);
       if(!own.rows.length)throw new ApiError(403,"Ürün bu mağazaya ait değil");
