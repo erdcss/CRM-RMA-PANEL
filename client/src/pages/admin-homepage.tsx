@@ -16,6 +16,7 @@ type HomepageConfig = {
   detectedCategories: string[];
   banners: HomeBanner[];
   categoryCards: HomeCategoryCard[];
+  ledgerTileImageId?: string;
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
 };
@@ -39,6 +40,7 @@ export default function AdminHomepage() {
   const [uploading, setUploading] = useState(false);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
+  const [ledgerTileImageId, setLedgerTileImageId] = useState('');
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
 
@@ -47,6 +49,7 @@ export default function AdminHomepage() {
     setCategories(data.categories || []);
     setBanners(data.banners || []);
     setCategoryCards(data.categoryCards || []);
+    setLedgerTileImageId(data.ledgerTileImageId || '');
     setSliderAutoPlay(data.sliderAutoPlay !== false);
     setSliderIntervalMs(data.sliderIntervalMs || 5000);
   }, [data]);
@@ -126,10 +129,11 @@ export default function AdminHomepage() {
   async function save() {
     setSaving(true);
     try {
-      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), banners, sliderAutoPlay, sliderIntervalMs });
+      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs });
       const result = await response.json() as HomepageConfig;
       setCategories(result.categories || []);
       setBanners(result.banners || []);
+      setLedgerTileImageId(result.ledgerTileImageId || '');
       setCategoryCards(result.categoryCards || []);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage"] }),
@@ -200,6 +204,19 @@ export default function AdminHomepage() {
               </Button>
             </div>
 
+            <div className="mt-5 rounded-xl border bg-muted/20 p-4 space-y-3">
+              <h3 className="font-bold">Defterim geçiş butonu</h3>
+              <p className="text-xs text-muted-foreground">Mobil ana sayfa kategorilerindeki ilk kutu artık Defterim olur. Önerilen görsel: 512×512 PNG, WebP veya GIF. Maksimum 3 MB.</p>
+              {ledgerTileImageId ? <img className="h-20 w-20 rounded-lg object-contain" alt="Defterim buton görseli" src={`/api/public/homepage/media/${ledgerTileImageId}`}/> : null}
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-muted">
+                  {uploading ? "Yükleniyor…" : "Görsel / GIF Yükle"}
+                  <input type="file" className="hidden" disabled={uploading} accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={event => {const file=event.target.files?.[0]; if(file) void uploadMedia(file,setLedgerTileImageId);event.target.value="";}}/>
+                </label>
+                {ledgerTileImageId ? <Button variant="ghost" size="sm" onClick={()=>setLedgerTileImageId('')}>Görseli kaldır</Button>:null}
+              </div>
+            </div>
             <div className="mt-5 space-y-2">
               {isLoading ? (
                 <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
