@@ -34,6 +34,8 @@ export function MarketplaceShop({slug}:{slug:string}){
   const [message,setMessage]=useState("");
   const [text,setText]=useState("");
   const [busy,setBusy]=useState(false);
+  const [boxes,setBoxes]=useState<Record<string,number>>({});
+  const [delivery,setDelivery]=useState<Record<string,"direct"|"warehouse">>({});
   const [following,setFollowing]=useState(false);
   const {data:shop,isLoading}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:0});
   const {data:products=[]}=useQuery<ShopProduct[]>({queryKey:["/api/marketplace/stores/"+slug+"/products"],staleTime:0});
@@ -72,6 +74,7 @@ export function MarketplaceShop({slug}:{slug:string}){
         </div>
         <div className="flex flex-wrap items-center gap-3 border-t p-4">
           <span className="mr-auto text-xs text-slate-500">{shop.followers} takipçi</span>
+          <Link href="/pazaryeri-sepetim" className="rounded-xl border px-4 py-2 text-sm font-semibold">Sepetim</Link>
           <button disabled={busy} onClick={()=>void follow()} className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold">
             <Heart className="h-4 w-4"/>{following?"Takip ediliyor":"Mağazayı Takip Et"}
           </button>
@@ -87,6 +90,16 @@ export function MarketplaceShop({slug}:{slug:string}){
           <p className="text-xs text-slate-500">{p.content.unitsPerBox} adet / koli · Min. {p.content.minBoxes} koli</p>
           <p className="text-sm font-bold">{p.content.price==null?"Fiyat için giriş yapın":money(Number(p.content.price))}</p>
           <p className="text-xs text-slate-500">Stok: {p.stock}</p>
+          <div className="flex gap-2">
+            <input aria-label="Koli adedi" type="number" min={p.content.minBoxes} max={Math.floor(p.stock/p.content.unitsPerBox)} value={boxes[p.id]??p.content.minBoxes}
+              onChange={e=>setBoxes(v=>({...v,[p.id]:Number(e.target.value)}))} className="w-20 rounded-lg border px-2 text-xs"/>
+            <select aria-label="Sevkiyat seçimi" value={delivery[p.id]||"direct"} onChange={e=>setDelivery(v=>({...v,[p.id]:e.target.value as "direct"|"warehouse"}))}
+              className="min-w-0 flex-1 rounded-lg border px-1 text-xs"><option value="direct">Doğrudan</option><option value="warehouse">Depo kontrolü</option></select>
+          </div>
+          <button onClick={async()=>{setMessage("");try{await apiRequest("POST","/api/marketplace/cart",
+            {productId:Number(p.id),boxes:boxes[p.id]??p.content.minBoxes,deliveryMode:delivery[p.id]||"direct"});
+            setMessage(p.content.name+" sepete eklendi.");}catch(e){setMessage(e instanceof Error?e.message:"Sepete eklenemedi");}}}
+            className="w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">Sepete ekle</button>
           <button onClick={()=>{setText("Merhaba, "+p.content.name+" (SKU "+p.sku+") için toptan fiyat ve sevkiyat bilgisi alabilir miyim?");document.getElementById("iletisim")?.scrollIntoView({behavior:"smooth"});}}
             className="w-full rounded-lg border px-3 py-2 text-xs font-semibold">Ürün için teklif iste</button>
         </div>)}
@@ -133,7 +146,7 @@ export function MarketplaceBuyerInbox(){
     {message?<p className="rounded-xl bg-amber-50 p-3 text-sm">{message}</p>:null}
     <div className="grid gap-4 md:grid-cols-3">
       <div className={box+" space-y-2"}><h2 className="font-bold">Görüşmeler</h2>{conversations.map(c=><button key={c.id}
-        onClick={()=>setSelected(c.id)} className={"block w-full rounded-lg p-3 text-left text-sm "+(selected===c.id?"bg-amber-100":"bg-slate-50")}>
+        onClick={()=>setSelected(Number(c.id))} className={"block w-full rounded-lg p-3 text-left text-sm "+(selected===c.id?"bg-amber-100":"bg-slate-50")}>
         <b>{c.company_name}</b><p className="truncate text-xs text-slate-500">{c.latest_message}</p></button>)}
         {!conversations.length?<p className="text-xs text-slate-500">Görüşme başlatmak için bir mağazaya gidin.</p>:null}
       </div>
