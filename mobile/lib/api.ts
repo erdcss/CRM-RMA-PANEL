@@ -138,6 +138,7 @@ export type B2BProduct = {
   images?: string[] | null;
   barcode?: string | null;
   collection_name?: string | null;
+  tags?: string[] | null;
   category?: string | null;
   brand?: string | null;
   description?: string | null;
@@ -146,7 +147,7 @@ export type B2BProduct = {
 };
 
 export type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
-export type HomeCategoryCard = { category: string; label: string; imageId: string };
+export type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
 export type B2BHomepage = {
   categories: string[];
   banners?: HomeBanner[];
