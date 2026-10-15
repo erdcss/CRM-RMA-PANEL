@@ -15,28 +15,45 @@ function makeAndroidAdaptiveIcon(logoPath, assetsDir, fullBleed = false) {
     throw new Error("Android logo boyutları desteklenmiyor (maksimum 4096x4096).");
   }
   const size = 1024;
+  // Trim transparent borders in an admin-supplied Android-specific icon.
+  // Internal whitespace that is already baked into an opaque PNG must be
+  // removed when preparing the 1024x1024 admin artwork.
+  let cropLeft = 0, cropTop = 0, cropRight = source.width - 1, cropBottom = source.height - 1;
+  if (fullBleed) {
+    let minX = source.width, minY = source.height, maxX = -1, maxY = -1;
+    for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
+      if (source.data[(y * source.width + x) * 4 + 3] > 20) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+    if (maxX < 0) throw new Error("Android uygulama ikonu tamamen şeffaf olamaz.");
+    cropLeft = minX; cropTop = minY; cropRight = maxX; cropBottom = maxY;
+  }
+  const cropWidth = cropRight - cropLeft + 1;
+  const cropHeight = cropBottom - cropTop + 1;
   // The safe area is a circle whose diameter is ~62% of the icon canvas.
   // Limit the entire source rectangle's diagonal, so even its corners remain visible.
   const safeDiagonal = size * 0.60;
   // Android-specific admin artwork is sized to fill the launcher mask;
   // the shared iOS icon retains conservative safe-zone sizing.
   const scale = fullBleed
-    ? (size * 0.96) / Math.max(source.width, source.height)
-    : safeDiagonal / Math.hypot(source.width, source.height);
-  const width = Math.max(1, Math.round(source.width * scale));
-  const height = Math.max(1, Math.round(source.height * scale));
+    ? (size * 1.00) / Math.max(cropWidth, cropHeight)
+    : safeDiagonal / Math.hypot(cropWidth, cropHeight);
+  const width = Math.max(1, Math.round(cropWidth * scale));
+  const height = Math.max(1, Math.round(cropHeight * scale));
   const left = Math.floor((size - width) / 2);
   const top = Math.floor((size - height) / 2);
   const output = new PNG({ width: size, height: size, colorType: 6 });
 
   // Bilinear sampling prevents an aliased/blurry logo on dense phone displays.
   for (let y = 0; y < height; y++) {
-    const fy = (y + 0.5) * source.height / height - 0.5;
+    const fy = cropTop + (y + 0.5) * cropHeight / height - 0.5;
     const sy0 = Math.max(0, Math.min(source.height - 1, Math.floor(fy)));
     const sy1 = Math.min(source.height - 1, sy0 + 1);
     const wy = Math.max(0, Math.min(1, fy - sy0));
     for (let x = 0; x < width; x++) {
-      const fx = (x + 0.5) * source.width / width - 0.5;
+      const fx = cropLeft + (x + 0.5) * cropWidth / width - 0.5;
       const sx0 = Math.max(0, Math.min(source.width - 1, Math.floor(fx)));
       const sx1 = Math.min(source.width - 1, sx0 + 1);
       const wx = Math.max(0, Math.min(1, fx - sx0));
