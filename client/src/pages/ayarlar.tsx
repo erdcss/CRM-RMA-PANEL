@@ -241,6 +241,8 @@ export default function Ayarlar() {
                     value={values.b2b_mobile_android_icon}
                     onChange={(value) => setAsset("b2b_mobile_android_icon", value)}
                     square
+                    cover
+                    requiredSize={[1024, 1024]}
                     pngOnly
                   />
                   <AssetUploader
@@ -457,6 +459,7 @@ function AssetUploader({
   cover = false,
   portrait = false,
   pngOnly = false,
+  requiredSize,
 }: {
   title: string;
   description: string;
@@ -466,13 +469,14 @@ function AssetUploader({
   cover?: boolean;
   portrait?: boolean;
   pngOnly?: boolean;
+  requiredSize?: [number, number];
 }) {
   const { toast } = useToast();
   async function handleFile(file?: File) {
     if (!file) return;
     if (!file.type.startsWith("image/")) return;
     if (pngOnly && file.type !== "image/png") {
-      toast({ title: "PNG gerekli", description: "iOS simgesi için PNG formatında görsel seçin.", variant: "destructive" });
+      toast({ title: "PNG gerekli", description: "Bu uygulama simgesi için PNG formatında görsel seçin.", variant: "destructive" });
       return;
     }
     if (file.size > 7_000_000) {
@@ -480,6 +484,21 @@ function AssetUploader({
       return;
     }
 
+    if (requiredSize) {
+      const dimension = await new Promise<{width:number;height:number}|null>(resolve=>{
+        const image=new Image();
+        const blobUrl=URL.createObjectURL(file);
+        image.onload=()=>{resolve({width:image.naturalWidth,height:image.naturalHeight});URL.revokeObjectURL(blobUrl);};
+        image.onerror=()=>{resolve(null);URL.revokeObjectURL(blobUrl);};
+        image.src=blobUrl;
+      });
+      if (!dimension || dimension.width!==requiredSize[0] || dimension.height!==requiredSize[1]) {
+        toast({title:"Görsel ölçüsü uygun değil",
+          description:`Tam ${requiredSize[0]}×${requiredSize[1]} piksel PNG yükleyin.`,
+          variant:"destructive"});
+        return;
+      }
+    }
     const reader = new FileReader();
     reader.onload = () => onChange(String(reader.result || ""));
     reader.readAsDataURL(file);
