@@ -152,6 +152,7 @@ export type B2BHomepage = {
   categories: string[];
   banners?: HomeBanner[];
   categoryCards?: HomeCategoryCard[];
+  ledgerTileImageId?: string;
   sliderAutoPlay?: boolean;
   sliderIntervalMs?: number;
 };
