@@ -1,6 +1,6 @@
 
 import { randomBytes } from "crypto";
-import type { Express, RequestHandler } from "express";
+import type { Express, Request, RequestHandler } from "express";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
 
@@ -19,7 +19,7 @@ async function ready(){
   )`).catch(e=>{init=undefined;throw e;});
   await init;return pool;
 }
-export function registerMarketplaceMediaRoutes(app:Express,requireB2B:RequestHandler){
+export function registerMarketplaceMediaRoutes(app:Express,requireB2B:RequestHandler,sessionUserId:(req:Request)=>number|undefined){
   app.post("/api/marketplace/seller/media",requireB2B,async(req,res)=>{
     try{
       const uid=Number((res.locals as any).b2bUser?.id);
@@ -50,11 +50,31 @@ export function registerMarketplaceMediaRoutes(app:Express,requireB2B:RequestHan
     if(!/^[0-9a-f]{32}$/.test(req.params.id))return res.status(404).end();
     try{
       const db=await ready();
-      const result=await db.query("SELECT mime,data FROM mp_media WHERE id=$1",[req.params.id]);
+      const url="/api/marketplace/media/"+req.params.id;
+      const result=await db.query(`SELECT m.mime,m.data,s.owner_user_id,
+        (
+          s.status='approved' AND (
+           EXISTS(SELECT 1 FROM mp_store_versions v WHERE v.supplier_id=s.id AND v.is_live=TRUE
+             AND (v.content->>'logoUrl'=$2 OR v.content->>'bannerUrl'=$2))
+           OR EXISTS(SELECT 1 FROM mp_products p JOIN mp_product_versions v ON v.product_id=p.id
+             WHERE p.supplier_id=s.id AND p.is_enabled AND v.is_live=TRUE AND v.content->>'imageUrl'=$2)
+           OR EXISTS(SELECT 1 FROM mp_reels r WHERE r.supplier_id=s.id AND r.is_live=TRUE AND r.video_url=$2)
+          )
+        ) AS public_media
+        FROM mp_media m JOIN mp_suppliers s ON s.id=m.supplier_id WHERE m.id=$1`,[req.params.id,url]);
       if(!result.rows[0])return res.status(404).end();
+      const asset=result.rows[0];
+      if(!asset.public_media){
+        const current=sessionUserId(req);
+        if(!current)return res.status(404).end();
+        const viewer=await db.query("SELECT role,is_active FROM users WHERE id=$1",[current]);
+        const canView=Number(asset.owner_user_id)===current ||
+          (viewer.rows[0]?.role==="super_admin" && Number(viewer.rows[0]?.is_active)===1);
+        if(!canView)return res.status(404).end();
+      }
       const bytes:Buffer=result.rows[0].data;const length=bytes.length;
       res.setHeader("Content-Type",result.rows[0].mime);
-      res.setHeader("Cache-Control","public,max-age=31536000,immutable");
+      res.setHeader("Cache-Control",asset.public_media?"public,max-age=31536000,immutable":"private,no-store");
       res.setHeader("X-Content-Type-Options","nosniff");
       res.setHeader("Accept-Ranges","bytes");
       if(req.headers.range){
