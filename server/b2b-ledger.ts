@@ -257,7 +257,7 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
       await ensureB2BLedgerSchema();
       const result = await pool!.query(
         `UPDATE b2b_ledger_entries SET voided_at=NOW(),void_reason=$3
-         WHERE id=$1 AND user_id=$2 AND voided_at IS NULL RETURNING id::text,voided_at,void_reason`,
+         WHERE id=$1 AND user_id=$2 AND operation_id IS NULL AND voided_at IS NULL RETURNING id::text,voided_at,void_reason`,
         [id,owner(res),reason],
       );
       if (!result.rowCount) return res.status(404).json({ error: "Aktif işlem bulunamadı." });
