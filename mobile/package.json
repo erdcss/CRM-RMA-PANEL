@@ -5,7 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "node scripts/create-scan-beep.cjs && expo start",
-    "build": "node scripts/create-scan-beep.cjs && expo export --platform web",
+    "build": "node scripts/create-scan-beep.cjs && npm run typecheck && expo export --platform web",
     "start:web": "node scripts/serve-web.js",
     "ios": "node scripts/create-scan-beep.cjs && expo start --ios",
     "android": "node scripts/create-scan-beep.cjs && expo start --android",
