@@ -4,7 +4,18 @@ import { pool } from "./db";
 const SETTINGS_KEY = "b2b_payment_settings";
 const LIVE_BASE_URL = "https://api.iyzipay.com";
 
+type PaymentLogo = { id: string; label: string; imageId: string };
+const validAssetId = /^[a-f0-9]{32}$/;
+function safePaymentLogos(input: unknown): PaymentLogo[] {
+  if (!Array.isArray(input)) return [];
+  return input.slice(0, 16).filter((item): item is PaymentLogo => Boolean(item) &&
+    typeof item === "object" &&
+    validAssetId.test(String(item.imageId || "")) &&
+    validAssetId.test(String(item.id || "")))
+    .map(item => ({ id: item.id, label: String(item.label || "").trim().slice(0, 60), imageId: item.imageId }));
+}
 type StoredPaymentSettings = {
+  paymentLogos?: PaymentLogo[];
   iyzico?: {
     enabled?: boolean;
     apiKey?: string;
@@ -20,6 +31,7 @@ type StoredPaymentSettings = {
 };
 
 export type RuntimePaymentConfig = {
+  paymentLogos: PaymentLogo[];
   iyzico: {
     enabled: boolean;
     apiKey: string;
@@ -131,6 +143,7 @@ export async function getPaymentConfig(): Promise<RuntimePaymentConfig> {
       : Boolean(apiKey && secretKey);
 
   return {
+    paymentLogos: safePaymentLogos(stored.paymentLogos),
     iyzico: {
       enabled: iyzicoEnabled,
       apiKey,
@@ -157,6 +170,7 @@ export async function getPublicPaymentSettings() {
         config.iyzico.secretKey,
     ),
     bankTransfer: config.bankTransfer,
+    paymentLogos: config.paymentLogos,
   };
 }
 
@@ -174,6 +188,7 @@ export async function getAdminPaymentSettings() {
       baseUrl: config.iyzico.baseUrl,
     },
     bankTransfer: config.bankTransfer,
+    paymentLogos: config.paymentLogos,
   };
 }
 
@@ -256,6 +271,7 @@ export async function savePaymentSettings(input: any) {
   }
 
   const next: StoredPaymentSettings = {
+    paymentLogos: input?.paymentLogos !== undefined ? safePaymentLogos(input.paymentLogos) : safePaymentLogos(current.paymentLogos),
     iyzico: {
       enabled: iyzicoEnabled,
       apiKey: nextApiKey,
