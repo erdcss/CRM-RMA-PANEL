@@ -24,6 +24,7 @@ import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
+import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 
 let dbReady = false;
 
@@ -2329,6 +2330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BShortageRoutes(app, requireB2B, sessionUserId, requireAdmin);
   registerB2BLedgerRoutes(app, requireB2B);
   registerB2BLedgerImportRoutes(app, requireB2B);
+  registerB2BLedgerAdvancedRoutes(app, requireB2B);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
