@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Home, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Home, Plus, Save, Trash2 } from "lucide-react";
+import { Link } from "wouter";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
-type HomeCategoryCard = { category: string; label: string; imageId: string };
+type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
 
 type HomepageConfig = {
   categories: string[];
@@ -210,75 +211,23 @@ export default function AdminHomepage() {
                 </div>
               ) : (
                 categories.map((category, index) => (
-                  <div
-                    key={`${category}-${index}`}
-                    className="flex items-center gap-2 rounded-xl border bg-muted/10 px-3 py-2"
-                  >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold">
-                      {index + 1}
-                    </div>
-
-                    <Input
-                      value={category}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setCategories((current) =>
-                          current.map((item, itemIndex) => itemIndex === index ? value : item),
-                        );
-                        setCategoryCards((current) => current.map(card => card.category === category ? { ...card, category: value } : card));
-                      }}
-                      className="h-9"
-                    />
-
-                    <div className="flex min-w-[190px] flex-col gap-1.5">
-                      <Input
-                        className="h-8 text-xs"
-                        placeholder="Mobil görünen başlık"
-                        value={categoryCards.find((entry) => entry.category === category)?.label ?? category}
-                        onChange={(event) => updateCategoryCard(category, { label: event.target.value })}
-                        maxLength={80}
-                        aria-label={category + " mobil başlığı"}
-                      />
-                      <label className="cursor-pointer text-xs font-semibold text-amber-700">
-                        Görsel/GIF Yükle
-                        <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading}
-                          onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadMedia(file, (imageId) => updateCategoryCard(category, { imageId })); event.target.value = ""; }} />
-                      </label>
-                    </div>
-                    {categoryCards.find((entry) => entry.category === category)?.imageId ? (
-                      <img alt="" className="h-11 w-11 rounded-md object-cover" src={`/api/public/homepage/media/${categoryCards.find((entry) => entry.category === category)?.imageId}`} />
-                    ) : null}
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      disabled={index === 0}
-                      onClick={() => move(index, -1)}
-                      aria-label="Yukarı taşı"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      disabled={index === categories.length - 1}
-                      onClick={() => move(index, 1)}
-                      aria-label="Aşağı taşı"
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() =>
-                        setCategories((current) => current.filter((_, itemIndex) => itemIndex !== index))
-                      }
-                      aria-label="Kategoriyi sil"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                  <div key={category} className="flex items-center gap-3 rounded-xl border bg-muted/10 px-3 py-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-bold">{index + 1}</span>
+                    {categoryCards.find(card => card.category === category)?.imageId ? (
+                      <img alt="" className="h-12 w-12 rounded-lg object-cover"
+                        src={`/api/public/homepage/media/${categoryCards.find(card => card.category === category)?.imageId}`} />
+                    ) : <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted"><Home className="h-5 w-5" /></span>}
+                    <Link href={`/ana-sayfa/kategori/${encodeURIComponent(category)}`}
+                      className="min-w-0 flex-1 cursor-pointer rounded-lg p-2 hover:bg-muted">
+                      <div className="font-bold">{category}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {(categoryCards.find(card => card.category === category)?.tags || []).length} etiket · Düzenlemek için tıklayın
+                      </div>
+                    </Link>
+                    <Button type="button" size="icon" variant="ghost" disabled={index === 0} onClick={() => move(index, -1)} aria-label="Yukarı taşı"><ArrowUp className="h-4 w-4" /></Button>
+                    <Button type="button" size="icon" variant="ghost" disabled={index === categories.length - 1} onClick={() => move(index, 1)} aria-label="Aşağı taşı"><ArrowDown className="h-4 w-4" /></Button>
+                    <Button type="button" size="icon" variant="ghost" onClick={() => setCategories(current => current.filter((_, i) => i !== index))} aria-label="Kategoriyi sil"><Trash2 className="h-4 w-4" /></Button>
+                    <Link href={`/ana-sayfa/kategori/${encodeURIComponent(category)}`} aria-label="Kategoriyi düzenle"><ChevronRight className="h-5 w-5 text-muted-foreground" /></Link>
                   </div>
                 ))
               )}
