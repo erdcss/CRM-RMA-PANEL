@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -57,7 +57,7 @@ export default function LedgerDetailScreen() {
   const [editPhone,setEditPhone]=useState('');
   const [editAddress,setEditAddress]=useState('');
   const [editDescription,setEditDescription]=useState('');
-  const [contactDirty,setContactDirty]=useState(false);
+  const contactDirty=useRef(false);
 
   const load=useCallback(async (refresh=false) => {
     if(!id){setError('Defter numarası bulunamadı.');setLoading(false);return;}
@@ -65,7 +65,7 @@ export default function LedgerDetailScreen() {
     try {
       const response=await rmaApi.getB2BLedgerContact(id);
       setData(response);setError('');
-      if(!contactDirty) {
+      if(!contactDirty.current) {
         setEditName(response.name);
         setEditKind(response.kind);
         setEditPhone(response.phone||'');
@@ -74,7 +74,7 @@ export default function LedgerDetailScreen() {
       }
     } catch(err) {setError(err instanceof Error?err.message:'Defter yüklenemedi');}
     finally {setLoading(false);setRefreshing(false);}
-  },[id,contactDirty]);
+  },[id]);
   useFocusEffect(useCallback(()=>{void load();},[load]));
 
   async function addEntry() {
@@ -137,7 +137,7 @@ export default function LedgerDetailScreen() {
     setBusy(true);
     try {
       await rmaApi.editB2BLedgerContact(id,{name:editName.trim(),kind:editKind,phone:editPhone.trim(),address:editAddress.trim(),description:editDescription.trim()});
-      setContactDirty(false);await load(true);
+      contactDirty.current=false;await load(true);
       appAlert('Defter güncellendi','Firma bilgileri kaydedildi.',undefined,'success');
     }catch(err){appAlert('Kaydedilemedi',err instanceof Error?err.message:'Tekrar deneyin',undefined,'error');}
     finally{setBusy(false);}
@@ -239,13 +239,13 @@ export default function LedgerDetailScreen() {
 
         {section==='contact'?<View style={styles.card}>
           <Text style={styles.heading}>Firma Bilgileri</Text>
-          {drawInput(editName,v=>{setEditName(v);setContactDirty(true);},'Firma adı',{max:140})}
-          <View style={styles.typeGrid}>{(['supplier','customer','other'] as B2BLedgerKind[]).map(kind=><Pressable key={kind} onPress={()=>{setEditKind(kind);setContactDirty(true);}} style={[styles.typeButton,kind===editKind&&styles.selected]}>
+          {drawInput(editName,v=>{setEditName(v);contactDirty.current=true;},'Firma adı',{max:140})}
+          <View style={styles.typeGrid}>{(['supplier','customer','other'] as B2BLedgerKind[]).map(kind=><Pressable key={kind} onPress={()=>{setEditKind(kind);contactDirty.current=true;}} style={[styles.typeButton,kind===editKind&&styles.selected]}>
             <Text style={[styles.typeText,kind===editKind&&styles.selectedText]}>{KIND[kind]}</Text>
           </Pressable>)}</View>
-          {drawInput(editPhone,v=>{setEditPhone(v);setContactDirty(true);},'Telefon',{keyboard:'phone-pad',max:45})}
-          {drawInput(editAddress,v=>{setEditAddress(v);setContactDirty(true);},'Adres',{multi:true,max:1000})}
-          {drawInput(editDescription,v=>{setEditDescription(v);setContactDirty(true);},'Firma açıklaması',{multi:true,max:1000})}
+          {drawInput(editPhone,v=>{setEditPhone(v);contactDirty.current=true;},'Telefon',{keyboard:'phone-pad',max:45})}
+          {drawInput(editAddress,v=>{setEditAddress(v);contactDirty.current=true;},'Adres',{multi:true,max:1000})}
+          {drawInput(editDescription,v=>{setEditDescription(v);contactDirty.current=true;},'Firma açıklaması',{multi:true,max:1000})}
           <Pressable style={styles.primary} disabled={busy} onPress={()=>void updateContact()}>{busy?<ActivityIndicator color="#111827"/>:<Text style={styles.primaryText}>Firma Bilgilerini Kaydet</Text>}</Pressable>
         </View>:null}
         <Text style={styles.footer}>Borç ve alacak yalnızca Defterim kayıtlarına göre hesaplanır. Bu modül resmî e-Defter değildir.</Text>
