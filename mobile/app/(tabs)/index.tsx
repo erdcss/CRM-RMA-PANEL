@@ -140,7 +140,10 @@ export default function HomeScreen() {
     // Refresh both the catalog and category metadata when returning from a product.
     void load(true);
     void rmaApi.listB2BReels()
-      .then(items => setReels(Array.isArray(items) ? items.slice(0, 8) : []))
+      .then(items => {
+        setMissingReelCovers([]);
+        setReels(Array.isArray(items) ? items.slice(0, 8) : []);
+      })
       .catch(error => console.warn('Reels list fetch failed:', error));
     let mounted=true;
     if (!session?.user?.id) {setUnreadNotifications(0);return () => { mounted=false; }; }
