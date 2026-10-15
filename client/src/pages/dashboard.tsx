@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import ShortageAnalyticsSection from "@/components/dashboard/shortage-analytics-section";
 
 type DashboardOverview = {
   sessionUsers: number;
@@ -315,6 +316,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </section>
+        <ShortageAnalyticsSection />
       </div>
     </div>
   );
