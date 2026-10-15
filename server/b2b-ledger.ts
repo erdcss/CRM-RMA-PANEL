@@ -177,6 +177,25 @@ export function registerB2BLedgerRoutes(app: Express, requireB2B: RequestHandler
     } catch (err) { return issue(res, err); }
   });
 
+  // Financial history may not be hard-deleted. Empty ledgers can be removed;
+  // ledgers with entries must be archived to preserve the audit trail.
+  app.delete("/api/b2b/ledger/contacts/:id", requireB2B, async (req, res) => {
+    const account = contactId(req.params.id);
+    if (!account) return res.status(400).json({ error: "Cari hesabı geçersiz." });
+    try {
+      await ensureB2BLedgerSchema();
+      const result = await pool!.query(
+        `DELETE FROM b2b_ledger_contacts c WHERE c.id=$1 AND c.user_id=$2
+          AND NOT EXISTS(SELECT 1 FROM b2b_ledger_entries e WHERE e.contact_id=c.id)
+          RETURNING c.id::text`, [account, owner(res)],
+      );
+      if (!result.rowCount) return res.status(409).json({
+        error: "Hesapta geçmiş hareket bulunduğu için kalıcı silinemez. Arşive kaldırabilirsiniz.",
+      });
+      return res.json({ deleted: true });
+    } catch(err) { return issue(res,err); }
+  });
+
   app.post("/api/b2b/ledger/contacts/:id/archive", requireB2B, async (req, res) => {
     const id = contactId(req.params.id);
     if (!id) return res.status(400).json({ error: "Defter kimliği geçersiz." });
