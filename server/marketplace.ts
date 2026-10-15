@@ -124,6 +124,7 @@ async function ready() {
   await schemaPromise;
   return pool;
 }
+export async function ensureMarketplaceSchema() { await ready(); }
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function handle(fn: (req: Request, res: Response) => Promise<unknown>): RequestHandler {
   return (req,res,next) => { Promise.resolve(fn(req,res)).catch((error) => {
