@@ -2,6 +2,7 @@ export type MainTab = "dashboard" | "orders" | "products" | "customers" | "more"
 
 export type Screen =
   | { name: "login" }
+  | { name: "marketplace" }
   | { name: "dashboard" }
   | { name: "orders" }
   | { name: "orderDetail"; id: string }
