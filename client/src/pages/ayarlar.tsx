@@ -229,9 +229,17 @@ export default function Ayarlar() {
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <AssetUploader
                     title="Uygulama Logosu"
-                    description="iOS/Android simgesi için 1024×1024 PNG yükleyin. TestFlight build öncesi zorunludur."
+                    description="iOS uygulama simgesi için 1024×1024 PNG yükleyin."
                     value={values.b2b_mobile_logo}
                     onChange={(value) => setAsset("b2b_mobile_logo", value)}
+                    square
+                    pngOnly
+                  />
+                  <AssetUploader
+                    title="Android Uygulama İkonu"
+                    description="Android için ayrı 1024×1024 PNG yükleyin. Kenarlara taşan tam kare görsel Android adaptive icon güvenli alanına göre işlenir."
+                    value={values.b2b_mobile_android_icon}
+                    onChange={(value) => setAsset("b2b_mobile_android_icon", value)}
                     square
                     pngOnly
                   />
