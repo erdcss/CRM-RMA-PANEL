@@ -11,6 +11,8 @@ import { ensureB2BLedgerImportSchema } from "./b2b-ledger-import";
 const INIT = [
   "CREATE TABLE IF NOT EXISTS b2b_ledger_operations (id BIGSERIAL PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,contact_id BIGINT NOT NULL REFERENCES b2b_ledger_contacts(id) ON DELETE RESTRICT,target_contact_id BIGINT REFERENCES b2b_ledger_contacts(id) ON DELETE RESTRICT,wallet_id BIGINT REFERENCES b2b_ledger_wallets(id) ON DELETE RESTRICT,type VARCHAR(16) NOT NULL CHECK(type IN ('sale','collection','purchase','payment','transfer')),amount_cents BIGINT NOT NULL CHECK(amount_cents>0 AND amount_cents<=999999999),effective_on DATE NOT NULL,category VARCHAR(120) NOT NULL DEFAULT '',description VARCHAR(500) NOT NULL DEFAULT '',request_key UUID NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(user_id,request_key))",
   "CREATE INDEX IF NOT EXISTS b2b_ledger_operations_owner_date_idx ON b2b_ledger_operations(user_id,effective_on DESC,id DESC)",
+  "ALTER TABLE b2b_ledger_operations ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ",
+  "ALTER TABLE b2b_ledger_operations ADD COLUMN IF NOT EXISTS void_reason VARCHAR(300)",
   "ALTER TABLE b2b_ledger_entries ADD COLUMN IF NOT EXISTS operation_id BIGINT REFERENCES b2b_ledger_operations(id)",
   "ALTER TABLE b2b_ledger_wallet_movements ADD COLUMN IF NOT EXISTS operation_id BIGINT REFERENCES b2b_ledger_operations(id)",
   "CREATE TABLE IF NOT EXISTS b2b_ledger_categories (id BIGSERIAL PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,name VARCHAR(120) NOT NULL,UNIQUE(user_id,name))",
@@ -56,7 +58,7 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
           "COALESCE(SUM(CASE WHEN type='collection' AND effective_on >= (NOW() AT TIME ZONE 'Europe/Istanbul')::date-INTERVAL '29 days' THEN amount_cents ELSE 0 END),0)::text month_in,"+
           "COALESCE(SUM(CASE WHEN type='payment' AND effective_on >= (NOW() AT TIME ZONE 'Europe/Istanbul')::date-INTERVAL '29 days' THEN amount_cents ELSE 0 END),0)::text month_out,"+
           "COALESCE(SUM(CASE WHEN type='payment' THEN amount_cents ELSE 0 END),0)::text all_out "+
-          "FROM b2b_ledger_operations WHERE user_id=$1",[person]),
+          "FROM b2b_ledger_operations WHERE user_id=$1 AND voided_at IS NULL",[person]),
         pool!.query(
           "SELECT COALESCE(SUM(CASE WHEN type='collection' AND effective_on=(NOW() AT TIME ZONE 'Europe/Istanbul')::date THEN amount_cents ELSE 0 END),0)::text today_in,"+
           "COALESCE(SUM(CASE WHEN type='payment' AND effective_on=(NOW() AT TIME ZONE 'Europe/Istanbul')::date THEN amount_cents ELSE 0 END),0)::text today_out,"+
@@ -186,10 +188,31 @@ export function registerB2BLedgerAdvancedRoutes(app:Express,requireB2B:RequestHa
     }finally{client?.release();}
   });
 
+  app.post("/api/b2b/ledger/operations/:id/void",requireB2B,async(req,res)=>{
+    const operation=id(req.params.id),reason=txt(req.body?.reason,300);
+    if(!operation||reason.length<3)return res.status(400).json({error:"Geçerli işlem ve en az 3 harflik iptal nedeni girin."});
+    if(!pool)return res.status(503).json({error:"Veritabanı hazır değil."});
+    let client;
+    try{
+      await ready();client=await pool.connect();await client.query("BEGIN");
+      await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE",[owner(res)]);
+      const op=await client.query(
+        "UPDATE b2b_ledger_operations SET voided_at=NOW(),void_reason=$3 WHERE id=$1 AND user_id=$2 AND voided_at IS NULL RETURNING id",
+        [operation,owner(res),reason]);
+      if(!op.rowCount){await client.query("ROLLBACK");return res.status(404).json({error:"Aktif işlem bulunamadı."});}
+      await client.query("UPDATE b2b_ledger_entries SET voided_at=NOW(),void_reason=$3 WHERE operation_id=$1 AND user_id=$2 AND voided_at IS NULL",
+        [operation,owner(res),reason]);
+      await client.query("UPDATE b2b_ledger_wallet_movements SET voided_at=NOW() WHERE operation_id=$1 AND user_id=$2 AND voided_at IS NULL",
+        [operation,owner(res)]);
+      await client.query("COMMIT");return res.json({voided:true});
+    }catch(error){if(client)await client.query("ROLLBACK").catch(()=>undefined);return fail(res,error);}
+    finally{client?.release();}
+  });
+
   app.get("/api/b2b/ledger/contacts/:id/operations",requireB2B,async(req,res)=>{
     const contact=id(req.params.id);if(!contact)return res.status(400).json({error:"Geçersiz cari."});
     try{await ready();const r=await pool!.query(
-      "SELECT op.id::text,op.type,op.amount_cents::text,op.effective_on,op.description,op.category,op.wallet_id::text,op.target_contact_id::text,op.created_at, "+
+      "SELECT op.id::text,op.type,op.amount_cents::text,op.effective_on,op.description,op.category,op.wallet_id::text,op.target_contact_id::text,op.created_at,op.voided_at,op.void_reason, "+
       "w.name AS wallet_name, c2.name AS target_name "+
       "FROM b2b_ledger_operations op LEFT JOIN b2b_ledger_wallets w ON w.id=op.wallet_id AND w.user_id=op.user_id "+
       "LEFT JOIN b2b_ledger_contacts c2 ON c2.id=op.target_contact_id AND c2.user_id=op.user_id "+
