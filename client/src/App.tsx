@@ -27,6 +27,7 @@ import AdminProductEdit from "@/pages/admin-product-edit";
 import AdminReturns from "@/pages/admin-returns";
 import AdminStock from "@/pages/admin-stock";
 import AdminOrders from "@/pages/admin-orders";
+import AdminOrderDetail from "@/pages/admin-order-detail";
 import AdminApplications from "@/pages/admin-applications";
 import AdminHomepage from "@/pages/admin-homepage";
 import AdminCategoryEdit from "@/pages/admin-category-edit";
@@ -81,6 +82,7 @@ function Router() {
       <Route path="/urun-ekle" component={AdminProductAdd} />
       <Route path="/iade-islemleri" component={AdminReturns} />
       <Route path="/stok-durumu" component={AdminStock} />
+      <Route path="/siparisler/:id" component={AdminOrderDetail} />
       <Route path="/siparisler" component={AdminOrders} />
       <Route path="/basvurular" component={AdminApplications} />
       <Route path="/ana-sayfa/kategori/:category" component={AdminCategoryEdit} />
