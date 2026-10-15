@@ -10,6 +10,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.gl
   index: { label: 'Ana Sayfa', icon: 'home-outline', activeIcon: 'home' },
   menu: { label: 'Kategoriler', icon: 'grid-outline', activeIcon: 'grid' },
   discover: { label: 'Reels', icon: 'play-circle-outline', activeIcon: 'play-circle' },
+  shortages: { label: 'Eksik Listem', icon: 'clipboard-outline', activeIcon: 'clipboard' },
   orders: { label: 'Sepetim', icon: 'cart-outline', activeIcon: 'cart' },
   profile: { label: 'Hesabım', icon: 'person-outline', activeIcon: 'person' },
 };
