@@ -10,6 +10,7 @@ import { rmaApi, type B2BAccount } from '@/lib/api';
 const rows: Array<{ key: string; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'company', label: 'Profil Bilgileri', subtitle: 'Firma ve iletişim bilgileri', icon: 'person-outline' },
   { key: 'orders', label: 'Siparişlerim', subtitle: 'Siparişlerinizi görüntüleyin', icon: 'bag-handle-outline' },
+  { key: 'ledger', label: 'Defterim', subtitle: 'Firma hesapları, borç-alacak ve notlar', icon: 'book-outline' },
   { key: 'addresses', label: 'Adreslerim', subtitle: 'Teslimat adreslerinizi yönetin', icon: 'location-outline' },
   { key: 'payments', label: 'Ödeme Bilgilerim', subtitle: 'Kayıtlı ödeme yöntemleri', icon: 'card-outline' },
   { key: 'returns', label: 'İade İşlemleri', subtitle: 'Taleplerinizi takip edin', icon: 'return-down-back-outline' },
@@ -33,6 +34,7 @@ export default function ProfileScreen() {
   const displayName = fullName || account?.companyName || user?.email?.split('@')[0] || 'Çalışkan B2B';
   const openRow = (key: string) => {
     if (key === 'orders') router.push('/my-orders');
+    else if (key === 'ledger') router.push('/ledger' as never);
     else if (key === 'settings') router.push('/settings');
     else if (key === 'notifications') router.push('/notifications' as never);
     else router.push({ pathname: '/account/[section]', params: { section: key } } as never);
