@@ -40,11 +40,15 @@ export function MarketplaceShop({slug}:{slug:string}){
   const {data:shop,isLoading}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:0});
   const {data:products=[]}=useQuery<ShopProduct[]>({queryKey:["/api/marketplace/stores/"+slug+"/products"],staleTime:0});
   const {data:reels=[]}=useQuery<Reel[]>({queryKey:["/api/marketplace/stores/"+slug+"/reels"],staleTime:0});
+  const {data:follows=[]}=useQuery<Array<{slug:string}>>({queryKey:["/api/marketplace/follows"],retry:false,staleTime:0});
+
+  const isFollowing=following||follows.some(f=>f.slug===slug);
   async function follow() {
     setBusy(true);setMessage("");
     try{
-      await apiRequest(following?"DELETE":"POST","/api/marketplace/stores/"+slug+"/follow");
-      setFollowing(!following);
+      await apiRequest(isFollowing?"DELETE":"POST","/api/marketplace/stores/"+slug+"/follow");
+      setFollowing(false);
+      await queryClient.invalidateQueries({queryKey:["/api/marketplace/follows"]});
       await queryClient.invalidateQueries({queryKey:["/api/marketplace/stores/"+slug]});
     }catch(e){setMessage(e instanceof Error?e.message:"Takip edilemedi. Giriş yapmanız gerekebilir.");}
     finally{setBusy(false);}
@@ -76,7 +80,7 @@ export function MarketplaceShop({slug}:{slug:string}){
           <span className="mr-auto text-xs text-slate-500">{shop.followers} takipçi</span>
           <Link href="/pazaryeri-sepetim" className="rounded-xl border px-4 py-2 text-sm font-semibold">Sepetim</Link>
           <button disabled={busy} onClick={()=>void follow()} className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold">
-            <Heart className="h-4 w-4"/>{following?"Takip ediliyor":"Mağazayı Takip Et"}
+            <Heart className="h-4 w-4"/>{isFollowing?"Takip ediliyor":"Mağazayı Takip Et"}
           </button>
           <a href="#iletisim" className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"><MessageCircle className="h-4 w-4"/>Mesaj / Teklif İste</a>
         </div>
