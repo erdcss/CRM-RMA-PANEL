@@ -160,6 +160,56 @@ export type B2BShortageItem = { id: string; name: string; completed: boolean };
 export type B2BShortageSupplier = { id: string; name: string; items: B2BShortageItem[] };
 export type B2BShortageList = { suppliers: B2BShortageSupplier[]; revision: number };
 
+export type B2BLedgerKind = 'supplier' | 'customer' | 'other';
+export type B2BLedgerMovementType = 'debt' | 'payment' | 'receivable' | 'collection';
+export type B2BLedgerContact = {
+  id: string;
+  name: string;
+  kind: B2BLedgerKind;
+  phone?: string | null;
+  address?: string | null;
+  description?: string | null;
+  is_archived?: boolean;
+  debt_balance_cents: string;
+  receivable_balance_cents: string;
+  movement_count: number;
+  created_at?: string;
+  updated_at?: string;
+};
+export type B2BLedgerEntry = {
+  id: string;
+  type: B2BLedgerMovementType;
+  amount_cents: string;
+  description: string;
+  effective_on: string;
+  created_at: string;
+  voided_at?: string | null;
+  void_reason?: string | null;
+};
+export type B2BLedgerNote = {
+  id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+export type B2BLedgerDetail = B2BLedgerContact & {
+  entries: B2BLedgerEntry[];
+  notes: B2BLedgerNote[];
+};
+export type B2BLedgerOverview = {
+  contact_count: number;
+  debt_balance_cents: string;
+  receivable_balance_cents: string;
+};
+export type B2BLedgerContactInput = {
+  name: string;
+  kind: B2BLedgerKind;
+  phone?: string;
+  address?: string;
+  description?: string;
+};
+
+
 export type B2BReel = {
   id: string | number;
   title: string;
@@ -573,6 +623,25 @@ export const rmaApi = {
       return request<B2BReel[]>('/api/public/reels');
     }
   },
+  listB2BLedgerContacts: () => request<B2BLedgerContact[]>('/api/b2b/ledger/contacts'),
+  getB2BLedgerOverview: () => request<B2BLedgerOverview>('/api/b2b/ledger/overview'),
+  getB2BLedgerContact: (id: string) => request<B2BLedgerDetail>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}`),
+  createB2BLedgerContact: (payload: B2BLedgerContactInput) =>
+    request<B2BLedgerContact>('/api/b2b/ledger/contacts', { method: 'POST', body: JSON.stringify(payload) }),
+  editB2BLedgerContact: (id: string, payload: B2BLedgerContactInput) =>
+    request<B2BLedgerContact>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  archiveB2BLedgerContact: (id: string) =>
+    request<{ archived: boolean }>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}/archive`, { method: 'POST', body: '{}' }),
+  addB2BLedgerEntry: (id: string, payload: { type: B2BLedgerMovementType; amount: string; description: string; effectiveOn: string; requestKey: string }) =>
+    request<B2BLedgerEntry>(`/api/b2b/ledger/contacts/${encodeURIComponent(id)}/entries`, { method: 'POST', body: JSON.stringify(payload) }),
+  voidB2BLedgerEntry: (id: string, reason: string) =>
+    request<{ id: string; voided_at: string }>(`/api/b2b/ledger/entries/${encodeURIComponent(id)}/void`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  addB2BLedgerNote: (contactId: string, content: string) =>
+    request<B2BLedgerNote>('/api/b2b/ledger/notes', { method: 'POST', body: JSON.stringify({ contactId, content }) }),
+  editB2BLedgerNote: (id: string, content: string) =>
+    request<B2BLedgerNote>(`/api/b2b/ledger/notes/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify({ content }) }),
+  deleteB2BLedgerNote: (id: string) =>
+    request<{ deleted: boolean }>(`/api/b2b/ledger/notes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   getB2BShortages: () => request<B2BShortageList>('/api/b2b/shortages'),
   saveB2BShortages: (payload: B2BShortageList) => request<B2BShortageList>('/api/b2b/shortages', {
     method: 'PUT', body: JSON.stringify(payload),
