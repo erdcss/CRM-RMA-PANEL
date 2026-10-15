@@ -181,6 +181,16 @@ async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   return next();
 }
 
+async function requireMarketplaceSuperAdmin(req: Request, res: Response, next: NextFunction) {
+  const userId = sessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+  const user = await storage.getUser(userId);
+  if (!user || user.isActive !== 1 || user.role !== "super_admin") {
+    return res.status(403).json({ error: "Pazaryeri süper yönetici yetkisi gerekiyor" });
+  }
+  return next();
+}
+
 async function requireB2B(req: Request, res: Response, next: NextFunction) {
   const userId = sessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
@@ -2332,7 +2342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerRoutes(app, requireB2B);
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
-  registerMarketplaceRoutes(app, requireAdmin, requireB2B, sessionUserId);
+  registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
