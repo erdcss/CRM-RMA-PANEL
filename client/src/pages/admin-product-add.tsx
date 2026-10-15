@@ -25,6 +25,7 @@ const emptyForm = {
   brand: "",
   category: "",
   collectionName: "",
+  tags: "",
   barcode: "",
   price: "",
   stock: "0",
@@ -99,6 +100,7 @@ export default function AdminProductAdd() {
     try {
       await apiRequest("POST", "/api/admin/b2b-products", {
         ...form,
+        tags: form.tags.split(",").map(tag => tag.trim()).filter(Boolean),
         price: Number(form.price || 0),
         stock: Number(form.stock || 0),
         minOrderQty: Number(form.minOrderQty || 1),
@@ -165,6 +167,7 @@ export default function AdminProductAdd() {
               <Field label="Koleksiyon">
                 <Input value={form.collectionName} onChange={(e) => set("collectionName", e.target.value)} />
               </Field>
+              <Field label="Ürün etiketleri (virgülle ayırın)"><Input value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="yeni, elektronik, kampanya" /></Field>
               <Field label="Fiyat *">
                 <Input type="number" min="0" step="0.01" value={form.price} onChange={(e) => set("price", e.target.value)} required />
               </Field>
