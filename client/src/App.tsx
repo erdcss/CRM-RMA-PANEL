@@ -123,7 +123,7 @@ function AppContent() {
       {isLoading ? null : user && ["super_admin", "admin"].includes(user.role) ? (
           <SidebarProvider defaultOpen={true} style={style as React.CSSProperties}>
             <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
-              <AppSidebar username={user.username} />
+              <AppSidebar username={user.username} role={user.role} />
               <div className="flex flex-col flex-1 min-w-0 min-h-0">
                 <header className="flex items-center justify-between p-4 border-b shrink-0 pt-[max(1rem,env(safe-area-inset-top))]">
                   <SidebarTrigger className="md:hidden" data-testid="button-sidebar-toggle" />
