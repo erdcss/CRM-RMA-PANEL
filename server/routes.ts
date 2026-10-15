@@ -21,6 +21,7 @@ import { getPaymentConfig } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, sendPushToApp } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
+import { registerB2BShortageRoutes } from "./b2b-shortages";
 
 let dbReady = false;
 
@@ -2323,6 +2324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
+  registerB2BShortageRoutes(app, requireB2B, sessionUserId);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
