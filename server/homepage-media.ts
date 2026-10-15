@@ -14,7 +14,7 @@ function safeString(value: unknown, max = 180) {
 }
 
 type Banner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
-type CategoryCard = { category: string; label: string; imageId: string };
+type CategoryCard = { category: string; label: string; imageId: string; tags: string[] };
 
 export type MobileHomeLayout = {
   banners: Banner[];
@@ -36,6 +36,7 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
     category: safeString(item?.category, 80),
     label: safeString(item?.label, 80),
     imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
+    tags: [...new Set((Array.isArray(item?.tags) ? item.tags : []).filter((tag: unknown): tag is string => typeof tag === "string").map((tag: string) => safeString(tag, 60)).filter(Boolean))].slice(0, 30),
   })).filter((item: CategoryCard) => item.category);
   const n = Number(input.sliderIntervalMs);
   return {
