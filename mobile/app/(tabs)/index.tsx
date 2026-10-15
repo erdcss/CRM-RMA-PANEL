@@ -321,7 +321,7 @@ export default function HomeScreen() {
                         <Image
                           source={{ uri: homepageMediaUrl(banner.imageId)! }}
                           style={styles.carouselImage}
-                          contentFit="cover"
+                          contentFit="contain"
                           cachePolicy="memory-disk"
                           transition={180}
                           onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
