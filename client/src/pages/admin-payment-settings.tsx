@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CreditCard, Landmark, Save } from "lucide-react";
+import { CreditCard, Landmark, Save, Images, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
+type PaymentLogo = { id: string; label: string; imageId: string };
 type PaymentSettings = {
+  paymentLogos?: PaymentLogo[];
   iyzicoConfigured?: boolean;
   iyzico: {
     enabled: boolean;
@@ -48,6 +50,8 @@ export default function AdminPaymentSettingsPage() {
   const [bankName, setBankName] = useState("");
   const [accountHolder, setAccountHolder] = useState("");
   const [iban, setIban] = useState("");
+  const [paymentLogos, setPaymentLogos] = useState<PaymentLogo[]>([]);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -57,8 +61,43 @@ export default function AdminPaymentSettingsPage() {
     setBankName(data.bankTransfer.bankName || "");
     setAccountHolder(data.bankTransfer.accountHolder || "");
     setIban(data.bankTransfer.iban || "");
+    setPaymentLogos(data.paymentLogos || []);
   }, [data]);
 
+  async function addPaymentLogo(file: File) {
+    if (paymentLogos.length >= 16) return toast({ title: "En fazla 16 logo eklenebilir.", variant: "destructive" });
+    if (!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type) || file.size > 3 * 1024 * 1024) {
+      return toast({ title: "PNG, JPEG, WebP veya GIF; en fazla 3 MB.", variant: "destructive" });
+    }
+    const dimensions = await new Promise<{width:number;height:number}>((resolve,reject)=>{
+      const image = document.createElement("img");
+      const url = URL.createObjectURL(file);
+      image.onload = () => {resolve({width:image.naturalWidth,height:image.naturalHeight});URL.revokeObjectURL(url);};
+      image.onerror = () => {reject(new Error("Görsel okunamadı"));URL.revokeObjectURL(url);};
+      image.src=url;
+    }).catch(()=>null);
+    if (!dimensions || dimensions.width!==320 || dimensions.height!==160) {
+      return toast({ title:"Logo boyutu yanlış",description:"Bütün logolar tam 320×160 piksel (2:1) olmalıdır.",variant:"destructive" });
+    }
+    setUploadingLogo(true);
+    try {
+      const dataUrl=await new Promise<string>((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(String(reader.result||""));
+        reader.onerror=()=>reject(new Error("Dosya okunamadı"));
+        reader.readAsDataURL(file);
+      });
+      const response=await fetch("/api/admin/homepage/media",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({dataUrl})});
+      const payload=await response.json();
+      if(!response.ok)throw new Error(payload.error || "Logo yüklenemedi");
+      const bytes=crypto.getRandomValues(new Uint8Array(16));
+      const id=Array.from(bytes).map(n=>n.toString(16).padStart(2,"0")).join("");
+      setPaymentLogos(current=>[...current,{id,label:file.name.replace(/\.[^.]+$/,"").slice(0,60),imageId:String(payload.id)}]);
+      toast({title:"Logo eklendi",description:"Yayınlamak için Kaydet'e basın."});
+    } catch(error) {
+      toast({title:"Logo eklenemedi",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});
+    } finally {setUploadingLogo(false);}
+  }
   async function save() {
     setSaving(true);
     try {
@@ -73,6 +112,7 @@ export default function AdminPaymentSettingsPage() {
             secretKey: iyzicoPrivateKey,
             baseUrl,
           },
+          paymentLogos,
           bankTransfer: {
             enabled: bankEnabled,
             bankName,
@@ -174,6 +214,26 @@ export default function AdminPaymentSettingsPage() {
               <div className="space-y-2">
                 <Label>IBAN</Label>
                 <Input className="font-mono" value={iban} onChange={(e) => setIban(e.target.value.toUpperCase())} placeholder="TR00 0000 0000 0000 0000 0000 00" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Images className="h-5 w-5"/> Banka ve Ödeme Altyapısı Logoları</CardTitle>
+              <CardDescription>Ödeme ekranında gösterilecek logoları ayrı ayrı ekleyin. Bütün görseller tam 320×160 piksel olmalıdır. En fazla 16 adet, 3 MB; PNG, JPEG, WebP veya GIF.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="inline-flex cursor-pointer rounded-lg border px-4 py-2 text-sm font-bold hover:bg-muted">
+                {uploadingLogo?"Yükleniyor…":"Yeni Logo Ekle"}
+                <input className="hidden" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={uploadingLogo||paymentLogos.length>=16}
+                  onChange={e=>{const file=e.target.files?.[0];if(file)void addPaymentLogo(file);e.target.value="";}}/>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {paymentLogos.map(logo=><div key={logo.id} className="space-y-2 rounded-xl border p-3">
+                  <img alt={logo.label||"Ödeme logosu"} className="h-20 w-40 rounded-md border object-contain" src={`/api/public/homepage/media/${logo.imageId}`}/>
+                  <Input maxLength={60} value={logo.label} placeholder="Banka / ödeme altyapısı adı" onChange={e=>setPaymentLogos(rows=>rows.map(x=>x.id===logo.id?{...x,label:e.target.value}:x))}/>
+                  <Button variant="outline" size="sm" onClick={()=>setPaymentLogos(rows=>rows.filter(x=>x.id!==logo.id))}><Trash2 className="mr-2 h-4 w-4"/> Sil</Button>
+                </div>)}
               </div>
             </CardContent>
           </Card>
