@@ -817,6 +817,9 @@ export default function CheckoutScreen() {
                     style={styles.input}
                     maxLength={19}
                   />
+                  <Text style={styles.cardFieldHint}>
+                    {cardNumber.replace(/\D/g, '').length}/16 hane · Kart numarası 16 hane olmalıdır.
+                  </Text>
                 </View>
 
                 <View style={styles.cardDateRow}>
@@ -874,6 +877,7 @@ export default function CheckoutScreen() {
                         secureTextEntry
                         maxLength={3}
                       />
+                      <Text style={styles.cardFieldHint}>CVV 3 rakamdır.</Text>
                     </View>
                   </View>
                 </View>
@@ -1352,6 +1356,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
+  cardFieldHint: { fontSize: 11, color: palette.textSecondary, marginTop: 3 },
   cardDateRow: {
     flexDirection: 'row',
     gap: spacing.sm,
