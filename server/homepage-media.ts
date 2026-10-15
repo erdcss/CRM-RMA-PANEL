@@ -19,6 +19,7 @@ type CategoryCard = { category: string; label: string; imageId: string; tags: st
 export type MobileHomeLayout = {
   banners: Banner[];
   categoryCards: CategoryCard[];
+  ledgerTileImageId: string;
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
 };
@@ -42,6 +43,7 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
   return {
     banners,
     categoryCards,
+    ledgerTileImageId: validId.test(String(input.ledgerTileImageId || '')) ? String(input.ledgerTileImageId) : '',
     sliderAutoPlay: input.sliderAutoPlay !== false,
     sliderIntervalMs: Number.isFinite(n) ? Math.min(15000, Math.max(2500, Math.round(n))) : 5000,
   };
