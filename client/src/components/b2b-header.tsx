@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { LogIn, PackageSearch, UserRound } from "lucide-react";
+import { LogIn, PackageSearch, UserRound, Menu, X, ChevronRight } from "lucide-react";
+import { footerGroups, B2BSocialAndStores } from "@/components/b2b-footer";
 
 import { Button } from "@/components/ui/button";
 import { useBranding } from "@/hooks/use-branding";
@@ -28,6 +29,7 @@ async function loadSession(): Promise<SessionUser | null> {
 }
 
 export function B2BHeader({ middle }: { middle?: ReactNode }) {
+  const [drawerOpen,setDrawerOpen] = useState(false);
   const { data: branding } = useBranding();
   const { itemCount } = useB2BCart();
   const { data: session } = useQuery({
@@ -44,6 +46,7 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
   return (
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-3 px-4">
+        <button type="button" onClick={()=>setDrawerOpen(true)} aria-label="Menüyü aç" aria-expanded={drawerOpen} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#111] transition hover:bg-[#fff1ae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00] md:hidden"><Menu className="h-6 w-6"/></button>
         <Link href="/" className="flex shrink-0 items-center">
           {branding?.b2b_logo ? (
             <img
@@ -92,6 +95,23 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
             </Link>
           </Button>
         )}
+      </div>
+      <div className={`fixed inset-0 z-[100] h-[100dvh] transition-all duration-300 md:hidden ${drawerOpen?"pointer-events-auto visible":"pointer-events-none invisible"}`}>
+        <button type="button" aria-label="Menüyü kapat" className={`absolute inset-0 h-full w-full bg-black/60 transition-opacity duration-300 ${drawerOpen?"opacity-100":"opacity-0"}`} onClick={()=>setDrawerOpen(false)}/>
+        <aside role="dialog" aria-modal="true" aria-label="Çalışkan B2B menüsü" className={`absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-y-auto bg-white shadow-2xl transition-transform duration-300 ${drawerOpen?"translate-x-0":"-translate-x-full"}`}>
+          <div className="flex min-h-16 items-center justify-between border-b border-slate-200 bg-[#111] px-5 text-white">
+            <span className="font-black">ÇALIŞKAN <span className="text-[#ffcc00]">B2B</span></span>
+            <button type="button" className="flex h-11 w-11 items-center justify-center rounded-lg" onClick={()=>setDrawerOpen(false)} aria-label="Kapat"><X className="h-6 w-6"/></button>
+          </div>
+          <nav className="flex-1 px-4 py-4">
+            <Link href="/" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Ana Sayfa<ChevronRight className="h-4 w-4"/></Link>
+            <Link href="/magazalar" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Tedarikçi Mağazaları<ChevronRight className="h-4 w-4"/></Link>
+            <Link href="/pazaryeri-sepetim" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Sepetim<ChevronRight className="h-4 w-4"/></Link>
+            {loggedIn ? <Link href="/siparislerim" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Siparişlerim<ChevronRight className="h-4 w-4"/></Link> : null}
+            {footerGroups.map(group=><div key={group.title} className="border-b border-slate-100 py-3"><h3 className="mb-2 text-sm font-black text-slate-950">{group.title}</h3>{group.links.map(([label,href])=><Link key={label} href={href} onClick={()=>setDrawerOpen(false)} className="block py-2 pl-3 text-sm text-slate-600 hover:text-yellow-700">{label}</Link>)}</div>)}
+          </nav>
+          <div className="bg-[#111] p-5 text-white"><B2BSocialAndStores compact/></div>
+        </aside>
       </div>
     </header>
   );
