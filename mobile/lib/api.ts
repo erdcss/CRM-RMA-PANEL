@@ -341,6 +341,13 @@ export type B2BCheckoutCartPreview = {
   iyzicoConfigured: boolean;
 };
 
+export type B2BBankTransferReference = {
+  reservationId: string;
+  transferCode: string;
+  transferDescription: string;
+  expiresAt: string;
+};
+
 export type B2BBankTransferOrder = {
   orderNumber: string;
   total: number;
@@ -808,7 +815,13 @@ export const rmaApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  reserveB2BBankTransferCode: () =>
+    request<B2BBankTransferReference>('/api/b2b/payments/bank-transfer/preview-code', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
   createB2BBankTransferOrder: (payload: {
+    reservationId?: string;
     productId: string | number;
     quantity: number;
     addressId: string | number;
@@ -820,6 +833,7 @@ export const rmaApi = {
       body: JSON.stringify(payload),
     }),
   createB2BBankTransferOrderForItems: (payload: {
+    reservationId?: string;
     items: Array<{ productId: string | number; quantity: number }>;
     addressId: string | number;
     shipping: Record<string, unknown>;
