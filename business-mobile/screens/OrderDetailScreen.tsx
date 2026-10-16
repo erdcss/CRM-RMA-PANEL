@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { apiFetch } from "../lib/api";
@@ -22,6 +23,9 @@ export function OrderDetailScreen({
   const [order, setOrder] = useState<AdminOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [bankChecked, setBankChecked] = useState(false);
+  const [bankBusy, setBankBusy] = useState(false);
+  const [bankNotice, setBankNotice] = useState("");
 
   const load = useCallback(async () => {
     setError("");
@@ -38,7 +42,29 @@ export function OrderDetailScreen({
     void load();
   }, [load]);
 
-  if (loading) {
+  async function approveBankPayment() {
+    if (!bankChecked || bankBusy || !order) return;
+    setBankBusy(true);
+    setBankNotice("");
+    try {
+      const response = await apiFetch<{ok:boolean;notificationRecorded:boolean}>(
+        `/api/admin/orders/${encodeURIComponent(id)}/approve-bank-payment`, {
+          method: "POST", body: JSON.stringify({bankStatementChecked:true}),
+        },
+      );
+      await load();
+      setBankChecked(false);
+      setBankNotice(response.notificationRecorded
+        ? "Ödeme onaylandı. Müşterinin bildirim merkezine bilgi gönderildi."
+        : "Ödeme onaylandı. Bildirim durumu için bildirim merkezini kontrol edin.");
+    } catch (error) {
+      setBankNotice(error instanceof Error ? error.message : "Havale onaylanamadı.");
+    } finally {
+      setBankBusy(false);
+    }
+  }
+
+    if (loading) {
     return <View style={s.center}><ActivityIndicator color={C.blue} size="large" /></View>;
   }
 
@@ -56,7 +82,6 @@ export function OrderDetailScreen({
   const billing = order.billing_details || {};
   const shipping = order.shipping_address || {};
   const shippingDetails = order.shipping_details || {};
-  const trace = order.checkout_trace || {};
 
   return (
     <ScrollView style={s.page} contentContainerStyle={s.content}>
@@ -106,7 +131,7 @@ export function OrderDetailScreen({
           ["İlçe", shipping.district || "—"],
           ["Şehir", shipping.city || "—"],
           ["Posta kodu", shipping.postalCode || "—"],
-          ["Kargo yöntemi", order.shipping_method || shipping.method || "—"],
+          ["Kargo yöntemi", shippingMethodTR(order.shipping_method || shipping.method)],
         ]}
       />
 
@@ -125,7 +150,7 @@ export function OrderDetailScreen({
               <View style={s.itemMain}>
                 <Text style={s.itemName}>{item.name || item.title || "Ürün"}</Text>
                 <Text style={s.itemMeta}>
-                  {item.sku ? `SKU: ${item.sku} · ` : ""}
+                  {item.sku ? `Ürün kodu: ${item.sku} · ` : ""}
                   Adet: {item.quantity || item.qty || 1}
                 </Text>
               </View>
@@ -141,19 +166,43 @@ export function OrderDetailScreen({
       <SectionTitle title="Ödeme" />
       <InfoCard
         rows={[
-          ["Yöntem", order.payment_method === "bank_transfer" ? "Havale / EFT" : order.payment_method || "Kart"],
-          ["Sağlayıcı", order.payment_provider || "—"],
-          ["Ödeme durumu", order.payment_status || "—"],
+          ["Yöntem", order.payment_method === "bank_transfer" ? "Havale / EFT" : "Banka / Kredi Kartı"],
+          
+          ["Ödeme durumu", paymentStatusTR(order.payment_status)],
           ["Kart", order.card_last4 ? `${order.card_association || "Kart"} •••• ${order.card_last4}` : "—"],
-          ["Transfer kodu", order.transfer_code || "—"],
+          ["Havale açıklama kodu", order.transfer_code || "—"],
         ]}
       />
 
+      {order.payment_method === "bank_transfer" && order.status === "awaiting_bank_confirmation"
+       && order.payment_status === "customer_reported_paid" ? (
+        <View style={s.bankApproval}>
+          <Text style={s.bankTitle}>Banka Havalesini Onayla</Text>
+          <Text style={s.bankText}>
+            Tutar: {money(order.total_amount)} · Açıklama: {order.transfer_code || "Kod bulunamadı"}
+          </Text>
+          <Text style={s.bankText}>
+            Müşteri havale yaptığını bildirdi. Banka hesabına gelen hareketi kontrol edin.
+          </Text>
+          <TouchableOpacity onPress={() => setBankChecked(value => !value)}
+            accessibilityRole="checkbox" accessibilityState={{checked:bankChecked}}>
+            <Text style={s.bankText}>
+              {bankChecked ? "☑" : "☐"} Banka hareketindeki tutarı ve CLK kodunu doğruladım.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity disabled={!bankChecked || bankBusy}
+            onPress={() => void approveBankPayment()}
+            style={[s.bankButton, (!bankChecked || bankBusy) && {opacity:0.45}]}>
+            <Text style={s.bankButtonText}>
+              {bankBusy ? "Onaylanıyor…" : "Ödeme Onaylandı"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+      {bankNotice ? <Text style={s.bankNotice}>{bankNotice}</Text> : null}
+
       <SectionTitle title="Kargo / Teslimat Detayları" />
       <ObjectCard value={shippingDetails} empty="Ek kargo detayı yok." />
-
-      <SectionTitle title="Checkout / İşlem İzleri" />
-      <ObjectCard value={trace} empty="Ek checkout detayı yok." />
 
       <SectionTitle title="Fatura Bilgileri" />
       <InfoCard
@@ -182,16 +231,40 @@ function InfoCard({ rows }: { rows: Array<[string, unknown]> }) {
   );
 }
 
+function paymentStatusTR(value?: string | null) {
+  const labels: Record<string,string> = {
+    pending:"Ödeme bekleniyor",
+    customer_reported_paid:"Müşteri havale bildirimi yaptı · banka kontrolünde",
+    bank_confirmed:"Havale onaylandı",
+    SUCCESS:"Ödeme alındı",
+    FAILURE:"Ödeme başarısız",
+  };
+  return labels[String(value || "")] || "Ödeme kontrol ediliyor";
+}
+function shippingMethodTR(value?: string | null) {
+  const labels: Record<string,string> = {
+    cargo:"PTT Kargo / Kargo", freight:"Ambar / Nakliye", pickup:"Mağazadan Teslim",
+  };
+  return labels[String(value || "")] || "Belirtilmemiş";
+}
 function ObjectCard({ value, empty }: { value: Record<string, any>; empty: string }) {
-  const entries = Object.entries(value || {}).filter(([, item]) => item !== null && item !== undefined && item !== "");
+  const labels: Record<string,string> = {
+    carrier:"Taşıyıcı",companyName:"Ambar firması",phone:"Telefon",
+    pickupTime:"Teslim alma saati",method:"Teslimat türü",
+    address:"Teslimat noktası",addressLine:"Adres",
+  };
+  const entries = Object.entries(value || {}).filter(([key, item]) =>
+    Object.prototype.hasOwnProperty.call(labels,key) &&
+    item !== null && item !== undefined && item !== "" && typeof item !== "object"
+  );
   if (!entries.length) return <EmptyState title="Detay yok" text={empty} />;
   return (
     <View style={s.infoCard}>
       {entries.map(([key, value], index) => (
         <View key={key} style={[s.infoRow, index === entries.length - 1 && s.noBorder]}>
-          <Text style={s.infoLabel}>{key.replace(/_/g, " ")}</Text>
+          <Text style={s.infoLabel}>{labels[key]}</Text>
           <Text style={s.infoValue} numberOfLines={3}>
-            {typeof value === "object" ? JSON.stringify(value) : String(value)}
+            {String(value)}
           </Text>
         </View>
       ))}
@@ -200,6 +273,12 @@ function ObjectCard({ value, empty }: { value: Record<string, any>; empty: strin
 }
 
 const s = StyleSheet.create({
+  bankApproval: {padding:16,borderRadius:16,backgroundColor:C.panel,borderWidth:1,borderColor:C.line,marginTop:12,gap:12},
+  bankTitle: {color:C.text,fontSize:16,fontWeight:"700"},
+  bankText: {color:C.text2,fontSize:13,lineHeight:20},
+  bankButton: {backgroundColor:C.blue,borderRadius:12,paddingVertical:14,alignItems:"center"},
+  bankButtonText: {color:"#FFFFFF",fontWeight:"700"},
+  bankNotice: {color:C.green,fontSize:13,marginTop:10},
   page: { flex: 1, backgroundColor: C.bg },
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 36 },
   center: { flex: 1, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
