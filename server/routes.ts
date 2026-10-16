@@ -1783,12 +1783,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/seller/register", async (req,res) => {
     const email=String(req.body?.email||"").trim().toLowerCase();
     const password=String(req.body?.password||"");
+    const confirmPassword=String(req.body?.confirmPassword||"");
     const firstName=String(req.body?.firstName||"").trim();
     const lastName=String(req.body?.lastName||"").trim();
     const companyName=String(req.body?.companyName||"").trim();
     if (!/^\S+@\S+\.\S+$/.test(email) || email.length>254 || password.length<10 || firstName.length<2 || lastName.length<2 || companyName.length<2) {
       return res.status(400).json({error:"Geçerli firma, ad, soyad, e-posta ve en az 10 karakterli şifre girin"});
     }
+    if (password!==confirmPassword) return res.status(400).json({error:"Şifre ve şifre tekrarı eşleşmiyor"});
     const found=(await storage.getUserByUsername(email))||(await storage.getUserByEmail(email));
     if(found)return res.status(409).json({error:"Bu e-posta adresi kullanımda. Satıcı hesabınız için farklı bir e-posta kullanın."});
     try {
