@@ -1,8 +1,8 @@
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, RefreshCw, Building2, CheckCircle2, LogOut } from "lucide-react";
+import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, RefreshCw, Building2, CheckCircle2, LogOut, LayoutDashboard, RotateCcw, Wallet } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 
@@ -13,7 +13,7 @@ type Quote={id:number;status:string;boxes:number;details:string;sku?:string;comp
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
   storeVersions:Array<{id:number;status:string;is_live:boolean;review_note:string}>;
   reels:Array<{id:number;title:string;status:string;review_note:string}>};
-type Tab="store"|"products"|"reels"|"messages"|"quotes";
+type Tab="dashboard"|"store"|"products"|"reels"|"messages"|"quotes"|"returns"|"payments"|"verification";
 async function send(method:string,path:string,data?:unknown){const r=await apiRequest(method,path,data);return r.json();}
 const inputStyle="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900";
 const boxStyle="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6";
@@ -21,7 +21,7 @@ const statusTR:Record<string,string>={approved:"Onaylandı",pending:"Onay bekliy
 function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-600">{label}</span>{children}</label>;}
 function Notice({text}:{text:string}){return <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{text}</div>;}
 export default function MarketplaceSeller(){
-  const [tab,setTab]=useState<Tab>("store");
+  const [tab,setTab]=useState<Tab>("dashboard");
   const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:""});
   const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",contactEmail:"",description:""});
   const [store,setStore]=useState({title:"",tagline:"",accent:"#FACC15",bannerUrl:"",logoUrl:"",sections:["banner","categories","products","reels","about"]});
@@ -51,6 +51,14 @@ export default function MarketplaceSeller(){
     finally{setUploading(false);}
   }
   const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0});
+  useEffect(()=>{
+    if (!me.isSuccess || me.data !== null) return;
+    let cancelled=false;
+    void fetch("/api/marketplace/seller/bootstrap",{method:"POST",credentials:"include"})
+      .then(async response=>{if(!response.ok)throw new Error("Panel oluşturulamadı");if(!cancelled)await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});})
+      .catch(()=>{if(!cancelled)setMessage("Çalışma alanı oluşturulamadı. Yenile ile tekrar deneyin.");});
+    return ()=>{cancelled=true};
+  },[me.isSuccess,me.data]);
   const approved=me.data?.status==="approved";
   const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:approved,staleTime:0});
   const products=useQuery<Product[]>({queryKey:["/api/marketplace/seller/products"],enabled:approved,staleTime:0});
@@ -74,18 +82,13 @@ export default function MarketplaceSeller(){
         <div className="flex flex-wrap gap-2"><button onClick={()=>{void me.refetch();void dash.refetch();void products.refetch();}} className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"><RefreshCw className="mr-2 inline h-4 w-4"/>Yenile</button><button type="button" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST",credentials:"include"});await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});await queryClient.invalidateQueries({queryKey:["/api/auth/me"]});}} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"><LogOut className="mr-2 inline h-4 w-4"/>Güvenli Çıkış</button></div>
       </div>
       {message?<Notice text={message}/>:null}
+      {me.data ? <nav aria-label="Tedarikçi araçları" className="sticky top-0 z-20 -mx-2 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur">
+        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"quotes",label:"Teklifler",icon:FileText},{key:"reels",label:"Reels",icon:Film}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
+      </nav> : null}
+
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
         me.isError?null:
-        !me.data?<form className={boxStyle+" space-y-4"} onSubmit={(e:FormEvent)=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/apply",form),["/api/marketplace/me"]);}}>
-          <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6"/><h2 className="text-xl font-bold">Çalışkan B2B'de Satıcı Ol</h2></div>
-          <p className="text-sm text-slate-600">Satıcı kaydınızın ardından panelinizi kullanmaya başlayabilirsiniz. Satışa başlamak için şirket bilgilerinizi doğrulatmanız gerekir.</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {([["companyName","Ticari unvan"],["taxNumber","Vergi numarası / TCKN"],["taxOffice","Vergi dairesi"],["contactName","Yetkili kişi"],["contactPhone","Telefon"],["contactEmail","E-posta adresi"]] as const).map(([key,title])=>
-              <Field key={key} label={title}><input className={inputStyle} required={key!=="taxOffice"} value={form[key]} onChange={e=>setForm(v=>({...v,[key]:e.target.value}))}/></Field>)}
-          </div>
-          <Field label="Firma ve ürün grupları"><textarea className={inputStyle} rows={3} value={form.description} onChange={e=>setForm(v=>({...v,description:e.target.value}))}/></Field>
-          <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Satıcı Profilimi Oluştur</button>
-        </form>:
+        !me.data?<Notice text="Tedarikçi paneliniz hazırlanıyor…"/>:
         !approved?<div className="space-y-5">
           <div className="rounded-2xl border border-amber-200 bg-[#fff8e1] p-5 sm:p-7">
             <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-7 w-7 text-amber-700"/><div className="flex-1">
@@ -94,12 +97,12 @@ export default function MarketplaceSeller(){
               <p className="mt-2 text-xs font-bold">Durum: {statusTR[me.data.status] || me.data.status}</p>
               {me.data.review_note?<p className="mt-2 text-sm">Yönetici notu: {me.data.review_note}</p>:null}
             </div></div>
-            <button type="button" onClick={()=>document.getElementById("seller-verification")?.scrollIntoView({behavior:"smooth"})} className="mt-4 rounded-xl bg-[#111] px-5 py-3 font-bold text-[#ffce00]">Satışa Başlamak İçin Hesabınızı Onaylayın</button>
+            <button type="button" onClick={()=>setTab("verification")} className="mt-4 rounded-xl bg-[#111] px-5 py-3 font-bold text-[#ffce00]">Satışa Başlamak İçin Hesabınızı Onaylayın</button>
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[["Mağaza","Hazırlanıyor"],["Ürünler","Onay bekliyor"],["Siparişler","Kapalı"],["Ödemeler","Kapalı"]].map(([name,status])=><div key={name} className={boxStyle}><p className="text-sm font-black">{name}</p><span className="mt-2 block text-xs text-slate-500">{status}</span></div>)}
           </div>
-          <form id="seller-verification" className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/verification",verification),["/api/marketplace/me"]);}}>
+          {tab==="verification"?<form id="seller-verification" className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/verification",verification),["/api/marketplace/me"]);}}>
             <div className="flex items-center gap-3"><Building2 className="h-6 w-6"/><div><h3 className="text-lg font-black">Şirket Doğrulaması</h3><p className="text-sm text-slate-500">Bilgileriniz sadece yetkili inceleme ekibi tarafından değerlendirilir.</p></div></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Şirket türü"><select required className={inputStyle} value={verification.companyType} onChange={e=>setVerification(v=>({...v,companyType:e.target.value}))}><option value="">Şirket türünüzü seçin</option><option value="sahis">Şahıs Şirketi</option><option value="limited">Limited Şirket</option><option value="anonim">Anonim Şirket</option><option value="kooperatif">Kooperatif</option><option value="diger">Diğer</option></select></Field>
@@ -108,7 +111,8 @@ export default function MarketplaceSeller(){
             <Field label="Vergi Levhası (PDF, en fazla 5 MB)"><input type="file" required accept="application/pdf" className={inputStyle} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5_000_000){setMessage("Vergi levhası en fazla 5 MB olmalı.");return;}const reader=new FileReader();reader.onload=()=>setVerification(v=>({...v,taxDocument:String(reader.result||"")}));reader.readAsDataURL(file);}}/></Field>
               <Field label="IBAN"><input required className={inputStyle} placeholder="TR ile başlayan 26 haneli IBAN" value={verification.iban} onChange={e=>setVerification(v=>({...v,iban:e.target.value.toUpperCase().replace(/\s/g,"")}))}/></Field>
             <button type="submit" disabled={busy||!verification.taxDocument} className="rounded-xl bg-black px-5 py-3 text-sm font-extrabold text-[#ffcc00] disabled:opacity-50">Doğrulama Bilgilerini Gönder</button>
-          </form>
+          </form>:null}
+          {tab==="dashboard"?<div className={boxStyle+" space-y-3"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Hesabınız aktif. Mağaza, ürün, iade, ödeme ve müşteri iletişimi araçlarını yukarıdaki menüden takip edebilirsiniz. Satış işlemleri şirket doğrulaması tamamlandığında açılacaktır.</p></div>:tab!=="verification"?<div className={boxStyle+" space-y-3"}><h2 className="text-lg font-bold">{({store:"Mağazam",products:"Ürünlerim",returns:"İade Takibi",payments:"Ödeme Takibi",messages:"Müşteri Mesajları",quotes:"Teklifler",reels:"Reels"} as Record<string,string>)[tab]}</h2><Notice text="Bu araç için satış hesabı onayınız bekleniyor. Şirket doğrulamasını tamamladığınızda kullanıma açılacak."/></div>:null}
         </div>:
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -117,13 +121,9 @@ export default function MarketplaceSeller(){
               ["Görüşmeler",dash.data?.conversations],["Açık teklifler",dash.data?.openQuotes]
             ].map(([name,n])=><div key={String(name)} className={boxStyle}><div className="text-2xl font-black">{n??"—"}</div><p className="text-xs text-slate-500">{name}</p></div>)}
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {([{key:"store",label:"Mağaza Tasarımı",icon:Store},{key:"products",label:"Ürünler",icon:Package},
-              {key:"reels",label:"Reels",icon:Film},{key:"messages",label:"Mesajlar",icon:MessageCircle},
-              {key:"quotes",label:"Teklifler",icon:FileText}] as const).map(i=><button key={i.key}
-              onClick={()=>setTab(i.key)} className={"flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold "+(tab===i.key?"bg-slate-950 text-white":"bg-white text-slate-700")}>
-                <i.icon className="h-4 w-4"/>{i.label}</button>)}
-          </div>
+          {tab==="dashboard"?<div className={boxStyle+" space-y-4"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Mağazanız, ürünleriniz, müşteri görüşmeleri ve teklifleriniz tek panelde.</p><div className="grid gap-3 sm:grid-cols-3">{[["Ürün",dash.data?.productCount],["Müşteri Görüşmesi",dash.data?.conversations],["Açık Teklif",dash.data?.openQuotes]].map(([label,count])=><div key={String(label)} className="rounded-xl bg-slate-100 p-4"><div className="text-2xl font-black">{count??0}</div><div className="text-xs text-slate-600">{label}</div></div>)}</div></div>:null}
+          {tab==="returns"?<div className={boxStyle}><h2 className="text-lg font-black">İade Takibi</h2><p className="mt-2 text-sm text-slate-600">İade talepleri entegrasyonu hazırlanıyor. Şu anda bu bölümde gerçek iade kaydı gösterilmiyor.</p></div>:null}
+          {tab==="payments"?<div className={boxStyle}><h2 className="text-lg font-black">Ödeme Takibi</h2><p className="mt-2 text-sm text-slate-600">Satıcı hakediş ve ödeme hareketlerinin entegrasyonu hazırlanıyor. Burada henüz doğrulanmış ödeme verisi bulunmuyor.</p></div>:null}
           {tab==="store"?<div className="grid gap-5 lg:grid-cols-2">
             <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/store",
               {...store,bannerUrl:store.bannerUrl||null,logoUrl:store.logoUrl||null}),["/api/marketplace/seller/dashboard"]);}}>
