@@ -298,6 +298,12 @@ export function registerMarketplaceRoutes(
       iban:z.string().trim().toUpperCase().regex(/^TR[0-9]{24}$/),
       taxDocument:z.string().startsWith("data:application/pdf;base64,").max(7_000_000),
     }).strict().parse(req.body);
+    const pdfMatch=/^data:application\/pdf;base64,([A-Za-z0-9+/=]+)$/.exec(input.taxDocument);
+    if(!pdfMatch)throw new ApiError(400,"Geçerli bir PDF vergi levhası yükleyin");
+    const pdf=Buffer.from(pdfMatch[1],"base64");
+    if(pdf.length<16 || pdf.length>5_000_000 || pdf.subarray(0,5).toString("utf8")!=="%PDF-")throw new ApiError(400,"Vergi levhası geçerli bir PDF olmalı ve 5 MB'ı geçmemeli");
+    const ibanDigits=input.iban.slice(4)+"2927"+input.iban.slice(2,4);
+    if(BigInt(ibanDigits)%97n!==1n)throw new ApiError(400,"IBAN kontrol basamakları geçersiz");
     const db=await ready();
     const supplier=await db.query("SELECT id,status FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     if(!supplier.rows[0]) throw new ApiError(404,"Önce satıcı kaydınızı oluşturun");
