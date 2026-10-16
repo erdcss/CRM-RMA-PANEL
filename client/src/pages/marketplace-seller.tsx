@@ -6,7 +6,7 @@ import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, 
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 
-type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string};
+type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string};
 type Product={id:number;sku:string;stock:number;latest?:{id:number;status:string;content:{name:string};review_note?:string};live?:{name:string}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Quote={id:number;status:string;boxes:number;details:string;sku?:string;company_name?:string;latest_offer?:{amount_per_box:string;expires_at:string}};
@@ -60,7 +60,10 @@ export default function MarketplaceSeller(){
     return ()=>{cancelled=true};
   },[me.isSuccess,me.data]);
   const approved=me.data?.status==="approved";
-  const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:approved,staleTime:0});
+  const verificationSubmitted=Boolean(me.data?.has_tax_document && me.data?.company_type);
+  const [verificationHiding,setVerificationHiding]=useState(false);
+  async function submitVerification(){setBusy(true);setMessage("");try {await send("POST","/api/marketplace/seller/verification",verification);setVerificationHiding(true);await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});setTab("dashboard");setMessage("Doğrulama bilgileriniz incelemeye gönderildi.");}catch(e){setMessage(e instanceof Error?e.message:"Bilgiler gönderilemedi");}finally{setBusy(false);}}
+  const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:!!me.data,staleTime:0});
   const products=useQuery<Product[]>({queryKey:["/api/marketplace/seller/products"],enabled:approved,staleTime:0});
   const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0});
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
@@ -89,20 +92,12 @@ export default function MarketplaceSeller(){
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
         me.isError?null:
         !me.data?<Notice text="Tedarikçi paneliniz hazırlanıyor…"/>:
-        !approved?<div className="space-y-5">
-          <div className="rounded-2xl border border-amber-200 bg-[#fff8e1] p-5 sm:p-7">
-            <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-7 w-7 text-amber-700"/><div className="flex-1">
-              <h2 className="text-xl font-black">Satıcı paneline hoş geldiniz, {me.data.company_name}</h2>
-              <p className="mt-2 text-sm text-amber-950">Hesabınız oluşturuldu. Mağazanız henüz yayında değil. Ürün satabilmek ve sipariş alabilmek için şirket bilgilerinizi tamamlayıp onaylatın.</p>
-              <p className="mt-2 text-xs font-bold">Durum: {statusTR[me.data.status] || me.data.status}</p>
-              {me.data.review_note?<p className="mt-2 text-sm">Yönetici notu: {me.data.review_note}</p>:null}
-            </div></div>
-            <button type="button" onClick={()=>setTab("verification")} className="mt-4 rounded-xl bg-[#111] px-5 py-3 font-bold text-[#ffce00]">Satışa Başlamak İçin Hesabınızı Onaylayın</button>
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[["Mağaza","Hazırlanıyor"],["Ürünler","Onay bekliyor"],["Siparişler","Kapalı"],["Ödemeler","Kapalı"]].map(([name,status])=><div key={name} className={boxStyle}><p className="text-sm font-black">{name}</p><span className="mt-2 block text-xs text-slate-500">{status}</span></div>)}
-          </div>
-          {tab==="verification"?<form id="seller-verification" className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/verification",verification),["/api/marketplace/me"]);}}>
+        <div className="space-y-5">
+          {!approved?<div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-950 transition-all duration-500">
+            <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-6 w-6 shrink-0"/><div className="flex-1"><h2 className="text-lg font-black">{verificationSubmitted?"Bilgileriniz doğrulanıyor":"Satışa başlamak için hesabınızı doğrulayın"}</h2><p className="mt-1 text-sm">{verificationSubmitted?"Mağaza ve ürünlerinizi hazırlamaya başlayabilirsiniz. Yayına alınmaları yönetici onayından sonra gerçekleşir.":"Şirket bilgilerinizi tamamlayın; bu sırada tedarikçi panelinizi kullanabilirsiniz."}</p>{!verificationSubmitted?<button type="button" onClick={()=>setTab("verification")} className="mt-3 rounded-lg bg-black px-4 py-2 text-sm font-bold text-[#ffcc00]">Hesabınızı Onaylayın</button>:null}</div></div>
+          </div>:null}
+          {!approved && verificationSubmitted && (products.data?.length||0)<5?<div className="rounded-2xl border border-[#ffcc00] bg-[#fff9de] p-5"><h2 className="font-black">Ürün eklemeye başlayabilirsiniz</h2><p className="mt-1 text-sm text-slate-700">İlk 5 ürününüzden {products.data?.length||0} tanesi kaydedildi. Ürünler onaydan sonra yayımlanacak.</p><button type="button" onClick={()=>setTab("products")} className="mt-3 rounded-xl bg-[#111] px-4 py-2 text-sm font-bold text-[#ffcc00]">Ürün Ekle</button></div>:null}
+          <div className={verificationHiding?"overflow-hidden opacity-0 max-h-0 transition-all duration-500":"transition-all duration-500"}>{!approved?          {tab==="verification" && !verificationSubmitted?<form id="seller-verification" className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void submitVerification();}}>
             <div className="flex items-center gap-3"><Building2 className="h-6 w-6"/><div><h3 className="text-lg font-black">Şirket Doğrulaması</h3><p className="text-sm text-slate-500">Bilgileriniz sadece yetkili inceleme ekibi tarafından değerlendirilir.</p></div></div>
             <div className="grid gap-4 sm:grid-cols-2">
               {([["taxNumber","Vergi Numarası / TCKN"],["taxOffice","Vergi Dairesi"],["contactPhone","Telefon"],["contactEmail","E-posta Adresi"]] as const).map(([key,title])=><Field key={key} label={title}><input type={key==="contactEmail"?"email":"text"} required={key!=="taxOffice"} className={inputStyle} value={verification[key]} onChange={e=>setVerification(v=>({...v,[key]:e.target.value}))}/></Field>)}
@@ -115,9 +110,7 @@ export default function MarketplaceSeller(){
               <Field label="IBAN"><input required className={inputStyle} placeholder="TR ile başlayan 26 haneli IBAN" value={verification.iban} onChange={e=>setVerification(v=>({...v,iban:e.target.value.toUpperCase().replace(/\s/g,"")}))}/></Field>
             <button type="submit" disabled={busy||!verification.taxDocument} className="rounded-xl bg-black px-5 py-3 text-sm font-extrabold text-[#ffcc00] disabled:opacity-50">Doğrulama Bilgilerini Gönder</button>
           </form>:null}
-          {tab==="dashboard"?<div className={boxStyle+" space-y-3"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Hesabınız aktif. Mağaza, ürün, iade, ödeme ve müşteri iletişimi araçlarını yukarıdaki menüden takip edebilirsiniz. Satış işlemleri şirket doğrulaması tamamlandığında açılacaktır.</p></div>:tab!=="verification"?<div className={boxStyle+" space-y-3"}><h2 className="text-lg font-bold">{({store:"Mağazam",products:"Ürünlerim",returns:"İade Takibi",payments:"Ödeme Takibi",messages:"Müşteri Mesajları",quotes:"Teklifler",reels:"Reels"} as Record<string,string>)[tab]}</h2><Notice text="Bu araç için satış hesabı onayınız bekleniyor. Şirket doğrulamasını tamamladığınızda kullanıma açılacak."/></div>:null}
-        </div>:
-        <div className="space-y-5">
+:null}</div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               ["Ürünler",dash.data?.productCount],["Takipçiler",dash.data?.followers],
