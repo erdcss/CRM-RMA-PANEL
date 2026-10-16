@@ -682,7 +682,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     const result: Record<string,string> = {};
     for (const key of footerFields) {
       const value = String(req.body?.[key] || "").trim();
-      if (value.length > 2000) return res.status(400).json({error:"Bağlantı çok uzun"});
+      if (value.length > (key.endsWith("Image") ? 3_000_000 : 2000)) return res.status(400).json({error:"Bağlantı veya görsel çok büyük"});
       if (value && !/^https:\/\//i.test(value) && !/^data:image\/(png|jpeg|webp);base64,/i.test(value)) return res.status(400).json({error:key+" için HTTPS URL veya görsel girin"});
       if (value.startsWith("data:") && !key.endsWith("Image")) return res.status(400).json({error:"Bağlantıya görsel verisi girilemez"});
       result[key] = value;
