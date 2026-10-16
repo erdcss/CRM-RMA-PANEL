@@ -22,7 +22,7 @@ function Field({label,children}:{label:string;children:React.ReactNode}){return 
 function Notice({text}:{text:string}){return <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{text}</div>;}
 export default function MarketplaceSeller(){
   const [tab,setTab]=useState<Tab>("dashboard");
-  const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:""});
+  const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:"",taxNumber:"",taxOffice:"",contactPhone:"",contactEmail:""});
   const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",contactEmail:"",description:""});
   const [store,setStore]=useState({title:"",tagline:"",accent:"#FACC15",bannerUrl:"",logoUrl:"",sections:["banner","categories","products","reels","about"]});
   const [product,setProduct]=useState({sku:"",stock:"0",name:"",description:"",category:"",brand:"",barcode:"",imageUrl:"",price:"",unitsPerBox:"1",minBoxes:"1"});
@@ -104,6 +104,9 @@ export default function MarketplaceSeller(){
           </div>
           {tab==="verification"?<form id="seller-verification" className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/verification",verification),["/api/marketplace/me"]);}}>
             <div className="flex items-center gap-3"><Building2 className="h-6 w-6"/><div><h3 className="text-lg font-black">Şirket Doğrulaması</h3><p className="text-sm text-slate-500">Bilgileriniz sadece yetkili inceleme ekibi tarafından değerlendirilir.</p></div></div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {([["taxNumber","Vergi Numarası / TCKN"],["taxOffice","Vergi Dairesi"],["contactPhone","Telefon"],["contactEmail","E-posta Adresi"]] as const).map(([key,title])=><Field key={key} label={title}><input type={key==="contactEmail"?"email":"text"} required={key!=="taxOffice"} className={inputStyle} value={verification[key]} onChange={e=>setVerification(v=>({...v,[key]:e.target.value}))}/></Field>)}
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Şirket türü"><select required className={inputStyle} value={verification.companyType} onChange={e=>setVerification(v=>({...v,companyType:e.target.value}))}><option value="">Şirket türünüzü seçin</option><option value="sahis">Şahıs Şirketi</option><option value="limited">Limited Şirket</option><option value="anonim">Anonim Şirket</option><option value="kooperatif">Kooperatif</option><option value="diger">Diğer</option></select></Field>
 
