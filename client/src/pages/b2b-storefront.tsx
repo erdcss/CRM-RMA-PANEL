@@ -6,6 +6,7 @@ import { trackSearch } from "@/lib/analytics";
 import { Search, Package, Boxes, Truck, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
+import { B2BFooter } from "@/components/b2b-footer";
 
 type SessionUser = {
   role?: string;
@@ -133,12 +134,7 @@ export default function B2BStorefront() {
         </div>
       </section>
 
-      <nav className="mx-auto flex max-w-6xl flex-wrap gap-2 px-4 pt-4">
-        <Link href="/magazalar" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Tedarikçi Mağazaları</Link>
-        <Link href="/satici" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Tedarikçi Ol / Satıcı Paneli</Link>
-        <Link href="/mesajlarim" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Mesajlarım ve Teklifler</Link>
-        <Link href="/pazaryeri-sepetim" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold">Pazaryeri Sepetim</Link>
-      </nav>
+
 
       <main className="mx-auto max-w-6xl px-4 py-6">
         {homepage.categories.length > 0 ? (
@@ -281,6 +277,7 @@ function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: 
       {icon}
       <b className="mt-4 block text-sm sm:text-base">{title}</b>
       <span className="mt-1 block text-[11px] text-slate-300 sm:text-xs">{text}</span>
+      <B2BFooter />
     </div>
   );
 }
