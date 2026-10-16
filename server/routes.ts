@@ -1826,7 +1826,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ error: message });
     }
 
-    if (user.appAccess !== "b2b" && user.role !== "b2b_customer") {
+    if (user.role !== "b2b_customer") {
       return res.status(403).json({ error: "Bu hesap B2B web sitesi için yetkili değil" });
     }
 
