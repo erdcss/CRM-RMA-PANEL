@@ -262,6 +262,22 @@ export function registerMarketplaceRoutes(
       WHERE s.slug=$1 AND s.status='approved' AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
     res.json(q.rows);
   }));
+  // An authenticated seller receives a private workspace immediately.
+  // Company documents and admin approval are still required before selling.
+  app.post("/api/marketplace/seller/bootstrap",requireSeller,handle(async(_req,res)=>{
+    const db=await ready();
+    const owner=(res.locals as any).b2bUser;
+    const uid=userId(res);
+    const companyName=String(owner.companyName || [owner.firstName,owner.lastName].filter(Boolean).join(" ") || "Yeni Satıcı").slice(0,220);
+    const contactName=[owner.firstName,owner.lastName].filter(Boolean).join(" ").slice(0,160) || "Yetkili";
+    const email=String(owner.email || owner.username || "").slice(0,254);
+    const q=await db.query(`INSERT INTO mp_suppliers
+       (owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,description)
+       VALUES($1,$2,$3,'','',$4,'',$5,'')
+       ON CONFLICT (owner_user_id) DO NOTHING
+       RETURNING id`,[uid,slugify(companyName)+"-"+uid,companyName,contactName,email]);
+    return res.status(q.rows.length ? 201 : 200).json({created:q.rows.length>0});
+  }));
   app.get("/api/marketplace/me",requireSeller,handle(async(_req,res)=>{
     const db=await ready();
     const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
@@ -527,7 +543,7 @@ export function registerMarketplaceRoutes(
     try {
       await client.query("BEGIN");
       const r=await client.query(`UPDATE mp_suppliers SET status=$1,review_note=$2,reviewed_at=NOW()
-        WHERE id=$3 AND status='pending' AND ($1 <> 'approved' OR (company_type <> '' AND tax_document <> '' AND iban <> '')) RETURNING id,status`,
+        WHERE id=$3 AND status='pending' AND ($1 <> 'approved' OR (company_type <> '' AND tax_document <> '' AND iban <> '' AND tax_number <> '' AND contact_phone <> '' AND contact_email <> '')) RETURNING id,status`,
         [data.decision,data.note,supplierId]);
       if(!r.rows[0])throw new ApiError(409,"Başvuru bulunamadı, zaten değerlendirilmiş veya şirket doğrulama evrakları eksik");
       await client.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
