@@ -203,7 +203,7 @@ async function supplierFor(res:Response) {
   const db=await ready();
   const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
   if (!q.rows[0]) throw new ApiError(403,"Önce tedarikçi başvurusu oluşturun");
-  if (q.rows[0].status!=="approved") throw new ApiError(403,"Tedarikçi hesabınız henüz onaylanmadı");
+  if (["rejected","suspended"].includes(q.rows[0].status)) throw new ApiError(403,"Tedarikçi hesabınız kısıtlandı");
   return q.rows[0];
 }
 function sellerAdminAllowed(row:any) {
