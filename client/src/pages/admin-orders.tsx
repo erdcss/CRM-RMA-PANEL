@@ -33,6 +33,16 @@ function statusLabel(value?: string | null) {
   };
   return labels[String(value || "")] || value || "İşlemde";
 }
+function paymentStatusLabel(value?: string | null) {
+  const labels: Record<string,string> = {
+    pending:"Havale bekleniyor",
+    customer_reported_paid:"Müşteri ödemeyi bildirdi · kontrol bekliyor",
+    bank_confirmed:"Ödeme onaylandı",
+    SUCCESS:"Ödeme alındı",
+    FAILURE:"Ödeme başarısız",
+  };
+  return labels[String(value || "")] || "Kontrol bekliyor";
+}
 function deliveryLabel(method?: string | null) {
   switch (method) {
     case "cargo": return "PTT Kargo";
@@ -71,6 +81,11 @@ export default function AdminOrders() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold">{order.order_number || `#${order.id}`}</span>
                       <Badge variant="secondary">{statusLabel(order.status)}</Badge>
+                      {order.payment_method === "bank_transfer" &&
+                        order.status === "awaiting_bank_confirmation" &&
+                        order.payment_status === "customer_reported_paid" ? (
+                          <Badge variant="destructive">Banka kontrolü bekliyor</Badge>
+                        ) : null}
                     </div>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{order.customer_email || "Müşteri"}</p>
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -79,7 +94,7 @@ export default function AdminOrders() {
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {order.payment_method === "card" ? "Kart" : order.payment_method === "bank_transfer" ? "Havale / EFT" : "Ödeme yöntemi belirtilmemiş"}
-                      {order.payment_status ? ` · ${order.payment_status}` : ""}
+                      {order.payment_status ? ` · ${paymentStatusLabel(order.payment_status)}` : ""}
                     </p>
                   </div>
                   <div className="text-right">
