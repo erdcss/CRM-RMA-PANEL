@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import type { BrandingConfig } from "@/hooks/use-branding";
+import { emptyStoreLinks, type StoreLinks } from "@/components/b2b-footer";
 
 async function fetchBranding(): Promise<BrandingConfig> {
   const response = await fetch("/api/admin/branding", { credentials: "include" });
@@ -48,6 +49,10 @@ async function fetchPaymentSettings(): Promise<PaymentSettings> {
 export default function Ayarlar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [footerDraft, setFooterDraft] = useState<Partial<StoreLinks>>({});
+  const [savingFooter,setSavingFooter]=useState(false);
+  const { data: footerSettings = emptyStoreLinks } = useQuery<StoreLinks>({ queryKey:["/api/admin/b2b-footer"],queryFn:async()=>{const r=await fetch("/api/admin/b2b-footer");if(!r.ok)throw new Error("Alt bilgi okunamadı");return r.json();} });
+  const footerValues = {...footerSettings,...footerDraft};
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
   const [draft, setDraft] = useState<BrandingConfig>({});
@@ -72,6 +77,19 @@ export default function Ayarlar() {
     accountHolder: "",
     iban: "",
   };
+
+  async function saveFooter() {
+    setSavingFooter(true);
+    try {
+      const response = await fetch("/api/admin/b2b-footer",{ method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(footerValues) });
+      const payload = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(payload.error || "Kaydedilemedi");
+      setFooterDraft({});
+      await Promise.all([queryClient.invalidateQueries({queryKey:["/api/admin/b2b-footer"]}),queryClient.invalidateQueries({queryKey:["/api/public/b2b-footer"]})]);
+      toast({title:"Kaydedildi",description:"B2B footer ve mağaza bağlantıları güncellendi"});
+    } catch(error) { toast({title:"Kaydedilemedi",description:error instanceof Error?error.message:"Bir hata oluştu",variant:"destructive"}); }
+    finally {setSavingFooter(false);}
+  }
 
   async function saveBranding() {
     setSaving(true);
@@ -214,6 +232,23 @@ export default function Ayarlar() {
                   onChange={(value) => setAsset("b2b_favicon", value)}
                   square
                 />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>B2B Alt Bilgi · Sosyal Medya ve Uygulama Mağazaları</CardTitle><CardDescription>Web sitesinin en altındaki siyah şerit ve mobil hamburger menüsündeki bağlantıları yönetin. Boş alanlar kullanıcıya gösterilmez.</CardDescription></CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {([
+                    ["instagram","Instagram bağlantısı"],["facebook","Facebook bağlantısı"],["youtube","YouTube bağlantısı"],["tiktok","TikTok bağlantısı"],
+                    ["appStoreUrl","App Store URL"],["googlePlayUrl","Google Play URL"],
+                    ["appStoreImage","App Store rozet görsel URL"],["googlePlayImage","Google Play rozet görsel URL"]
+                  ] as const).map(([key,title])=><label key={key} className="space-y-2"><span className="text-sm font-semibold">{title}</span><Input type="url" placeholder="https://" value={footerValues[key] || ""} onChange={e=>setFooterDraft(v=>({...v,[key]:e.target.value}))}/></label>)}
+                </div>
+                <div className="flex flex-wrap gap-4">
+                  {(["appStoreImage","googlePlayImage"] as const).map(key => footerValues[key] ? <img key={key} src={footerValues[key]} alt={key} className="h-12 max-w-44 rounded bg-slate-900 object-contain p-1"/> : null)}
+                </div>
+                <Button disabled={savingFooter} onClick={()=>void saveFooter()}><Save className="mr-2 h-4 w-4"/>{savingFooter?"Kaydediliyor…":"Alt Bilgi Bağlantılarını Kaydet"}</Button>
               </CardContent>
             </Card>
 
