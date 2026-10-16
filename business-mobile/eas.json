@@ -57,7 +57,8 @@
     "production": {},
     "testflight": {
       "ios": {
-        "appleTeamId": "U3WGSDJCT2"
+        "appleTeamId": "U3WGSDJCT2",
+        "ascAppId": "6818161236"
       }
     }
   }
