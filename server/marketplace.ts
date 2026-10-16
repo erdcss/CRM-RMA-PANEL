@@ -219,7 +219,7 @@ async function ownConversation(db:NonNullable<typeof pool>,conversationId:number
 }
 export function registerMarketplaceRoutes(
  app:Express, requireAdmin:RequestHandler, requireB2B:RequestHandler,
- sessionUserId:(req:Request)=>number|undefined, requireSeller:RequestHandler
+ sessionUserId:(req:Request)=>number|undefined, requireSeller:RequestHandler, requireParticipant:RequestHandler
 ) {
   app.get("/api/marketplace/stores", handle(async(req,res)=>{
     const db=await ready();
@@ -395,7 +395,7 @@ export function registerMarketplaceRoutes(
       await client.query("COMMIT");res.status(201).json({id:c.rows[0].id});
     }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
   }));
-  app.get("/api/marketplace/conversations",requireB2B,handle(async(_req,res)=>{
+  app.get("/api/marketplace/conversations",requireParticipant,handle(async(_req,res)=>{
     const db=await ready(),uid=userId(res);
     const r=await db.query(`SELECT c.id,c.supplier_id,c.buyer_user_id,c.created_at,s.company_name,s.slug,
       (SELECT text FROM mp_messages m WHERE m.conversation_id=c.id ORDER BY id DESC LIMIT 1) AS latest_message
@@ -403,20 +403,20 @@ export function registerMarketplaceRoutes(
       WHERE c.buyer_user_id=$1 OR s.owner_user_id=$1 ORDER BY c.id DESC LIMIT 100`,[uid]);
     res.json(r.rows);
   }));
-  app.get("/api/marketplace/conversations/:id/messages",requireB2B,handle(async(req,res)=>{
+  app.get("/api/marketplace/conversations/:id/messages",requireParticipant,handle(async(req,res)=>{
     const db=await ready(),cid=id(req.params.id),uid=userId(res);
     await ownConversation(db,cid,uid);
     const q=await db.query("SELECT id,author_user_id,text,created_at FROM mp_messages WHERE conversation_id=$1 ORDER BY id ASC LIMIT 200",[cid]);
     res.json(q.rows);
   }));
-  app.post("/api/marketplace/conversations/:id/messages",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/conversations/:id/messages",requireParticipant,handle(async(req,res)=>{
     const db=await ready(),cid=id(req.params.id),uid=userId(res);
     const text=z.object({text:bodyText(4000)}).strict().parse(req.body).text;
     await ownConversation(db,cid,uid);
     const q=await db.query("INSERT INTO mp_messages(conversation_id,author_user_id,text) VALUES($1,$2,$3) RETURNING *",[cid,uid,text]);
     res.status(201).json(q.rows[0]);
   }));
-  app.get("/api/marketplace/quotes",requireB2B,handle(async(_req,res)=>{
+  app.get("/api/marketplace/quotes",requireParticipant,handle(async(_req,res)=>{
     const db=await ready(),uid=userId(res);
     const q=await db.query(`SELECT q.*,s.company_name,p.sku,
       (SELECT json_build_object('amount_per_box',o.amount_per_box,'delivery_terms',o.delivery_terms,'expires_at',o.expires_at)
@@ -426,7 +426,7 @@ export function registerMarketplaceRoutes(
       WHERE q.buyer_user_id=$1 OR s.owner_user_id=$1 ORDER BY q.id DESC LIMIT 100`,[uid]);
     res.json(q.rows);
   }));
-  app.post("/api/marketplace/quotes",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/quotes",requireParticipant,handle(async(req,res)=>{
     const db=await ready(),uid=userId(res);
     const data=z.object({conversationId:z.number().int().positive(),productId:z.number().int().positive().optional().nullable(),
       boxes:z.number().int().min(1).max(100000),details:z.string().max(2000).default("")}).strict().parse(req.body);
@@ -440,7 +440,7 @@ export function registerMarketplaceRoutes(
       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[c.id,uid,c.supplier_id,data.productId||null,data.boxes,data.details]);
     res.status(201).json(q.rows[0]);
   }));
-  app.post("/api/marketplace/quotes/:id/offer",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/quotes/:id/offer",requireSeller,handle(async(req,res)=>{
     const db=await ready(),uid=userId(res),quoteId=id(req.params.id);
     const data=z.object({amountPerBox:z.number().finite().positive(),deliveryTerms:z.string().trim().max(500).default(""),
       validHours:z.number().int().min(1).max(720)}).strict().parse(req.body);
