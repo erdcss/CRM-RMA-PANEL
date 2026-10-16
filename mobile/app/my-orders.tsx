@@ -5,15 +5,8 @@ import { useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BOrderSummary } from '@/lib/api';
+import { orderStatusTR, paymentStatusTR } from '@/lib/b2b-order-labels';
 
-function status(value?: string | null) {
-  const labels: Record<string, string> = {
-    paid: 'Ödeme alındı', paid_stock_review: 'Stok kontrolünde',
-    awaiting_bank_transfer: 'Havale bekleniyor', completed: 'Tamamlandı',
-    cancelled: 'İptal edildi', cancel_requested: 'İptal talebi',
-  };
-  return labels[String(value || '').toLowerCase()] || value || 'İşlemde';
-}
 export default function MyOrdersScreen() {
   const router = useRouter();
   const { palette } = useAppearance();
@@ -39,8 +32,13 @@ export default function MyOrdersScreen() {
         <Pressable key={String(order.id)} accessibilityRole="button" accessibilityLabel={`Sipariş detayını aç: ${order.order_number || order.id}`} onPress={() => router.push({ pathname: '/my-orders/[id]', params: { id: String(order.id) } } as never)} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <View style={{ flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12 }}>
             <Text style={{ color: palette.text,fontSize:15,fontWeight:'800',flex:1 }} numberOfLines={1}>{order.order_number || 'Sipariş #'+order.id}</Text>
-            <Text style={{ color: palette.accentText,backgroundColor:palette.accent,paddingHorizontal:9,paddingVertical:5,borderRadius:11,fontSize:11,fontWeight:'800' }}>{status(order.status)}</Text>
+            <Text style={{ color: palette.accentText,backgroundColor:palette.accent,paddingHorizontal:9,paddingVertical:5,borderRadius:11,fontSize:11,fontWeight:'800' }}>{orderStatusTR(order.status)}</Text>
           </View>
+          {order.payment_method === 'bank_transfer' ? (
+            <Text style={{color: palette.textSecondary, fontSize:12, fontWeight:'700', marginTop:6}}>
+              {paymentStatusTR(order.payment_status)}
+            </Text>
+          ) : null}
           <Text style={{ color: palette.textSecondary, marginTop:10,fontSize:12 }}>
             {order.created_at ? new Date(order.created_at).toLocaleDateString('tr-TR') : 'Sipariş'} · {order.item_count || 0} ürün
           </Text>
