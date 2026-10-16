@@ -3913,12 +3913,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
        WHERE order_number = $1
          AND user_id = $2
          AND payment_method = 'bank_transfer'
-         AND payment_status IN ('pending','customer_reported_paid')
+         AND payment_status = 'pending'
        RETURNING id, order_number, status, payment_status`,
       [orderNumber, user.id],
     );
 
     if (!result.rows[0]) {
+      // The customer may retry after a lost response: return the previous status
+      // without issuing a second payment notification.
+      const existing = await pool.query(
+        `SELECT id,order_number,status,payment_status FROM b2b_orders
+         WHERE order_number=$1 AND user_id=$2 AND payment_method='bank_transfer'
+           AND payment_status='customer_reported_paid' LIMIT 1`,
+        [orderNumber,user.id],
+      );
+      if (existing.rows[0]) return res.json(existing.rows[0]);
       return res.status(404).json({ error: "Havale/EFT siparişi bulunamadı" });
     }
 
