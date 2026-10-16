@@ -1,0 +1,101 @@
+name: Çalışkan iOS - TestFlight (B2B + Business)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/testflight-all-apps.yml'
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Which iOS app to send to TestFlight?
+        required: true
+        type: choice
+        default: all
+        options: [all, b2b, business]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  b2b:
+    name: Çalışkan B2B - iOS build and TestFlight
+    if: github.event_name == 'push' || github.event.inputs.app == 'all' || github.event.inputs.app == 'b2b'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require Expo EAS authentication
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=Missing EXPO_TOKEN::Set EXPO_TOKEN in GitHub Settings > Secrets and variables > Actions. Build and TestFlight upload were NOT attempted."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Verify main revision and prepare release assets
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          node scripts/sync-mobile-branding.cjs b2b
+      - name: Queue iOS build and auto-submit to TestFlight
+        run: eas build --platform ios --profile testflight --non-interactive --auto-submit
+
+  business:
+    name: Çalışkan Business - iOS build and TestFlight
+    if: github.event_name == 'push' || github.event.inputs.app == 'all' || github.event.inputs.app == 'business'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require Expo EAS authentication
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=Missing EXPO_TOKEN::Set EXPO_TOKEN in GitHub Settings > Secrets and variables > Actions. Build and TestFlight upload were NOT attempted."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Prepare brand assets
+        run: npm run sync:branding
+      - name: Queue iOS build and auto-submit to TestFlight
+        run: eas build --platform ios --profile testflight --non-interactive --auto-submit
