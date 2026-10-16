@@ -6,6 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { rmaApi, absoluteMediaUrl, type B2BOrderDetail, type B2BOrderAddress } from '@/lib/api';
+import { orderStatusTR, paymentStatusTR } from '@/lib/b2b-order-labels';
 import { spacing, radius, typography } from '@/constants/theme';
 
 function readable(value: unknown): string {
@@ -14,15 +15,6 @@ function readable(value: unknown): string {
 function currency(value: unknown): string {
   const number = Number(value || 0);
   return Number.isFinite(number) ? number.toLocaleString('tr-TR', { style: 'currency', currency: 'TRY' }) : '—';
-}
-function statusLabel(value: unknown) {
-  const labels: Record<string,string> = {
-    paid: 'Ödeme alındı', paid_stock_review: 'Stok kontrolünde',
-    awaiting_bank_transfer: 'Havale bekleniyor', awaiting_bank_confirmation: 'Havale kontrol ediliyor',
-    payment_pending: 'Ödeme bekliyor', completed: 'Tamamlandı',
-    cancelled: 'İptal edildi', cancel_requested: 'İptal talebi',
-  };
-  return labels[readable(value)] || readable(value) || 'İşlemde';
 }
 function deliveryLabel(value?: string | null) {
   switch (value) {
@@ -110,7 +102,7 @@ export default function OrderDetailScreen() {
           <Text style={styles.eyebrow}>SİPARİŞ NUMARASI</Text>
           <Text selectable style={styles.orderNumber}>{order.order_number || '#' + order.id}</Text>
           <Text style={styles.muted}>{order.created_at ? new Date(order.created_at).toLocaleString('tr-TR') : 'Tarih belirtilmemiş'}</Text>
-          <View style={styles.statusBadge}><Text style={styles.statusText}>{statusLabel(order.status)}</Text></View>
+          <View style={styles.statusBadge}><Text style={styles.statusText}>{orderStatusTR(order.status)}</Text></View>
         </View>
 
         <View style={styles.card}>
@@ -134,7 +126,7 @@ export default function OrderDetailScreen() {
               </View>
               <View style={styles.itemText}>
                 <Text style={styles.productName}>{item.name || 'Ürün'}</Text>
-                <Text style={styles.muted}>Stok kodu: {item.sku || '—'}</Text>
+                <Text style={styles.muted}>Ürün kodu: {item.sku || 'Belirtilmemiş'}</Text>
                 <Text style={styles.muted}>{Number(item.quantity || 0)} koli · Koli içi {Number(item.unitsPerBox || 0)} adet</Text>
                 <Text style={styles.muted}>Toplam {Number(item.totalUnits || 0)} adet</Text>
                 <Text style={styles.itemPrice}>{currency(item.total)}</Text>
@@ -148,7 +140,7 @@ export default function OrderDetailScreen() {
           <DetailRow palette={palette} label="Ödeme yöntemi"
             value={order.payment_method === 'bank_transfer' ? 'Havale / EFT' : order.payment_method === 'card' ? 'Kredi / Banka Kartı' : 'Belirtilmemiş'}/>
           {order.payment_method === 'card' && <DetailRow palette={palette} label="Kart" value={`${order.card_association || 'Kart'}${order.card_last4 ? ' · •••• ' + order.card_last4 : ''}`}/>}
-          <DetailRow palette={palette} label="Ödeme durumu" value={readable(order.payment_status) || 'Belirtilmemiş'}/>
+          <DetailRow palette={palette} label="Ödeme durumu" value={paymentStatusTR(order.payment_status)}/>
           <View style={styles.totalRow}><Text style={styles.totalLabel}>Sipariş Toplamı</Text><Text style={styles.totalValue}>{currency(order.total_amount)}</Text></View>
         </View>
 
