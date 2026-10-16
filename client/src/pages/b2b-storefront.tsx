@@ -114,29 +114,47 @@ export default function B2BStorefront() {
         }
       />
 
-      <section className="bg-slate-950 text-white">
-        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-7 md:grid-cols-2 md:items-center md:py-9">
-          <div>
-            <div className="text-sm font-bold tracking-wide text-amber-400">ÇALIŞKAN B2B</div>
-            <h1 className="mt-2 max-w-xl text-2xl font-black leading-tight sm:text-3xl lg:text-4xl">
-              Toptan alışverişinizi tek merkezden yönetin.
+      <section
+        className="relative overflow-hidden bg-slate-950 text-white"
+        style={{ background: "radial-gradient(ellipse at 95% 0%, #162139 0%, #020617 60%)" }}
+      >
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-center lg:gap-12 lg:py-20">
+          <div className="min-w-0">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-xs font-bold tracking-wide text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+              ÇALIŞKAN B2B · TOPTAN TİCARET
+            </div>
+            <h1 className="max-w-2xl text-3xl font-black leading-[1.15] tracking-tight sm:text-4xl lg:text-[42px]">
+              Toptan alışverişinizi <span className="text-amber-300">tek merkezden</span> yönetin.
             </h1>
-            <p className="mt-3 max-w-lg text-sm leading-6 text-slate-300">
-              Ürünleri inceleyin, koli ve minimum alım bilgilerini görün. B2B fiyatları ve sipariş işlemleri işletme hesabı ile kullanılabilir.
+            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
+              Ürünleri inceleyin, koli ve minimum alım bilgilerini karşılaştırın. İşletme hesabınızla size özel fiyatlara ve sipariş işlemlerine erişin.
             </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <a
+                href="#urunler"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
+              >
+                Ürünleri İncele
+              </a>
+              <Link
+                href="/magazalar"
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-300 hover:bg-white/10"
+              >
+                Tedarikçi Mağazaları
+              </Link>
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5">
-            <Feature icon={<Boxes className="h-5 w-5" />} title="Koli Bazlı" text="Toptan sipariş" />
-            <Feature icon={<Truck className="h-5 w-5" />} title="Sevkiyat" text="Hızlı operasyon" />
-            <Feature icon={<ShieldCheck className="h-5 w-5" />} title="İşletme" text="Onaylı hesap" />
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 lg:gap-2.5" aria-label="Alışveriş avantajları">
+            <Feature icon={<Boxes className="h-6 w-6" />} title="Koli Bazlı" text="Toptan alıma uygun miktarlar" />
+            <Feature icon={<Truck className="h-6 w-6" />} title="Sevkiyat" text="Sipariş ve teslimat takibi" />
+            <Feature icon={<ShieldCheck className="h-6 w-6" />} title="İşletme" text="Onaylı işletme hesabı" />
           </div>
         </div>
       </section>
 
-
-
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
         {homepage.categories.length > 0 ? (
           <section className="mb-6">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -204,7 +222,7 @@ export default function B2BStorefront() {
           </div>
         </div>
 
-        <div className="mb-4 flex items-end justify-between gap-4">
+        <div id="urunler" className="mb-5 flex scroll-mt-24 items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">Toptan Ürünler</h2>
             <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ürün kataloğu</p>
@@ -223,14 +241,14 @@ export default function B2BStorefront() {
             <p className="mt-1 text-sm text-slate-500">Yeni ürünler eklendiğinde burada görüntülenecek.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filtered.map((product) => {
               const image = product.image_data || product.image_url;
               return (
                 <Link
                   key={product.id}
                   href={`/urun/${product.id}`}
-                  className="group block overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                  className="group block min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400/40"
                 >
                   <article>
                     <div className="flex aspect-square items-center justify-center bg-slate-50">
@@ -267,17 +285,21 @@ export default function B2BStorefront() {
           </div>
         )}
       </main>
+      <B2BFooter />
     </div>
   );
 }
 
 function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="flex min-h-[112px] min-w-0 flex-col justify-center rounded-xl border border-white/10 bg-white/10 p-3.5 sm:min-h-[128px] sm:p-4">
-      <div className="mb-3 text-amber-300">{icon}</div>
-      <b className="block text-sm font-bold leading-snug sm:text-base">{title}</b>
-      <span className="mt-1 block text-xs leading-relaxed text-slate-300">{text}</span>
-      <B2BFooter />
+    <div className="flex min-w-0 flex-row items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.07] p-4 shadow-sm sm:min-h-[170px] sm:flex-col sm:items-start sm:justify-between lg:min-h-[180px]">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <b className="block text-sm font-bold leading-snug text-white sm:text-base">{title}</b>
+        <span className="mt-1 block text-xs leading-relaxed text-slate-300">{text}</span>
+      </div>
     </div>
   );
 }
