@@ -195,6 +195,15 @@ async function requireMarketplaceSuperAdmin(req: Request, res: Response, next: N
   return next();
 }
 
+async function requireSeller(req: Request, res: Response, next: NextFunction) {
+  const id = sessionUserId(req);
+  if (!id) return res.status(401).json({error:"Satıcı girişi gerekiyor"});
+  const user = await storage.getUser(id);
+  if (!user || user.isActive !== 1 || user.role !== "b2b_seller") return res.status(403).json({error:"Bu işlem için satıcı hesabıyla giriş yapın"});
+  (res.locals as any).b2bUser = user;
+  return next();
+}
+
 async function requireB2B(req: Request, res: Response, next: NextFunction) {
   const userId = sessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
@@ -1762,6 +1771,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.status(401).json({ error: "Kullanıcı adı veya şifre hatalı" });
   });
 
+  app.post("/api/seller/register", async (req,res) => {
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    const password=String(req.body?.password||"");
+    const firstName=String(req.body?.firstName||"").trim();
+    const lastName=String(req.body?.lastName||"").trim();
+    const companyName=String(req.body?.companyName||"").trim();
+    if (!/^\S+@\S+\.\S+$/.test(email) || email.length>254 || password.length<10 || firstName.length<2 || lastName.length<2 || companyName.length<2) {
+      return res.status(400).json({error:"Geçerli firma, ad, soyad, e-posta ve en az 10 karakterli şifre girin"});
+    }
+    const found=(await storage.getUserByUsername(email))||(await storage.getUserByEmail(email));
+    if(found)return res.status(409).json({error:"Bu e-posta adresi kullanımda. Satıcı hesabınız için farklı bir e-posta kullanın."});
+    try {
+      const user=await storage.createUser({username:email,password:hashPassword(password),role:"b2b_seller",appAccess:"seller",isActive:1,companyName,firstName,lastName,email,companyCategory:"Diğer",taxNumber:null,taxOffice:null,taxVerified:0,applicationStatus:"pending",mustChangePassword:0});
+      (req.session as {userId?:number}).userId=user.id;
+      return res.status(201).json({id:user.id,role:"b2b_seller",email,companyName});
+    } catch(error) {console.error("Seller registration failed:",error);return res.status(500).json({error:"Satıcı hesabı oluşturulamadı"});}
+  });
+  app.post("/api/seller/login", async (req,res) => {
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    const password=String(req.body?.password||"");
+    const user=(await storage.getUserByUsername(email))||(await storage.getUserByEmail(email));
+    if(!user||!verifyPassword(password,user.password)||user.role!=="b2b_seller"||user.isActive!==1) return res.status(401).json({error:"Satıcı e-posta adresi veya şifre hatalı"});
+    (req.session as {userId?:number}).userId=user.id;
+    return res.json({id:user.id,email:user.email,role:user.role});
+  });
+
   app.post("/api/b2b/login", async (req, res) => {
     const identifier =
       typeof req.body?.username === "string"
@@ -2347,8 +2382,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerRoutes(app, requireB2B);
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
-  registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId);
-  registerMarketplaceMediaRoutes(app, requireB2B, sessionUserId);
+  registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller);
+  registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
   registerMarketplaceCartRoutes(app, requireB2B);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
