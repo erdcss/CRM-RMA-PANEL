@@ -2,7 +2,7 @@
 import { FormEvent, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, RefreshCw } from "lucide-react";
+import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, RefreshCw, Building2, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string};
@@ -21,7 +21,8 @@ function Field({label,children}:{label:string;children:React.ReactNode}){return 
 function Notice({text}:{text:string}){return <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{text}</div>;}
 export default function MarketplaceSeller(){
   const [tab,setTab]=useState<Tab>("store");
-  const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",description:""});
+  const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:""});
+  const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",contactEmail:"",description:""});
   const [store,setStore]=useState({title:"",tagline:"",accent:"#FACC15",bannerUrl:"",logoUrl:"",sections:["banner","categories","products","reels","about"]});
   const [product,setProduct]=useState({sku:"",stock:"0",name:"",description:"",category:"",brand:"",barcode:"",imageUrl:"",price:"",unitsPerBox:"1",minBoxes:"1"});
   const [reel,setReel]=useState({title:"",videoUrl:"",productId:""});
@@ -75,29 +76,37 @@ export default function MarketplaceSeller(){
         me.isError?<div className={boxStyle}><p className="font-bold">Giriş gerekiyor</p><p className="mt-2 text-sm text-slate-600">Tedarikçi başvurusu için onaylı B2B müşteri hesabınızla giriş yapın.</p><Link href="/uye-girisi" className="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2 text-white">Giriş yap</Link></div>:
         !me.data?<form className={boxStyle+" space-y-4"} onSubmit={(e:FormEvent)=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/apply",form),["/api/marketplace/me"]);}}>
           <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6"/><h2 className="text-xl font-bold">Çalışkan B2B'de Satıcı Ol</h2></div>
-          <p className="text-sm text-slate-600">Başvurunuz önce süper yönetici onayına gönderilir. Onaydan sonra mağaza ve ürünlerinizi hazırlayabilirsiniz.</p>
+          <p className="text-sm text-slate-600">Satıcı kaydınızın ardından panelinizi kullanmaya başlayabilirsiniz. Satışa başlamak için şirket bilgilerinizi doğrulatmanız gerekir.</p>
           <div className="grid gap-4 sm:grid-cols-2">
-            {([["companyName","Ticari unvan"],["taxNumber","Vergi numarası / TCKN"],["taxOffice","Vergi dairesi"],["contactName","Yetkili kişi"],["contactPhone","Telefon"]] as const).map(([key,title])=>
+            {([["companyName","Ticari unvan"],["taxNumber","Vergi numarası / TCKN"],["taxOffice","Vergi dairesi"],["contactName","Yetkili kişi"],["contactPhone","Telefon"],["contactEmail","E-posta adresi"]] as const).map(([key,title])=>
               <Field key={key} label={title}><input className={inputStyle} required={key!=="taxOffice"} value={form[key]} onChange={e=>setForm(v=>({...v,[key]:e.target.value}))}/></Field>)}
           </div>
           <Field label="Firma ve ürün grupları"><textarea className={inputStyle} rows={3} value={form.description} onChange={e=>setForm(v=>({...v,description:e.target.value}))}/></Field>
           <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Başvuruyu Yönetici Onayına Gönder</button>
         </form>:
-        !approved?<div className={boxStyle+" space-y-4"}><ShieldCheck className="h-10 w-10 text-amber-600"/><h2 className="text-xl font-bold">{me.data.company_name}</h2>
-          <Notice text={"Başvuru durumu: "+(statusTR[me.data.status]||me.data.status)} />
-          {me.data.review_note?<p className="text-sm">Yönetici notu: {me.data.review_note}</p>:null}
-          <p className="text-sm text-slate-600">Başvurunuz onaylanmadan mağaza ve ürünler yayına alınmaz.</p>
-          {me.data.status==="rejected"?<form className="space-y-3 rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void run(
-            ()=>send("PATCH","/api/marketplace/apply",form),["/api/marketplace/me"]);}}>
-            <h3 className="font-semibold">Başvuruyu düzelt ve tekrar gönder</h3>
-            {(["companyName","taxNumber","taxOffice","contactName","contactPhone","description"] as const).map(k=><Field key={k} label={
-              ({companyName:"Ticari unvan",taxNumber:"VKN / TCKN",taxOffice:"Vergi dairesi",
-                contactName:"Yetkili",contactPhone:"Telefon",description:"Açıklama"} as Record<string,string>)[k]}>
-              <input required={k!=="taxOffice"&&k!=="description"} className={inputStyle} value={form[k]}
-                onChange={e=>setForm(v=>({...v,[k]:e.target.value}))}/></Field>)}
-            <button disabled={busy} className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">
-              Yeniden Onaya Gönder</button>
-          </form>:null}</div>:
+        !approved?<div className="space-y-5">
+          <div className="rounded-2xl border border-amber-200 bg-[#fff8e1] p-5 sm:p-7">
+            <div className="flex items-start gap-3"><ShieldCheck className="mt-1 h-7 w-7 text-amber-700"/><div className="flex-1">
+              <h2 className="text-xl font-black">Satıcı paneline hoş geldiniz, {me.data.company_name}</h2>
+              <p className="mt-2 text-sm text-amber-950">Hesabınız oluşturuldu. Mağazanız henüz yayında değil. Ürün satabilmek ve sipariş alabilmek için şirket bilgilerinizi tamamlayıp onaylatın.</p>
+              <p className="mt-2 text-xs font-bold">Durum: {statusTR[me.data.status] || me.data.status}</p>
+              {me.data.review_note?<p className="mt-2 text-sm">Yönetici notu: {me.data.review_note}</p>:null}
+            </div></div>
+            <button type="button" onClick={()=>document.getElementById("seller-verification")?.scrollIntoView({behavior:"smooth"})} className="mt-4 rounded-xl bg-[#111] px-5 py-3 font-bold text-[#ffce00]">Satışa Başlamak İçin Hesabınızı Onaylayın</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[["Mağaza","Hazırlanıyor"],["Ürünler","Onay bekliyor"],["Siparişler","Kapalı"],["Ödemeler","Kapalı"]].map(([name,status])=><div key={name} className={boxStyle}><p className="text-sm font-black">{name}</p><span className="mt-2 block text-xs text-slate-500">{status}</span></div>)}
+          </div>
+          <form id="seller-verification" className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/verification",verification),["/api/marketplace/me"]);}}>
+            <div className="flex items-center gap-3"><Building2 className="h-6 w-6"/><div><h3 className="text-lg font-black">Şirket Doğrulaması</h3><p className="text-sm text-slate-500">Bilgileriniz sadece yetkili inceleme ekibi tarafından değerlendirilir.</p></div></div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Şirket türü"><select required className={inputStyle} value={verification.companyType} onChange={e=>setVerification(v=>({...v,companyType:e.target.value}))}><option value="">Şirket türünüzü seçin</option><option value="sahis">Şahıs Şirketi</option><option value="limited">Limited Şirket</option><option value="anonim">Anonim Şirket</option><option value="kooperatif">Kooperatif</option><option value="diger">Diğer</option></select></Field>
+              <Field label="IBAN"><input required className={inputStyle} placeholder="TR ile başlayan 26 haneli IBAN" value={verification.iban} onChange={e=>setVerification(v=>({...v,iban:e.target.value.toUpperCase().replace(/\s/g,"")}))}/></Field>
+            </div>
+            <Field label="Vergi Levhası (PDF, en fazla 5 MB)"><input type="file" required accept="application/pdf" className={inputStyle} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5_000_000){setMessage("Vergi levhası en fazla 5 MB olmalı.");return;}const reader=new FileReader();reader.onload=()=>setVerification(v=>({...v,taxDocument:String(reader.result||"")}));reader.readAsDataURL(file);}}/></Field>
+            <button type="submit" disabled={busy||!verification.taxDocument} className="rounded-xl bg-black px-5 py-3 text-sm font-extrabold text-[#ffcc00] disabled:opacity-50">Doğrulama Bilgilerini Gönder</button>
+          </form>
+        </div>:
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
