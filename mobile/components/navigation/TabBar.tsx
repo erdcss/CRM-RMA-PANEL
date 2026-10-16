@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,13 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { useAppearance } from '@/contexts/AppearanceContext';
+import { getOrderList, subscribeOrderList } from '@/lib/b2b-order-list';
 
 const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }> = {
   index: { label: 'Ana Sayfa', icon: 'home-outline', activeIcon: 'home' },
   menu: { label: 'Kategoriler', icon: 'grid-outline', activeIcon: 'grid' },
   discover: { label: 'Reels', icon: 'play-circle-outline', activeIcon: 'play-circle' },
   shortages: { label: 'Eksik Listem', icon: 'clipboard-outline', activeIcon: 'clipboard' },
-  orders: { label: 'Sepetim', icon: 'cart-outline', activeIcon: 'cart' },
+  orders: { label: 'Siparişlerim', icon: 'cart-outline', activeIcon: 'cart' },
   profile: { label: 'Hesabım', icon: 'person-outline', activeIcon: 'person' },
 };
 
@@ -20,6 +22,16 @@ const VISIBLE_TABS = new Set(Object.keys(TAB_CONFIG));
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { palette, mode } = useAppearance();
+  const [orderCount, setOrderCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const reload = () => { void getOrderList().then(items => {
+      if (active) setOrderCount(items.length);
+    }); };
+    reload();
+    const unsubscribe = subscribeOrderList(reload);
+    return () => { active = false; unsubscribe(); };
+  }, []);
   const routes = state.routes
     .map((route, index) => ({ route, index }))
     .filter(({ route }) => VISIBLE_TABS.has(route.name));
@@ -58,13 +70,20 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
           };
 
           return (
-            <Pressable key={route.key} onPress={onPress} style={styles.tab}>
+            <Pressable key={route.key} onPress={onPress} style={styles.tab}
+              accessibilityRole="tab"
+              accessibilityLabel={route.name === 'orders' && orderCount > 0 ? `Siparişlerim, ${orderCount} ürün` : config.label}>
               <View style={[styles.iconWrap, focused && styles.iconWrapActive, focused && { backgroundColor: mode === 'dark' ? '#383C40' : '#FFF1A8' }]}>
                 <Ionicons
                   name={focused ? config.activeIcon : config.icon}
                   size={21}
                   color={focused ? (mode === 'dark' ? '#FFCD00' : '#191919') : palette.textSecondary}
                 />
+                {route.name === 'orders' && orderCount > 0 ? (
+                  <View style={styles.counterBadge}>
+                    <Text style={styles.counterText}>{orderCount > 9 ? '+9' : orderCount}</Text>
+                  </View>
+                ) : null}
               </View>
               <Text style={[styles.label, focused && styles.labelActive, { color: focused ? (mode === 'dark' ? '#FFCD00' : palette.text) : palette.textSecondary }]}>{config.label}</Text>
             </Pressable>
@@ -111,6 +130,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 2,
   },
+  counterBadge: {
+    position: 'absolute',
+    top: -7,
+    right: -13,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 3,
+    borderRadius: 10,
+    backgroundColor: '#E11D48',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  counterText: { fontSize: 10, lineHeight: 12, fontWeight: '900', color: '#FFFFFF' },
   iconWrap: {
     minWidth: 32,
     height: 30,
