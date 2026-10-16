@@ -520,9 +520,9 @@ export function registerMarketplaceRoutes(
     try {
       await client.query("BEGIN");
       const r=await client.query(`UPDATE mp_suppliers SET status=$1,review_note=$2,reviewed_at=NOW()
-        WHERE id=$3 AND status='pending' RETURNING id,status`,
+        WHERE id=$3 AND status='pending' AND ($1 <> 'approved' OR (company_type <> '' AND tax_document <> '' AND iban <> '')) RETURNING id,status`,
         [data.decision,data.note,supplierId]);
-      if(!r.rows[0])throw new ApiError(409,"Başvuru bulunamadı veya zaten değerlendirilmiş");
+      if(!r.rows[0])throw new ApiError(409,"Başvuru bulunamadı, zaten değerlendirilmiş veya şirket doğrulama evrakları eksik");
       await client.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
         [actor,"supplier_"+data.decision,supplierId,data.note]);
       await client.query("COMMIT");
