@@ -273,10 +273,10 @@ export default function B2BStorefront() {
 
 function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <div className="rounded-xl bg-white/10 p-3">
-      {icon}
-      <b className="mt-4 block text-sm sm:text-base">{title}</b>
-      <span className="mt-1 block text-[11px] text-slate-300 sm:text-xs">{text}</span>
+    <div className="flex min-h-[112px] min-w-0 flex-col justify-center rounded-xl border border-white/10 bg-white/10 p-3.5 sm:min-h-[128px] sm:p-4">
+      <div className="mb-3 text-amber-300">{icon}</div>
+      <b className="block text-sm font-bold leading-snug sm:text-base">{title}</b>
+      <span className="mt-1 block text-xs leading-relaxed text-slate-300">{text}</span>
       <B2BFooter />
     </div>
   );
