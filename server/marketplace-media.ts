@@ -24,8 +24,8 @@ export function registerMarketplaceMediaRoutes(app:Express,requireB2B:RequestHan
     try{
       const uid=Number((res.locals as any).b2bUser?.id);
       const db=await ready();
-      const supplier=await db.query("SELECT id FROM mp_suppliers WHERE owner_user_id=$1 AND status='approved'",[uid]);
-      if(!supplier.rows[0])return res.status(403).json({error:"Onaylı tedarikçi hesabı gerekiyor"});
+      const supplier=await db.query("SELECT id FROM mp_suppliers WHERE owner_user_id=$1 AND status IN ('pending','approved')",[uid]);
+      if(!supplier.rows[0])return res.status(403).json({error:"Aktif veya doğrulaması süren tedarikçi hesabı gerekiyor"});
       const raw=req.body?.dataUrl;
       if(typeof raw!=="string"||raw.length>13_500_000)return res.status(400).json({error:"Medya boyutu geçersiz"});
       const match=/^data:(image\/(?:jpeg|png|webp)|video\/mp4);base64,([a-zA-Z0-9+/=]+)$/i.exec(raw);
