@@ -23,6 +23,16 @@ function statusLabel(value?: string | null) {
     completed:"Tamamlandı",cancelled:"İptal edildi" };
   return labels[String(value || "")] || value || "Bekliyor";
 }
+function paymentStatusLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    pending: "Havale bekleniyor",
+    customer_reported_paid: "Müşteri ödemeyi bildirdi · kontrol bekliyor",
+    bank_confirmed: "Ödeme onaylandı",
+    SUCCESS: "Ödeme alındı",
+    FAILURE: "Ödeme başarısız",
+  };
+  return labels[String(value || "")] || "Kontrol bekleniyor";
+}
 function addressText(value: any) {
   if (!value || typeof value !== "object") return "—";
   return [value.addressLine, value.district, value.city, value.postalCode].filter(Boolean).join(", ") || "—";
@@ -73,6 +83,8 @@ export default function AdminOrderDetail() {
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [invoiceUploading, setInvoiceUploading] = useState(false);
+  const [bankStatementChecked, setBankStatementChecked] = useState(false);
+  const [bankApprovalBusy, setBankApprovalBusy] = useState(false);
   const { toast } = useToast();
   const { data: branding } = useBranding();
   const { data: current, isLoading: detailLoading, isError, error, refetch } = useQuery<any>({
@@ -88,6 +100,38 @@ export default function AdminOrderDetail() {
     enabled: Boolean(selectedId),
   });
   useEffect(() => { setInvoiceNumber(""); setInvoiceFile(null); }, [selectedId]);
+  useEffect(() => { setBankStatementChecked(false); }, [selectedId]);
+  async function approveBankPayment() {
+    if (!current || !bankStatementChecked || bankApprovalBusy) return;
+    setBankApprovalBusy(true);
+    try {
+      const response = await apiRequest(
+        "POST", `/api/admin/orders/${encodeURIComponent(selectedId)}/approve-bank-payment`,
+        { bankStatementChecked: true },
+      );
+      const result = await response.json();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/orders/detail", selectedId] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/orders"] }),
+      ]);
+      setBankStatementChecked(false);
+      toast({
+        title: "Havale ödemesi onaylandı",
+        description: result.notificationRecorded
+          ? "Müşteriye otomatik bildirim kaydedildi ve mobil gönderim denendi."
+          : "Ödeme onaylandı. Bildirim daha önce kaydedilmiş olabilir veya gönderim kontrolü gerekebilir.",
+      });
+    } catch (error) {
+      toast({
+        title: "Ödeme onayı başarısız",
+        description: error instanceof Error ? error.message : "İşlem tamamlanamadı",
+        variant: "destructive",
+      });
+    } finally {
+      setBankApprovalBusy(false);
+    }
+  }
+
   async function uploadInvoice(orderId: string) {
     if (!invoiceFile) { toast({title:"PDF fatura dosyası seçin",variant:"destructive"});return; }
     const reference = invoiceNumber.trim();
@@ -130,6 +174,48 @@ export default function AdminOrderDetail() {
         <Button variant="outline" className="mt-4" onClick={() => void refetch()}>Tekrar dene</Button>
       </div>
       : <div className="space-y-5">
+        {current.payment_method === "bank_transfer" ? (
+          <section className="rounded-2xl border bg-background p-5">
+            <div className="mb-3 flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              <h3 className="text-lg font-bold">Havale / EFT Ödeme Kontrolü</h3>
+            </div>
+            <div className="grid gap-3 text-sm sm:grid-cols-3">
+              <div><p className="text-muted-foreground">Ödenecek tutar</p>
+                <p className="font-bold">{money(Number(current.total_amount || 0))}</p></div>
+              <div><p className="text-muted-foreground">Banka açıklama kodu</p>
+                <p className="font-bold">{current.transfer_code || "Belirtilmemiş"}</p></div>
+              <div><p className="text-muted-foreground">Ödeme durumu</p>
+                <p className="font-bold">{paymentStatusLabel(current.payment_status)}</p></div>
+            </div>
+            {current.status === "awaiting_bank_confirmation" && current.payment_status === "customer_reported_paid" ? (
+              <div className="mt-4 space-y-4 border-t pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Müşteri havale yaptığını bildirdi. Banka hareketlerinde tutarı ve
+                  CLK açıklama kodunu doğruladıktan sonra ödeme onayı verin.
+                </p>
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input type="checkbox" className="mt-1 h-4 w-4"
+                    checked={bankStatementChecked}
+                    onChange={e => setBankStatementChecked(e.target.checked)} />
+                  <span>Banka hesabına gelen tutarı ve açıklama kodunu kontrol ettim; tahsilatı doğruluyorum.</span>
+                </label>
+                <Button onClick={() => void approveBankPayment()}
+                  disabled={!bankStatementChecked || bankApprovalBusy}>
+                  {bankApprovalBusy ? "Onaylanıyor…" : "Ödeme Onaylandı"}
+                </Button>
+              </div>
+            ) : current.status === "paid" && current.payment_status === "bank_confirmed" ? (
+              <p className="mt-4 rounded-lg bg-muted p-3 text-sm font-semibold">
+                Ödeme yönetici tarafından onaylandı. Müşterinin bildirim merkezine otomatik bildirim gönderildi veya gönderim denendi.
+              </p>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Ödeme onayı için müşterinin havale bildirimi bekleniyor.
+              </p>
+            )}
+          </section>
+        ) : null}
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div>
                                 <div className="text-xs font-semibold text-muted-foreground">
@@ -216,7 +302,7 @@ export default function AdminOrderDetail() {
                                 icon={<Route className="h-4 w-4" />}
                                 label="Durum"
                                 value={statusLabel(current.status)}
-                                detail={current.payment_status || "—"}
+                                detail={paymentStatusLabel(current.payment_status)}
                               />
                             </div>
 
