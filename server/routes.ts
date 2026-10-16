@@ -28,6 +28,7 @@ import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes } from "./marketplace";
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceCartRoutes } from "./marketplace-cart";
+import { reserveB2BBankReference, lockB2BBankReference, bindB2BBankReference, findB2BBankReferenceOrder, ensureB2BBankReferenceTable, BankReferenceError } from "./b2b-bank-transfer-code";
 
 let dbReady = false;
 
@@ -3756,6 +3757,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Allocate the matching bank description BEFORE creating the order.
+  app.post("/api/b2b/payments/bank-transfer/preview-code", requireB2B, async (_req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try {
+      const bank = await bankTransferSettings();
+      if (!bank.enabled || !bank.iban || !bank.bankName || !bank.accountHolder) {
+        return res.status(503).json({ error: "Havale/EFT ödeme yöntemi yapılandırılmadı" });
+      }
+      const user = (res.locals as any).b2bUser;
+      return res.status(201).json(await reserveB2BBankReference(Number(user.id)));
+    } catch (error) {
+      console.error("Bank reference reservation:", error);
+      return res.status(500).json({ error: "Havale kodu hazırlanamadı. Tekrar deneyin." });
+    }
+  });
+
   app.post("/api/b2b/payments/bank-transfer", requireB2B, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     const user = (res.locals as any).b2bUser;
@@ -3764,11 +3781,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!bank.enabled || !bank.iban || !bank.bankName || !bank.accountHolder) {
       return res.status(503).json({ error: "Havale/EFT ödeme yöntemi henüz yapılandırılmadı" });
     }
+    const reservationId = req.body?.reservationId;
+    // Safe retry after a lost response: one reservation always maps to one order.
+    if (reservationId !== undefined) {
+      try {
+        const previous = await findB2BBankReferenceOrder(Number(user.id), reservationId);
+        if (previous) {
+          return res.status(200).json({
+            orderNumber: previous.order_number,
+            total: Number(previous.total_amount),
+            bankTransfer: bank,
+            transferCode: previous.transfer_code,
+            transferDescription: previous.transfer_code,
+          });
+        }
+      } catch (error) {
+        console.error("Checking bank reference:", error);
+        return res.status(503).json({ error: "Havale kodu kontrol edilemedi" });
+      }
+    }
 
     let checkout: Awaited<ReturnType<typeof checkoutItems>>;
     let address: any;
     let shipping: ShippingSelection;
-
     try {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
@@ -3782,8 +3817,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    const orderNumber = newB2BOrderNumber();
-    const transferCode = await newBankTransferCode();
     const total = checkout.total;
     const email = String(user.email || user.username || "").trim();
     const orderItems = checkout.items.map((entry) => ({
@@ -3798,38 +3831,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       image: entry.product.image,
     }));
     const { billingDetails, shippingAddress, checkoutTrace } = buildOrderSnapshots(
-      user,
-      address,
-      shipping,
-      req.body?.checkoutContext,
+      user, address, shipping, req.body?.checkoutContext,
     );
 
-    await pool.query(
-      `INSERT INTO b2b_orders (
-        order_no, order_number, customer_email, status, item_count, total_amount,
-        payment_method, payment_provider, payment_status, transfer_code,
-        shipping_method, shipping_details, user_id, items,
-        billing_details, shipping_address, checkout_trace
-      )
-      VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6,$7::jsonb,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb)`,
-      [
-        orderNumber,
-        email,
-        checkout.itemCount,
-        total,
-        transferCode,
-        shipping.method,
-        JSON.stringify(shipping.details),
-        user.id,
-        JSON.stringify(orderItems),
-        JSON.stringify(billingDetails),
-        JSON.stringify(shippingAddress),
-        JSON.stringify({
-          ...checkoutTrace,
-          bankTransferCode: transferCode,
-        }),
-      ],
-    );
+    let orderNumber = "";
+    let transferCode = "";
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (reservationId !== undefined) {
+        await ensureB2BBankReferenceTable();
+        const reference = await lockB2BBankReference(client, Number(user.id), reservationId);
+        transferCode = reference.code;
+        if (reference.existingOrderNumber) {
+          const prior = await client.query(
+            "SELECT order_number,total_amount FROM b2b_orders WHERE order_number=$1 AND user_id=$2 AND payment_method='bank_transfer'",
+            [reference.existingOrderNumber,user.id],
+          );
+          if (!prior.rows[0]) throw new BankReferenceError(409, "Kod başka bir işlemde kullanılmış");
+          await client.query("COMMIT");
+          return res.status(200).json({
+            orderNumber: prior.rows[0].order_number,
+            total: Number(prior.rows[0].total_amount),
+            bankTransfer: bank, transferCode, transferDescription: transferCode,
+          });
+        }
+      } else {
+        // Preserve compatibility with the existing web checkout.
+        transferCode = await newBankTransferCode();
+      }
+      orderNumber = newB2BOrderNumber();
+      await client.query(
+        `INSERT INTO b2b_orders (
+          order_no, order_number, customer_email, status, item_count, total_amount,
+          payment_method, payment_provider, payment_status, transfer_code,
+          shipping_method, shipping_details, user_id, items,
+          billing_details, shipping_address, checkout_trace
+        )
+        VALUES ($1,$1,$2,'awaiting_bank_transfer',$3,$4,'bank_transfer','manual_eft','pending',$5,$6,$7::jsonb,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb)`,
+        [
+          orderNumber, email, checkout.itemCount, total, transferCode, shipping.method,
+          JSON.stringify(shipping.details), user.id, JSON.stringify(orderItems),
+          JSON.stringify(billingDetails), JSON.stringify(shippingAddress),
+          JSON.stringify({...checkoutTrace,bankTransferCode:transferCode}),
+        ],
+      );
+      if (reservationId !== undefined) {
+        await bindB2BBankReference(client, Number(user.id), reservationId, orderNumber);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      console.error("Bank order creation:", error);
+      return res.status(error instanceof BankReferenceError ? error.status : 500).json({
+        error: error instanceof BankReferenceError ? error.message : "Havale siparişi kaydedilemedi",
+      });
+    } finally { client.release(); }
 
     void sendPushToApp("business", {
       title: "Yeni sipariş",
@@ -3839,14 +3896,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     void notifyB2BEvent(user.id, "order_created", {
       orderNumber, amount: Number(total).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
     }, `order_created:${orderNumber}`).catch(error => console.error("Bank order notification",error));
-
-
     return res.status(201).json({
-      orderNumber,
-      total,
-      bankTransfer: bank,
-      transferCode,
-      transferDescription: transferCode,
+      orderNumber,total,bankTransfer:bank,transferCode,transferDescription:transferCode,
     });
   });
 
