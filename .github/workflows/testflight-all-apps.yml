@@ -1,9 +1,6 @@
 name: Çalışkan iOS - TestFlight (B2B + Business)
+# Manual release only. No automatic App Store uploads on every code push.
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/testflight-all-apps.yml'
   workflow_dispatch:
     inputs:
       app:
@@ -23,7 +20,7 @@ concurrency:
 jobs:
   b2b:
     name: Çalışkan B2B - iOS build and TestFlight
-    if: github.event_name == 'push' || github.event.inputs.app == 'all' || github.event.inputs.app == 'b2b'
+    if: inputs.app == 'all' || inputs.app == 'b2b'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     defaults:
@@ -33,18 +30,25 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_NO_VCS: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
-      - name: Require Expo EAS authentication
+      - name: Check Expo credentials
         shell: bash
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error title=Missing EXPO_TOKEN::Set EXPO_TOKEN in GitHub Settings > Secrets and variables > Actions. Build and TestFlight upload were NOT attempted."
+            echo "::error title=Missing EXPO_TOKEN::Create an Expo access token in expo.dev Settings > Access Tokens, then save it as EXPO_TOKEN in GitHub repository Settings > Secrets and variables > Actions. Do not paste token into repository or chat."
+            {
+              echo "### Release blocked: EXPO_TOKEN is missing"
+              echo "1. Generate an Expo personal access token for an account authorized on **both** EAS projects."
+              echo "2. Save it as \`EXPO_TOKEN\` under GitHub → Settings → Secrets and variables → Actions."
+              echo "3. Rerun this workflow with \`app=all\`."
+              echo "No iOS build was started and no submission to TestFlight occurred."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
@@ -53,18 +57,23 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
       - name: Verify main revision and prepare release assets
         run: |
           node scripts/create-scan-beep.cjs
           node scripts/prepare-native-release.cjs
           node scripts/sync-mobile-branding.cjs b2b
-      - name: Queue iOS build and auto-submit to TestFlight
-        run: eas build --platform ios --profile testflight --non-interactive --auto-submit
+      - name: Verify Expo account can access this app
+        run: eas whoami
+      - name: Build signed iOS application
+        run: eas build --platform ios --profile testflight --non-interactive
+      - name: Submit iOS build to TestFlight and wait for result
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
 
   business:
     name: Çalışkan Business - iOS build and TestFlight
-    if: github.event_name == 'push' || github.event.inputs.app == 'all' || github.event.inputs.app == 'business'
+    if: inputs.app == 'all' || inputs.app == 'business'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     defaults:
@@ -74,18 +83,25 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_NO_VCS: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
-      - name: Require Expo EAS authentication
+      - name: Check Expo credentials
         shell: bash
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error title=Missing EXPO_TOKEN::Set EXPO_TOKEN in GitHub Settings > Secrets and variables > Actions. Build and TestFlight upload were NOT attempted."
+            echo "::error title=Missing EXPO_TOKEN::Create an Expo access token in expo.dev Settings > Access Tokens, then save it as EXPO_TOKEN in GitHub repository Settings > Secrets and variables > Actions. Do not paste token into repository or chat."
+            {
+              echo "### Release blocked: EXPO_TOKEN is missing"
+              echo "1. Generate an Expo personal access token for an account authorized on **both** EAS projects."
+              echo "2. Save it as \`EXPO_TOKEN\` under GitHub → Settings → Secrets and variables → Actions."
+              echo "3. Rerun this workflow with \`app=all\`."
+              echo "No iOS build was started and no submission to TestFlight occurred."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
@@ -94,8 +110,13 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
       - name: Prepare brand assets
         run: npm run sync:branding
-      - name: Queue iOS build and auto-submit to TestFlight
-        run: eas build --platform ios --profile testflight --non-interactive --auto-submit
+      - name: Verify Expo account can access this app
+        run: eas whoami
+      - name: Build signed iOS application
+        run: eas build --platform ios --profile testflight --non-interactive
+      - name: Submit iOS build to TestFlight and wait for result
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
