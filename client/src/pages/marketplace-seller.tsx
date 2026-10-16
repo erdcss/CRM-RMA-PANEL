@@ -7,7 +7,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string};
-type Product={id:number;sku:string;stock:number;latest?:{id:number;status:string;content:{name:string};review_note?:string};live?:{name:string}};
+type Product={id:number;sku:string;stock:number;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Quote={id:number;status:string;boxes:number;details:string;sku?:string;company_name?:string;latest_offer?:{amount_per_box:string;expires_at:string}};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
@@ -25,7 +25,11 @@ export default function MarketplaceSeller(){
   const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:"",taxNumber:"",taxOffice:"",contactPhone:"",contactEmail:""});
   const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",contactEmail:"",description:""});
   const [store,setStore]=useState({title:"",tagline:"",accent:"#FACC15",bannerUrl:"",logoUrl:"",sections:["banner","categories","products","reels","about"]});
-  const [product,setProduct]=useState({sku:"",stock:"0",name:"",description:"",category:"",brand:"",barcode:"",imageUrl:"",price:"",unitsPerBox:"1",minBoxes:"1"});
+  const [product,setProduct]=useState({sku:"",stock:"0",name:"",description:"",category:"",brand:"",barcode:"",imageUrl:"",price:"",unitsPerBox:"1",minBoxes:"1",leadDays:"1"});
+  const [productFormOpen,setProductFormOpen]=useState(false);
+  const [productFilter,setProductFilter]=useState<"all"|"approved"|"pending"|"rejected">("all");
+  const [aiRows,setAiRows]=useState<Array<Record<string,string|number>>>([]);
+  const [aiLoading,setAiLoading]=useState(false);
   const [reel,setReel]=useState({title:"",videoUrl:"",productId:""});
   const [reply,setReply]=useState("");
   const [selectedChat,setSelectedChat]=useState<number|null>(null);
@@ -145,33 +149,18 @@ export default function MarketplaceSeller(){
               {dash.data?.storeVersions.some(v=>v.is_live)?<Link className="inline-block text-sm font-bold underline" href={"/magaza/"+me.data.slug}>Yayındaki mağazayı gör ↗</Link>:null}
             </div>
           </div>:null}
-          {tab==="products"?<div className="grid gap-5 lg:grid-cols-2">
-            <form className={boxStyle+" space-y-3"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/products",{
-              sku:product.sku,stock:Number(product.stock),product:{name:product.name,description:product.description,
-                category:product.category,brand:product.brand,barcode:product.barcode,imageUrl:product.imageUrl,
-                price:Number(product.price),unitsPerBox:Number(product.unitsPerBox),minBoxes:Number(product.minBoxes)}}),
-              ["/api/marketplace/seller/products","/api/marketplace/seller/dashboard"]);}}>
-              <h2 className="text-lg font-bold">Ürün ekle / güncelle</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-              {(["sku","name","category","brand","barcode","price","stock","unitsPerBox","minBoxes"] as const).map(key=><Field key={key} label={
-                ({sku:"Stok kodu",name:"Ürün adı",category:"Kategori",brand:"Marka",barcode:"Barkod",imageUrl:"Ürün görseli",
-                  price:"Birim fiyat (₺)",stock:"Stok (adet)",unitsPerBox:"Koli içi adet",minBoxes:"Minimum koli"} as Record<string,string>)[key]}>
-                <input className={inputStyle} required={["sku","name","category","imageUrl","price","stock","unitsPerBox","minBoxes"].includes(key)}
-                  type={["price","stock","unitsPerBox","minBoxes"].includes(key)?"number":"text"} min={["price","unitsPerBox","minBoxes"].includes(key)?"1":undefined}
-                  step={key==="price"?"0.01":undefined} value={product[key]} onChange={e=>setProduct(v=>({...v,[key]:e.target.value}))}/></Field>)}</div>
-              <Field label="Ürün görseli (zorunlu)"><input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"imageUrl");}}/><p className="text-xs text-slate-500">{product.imageUrl?"Görsel yüklendi":"En fazla 4 MB"}</p></Field>
-              <Field label="Ürün açıklaması"><textarea className={inputStyle} rows={3} value={product.description} onChange={e=>setProduct(v=>({...v,description:e.target.value}))}/></Field>
-              <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white">Ürünü İncelemeye Gönder</button>
-            </form>
-            <div className={boxStyle+" space-y-3"}><h2 className="text-lg font-bold">Ürünlerim</h2>
-              {products.data?.map(p=><div key={p.id} className="rounded-xl border p-3 text-sm">
-                <p className="font-semibold">{p.latest?.content?.name||p.sku}</p>
-                <p className="text-xs text-slate-500">{p.sku} · Stok {p.stock} · {statusTR[p.latest?.status||""]||"—"}</p>
-                {p.latest?.review_note?<p className="mt-1 text-xs text-amber-700">{p.latest.review_note}</p>:null}
-                {p.live?<p className="mt-1 text-xs text-green-700">Onaylı sürüm yayında</p>:null}
-              </div>)}
-              {!products.data?.length?<p className="text-sm text-slate-500">Henüz ürün eklenmedi.</p>:null}
-            </div>
+          {tab==="products"?<div className={boxStyle+" space-y-5"}>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black">Ürünlerim</h2><p className="text-sm text-slate-500">Ürünlerinizi yönetin, yeni ürünleri onaya gönderin.</p></div><button type="button" onClick={()=>setProductFormOpen(v=>!v)} className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-[#ffcc00]">{productFormOpen?"Listeye Dön":"＋ Ürün Ekle"}</button></div>
+            <div className="flex gap-2 overflow-x-auto border-b pb-3">{([{key:"all",label:"Tüm Ürünler"},{key:"approved",label:"Aktif Ürünler"},{key:"pending",label:"Onay Bekleyen Ürünler"},{key:"rejected",label:"Reddedilen Ürünler"}] as const).map(item=><button type="button" key={item.key} onClick={()=>{setProductFilter(item.key);setProductFormOpen(false);}} className={"shrink-0 rounded-lg px-4 py-2 text-sm font-bold "+(productFilter===item.key?"bg-black text-[#ffcc00]":"bg-slate-100 text-slate-600")}>{item.label}</button>)}</div>
+            {productFormOpen?<div className="space-y-5">
+              <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50 p-4"><h3 className="font-bold">AI ile Toplu Ürün Aktarımı</h3><p className="my-2 text-xs text-slate-600">PDF veya PNG/JPEG ürün listesi yükleyin. AI alanları ayırır; onaya göndermeden önce eksikleri düzeltin. Görselsiz ürün gönderilemez.</p><input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" disabled={aiLoading} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setAiLoading(true);setMessage("");try{const dataUrl=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error("Dosya okunamadı"));reader.readAsDataURL(file)});const data=await send("POST","/api/marketplace/seller/products/analyze",{dataUrl});setAiRows(data.products||[]);}catch(error){setMessage(error instanceof Error?error.message:"AI analizi başarısız");}finally{setAiLoading(false)}}}/>{aiLoading?<p className="mt-2 text-sm">Dosya analiz ediliyor…</p>:null}</div>
+              {aiRows.length?<div className="space-y-2"><h3 className="font-bold">AI Ön İzleme ({aiRows.length} ürün)</h3>{aiRows.map((item,i)=><div key={i} className="grid grid-cols-2 gap-2 rounded-xl border p-3 sm:grid-cols-4">{(["name","sku","brand","category","description","unitsPerBox","stock","price","leadDays"] as const).map(key=><label key={key} className="text-xs">{key}<input className={inputStyle} type={["unitsPerBox","stock","price","leadDays"].includes(key)?"number":"text"} value={String(item[key]??"")} onChange={e=>setAiRows(rows=>rows.map((r,index)=>index===i?{...r,[key]:e.target.value}:r))}/></label>)}<button type="button" className="col-span-2 rounded-lg bg-black px-3 py-2 text-xs font-bold text-white sm:col-span-4" onClick={()=>{setProduct(v=>({...v,...Object.fromEntries(Object.entries(item).map(([k,val])=>[k,String(val)]))}));setAiRows(rows=>rows.filter((_,index)=>index!==i));}}>Bu Ürünü Düzenle ve Görsel Ekle</button></div>)}</div>:null}
+              <form className="space-y-3 rounded-xl border p-4" onSubmit={e=>{e.preventDefault();void run(async()=>{await send("POST","/api/marketplace/seller/products",{sku:product.sku,stock:Number(product.stock),product:{name:product.name,description:product.description,category:product.category,brand:product.brand,barcode:product.barcode,imageUrl:product.imageUrl,price:Number(product.price),unitsPerBox:Number(product.unitsPerBox),minBoxes:Number(product.minBoxes),leadDays:Number(product.leadDays)}});setProductFormOpen(false);setProductFilter("pending");},["/api/marketplace/seller/products","/api/marketplace/seller/dashboard"]);}}>
+                <h3 className="font-black">Ürünü Düzenle ve Onaya Gönder</h3><div className="grid gap-3 sm:grid-cols-3">{(["sku","name","brand","category","description","barcode","price","stock","unitsPerBox","minBoxes"] as const).map(key=><Field key={key} label={({sku:"Stok Kodu",name:"Ürün Başlığı",brand:"Marka",category:"Kategori",description:"Ürün Özellikleri",barcode:"Barkod",price:"Ürün Fiyatı (₺)",stock:"Stok",unitsPerBox:"Koli İçi Adet",minBoxes:"Minimum Koli"} as Record<string,string>)[key]}><input className={inputStyle} required={["sku","name","category","price","stock","unitsPerBox"].includes(key)} type={["price","stock","unitsPerBox","minBoxes"].includes(key)?"number":"text"} min={["price","unitsPerBox","minBoxes"].includes(key)?"1":undefined} value={product[key]} onChange={e=>setProduct(v=>({...v,[key]:e.target.value}))}/></Field>)}<Field label="Termin Süresi"><select className={inputStyle} value={product.leadDays} onChange={e=>setProduct(v=>({...v,leadDays:e.target.value}))}>{Array.from({length:14},(_,i)=><option key={i} value={i+1}>{i+1} gün</option>)}</select></Field></div>
+                <Field label="Ürün Görseli (zorunlu)"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"imageUrl");}}/>{product.imageUrl?<img className="mt-2 h-20 w-20 rounded-lg object-contain" src={product.imageUrl} alt="Ürün önizleme"/>:null}</Field>
+                <button disabled={busy||uploading||!product.imageUrl} className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-[#ffcc00]">Ürünü Onaya Gönder</button>
+              </form></div>:null}
+            <div className="overflow-x-auto"><table className="min-w-[1080px] w-full text-left text-xs"><thead className="bg-slate-100"><tr>{["Görsel","Ürün Başlığı","Marka","Kategori","Özellikler","Koli Adedi","Stok","Fiyat","Termin","Durum"].map(x=><th key={x} className="px-3 py-3 font-bold">{x}</th>)}</tr></thead><tbody>{(products.data||[]).filter(p=>productFilter==="all"||((p.latest?.status==="approved"&&productFilter==="approved")||p.latest?.status===productFilter)).map(p=><tr key={p.id} className="border-b"><td className="p-3">{p.latest?.content?.imageUrl?<img src={p.latest.content.imageUrl} className="h-12 w-12 rounded object-contain" alt=""/>:null}</td><td className="p-3 font-semibold">{p.latest?.content?.name||p.sku}</td><td className="p-3">{p.latest?.content?.brand||"—"}</td><td className="p-3">{p.latest?.content?.category||"—"}</td><td className="max-w-48 truncate p-3">{p.latest?.content?.description||"—"}</td><td className="p-3">{p.latest?.content?.unitsPerBox||1}</td><td className="p-3">{p.stock}</td><td className="p-3">{p.latest?.content?.price??"—"} ₺</td><td className="p-3">{p.latest?.content?.leadDays||1} gün</td><td className="p-3">{statusTR[p.latest?.status||""]||"—"}{p.latest?.review_note?<p className="text-amber-700">{p.latest.review_note}</p>:null}</td></tr>)}</tbody></table>{!products.data?.length?<p className="py-10 text-center text-sm text-slate-500">Henüz ürün yok. Sağ üstteki Ürün Ekle butonuyla başlayın.</p>:null}</div>
           </div>:null}
           {tab==="reels"?<div className="grid gap-5 lg:grid-cols-2">
             <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/reels",
