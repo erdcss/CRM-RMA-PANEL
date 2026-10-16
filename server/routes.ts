@@ -204,6 +204,15 @@ async function requireSeller(req: Request, res: Response, next: NextFunction) {
   return next();
 }
 
+async function requireMarketplaceParticipant(req: Request, res: Response, next: NextFunction) {
+  const id = sessionUserId(req);
+  if(!id) return res.status(401).json({error:"Giriş yapmanız gerekiyor"});
+  const user = await storage.getUser(id);
+  if(!user || user.isActive !== 1 || !["b2b_customer","b2b_seller"].includes(user.role)) return res.status(403).json({error:"Marketplace hesabı gerekiyor"});
+  (res.locals as any).b2bUser=user;
+  return next();
+}
+
 async function requireB2B(req: Request, res: Response, next: NextFunction) {
   const userId = sessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
@@ -2382,7 +2391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerRoutes(app, requireB2B);
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
-  registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller);
+  registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller, requireMarketplaceParticipant);
   registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
   registerMarketplaceCartRoutes(app, requireB2B);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
