@@ -84,7 +84,7 @@ export default function MarketplaceSeller(){
               <Field key={key} label={title}><input className={inputStyle} required={key!=="taxOffice"} value={form[key]} onChange={e=>setForm(v=>({...v,[key]:e.target.value}))}/></Field>)}
           </div>
           <Field label="Firma ve ürün grupları"><textarea className={inputStyle} rows={3} value={form.description} onChange={e=>setForm(v=>({...v,description:e.target.value}))}/></Field>
-          <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Başvuruyu Yönetici Onayına Gönder</button>
+          <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Satıcı Profilimi Oluştur</button>
         </form>:
         !approved?<div className="space-y-5">
           <div className="rounded-2xl border border-amber-200 bg-[#fff8e1] p-5 sm:p-7">
@@ -103,9 +103,10 @@ export default function MarketplaceSeller(){
             <div className="flex items-center gap-3"><Building2 className="h-6 w-6"/><div><h3 className="text-lg font-black">Şirket Doğrulaması</h3><p className="text-sm text-slate-500">Bilgileriniz sadece yetkili inceleme ekibi tarafından değerlendirilir.</p></div></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Şirket türü"><select required className={inputStyle} value={verification.companyType} onChange={e=>setVerification(v=>({...v,companyType:e.target.value}))}><option value="">Şirket türünüzü seçin</option><option value="sahis">Şahıs Şirketi</option><option value="limited">Limited Şirket</option><option value="anonim">Anonim Şirket</option><option value="kooperatif">Kooperatif</option><option value="diger">Diğer</option></select></Field>
-              <Field label="IBAN"><input required className={inputStyle} placeholder="TR ile başlayan 26 haneli IBAN" value={verification.iban} onChange={e=>setVerification(v=>({...v,iban:e.target.value.toUpperCase().replace(/\s/g,"")}))}/></Field>
+
             </div>
             <Field label="Vergi Levhası (PDF, en fazla 5 MB)"><input type="file" required accept="application/pdf" className={inputStyle} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5_000_000){setMessage("Vergi levhası en fazla 5 MB olmalı.");return;}const reader=new FileReader();reader.onload=()=>setVerification(v=>({...v,taxDocument:String(reader.result||"")}));reader.readAsDataURL(file);}}/></Field>
+              <Field label="IBAN"><input required className={inputStyle} placeholder="TR ile başlayan 26 haneli IBAN" value={verification.iban} onChange={e=>setVerification(v=>({...v,iban:e.target.value.toUpperCase().replace(/\s/g,"")}))}/></Field>
             <button type="submit" disabled={busy||!verification.taxDocument} className="rounded-xl bg-black px-5 py-3 text-sm font-extrabold text-[#ffcc00] disabled:opacity-50">Doğrulama Bilgilerini Gönder</button>
           </form>
         </div>:
