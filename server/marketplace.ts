@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   tax_office TEXT NOT NULL DEFAULT '',
   contact_name TEXT NOT NULL,
   contact_phone TEXT NOT NULL,
+  contact_email TEXT NOT NULL DEFAULT '',
+  company_type TEXT NOT NULL DEFAULT '',
+  tax_document TEXT NOT NULL DEFAULT '',
+  iban TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended')),
   review_note TEXT NOT NULL DEFAULT '',
@@ -122,6 +126,7 @@ async function ready() {
   if (!pool) throw new ApiError(503, "Pazaryeri veritabanı hazır değil");
   if (!schemaPromise) schemaPromise = pool.query(SCHEMA).catch((e) => {schemaPromise = undefined; throw e;});
   await schemaPromise;
+  await pool.query(`ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS contact_email TEXT NOT NULL DEFAULT ''; ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS company_type TEXT NOT NULL DEFAULT ''; ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS tax_document TEXT NOT NULL DEFAULT ''; ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS iban TEXT NOT NULL DEFAULT '';`);
   return pool;
 }
 export async function ensureMarketplaceSchema() { await ready(); }
@@ -170,6 +175,7 @@ const applicationSchema=z.object({
   companyName:bodyText(220),taxNumber:z.string().trim().regex(/^[0-9]{10,11}$/),
   taxOffice:z.string().trim().max(140).default(""),
   contactName:bodyText(160),contactPhone:z.string().trim().min(10).max(25),
+  contactEmail:z.string().trim().email().max(254),
   description:z.string().trim().max(1200).default("")
 }).strict();
 const decisionSchema=z.object({
@@ -254,9 +260,9 @@ export function registerMarketplaceRoutes(
     if(check.rows.length)throw new ApiError(409,"Başvuru zaten mevcut");
     const slug=slugify(data.companyName)+"-"+uid;
     const r=await db.query(`INSERT INTO mp_suppliers
-      (owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,description)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,slug,status`,
-      [uid,slug,data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description]);
+      (owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,description,contact_email)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,slug,status`,
+      [uid,slug,data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,data.contactEmail]);
     res.status(201).json(r.rows[0]);
   }));
   app.patch("/api/marketplace/apply",requireB2B,handle(async(req,res)=>{
@@ -264,11 +270,24 @@ export function registerMarketplaceRoutes(
     const db=await ready();
     const q=await db.query(`UPDATE mp_suppliers SET
       company_name=$1,tax_number=$2,tax_office=$3,contact_name=$4,
-      contact_phone=$5,description=$6,status='pending',review_note='',reviewed_at=NULL
+      contact_phone=$5,description=$6,contact_email=$8,status='pending',review_note='',reviewed_at=NULL
       WHERE owner_user_id=$7 AND status='rejected' RETURNING id,slug,status`,
-      [data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,userId(res)]);
+      [data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,userId(res),data.contactEmail]);
     if(!q.rows[0])throw new ApiError(409,"Yalnızca reddedilen başvurular düzeltilerek yeniden gönderilebilir");
     res.json(q.rows[0]);
+  }));
+  app.post("/api/marketplace/seller/verification",requireB2B,handle(async(req,res)=>{
+    const input=z.object({
+      companyType:z.enum(["sahis","limited","anonim","kooperatif","diger"]),
+      iban:z.string().trim().toUpperCase().regex(/^TR[0-9]{24}$/),
+      taxDocument:z.string().startsWith("data:application/pdf;base64,").max(7_000_000),
+    }).strict().parse(req.body);
+    const db=await ready();
+    const supplier=await db.query("SELECT id,status FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
+    if(!supplier.rows[0]) throw new ApiError(404,"Önce satıcı kaydınızı oluşturun");
+    if(supplier.rows[0].status==="approved") throw new ApiError(409,"Hesabınız zaten onaylı");
+    await db.query("UPDATE mp_suppliers SET company_type=$1,iban=$2,tax_document=$3,status='pending',review_note='' WHERE id=$4",[input.companyType,input.iban,input.taxDocument,supplier.rows[0].id]);
+    res.json({message:"Doğrulama bilgileriniz yönetici incelemesine gönderildi."});
   }));
   app.get("/api/marketplace/seller/dashboard",requireB2B,handle(async(_req,res)=>{
     const s=await supplierFor(res);const db=await ready();
