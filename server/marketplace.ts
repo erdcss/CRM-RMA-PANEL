@@ -475,7 +475,7 @@ export function registerMarketplaceRoutes(
   app.get("/api/admin/marketplace/review-queue",requireAdmin,handle(async(_req,res)=>{
     const db=await ready();
     const [suppliers,products,stores,reels]=await Promise.all([
-      db.query("SELECT id,company_name,tax_number,contact_name,contact_phone,created_at,status,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
+      db.query("SELECT id,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,created_at,status,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
       db.query(`SELECT v.id,v.product_id,v.content,v.created_at,v.status,v.review_note,s.company_name FROM mp_product_versions v
         JOIN mp_products p ON p.id=v.product_id JOIN mp_suppliers s ON s.id=p.supplier_id
         ORDER BY v.id DESC LIMIT 100`),
@@ -485,6 +485,17 @@ export function registerMarketplaceRoutes(
         FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id ORDER BY r.id DESC LIMIT 100`)
     ]);
     res.json({suppliers:suppliers.rows,products:products.rows,stores:stores.rows,reels:reels.rows});
+  }));
+  app.get("/api/admin/marketplace/suppliers/:id/tax-document",requireAdmin,handle(async(req,res)=>{
+    const db=await ready(),supplierId=id(req.params.id);
+    const result=await db.query("SELECT tax_document FROM mp_suppliers WHERE id=$1",[supplierId]);
+    if(!result.rows[0]?.tax_document) throw new ApiError(404,"Vergi levhası bulunamadı");
+    const matched=/^data:application\/pdf;base64,([A-Za-z0-9+/=]+)$/.exec(result.rows[0].tax_document);
+    if(!matched) throw new ApiError(422,"Geçersiz belge");
+    res.setHeader("Content-Type","application/pdf");
+    res.setHeader("Content-Disposition",'inline; filename="vergi-levhasi.pdf"');
+    res.setHeader("Cache-Control","no-store");
+    res.send(Buffer.from(matched[1],"base64"));
   }));
   app.post("/api/admin/marketplace/suppliers/:id/decision",requireAdmin,handle(async(req,res)=>{
     const db=await ready(),supplierId=id(req.params.id);
