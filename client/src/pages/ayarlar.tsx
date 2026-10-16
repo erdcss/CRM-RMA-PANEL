@@ -245,6 +245,10 @@ export default function Ayarlar() {
                     ["appStoreImage","App Store rozet görsel URL"],["googlePlayImage","Google Play rozet görsel URL"]
                   ] as const).map(([key,title])=><label key={key} className="space-y-2"><span className="text-sm font-semibold">{title}</span><Input type="url" placeholder="https://" value={footerValues[key] || ""} onChange={e=>setFooterDraft(v=>({...v,[key]:e.target.value}))}/></label>)}
                 </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <AssetUploader title="App Store rozet görseli yükle" description="PNG, JPEG veya WebP mağaza rozeti; küçük dosya önerilir." value={footerValues.appStoreImage || null} onChange={value=>setFooterDraft(v=>({...v,appStoreImage:value||""}))}/>
+                  <AssetUploader title="Google Play rozet görseli yükle" description="PNG, JPEG veya WebP mağaza rozeti; küçük dosya önerilir." value={footerValues.googlePlayImage || null} onChange={value=>setFooterDraft(v=>({...v,googlePlayImage:value||""}))}/>
+                </div>
                 <div className="flex flex-wrap gap-4">
                   {(["appStoreImage","googlePlayImage"] as const).map(key => footerValues[key] ? <img key={key} src={footerValues[key]} alt={key} className="h-12 max-w-44 rounded bg-slate-900 object-contain p-1"/> : null)}
                 </div>
