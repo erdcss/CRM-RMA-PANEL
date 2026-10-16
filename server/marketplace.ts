@@ -310,6 +310,10 @@ export function registerMarketplaceRoutes(
   }));
   app.post("/api/marketplace/seller/verification",requireSeller,handle(async(req,res)=>{
     const input=z.object({
+      taxNumber:z.string().trim().regex(/^[0-9]{10,11}$/),
+      taxOffice:z.string().trim().max(140).default(""),
+      contactPhone:z.string().trim().min(10).max(25),
+      contactEmail:z.string().trim().email().max(254),
       companyType:z.enum(["sahis","limited","anonim","kooperatif","diger"]),
       iban:z.string().trim().toUpperCase().regex(/^TR[0-9]{24}$/),
       taxDocument:z.string().startsWith("data:application/pdf;base64,").max(7_000_000),
@@ -324,7 +328,7 @@ export function registerMarketplaceRoutes(
     const supplier=await db.query("SELECT id,status FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     if(!supplier.rows[0]) throw new ApiError(404,"Önce satıcı kaydınızı oluşturun");
     if(supplier.rows[0].status==="approved") throw new ApiError(409,"Hesabınız zaten onaylı");
-    await db.query("UPDATE mp_suppliers SET company_type=$1,iban=$2,tax_document=$3,status='pending',review_note='' WHERE id=$4",[input.companyType,input.iban,input.taxDocument,supplier.rows[0].id]);
+    await db.query("UPDATE mp_suppliers SET company_type=$1,iban=$2,tax_document=$3,tax_number=$5,tax_office=$6,contact_phone=$7,contact_email=$8,status='pending',review_note='' WHERE id=$4",[input.companyType,input.iban,input.taxDocument,supplier.rows[0].id,input.taxNumber,input.taxOffice,input.contactPhone,input.contactEmail]);
     res.json({message:"Doğrulama bilgileriniz yönetici incelemesine gönderildi."});
   }));
   app.get("/api/marketplace/seller/dashboard",requireSeller,handle(async(_req,res)=>{
