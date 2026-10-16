@@ -141,7 +141,7 @@ export default function OrderListScreen() {
                   </Pressable>
 
                   <View style={styles.itemMiddle}>
-                    <Text style={styles.sku}>{item.sku || 'STOK'}</Text>
+                    <Text style={styles.sku}>{item.sku ? `Ürün kodu: ${item.sku}` : 'Ürün kodu belirtilmemiş'}</Text>
                     <Text style={styles.itemTitle} numberOfLines={2}>
                       {item.name}
                     </Text>
