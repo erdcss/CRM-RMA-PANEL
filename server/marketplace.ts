@@ -124,9 +124,24 @@ CREATE TABLE IF NOT EXISTS mp_audit_log (
 let schemaPromise: Promise<unknown> | undefined;
 async function ready() {
   if (!pool) throw new ApiError(503, "Pazaryeri veritabanı hazır değil");
-  if (!schemaPromise) schemaPromise = pool.query(SCHEMA).catch((e) => {schemaPromise = undefined; throw e;});
+  if (!schemaPromise) {
+    schemaPromise = (async () => {
+      await pool.query(SCHEMA);
+      for (const sql of [
+        "ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS contact_email TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS company_type TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS tax_document TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS iban TEXT NOT NULL DEFAULT ''",
+      ]) await pool.query(sql);
+      // Previously supplier applications belonged to regular customer accounts.
+      // Convert only actual marketplace supplier owners to the dedicated seller
+      // role, preserving their current password and company information.
+      await pool.query(`UPDATE users SET role='b2b_seller', app_access='seller'
+        WHERE role='b2b_customer'
+          AND id IN (SELECT owner_user_id FROM mp_suppliers)`);
+    })().catch(error => { schemaPromise = undefined; throw error; });
+  }
   await schemaPromise;
-  await pool.query(`ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS contact_email TEXT NOT NULL DEFAULT ''; ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS company_type TEXT NOT NULL DEFAULT ''; ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS tax_document TEXT NOT NULL DEFAULT ''; ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS iban TEXT NOT NULL DEFAULT '';`);
   return pool;
 }
 export async function ensureMarketplaceSchema() { await ready(); }
