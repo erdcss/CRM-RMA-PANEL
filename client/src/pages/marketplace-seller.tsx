@@ -64,6 +64,7 @@ export default function MarketplaceSeller(){
     catch(e){setMessage(e instanceof Error?e.message:"İşlem tamamlanamadı.");}
     finally{setBusy(false);}
   }
+  if (!me.isLoading && me.isError) return <SellerAccess onAuthenticated={async()=>{ await me.refetch(); await queryClient.invalidateQueries({queryKey:["/api/auth/me"]}); }}/>;
   return <main className="min-h-screen bg-[#f5f6f8] px-4 py-6 text-slate-900 sm:px-6">
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -74,7 +75,7 @@ export default function MarketplaceSeller(){
       </div>
       {message?<Notice text={message}/>:null}
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
-        me.isError?<SellerAccess onAuthenticated={async()=>{ await me.refetch(); await queryClient.invalidateQueries({queryKey:["/api/auth/me"]}); }}/> :
+        me.isError?null:
         !me.data?<form className={boxStyle+" space-y-4"} onSubmit={(e:FormEvent)=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/apply",form),["/api/marketplace/me"]);}}>
           <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6"/><h2 className="text-xl font-bold">Çalışkan B2B'de Satıcı Ol</h2></div>
           <p className="text-sm text-slate-600">Satıcı kaydınızın ardından panelinizi kullanmaya başlayabilirsiniz. Satışa başlamak için şirket bilgilerinizi doğrulatmanız gerekir.</p>
