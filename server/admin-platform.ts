@@ -662,6 +662,37 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  const footerDefaults = { instagram:"", facebook:"", youtube:"", tiktok:"", appStoreUrl:"", googlePlayUrl:"", appStoreImage:"", googlePlayImage:"" };
+  const footerFields = Object.keys(footerDefaults);
+  const readFooter = async () => {
+    if (!pool) return footerDefaults;
+    const rows = await pool.query("SELECT value FROM platform_settings WHERE key = 'b2b_footer_links' LIMIT 1");
+    try { return { ...footerDefaults, ...JSON.parse(String(rows.rows[0]?.value || "{}")) }; }
+    catch { return footerDefaults; }
+  };
+  app.get("/api/public/b2b-footer", async (_req,res) => {
+    res.setHeader("Cache-Control","no-store");
+    try { return res.json(await readFooter()); } catch { return res.json(footerDefaults); }
+  });
+  app.get("/api/admin/b2b-footer", requireAdmin, async (_req,res) => {
+    try { return res.json(await readFooter()); } catch { return res.status(500).json({error:"Alt bilgi ayarları okunamadı"}); }
+  });
+  app.put("/api/admin/b2b-footer", requireAdmin, async (req,res) => {
+    if (!pool) return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const result: Record<string,string> = {};
+    for (const key of footerFields) {
+      const value = String(req.body?.[key] || "").trim();
+      if (value.length > 2000) return res.status(400).json({error:"Bağlantı çok uzun"});
+      if (value && !/^https:\/\//i.test(value) && !/^data:image\/(png|jpeg|webp);base64,/i.test(value)) return res.status(400).json({error:key+" için HTTPS URL veya görsel girin"});
+      if (value.startsWith("data:") && !key.endsWith("Image")) return res.status(400).json({error:"Bağlantıya görsel verisi girilemez"});
+      result[key] = value;
+    }
+    try {
+      await pool.query("INSERT INTO platform_settings (key,value,updated_at) VALUES ('b2b_footer_links',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()",[JSON.stringify(result)]);
+      return res.json(result);
+    } catch { return res.status(500).json({error:"Alt bilgi ayarları kaydedilemedi"}); }
+  });
+
   app.get("/api/public/branding", async (_req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, max-age=0");
