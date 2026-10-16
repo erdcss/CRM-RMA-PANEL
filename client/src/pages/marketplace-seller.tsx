@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, RefreshCw, Building2, CheckCircle2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { SellerAccess } from "@/components/seller-access";
 
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string};
 type Product={id:number;sku:string;stock:number;latest?:{id:number;status:string;content:{name:string};review_note?:string};live?:{name:string}};
@@ -73,7 +74,7 @@ export default function MarketplaceSeller(){
       </div>
       {message?<Notice text={message}/>:null}
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
-        me.isError?<div className={boxStyle}><p className="font-bold">Giriş gerekiyor</p><p className="mt-2 text-sm text-slate-600">Tedarikçi başvurusu için onaylı B2B müşteri hesabınızla giriş yapın.</p><Link href="/uye-girisi" className="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2 text-white">Giriş yap</Link></div>:
+        me.isError?<SellerAccess onAuthenticated={async()=>{ await me.refetch(); await queryClient.invalidateQueries({queryKey:["/api/auth/me"]}); }}/> :
         !me.data?<form className={boxStyle+" space-y-4"} onSubmit={(e:FormEvent)=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/apply",form),["/api/marketplace/me"]);}}>
           <div className="flex items-center gap-2"><ShieldCheck className="h-6 w-6"/><h2 className="text-xl font-bold">Çalışkan B2B'de Satıcı Ol</h2></div>
           <p className="text-sm text-slate-600">Satıcı kaydınızın ardından panelinizi kullanmaya başlayabilirsiniz. Satışa başlamak için şirket bilgilerinizi doğrulatmanız gerekir.</p>
