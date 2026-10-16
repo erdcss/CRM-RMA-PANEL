@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type Status = "pending" | "approved" | "rejected" | "suspended";
 type Review = {id:number;status:Status;created_at:string;review_note?:string;company_name?:string;contact_name?:string;
-  tax_number?:string;contact_phone?:string;content?:Record<string,unknown>;title?:string;video_url?:string;is_live?:boolean;product_id?:number};
+  tax_number?:string;tax_office?:string;contact_phone?:string;contact_email?:string;company_type?:string;iban?:string;has_tax_document?:boolean;description?:string;content?:Record<string,unknown>;title?:string;video_url?:string;is_live?:boolean;product_id?:number};
 type Queue = {suppliers:Review[];products:Review[];stores:Review[];reels:Review[]};
 type Metric = {status:string;total:number};
 type Overview = {suppliers:Metric[];products:Metric[];stores:Metric[];reels:Metric[];
@@ -112,7 +112,14 @@ export default function AdminMarketplace(){
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><p className="text-base font-bold">{label(r,tab)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">#{r.id} · {new Date(r.created_at).toLocaleString("tr-TR")}</p>
-                {tab==="suppliers"?<p className="mt-2 text-xs text-muted-foreground">VKN: {r.tax_number} · Yetkili: {r.contact_name} · Telefon: {r.contact_phone}</p>:null}
+                {tab==="suppliers"?<div className="mt-3 space-y-1 text-xs text-muted-foreground">
+  <p>VKN/TCKN: {r.tax_number} · Vergi Dairesi: {r.tax_office || "Belirtilmedi"}</p>
+  <p>Yetkili: {r.contact_name} · Telefon: {r.contact_phone}</p>
+  <p>E-posta: {r.contact_email || "Belirtilmedi"} · Şirket Türü: {({sahis:"Şahıs",limited:"Limited",anonim:"Anonim",kooperatif:"Kooperatif",diger:"Diğer"} as Record<string,string>)[r.company_type || ""] || "Henüz seçilmedi"}</p>
+  <p>IBAN: {r.iban || "Henüz belirtilmedi"} · Vergi Levhası: {r.has_tax_document ? "Yüklendi" : "Eksik"}</p>
+  {r.description?<p>Faaliyet Alanı: {r.description}</p>:null}
+  {r.has_tax_document?<a className="inline-flex rounded-lg border px-3 py-2 font-semibold text-foreground underline" href={"/api/admin/marketplace/suppliers/"+r.id+"/tax-document"} target="_blank" rel="noopener noreferrer">Vergi Levhasını Görüntüle</a>:null}
+</div>:null}
                 {tab==="products"?<p className="mt-2 text-sm">{String(r.content?.description||"").slice(0,220)} · Fiyat: {String(r.content?.price??"—")} ₺</p>:null}
                 {tab==="stores"?<p className="mt-2 text-sm">Mağaza başlığı: {String(r.content?.title||"")}, renk: {String(r.content?.accent||"")}</p>:null}
                 {tab==="reels"&&r.video_url?<a target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm underline" href={r.video_url}>Videoyu görüntüle ↗</a>:null}
