@@ -204,7 +204,7 @@ async function ownConversation(db:NonNullable<typeof pool>,conversationId:number
 }
 export function registerMarketplaceRoutes(
  app:Express, requireAdmin:RequestHandler, requireB2B:RequestHandler,
- sessionUserId:(req:Request)=>number|undefined
+ sessionUserId:(req:Request)=>number|undefined, requireSeller:RequestHandler
 ) {
   app.get("/api/marketplace/stores", handle(async(req,res)=>{
     const db=await ready();
@@ -246,13 +246,13 @@ export function registerMarketplaceRoutes(
       WHERE s.slug=$1 AND s.status='approved' AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
     res.json(q.rows);
   }));
-  app.get("/api/marketplace/me",requireB2B,handle(async(_req,res)=>{
+  app.get("/api/marketplace/me",requireSeller,handle(async(_req,res)=>{
     const db=await ready();
     const r=await db.query("SELECT * FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(r.rows[0]||null);
   }));
-  app.post("/api/marketplace/apply",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/apply",requireSeller,handle(async(req,res)=>{
     const data=applicationSchema.parse(req.body);
     const db=await ready();
     const uid=userId(res);
@@ -265,7 +265,7 @@ export function registerMarketplaceRoutes(
       [uid,slug,data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,data.contactEmail]);
     res.status(201).json(r.rows[0]);
   }));
-  app.patch("/api/marketplace/apply",requireB2B,handle(async(req,res)=>{
+  app.patch("/api/marketplace/apply",requireSeller,handle(async(req,res)=>{
     const data=applicationSchema.parse(req.body);
     const db=await ready();
     const q=await db.query(`UPDATE mp_suppliers SET
@@ -276,7 +276,7 @@ export function registerMarketplaceRoutes(
     if(!q.rows[0])throw new ApiError(409,"Yalnızca reddedilen başvurular düzeltilerek yeniden gönderilebilir");
     res.json(q.rows[0]);
   }));
-  app.post("/api/marketplace/seller/verification",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/seller/verification",requireSeller,handle(async(req,res)=>{
     const input=z.object({
       companyType:z.enum(["sahis","limited","anonim","kooperatif","diger"]),
       iban:z.string().trim().toUpperCase().regex(/^TR[0-9]{24}$/),
@@ -289,7 +289,7 @@ export function registerMarketplaceRoutes(
     await db.query("UPDATE mp_suppliers SET company_type=$1,iban=$2,tax_document=$3,status='pending',review_note='' WHERE id=$4",[input.companyType,input.iban,input.taxDocument,supplier.rows[0].id]);
     res.json({message:"Doğrulama bilgileriniz yönetici incelemesine gönderildi."});
   }));
-  app.get("/api/marketplace/seller/dashboard",requireB2B,handle(async(_req,res)=>{
+  app.get("/api/marketplace/seller/dashboard",requireSeller,handle(async(_req,res)=>{
     const s=await supplierFor(res);const db=await ready();
     const [products,stores,reels,followers,conversations,quotes]=await Promise.all([
       db.query("SELECT COUNT(*)::int AS n FROM mp_products WHERE supplier_id=$1",[s.id]),
@@ -302,14 +302,14 @@ export function registerMarketplaceRoutes(
     res.json({supplier:s,productCount:products.rows[0]?.n,storeVersions:stores.rows,reels:reels.rows,
       followers:followers.rows[0]?.n,conversations:conversations.rows[0]?.n,openQuotes:quotes.rows[0]?.n});
   }));
-  app.post("/api/marketplace/seller/store",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/seller/store",requireSeller,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const content=storeSchema.parse(req.body);
     for(const url of [content.bannerUrl,content.logoUrl])if(url)await verifyMedia(db,Number(s.id),url,false);
     const r=await db.query("INSERT INTO mp_store_versions(supplier_id,content) VALUES($1,$2) RETURNING id,status,created_at",[s.id,JSON.stringify(content)]);
     res.status(201).json(r.rows[0]);
   }));
-  app.get("/api/marketplace/seller/products",requireB2B,handle(async(_req,res)=>{
+  app.get("/api/marketplace/seller/products",requireSeller,handle(async(_req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const r=await db.query(`SELECT p.id,p.sku,p.stock,p.is_enabled,
       (SELECT json_build_object('id',v.id,'content',v.content,'status',v.status,'review_note',v.review_note,'created_at',v.created_at)
@@ -318,7 +318,7 @@ export function registerMarketplaceRoutes(
       FROM mp_products p WHERE p.supplier_id=$1 ORDER BY p.id DESC LIMIT 200`,[s.id]);
     res.json(r.rows);
   }));
-  app.post("/api/marketplace/seller/products",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/seller/products",requireSeller,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const data=z.object({sku:bodyText(90),stock:z.number().int().min(0).max(100000000),product:productSchema}).strict().parse(req.body);
     await verifyMedia(db,Number(s.id),data.product.imageUrl,false);
@@ -331,7 +331,7 @@ export function registerMarketplaceRoutes(
       await client.query("COMMIT");res.status(201).json({productId:p.rows[0].id,revision:v.rows[0]});
     }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
   }));
-  app.post("/api/marketplace/seller/reels",requireB2B,handle(async(req,res)=>{
+  app.post("/api/marketplace/seller/reels",requireSeller,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const data=z.object({title:bodyText(160),videoUrl:mediaUrl,
       productId:z.number().int().positive().nullable().optional()}).strict().parse(req.body);
