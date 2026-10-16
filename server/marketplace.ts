@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 
 import type { Express, Request, Response, RequestHandler } from "express";
 import { z } from "zod";
@@ -185,7 +186,8 @@ const productSchema = z.object({
   imageUrl:mediaUrl,
   price:z.number().finite().positive().max(100000000),
   unitsPerBox:z.number().int().min(1).max(100000),
-  minBoxes:z.number().int().min(1).max(100000).default(1)
+  minBoxes:z.number().int().min(1).max(100000).default(1),
+  leadDays:z.number().int().min(1).max(14).default(1)
 }).strict();
 const applicationSchema=z.object({
   companyName:bodyText(220),taxNumber:z.string().trim().regex(/^[0-9]{10,11}$/),
@@ -359,6 +361,38 @@ export function registerMarketplaceRoutes(
       (SELECT v.content FROM mp_product_versions v WHERE v.product_id=p.id AND v.is_live LIMIT 1) AS live
       FROM mp_products p WHERE p.supplier_id=$1 ORDER BY p.id DESC LIMIT 200`,[s.id]);
     res.json(r.rows);
+  }));
+  app.post("/api/marketplace/seller/products/analyze",requireSeller,handle(async(req,res)=>{
+    await supplierFor(res);
+    const source=z.object({dataUrl:z.string().max(9_000_000)}).strict().parse(req.body);
+    const match=/^data:(application\/pdf|image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(source.dataUrl);
+    if(!match)throw new ApiError(400,"Yalnızca PDF, PNG veya JPEG dosyası yükleyin");
+    const bytes=Buffer.from(match[2],"base64");
+    if(!bytes.length||bytes.length>6_000_000)throw new ApiError(413,"Dosya en fazla 6 MB olabilir");
+    if(match[1]==="application/pdf" && bytes.subarray(0,5).toString()!=="%PDF-")throw new ApiError(400,"Geçersiz PDF dosyası");
+    if(!process.env.OPENAI_API_KEY)throw new ApiError(503,"AI belge analizi yapılandırılmamış");
+    const client=new OpenAI({apiKey:process.env.OPENAI_API_KEY});
+    const fileContent=match[1]==="application/pdf"?
+      {type:"input_file" as const,filename:"urun-listesi.pdf",file_data:source.dataUrl}:
+      {type:"input_image" as const,image_url:source.dataUrl,detail:"high" as const};
+    const answer=await client.responses.create({
+      model:"gpt-4.1-mini",
+      input:[{role:"user",content:[
+        {type:"input_text",text:"Bu dosyadaki toptan ürünleri tablo halinde ayrıştır. Yalnızca kesin okunabilen alanları çıkar, eksik bilgiyi uydurma. En fazla 30 ürün. Her ürün için sku,name,brand,category,description,barcode,unitsPerBox,stock,price,leadDays alanlarını döndür. leadDays bilinmiyorsa 1, unitsPerBox bilinmiyorsa 1. Yanıt sadece JSON nesnesi olsun: {products:[{...}]}."},
+        fileContent
+      ]}],
+      text:{format:{type:"json_object"}},
+      max_output_tokens:3500
+    });
+    const parsed=JSON.parse(answer.output_text||'{"products":[]}');
+    const rows=Array.isArray(parsed.products)?parsed.products.slice(0,30):[];
+    res.json({products:rows.map((v:any)=>({
+      sku:String(v.sku||"").slice(0,90),name:String(v.name||"").slice(0,220),
+      brand:String(v.brand||"").slice(0,120),category:String(v.category||"").slice(0,120),
+      description:String(v.description||"").slice(0,4000),barcode:String(v.barcode||"").slice(0,60),
+      unitsPerBox:Math.max(1,Number(v.unitsPerBox)||1),stock:Math.max(0,Number(v.stock)||0),
+      price:Number(v.price)||0,leadDays:Math.min(14,Math.max(1,Number(v.leadDays)||1))
+    }))});
   }));
   app.post("/api/marketplace/seller/products",requireSeller,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
