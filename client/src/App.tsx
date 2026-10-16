@@ -42,6 +42,7 @@ import B2BAccount from "@/pages/b2b-account";
 import B2BOrders from "@/pages/b2b-orders";
 import B2BPaymentPage from "@/pages/b2b-payment";
 import B2BSupport from "@/pages/b2b-support";
+import B2BInfoPage from "@/pages/b2b-info";
 import AdminMarketplace from "@/pages/admin-marketplace";
 import MarketplaceSeller from "@/pages/marketplace-seller";
 import { MarketplaceDirectory, MarketplaceShop, MarketplaceBuyerInbox } from "@/pages/marketplace-public";
@@ -174,6 +175,10 @@ function B2BWebsite() {
         <Route path="/siparislerim" component={B2BOrders} />
         <Route path="/odeme" component={B2BPaymentPage} />
         <Route path="/destek" component={B2BSupport} />
+        <Route path="/hakkimizda" component={B2BInfoPage} />
+        <Route path="/iletisim" component={B2BInfoPage} />
+        <Route path="/kampanyalar" component={B2BInfoPage} />
+        <Route path="/akademi" component={B2BInfoPage} />
         <Route path="/support" component={B2BSupport} />
         <Route component={B2BStorefront} />
       </Switch>
