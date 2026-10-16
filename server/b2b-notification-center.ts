@@ -2,7 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { sendPushToUsers } from "./push-notifications";
 
-const EVENT_KEYS = ["membership_approved","order_created","return_approved","invoice_issued"] as const;
+const EVENT_KEYS = ["membership_approved","order_created","order_payment_approved","return_approved","invoice_issued"] as const;
 export type NotificationEvent = typeof EVENT_KEYS[number];
 const DEFAULTS: Record<NotificationEvent,{title:string;body:string}> = {
   membership_approved: {
@@ -12,6 +12,10 @@ const DEFAULTS: Record<NotificationEvent,{title:string;body:string}> = {
   order_created: {
     title: "Siparişiniz oluşturuldu",
     body: "{orderNumber} numaralı siparişiniz oluşturuldu. Toplam: {amount}.",
+  },
+  order_payment_approved: {
+    title: "Havale ödemeniz onaylandı",
+    body: "{orderNumber} numaralı siparişiniz için {amount} tutarındaki havale ödemeniz kontrol edilerek onaylandı. Siparişinizi Siparişlerim bölümünden takip edebilirsiniz.",
   },
   return_approved: {
     title: "İade talebiniz onaylandı",
