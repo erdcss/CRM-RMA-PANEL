@@ -1,0 +1,4 @@
+Çalışkan B2B / Pazaryeri güncel build doğrulaması
+Tarih: 2026-10-16
+Amaç: Railway izlenen ortak kaynak dizininde yeniden derlemeyi tetiklemek.
+Yürütülebilir kod veya çalışma zamanı yapılandırması içermez.
