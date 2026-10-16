@@ -26,7 +26,7 @@ import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
-import { registerMarketplaceRoutes } from "./marketplace";
+import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceCartRoutes } from "./marketplace-cart";
 import { reserveB2BBankReference, lockB2BBankReference, bindB2BBankReference, findB2BBankReferenceOrder, ensureB2BBankReferenceTable, BankReferenceError } from "./b2b-bank-transfer-code";
@@ -2392,6 +2392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
   registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller, requireMarketplaceParticipant);
+  void ensureMarketplaceSchema().catch(error => console.error("Marketplace schema migration failed:",error));
   registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
   registerMarketplaceCartRoutes(app, requireB2B);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
