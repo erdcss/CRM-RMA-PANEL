@@ -26,6 +26,7 @@ import {
   rmaApi,
   type B2BAddress,
   type B2BBankTransferOrder,
+  type B2BBankTransferReference,
   type B2BCheckoutPreview,
   type B2BCheckoutCartPreview,
   type B2BPaymentSettings,
@@ -108,6 +109,10 @@ export default function CheckoutScreen() {
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [addressForm, setAddressForm] = useState(EMPTY_ADDRESS);
   const [bankOrder, setBankOrder] = useState<B2BBankTransferOrder | null>(null);
+  const [bankReference, setBankReference] = useState<B2BBankTransferReference | null>(null);
+  const [bankReferenceLoading, setBankReferenceLoading] = useState(false);
+  const [bankReferenceError, setBankReferenceError] = useState('');
+  const [bankReferenceRetry, setBankReferenceRetry] = useState(0);
   const [cardHolderName, setCardHolderName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expireMonth, setExpireMonth] = useState('');
@@ -254,6 +259,25 @@ export default function CheckoutScreen() {
     };
   }, [cardNumber, listMode, orderItems, paymentMethod, preview, productId, quantity]);
 
+  // Reference is allocated server-side before an order exists. A payment reference
+  // is not a paid invoice or proof of receiving a bank transfer.
+  useEffect(() => {
+    if (!session || !preview || paymentMethod !== 'bank_transfer' ||
+        !settings?.bankTransfer.enabled || bankReference || bankOrder) return;
+    let active = true;
+    setBankReferenceLoading(true);
+    setBankReferenceError('');
+    rmaApi.reserveB2BBankTransferCode()
+      .then((reference) => { if (active) setBankReference(reference); })
+      .catch((error) => {
+        if (active) setBankReferenceError(
+          error instanceof Error ? error.message : 'Havale kodu alınamadı.',
+        );
+      })
+      .finally(() => { if (active) setBankReferenceLoading(false); });
+    return () => { active = false; };
+  }, [session, preview, paymentMethod, settings?.bankTransfer.enabled, bankReference, bankOrder, bankReferenceRetry]);
+
   const selectedAddress = useMemo(
     () => addresses.find((item) => String(item.id) === addressId) || null,
     [addresses, addressId],
@@ -300,7 +324,7 @@ export default function CheckoutScreen() {
         cardFormValid &&
         !installmentsLoading &&
         (!installments || installments.options.some((option) => option.installmentNumber === installment))) ||
-        (paymentMethod === 'bank_transfer' && settings?.bankTransfer.enabled)),
+        (paymentMethod === 'bank_transfer' && settings?.bankTransfer.enabled && Boolean(bankReference || bankOrder))),
   );
 
   const createAddress = async () => {
@@ -403,8 +427,8 @@ export default function CheckoutScreen() {
     }
   };
 
-  const createBankTransfer = async () => {
-    if (!preview || !selectedAddress || !canPay || busy) return;
+  const completeBankTransfer = async () => {
+    if (!preview || !selectedAddress || !canPay || busy || (!bankReference && !bankOrder)) return;
     setBusy(true);
     try {
       const checkoutContext = {
@@ -422,54 +446,39 @@ export default function CheckoutScreen() {
         platform: 'mobile',
       };
 
-      const order = listMode
-        ? await rmaApi.createB2BBankTransferOrderForItems({
-            items: orderItems,
-            addressId: selectedAddress.id,
-            shipping: shippingPayload,
-            checkoutContext,
-          })
-        : await rmaApi.createB2BBankTransferOrder({
-            productId,
-            quantity,
-            addressId: selectedAddress.id,
-            shipping: shippingPayload,
-            checkoutContext,
-          });
-      setBankOrder(order);
-      appAlert(
-        'Havale siparişiniz oluşturuldu',
-        'Sipariş kodunu havale açıklamasına yazın.',
-        undefined,
-        'success',
-      );
-    } catch (error) {
-      appAlert(
-        'Havale siparişi oluşturulamadı',
-        error instanceof Error ? error.message : 'Lütfen tekrar deneyin.',
-        undefined,
-        'error',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const confirmBankTransfer = async () => {
-    if (!bankOrder || busy) return;
-    setBusy(true);
-    try {
-      await rmaApi.confirmB2BBankTransfer(bankOrder.orderNumber);
-      if (listMode) {
-        await clearOrderList();
+      // Retrying with the same reserved reference must never create another order.
+      let order = bankOrder;
+      if (!order) {
+        if (!bankReference) return;
+        order = listMode
+          ? await rmaApi.createB2BBankTransferOrderForItems({
+              reservationId: bankReference.reservationId,
+              items: orderItems,
+              addressId: selectedAddress.id,
+              shipping: shippingPayload,
+              checkoutContext,
+            })
+          : await rmaApi.createB2BBankTransferOrder({
+              reservationId: bankReference.reservationId,
+              productId,
+              quantity,
+              addressId: selectedAddress.id,
+              shipping: shippingPayload,
+              checkoutContext,
+            });
+        setBankOrder(order);
       }
+
+      // Customer claim only: the bank transfer is NOT considered verified here.
+      await rmaApi.confirmB2BBankTransfer(order.orderNumber);
+      if (listMode) await clearOrderList();
       router.replace({
         pathname: '/payment-result',
-        params: { result: 'success', order: bankOrder.orderNumber, method: 'bank_transfer' },
+        params: { result: 'success', order: order.orderNumber, method: 'bank_transfer' },
       } as never);
     } catch (error) {
       appAlert(
-        'Bildirim gönderilemedi',
+        'Havale bildirimi tamamlanamadı',
         error instanceof Error ? error.message : 'Lütfen tekrar deneyin.',
         undefined,
         'error',
@@ -970,76 +979,70 @@ export default function CheckoutScreen() {
             </View>
           ) : null}
 
-          {paymentMethod === 'bank_transfer' && !bankOrder ? (
+          {paymentMethod === 'bank_transfer' ? (
             <View style={styles.bankPreview}>
               <InfoLine label="Banka" value={settings?.bankTransfer.bankName || '—'} />
               <CopyRow
                 label="İsim Soyisim / Hesap Sahibi"
                 value={settings?.bankTransfer.accountHolder || '—'}
               />
-              <CopyRow
-                label="IBAN"
-                value={settings?.bankTransfer.iban || '—'}
-              />
-              <Text style={styles.bankPreviewHint}>
-                Sipariş oluşturulduğunda açıklama alanına yapıştırmanız için size özel CLK ile başlayan 6 haneli kod oluşturulur.
-              </Text>
-            </View>
-          ) : null}
-
-          {bankOrder ? (
-            <View style={styles.bankOrder}>
-              <View style={styles.successMark}>
-                <Ionicons name="checkmark" size={22} color="#FFFFFF" />
-              </View>
-              <Text style={styles.bankOrderTitle}>Havale / EFT bilgileriniz hazır</Text>
-              <Text style={styles.orderCode}>{bankOrder.orderNumber}</Text>
-              <CopyRow
-                label="İsim Soyisim / Hesap Sahibi"
-                value={bankOrder.bankTransfer.accountHolder}
-              />
-              <CopyRow label="IBAN" value={bankOrder.bankTransfer.iban} />
-              <CopyRow
-                label="Açıklama Kodu"
-                value={bankOrder.transferCode || bankOrder.transferDescription}
-              />
-              <View style={styles.transferCodeBox}>
-                <Text style={styles.transferCodeLabel}>Açıklamaya yapıştırılacak kod</Text>
-                <Text style={styles.transferCodeValue}>
-                  {bankOrder.transferCode || bankOrder.transferDescription}
-                </Text>
-              </View>
-              <Text style={styles.bankHint}>
-                Havale/EFT açıklama alanına yalnızca bu CLK kodunu eksiksiz yapıştırın.
-              </Text>
-              <Pressable style={styles.primaryButton} onPress={confirmBankTransfer} disabled={busy}>
-                <Text style={styles.primaryButtonText}>
-                  {busy ? 'Gönderiliyor…' : 'Ödemeyi Yaptım'}
-                </Text>
-              </Pressable>
+              <CopyRow label="IBAN" value={settings?.bankTransfer.iban || '—'} />
+              {bankReference || bankOrder ? (
+                <>
+                  <Text style={styles.transferCodeLabel}>Havale açıklama kodunuz</Text>
+                  <CopyRow
+                    label="Açıklamaya yazılacak CLK kodu"
+                    value={bankOrder?.transferCode || bankReference?.transferCode || ''}
+                  />
+                  <View style={styles.transferCodeBox}>
+                    <Text style={styles.transferCodeValue}>
+                      {bankOrder?.transferCode || bankReference?.transferCode}
+                    </Text>
+                  </View>
+                  <Text style={styles.bankPreviewHint}>
+                    Havale/EFT açıklamasına yalnızca bu CLK kodunu yazın. Kodunuz sipariş
+                    tamamlanmadan önce ayrılmıştır. Ödemenin bankadan doğrulanması ayrıca yapılır.
+                  </Text>
+                </>
+              ) : (
+                <View style={styles.bankCodePending}>
+                  <Text style={styles.bankPreviewHint}>
+                    {bankReferenceLoading
+                      ? 'Size özel CLK kodu hazırlanıyor…'
+                      : bankReferenceError || 'Havale kodu bekleniyor…'}
+                  </Text>
+                  {bankReferenceError ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setBankReferenceRetry((value) => value + 1)}
+                    >
+                      <Text style={styles.retryText}>Kodu Tekrar Al</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              )}
             </View>
           ) : null}
         </Section>
 
         {!selectedAddress ? (
           <View style={styles.warningBox}>
-            <Ionicons name="warning-outline" size={20} color={colors.warning} />
+            <Ionicons name="warning-outline" size={20} color="#92400E" />
             <Text style={styles.warningText}>Siparişi tamamlamak için teslimat adresi ekleyin.</Text>
           </View>
         ) : null}
 
         {!shippingValid ? (
           <View style={styles.warningBox}>
-            <Ionicons name="warning-outline" size={20} color={colors.warning} />
+            <Ionicons name="warning-outline" size={20} color="#92400E" />
             <Text style={styles.warningText}>Ambar firma adı ve telefonunu tamamlayın.</Text>
           </View>
         ) : null}
 
-        {!bankOrder ? (
-          <Pressable
+        <Pressable
             style={[styles.payButton, !canPay && styles.disabled]}
             disabled={!canPay || busy}
-            onPress={paymentMethod === 'card' ? startCardPayment : createBankTransfer}
+            onPress={paymentMethod === 'card' ? startCardPayment : completeBankTransfer}
           >
             <Ionicons
               name={paymentMethod === 'card' ? 'lock-closed' : 'business'}
@@ -1051,9 +1054,14 @@ export default function CheckoutScreen() {
                 ? 'Hazırlanıyor…'
                 : paymentMethod === 'card'
                   ? `${money(payableTotal)} · Ödemeyi Tamamla`
-                  : `${money(preview.total)} · Havale Siparişi Oluştur`}
+                  : `${money(preview.total)} · Ödemeyi Tamamladım`}
             </Text>
           </Pressable>
+        {paymentMethod === 'bank_transfer' ? (
+          <Text style={styles.bankPreviewHint}>
+            Ödemeyi Tamamladım butonuna bastığınızda sipariş oluşturulur ve havale
+            bildiriminiz yöneticiye iletilir. Para girişi doğrulanana kadar ödeme beklemededir.
+          </Text>
         ) : null}
 
         <View style={styles.securityFooter}>
@@ -1458,6 +1466,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     color: '#374151',
   },
   bankPreview: { borderRadius: radius.lg, backgroundColor: palette.surfaceSecondary, paddingHorizontal: spacing.md },
+  bankCodePending: { paddingVertical: spacing.sm },
+  retryText: { color: '#FACC15', fontWeight: '800', paddingBottom: spacing.md },
   bankPreviewHint: {
     ...typography.caption,
     color: palette.textSecondary,
@@ -1495,8 +1505,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   copyLabel: { ...typography.caption, color: palette.muted },
   copyValue: { ...typography.bodyMedium, color: palette.text, fontWeight: '800', marginTop: 2 },
   bankHint: { ...typography.caption, color: palette.textSecondary, marginTop: spacing.md, textAlign: 'center' },
-  warningBox: { borderRadius: radius.md, backgroundColor: colors.warningSoft, padding: spacing.md, flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
-  warningText: { ...typography.caption, color: palette.textSecondary, flex: 1 },
+  warningBox: { borderRadius: radius.md, backgroundColor: '#FFF7DD', borderColor: '#D97706', borderWidth: 1, padding: spacing.md, flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  warningText: { ...typography.caption, color: '#713F12', fontWeight: '700', flex: 1, lineHeight: 20 },
   payButton: { minHeight: 58, borderRadius: radius.lg, backgroundColor: '#FACC15', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
   payButtonText: { ...typography.bodyMedium, color: '#111827', fontWeight: '900' },
   primaryButton: { minHeight: 50, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
