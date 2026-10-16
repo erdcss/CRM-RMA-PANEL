@@ -1,0 +1,3 @@
+Çalışkan B2B mobil web build tetikleyicisi.
+Tarih: 2026-10-16
+Uygulama davranışını değiştirmez.
