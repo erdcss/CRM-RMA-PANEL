@@ -23,6 +23,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   removeB2BCartItem,
+  refreshB2BCart,
   updateB2BCartQuantity,
   useB2BCart,
 } from "@/lib/b2b-cart";
@@ -70,11 +71,36 @@ export default function B2BOrders() {
   const { items, itemCount, totalUnits, total } = useB2BCart();
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
   const [supplierBusy,setSupplierBusy]=useState(false);
+  const [supplierUpdating,setSupplierUpdating]=useState<string|null>(null);
   const [supplierMessage,setSupplierMessage]=useState("");
   const supplierKey=useRef<string|null>(null);
   const supplierItems=items.filter(item=>item.productId.startsWith("mp-"));
   const adminItems=items.filter(item=>!item.productId.startsWith("mp-"));
   const {data:supplierOrders=[]}=useQuery<Array<{id:number;status:string;subtotal:number;created_at:string}>>({queryKey:["/api/marketplace/orders"],retry:false,staleTime:0});
+  async function changeQuantity(item:{productId:string;quantity:number},next:number){
+    if(!item.productId.startsWith("mp-")){updateB2BCartQuantity(item.productId,next);return;}
+    if(supplierUpdating)return;
+    setSupplierUpdating(item.productId);
+    try{
+      await apiRequest("POST","/api/marketplace/cart",{productId:Number(item.productId.slice(3)),boxes:next,deliveryMode:"direct"});
+      refreshB2BCart();
+    }catch(e){toast({title:"Koli sayısı güncellenemedi",description:e instanceof Error?e.message:"Tekrar deneyin.",variant:"destructive"});}
+    finally{setSupplierUpdating(null);}
+  }
+  async function removeSelection(productId:string){
+    if(!productId.startsWith("mp-")){removeB2BCartItem(productId);return;}
+    if(supplierUpdating)return;
+    setSupplierUpdating(productId);
+    try{
+      const r=await fetch("/api/marketplace/cart",{credentials:"include",cache:"no-store"});
+      if(!r.ok)throw new Error("Tedarikçi sipariş listesine ulaşılamadı");
+      const payload=await r.json() as {items:Array<{id:number;product_id:number}>};
+      const line=payload.items.find(row=>row.product_id===Number(productId.slice(3)));
+      if(line)await apiRequest("DELETE","/api/marketplace/cart/"+line.id);
+      refreshB2BCart();
+    }catch(e){toast({title:"Ürün kaldırılamadı",description:e instanceof Error?e.message:"Tekrar deneyin.",variant:"destructive"});}
+    finally{setSupplierUpdating(null);}
+  }
   async function placeSupplierOrder(){
     if(supplierBusy||!supplierItems.length)return;
     setSupplierBusy(true);setSupplierMessage("");
@@ -85,7 +111,7 @@ export default function B2BOrders() {
         items:supplierItems.map(item=>({productId:Number(item.productId.slice(3)),boxes:item.quantity}))
       });
       const order=await response.json() as {id:number};
-      for(const item of supplierItems)removeB2BCartItem(item.productId);
+      refreshB2BCart();
       supplierKey.current=null;
       setSupplierMessage("Sipariş #"+order.id+" oluşturuldu. Satıcı onayı bekleniyor; ödeme alınmadı.");
       await Promise.all([queryClient.invalidateQueries({queryKey:["/api/marketplace/orders"]}),queryClient.invalidateQueries({queryKey:["/api/marketplace/cart"]})]);
@@ -216,10 +242,7 @@ export default function B2BOrders() {
                             className="flex h-9 w-9 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
                             disabled={item.quantity <= item.minOrderQty}
                             onClick={() =>
-                              updateB2BCartQuantity(
-                                item.productId,
-                                Math.max(item.minOrderQty, item.quantity - 1),
-                              )
+                              void changeQuantity(item,Math.max(item.minOrderQty,item.quantity-1))
                             }
                             aria-label="Adedi azalt"
                           >
@@ -231,10 +254,7 @@ export default function B2BOrders() {
                             max={Math.floor(item.stock / item.unitsPerBox)}
                             value={item.quantity}
                             onChange={(event) =>
-                              updateB2BCartQuantity(
-                                item.productId,
-                                Number.parseInt(event.target.value || String(item.minOrderQty), 10),
-                              )
+                              void changeQuantity(item,Number.parseInt(event.target.value||String(item.minOrderQty),10))
                             }
                             className="h-9 w-14 border-x text-center text-sm font-bold outline-none"
                           />
@@ -243,10 +263,7 @@ export default function B2BOrders() {
                             className="flex h-9 w-9 items-center justify-center hover:bg-slate-50 disabled:opacity-40"
                             disabled={item.quantity >= Math.floor(item.stock / item.unitsPerBox)}
                             onClick={() =>
-                              updateB2BCartQuantity(
-                                item.productId,
-                                Math.min(Math.floor(item.stock / item.unitsPerBox), item.quantity + 1),
-                              )
+                              void changeQuantity(item,Math.min(Math.floor(item.stock/item.unitsPerBox),item.quantity+1))
                             }
                             aria-label="Adedi artır"
                           >
@@ -267,7 +284,7 @@ export default function B2BOrders() {
 
                       <button
                         type="button"
-                        onClick={() => removeB2BCartItem(item.productId)}
+                        onClick={() => void removeSelection(item.productId)}
                         className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
                         aria-label="Ürünü siparişlerden kaldır"
                       >
