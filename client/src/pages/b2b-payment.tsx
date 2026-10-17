@@ -138,7 +138,7 @@ async function loadCheckoutPreview(
   qty: number,
 ): Promise<CheckoutPreview> {
   if (cartMode) {
-    const cart = getB2BCart();
+    const cart = getB2BCart().filter(item=>!item.productId.startsWith("mp-"));
     if (!cart.length) throw new Error("Sipariş listeniz boş");
     const response = await apiRequest("POST", "/api/b2b/checkout/preview", {
       items: cart.map((item) => ({
