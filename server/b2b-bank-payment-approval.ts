@@ -82,12 +82,13 @@ export function registerB2BBankPaymentApproval(
             RETURNING id,user_id,order_number,transfer_code,total_amount,status
           `, [record.id]);
           if (!updated.rows[0]) throw new Error("Sipariş ödeme durumu değişmiş, yenileyin");
-          order = updated.rows[0];
+          const confirmedOrder = updated.rows[0];
+          order = confirmedOrder;
           await client.query(`
             INSERT INTO b2b_bank_payment_approvals
               (order_id,order_number,transfer_code,amount,approved_by)
             VALUES ($1,$2,$3,$4,$5) ON CONFLICT(order_id) DO NOTHING
-          `, [order.id,order.order_number,order.transfer_code,order.total_amount,actor]);
+          `, [confirmedOrder.id,confirmedOrder.order_number,confirmedOrder.transfer_code,confirmedOrder.total_amount,actor]);
           firstApproval = true;
         } else {
           await client.query("ROLLBACK");
