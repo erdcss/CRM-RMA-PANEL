@@ -611,16 +611,16 @@ export function registerMarketplaceRoutes(
     if(!["product","store","reel"].includes(kind))throw new ApiError(400,"İnceleme türü geçersiz");
 
     if(kind==="product"){
-      const result=await db.query(`SELECT v.id,v.product_id,v.content,v.status,v.is_live,v.review_note,v.created_at,v.reviewed_at,
-        p.sku,p.stock,p.is_enabled,s.id AS supplier_id,s.slug,s.company_name,s.status AS supplier_status
+      const result=await db.query(`SELECT v.id,v.product_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,v.status,v.is_live,v.review_note,v.created_at,v.reviewed_at,
+        p.sku,p.stock,p.current_price,p.is_enabled,s.id AS supplier_id,s.slug,s.company_name,s.status AS supplier_status
         FROM mp_product_versions v
         JOIN mp_products p ON p.id=v.product_id
         JOIN mp_suppliers s ON s.id=p.supplier_id WHERE v.id=$1 LIMIT 1`,[reviewId]);
       const review=result.rows[0];
       if(!review)throw new ApiError(404,"Ürün incelemesi bulunamadı");
       const [live,history]=await Promise.all([
-        db.query(`SELECT id,content,status,created_at,reviewed_at FROM mp_product_versions
-          WHERE product_id=$1 AND is_live=TRUE AND id<>$2 LIMIT 1`,[review.product_id,reviewId]),
+        db.query(`SELECT id,(content || jsonb_build_object('price',COALESCE($3::numeric,(content->>'price')::numeric))) AS content,status,created_at,reviewed_at FROM mp_product_versions
+          WHERE product_id=$1 AND is_live=TRUE AND id<>$2 LIMIT 1`,[review.product_id,reviewId,review.current_price]),
         db.query(`SELECT id,status,is_live,created_at,reviewed_at FROM mp_product_versions
           WHERE product_id=$1 ORDER BY id DESC LIMIT 20`,[review.product_id])
       ]);
@@ -659,7 +659,7 @@ export function registerMarketplaceRoutes(
     const db=await ready();
     const [suppliers,products,stores,reels]=await Promise.all([
       db.query("SELECT id,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,created_at,status,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
-      db.query(`SELECT v.id,v.product_id,v.content,v.created_at,v.status,v.review_note,s.company_name FROM mp_product_versions v
+      db.query(`SELECT v.id,v.product_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,v.created_at,v.status,v.review_note,s.company_name FROM mp_product_versions v
         JOIN mp_products p ON p.id=v.product_id JOIN mp_suppliers s ON s.id=p.supplier_id
         ORDER BY v.id DESC LIMIT 100`),
       db.query(`SELECT v.id,v.content,v.created_at,v.status,v.is_live,v.review_note,s.company_name FROM mp_store_versions v
