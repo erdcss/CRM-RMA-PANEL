@@ -178,7 +178,7 @@ export type MarketplaceStore = {
 export type MarketplaceConversation = {id:number;company_name:string;slug:string;buyer_user_id:number;latest_message:string};
 export type MarketplaceMessage = {id:number;author_user_id:number;text:string;created_at:string};
 export type MarketplaceCart = {
-  items:Array<{id:number;product_id:number;boxes:number;valid:boolean;total:number;unitsPerBox:number;price:number;company_name:string;sku:string;content:{name:string;imageUrl?:string}}>,
+  items:Array<{id:number;product_id:number;boxes:number;valid:boolean;total:number;unitsPerBox:number;price:number;stock:number;company_name:string;seller_slug?:string;sku:string;content:{name:string;imageUrl?:string;minBoxes?:number}}>,
   subtotal:number;currency:string;paymentEnabled:false;notice:string;
 };
 
@@ -691,6 +691,9 @@ export const rmaApi = {
   createMarketplaceOrderDraft: (requestKey:string) => request<{id:number;paymentEnabled:false;message:string}>('/api/marketplace/order-drafts',{method:'POST',body:JSON.stringify({requestKey})}),
   createMarketplaceOrder: (requestKey:string) => request<{id:number;status:string;subtotal:number;paymentStatus:'unpaid';message:string}>('/api/marketplace/orders',{method:'POST',body:JSON.stringify({requestKey})}),
   listMarketplaceOrders: () => request<Array<{id:number;status:string;subtotal:number;created_at:string}>>('/api/marketplace/orders'),
+  createMarketplaceOrderFromList: (requestKey:string,items:Array<{productId:number;boxes:number}>) =>
+    request<{id:number;status:string;subtotal:number;message:string}>('/api/marketplace/orders/from-list',
+      {method:'POST',body:JSON.stringify({requestKey,items})}),
   getMarketplaceProduct: (slug:string,id:string|number) =>
     request<MarketplaceProduct>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products/${encodeURIComponent(String(id))}`),
   getB2BProduct: (id: string | number) =>
