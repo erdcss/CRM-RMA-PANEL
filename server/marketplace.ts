@@ -548,6 +548,59 @@ export function registerMarketplaceRoutes(
       reels:queries[3].rows,conversations:queries[4].rows[0]?.total,quotes:queries[5].rows[0]?.total,
       commissionPercent:3,warehouseControlExtraPercent:3,liveSupplierCheckout:false});
   }));
+
+  // A dedicated, admin-only view of the EXACT submitted revision, its seller,
+  // and (where applicable) the previously approved live revision.
+  // Draft media is never exposed via a public listing.
+  app.get("/api/admin/marketplace/reviews/:kind/:id",requireAdmin,handle(async(req,res)=>{
+    const db=await ready(),reviewId=id(req.params.id),kind=req.params.kind;
+    if(!["product","store","reel"].includes(kind))throw new ApiError(400,"İnceleme türü geçersiz");
+
+    if(kind==="product"){
+      const result=await db.query(`SELECT v.id,v.product_id,v.content,v.status,v.is_live,v.review_note,v.created_at,v.reviewed_at,
+        p.sku,p.stock,p.is_enabled,s.id AS supplier_id,s.slug,s.company_name,s.status AS supplier_status
+        FROM mp_product_versions v
+        JOIN mp_products p ON p.id=v.product_id
+        JOIN mp_suppliers s ON s.id=p.supplier_id WHERE v.id=$1 LIMIT 1`,[reviewId]);
+      const review=result.rows[0];
+      if(!review)throw new ApiError(404,"Ürün incelemesi bulunamadı");
+      const [live,history]=await Promise.all([
+        db.query(`SELECT id,content,status,created_at,reviewed_at FROM mp_product_versions
+          WHERE product_id=$1 AND is_live=TRUE AND id<>$2 LIMIT 1`,[review.product_id,reviewId]),
+        db.query(`SELECT id,status,is_live,created_at,reviewed_at FROM mp_product_versions
+          WHERE product_id=$1 ORDER BY id DESC LIMIT 20`,[review.product_id])
+      ]);
+      return res.json({kind,review,liveVersion:live.rows[0]||null,history:history.rows});
+    }
+    if(kind==="store"){
+      const result=await db.query(`SELECT v.id,v.supplier_id,v.content,v.status,v.is_live,v.review_note,v.created_at,v.reviewed_at,
+        s.slug,s.company_name,s.description,s.status AS supplier_status
+        FROM mp_store_versions v JOIN mp_suppliers s ON s.id=v.supplier_id WHERE v.id=$1 LIMIT 1`,[reviewId]);
+      const review=result.rows[0];
+      if(!review)throw new ApiError(404,"Mağaza tasarımı bulunamadı");
+      const [live,history]=await Promise.all([
+        db.query(`SELECT id,content,status,created_at,reviewed_at FROM mp_store_versions
+          WHERE supplier_id=$1 AND is_live=TRUE AND id<>$2 LIMIT 1`,[review.supplier_id,reviewId]),
+        db.query(`SELECT id,status,is_live,created_at,reviewed_at FROM mp_store_versions
+          WHERE supplier_id=$1 ORDER BY id DESC LIMIT 20`,[review.supplier_id])
+      ]);
+      return res.json({kind,review,liveVersion:live.rows[0]||null,history:history.rows});
+    }
+    const result=await db.query(`SELECT r.id,r.supplier_id,r.title,r.video_url,r.product_id,
+      r.status,r.is_live,r.review_note,r.created_at,
+      s.company_name,s.slug,s.status AS supplier_status,
+      p.sku AS product_sku,
+      (SELECT v.content FROM mp_product_versions v WHERE v.product_id=p.id
+        ORDER BY v.is_live DESC,v.id DESC LIMIT 1) AS linked_product_content,
+      (SELECT EXISTS(SELECT 1 FROM mp_product_versions v
+        WHERE v.product_id=p.id AND v.is_live=TRUE)) AS linked_product_live
+      FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id
+      LEFT JOIN mp_products p ON p.id=r.product_id AND p.supplier_id=r.supplier_id
+      WHERE r.id=$1 LIMIT 1`,[reviewId]);
+    if(!result.rows[0])throw new ApiError(404,"Reels incelemesi bulunamadı");
+    return res.json({kind,review:result.rows[0],liveVersion:null,history:[]});
+  }));
+
   app.get("/api/admin/marketplace/review-queue",requireAdmin,handle(async(_req,res)=>{
     const db=await ready();
     const [suppliers,products,stores,reels]=await Promise.all([
