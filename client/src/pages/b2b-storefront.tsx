@@ -275,22 +275,8 @@ export default function B2BStorefront() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filtered.map((product) => (
               <B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>
-            ))} ₺`
-                          : "Fiyat için giriş yapın"}
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="rounded-lg bg-slate-100 p-2">
-                          Koli içi<br /><b>{product.units_per_box || 1} adet</b>
-                        </div>
-                        <div className="rounded-lg bg-amber-50 p-2">
-                          Min. alım<br /><b>{product.min_order_qty || 1} adet</b>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                </Link>
-              );
-            })}
+            ))}
+
           </div>
         )}
       </main>
