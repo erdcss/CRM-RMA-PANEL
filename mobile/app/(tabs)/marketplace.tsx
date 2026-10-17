@@ -76,8 +76,8 @@ export default function MarketplaceProductsScreen() {
         accessibilityRole="button"
         accessibilityLabel={item.content.name + ', ' + item.seller_name}
         style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}
-        onPress={() => router.push({ pathname: '/marketplace/product/[slug]/[id]',
-          params: { slug: item.seller_slug, id: String(item.id) } } as never)}
+        onPress={() => router.push({ pathname: '/product/[id]',
+          params: { slug: item.seller_slug, id: 'mp-' + String(item.id) } } as never)}
       >
         <View style={styles.photo}>
           {item.content.imageUrl
