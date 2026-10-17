@@ -84,35 +84,64 @@ export default function MarketplaceSeller(){
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
   const [uploadingCount,setUploadingCount]=useState(0);
+  const [uploadProgress,setUploadProgress]=useState(0);
   const uploading=uploadingCount>0;
-  async function upload(file:File, target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"){
+  async function videoChunkData(blob:Blob):Promise<string>{
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>{
+        const data=String(reader.result||"");
+        const pos=data.indexOf(",");
+        if(pos<0){reject(new Error("Video parçası okunamadı"));return;}
+        resolve(data.slice(pos+1));
+      };
+      reader.onerror=()=>reject(new Error("Video parçası okunamadı"));
+      reader.readAsDataURL(blob);
+    });
+  }
+  async function upload(file:File,target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"){
     if(target==="videoUrl"){
       setReel(value=>({...value,videoUrl:""}));
-      if(file.size>9*1024*1024){setMessage("MP4 video 9 MB sınırını aşıyor. Videoyu sıkıştırıp yeniden seçin.");return;}
-      if(file.type!=="video/mp4" && !file.name.toLowerCase().endsWith(".mp4")){setMessage("Lütfen MP4 formatında video seçin.");return;}
+      setUploadProgress(0);
+      if(file.size>60*1024*1024){setMessage("MP4 video 60 MB sınırını aşıyor. Daha kısa bir MP4 seçin.");return;}
+      if(file.type!=="video/mp4"&&!file.name.toLowerCase().endsWith(".mp4")){setMessage("Lütfen MP4 formatında video seçin.");return;}
     }
     setUploadingCount(count=>count+1);setMessage("");
     try{
-      const dataUrl=await new Promise<string>((resolve,reject)=>{
-        const reader=new FileReader();
-        reader.onload=()=>resolve(String(reader.result||""));
-        reader.onerror=()=>reject(new Error("Dosya okunamadı"));
-        reader.readAsDataURL(file);
-      });
-      if(target==="logoUrl"||target==="bannerUrl")setStoreMediaPreview(v=>({...v,[target]:dataUrl}));
-      const result=await send("POST","/api/marketplace/seller/media",{dataUrl}) as {url:string};
+      let url="";
+      if(target==="videoUrl"){
+        const start=await send("POST","/api/marketplace/seller/video-upload/start",{size:file.size}) as {uploadId:string;chunkSize:number;partCount:number};
+        for(let index=0;index<start.partCount;index++){
+          const chunk=file.slice(index*start.chunkSize,Math.min(file.size,(index+1)*start.chunkSize));
+          const data=await videoChunkData(chunk);
+          await send("POST","/api/marketplace/seller/video-upload/part",{uploadId:start.uploadId,partIndex:index,data});
+          setUploadProgress(Math.round((index+1)/start.partCount*100));
+        }
+        const complete=await send("POST","/api/marketplace/seller/video-upload/complete",{uploadId:start.uploadId}) as {url:string};
+        url=complete.url;
+      }else{
+        const dataUrl=await new Promise<string>((resolve,reject)=>{
+          const reader=new FileReader();
+          reader.onload=()=>resolve(String(reader.result||""));
+          reader.onerror=()=>reject(new Error("Dosya okunamadı"));
+          reader.readAsDataURL(file);
+        });
+        if(target==="logoUrl"||target==="bannerUrl")setStoreMediaPreview(v=>({...v,[target]:dataUrl}));
+        const result=await send("POST","/api/marketplace/seller/media",{dataUrl}) as {url:string};
+        url=result.url;
+      }
       if(target==="logoUrl"||target==="bannerUrl"){
-        setStore(v=>({...v,[target]:result.url}));
+        setStore(v=>({...v,[target]:url}));
         setStoreMediaPreview(v=>({...v,[target]:""}));
       }
-      else if(target==="imageUrl")setProduct(v=>({...v,imageUrl:result.url}));
-      else setReel(v=>({...v,videoUrl:result.url}));
-      setMessage("Medya güvenli biçimde yüklendi.");
+      else if(target==="imageUrl")setProduct(v=>({...v,imageUrl:url}));
+      else setReel(v=>({...v,videoUrl:url}));
+      setMessage("Medya güvenli biçimde yüklendi. Reels videosunu onaya gönderebilirsiniz.");
     }catch(e){
       if(target==="logoUrl"||target==="bannerUrl")setStoreMediaPreview(v=>({...v,[target]:""}));
+      if(target==="videoUrl")setReel(v=>({...v,videoUrl:""}));
       setMessage(e instanceof Error?e.message:"Medya yüklenemedi");
-    }
-    finally{setUploadingCount(count=>Math.max(0,count-1));}
+    }finally{setUploadingCount(count=>Math.max(0,count-1));}
   }
   const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0});
   useEffect(()=>{
@@ -298,7 +327,7 @@ export default function MarketplaceSeller(){
             <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void submitReel(e.currentTarget);}}>
               <h2 className="text-lg font-bold">Reels Stüdyosu</h2>
               <Field label="Video başlığı"><input className={inputStyle} required value={reel.title} onChange={e=>setReel(v=>({...v,title:e.target.value}))}/></Field>
-              <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p role="status" className={"text-xs "+(reel.videoUrl?"font-bold text-green-700":"text-slate-500")}>{uploading?"Video sunucuya yükleniyor…":reel.videoUrl?"Video yüklendi · Onaya gönderilmeye hazır":"En fazla 9 MB, MP4 formatı. Onaya göndermek için yükleme tamamlanmalı."}</p></Field>
+              <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p role="status" className={"text-xs "+(reel.videoUrl?"font-bold text-green-700":"text-slate-500")}>{uploading?"Video yükleniyor: %"+uploadProgress:reel.videoUrl?"Video yüklendi · Onaya gönderilmeye hazır":"En fazla 60 MB, MP4 formatı. Onaya göndermek için yükleme tamamlanmalı."}</p></Field>
               <Field label="Ürün seç"><select className={inputStyle} value={reel.productId} onChange={e=>setReel(v=>({...v,productId:e.target.value}))}>
                 <option value="">Ürün seçilmedi</option>{products.data?.filter(p=>Boolean(p.live)).map(p=><option key={p.id} value={p.id}>{p.live?.name||p.sku}</option>)}
               </select></Field>
