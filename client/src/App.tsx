@@ -47,7 +47,6 @@ import AdminMarketplace from "@/pages/admin-marketplace";
 import MarketplaceSeller from "@/pages/marketplace-seller";
 import MarketplaceSellerProduct from "@/pages/marketplace-seller-product";
 import { MarketplaceDirectory, MarketplaceShop, MarketplaceBuyerInbox, MarketplaceProduct, MarketplaceReels } from "@/pages/marketplace-public";
-import MarketplaceCart from "@/pages/marketplace-cart";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
@@ -199,7 +198,7 @@ function B2BWebsite() {
         <Route path="/satici/urun/:id" component={MarketplaceDomainRedirect} />
         <Route path="/satici" component={MarketplaceDomainRedirect} />
         <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
-        <Route path="/pazaryeri-sepetim" component={MarketplaceCart} />
+        <Route path="/pazaryeri-sepetim" component={B2BOrders} />
         <Route path="/uye-girisi" component={B2BLogin} />
         <Route path="/login" component={B2BLogin} />
         <Route path="/kayit-ol" component={B2BRegister} />
@@ -233,7 +232,7 @@ function MarketplaceWebsite() {
         <Route path="/magaza/:slug">{(params) => <MarketplaceShop slug={params.slug} />}</Route>
         <Route path="/reels" component={MarketplaceReels} />
         <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
-        <Route path="/pazaryeri-sepetim" component={MarketplaceCart} />
+        <Route path="/pazaryeri-sepetim" component={B2BOrders} />
         <Route path="/uye-girisi" component={B2BLogin} />
         <Route path="/login" component={B2BLogin} />
         <Route path="/kayit-ol" component={B2BRegister} />
