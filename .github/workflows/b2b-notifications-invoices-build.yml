@@ -23,6 +23,11 @@ on:
       - 'server/marketplace.ts'
       - 'server/marketplace-media.ts'
       - 'server/marketplace-cart.ts'
+      - 'server/marketplace-video-upload.ts'
+      - 'server/index.ts'
+      - 'client/src/pages/b2b-orders.tsx'
+      - 'client/src/pages/b2b-payment.tsx'
+      - 'client/src/lib/b2b-cart.ts'
       - 'client/src/components/app-sidebar.tsx'
       - '.github/workflows/b2b-notifications-invoices-build.yml'
   workflow_dispatch:
