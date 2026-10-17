@@ -237,17 +237,17 @@ export function registerMarketplaceRoutes(
 ) {
   app.get("/api/marketplace/stores", handle(async(req,res)=>{
     const db=await ready();
-    const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,v.content,
+    const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
-      FROM mp_suppliers s JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
+      FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
       WHERE s.status='approved' ORDER BY s.id DESC LIMIT 100`);
     res.json(q.rows);
   }));
   app.get("/api/marketplace/stores/:slug",handle(async(req,res)=>{
     const db=await ready();
-    const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,v.content,
+    const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
-      FROM mp_suppliers s JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
+      FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
       WHERE s.status='approved' AND s.slug=$1 LIMIT 1`,[req.params.slug]);
     if(!q.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
     res.json(q.rows[0]);
@@ -263,15 +263,53 @@ export function registerMarketplaceRoutes(
     const q=await db.query(`SELECT p.id,p.sku,p.stock,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,s.slug
       FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
-      JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
+      LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
       WHERE s.slug=$1 AND s.status='approved' AND p.is_enabled=TRUE ORDER BY p.id DESC LIMIT 200`,[req.params.slug]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(q.rows.map((r:any)=>({...r,content:canSeePrice?r.content:{...r.content,price:null}})));
   }));
+  app.get("/api/marketplace/stores/:slug/products/:id",handle(async(req,res)=>{
+    const db=await ready();
+    const productId=id(req.params.id);
+    const uId=sessionUserId(req);
+    let canSeePrice=false;
+    if(uId){
+      const u=await db.query("SELECT role,is_active FROM users WHERE id=$1",[uId]);
+      canSeePrice=u.rows[0]?.role==="b2b_customer" && Number(u.rows[0]?.is_active)===1;
+    }
+    const q=await db.query(`SELECT p.id,p.sku,p.stock,
+      (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,
+      s.slug AS seller_slug,s.company_name AS seller_name,COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
+      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
+      JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
+      LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
+      WHERE p.id=$1 AND s.slug=$2 AND s.status='approved' AND p.is_enabled=TRUE LIMIT 1`,[productId,req.params.slug]);
+    if(!q.rows[0])throw new ApiError(404,"Onaylı ürün bulunamadı");
+    res.setHeader("Cache-Control","private, no-store");
+    const result=q.rows[0];
+    res.json({...result,content:canSeePrice?result.content:{...result.content,price:null}});
+  }));
+  app.get("/api/marketplace/reels",handle(async(_req,res)=>{
+    const db=await ready();
+    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.created_at,
+      CASE WHEN p.is_enabled=TRUE AND pv.id IS NOT NULL THEN r.product_id ELSE NULL END AS product_id,
+      s.slug AS seller_slug,s.company_name AS seller_name,
+      COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
+      FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id
+      LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
+      LEFT JOIN mp_products p ON p.id=r.product_id AND p.supplier_id=s.id
+      LEFT JOIN mp_product_versions pv ON pv.product_id=p.id AND pv.is_live=TRUE
+      WHERE s.status='approved' AND r.is_live=TRUE
+      ORDER BY r.created_at DESC,r.id DESC LIMIT 100`);
+    res.json(q.rows);
+  }));
   app.get("/api/marketplace/stores/:slug/reels",handle(async(req,res)=>{
     const db=await ready();
-    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.product_id,r.created_at FROM mp_reels r
-      JOIN mp_suppliers s ON s.id=r.supplier_id JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live
+    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.product_id,r.created_at,
+      s.slug AS seller_slug,s.company_name AS seller_name,
+      COALESCE(v.content->>'logoUrl','') AS seller_logo_url
+      FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id
+      LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live
       WHERE s.slug=$1 AND s.status='approved' AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
     res.json(q.rows);
   }));
