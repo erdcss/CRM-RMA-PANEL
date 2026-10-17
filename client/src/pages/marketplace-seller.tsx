@@ -65,6 +65,7 @@ export default function MarketplaceSeller(){
   const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:"",taxNumber:"",taxOffice:"",contactPhone:"",contactEmail:""});
   const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",contactEmail:"",description:""});
   const [store,setStore]=useState({title:"",tagline:"",accent:"#FACC15",bannerUrl:"",logoUrl:"",sections:["banner","categories","products","reels","about"]});
+  const [storeMediaPreview,setStoreMediaPreview]=useState({logoUrl:"",bannerUrl:""});
   const [product,setProduct]=useState({sku:"",stock:"0",name:"",description:"",category:"",brand:"",barcode:"",imageUrl:"",price:"",unitsPerBox:"1",minBoxes:"1",leadDays:"1"});
   const [productFormOpen,setProductFormOpen]=useState(false);
   const [productFilter,setProductFilter]=useState<"all"|"approved"|"pending"|"rejected">("all");
@@ -76,9 +77,10 @@ export default function MarketplaceSeller(){
   const [offer,setOffer]=useState({quoteId:"",amountPerBox:"",deliveryTerms:"",validHours:"72"});
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
-  const [uploading,setUploading]=useState(false);
+  const [uploadingCount,setUploadingCount]=useState(0);
+  const uploading=uploadingCount>0;
   async function upload(file:File, target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"){
-    setUploading(true);setMessage("");
+    setUploadingCount(count=>count+1);setMessage("");
     try{
       const dataUrl=await new Promise<string>((resolve,reject)=>{
         const reader=new FileReader();
@@ -86,13 +88,20 @@ export default function MarketplaceSeller(){
         reader.onerror=()=>reject(new Error("Dosya okunamadı"));
         reader.readAsDataURL(file);
       });
+      if(target==="logoUrl"||target==="bannerUrl")setStoreMediaPreview(v=>({...v,[target]:dataUrl}));
       const result=await send("POST","/api/marketplace/seller/media",{dataUrl}) as {url:string};
-      if(target==="logoUrl"||target==="bannerUrl")setStore(v=>({...v,[target]:result.url}));
+      if(target==="logoUrl"||target==="bannerUrl"){
+        setStore(v=>({...v,[target]:result.url}));
+        setStoreMediaPreview(v=>({...v,[target]:""}));
+      }
       else if(target==="imageUrl")setProduct(v=>({...v,imageUrl:result.url}));
       else setReel(v=>({...v,videoUrl:result.url}));
       setMessage("Medya güvenli biçimde yüklendi.");
-    }catch(e){setMessage(e instanceof Error?e.message:"Medya yüklenemedi");}
-    finally{setUploading(false);}
+    }catch(e){
+      if(target==="logoUrl"||target==="bannerUrl")setStoreMediaPreview(v=>({...v,[target]:""}));
+      setMessage(e instanceof Error?e.message:"Medya yüklenemedi");
+    }
+    finally{setUploadingCount(count=>Math.max(0,count-1));}
   }
   const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0});
   useEffect(()=>{
@@ -113,6 +122,8 @@ export default function MarketplaceSeller(){
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selectedChat+"/messages"],enabled:approved&&!!selectedChat,staleTime:0});
   const quotes=useQuery<Quote[]>({queryKey:["/api/marketplace/quotes"],enabled:approved,staleTime:0});
+  const previewLogoUrl=storeMediaPreview.logoUrl||store.logoUrl;
+  const previewBannerUrl=storeMediaPreview.bannerUrl||store.bannerUrl;
   async function run(action:()=>Promise<unknown>,refresh:string[]=[]) {
     setBusy(true);setMessage("");
     try{await action();setMessage("İşlem başarıyla kaydedildi.");await Promise.all(refresh.map(key=>queryClient.invalidateQueries({queryKey:[key]})));}
@@ -173,16 +184,41 @@ export default function MarketplaceSeller(){
               <Field label="Mağaza logosu (JPEG, PNG, WebP)"><input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"logoUrl");}}/><p className="text-xs text-slate-500">{store.logoUrl?"Yüklendi":"En fazla 4 MB"}</p></Field>
               <Field label="Mağaza bannerı"><input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"bannerUrl");}}/><p className="text-xs text-slate-500">{store.bannerUrl?"Yüklendi":"En fazla 4 MB"}</p></Field>
               <p className="text-xs text-slate-500">Yeni tasarım yönetici onayından geçene dek mevcut yayındaki mağaza aynı kalır.</p>
-              <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Tasarımı Onaya Gönder</button>
+              <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Tasarımı Onaya Gönder</button>
             </form>
-            <div className={boxStyle+" space-y-4"}><h2 className="text-lg font-bold">Canlı önizleme</h2>
-              <div className="overflow-hidden rounded-xl border">
-                <div style={{backgroundColor:store.accent}} className="px-5 py-8">
-                  <h3 className="text-xl font-black text-slate-950">{store.title||me.data.company_name}</h3>
-                  <p className="mt-2 text-sm text-slate-900">{store.tagline||"Toptan satış mağazanız"}</p>
+            <div className={boxStyle+" space-y-4"}><div><h2 className="text-lg font-bold">Canlı önizleme</h2><p className="mt-1 text-xs text-slate-500">Logo, banner, yazılar ve tema rengi kaydetmeden önce burada görünür.</p></div>
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div className="h-40 overflow-hidden bg-slate-100 sm:h-48" style={{backgroundColor:store.accent}}>
+                  {previewBannerUrl?<img src={previewBannerUrl} alt="Mağaza bannerı canlı önizleme" className="h-full w-full object-cover"/>:
+                    <div className="flex h-full items-center justify-center px-4 text-center text-sm font-medium text-slate-900/70">Banner yüklendiğinde burada görünecek</div>}
                 </div>
-                <div className="p-5 text-sm text-slate-500">Ürünler · Kategoriler · Reels · Hakkımızda</div>
+                <div className="px-5 pb-5">
+                  <div className="-mt-8 mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md">
+                    {previewLogoUrl?<img src={previewLogoUrl} alt="Mağaza logosu canlı önizleme" className="h-full w-full object-contain"/>:
+                      <Store aria-hidden="true" className="h-7 w-7 text-slate-400"/>}
+                  </div>
+                  <h3 className="text-xl font-black text-slate-950">{store.title||me.data.company_name}</h3>
+                  <p className="mt-2 text-sm text-slate-600">{store.tagline||"Toptan satış mağazanız"}</p>
+                  <div className="mt-4 border-t-4 pt-4 text-sm text-slate-500" style={{borderColor:store.accent}}>Ürünler · Kategoriler · Reels · Hakkımızda</div>
+                </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 p-3">
+                  <p className="text-xs font-bold text-slate-600">Logo önizlemesi</p>
+                  <div className="mt-2 flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2">
+                    {previewLogoUrl?<img src={previewLogoUrl} alt="Yüklenen mağaza logosu" className="max-h-full max-w-full object-contain"/>:
+                      <span className="text-xs text-slate-400">Henüz logo yüklenmedi</span>}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 p-3">
+                  <p className="text-xs font-bold text-slate-600">Banner önizlemesi</p>
+                  <div className="mt-2 flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2">
+                    {previewBannerUrl?<img src={previewBannerUrl} alt="Yüklenen mağaza bannerı" className="max-h-full max-w-full object-contain"/>:
+                      <span className="text-xs text-slate-400">Henüz banner yüklenmedi</span>}
+                  </div>
+                </div>
+              </div>
+              {uploading?<p role="status" className="text-xs text-slate-500">Görsel yükleniyor; önizleme geçici olarak gösteriliyor.</p>:null}
               <h3 className="font-semibold">Tasarım geçmişi</h3>
               {dash.data?.storeVersions.map(v=><div key={v.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
                 <span>#{v.id} · {statusTR[v.status]||v.status}{v.is_live?" · Yayında":""}</span><span className="text-xs text-slate-500">{v.review_note}</span></div>)}
