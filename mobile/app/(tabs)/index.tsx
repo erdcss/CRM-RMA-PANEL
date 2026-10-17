@@ -79,6 +79,7 @@ export default function HomeScreen() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const scanLockedRef = useRef(false);
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'newest'|'name'|'priceAsc'|'priceDesc'>('newest');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -162,13 +163,21 @@ export default function HomeScreen() {
 
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase('tr-TR');
-    if (!search) return products;
-    return products.filter(product =>
+    const found = search ? products.filter(product =>
       [product.name, product.sku, product.barcode, product.collection_name, product.category, product.seller_name, ...(product.tags || [])]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('tr-TR').includes(search)),
-    );
-  }, [products, query]);
+    ) : [...products];
+    if(sort==='name')found.sort((a,b)=>a.name.localeCompare(b.name,'tr-TR'));
+    else if(sort==='priceAsc'||sort==='priceDesc')found.sort((a,b)=>{
+      const aPrice=a.price==null?Infinity:Number(a.price);
+      const bPrice=b.price==null?Infinity:Number(b.price);
+      if(!Number.isFinite(aPrice))return Number.isFinite(bPrice)?1:0;
+      if(!Number.isFinite(bPrice))return -1;
+      return sort==='priceAsc'?aPrice-bPrice:bPrice-aPrice;
+    });
+    return found;
+  }, [products, query, sort]);
 
   useEffect(() => {
     bannerIndexRef.current = 0;
@@ -269,6 +278,12 @@ export default function HomeScreen() {
         {query.trim() ? (
           <View style={styles.searchResults}>
             <Text style={styles.searchResultHeading}>Arama Sonuçları · {filtered.length} ürün</Text>
+            <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:12}}>
+              {([{id:'newest',label:'Yeni'},{id:'name',label:'A-Z'},{id:'priceAsc',label:'Fiyat ↑'},{id:'priceDesc',label:'Fiyat ↓'}] as const).map(item=><Pressable key={item.id} onPress={()=>setSort(item.id)}
+                style={{paddingHorizontal:10,paddingVertical:7,borderRadius:8,backgroundColor:sort===item.id?'#FFCD00':palette.surfaceSecondary}}>
+                <Text style={{fontWeight:'800',fontSize:11,color:sort===item.id?'#111827':palette.text}}>{item.label}</Text>
+              </Pressable>)}
+            </View>
             {filtered.slice(0, 50).map((product) => {
               const picture = productImage(product);
               return <Pressable key={String(product.id)} style={styles.searchResultRow}
