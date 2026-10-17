@@ -50,6 +50,7 @@ export default function ProductsScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'newest'|'name'|'priceAsc'|'priceDesc'>('newest');
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,11 +84,23 @@ export default function ProductsScreen() {
     void loadProducts();
   }, [loadProducts, session?.access_token]);
 
+  const sorted = useMemo(()=>{
+    const rows=[...products];
+    if(sort==='name')rows.sort((a,b)=>a.name.localeCompare(b.name,'tr-TR'));
+    else if(sort==='priceAsc'||sort==='priceDesc')rows.sort((a,b)=>{
+      const ap=a.price==null?Infinity:Number(a.price);
+      const bp=b.price==null?Infinity:Number(b.price);
+      if(!Number.isFinite(ap))return Number.isFinite(bp)?1:0;
+      if(!Number.isFinite(bp))return -1;
+      return sort==='priceAsc'?ap-bp:bp-ap;
+    });
+    return rows;
+  },[products,sort]);
   const filteredProducts = useMemo(() => {
     const value = query.trim().toLocaleLowerCase('tr-TR');
-    if (!value) return products;
+    if (!value) return sorted;
 
-    return products.filter((product) => {
+    return sorted.filter((product) => {
       const searchable = [
         product.name,
         product.sku,
@@ -100,7 +113,7 @@ export default function ProductsScreen() {
         .toLocaleLowerCase('tr-TR');
       return searchable.includes(value);
     });
-  }, [products, query]);
+  }, [sorted, query]);
 
   const rightSlot = !session ? (
     <Pressable style={styles.loginButton} onPress={() => router.push('/login')}>
@@ -156,8 +169,14 @@ export default function ProductsScreen() {
             <SearchInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Ürün adı, stok kodu veya barkod ara"
+              placeholder="Ürün, barkod veya satıcı ara"
             />
+            <View style={{flexDirection:'row',flexWrap:'wrap',gap:7,marginTop:10}}>
+              {([{id:'newest',label:'Yeni'},{id:'name',label:'A-Z'},{id:'priceAsc',label:'Fiyat ↑'},{id:'priceDesc',label:'Fiyat ↓'}] as const).map(item=><Pressable key={item.id} onPress={()=>setSort(item.id)}
+                style={{borderRadius:10,borderWidth:1,borderColor:palette.border,backgroundColor:sort===item.id?'#FFCD00':palette.surface,paddingHorizontal:11,paddingVertical:8}}>
+                <Text style={{fontSize:12,fontWeight:'800',color:sort===item.id?'#111827':palette.text}}>{item.label}</Text>
+              </Pressable>)}
+            </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
