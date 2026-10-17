@@ -466,6 +466,20 @@ export default function HomeScreen() {
           </ScrollView>
         </> : null}
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Onaylı tedarikçi ürünlerini görüntüle"
+          onPress={() => router.push('/(tabs)/marketplace' as never)}
+          style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8, padding: 16, borderRadius: 16, backgroundColor: '#FFCD00', flexDirection: 'row', alignItems: 'center', gap: 12 }}
+        >
+          <Ionicons name="storefront-outline" size={27} color="#171717" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontWeight: '900', color: '#171717' }}>Tedarikçi Pazaryeri</Text>
+            <Text style={{ fontSize: 11, color: '#333333', marginTop: 4 }}>Onaylı satıcılar ve yeni ürünler · Mağazaları keşfet</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color="#171717" />
+        </Pressable>
+
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Yeni Gelen Ürünler</Text>
