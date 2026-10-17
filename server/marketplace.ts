@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS mp_store_versions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS mp_store_one_live ON mp_store_versions(supplier_id) WHERE is_live;
 CREATE INDEX IF NOT EXISTS mp_store_pending ON mp_store_versions(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS mp_store_supplier_latest ON mp_store_versions(supplier_id, id DESC);
 CREATE TABLE IF NOT EXISTS mp_products (
   id BIGSERIAL PRIMARY KEY,
   supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE RESTRICT,
@@ -360,8 +361,15 @@ export function registerMarketplaceRoutes(
     const s=await supplierFor(res),db=await ready();
     const content=storeSchema.parse(req.body);
     for(const url of [content.bannerUrl,content.logoUrl])if(url)await verifyMedia(db,Number(s.id),url,false);
-    const r=await db.query("INSERT INTO mp_store_versions(supplier_id,content) VALUES($1,$2) RETURNING id,status,created_at",[s.id,JSON.stringify(content)]);
-    res.status(201).json(r.rows[0]);
+    // Serialize new submissions with administrative decisions for this supplier.
+    const client=await db.connect();
+    try{
+      await client.query("BEGIN");
+      await client.query("SELECT id FROM mp_suppliers WHERE id=$1 FOR UPDATE",[s.id]);
+      const r=await client.query("INSERT INTO mp_store_versions(supplier_id,content) VALUES($1,$2) RETURNING id,status,created_at",[s.id,JSON.stringify(content)]);
+      await client.query("COMMIT");
+      res.status(201).json(r.rows[0]);
+    }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
   }));
   app.get("/api/marketplace/seller/products",requireSeller,handle(async(_req,res)=>{
     const s=await supplierFor(res),db=await ready();
@@ -593,7 +601,10 @@ export function registerMarketplaceRoutes(
     const queries=await Promise.all([
       db.query("SELECT status,COUNT(*)::int AS total FROM mp_suppliers GROUP BY status"),
       db.query("SELECT status,COUNT(*)::int AS total FROM mp_product_versions GROUP BY status"),
-      db.query("SELECT status,COUNT(*)::int AS total FROM mp_store_versions GROUP BY status"),
+      db.query(`SELECT status,COUNT(*)::int AS total FROM (
+        SELECT DISTINCT ON (supplier_id) supplier_id,status FROM mp_store_versions
+        ORDER BY supplier_id,id DESC
+      ) latest GROUP BY status`),
       db.query("SELECT status,COUNT(*)::int AS total FROM mp_reels GROUP BY status"),
       db.query("SELECT COUNT(*)::int AS total FROM mp_conversations"),
       db.query("SELECT COUNT(*)::int AS total FROM mp_quote_requests")
@@ -628,7 +639,8 @@ export function registerMarketplaceRoutes(
     }
     if(kind==="store"){
       const result=await db.query(`SELECT v.id,v.supplier_id,v.content,v.status,v.is_live,v.review_note,v.created_at,v.reviewed_at,
-        s.slug,s.company_name,s.description,s.status AS supplier_status
+        s.slug,s.company_name,s.description,s.status AS supplier_status,
+        (v.id=(SELECT MAX(n.id) FROM mp_store_versions n WHERE n.supplier_id=v.supplier_id)) AS is_latest
         FROM mp_store_versions v JOIN mp_suppliers s ON s.id=v.supplier_id WHERE v.id=$1 LIMIT 1`,[reviewId]);
       const review=result.rows[0];
       if(!review)throw new ApiError(404,"Mağaza tasarımı bulunamadı");
@@ -662,8 +674,10 @@ export function registerMarketplaceRoutes(
       db.query(`SELECT v.id,v.product_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,v.created_at,v.status,v.review_note,s.company_name FROM mp_product_versions v
         JOIN mp_products p ON p.id=v.product_id JOIN mp_suppliers s ON s.id=p.supplier_id
         ORDER BY v.id DESC LIMIT 100`),
-      db.query(`SELECT v.id,v.content,v.created_at,v.status,v.is_live,v.review_note,s.company_name FROM mp_store_versions v
-        JOIN mp_suppliers s ON s.id=v.supplier_id ORDER BY v.id DESC LIMIT 100`),
+      db.query(`SELECT v.id,v.supplier_id,v.content,v.created_at,v.status,v.is_live,v.review_note,s.company_name FROM mp_store_versions v
+        JOIN mp_suppliers s ON s.id=v.supplier_id
+        WHERE v.id=(SELECT MAX(n.id) FROM mp_store_versions n WHERE n.supplier_id=v.supplier_id)
+        ORDER BY v.id DESC LIMIT 100`),
       db.query(`SELECT r.id,r.title,r.video_url,r.status,r.is_live,r.review_note,r.created_at,s.company_name
         FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id ORDER BY r.id DESC LIMIT 100`)
     ]);
@@ -709,8 +723,18 @@ export function registerMarketplaceRoutes(
     const client=await db.connect();
     try{
       await client.query("BEGIN");
+      if(kind==="store"){
+        // Lock the supplier first; new submissions use the same lock order.
+        const owner=await client.query("SELECT supplier_id FROM mp_store_versions WHERE id=$1",[reviewId]);
+        if(!owner.rows[0])throw new ApiError(404,"Mağaza tasarımı bulunamadı");
+        await client.query("SELECT id FROM mp_suppliers WHERE id=$1 FOR UPDATE",[owner.rows[0].supplier_id]);
+      }
       const r=await client.query("SELECT * FROM "+table+" WHERE id=$1 FOR UPDATE",[reviewId]);
       if(!r.rows[0]||r.rows[0].status!=="pending")throw new ApiError(409,"İçerik zaten değerlendirilmiş");
+      if(kind==="store"){
+        const newer=await client.query("SELECT id FROM mp_store_versions WHERE supplier_id=$1 AND id>$2 LIMIT 1",[r.rows[0].supplier_id,reviewId]);
+        if(newer.rows.length)throw new ApiError(409,"Bu mağaza tasarımından sonra yeni bir başvuru gönderildi. Yalnızca son başvuru değerlendirilebilir.");
+      }
       const own=await client.query(ownerQuery,[reviewId]);
       if(!own.rows[0]||own.rows[0].status!=="approved")throw new ApiError(409,"Önce tedarikçi onaylanmalı");
       if(data.decision==="approved" && kind==="reel" && r.rows[0].product_id) {
