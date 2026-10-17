@@ -5,7 +5,7 @@ import { Link, useRoute } from "wouter";
 import { ArrowLeft, BadgeCheck, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
-import { addB2BCartItem } from "@/lib/b2b-cart";
+import { addB2BCartItem, refreshB2BCart } from "@/lib/b2b-cart";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { loadApprovedSupplierProduct, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
@@ -206,7 +206,7 @@ export default function B2BProductPage() {
                           setBusy(true);
                           try {
                             await apiRequest("POST", "/api/marketplace/cart", { productId: product.marketplace_product_id, boxes: effectiveQuantity, deliveryMode: "direct" });
-                            addB2BCartItem({productId:String(product.id),sku:String(product.sku||""),name:String(product.name||"Ürün"),image:image||null,price:Number(product.price||0),quantity:effectiveQuantity,minOrderQty:min,unitsPerBox:pack,stock});
+                            refreshB2BCart();
                             await queryClient.invalidateQueries({ queryKey: ["/api/marketplace/cart"] });
                             setAdded(true);
                             toast({title:"Siparişlere eklendi",description:product.name + " · " + effectiveQuantity + " koli"});
