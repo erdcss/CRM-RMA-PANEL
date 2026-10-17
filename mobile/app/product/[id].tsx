@@ -49,6 +49,8 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const id = String(params.id || '');
   const marketplaceId = id.startsWith('mp-') ? Number(id.slice(3)) : null;
@@ -121,7 +123,7 @@ export default function ProductDetailScreen() {
     session?.user?.role === 'b2b_customer' && session?.user?.isActive === true;
 
   return (
-    <Screen style={{ backgroundColor: palette.background }}>
+    <Screen style={{ backgroundColor: palette.background }} edges={['top','bottom']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.page}
@@ -151,14 +153,14 @@ export default function ProductDetailScreen() {
           <Text style={styles.name}>{product.name || 'Ürün'}</Text>
           {isSellerProduct ? <Pressable
             onPress={() => router.push({pathname:'/marketplace/store/[slug]',params:{slug:product.seller_slug!}} as never)}
-            style={{marginTop:14,padding:12,borderRadius:12,backgroundColor:'#FFF7D6',flexDirection:'row',alignItems:'center',gap:10}}
+            style={[styles.sellerCard,{backgroundColor:palette.surfaceSecondary,borderColor:palette.border}]}
           >
-            <View style={{height:44,width:44,borderRadius:11,backgroundColor:'#FFCD00',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+            <View style={{height:44,width:44,borderRadius:11,backgroundColor:palette.surface,alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
               {product.seller_logo_url ? <Image source={{uri:absoluteMediaUrl(product.seller_logo_url)||undefined}} style={{height:'100%',width:'100%'}} contentFit="contain" /> : <Ionicons name="storefront-outline" size={24} color="#92400E"/>}
             </View>
-            <View style={{flex:1}}><Text numberOfLines={1} style={{fontWeight:'800',fontSize:14,color:'#111827'}}>{product.seller_name}</Text>
-              <Text style={{fontSize:12,color:'#92400E',marginTop:3,fontWeight:'700'}}>Mağazayı görüntüle →</Text></View>
-            <Ionicons name="chevron-forward" color="#92400E" size={20}/>
+            <View style={{flex:1}}><Text numberOfLines={1} style={{fontWeight:'800',fontSize:14,color:palette.text}}>{product.seller_name}</Text>
+              <Text style={{fontSize:12,color:palette.accent,marginTop:3,fontWeight:'700'}}>Mağazayı görüntüle →</Text></View>
+            <Ionicons name="chevron-forward" color={palette.textSecondary} size={20}/>
           </Pressable> : null}
 
           {product.description ? (
@@ -170,33 +172,6 @@ export default function ProductDetailScreen() {
           {product.collection_name ? (
             <Text style={styles.collection}>{product.collection_name}</Text>
           ) : null}
-
-          <View style={styles.priceSection}>
-            <Text style={styles.priceLabel}>B2B fiyatı</Text>
-            {loggedIn && product.price != null ? (
-              <>
-                <Text style={styles.price}>{money(product.price)}</Text>
-                <Text style={styles.priceNote}>
-                  Birim fiyat · Koli içi {pack} adet
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.lockedPrice}>
-                  Fiyat bilgisi giriş yapıldıktan sonra listelenir
-                </Text>
-                <Pressable
-                  style={styles.primaryButton}
-                  onPress={() => router.push('/login')}
-                >
-                  <Ionicons name="log-in-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryButtonText}>
-                    İşletme Hesabıyla Giriş Yap
-                  </Text>
-                </Pressable>
-              </>
-            )}
-          </View>
 
           <View style={styles.infoGrid}>
             <InfoCard
@@ -215,108 +190,6 @@ export default function ProductDetailScreen() {
               value={`${min} koli`}
             />
           </View>
-
-          {loggedIn ? (
-            <View style={styles.orderCard}>
-              <Text style={styles.orderTitle}>Sipariş edilen koli adedi</Text>
-              <Text style={styles.orderSubtitle}>
-                Minimum {min} koli · En fazla {maxBoxes} koli · {pack} adet/koli
-              </Text>
-
-              <View style={styles.quantityControl}>
-                <Pressable
-                  style={styles.quantityButton}
-                  disabled={effectiveQuantity <= min}
-                  onPress={() =>
-                    setQuantity(Math.max(min, effectiveQuantity - 1))
-                  }
-                >
-                  <Ionicons
-                    name="remove"
-                    size={20}
-                    color={
-                      effectiveQuantity <= min ? palette.muted : palette.text
-                    }
-                  />
-                </Pressable>
-
-                <Text style={styles.quantityValue}>{effectiveQuantity}</Text>
-
-                <Pressable
-                  style={styles.quantityButton}
-                  disabled={effectiveQuantity >= maxBoxes}
-                  onPress={() =>
-                    setQuantity(Math.min(maxBoxes, effectiveQuantity + 1))
-                  }
-                >
-                  <Ionicons
-                    name="add"
-                    size={20}
-                    color={
-                      effectiveQuantity >= maxBoxes
-                        ? palette.muted
-                        : palette.text
-                    }
-                  />
-                </Pressable>
-              </View>
-
-              {maxBoxes < min ? (
-                <Text style={styles.stockWarning}>
-                  Tam koli siparişi için yeterli stok bulunmuyor.
-                </Text>
-              ) : (
-                <View style={styles.totalBox}>
-                  <Text style={styles.totalLabel}>
-                    {effectiveQuantity} koli × {pack} adet ={' '}
-                    {effectiveQuantity * pack} adet
-                  </Text>
-                  <Text style={styles.totalValue}>Toplam {money(total)}</Text>
-                </View>
-              )}
-
-              <Pressable
-                style={[
-                  styles.checkoutButton,
-                  maxBoxes < min && styles.disabledButton,
-                ]}
-                disabled={maxBoxes < min}
-                onPress={async () => {
-                  if(isSellerProduct){
-                    try{
-                      await rmaApi.addMarketplaceCart(Number(product.marketplace_product_id),effectiveQuantity);
-                      appAlert('Sepete eklendi',product.name+' · '+effectiveQuantity+' koli pazaryeri sepetine eklendi.',undefined,'success');
-                      router.push('/marketplace/cart' as never);
-                    }catch(e){appAlert('Sepete eklenemedi',e instanceof Error?e.message:'İşlem başarısız');}
-                    return;
-                  }
-                  await addToOrderList({
-                    productId: String(product.id),
-                    sku: String(product.sku || ''),
-                    name: product.name || 'Ürün',
-                    image,
-                    unitPrice: Number(product.price || 0),
-                    unitsPerBox: pack,
-                    boxQuantity: effectiveQuantity,
-                    minOrderQty: min,
-                    stock,
-                  });
-
-                  appAlert(
-                    'Siparişlere eklendi',
-                    `${product.name || 'Ürün'} · ${effectiveQuantity} koli sipariş listenize eklendi.`,
-                    undefined,
-                    'success',
-                  );
-                }}
-              >
-                <Ionicons name="cart-outline" size={22} color="#111827" />
-                <Text style={styles.checkoutButtonText}>
-                  {isSellerProduct ? 'Sepete Ekle' : 'Siparişlere Ekle'}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
 
           {Array.isArray(product.features) && product.features.length > 0 ? (
             <View style={styles.features}>
@@ -337,13 +210,76 @@ export default function ProductDetailScreen() {
           <View style={styles.shippingBox}>
             <Ionicons name="car-outline" size={21} color={palette.textSecondary} />
             <Text style={styles.shippingText}>
-              {loggedIn
-                ? 'Siparişinizi kart veya Havale/EFT ile tamamlayabilirsiniz.'
-                : 'Sipariş ve sevkiyat seçenekleri giriş yaptıktan sonra aktif olur.'}
+              {isSellerProduct
+                ? 'Tedarikçi siparişiniz, satıcı onayı bekleyecek şekilde kaydedilir; ödeme henüz alınmaz.'
+                : loggedIn
+                  ? 'Siparişinizi desteklenen ödeme seçenekleriyle tamamlayabilirsiniz.'
+                  : 'Sipariş ve sevkiyat seçenekleri giriş yaptıktan sonra aktif olur.'}
             </Text>
           </View>
         </View>
       </ScrollView>
+      <View style={[styles.bottomDock,{backgroundColor:palette.surface,borderColor:palette.border}]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={drawerOpen?'Sipariş ayrıntılarını kapat':'Sipariş ayrıntılarını aç'}
+          onPress={()=>setDrawerOpen(open=>!open)} style={styles.dockHeader}>
+          <View style={{flex:1}}>
+            <Text style={[styles.dockLabel,{color:palette.textSecondary}]}>{loggedIn ? `${effectiveQuantity} koli · Toplam tutar` : 'B2B fiyatı · İşletme girişi gerekli'}</Text>
+            <Text style={[styles.dockTotal,{color:palette.text}]}>{loggedIn && product.price!=null ? money(total) : 'Fiyat için giriş yapın'}</Text>
+          </View>
+          <Ionicons name={drawerOpen?'chevron-down':'chevron-up'} size={23} color={palette.text}/>
+        </Pressable>
+        {drawerOpen ? <View style={styles.dockExpanded}>
+          {loggedIn ? <>
+            <View style={styles.dockFacts}>
+              <View style={styles.dockFact}><Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Koli</Text><Text style={[styles.dockValue,{color:palette.text}]}>{effectiveQuantity}</Text></View>
+              <View style={styles.dockFact}><Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Koli içi</Text><Text style={[styles.dockValue,{color:palette.text}]}>{pack} adet</Text></View>
+              <View style={styles.dockFact}><Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Toplam adet</Text><Text style={[styles.dockValue,{color:palette.text}]}>{effectiveQuantity * pack}</Text></View>
+            </View>
+            <View style={styles.dockPriceRow}>
+              <Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Birim fiyat: {product.price == null?'—':money(product.price)} · Koli tutarı: {product.price==null?'—':money(Number(product.price)*pack)}</Text>
+            </View>
+            <View style={styles.dockOrderRow}>
+              <View style={styles.quantityControl}>
+                <Pressable style={styles.quantityButton} disabled={effectiveQuantity<=min} onPress={()=>setQuantity(Math.max(min,effectiveQuantity-1))} accessibilityLabel="Bir koli azalt">
+                  <Ionicons name="remove" size={20} color={effectiveQuantity<=min?palette.muted:palette.text}/>
+                </Pressable>
+                <Text style={styles.quantityValue}>{effectiveQuantity}</Text>
+                <Pressable style={styles.quantityButton} disabled={effectiveQuantity>=maxBoxes} onPress={()=>setQuantity(Math.min(maxBoxes,effectiveQuantity+1))} accessibilityLabel="Bir koli artır">
+                  <Ionicons name="add" size={20} color={effectiveQuantity>=maxBoxes?palette.muted:palette.text}/>
+                </Pressable>
+              </View>
+              <Pressable style={[styles.drawerCartButton,(adding||maxBoxes<min)&&styles.disabledButton]}
+                disabled={adding||maxBoxes<min}
+                onPress={async()=>{
+                  if(adding)return;
+                  setAdding(true);
+                  try{
+                    if(isSellerProduct){
+                      await rmaApi.addMarketplaceCart(Number(product.marketplace_product_id),effectiveQuantity);
+                      appAlert('Sepete eklendi',product.name+' · '+effectiveQuantity+' koli eklendi.',undefined,'success');
+                      router.push('/marketplace/cart' as never);
+                    }else{
+                      await addToOrderList({
+                        productId:String(product.id),sku:String(product.sku||''),name:product.name||'Ürün',
+                        image,unitPrice:Number(product.price||0),unitsPerBox:pack,boxQuantity:effectiveQuantity,
+                        minOrderQty:min,stock,
+                      });
+                      appAlert('Siparişlere eklendi',product.name+' · '+effectiveQuantity+' koli listeye eklendi.',undefined,'success');
+                    }
+                  }catch(e){appAlert('Ürün eklenemedi',e instanceof Error?e.message:'Tekrar deneyin.');}
+                  finally{setAdding(false);}
+                }}>
+                <Ionicons name="cart-outline" size={19} color="#111827"/>
+                <Text style={styles.drawerCartText}>{adding?'Ekleniyor…':isSellerProduct?'Sepete Ekle':'Siparişlere Ekle'}</Text>
+              </Pressable>
+            </View>
+            {maxBoxes<min ? <Text style={styles.stockWarning}>Minimum koli için yeterli stok bulunmuyor.</Text>:null}
+          </> : <Pressable style={styles.primaryButton} onPress={()=>router.push('/login')}>
+            <Ionicons name="log-in-outline" size={18} color="#FFFFFF"/>
+            <Text style={styles.primaryButtonText}>İşletme Hesabıyla Giriş Yap</Text>
+          </Pressable>}
+        </View>:null}
+      </View>
     </Screen>
   );
 }
@@ -361,7 +297,7 @@ function InfoCard({
   const styles = useMemo(() => buildStyles(palette), [palette]);
   return (
     <View style={styles.infoCard}>
-      <Ionicons name={icon} size={20} color={palette.textSecondary} />
+      <Ionicons name={icon} size={18} color={palette.textSecondary} />
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue}>{value}</Text>
     </View>
@@ -369,6 +305,20 @@ function InfoCard({
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
+  sellerCard:{marginTop:14,padding:12,borderRadius:12,borderWidth:1,flexDirection:'row',alignItems:'center',gap:10},
+  bottomDock:{borderTopWidth:1,paddingHorizontal:spacing.lg,paddingTop:8,paddingBottom:7},
+  dockHeader:{minHeight:57,flexDirection:'row',alignItems:'center',gap:10},
+  dockLabel:{fontSize:12,fontWeight:'600'},
+  dockTotal:{fontSize:20,fontWeight:'900',marginTop:2},
+  dockExpanded:{paddingTop:11,paddingBottom:4,borderTopWidth:1,borderColor:palette.border,gap:12},
+  dockFacts:{flexDirection:'row',gap:7},
+  dockFact:{flex:1,padding:9,backgroundColor:palette.surfaceSecondary,borderRadius:10},
+  dockValue:{fontSize:13,fontWeight:'800',marginTop:5},
+  dockPriceRow:{paddingVertical:2},
+  dockOrderRow:{flexDirection:'row',alignItems:'center',gap:10},
+  drawerCartButton:{flex:1,minHeight:48,backgroundColor:'#FFCD00',borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:8},
+  drawerCartText:{fontWeight:'900',fontSize:13,color:'#111827'},
+
   page: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
@@ -488,28 +438,21 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   infoGrid: {
     marginTop: spacing.lg,
-    flexDirection: 'row',
-    gap: spacing.sm,
+    gap: 7,
   },
   infoCard: {
-    flex: 1,
-    minHeight: 110,
+    minHeight: 44,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: palette.border,
-    padding: spacing.md,
+    backgroundColor:palette.surfaceSecondary,
+    paddingHorizontal:spacing.md,
+    flexDirection:'row',
+    alignItems:'center',
+    gap:10,
   },
-  infoLabel: {
-    ...typography.caption,
-    color: palette.muted,
-    marginTop: spacing.md,
-  },
-  infoValue: {
-    ...typography.bodyMedium,
-    color: palette.text,
-    fontWeight: '800',
-    marginTop: 2,
-  },
+  infoLabel:{...typography.caption,color:palette.textSecondary,flex:1},
+  infoValue:{...typography.bodyMedium,color:palette.text,fontWeight:'800'},
   orderCard: {
     marginTop: spacing.lg,
     borderRadius: radius.lg,
