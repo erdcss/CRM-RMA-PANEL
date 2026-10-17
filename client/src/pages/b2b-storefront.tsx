@@ -3,29 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { trackSearch } from "@/lib/analytics";
-import { Search, Package, Boxes, Truck, ShieldCheck } from "lucide-react";
+import { Search, Package, Boxes, Truck, ShieldCheck, BadgeCheck, Store } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter } from "@/components/b2b-footer";
+import { B2BProductCard } from "@/components/b2b-product-card";
+import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 
 type SessionUser = {
   role?: string;
   isActive?: boolean;
 };
 
-type B2BProduct = {
-  id: string | number;
-  sku?: string | null;
-  name?: string | null;
-  price?: number | string | null;
-  stock?: number | null;
-  min_order_qty?: number | null;
-  units_per_box?: number | null;
-  image_data?: string | null;
-  image_url?: string | null;
-  category?: string | null;
-  collection_name?: string | null;
-};
+type VerifiedStore = {id:number;slug:string;company_name:string;followers:number;description?:string;content?:{logoUrl?:string;bannerUrl?:string;tagline?:string}};
 
 async function loadSession(): Promise<SessionUser | null> {
   const response = await fetch("/api/auth/me", { credentials: "include" });
@@ -33,10 +23,17 @@ async function loadSession(): Promise<SessionUser | null> {
   return response.json();
 }
 
-async function loadProducts(): Promise<B2BProduct[]> {
+async function loadProducts(): Promise<UnifiedB2BProduct[]> {
   const response = await fetch("/api/b2b/products", { credentials: "include" });
   if (!response.ok) return [];
   return response.json();
+}
+
+async function loadVerifiedStores(): Promise<VerifiedStore[]> {
+  const response = await fetch("/api/marketplace/stores", { credentials: "include" });
+  if (!response.ok) throw new Error("Mağazalar yüklenemedi");
+  const result: VerifiedStore[] = await response.json();
+  return Array.isArray(result) ? result : [];
 }
 
 async function loadHomepage(): Promise<{ categories: string[] }> {
@@ -58,11 +55,23 @@ export default function B2BStorefront() {
     session?.role === "b2b_customer" &&
     session?.isActive === true;
 
-  const { data: products = [], isLoading } = useQuery({
+  const { data: ownProducts = [], isLoading: loadingOwn } = useQuery({
     queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
     queryFn: loadProducts,
     staleTime: 30_000,
   });
+  const { data: supplierProducts = [], isLoading: loadingSuppliers } = useQuery({
+    queryKey: ["/api/marketplace/products", loggedIn ? "member" : "guest"],
+    queryFn: loadApprovedSupplierProducts,
+    staleTime: 30_000,
+  });
+  const { data: verifiedStores = [] } = useQuery({
+    queryKey: ["/api/marketplace/stores"],
+    queryFn: loadVerifiedStores,
+    staleTime: 30_000,
+  });
+  const products = useMemo(() => [...supplierProducts, ...ownProducts], [supplierProducts, ownProducts]);
+  const isLoading = loadingOwn || loadingSuppliers;
 
   const { data: homepage = { categories: [] } } = useQuery({
     queryKey: ["/api/public/homepage"],
@@ -90,7 +99,7 @@ export default function B2BStorefront() {
 
       const matchesSearch =
         !term ||
-        [product.name, product.sku, product.category, product.collection_name]
+        [product.name, product.sku, product.category, product.collection_name, product.seller_name]
           .filter(Boolean)
           .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(term));
 
@@ -108,7 +117,7 @@ export default function B2BStorefront() {
               className="h-9 bg-slate-50 pl-9"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ürün veya stok kodu ara"
+              placeholder="Ürün, stok kodu veya satıcı ara"
             />
           </div>
         }
@@ -137,12 +146,9 @@ export default function B2BStorefront() {
               >
                 Ürünleri İncele
               </a>
-              <a
-                href="https://pazaryeri.ecalisgan.com"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-300 hover:bg-white/10"
-              >
-                Tedarikçi Ol
-              </a>
+              <Link href="/magazalar" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-300 hover:bg-white/10">
+                Mağazaları Keşfet
+              </Link>
             </div>
           </div>
 
@@ -217,15 +223,40 @@ export default function B2BStorefront() {
               className="h-9 bg-white pl-9"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ürün veya stok kodu ara"
+              placeholder="Ürün, stok kodu veya satıcı ara"
             />
           </div>
         </div>
 
+        {verifiedStores.length > 0 ? (
+          <section className="mb-9" aria-label="Onaylı tedarikçi mağazaları">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div><h2 className="text-xl font-bold">Onaylı Tedarikçi Mağazaları</h2><p className="mt-1 text-sm text-slate-500">Tüm mağazaları Çalışkan B2B üzerinden görüntüleyin.</p></div>
+              <Link href="/magazalar" className="text-sm font-bold text-amber-800 hover:underline">Tüm mağazalar →</Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {verifiedStores.slice(0, 4).map(shop => (
+                <Link key={shop.id} href={"/magaza/" + encodeURIComponent(shop.slug)} className="group min-w-0 overflow-hidden rounded-2xl border bg-white transition hover:border-amber-300 hover:shadow-md">
+                  <div className="relative aspect-[3/1] bg-[#FFCD00]">
+                    {shop.content?.bannerUrl ? <img src={shop.content.bannerUrl} alt="" className="h-full w-full object-cover"/> : null}
+                    <span className="absolute -bottom-5 left-3 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border-2 border-white bg-white text-amber-700 shadow">
+                      {shop.content?.logoUrl ? <img src={shop.content.logoUrl} alt={shop.company_name + " logosu"} className="h-full w-full object-contain"/> : <Store className="h-6 w-6"/>}
+                    </span>
+                  </div>
+                  <div className="px-3 pb-4 pt-8">
+                    <p className="flex items-center gap-1 truncate text-sm font-extrabold">{shop.company_name}<BadgeCheck className="h-4 w-4 shrink-0 text-green-600"/></p>
+                    <p className="mt-1 text-xs text-slate-500">{shop.followers || 0} takipçi</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <div id="urunler" className="mb-5 flex scroll-mt-24 items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">Toptan Ürünler</h2>
-            <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ürün kataloğu</p>
+            <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ve onaylı tedarikçi ürünleri</p>
           </div>
           {!isLoading && products.length > 0 ? (
             <div className="text-sm text-slate-500">{filtered.length} ürün</div>
@@ -242,31 +273,9 @@ export default function B2BStorefront() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {filtered.map((product) => {
-              const image = product.image_data || product.image_url;
-              return (
-                <Link
-                  key={product.id}
-                  href={`/urun/${product.id}`}
-                  className="group block min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                >
-                  <article>
-                    <div className="flex aspect-square items-center justify-center bg-slate-50">
-                      {image ? (
-                        <img src={image} alt={product.name || "Ürün"} className="h-full w-full object-contain p-3 transition-transform duration-200 group-hover:scale-[1.02]" />
-                      ) : (
-                        <Package className="h-12 w-12 text-slate-300" />
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <div className="text-[11px] text-slate-400">{product.sku || "STOK"}</div>
-                      <h3 className="mt-1 min-h-10 line-clamp-2 font-semibold">{product.name || "Ürün"}</h3>
-                      <div className="mt-3 text-sm font-semibold text-slate-700">
-                        {loggedIn && product.price !== null && product.price !== undefined
-                          ? `${Number(product.price).toLocaleString("tr-TR", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })} ₺`
+            {filtered.map((product) => (
+              <B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>
+            ))} ₺`
                           : "Fiyat için giriş yapın"}
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
