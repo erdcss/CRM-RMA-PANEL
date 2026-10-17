@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -69,6 +69,30 @@ export default function B2BOrders() {
   const { toast } = useToast();
   const { items, itemCount, totalUnits, total } = useB2BCart();
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
+  const [supplierBusy,setSupplierBusy]=useState(false);
+  const [supplierMessage,setSupplierMessage]=useState("");
+  const supplierKey=useRef<string|null>(null);
+  const supplierItems=items.filter(item=>item.productId.startsWith("mp-"));
+  const adminItems=items.filter(item=>!item.productId.startsWith("mp-"));
+  const {data:supplierOrders=[]}=useQuery<Array<{id:number;status:string;subtotal:number;created_at:string}>>({queryKey:["/api/marketplace/orders"],retry:false,staleTime:0});
+  async function placeSupplierOrder(){
+    if(supplierBusy||!supplierItems.length)return;
+    setSupplierBusy(true);setSupplierMessage("");
+    if(!supplierKey.current)supplierKey.current=crypto.randomUUID();
+    try{
+      const response=await apiRequest("POST","/api/marketplace/orders/from-list",{
+        requestKey:supplierKey.current,
+        items:supplierItems.map(item=>({productId:Number(item.productId.slice(3)),boxes:item.quantity}))
+      });
+      const order=await response.json() as {id:number};
+      for(const item of supplierItems)removeB2BCartItem(item.productId);
+      supplierKey.current=null;
+      setSupplierMessage("Sipariş #"+order.id+" oluşturuldu. Satıcı onayı bekleniyor; ödeme alınmadı.");
+      await Promise.all([queryClient.invalidateQueries({queryKey:["/api/marketplace/orders"]}),queryClient.invalidateQueries({queryKey:["/api/marketplace/cart"]})]);
+      toast({title:"Tedarikçi siparişi oluşturuldu",description:"Sipariş #"+order.id+" · Satıcı onayı bekleniyor."});
+    }catch(e){toast({title:"Sipariş oluşturulamadı",description:e instanceof Error?e.message:"Tekrar deneyin.",variant:"destructive"});}
+    finally{setSupplierBusy(false);}
+  }
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/b2b/my-orders"],
     queryFn: loadOrders,
@@ -291,13 +315,19 @@ export default function B2BOrders() {
               </div>
             </div>
 
+            {supplierMessage?<p role="status" className="mt-4 rounded-lg bg-green-50 p-3 text-sm font-medium text-green-800">{supplierMessage}</p>:null}
+            {supplierItems.length ? (
+              <Button type="button" disabled={supplierBusy} onClick={()=>void placeSupplierOrder()} className="mt-5 w-full bg-[#FFCD00] text-slate-950 hover:bg-amber-300" size="lg">
+                {supplierBusy?"Oluşturuluyor…":"Tedarikçi Siparişini Oluştur"}
+              </Button>
+            ) : null}
             <Button
-              asChild={items.length > 0}
-              disabled={items.length === 0}
-              className="mt-5 w-full"
+              asChild={adminItems.length > 0}
+              disabled={adminItems.length === 0}
+              className="mt-3 w-full"
               size="lg"
             >
-              {items.length > 0 ? (
+              {adminItems.length > 0 ? (
                 <Link href="/odeme?cart=1">
                   Ödemeye Geç
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -308,11 +338,20 @@ export default function B2BOrders() {
             </Button>
 
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-              Fiyat ve stok bilgileri ödeme aşamasında sunucudan tekrar doğrulanır.
+              Tedarikçi siparişleri satıcı onayına gönderilir, ödeme alınmaz. Çalışkan ürünleri ise mevcut ödeme sisteminde tamamlanır.
             </p>
           </aside>
         </div>
 
+        {supplierOrders.length ? (
+          <section className="mt-8 rounded-2xl border bg-white p-5">
+            <h2 className="font-black">Tedarikçi Siparişlerim</h2>
+            {supplierOrders.map(order=><div key={order.id} className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
+              <span><b>Sipariş #{order.id}</b> · Satıcı onayı bekleniyor</span>
+              <b>{money(Number(order.subtotal))}</b>
+            </div>)}
+          </section>
+        ) : null}
         <section className="mt-8">
           <div className="mb-3">
             <h2 className="text-lg font-black">Geçmiş Siparişler</h2>
