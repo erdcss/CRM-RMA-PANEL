@@ -14,7 +14,7 @@ export function useStoreLinks() {
 export const footerGroups = [
   { title:"Çalışkan", links:[["Biz Kimiz", "/hakkimizda"],["İletişim", "/iletisim"]] },
   { title:"Kampanyalar ve İndirimler", links:[["Kampanyalar", "/kampanyalar"],["Avantajlı Alışveriş", "/?firsatlar=1"]] },
-  { title:"Satıcı", links:[["Çalışkan B2B'de Tedarikçi Ol", "/satici"],["Çalışkan Akademi", "/akademi"]] },
+  { title:"Satıcı", links:[["Tedarikçi Paneli / Başvuru", "https://pazaryeri.ecalisgan.com"],["Çalışkan Akademi", "/akademi"]] },
   { title:"Yardım", links:[["Sık Sorulan Sorular", "/destek#faq-heading"],["Destek Talebi", "/hesabim?tab=support"],["Nasıl İade Ederim?", "/destek#iade"]] },
 ] as const;
 export function B2BSocialAndStores({ compact = false }: { compact?:boolean }) {
@@ -46,7 +46,9 @@ export function B2BFooter() {
           {group.title}<ChevronDown className={`h-5 w-5 text-[#c99f00] transition-transform md:hidden ${open===group.title?"rotate-180":""}`}/>
         </button>
         <div className={`${open===group.title?"block":"hidden"} pb-3 md:block md:pb-0`}>
-          {group.links.map(([title,path])=><Link key={title} href={path} className="block py-2 text-sm text-[#505050] transition-colors hover:text-[#c89b00]">{title}</Link>)}
+          {group.links.map(([title,path])=>path.startsWith("https://")?
+            <a key={title} href={path} className="block py-2 text-sm text-[#505050] transition-colors hover:text-[#c89b00]">{title}</a>:
+            <Link key={title} href={path} className="block py-2 text-sm text-[#505050] transition-colors hover:text-[#c89b00]">{title}</Link>)}
         </div>
       </section>)}
     </div>
