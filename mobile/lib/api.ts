@@ -689,6 +689,8 @@ export const rmaApi = {
   addMarketplaceCart: (productId:number,boxes:number) => request<{id:number}>('/api/marketplace/cart',{method:'POST',body:JSON.stringify({productId,boxes,deliveryMode:'direct'})}),
   removeMarketplaceCart: (lineId:number) => request<{ok:boolean}>(`/api/marketplace/cart/${lineId}`,{method:'DELETE'}),
   createMarketplaceOrderDraft: (requestKey:string) => request<{id:number;paymentEnabled:false;message:string}>('/api/marketplace/order-drafts',{method:'POST',body:JSON.stringify({requestKey})}),
+  createMarketplaceOrder: (requestKey:string) => request<{id:number;status:string;subtotal:number;paymentStatus:'unpaid';message:string}>('/api/marketplace/orders',{method:'POST',body:JSON.stringify({requestKey})}),
+  listMarketplaceOrders: () => request<Array<{id:number;status:string;subtotal:number;created_at:string}>>('/api/marketplace/orders'),
   getMarketplaceProduct: (slug:string,id:string|number) =>
     request<MarketplaceProduct>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products/${encodeURIComponent(String(id))}`),
   getB2BProduct: (id: string | number) =>
