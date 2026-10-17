@@ -10,7 +10,7 @@ type Content = {
   title?:string;tagline?:string;accent?:string;bannerUrl?:string|null;logoUrl?:string|null;sections?:string[];
 };
 type ReviewInfo = {
-  id:number;status:string;is_live:boolean;created_at:string;reviewed_at?:string|null;
+  id:number;status:string;is_live:boolean;is_latest?:boolean;created_at:string;reviewed_at?:string|null;
   company_name:string;slug:string;supplier_status:string;review_note?:string;
   content?:Content;
   sku?:string;stock?:number;is_enabled?:boolean;product_id?:number|null;title?:string;video_url?:string;
@@ -180,7 +180,7 @@ export function MarketplaceReviewDialog({
   });
   const data=detail.data;
   const review=data?.review;
-  const isPending=review?.status==="pending";
+  const isPending=review?.status==="pending" && (selection?.kind!=="stores"||review.is_latest!==false);
   return <Dialog open={!!selection} onOpenChange={(open)=>{if(!open&&!processing)onClose();}}>
     <DialogContent className="gap-0 p-0">
       <DialogHeader className="shrink-0 border-b px-5 py-5 pr-12 sm:px-8">
@@ -211,6 +211,9 @@ export function MarketplaceReviewDialog({
               <Info name="Yayında mı?" value={review.is_live?"Evet":"Hayır"}/>
               <Info name="Değerlendirme tarihi" value={date(review.reviewed_at)}/>
             </div>
+            {selection?.kind==="stores" && review.is_latest===false?<div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+              Bu başvurudan sonra yeni bir mağaza tasarımı gönderilmiş. Eski sürüm onaylanamaz; lütfen tedarikçinin son gönderdiği tasarımı inceleyin.
+            </div>:null}
             {selection?.kind==="products" && review.content ?
               <ProductPreview review={review} content={review.content} title="Onaya gönderilen ürün"/>:null}
             {selection?.kind==="stores" && review.content ?
@@ -235,7 +238,7 @@ export function MarketplaceReviewDialog({
                 <div className="flex flex-wrap gap-2">
                   {data.history.map(h=><span key={h.id} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
                     <Clock3 className="h-3.5 w-3.5"/>#{h.id} · {statuses[h.status]||h.status}
-                    {h.is_live?" · Yayında":""}
+                    {h.is_live?" · Yayında":""}{selection?.kind==="stores" && h.id!==data.history[0]?.id && h.status==="pending"?" · Daha yeni başvuru var":""}
                   </span>)}
                 </div>
               </div>:null}
@@ -243,7 +246,7 @@ export function MarketplaceReviewDialog({
               <p className="mb-1 font-semibold">Önceki yönetici notu</p>
               <p className="whitespace-pre-wrap break-words text-muted-foreground">{review.review_note}</p>
             </div>:null}
-            {!isPending?<p className="rounded-xl bg-muted p-4 text-sm">
+            {!isPending && !(selection?.kind==="stores" && review.is_latest===false)?<p className="rounded-xl bg-muted p-4 text-sm">
               Bu içerik zaten değerlendirilmiş. Yeni onay işlemi yapılamaz.
             </p>:null}
           </div>:null}
