@@ -533,6 +533,9 @@ export function registerMarketplaceRoutes(
   }));
   app.post("/api/marketplace/seller/reels",requireSeller,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
+    if(typeof req.body?.videoUrl!=="string" || !/^\/api\/marketplace\/media\/[a-f0-9]{32}$/.test(req.body.videoUrl)){
+      throw new ApiError(400,"Video yüklenmemiş. MP4 dosyasını yükleyin, Video yüklendi mesajını bekleyin ve ardından onaya gönderin.");
+    }
     const data=z.object({title:bodyText(160),videoUrl:mediaUrl,
       productId:z.number().int().positive().nullable().optional()}).strict().parse(req.body);
     await verifyMedia(db,Number(s.id),data.videoUrl,true);
@@ -553,7 +556,7 @@ export function registerMarketplaceRoutes(
   app.post("/api/marketplace/stores/:slug/follow",requireB2B,handle(async(req,res)=>{
     const db=await ready();
     const q=await db.query(`INSERT INTO mp_follows(supplier_id,buyer_user_id)
-      SELECT s.id,$1 FROM mp_suppliers s JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live
+      SELECT s.id,$1 FROM mp_suppliers s
       WHERE s.slug=$2 AND s.status='approved' ON CONFLICT DO NOTHING RETURNING supplier_id`,[userId(res),req.params.slug]);
     res.json({following:Boolean(q.rows.length)});
   }));
@@ -569,7 +572,6 @@ export function registerMarketplaceRoutes(
     try{
       await client.query("BEGIN");
       const seller=await client.query(`SELECT s.id,s.owner_user_id FROM mp_suppliers s
-        JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live
         WHERE s.slug=$1 AND s.status='approved' FOR UPDATE OF s`,[data.slug]);
       if(!seller.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
       if(Number(seller.rows[0].owner_user_id)===uid)throw new ApiError(400,"Kendi mağazanızla sohbet oluşturamazsınız");
