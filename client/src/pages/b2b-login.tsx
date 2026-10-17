@@ -84,7 +84,7 @@ export default function B2BLogin() {
         return;
       }
 
-      window.location.assign("/");
+      window.location.assign(window.location.hostname === "pazaryeri.ecalisgan.com" || window.location.hostname.startsWith("pazaryeri-") ? "/magazalar" : "/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş yapılamadı");
       setBusy(false);
@@ -110,7 +110,7 @@ export default function B2BLogin() {
         password: newPassword,
         passwordAgain: newPasswordAgain,
       });
-      window.location.assign("/");
+      window.location.assign(window.location.hostname === "pazaryeri.ecalisgan.com" || window.location.hostname.startsWith("pazaryeri-") ? "/magazalar" : "/");
     } catch (err) {
       setPasswordSetupError(err instanceof Error ? err.message : "Şifre oluşturulamadı");
       setPasswordSetupBusy(false);

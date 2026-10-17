@@ -16,13 +16,18 @@ const uploadsDir = getUploadsDir();
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
   const host = req.hostname.toLowerCase();
-  const b2bHost = host === "b2b.ecalisgan.com" ||
-    (host.startsWith("caliskan-b2b-web-") && host.endsWith(".up.railway.app"));
-  if (!b2bHost || !/^\/satici(?:\/|$)/.test(req.path)) return next();
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim().toLowerCase();
+  const isB2BHostname = (name: string) => name === "b2b.ecalisgan.com" ||
+    (name.startsWith("caliskan-b2b-web-") && name.endsWith(".up.railway.app"));
+  const b2bHost = isB2BHostname(host) || isB2BHostname(forwardedHost) ||
+    process.env.VITE_APP_MODE === "b2b";
+  const marketplaceRoute = /^\/(?:satici(?:\/|$)|magazalar\/?$|magaza(?:\/|$)|mesajlarim\/?$|pazaryeri-sepetim\/?$)/.test(req.path);
+  if (!b2bHost || !marketplaceRoute) return next();
   const original = req.originalUrl;
   const queryIndex = original.indexOf("?");
   const query = queryIndex < 0 ? "" : original.slice(queryIndex);
   const path = req.path === "/satici" || req.path === "/satici/" ? "/" : req.path;
+  res.setHeader("Cache-Control", "no-store");
   return res.redirect(302, "https://pazaryeri.ecalisgan.com" + path + query);
 });
 
@@ -36,7 +41,9 @@ if (process.env.APP_SERVICE_MODE === "marketplace") {
       path === "/api/auth/me" || path === "/api/auth/logout" ||
       path === "/api/public/branding" || path.startsWith("/api/public/branding-icon/") ||
       path.startsWith("/api/public/branding-asset/") || path.startsWith("/api/public/branding-image/") ||
-      path.startsWith("/api/seller/") || path.startsWith("/api/marketplace/");
+      path.startsWith("/api/seller/") || path.startsWith("/api/marketplace/") ||
+      path === "/api/b2b/login" || path === "/api/b2b/change-initial-password" ||
+      path === "/api/b2b/register" || path === "/api/b2b/tax-verify";
     if (!allowed) return res.status(404).json({ error: "Bu servis yalnızca tedarikçi işlemleri içindir." });
     next();
   });

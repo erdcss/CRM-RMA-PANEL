@@ -14,7 +14,7 @@ const money=(v:number)=>new Intl.NumberFormat("tr-TR",{style:"currency",currency
 export function MarketplaceDirectory(){
   const {data=[],isLoading}=useQuery<Shop[]>({queryKey:["/api/marketplace/stores"],staleTime:30000});
   return <main className="min-h-screen bg-[#f6f7f9] px-4 py-6 text-slate-900">
-    <div className="mx-auto max-w-6xl"><Link href="/" className="text-sm text-slate-600"><ArrowLeft className="mr-1 inline h-4 w-4"/>Ürün kataloğuna dön</Link>
+    <div className="mx-auto max-w-6xl"><Link href="/magazalar" className="text-sm text-slate-600"><ArrowLeft className="mr-1 inline h-4 w-4"/>Mağazalar</Link>
       <div className="my-6 flex flex-wrap items-center justify-between gap-4">
         <div><h1 className="text-2xl font-black">Toptancı Mağazaları</h1><p className="mt-1 text-sm text-slate-500">Çalışkan B2B tarafından onaylanmış tedarikçiler</p></div>
         <a href="https://pazaryeri.ecalisgan.com" className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Tedarikçi Başvurusu / Girişi</a>

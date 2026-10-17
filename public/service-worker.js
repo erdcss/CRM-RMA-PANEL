@@ -1,4 +1,4 @@
-const CACHE_NAME = 'caliskan-core-v5-dynamic-pwa-branding';
+const CACHE_NAME = 'caliskan-core-v6-marketplace-domain-separation';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -16,6 +16,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   const isApi = url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/');
   const isMutation = event.request.method !== 'GET';
+  const legacyMarketplacePath = /^\/(?:satici(?:\/|$)|magazalar\/?$|magaza(?:\/|$)|mesajlarim\/?$|pazaryeri-sepetim\/?$)/.test(url.pathname);
+  if (event.request.mode === 'navigate' && legacyMarketplacePath) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }));
+    return;
+  }
 
   if (isApi || isMutation) {
     event.respondWith(fetch(event.request));

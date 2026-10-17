@@ -137,12 +137,12 @@ export default function B2BStorefront() {
               >
                 Ürünleri İncele
               </a>
-              <Link
-                href="/magazalar"
+              <a
+                href="https://pazaryeri.ecalisgan.com"
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-300 hover:bg-white/10"
               >
-                Tedarikçi Mağazaları
-              </Link>
+                Tedarikçi Ol
+              </a>
             </div>
           </div>
 

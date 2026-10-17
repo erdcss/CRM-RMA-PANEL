@@ -159,7 +159,7 @@ function AppContent() {
   );
 }
 
-function SellerDomainRedirect() {
+function MarketplaceDomainRedirect() {
   const destination = typeof window === "undefined"
     ? "https://pazaryeri.ecalisgan.com/"
     : "https://pazaryeri.ecalisgan.com" +
@@ -170,9 +170,9 @@ function SellerDomainRedirect() {
   }, [destination]);
   return <main className="flex min-h-screen items-center justify-center bg-[#f8f8f6] px-4 text-center text-slate-900">
     <div className="space-y-3">
-      <h1 className="text-xl font-bold">Tedarikçi paneli taşındı</h1>
-      <p className="text-sm text-slate-600">Satıcı işlemleri artık ayrı Pazaryeri platformunda yapılıyor.</p>
-      <a href={destination} className="inline-block rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Pazaryeri paneline git</a>
+      <h1 className="text-xl font-bold">Pazaryeri yeni adrese taşındı</h1>
+      <p className="text-sm text-slate-600">Pazaryeri işlemleri artık ayrı platform üzerinden yapılıyor.</p>
+      <a href={destination} className="inline-block rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white">Pazaryerine git</a>
     </div>
   </main>;
 }
@@ -192,12 +192,12 @@ function B2BWebsite() {
       <Switch>
         <Route path="/" component={B2BStorefront} />
         <Route path="/urun/:id" component={B2BProductPage} />
-        <Route path="/magazalar" component={MarketplaceDirectory} />
-        <Route path="/magaza/:slug">{(params) => <MarketplaceShop slug={params.slug} />}</Route>
-        <Route path="/satici/urun/:id" component={SellerDomainRedirect} />
-        <Route path="/satici" component={SellerDomainRedirect} />
-        <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
-        <Route path="/pazaryeri-sepetim" component={MarketplaceCart} />
+        <Route path="/magazalar" component={MarketplaceDomainRedirect} />
+        <Route path="/magaza/:slug" component={MarketplaceDomainRedirect} />
+        <Route path="/satici/urun/:id" component={MarketplaceDomainRedirect} />
+        <Route path="/satici" component={MarketplaceDomainRedirect} />
+        <Route path="/mesajlarim" component={MarketplaceDomainRedirect} />
+        <Route path="/pazaryeri-sepetim" component={MarketplaceDomainRedirect} />
         <Route path="/uye-girisi" component={B2BLogin} />
         <Route path="/login" component={B2BLogin} />
         <Route path="/kayit-ol" component={B2BRegister} />
@@ -226,6 +226,13 @@ function MarketplaceWebsite() {
         <Route path="/" component={MarketplaceSeller} />
         <Route path="/satici" component={MarketplaceSeller} />
         <Route path="/satici/urun/:id">{(params) => <MarketplaceSellerProduct id={params.id} />}</Route>
+        <Route path="/magazalar" component={MarketplaceDirectory} />
+        <Route path="/magaza/:slug">{(params) => <MarketplaceShop slug={params.slug} />}</Route>
+        <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
+        <Route path="/pazaryeri-sepetim" component={MarketplaceCart} />
+        <Route path="/uye-girisi" component={B2BLogin} />
+        <Route path="/login" component={B2BLogin} />
+        <Route path="/kayit-ol" component={B2BRegister} />
         <Route component={MarketplaceSeller} />
       </Switch>
     </div>

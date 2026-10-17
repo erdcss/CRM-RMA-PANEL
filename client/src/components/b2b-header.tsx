@@ -105,10 +105,10 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
           </div>
           <nav className="flex-1 px-4 py-4">
             <Link href="/" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Ana Sayfa<ChevronRight className="h-4 w-4"/></Link>
-            <Link href="/magazalar" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Tedarikçi Mağazaları<ChevronRight className="h-4 w-4"/></Link>
-            <Link href="/pazaryeri-sepetim" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Sepetim<ChevronRight className="h-4 w-4"/></Link>
             {loggedIn ? <Link href="/siparislerim" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Siparişlerim<ChevronRight className="h-4 w-4"/></Link> : null}
-            {footerGroups.map(group=><div key={group.title} className="border-b border-slate-100 py-3"><h3 className="mb-2 text-sm font-black text-slate-950">{group.title}</h3>{group.links.map(([label,href])=><Link key={label} href={href} onClick={()=>setDrawerOpen(false)} className="block py-2 pl-3 text-sm text-slate-600 hover:text-yellow-700">{label}</Link>)}</div>)}
+            {footerGroups.map(group=><div key={group.title} className="border-b border-slate-100 py-3"><h3 className="mb-2 text-sm font-black text-slate-950">{group.title}</h3>{group.links.map(([label,href])=>href.startsWith("https://")?
+              <a key={label} href={href} onClick={()=>setDrawerOpen(false)} className="block py-2 pl-3 text-sm text-slate-600 hover:text-yellow-700">{label}</a>:
+              <Link key={label} href={href} onClick={()=>setDrawerOpen(false)} className="block py-2 pl-3 text-sm text-slate-600 hover:text-yellow-700">{label}</Link>)}</div>)}
           </nav>
           <div className="bg-[#111] p-5 text-white"><B2BSocialAndStores compact/></div>
         </aside>
