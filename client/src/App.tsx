@@ -193,6 +193,7 @@ function B2BWebsite() {
         <Route path="/" component={B2BStorefront} />
         <Route path="/urun/:id" component={B2BProductPage} />
         <Route path="/magazalar" component={MarketplaceDomainRedirect} />
+        <Route path="/reels" component={MarketplaceDomainRedirect} />
         <Route path="/magaza/:slug" component={MarketplaceDomainRedirect} />
         <Route path="/satici/urun/:id" component={MarketplaceDomainRedirect} />
         <Route path="/satici" component={MarketplaceDomainRedirect} />
