@@ -234,6 +234,65 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    return res.status(409).json({error:e instanceof Error?e.message:"Sipariş oluşturulamadı"});
   }finally{client?.release();}
  });
+ app.post("/api/marketplace/orders/from-list",requireB2B,async(req,res)=>{
+  const data=z.object({requestKey:z.string().uuid(),items:z.array(z.object({productId:z.number().int().positive(),boxes:z.number().int().min(1).max(10000)}).strict()).min(1).max(100)}).strict().safeParse(req.body);
+  if(!data.success)return res.status(400).json({error:"İşlem anahtarı eksik veya geçersiz"});
+  let client:PoolClient|undefined;
+  try {
+   const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
+   client=await db.connect();
+   await client.query("BEGIN");
+   await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE",[uid]);
+   const prior=await client.query(
+    "SELECT id,status,subtotal FROM mp_order_drafts WHERE buyer_user_id=$1 AND request_key=$2",
+    [uid,data.data.requestKey]);
+   if(prior.rows[0]){
+    await client.query("COMMIT");
+    return res.json({...prior.rows[0],paymentStatus:"unpaid",paymentEnabled:false});
+   }
+   const chosen=data.data.items;
+   const keys=new Set(chosen.map(x=>x.productId));
+   if(keys.size!==chosen.length)throw new Error("Sipariş listenizde tekrarlanan ürün var.");
+   const q=await client.query(`SELECT NULL::bigint AS id,c.product_id,c.boxes,'direct'::text AS delivery_mode,
+     p.stock,p.sku,s.id AS supplier_id,s.company_name,
+     v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
+     FROM jsonb_to_recordset($2::jsonb) AS c(product_id bigint,boxes integer)
+     JOIN mp_products p ON p.id=c.product_id AND p.is_enabled=TRUE
+     JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+     JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
+     ORDER BY p.id FOR UPDATE OF p`,[uid,JSON.stringify(chosen.map(x=>({product_id:x.productId,boxes:x.boxes})))]);
+   if(q.rows.length!==chosen.length)throw new Error("Sipariş listesindeki bir ürün onaylı değil veya yayından kaldırılmış.");
+   const cart=lines(q.rows);
+   if(!cart.items.length)throw new Error("Sipariş listenizde onaylı tedarikçi ürünü bulunmuyor.");
+   if(cart.items.some(i=>!i.valid||!Number.isFinite(i.price)||i.price<=0))
+    throw new Error("Stok, fiyat veya minimum koli bilgisi değişti. Sipariş listesini yenileyin.");
+   // Only explicitly submitted products are included. The old marketplace cart is not used.
+   const order=await client.query(`INSERT INTO mp_order_drafts(buyer_user_id,request_key,status,subtotal)
+     VALUES($1,$2,'pending_confirmation',$3) RETURNING id,status,subtotal`,
+     [uid,data.data.requestKey,cart.subtotal.toFixed(2)]);
+   for(const group of cart.supplierOrders){
+    const sub=await client.query(`INSERT INTO mp_supplier_order_drafts
+      (order_id,supplier_id,delivery_mode,subtotal,platform_fee_estimate,warehouse_fee_estimate,status)
+      VALUES($1,$2,$3,$4,$5,$6,'pending_confirmation') RETURNING id`,
+      [order.rows[0].id,group.supplierId,group.deliveryMode,
+       group.subtotal.toFixed(2),group.platformFee.toFixed(2),group.warehouseFee.toFixed(2)]);
+    for(const it of cart.items.filter(i=>Number(i.supplier_id)===group.supplierId&&i.delivery_mode===group.deliveryMode)){
+     await client.query(`INSERT INTO mp_supplier_order_items
+       (supplier_order_id,product_id,revision_id,boxes,units_per_box,unit_price,line_total)
+       VALUES($1,$2,$3,$4,$5,$6,$7)`,
+       [sub.rows[0].id,it.product_id,it.revision_id,it.boxes,it.unitsPerBox,
+        it.price.toFixed(2),it.total.toFixed(2)]);
+    }
+   }
+   // Keep unrelated legacy cart rows untouched; this is a direct order from the unified list.
+   await client.query("COMMIT");
+   return res.status(201).json({...order.rows[0],paymentStatus:"unpaid",paymentEnabled:false,
+    message:"Siparişiniz oluşturuldu. Tedarikçi onayı bekleniyor; henüz ödeme alınmadı."});
+  }catch(e){
+   if(client)await client.query("ROLLBACK").catch(()=>{});
+   return res.status(409).json({error:e instanceof Error?e.message:"Sipariş oluşturulamadı"});
+  }finally{client?.release();}
+ });
  app.get("/api/marketplace/orders",requireB2B,async(_req,res)=>{
   try{
    const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
