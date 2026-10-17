@@ -52,7 +52,9 @@ let schema:Promise<unknown>|undefined;
 async function ready(){
  await ensureMarketplaceSchema();
  if(!pool)throw new Error("PostgreSQL bağlantısı bulunamadı");
- if(!schema)schema=pool.query(DDL).catch(e=>{schema=undefined;throw e;});
+ if(!schema)schema=pool.query(DDL)
+  .then(()=>pool!.query("ALTER TABLE mp_order_drafts DROP CONSTRAINT IF EXISTS mp_order_drafts_status_check; ALTER TABLE mp_order_drafts ADD CONSTRAINT mp_order_drafts_status_check CHECK (status IN ('draft','cancelled','pending_confirmation'));"))
+  .catch(e=>{schema=undefined;throw e;});
  await schema;return pool;
 }
 const listQuery=`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.company_name,
@@ -156,6 +158,73 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
       paymentEnabled:false,message:"Taslak kaydedildi. Canlı tahsilat henüz aktif değil."});
   }catch(e){if(client)await client.query("ROLLBACK").catch(()=>{});res.status(409).json({error:e instanceof Error?e.message:"Taslak oluşturulamadı"});}
   finally{client?.release();}
+ });
+
+ // Submit the cart as an unpaid order awaiting supplier confirmation.
+ app.post("/api/marketplace/orders",requireB2B,async(req,res)=>{
+  const data=z.object({requestKey:z.string().uuid()}).strict().safeParse(req.body);
+  if(!data.success)return res.status(400).json({error:"İşlem anahtarı eksik veya geçersiz"});
+  let client:PoolClient|undefined;
+  try {
+   const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
+   client=await db.connect();
+   await client.query("BEGIN");
+   await client.query("SELECT id FROM users WHERE id=$1 FOR UPDATE",[uid]);
+   const prior=await client.query(
+    "SELECT id,status,subtotal FROM mp_order_drafts WHERE buyer_user_id=$1 AND request_key=$2",
+    [uid,data.data.requestKey]);
+   if(prior.rows[0]){
+    await client.query("COMMIT");
+    return res.json({...prior.rows[0],paymentStatus:"unpaid",paymentEnabled:false});
+   }
+   const q=await client.query(`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.company_name,
+     v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
+     FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
+     JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+     JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
+     WHERE c.buyer_user_id=$1 AND p.is_enabled=TRUE ORDER BY p.id FOR UPDATE OF p`,[uid]);
+   const cart=lines(q.rows);
+   if(!cart.items.length)throw new Error("Sepette sipariş verilebilecek onaylı ürün bulunmuyor.");
+   if(cart.items.some(i=>!i.valid||!Number.isFinite(i.price)||i.price<=0))
+    throw new Error("Stok, fiyat veya minimum koli bilgisi değişti. Sepeti yenileyin.");
+   const allLines=await client.query("SELECT COUNT(*)::int AS count FROM mp_cart_lines WHERE buyer_user_id=$1",[uid]);
+   if(Number(allLines.rows[0]?.count)!==cart.items.length)throw new Error("Sepette yayından kaldırılmış ürün var. Sepeti kontrol edin.");
+   const order=await client.query(`INSERT INTO mp_order_drafts(buyer_user_id,request_key,status,subtotal)
+     VALUES($1,$2,'pending_confirmation',$3) RETURNING id,status,subtotal`,
+     [uid,data.data.requestKey,cart.subtotal.toFixed(2)]);
+   for(const group of cart.supplierOrders){
+    const sub=await client.query(`INSERT INTO mp_supplier_order_drafts
+      (order_id,supplier_id,delivery_mode,subtotal,platform_fee_estimate,warehouse_fee_estimate,status)
+      VALUES($1,$2,$3,$4,$5,$6,'pending_confirmation') RETURNING id`,
+      [order.rows[0].id,group.supplierId,group.deliveryMode,
+       group.subtotal.toFixed(2),group.platformFee.toFixed(2),group.warehouseFee.toFixed(2)]);
+    for(const it of cart.items.filter(i=>Number(i.supplier_id)===group.supplierId&&i.delivery_mode===group.deliveryMode)){
+     await client.query(`INSERT INTO mp_supplier_order_items
+       (supplier_order_id,product_id,revision_id,boxes,units_per_box,unit_price,line_total)
+       VALUES($1,$2,$3,$4,$5,$6,$7)`,
+       [sub.rows[0].id,it.product_id,it.revision_id,it.boxes,it.unitsPerBox,
+        it.price.toFixed(2),it.total.toFixed(2)]);
+    }
+   }
+   await client.query("DELETE FROM mp_cart_lines WHERE buyer_user_id=$1",[uid]);
+   await client.query("COMMIT");
+   return res.status(201).json({...order.rows[0],paymentStatus:"unpaid",paymentEnabled:false,
+    message:"Siparişiniz oluşturuldu. Tedarikçi onayı bekleniyor; henüz ödeme alınmadı."});
+  }catch(e){
+   if(client)await client.query("ROLLBACK").catch(()=>{});
+   return res.status(409).json({error:e instanceof Error?e.message:"Sipariş oluşturulamadı"});
+  }finally{client?.release();}
+ });
+ app.get("/api/marketplace/orders",requireB2B,async(_req,res)=>{
+  try{
+   const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
+   const q=await db.query(`SELECT o.id,o.status,o.subtotal,o.currency,o.created_at,
+     (SELECT COUNT(*)::int FROM mp_supplier_order_drafts d WHERE d.order_id=o.id) AS supplier_orders
+     FROM mp_order_drafts o WHERE o.buyer_user_id=$1 AND o.status='pending_confirmation'
+     ORDER BY o.id DESC LIMIT 100`,[uid]);
+   res.setHeader("Cache-Control","private, no-store");
+   res.json(q.rows);
+  }catch(e){res.status(500).json({error:"Siparişler yüklenemedi"});}
  });
  app.get("/api/marketplace/order-drafts",requireB2B,async(_req,res)=>{
   try{const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
