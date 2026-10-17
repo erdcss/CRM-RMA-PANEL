@@ -29,6 +29,13 @@ if not exist "mobile\package.json" (
 if not exist ".git" (
   echo [UYARI] GitHub otomatik guncelleme icin projeyi git clone ile indirin.
   echo [UYARI] ZIP indirdiyseniz degisiklikleri otomatik cekemezsiniz.
+) else (
+  echo [0/2] En yeni kodlar kontrol ediliyor...
+  git pull --ff-only origin main
+  if errorlevel 1 (
+    echo [HATA] GitHub guncellemesi tamamlanamadi. Yerel degisiklikleri kontrol edin.
+    goto :failed
+  )
 )
 if not exist "mobile\node_modules\expo\package.json" (
   echo [1/2] Ilk kurulum: mobile npm paketleri yukleniyor...
@@ -43,6 +50,8 @@ if not exist "mobile\node_modules\expo\package.json" (
 )
 echo [2/2] Expo tunnel baslatiliyor...
 echo iPhone'da yuklu DEVELOPMENT CLIENT ile terminaldeki QR kodu acin.
+echo QR yalnizca "Caliskan B2B Dev" uygulamasini acmalidir.
+echo TestFlight aciliyorsa once Expo Development Client kurun.
 echo TestFlight / App Store surumu Metro gelistirme sunucusuna baglanamaz.
 echo.
 set "EXPO_PUBLIC_API_URL=https://b2b.ecalisgan.com"
