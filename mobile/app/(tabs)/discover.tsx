@@ -180,18 +180,38 @@ function ReelCard({
       </View>
 
       <View style={styles.captionArea} pointerEvents="box-none">
+        {item.seller_slug && item.seller_name ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={item.seller_name + ' mağazasını görüntüle'}
+            style={styles.sellerRow}
+            onPress={() => void Linking.openURL('https://pazaryeri.ecalisgan.com/magaza/' + encodeURIComponent(item.seller_slug!))}
+          >
+            <View style={styles.sellerAvatar}>
+              {item.seller_logo_url ? (
+                <Image source={{ uri: absoluteMediaUrl(item.seller_logo_url) || item.seller_logo_url }} style={styles.sellerImage} contentFit="contain" />
+              ) : <Ionicons name="storefront-outline" size={24} color="#854D0E" />}
+            </View>
+            <View style={styles.sellerDetails}>
+              <Text style={styles.sellerName} numberOfLines={1}>{item.seller_name}</Text>
+              <Text style={styles.sellerLink}>Mağazayı görüntüle  →</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+          </Pressable>
+        ) : null}
         <Text style={styles.reelTitle}>{item.title || 'Ürün videosu'}</Text>
         <Text style={styles.tapHint}>Durdurmak / oynatmak için videoya dokunun</Text>
 
         {item.product_id ? (
           <Pressable
             style={styles.productButton}
-            onPress={() =>
-              router.push({
-                pathname: '/product/[id]',
-                params: { id: String(item.product_id) },
-              } as never)
-            }
+            onPress={() => {
+              if (item.marketplace && item.seller_slug) {
+                void Linking.openURL('https://pazaryeri.ecalisgan.com/magaza/' + encodeURIComponent(item.seller_slug) + '/urun/' + encodeURIComponent(String(item.product_id)));
+              } else {
+                router.push({pathname:'/product/[id]',params:{id:String(item.product_id)}} as never);
+              }
+            }}
           >
             <Ionicons name="bag-handle-outline" size={18} color={colors.text} />
             <Text style={styles.productButtonText}>Ürünü Gör</Text>
@@ -230,10 +250,13 @@ export default function DiscoverScreen() {
       shouldDuckAndroid: true,
     }).catch(() => undefined);
 
-    rmaApi
-      .listB2BReels()
-      .then((data) => setReels(Array.isArray(data) ? data : []))
-      .catch(() => setReels([]))
+    // Keep editorial Reels available even if the seller marketplace is temporarily offline.
+    Promise.allSettled([rmaApi.listB2BReels(), rmaApi.listMarketplaceReels()])
+      .then(([editorial, marketplace]) => {
+        const curated = editorial.status === 'fulfilled' && Array.isArray(editorial.value) ? editorial.value : [];
+        const sellers = marketplace.status === 'fulfilled' && Array.isArray(marketplace.value) ? marketplace.value : [];
+        setReels([...sellers, ...curated]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -406,6 +429,28 @@ const styles = StyleSheet.create({
     right: spacing.lg,
     bottom: spacing.xl,
   },
+  sellerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    backgroundColor: 'rgba(15,23,42,0.72)',
+  },
+  sellerAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#FACC15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  sellerImage: {width: '100%',height: '100%'},
+  sellerDetails: {flex: 1, minWidth: 0},
+  sellerName: {color:'#FFFFFF',fontSize:14,fontWeight:'800'},
+  sellerLink: {color:'#FDE68A',fontSize:12,fontWeight:'700',marginTop:3},
   reelTitle: {
     ...typography.title,
     color: '#FFFFFF',
