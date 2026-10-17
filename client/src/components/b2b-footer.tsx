@@ -14,7 +14,7 @@ export function useStoreLinks() {
 export const footerGroups = [
   { title:"Çalışkan", links:[["Biz Kimiz", "/hakkimizda"],["İletişim", "/iletisim"]] },
   { title:"Kampanyalar ve İndirimler", links:[["Kampanyalar", "/kampanyalar"],["Avantajlı Alışveriş", "/?firsatlar=1"]] },
-  { title:"Satıcı", links:[["Tedarikçi Paneli / Başvuru", "https://pazaryeri.ecalisgan.com"],["Çalışkan Akademi", "/akademi"]] },
+  { title:"Satıcı", links:[["Onaylı Tedarikçi Mağazaları", "/magazalar"],["Tedarikçi Paneli / Başvuru", "https://pazaryeri.ecalisgan.com"],["Çalışkan Akademi", "/akademi"]] },
   { title:"Yardım", links:[["Sık Sorulan Sorular", "/destek#faq-heading"],["Destek Talebi", "/hesabim?tab=support"],["Nasıl İade Ederim?", "/destek#iade"]] },
 ] as const;
 export function B2BSocialAndStores({ compact = false }: { compact?:boolean }) {
