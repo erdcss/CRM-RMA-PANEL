@@ -30,6 +30,7 @@ import {
 } from '@/lib/api';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -115,16 +116,20 @@ export default function HomeScreen() {
   }, []);
 
   const load = useCallback(async (forceRefresh = false) => {
-    const [productResult, homepageResult] = await Promise.allSettled([
+    const [productResult, supplierResult, homepageResult] = await Promise.allSettled([
       rmaApi.listB2BProducts(forceRefresh),
+      rmaApi.listMarketplaceProducts(),
       rmaApi.getB2BHomepage(),
     ]);
 
-    if (productResult.status === 'fulfilled') {
-      setProducts(Array.isArray(productResult.value) ? productResult.value : []);
+    if (productResult.status === 'fulfilled' || supplierResult.status === 'fulfilled') {
+      const own = productResult.status === 'fulfilled' && Array.isArray(productResult.value) ? productResult.value : [];
+      const suppliers = supplierResult.status === 'fulfilled' && Array.isArray(supplierResult.value)
+        ? supplierResult.value.map(asCatalogProduct) : [];
+      setProducts([...suppliers, ...own]);
       setCatalogError('');
     } else {
-      setCatalogError(productResult.reason instanceof Error ? productResult.reason.message : 'Ürün kataloğu yüklenemedi.');
+      setCatalogError('Ürün kataloglarına ulaşılamadı. Yeniden deneyin.');
     }
 
     if (homepageResult.status === 'fulfilled') {
@@ -159,7 +164,7 @@ export default function HomeScreen() {
     const search = query.trim().toLocaleLowerCase('tr-TR');
     if (!search) return products;
     return products.filter(product =>
-      [product.name, product.sku, product.barcode, product.collection_name, product.category, ...(product.tags || [])]
+      [product.name, product.sku, product.barcode, product.collection_name, product.category, product.seller_name, ...(product.tags || [])]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('tr-TR').includes(search)),
     );
@@ -267,7 +272,7 @@ export default function HomeScreen() {
             {filtered.slice(0, 50).map((product) => {
               const picture = productImage(product);
               return <Pressable key={String(product.id)} style={styles.searchResultRow}
-                onPress={() => router.push({ pathname: '/product/[id]', params: { id: String(product.id) } } as never)}>
+                onPress={() => router.push({ pathname: '/product/[id]', params: productParams(product) } as never)}>
                 <View style={styles.searchResultThumb}>
                   {picture ? <Image source={{ uri: picture }} style={styles.searchResultImage} contentFit="contain" /> :
                     <Ionicons name="cube-outline" size={27} color={palette.muted} />}
@@ -466,25 +471,11 @@ export default function HomeScreen() {
           </ScrollView>
         </> : null}
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Onaylı tedarikçi ürünlerini görüntüle"
-          onPress={() => router.push('/(tabs)/marketplace' as never)}
-          style={{ marginHorizontal: 16, marginTop: 16, marginBottom: 8, padding: 16, borderRadius: 16, backgroundColor: '#FFCD00', flexDirection: 'row', alignItems: 'center', gap: 12 }}
-        >
-          <Ionicons name="storefront-outline" size={27} color="#171717" />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 16, fontWeight: '900', color: '#171717' }}>Tedarikçi Pazaryeri</Text>
-            <Text style={{ fontSize: 11, color: '#333333', marginTop: 4 }}>Onaylı satıcılar ve yeni ürünler · Mağazaları keşfet</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#171717" />
-        </Pressable>
-
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Yeni Gelen Ürünler</Text>
             <Text style={styles.sectionSubtitle}>
-              Çalışkan B2B kataloğuna son eklenenler
+              Çalışkan B2B ve onaylı tedarikçilerden son eklenenler
             </Text>
           </View>
           <Text style={styles.productCount}>{filtered.length} ürün</Text>
@@ -505,7 +496,7 @@ export default function HomeScreen() {
                 onPress={() =>
                   router.push({
                     pathname: '/product/[id]',
-                    params: { id: String(product.id) },
+                    params: productParams(product),
                   } as never)
                 }
               >
@@ -531,6 +522,7 @@ export default function HomeScreen() {
                   <Text style={styles.productName} numberOfLines={2}>
                     {product.name}
                   </Text>
+                  {product.seller_name ? <Text style={styles.meta} numberOfLines={1}>{product.seller_name}</Text> : null}
 
                   {priceVisible ? (
                     <Text style={styles.price}>{money(product.price)}</Text>
