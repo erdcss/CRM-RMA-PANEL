@@ -24,7 +24,8 @@ export function MarketplaceDirectory(){
     <div className="mx-auto max-w-6xl"><Link href="/magazalar" className="text-sm text-slate-600"><ArrowLeft className="mr-1 inline h-4 w-4"/>Mağazalar</Link>
       <div className="my-6 flex flex-wrap items-center justify-between gap-4">
         <div><h1 className="text-2xl font-black">Toptancı Mağazaları</h1><p className="mt-1 text-sm text-slate-500">Çalışkan B2B tarafından onaylanmış tedarikçiler</p></div>
-        <a href="https://pazaryeri.ecalisgan.com" className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Tedarikçi Başvurusu / Girişi</a>
+        <div className="flex flex-wrap gap-2"><Link href="/reels" className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900"><Film className="h-4 w-4"/>Satıcı Reels</Link>
+          <a href="https://pazaryeri.ecalisgan.com" className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Tedarikçi Başvurusu / Girişi</a></div>
       </div>
       {isLoading?<p>Mağazalar yükleniyor...</p>:data.length===0?<div className={box+" py-16 text-center text-sm text-slate-500"}>Henüz yayında tedarikçi mağazası bulunmuyor.</div>:null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{data.map(shop=><Link key={shop.id} href={"/magaza/"+shop.slug} className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-lg">
@@ -121,7 +122,7 @@ export function MarketplaceShop({slug}:{slug:string}){
         </div>)}
         {!products.length?<p className="col-span-full rounded-xl border bg-white p-8 text-sm text-slate-500">Onaylanmış ürün bulunmuyor.</p>:null}
       </div>
-      <h2 className="mt-9 text-xl font-black">Mağaza Reels</h2>
+      <div className="mt-9 flex items-center justify-between gap-2"><h2 className="text-xl font-black">Mağaza Reels</h2><Link href="/reels" className="text-sm font-semibold text-amber-800 hover:underline">Tüm Reels →</Link></div>
       <div className="mt-4 flex gap-4 overflow-x-auto">{reels.map(r=><div key={r.id} className="w-48 shrink-0 overflow-hidden rounded-xl border bg-white">
         <video controls preload="none" src={r.video_url} className="aspect-[9/16] w-full bg-slate-950 object-contain"/>
         <div className="space-y-2 p-3"><p className="text-sm font-semibold">{r.title}</p>
