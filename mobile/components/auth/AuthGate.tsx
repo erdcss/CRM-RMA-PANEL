@@ -70,6 +70,7 @@ export function RootStack() {
       <Stack.Screen name="login" options={{ animation: 'fade' }} />
       <Stack.Screen name="signup" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="product" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="marketplace/product/[slug]/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="checkout" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="payment-card" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="payment-result" options={{ animation: 'fade' }} />
