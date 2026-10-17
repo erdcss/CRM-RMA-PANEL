@@ -10,6 +10,7 @@ async function ready(){
  await ensureMarketplaceSchema();
  if(!pool)throw Error("Veritabanı bağlantısı bulunamadı");
  if(!schema)schema=pool.query(
+ "CREATE TABLE IF NOT EXISTS mp_media (id TEXT PRIMARY KEY,supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,mime TEXT NOT NULL,data BYTEA NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());"+
  "CREATE TABLE IF NOT EXISTS mp_media_uploads (id TEXT PRIMARY KEY,supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,expected_size BIGINT NOT NULL,part_count INT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());"+
  "CREATE TABLE IF NOT EXISTS mp_media_upload_parts (upload_id TEXT NOT NULL REFERENCES mp_media_uploads(id) ON DELETE CASCADE,part_index INT NOT NULL,data BYTEA NOT NULL,PRIMARY KEY(upload_id,part_index));"
  ).catch(e=>{schema=undefined;throw e;});
