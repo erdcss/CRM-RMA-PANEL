@@ -267,6 +267,29 @@ export function registerMarketplaceRoutes(
     res.setHeader("Vary","Authorization, Cookie, X-Owner-User-Id");
     res.json(result.rows.map((p:any)=>({...p,content:canSeePrice?p.content:{...p.content,price:null}})));
   }));
+  // Direct B2B product links remain resolvable without relying on a client-provided seller slug.
+  app.get("/api/marketplace/products/:id",handle(async(req,res)=>{
+    const db=await ready(),productId=id(req.params.id);
+    const viewerId=sessionUserId(req);
+    let canSeePrice=false;
+    if(viewerId){
+      const viewer=await db.query("SELECT role,is_active FROM users WHERE id=$1",[viewerId]);
+      canSeePrice=viewer.rows[0]?.role==="b2b_customer" && Number(viewer.rows[0]?.is_active)===1;
+    }
+    const q=await db.query(`SELECT p.id,p.sku,p.stock,
+      (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,
+      s.slug AS seller_slug,s.company_name AS seller_name,
+      COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
+      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+      JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
+      LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE AND sv.status='approved'
+      WHERE p.id=$1 AND p.is_enabled=TRUE LIMIT 1`,[productId]);
+    if(!q.rows[0])throw new ApiError(404,"Onaylı ürün bulunamadı");
+    const product=q.rows[0];
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("Vary","Authorization, Cookie");
+    res.json({...product,content:canSeePrice?product.content:{...product.content,price:null}});
+  }));
   app.get("/api/marketplace/stores/:slug",handle(async(req,res)=>{
     const db=await ready();
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
