@@ -89,8 +89,8 @@ export function MarketplaceShop({slug}:{slug:string}){
             <Link href={"/mesajlarim?store="+encodeURIComponent(slug)+"&quote=1"} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
               <FileText className="h-4 w-4"/>Teklif İste
             </Link>
-            <Link href="/pazaryeri-sepetim" className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
-              <Store className="h-4 w-4"/>Sepetim
+            <Link href="/siparislerim" className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
+              <Store className="h-4 w-4"/>Siparişlerim
             </Link>
             <button type="button" disabled={busy} onClick={()=>void follow()} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 disabled:opacity-50 sm:flex-row sm:text-sm">
               <Heart className="h-4 w-4"/>{isFollowing?"Takip Ediliyor":"Mağazayı Takip Et"}
