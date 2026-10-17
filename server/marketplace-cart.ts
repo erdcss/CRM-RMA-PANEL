@@ -87,7 +87,26 @@ function lines(rows:any[]){
 }
 const validateCart=z.object({productId:z.number().int().positive(),boxes:z.number().int().min(1).max(10000),
   deliveryMode:z.enum(["direct","warehouse"])}).strict();
-export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHandler){
+export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHandler,requireSeller:RequestHandler){
+ app.get("/api/marketplace/seller/orders",requireSeller,async(_req,res)=>{
+  try{
+   const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
+   const result=await db.query(`SELECT d.id,d.order_id,d.status,d.subtotal,d.delivery_mode,
+     o.created_at,o.currency,o.buyer_user_id,
+     COALESCE(json_agg(json_build_object('productId',i.product_id,'sku',p.sku,'name',v.content->>'name',
+       'boxes',i.boxes,'unitsPerBox',i.units_per_box,'price',i.unit_price,'total',i.line_total))
+       FILTER(WHERE i.id IS NOT NULL),'[]'::json) AS items
+     FROM mp_supplier_order_drafts d JOIN mp_order_drafts o ON o.id=d.order_id
+     JOIN mp_suppliers s ON s.id=d.supplier_id AND s.owner_user_id=$1
+     LEFT JOIN mp_supplier_order_items i ON i.supplier_order_id=d.id
+     LEFT JOIN mp_products p ON p.id=i.product_id
+     LEFT JOIN mp_product_versions v ON v.id=i.revision_id
+     WHERE o.status='pending_confirmation' AND d.status='pending_confirmation'
+     GROUP BY d.id,o.id ORDER BY d.id DESC LIMIT 100`,[uid]);
+   res.setHeader("Cache-Control","private, no-store");
+   res.json(result.rows);
+  }catch(e){console.error("Seller orders:",e);res.status(500).json({error:"Siparişler yüklenemedi"});}
+ });
  app.get("/api/marketplace/cart",requireB2B,async(_req,res)=>{
   try{const db=await ready();const r=await db.query(listQuery,[Number((res.locals as any).b2bUser.id)]);
     res.setHeader("Cache-Control","private,no-store");res.json(lines(r.rows));}
