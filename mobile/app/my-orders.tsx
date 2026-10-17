@@ -11,11 +11,13 @@ export default function MyOrdersScreen() {
   const router = useRouter();
   const { palette } = useAppearance();
   const [orders, setOrders] = useState<B2BOrderSummary[]>([]);
+  const [supplierOrders,setSupplierOrders]=useState<Array<{id:number;status:string;subtotal:number;created_at:string}>>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const load = useCallback(async () => {
-    const result = await rmaApi.listB2BOrders();
-    setOrders(Array.isArray(result) ? result : []);
+    const [own,supplier]=await Promise.allSettled([rmaApi.listB2BOrders(),rmaApi.listMarketplaceOrders()]);
+    if(own.status==='fulfilled')setOrders(Array.isArray(own.value)?own.value:[]);
+    if(supplier.status==='fulfilled')setSupplierOrders(Array.isArray(supplier.value)?supplier.value:[]);
   }, []);
   useEffect(() => { let mounted = true; void load().catch(() => undefined).finally(() => { if (mounted) setLoading(false); }); return () => { mounted = false; }; }, [load]);
   const refresh = async () => { setRefreshing(true); try { await load(); } catch {} finally { setRefreshing(false); } };
@@ -28,7 +30,16 @@ export default function MyOrdersScreen() {
       <View style={styles.back} />
     </View>
     <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.text} />} contentContainerStyle={styles.content}>
-      {loading ? <ActivityIndicator color={palette.accent} /> : orders.length ? orders.map((order) => (
+      {loading ? <ActivityIndicator color={palette.accent} /> : (orders.length||supplierOrders.length) ? (<>
+      {supplierOrders.map(order=><View key={'mp-'+order.id} style={[styles.card,{backgroundColor:palette.surface,borderColor:palette.border}]}>
+        <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8}}>
+          <Text style={{color:palette.text,fontWeight:'900',fontSize:15}}>Tedarikçi Siparişi #{order.id}</Text>
+          <Text style={{color:'#92400E',fontWeight:'800',fontSize:10,backgroundColor:'#FEF3C7',padding:6,borderRadius:9}}>Onay bekliyor</Text>
+        </View>
+        <Text style={{color:palette.textSecondary,marginTop:8,fontSize:12}}>{new Date(order.created_at).toLocaleDateString('tr-TR')} · Ödeme alınmadı</Text>
+        <Text style={{color:palette.text,fontWeight:'900',fontSize:18,marginTop:8}}>{Number(order.subtotal).toLocaleString('tr-TR',{style:'currency',currency:'TRY'})}</Text>
+      </View>)}
+      {orders.map((order) => (
         <Pressable key={String(order.id)} accessibilityRole="button" accessibilityLabel={`Sipariş detayını aç: ${order.order_number || order.id}`} onPress={() => router.push({ pathname: '/my-orders/[id]', params: { id: String(order.id) } } as never)} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
           <View style={{ flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12 }}>
             <Text style={{ color: palette.text,fontSize:15,fontWeight:'800',flex:1 }} numberOfLines={1}>{order.order_number || 'Sipariş #'+order.id}</Text>
@@ -48,7 +59,8 @@ export default function MyOrdersScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ color: palette.text, fontSize: 12, fontWeight: '700' }}>Detaylar</Text><Ionicons name="chevron-forward" size={16} color={palette.text}/></View>
           </View>
         </Pressable>
-      )) : <View style={styles.empty}>
+      ))}
+    </>) : <View style={styles.empty}>
         <Ionicons name="bag-handle-outline" size={40} color={palette.muted} />
         <Text style={{ color:palette.text,fontSize:17,fontWeight:'800',marginTop:13 }}>Henüz siparişiniz yok</Text>
         <Text style={{ color:palette.textSecondary,marginTop:5 }}>Verdiğiniz siparişler burada listelenir.</Text>
