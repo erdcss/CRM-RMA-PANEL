@@ -8,11 +8,11 @@ type CartItem={id:number;supplier_id:number|string;product_id:number;boxes:numbe
   total:number;valid:boolean;content?:{name:string;imageUrl:string;unitsPerBox:number;minBoxes:number}};
 type Group={supplierId:number;companyName:string;deliveryMode:string;subtotal:number;platformFee:number;warehouseFee:number};
 type Cart={items:CartItem[];supplierOrders:Group[];subtotal:number;currency:string;paymentEnabled:boolean;notice:string};
-type Draft={id:number;status:string;subtotal:string|number;supplier_orders:number;created_at:string};
+type PendingOrder={id:number;status:string;subtotal:string|number;supplier_orders:number;created_at:string};
 const format=(n:number)=>new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY"}).format(n);
 export default function MarketplaceCart(){
  const {data:cart,isLoading}=useQuery<Cart>({queryKey:["/api/marketplace/cart"],staleTime:0});
- const {data:drafts=[]}=useQuery<Draft[]>({queryKey:["/api/marketplace/order-drafts"],staleTime:0});
+ const {data:orders=[]}=useQuery<PendingOrder[]>({queryKey:["/api/marketplace/orders"],retry:false,staleTime:0});
  const [busy,setBusy]=useState(false),[message,setMessage]=useState("");
  const [requestKey,setRequestKey]=useState(()=>crypto.randomUUID());
  async function remove(item:number){
@@ -21,14 +21,14 @@ export default function MarketplaceCart(){
    catch(e){setMessage(e instanceof Error?e.message:"Ürün silinemedi");}
    finally{setBusy(false);}
  }
- async function draft(){
+ async function placeOrder(){
    setBusy(true);setMessage("");
-   try{const r=await apiRequest("POST","/api/marketplace/order-drafts",{requestKey});
+   try{const r=await apiRequest("POST","/api/marketplace/orders",{requestKey});
      const d=await r.json() as {id:number;message?:string};
-     setMessage("Sipariş taslağı #"+d.id+" kaydedildi. "+(d.message||""));
+     setMessage("Sipariş #"+d.id+" oluşturuldu. "+(d.message||"Tedarikçi onayı bekliyor, ödeme alınmadı."));
      setRequestKey(crypto.randomUUID());
-     await queryClient.invalidateQueries({queryKey:["/api/marketplace/order-drafts"]});
-   }catch(e){setMessage(e instanceof Error?e.message:"Taslak oluşturulamadı");}
+     await Promise.all([queryClient.invalidateQueries({queryKey:["/api/marketplace/orders"]}),queryClient.invalidateQueries({queryKey:["/api/marketplace/cart"]})]);
+   }catch(e){setMessage(e instanceof Error?e.message:"Sipariş oluşturulamadı");}
    finally{setBusy(false);}
  }
  return <main className="min-h-screen bg-[#f6f7f9] px-4 py-6 text-slate-900">
@@ -58,18 +58,18 @@ export default function MarketplaceCart(){
        </div>
        <div className="rounded-2xl border bg-white p-5">
          <div className="flex items-center justify-between text-lg font-bold"><span>Ürünler toplamı</span><span>{format(cart.subtotal)}</span></div>
-         <p className="mt-2 text-xs text-slate-500">KDV, kargo ve fiyatlandırma politikalarının son onayı olmadan bu tutar tahsilat tutarı olarak kabul edilmez.</p>
+         <p className="mt-2 text-xs text-slate-500">Sipariş tedarikçinin onayına gönderilir; ödeme henüz alınmaz.</p>
          <div className="mt-4 flex flex-wrap gap-2">
-           <button disabled={busy||cart.items.some(i=>!i.valid)} onClick={()=>void draft()} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Satıcı Bazında Sipariş Taslağı Oluştur</button>
+           <button disabled={busy||cart.items.some(i=>!i.valid)} onClick={()=>void placeOrder()} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Siparişi Oluştur</button>
            <button disabled className="rounded-xl border px-5 py-3 text-sm font-semibold text-slate-500">Ödeme — Entegrasyon bekleniyor</button>
          </div>
        </div>
      </>}
      <section className="rounded-2xl border bg-white p-5">
-       <h2 className="font-bold">Kaydedilmiş sipariş taslakları</h2>
-       {drafts.length?drafts.map(d=><p key={d.id} className="mt-3 flex justify-between border-b pb-2 text-sm">
+       <h2 className="font-bold">Oluşturulan Tedarikçi Siparişleri</h2>
+       {orders.length?orders.map(d=><p key={d.id} className="mt-3 flex justify-between border-b pb-2 text-sm">
          <span>#{d.id} · {d.supplier_orders} tedarikçi · {new Date(d.created_at).toLocaleString("tr-TR")}</span>
-         <b>{format(Number(d.subtotal))}</b></p>):<p className="mt-2 text-sm text-slate-500">Taslak bulunmuyor.</p>}
+         <b>{format(Number(d.subtotal))}</b></p>):<p className="mt-2 text-sm text-slate-500">Henüz sipariş bulunmuyor.</p>}
      </section>
    </div>
  </main>;
