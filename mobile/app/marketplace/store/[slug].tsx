@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppearance } from '@/contexts/AppearanceContext';
@@ -56,9 +57,9 @@ export default function SellerStore() {
     }catch(e){appAlert('Mağaza takip edilemedi',e instanceof Error?e.message:'Tekrar deneyin.');}
     finally{setBusy(false);}
   };
-  if(loading&&!store)return <View style={[styles.page,{backgroundColor:palette.background}]}><Text style={[styles.info,{color:palette.text}]}>Mağaza yükleniyor…</Text></View>;
-  if(!store)return <View style={[styles.page,{backgroundColor:palette.background}]}><Text style={[styles.info,{color:palette.text}]}>{error||'Mağaza bulunamadı'}</Text></View>;
-  return <ScrollView style={[styles.page,{backgroundColor:palette.background}]} contentContainerStyle={styles.body}
+  if(loading&&!store)return <SafeAreaView edges={['top','bottom']} style={[styles.page,{backgroundColor:palette.background}]}><Text style={[styles.info,{color:palette.text}]}>Mağaza yükleniyor…</Text></SafeAreaView>;
+  if(!store)return <SafeAreaView edges={['top','bottom']} style={[styles.page,{backgroundColor:palette.background}]}><Text style={[styles.info,{color:palette.text}]}>{error||'Mağaza bulunamadı'}</Text></SafeAreaView>;
+  return <SafeAreaView edges={['top','bottom']} style={[styles.page,{backgroundColor:palette.background}]}><ScrollView style={styles.page} contentContainerStyle={styles.body}
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>void refresh(true)}/>}>
     <Pressable style={styles.back} onPress={()=>router.back()}><Ionicons name="chevron-back" size={20} color={palette.text}/><Text style={{color:palette.text,fontWeight:'700'}}>Geri</Text></Pressable>
     <View style={styles.banner}>
@@ -102,18 +103,18 @@ export default function SellerStore() {
           ? <Image source={{uri:absoluteMediaUrl(item.content.imageUrl)||undefined}} style={styles.full} contentFit="contain"/>
           : <Ionicons name="cube-outline" color="#94A3B8" size={35}/>}</View>
         <View style={styles.cardInfo}>
+          <Text numberOfLines={1} style={[styles.sku,{color:palette.textSecondary}]}>{item.sku||'STOK'}</Text>
           <Text numberOfLines={2} style={[styles.productName,{color:palette.text}]}>{item.content.name}</Text>
-          <Text numberOfLines={1} style={[styles.sku,{color:palette.textSecondary}]}>{item.sku}</Text>
           <Text style={[styles.price,{color:palette.text}]}>{price(item.content.price)}</Text>
           <Text numberOfLines={1} style={[styles.sku,{color:palette.textSecondary}]}>Koli içi {Math.max(1,Number(item.content.unitsPerBox)||1)} · Min. {Math.max(1,Number(item.content.minBoxes)||1)}</Text>
         </View>
       </Pressable>
     })}</View>
     {!products.length&&!error ? <Text style={[styles.info,{color:palette.textSecondary}]}>Henüz onaylı ürün yayınlanmamış.</Text>:null}
-  </ScrollView>;
+  </ScrollView></SafeAreaView>;
 }
 const styles=StyleSheet.create({
-  page:{flex:1},body:{padding:14,paddingBottom:50},back:{flexDirection:'row',alignItems:'center',gap:5,paddingVertical:13},
+  page:{flex:1},body:{paddingHorizontal:14,paddingTop:8,paddingBottom:50},back:{flexDirection:'row',alignItems:'center',gap:5,paddingVertical:13,minHeight:48},
   banner:{aspectRatio:3,backgroundColor:'#FFCD00',overflow:'hidden',borderTopLeftRadius:16,borderTopRightRadius:16},
   full:{width:'100%',height:'100%'},profile:{borderWidth:1,borderTopWidth:0,borderBottomLeftRadius:16,borderBottomRightRadius:16,padding:15,paddingTop:43},
   avatar:{position:'absolute',top:-38,left:15,height:76,width:76,borderWidth:4,borderColor:'#FFFFFF',borderRadius:18,backgroundColor:'#FFCD00',overflow:'hidden',alignItems:'center',justifyContent:'center'},
@@ -124,7 +125,8 @@ const styles=StyleSheet.create({
   messageButton:{marginTop:14,borderRadius:10,flexDirection:'row',justifyContent:'center',alignItems:'center',backgroundColor:'#FDE68A',gap:6,padding:10},
   messageButtonText:{fontSize:12,fontWeight:'800',color:'#111827'},
   section:{fontSize:21,fontWeight:'900',marginVertical:17},grid:{flexDirection:'row',flexWrap:'wrap',gap:10},
-  card:{width:'48%',minWidth:0,borderRadius:13,borderWidth:1,overflow:'hidden'},imageBox:{height:145,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center',padding:7},
-  cardInfo:{padding:10,gap:5},productName:{fontSize:13,fontWeight:'800',minHeight:36},sku:{fontSize:10},
-  price:{fontSize:15,fontWeight:'900'},info:{padding:20,textAlign:'center'},
+  card:{width:'48%',minWidth:0,borderRadius:16,borderWidth:1,overflow:'hidden'},
+  imageBox:{aspectRatio:1,backgroundColor:'#FAFAFA',alignItems:'center',justifyContent:'center'},
+  cardInfo:{padding:12,gap:5},productName:{fontSize:14,fontWeight:'700',minHeight:42,marginTop:2},sku:{fontSize:10},
+  price:{fontSize:16,fontWeight:'800',marginTop:7},info:{padding:20,textAlign:'center'},
 });
