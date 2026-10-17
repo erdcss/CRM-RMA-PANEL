@@ -192,13 +192,14 @@ function B2BWebsite() {
       <Switch>
         <Route path="/" component={B2BStorefront} />
         <Route path="/urun/:id" component={B2BProductPage} />
-        <Route path="/magazalar" component={MarketplaceDomainRedirect} />
-        <Route path="/reels" component={MarketplaceDomainRedirect} />
-        <Route path="/magaza/:slug" component={MarketplaceDomainRedirect} />
+        <Route path="/magazalar" component={MarketplaceDirectory} />
+        <Route path="/reels" component={MarketplaceReels} />
+        <Route path="/magaza/:slug/urun/:productId">{(params) => <MarketplaceProduct slug={params.slug} productId={params.productId} />}</Route>
+        <Route path="/magaza/:slug">{(params) => <MarketplaceShop slug={params.slug} />}</Route>
         <Route path="/satici/urun/:id" component={MarketplaceDomainRedirect} />
         <Route path="/satici" component={MarketplaceDomainRedirect} />
-        <Route path="/mesajlarim" component={MarketplaceDomainRedirect} />
-        <Route path="/pazaryeri-sepetim" component={MarketplaceDomainRedirect} />
+        <Route path="/mesajlarim" component={MarketplaceBuyerInbox} />
+        <Route path="/pazaryeri-sepetim" component={MarketplaceCart} />
         <Route path="/uye-girisi" component={B2BLogin} />
         <Route path="/login" component={B2BLogin} />
         <Route path="/kayit-ol" component={B2BRegister} />
