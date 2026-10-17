@@ -21,7 +21,7 @@ app.use((req, res, next) => {
     (name.startsWith("caliskan-b2b-web-") && name.endsWith(".up.railway.app"));
   const b2bHost = isB2BHostname(host) || isB2BHostname(forwardedHost) ||
     process.env.VITE_APP_MODE === "b2b";
-  const marketplaceRoute = /^\/(?:satici(?:\/|$)|magazalar\/?$|magaza(?:\/|$)|mesajlarim\/?$|pazaryeri-sepetim\/?$)/.test(req.path);
+  const marketplaceRoute = /^\/satici(?:\/|$)/.test(req.path);
   if (!b2bHost || !marketplaceRoute) return next();
   const original = req.originalUrl;
   const queryIndex = original.indexOf("?");
