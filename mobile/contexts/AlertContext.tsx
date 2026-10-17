@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Animated, Easing, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAppearance } from '@/contexts/AppearanceContext';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, minTouchTarget, radius, shadows, spacing, typography } from '@/constants/theme';
@@ -18,6 +20,8 @@ type AlertState = {
   message?: string;
   tone: AlertTone;
   buttons: AlertButton[];
+  toast: boolean;
+  sequence: number;
 };
 
 type AlertContextValue = {
@@ -52,11 +56,16 @@ function inferTone(title: string, message?: string): AlertTone {
 }
 
 export function AlertProvider({ children }: { children: ReactNode }) {
+  const insets=useSafeAreaInsets();
+  const {palette:appPalette}=useAppearance();
+  const slide=useRef(new Animated.Value(360)).current;
   const [state, setState] = useState<AlertState>({
     visible: false,
     title: '',
     tone: 'info',
     buttons: [],
+    toast: false,
+    sequence:0,
   });
 
   const close = useCallback(() => {
@@ -67,16 +76,30 @@ export function AlertProvider({ children }: { children: ReactNode }) {
     (title: string, message?: string, buttons?: AlertButton[], tone?: AlertTone) => {
       const resolvedButtons =
         buttons && buttons.length > 0 ? buttons : [{ text: 'Tamam', style: 'default' as const }];
-      setState({
+      setState(previous=>({
         visible: true,
         title,
         message,
         tone: tone ?? inferTone(title, message),
         buttons: resolvedButtons,
-      });
+        toast: !buttons || buttons.length===0,
+        sequence:previous.sequence+1,
+      }));
     },
     [],
   );
+
+  useEffect(()=>{
+    if(!state.visible || !state.toast)return;
+    slide.setValue(360);
+    const enter=Animated.timing(slide,{toValue:0,duration:300,easing:Easing.out(Easing.cubic),useNativeDriver:true});
+    enter.start();
+    const timer=setTimeout(()=>{
+      Animated.timing(slide,{toValue:360,duration:260,easing:Easing.in(Easing.cubic),useNativeDriver:true})
+        .start(({finished})=>{if(finished)setState(current=>current.sequence===state.sequence?{...current,visible:false}:current);});
+    },2900);
+    return()=>{clearTimeout(timer);slide.stopAnimation();};
+  },[state.visible,state.toast,state.sequence,slide]);
 
   const value = useMemo(() => ({ showAlert }), [showAlert]);
   const palette = toneConfig[state.tone];
@@ -89,7 +112,28 @@ export function AlertProvider({ children }: { children: ReactNode }) {
   return (
     <AlertContext.Provider value={value}>
       {children}
-      <Modal visible={state.visible} transparent animationType="fade" onRequestClose={close}>
+      {state.visible && state.toast ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[styles.toastPosition,{top:insets.top+10,transform:[{translateX:slide}]}]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={state.title+'. Bildirimi kapat'}
+            accessibilityLiveRegion="polite"
+            onPress={close}
+            style={[styles.toastCard,{backgroundColor:appPalette.surface,borderColor:appPalette.border}]}
+          >
+            <Ionicons name={palette.icon} size={21} color={palette.color}/>
+            <View style={{flex:1,minWidth:0}}>
+              <Text numberOfLines={1} style={[styles.toastTitle,{color:appPalette.text}]}>{state.title}</Text>
+              {state.message ? <Text numberOfLines={2} style={[styles.toastMessage,{color:appPalette.textSecondary}]}>{state.message}</Text> : null}
+            </View>
+            <Ionicons name="close" size={17} color={appPalette.textSecondary}/>
+          </Pressable>
+        </Animated.View>
+      ) : null}
+      <Modal visible={state.visible && !state.toast} transparent animationType="fade" onRequestClose={close}>
         <View style={styles.overlay}>
           <View style={styles.card}>
             <View style={[styles.iconWrap, { backgroundColor: palette.bg }]}>
@@ -141,6 +185,10 @@ export function useAppAlert() {
 }
 
 const styles = StyleSheet.create({
+  toastPosition:{position:'absolute',right:12,zIndex:9998,width:'92%',maxWidth:380,alignSelf:'flex-end',elevation:30},
+  toastCard:{minHeight:53,borderWidth:1,borderLeftWidth:3,borderLeftColor:'#FFCD00',borderRadius:13,paddingVertical:10,paddingHorizontal:12,flexDirection:'row',alignItems:'center',gap:10,shadowColor:'#000',shadowOpacity:0.14,shadowRadius:11,shadowOffset:{width:0,height:4},elevation:10},
+  toastTitle:{fontSize:13,fontWeight:'900'},
+  toastMessage:{fontSize:11,marginTop:2,lineHeight:16},
   overlay: {
     flex: 1,
     backgroundColor: colors.overlay,
