@@ -13,6 +13,11 @@ on:
       - 'client/src/pages/admin-product-ai-import.tsx'
       - 'server/admin-platform.ts'
       - 'client/src/App.tsx'
+      - 'client/src/pages/marketplace-seller.tsx'
+      - 'client/src/pages/marketplace-public.tsx'
+      - 'server/marketplace.ts'
+      - 'server/marketplace-media.ts'
+      - 'server/marketplace-cart.ts'
       - 'client/src/components/app-sidebar.tsx'
       - '.github/workflows/b2b-notifications-invoices-build.yml'
   workflow_dispatch:
