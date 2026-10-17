@@ -2,34 +2,19 @@ import { useEffect, useState, type ReactNode } from "react";
 import { trackProductView } from "@/lib/analytics";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Truck, Warehouse } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 import { addB2BCartItem } from "@/lib/b2b-cart";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { loadApprovedSupplierProduct, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 
 type SessionUser = {
   role?: string;
   isActive?: boolean;
 };
 
-type Product = {
-  id: string | number;
-  sku?: string | null;
-  name?: string | null;
-  description?: string | null;
-  brand?: string | null;
-  category?: string | null;
-  price?: number | string | null;
-  stock?: number | null;
-  min_order_qty?: number | null;
-  units_per_box?: number | null;
-  image_data?: string | null;
-  image_url?: string | null;
-  collection_name?: string | null;
-  features?: string[] | null;
-  variants?: Array<Record<string, string>> | null;
-};
 
 async function loadSession(): Promise<SessionUser | null> {
   const response = await fetch("/api/auth/me", { credentials: "include" });
@@ -37,7 +22,8 @@ async function loadSession(): Promise<SessionUser | null> {
   return response.json();
 }
 
-async function loadProduct(id: string): Promise<Product> {
+async function loadProduct(id: string): Promise<UnifiedB2BProduct> {
+  if (id.startsWith("mp-")) return loadApprovedSupplierProduct(id);
   const response = await fetch(`/api/b2b/products/${encodeURIComponent(id)}`, { credentials: "include" });
   if (!response.ok) throw new Error(response.status === 404 ? "Ürün bulunamadı" : "Ürün yüklenemedi");
   return response.json();
@@ -57,6 +43,7 @@ export default function B2BProductPage() {
     session?.role === "b2b_customer" &&
     session?.isActive === true;
   const [quantity, setQuantity] = useState(1);
+  const [busy, setBusy] = useState(false);
 
   const { data: product, isLoading, error } = useQuery({
     queryKey: ["/api/b2b/products", id, loggedIn ? "member" : "guest"],
@@ -86,6 +73,7 @@ export default function B2BProductPage() {
   }
 
   const image = product.image_data || product.image_url;
+  const isSupplier = product.marketplace === true && Boolean(product.marketplace_product_id && product.seller_slug);
   const pack = Math.max(1, Number(product.units_per_box || 1));
   const min = Math.max(1, Number(product.min_order_qty || 1));
   const stock = Math.max(0, Number(product.stock || 0));
@@ -119,6 +107,17 @@ export default function B2BProductPage() {
           <section className="rounded-xl border bg-white p-4 sm:p-5">
             <div className="text-xs text-slate-500">Stok Kodu: <b className="text-slate-700">{product.sku || "—"}</b></div>
             <h1 className="mt-2 text-xl font-black leading-tight sm:text-2xl">{product.name || "Ürün"}</h1>
+            {isSupplier ? (
+              <Link href={"/magaza/" + encodeURIComponent(product.seller_slug!)} className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-amber-300">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#FFCD00] text-amber-900">
+                  {product.seller_logo_url ? <img src={product.seller_logo_url} alt={product.seller_name + " logosu"} className="h-full w-full object-contain"/> : <Store className="h-6 w-6"/>}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1 text-sm font-bold"><span className="truncate">{product.seller_name}</span><BadgeCheck className="h-4 w-4 shrink-0 text-green-600"/></span>
+                  <span className="mt-1 block text-xs font-bold text-amber-800">Mağazayı görüntüle →</span>
+                </span>
+              </Link>
+            ) : null}
             {product.description ? (
               <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
                 {product.description}
@@ -197,8 +196,20 @@ export default function B2BProductPage() {
                   <div className="flex flex-col gap-2 sm:min-w-52">
                     <Button
                       type="button"
-                      disabled={maxBoxes < min}
-                      onClick={() => {
+                      disabled={maxBoxes < min || busy}
+                      onClick={async () => {
+                        if (isSupplier) {
+                          if (busy) return;
+                          setBusy(true);
+                          try {
+                            await apiRequest("POST", "/api/marketplace/cart", { productId: product.marketplace_product_id, boxes: effectiveQuantity, deliveryMode: "direct" });
+                            await queryClient.invalidateQueries({ queryKey: ["/api/marketplace/cart"] });
+                            toast({title:"Sepete eklendi",description:product.name + " · " + effectiveQuantity + " koli"});
+                          } catch (error) {
+                            toast({title:"Sepete eklenemedi",description:error instanceof Error ? error.message : "Lütfen tekrar deneyin.",variant:"destructive"});
+                          } finally { setBusy(false); }
+                          return;
+                        }
                         addB2BCartItem({
                           productId: String(product.id),
                           sku: String(product.sku || ""),
@@ -217,12 +228,12 @@ export default function B2BProductPage() {
                       }}
                     >
                       <ShoppingBag className="mr-2 h-4 w-4" />
-                      Siparişlere Ekle
+                      {isSupplier ? "Sepete Ekle" : "Siparişlere Ekle"}
                     </Button>
                     <Button asChild disabled={maxBoxes < min} variant="outline">
-                      <Link href={`/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
+                      <Link href={isSupplier ? "/pazaryeri-sepetim" : `/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
                         <CreditCard className="mr-2 h-4 w-4" />
-                        Hemen Öde
+                        {isSupplier ? "Sepetim" : "Hemen Öde"}
                       </Link>
                     </Button>
                   </div>
@@ -242,7 +253,9 @@ export default function B2BProductPage() {
 
             <div className="mt-5 flex items-center gap-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
               <Truck className="h-5 w-5 text-slate-700" />
-              {loggedIn
+              {isSupplier
+                ? "Tedarikçi siparişiniz satıcı onayı beklemek üzere oluşturulur. Online ödeme henüz aktif değildir."
+                : loggedIn
                 ? "Siparişinizi kart veya Havale/EFT ile tamamlayabilirsiniz."
                 : "Sipariş ve sevkiyat seçenekleri giriş yaptıktan sonra aktif olur."}
             </div>
