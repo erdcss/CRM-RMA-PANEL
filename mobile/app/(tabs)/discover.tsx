@@ -185,7 +185,7 @@ function ReelCard({
             accessibilityRole="link"
             accessibilityLabel={item.seller_name + ' mağazasını görüntüle'}
             style={styles.sellerRow}
-            onPress={() => void Linking.openURL('https://pazaryeri.ecalisgan.com/magaza/' + encodeURIComponent(item.seller_slug!))}
+            onPress={() => router.push({pathname:'/marketplace/store/[slug]',params:{slug:item.seller_slug!}} as never)}
           >
             <View style={styles.sellerAvatar}>
               {item.seller_logo_url ? (
@@ -207,7 +207,7 @@ function ReelCard({
             style={styles.productButton}
             onPress={() => {
               if (item.marketplace && item.seller_slug) {
-                void Linking.openURL('https://pazaryeri.ecalisgan.com/magaza/' + encodeURIComponent(item.seller_slug) + '/urun/' + encodeURIComponent(String(item.product_id)));
+                router.push({pathname:'/product/[id]',params:{id:'mp-'+String(item.product_id),slug:item.seller_slug}} as never);
               } else {
                 router.push({pathname:'/product/[id]',params:{id:String(item.product_id)}} as never);
               }
