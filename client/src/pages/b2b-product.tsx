@@ -44,6 +44,8 @@ export default function B2BProductPage() {
     session?.isActive === true;
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [added,setAdded] = useState(false);
+  useEffect(()=>{if(!added)return;const t=window.setTimeout(()=>setAdded(false),2400);return ()=>window.clearTimeout(t);},[added]);
 
   const { data: product, isLoading, error } = useQuery({
     queryKey: ["/api/b2b/products", id, loggedIn ? "member" : "guest"],
@@ -197,16 +199,19 @@ export default function B2BProductPage() {
                     <Button
                       type="button"
                       disabled={maxBoxes < min || busy}
+                      className={added?"bg-green-500 text-white hover:bg-green-600 transition-colors":"transition-colors"}
                       onClick={async () => {
                         if (isSupplier) {
                           if (busy) return;
                           setBusy(true);
                           try {
                             await apiRequest("POST", "/api/marketplace/cart", { productId: product.marketplace_product_id, boxes: effectiveQuantity, deliveryMode: "direct" });
+                            addB2BCartItem({productId:String(product.id),sku:String(product.sku||""),name:String(product.name||"Ürün"),image:image||null,price:Number(product.price||0),quantity:effectiveQuantity,minOrderQty:min,unitsPerBox:pack,stock});
                             await queryClient.invalidateQueries({ queryKey: ["/api/marketplace/cart"] });
-                            toast({title:"Sepete eklendi",description:product.name + " · " + effectiveQuantity + " koli"});
+                            setAdded(true);
+                            toast({title:"Siparişlere eklendi",description:product.name + " · " + effectiveQuantity + " koli"});
                           } catch (error) {
-                            toast({title:"Sepete eklenemedi",description:error instanceof Error ? error.message : "Lütfen tekrar deneyin.",variant:"destructive"});
+                            toast({title:"Siparişlere eklenemedi",description:error instanceof Error ? error.message : "Lütfen tekrar deneyin.",variant:"destructive"});
                           } finally { setBusy(false); }
                           return;
                         }
@@ -221,6 +226,7 @@ export default function B2BProductPage() {
                           unitsPerBox: pack,
                           stock,
                         });
+                        setAdded(true);
                         toast({
                           title: "Siparişlere eklendi",
                           description: `${product.name || "Ürün"} · ${effectiveQuantity} koli · ${effectiveQuantity * pack} adet`,
@@ -228,12 +234,12 @@ export default function B2BProductPage() {
                       }}
                     >
                       <ShoppingBag className="mr-2 h-4 w-4" />
-                      {isSupplier ? "Sepete Ekle" : "Siparişlere Ekle"}
+                      {added ? "Siparişlere Eklendi" : "Siparişlere Ekle"}
                     </Button>
                     <Button asChild disabled={maxBoxes < min} variant="outline">
-                      <Link href={isSupplier ? "/pazaryeri-sepetim" : `/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
+                      <Link href={isSupplier ? "/siparislerim" : `/odeme?productId=${encodeURIComponent(String(product.id))}&qty=${effectiveQuantity}`}>
                         <CreditCard className="mr-2 h-4 w-4" />
-                        {isSupplier ? "Sepetim" : "Hemen Öde"}
+                        {isSupplier ? "Siparişlerim" : "Hemen Öde"}
                       </Link>
                     </Button>
                   </div>
