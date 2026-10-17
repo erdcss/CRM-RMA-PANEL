@@ -112,9 +112,12 @@ syncFromGitHub();
 const timer = setInterval(syncFromGitHub, 4000);
 
 const expoCommand = isWindows ? "cmd.exe" : "npx";
+// Force the dedicated dev build's URI scheme so iOS cannot choose the
+// TestFlight application's old Expo-generated URL handler.
+const devScheme = "caliskanb2b-dev";
 const expoArgs = isWindows
-  ? ["/d", "/s", "/c", `npx expo start --dev-client ${connectionMode}`]
-  : ["expo", "start", "--dev-client", connectionMode];
+  ? ["/d", "/s", "/c", `npx expo start --dev-client --scheme ${devScheme} ${connectionMode}`]
+  : ["expo", "start", "--dev-client", "--scheme", devScheme, connectionMode];
 
 const expo = spawn(expoCommand, expoArgs, {
   cwd: mobileRoot,
