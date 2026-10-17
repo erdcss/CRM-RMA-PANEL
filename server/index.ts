@@ -20,6 +20,7 @@ if (process.env.APP_SERVICE_MODE === "marketplace") {
     const allowed = path === "/api/health" ||
       path === "/api/auth/me" || path === "/api/auth/logout" ||
       path === "/api/public/branding" || path.startsWith("/api/public/branding-icon/") ||
+      path.startsWith("/api/public/branding-asset/") || path.startsWith("/api/public/branding-image/") ||
       path.startsWith("/api/seller/") || path.startsWith("/api/marketplace/");
     if (!allowed) return res.status(404).json({ error: "Bu servis yalnızca tedarikçi işlemleri içindir." });
     next();
