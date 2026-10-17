@@ -197,15 +197,37 @@ export function MarketplaceBuyerInbox(){
     const v=new URLSearchParams(window.location.search).get("conversation");
     return v&&Number.isSafeInteger(Number(v))?Number(v):null;
   });
+  const [storeSlug]=useState(()=>new URLSearchParams(window.location.search).get("store")||"");
   const [text,setText]=useState("");
   const [boxes,setBoxes]=useState("1");
   const [quoteMessage,setQuoteMessage]=useState("");
   const [message,setMessage]=useState("");
-  const {data:conversations=[]}=useQuery<Array<{id:number;company_name:string;latest_message:string}>>({queryKey:["/api/marketplace/conversations"],staleTime:0});
+  const {data:conversations=[]}=useQuery<Array<{id:number;company_name:string;slug:string;latest_message:string}>>({queryKey:["/api/marketplace/conversations"],retry:false,staleTime:0});
+  const {data:selectedStore}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+storeSlug],enabled:!!storeSlug,retry:false,staleTime:30000});
+  useEffect(()=>{
+    if(selected||!storeSlug)return;
+    const current=conversations.find(c=>c.slug===storeSlug);
+    if(current)setSelected(Number(current.id));
+  },[selected,storeSlug,conversations]);
   const {data:messages=[]}=useQuery<Array<{id:number;text:string;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selected+"/messages"],enabled:!!selected,staleTime:0});
   const {data:quotes=[]}=useQuery<Array<{id:number;conversation_id:number;status:string;boxes:number;latest_offer?:{amount_per_box:string;expires_at:string}}>>({
     queryKey:["/api/marketplace/quotes"],staleTime:0});
+  async function sendMessage(){
+    const clean=text.trim();if(!clean)return;
+    setMessage("");
+    try{
+      if(selected){await apiRequest("POST","/api/marketplace/conversations/"+selected+"/messages",{text:clean});}
+      else if(storeSlug){
+        const response=await apiRequest("POST","/api/marketplace/conversations",{slug:storeSlug,text:clean});
+        const conversation=await response.json() as {id:number};
+        setSelected(conversation.id);
+      }else return;
+      setText("");
+      await queryClient.invalidateQueries({queryKey:["/api/marketplace/conversations"]});
+      if(selected)await queryClient.invalidateQueries({queryKey:["/api/marketplace/conversations/"+selected+"/messages"]});
+    }catch(e){setMessage(e instanceof Error?e.message:"Mesaj gönderilemedi. İşletme hesabıyla giriş yapın.");}
+  }
   async function doAction(path:string,body:object,refresh:string[]){
     setMessage("");
     try{await apiRequest("POST",path,body);await Promise.all(refresh.map(k=>queryClient.invalidateQueries({queryKey:[k]})));setText("");setQuoteMessage("");}
@@ -221,19 +243,20 @@ export function MarketplaceBuyerInbox(){
         <b>{c.company_name}</b><p className="truncate text-xs text-slate-500">{c.latest_message}</p></button>)}
         {!conversations.length?<p className="text-xs text-slate-500">Görüşme başlatmak için bir mağazaya gidin.</p>:null}
       </div>
-      <div className={box+" space-y-4 md:col-span-2"}>{!selected?<p className="text-sm text-slate-500">Bir sohbet seçin.</p>:<>
+      <div className={box+" space-y-4 md:col-span-2"}>{!selected&&!storeSlug?<p className="text-sm text-slate-500">Bir sohbet seçin.</p>:<>
+        {!selected&&storeSlug?<p className="rounded-lg bg-amber-50 p-3 text-sm font-semibold">Yeni sohbet: {selectedStore?.company_name||storeSlug}. Mesaj yazarak görüşmeyi başlatın.</p>:null}
         <div className="max-h-72 space-y-2 overflow-y-auto">{messages.map(m=><div key={m.id} className="rounded-lg bg-slate-50 p-3 text-sm">
           <p>{m.text}</p><span className="text-xs text-slate-400">{new Date(m.created_at).toLocaleString("tr-TR")}</span></div>)}</div>
-        <form onSubmit={e=>{e.preventDefault();void doAction("/api/marketplace/conversations/"+selected+"/messages",{text},
-          ["/api/marketplace/conversations/"+selected+"/messages","/api/marketplace/conversations"]);}} className="flex gap-2">
+        <form onSubmit={e=>{e.preventDefault();void sendMessage();}} className="flex gap-2">
           <input value={text} onChange={e=>setText(e.target.value)} required className="min-w-0 flex-1 rounded-lg border p-3 text-sm" placeholder="Mesaj yaz"/>
           <button className="rounded-lg bg-slate-950 px-4 text-sm font-bold text-white">Gönder</button>
         </form>
         <div className="space-y-2 border-t pt-4"><h3 className="font-semibold">Toptan teklif talebi oluştur</h3>
+          {!selected?<p className="text-xs text-amber-800">Teklif isteyebilmek için önce mağazaya bir mesaj gönderin.</p>:null}
           <p className="text-xs text-slate-500">Satıcı bu görüşmeden koli bazlı resmi fiyat teklifi gönderebilir.</p>
           <div className="flex gap-2"><input className="w-24 rounded-lg border p-2 text-sm" type="number" min="1" value={boxes} onChange={e=>setBoxes(e.target.value)}/>
           <input className="min-w-0 flex-1 rounded-lg border p-2 text-sm" placeholder="Ürün ve teslimat bilgisi" value={quoteMessage} onChange={e=>setQuoteMessage(e.target.value)}/></div>
-          <button onClick={()=>void doAction("/api/marketplace/quotes",{conversationId:selected,boxes:Number(boxes),details:quoteMessage},
+          <button disabled={!selected} onClick={()=>void doAction("/api/marketplace/quotes",{conversationId:selected,boxes:Number(boxes),details:quoteMessage},
             ["/api/marketplace/quotes"])} className="rounded-lg border px-4 py-2 text-sm font-bold"><FileText className="mr-2 inline h-4 w-4"/>Teklif İste</button>
         </div></>}
       </div>
