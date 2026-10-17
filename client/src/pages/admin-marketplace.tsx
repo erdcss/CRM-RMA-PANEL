@@ -28,6 +28,7 @@ const label=(r:Review,tab:Tab)=>tab==="suppliers"?(r.company_name||"Tedarikçi")
   tab==="products"?(String(r.content?.name||"Ürün") + (r.company_name?" · "+r.company_name:"")):
   r.title||"Reels";
 const count=(arr:Metric[],s="pending")=>arr.find(x=>x.status===s)?.total||0;
+const storeMedia=(value:unknown)=>typeof value==="string"&&/^\/api\/marketplace\/media\/[a-f0-9]{32}$/.test(value)?value:null;
 
 export default function AdminMarketplace(){
   const [tab,setTab]=useState<Tab>("overview");
@@ -108,7 +109,7 @@ export default function AdminMarketplace(){
         </section>
       </div>:<section className="space-y-3">
         <div className="flex items-center justify-between gap-2"><h2 className="text-lg font-bold">{tabs.find(t=>t.key===tab)?.label}</h2>
-          <span className="text-xs text-muted-foreground">Son 100 kayıt · Bekleyenler ve geçmiş</span></div>
+          <span className="text-xs text-muted-foreground">{tab==="stores"?"Tedarikçi başına son gönderilen tasarım · Son 100 mağaza":"Son 100 kayıt · Bekleyenler ve geçmiş"}</span></div>
         {groups[tab].length===0?<div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">Henüz kayıt bulunmuyor.</div>:null}
         {groups[tab].map(r=>{
           const key=tab+":"+r.id;
@@ -137,12 +138,17 @@ export default function AdminMarketplace(){
                     </div>
                   </div>:null}
                 {tab==="stores"?
-                  <div className="mt-3 flex items-center gap-4 rounded-xl border bg-muted/20 p-3">
-                    <div className="h-14 w-14 shrink-0 rounded-xl border" style={{backgroundColor:typeof r.content?.accent==="string"&&/^#[a-fA-F0-9]{6}$/.test(r.content.accent)?r.content.accent:"#FACC15"}}/>
-                    <div className="min-w-0 text-sm">
+                  <div className="mt-3 flex flex-wrap items-center gap-4 rounded-xl border bg-muted/20 p-3">
+                    <div className="relative h-20 w-36 shrink-0 overflow-hidden rounded-xl border" style={{backgroundColor:typeof r.content?.accent==="string"&&/^#[a-fA-F0-9]{6}$/.test(r.content.accent)?r.content.accent:"#FACC15"}}>
+                      {storeMedia(r.content?.bannerUrl)?<img src={storeMedia(r.content?.bannerUrl)!} alt="Son gönderilen mağaza bannerı" className="h-full w-full object-cover"/>:null}
+                      <div className="absolute bottom-1 left-1 flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border-2 border-white bg-white shadow-sm">
+                        {storeMedia(r.content?.logoUrl)?<img src={storeMedia(r.content?.logoUrl)!} alt="Son gönderilen mağaza logosu" className="h-full w-full object-contain"/>:<Store className="h-5 w-5 text-slate-500"/>}
+                      </div>
+                    </div>
+                    <div className="min-w-0 flex-1 text-sm">
                       <p className="font-semibold">{String(r.content?.title||r.company_name||"Mağaza")}</p>
                       <p className="text-muted-foreground">{String(r.content?.tagline||"Slogan eklenmemiş")}</p>
-                      <p className="text-xs text-muted-foreground">Logo, banner, renk paleti ve blok yerleşimini inceleyin</p>
+                      <p className="text-xs text-muted-foreground">En son gönderilen sürüm · Logo, banner ve renk paleti önizlemesi</p>
                     </div>
                   </div>:null}
                 {tab==="reels"?
