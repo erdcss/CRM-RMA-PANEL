@@ -83,8 +83,8 @@ export default function SellerStore() {
         <Pressable style={styles.action} onPress={()=>{if(!requiresLogin())navigate('/marketplace/quote/[slug]',{slug:String(slug)})}}>
           <Ionicons name="document-text-outline" size={19} color="#111827"/><Text style={styles.actionText}>Teklif İste</Text>
         </Pressable>
-        <Pressable style={styles.action} onPress={()=>{if(!requiresLogin())navigate('/marketplace/cart')}}>
-          <Ionicons name="cart-outline" size={19} color="#111827"/><Text style={styles.actionText}>Sepetim</Text>
+        <Pressable style={styles.action} onPress={()=>{if(!requiresLogin())navigate('/(tabs)/orders')}}>
+          <Ionicons name="cart-outline" size={19} color="#111827"/><Text style={styles.actionText}>Siparişlerim</Text>
         </Pressable>
         <Pressable style={[styles.action,following&&styles.following]} disabled={busy} onPress={()=>void follow()}>
           <Ionicons name={following?'checkmark-circle':'heart-outline'} size={18} color="#111827"/>
