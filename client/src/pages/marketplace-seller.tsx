@@ -1,13 +1,13 @@
 
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, RefreshCw, Building2, CheckCircle2, LogOut, LayoutDashboard, RotateCcw, Wallet } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string};
-type Product={id:number;sku:string;stock:number;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string}};
+type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Quote={id:number;status:string;boxes:number;details:string;sku?:string;company_name?:string;latest_offer?:{amount_per_box:string;expires_at:string}};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
@@ -20,8 +20,48 @@ const boxStyle="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6";
 const statusTR:Record<string,string>={approved:"Onaylandı",pending:"Onay bekliyor",rejected:"Reddedildi",requested:"Talep edildi",offered:"Teklif verildi",accepted:"Kabul edildi",expired:"Süresi doldu"};
 function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="block space-y-1.5"><span className="text-xs font-bold text-slate-600">{label}</span>{children}</label>;}
 function Notice({text}:{text:string}){return <div role="status" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{text}</div>;}
+
+function QuickProductPriceStock({record}:{record:Product}){
+  const [price,setPrice]=useState(String(record.current_price??record.live?.price??record.latest?.content?.price??""));
+  const [stock,setStock]=useState(String(record.stock));
+  const [working,setWorking]=useState(false);
+  const [feedback,setFeedback]=useState("");
+  useEffect(()=>{
+    setPrice(String(record.current_price??record.live?.price??record.latest?.content?.price??""));
+    setStock(String(record.stock));
+  },[record.id,record.current_price,record.stock]);
+  async function save(){
+    setWorking(true);setFeedback("");
+    try{
+      const amount=Number(price),count=Number(stock);
+      if(!Number.isFinite(amount)||amount<=0||!Number.isSafeInteger(count)||count<0)
+        throw new Error("Fiyat pozitif, stok sıfır veya pozitif tam sayı olmalıdır.");
+      await send("PATCH","/api/marketplace/seller/products/"+record.id+"/quick",{price:amount,stock:count});
+      await queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/products"]});
+      setFeedback("Kaydedildi");
+    }catch(e){setFeedback(e instanceof Error?e.message:"Güncelleme başarısız");}
+    finally{setWorking(false);}
+  }
+  return <>
+    <td className="p-2" onClick={e=>e.stopPropagation()}>
+      <input aria-label={record.sku+" stok miktarı"} className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs"
+        type="number" min="0" step="1" value={stock} disabled={working} onChange={e=>setStock(e.target.value)}/>
+    </td>
+    <td className="p-2" onClick={e=>e.stopPropagation()}>
+      <div className="flex items-center gap-2">
+        <input aria-label={record.sku+" satış fiyatı"} className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs"
+          type="number" min="0.01" step="0.01" value={price} disabled={working} onChange={e=>setPrice(e.target.value)}/>
+        <button type="button" disabled={working} onClick={()=>void save()} title="Stok ve fiyatı hemen kaydet"
+          className="shrink-0 rounded-lg bg-green-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Kaydet</button>
+      </div>
+      {feedback?<p role="status" className="mt-1 max-w-48 text-[11px] text-slate-600">{feedback}</p>:null}
+    </td>
+  </>;
+}
+
 export default function MarketplaceSeller(){
   const [tab,setTab]=useState<Tab>("dashboard");
+  const [,navigate]=useLocation();
   const [verification,setVerification]=useState({companyType:"",iban:"",taxDocument:"",taxNumber:"",taxOffice:"",contactPhone:"",contactEmail:""});
   const [form,setForm]=useState({companyName:"",taxNumber:"",taxOffice:"",contactName:"",contactPhone:"",contactEmail:"",description:""});
   const [store,setStore]=useState({title:"",tagline:"",accent:"#FACC15",bannerUrl:"",logoUrl:"",sections:["banner","categories","products","reels","about"]});
@@ -150,7 +190,7 @@ export default function MarketplaceSeller(){
             </div>
           </div>:null}
           {tab==="products"?<div className={boxStyle+" space-y-5"}>
-            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black">Ürünlerim</h2><p className="text-sm text-slate-500">Ürünlerinizi yönetin, yeni ürünleri onaya gönderin.</p></div><button type="button" onClick={()=>setProductFormOpen(v=>!v)} className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-[#ffcc00]">{productFormOpen?"Listeye Dön":"＋ Ürün Ekle"}</button></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black">Ürünlerim</h2><p className="text-sm text-slate-500">Fiyat ve stok hemen güncellenir. Ürün bilgileri için satıra tıklayıp yönetici onayına gönderin.</p></div><button type="button" onClick={()=>setProductFormOpen(v=>!v)} className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-[#ffcc00]">{productFormOpen?"Listeye Dön":"＋ Ürün Ekle"}</button></div>
             <div className="flex gap-2 overflow-x-auto border-b pb-3">{([{key:"all",label:"Tüm Ürünler"},{key:"approved",label:"Aktif Ürünler"},{key:"pending",label:"Onay Bekleyen Ürünler"},{key:"rejected",label:"Reddedilen Ürünler"}] as const).map(item=><button type="button" key={item.key} onClick={()=>{setProductFilter(item.key);setProductFormOpen(false);}} className={"shrink-0 rounded-lg px-4 py-2 text-sm font-bold "+(productFilter===item.key?"bg-black text-[#ffcc00]":"bg-slate-100 text-slate-600")}>{item.label}</button>)}</div>
             {productFormOpen?<div className="space-y-5">
               <div className="rounded-xl border border-dashed border-amber-400 bg-amber-50 p-4"><h3 className="font-bold">AI ile Toplu Ürün Aktarımı</h3><p className="my-2 text-xs text-slate-600">PDF veya PNG/JPEG ürün listesi yükleyin. AI alanları ayırır; onaya göndermeden önce eksikleri düzeltin. Görselsiz ürün gönderilemez.</p><input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" disabled={aiLoading} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setAiLoading(true);setMessage("");try{const dataUrl=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error("Dosya okunamadı"));reader.readAsDataURL(file)});const data=await send("POST","/api/marketplace/seller/products/analyze",{dataUrl});setAiRows(data.products||[]);}catch(error){setMessage(error instanceof Error?error.message:"AI analizi başarısız");}finally{setAiLoading(false)}}}/>{aiLoading?<p className="mt-2 text-sm">Dosya analiz ediliyor…</p>:null}</div>
@@ -160,7 +200,23 @@ export default function MarketplaceSeller(){
                 <Field label="Ürün Görseli (zorunlu)"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"imageUrl");}}/>{product.imageUrl?<img className="mt-2 h-20 w-20 rounded-lg object-contain" src={product.imageUrl} alt="Ürün önizleme"/>:null}</Field>
                 <button disabled={busy||uploading||!product.imageUrl} className="rounded-xl bg-black px-5 py-3 text-sm font-bold text-[#ffcc00]">Ürünü Onaya Gönder</button>
               </form></div>:null}
-            <div className="overflow-x-auto"><table className="min-w-[1080px] w-full text-left text-xs"><thead className="bg-slate-100"><tr>{["Görsel","Ürün Başlığı","Marka","Kategori","Özellikler","Koli Adedi","Stok","Fiyat","Termin","Durum"].map(x=><th key={x} className="px-3 py-3 font-bold">{x}</th>)}</tr></thead><tbody>{(products.data||[]).filter(p=>productFilter==="all"||((Boolean(p.live)&&productFilter==="approved")||p.latest?.status===productFilter)).map(p=><tr key={p.id} className="border-b"><td className="p-3">{p.latest?.content?.imageUrl?<img src={p.latest.content.imageUrl} className="h-12 w-12 rounded object-contain" alt=""/>:null}</td><td className="p-3 font-semibold">{p.latest?.content?.name||p.sku}</td><td className="p-3">{p.latest?.content?.brand||"—"}</td><td className="p-3">{p.latest?.content?.category||"—"}</td><td className="max-w-48 truncate p-3">{p.latest?.content?.description||"—"}</td><td className="p-3">{p.latest?.content?.unitsPerBox||1}</td><td className="p-3">{p.stock}</td><td className="p-3">{p.latest?.content?.price??"—"} ₺</td><td className="p-3">{p.latest?.content?.leadDays||1} gün</td><td className="p-3">{statusTR[p.latest?.status||""]||"—"}{p.latest?.review_note?<p className="text-amber-700">{p.latest.review_note}</p>:null}</td></tr>)}</tbody></table>{!products.data?.length?<p className="py-10 text-center text-sm text-slate-500">Henüz ürün yok. Sağ üstteki Ürün Ekle butonuyla başlayın.</p>:(products.data||[]).filter(p=>productFilter==="all"||(productFilter==="approved"?Boolean(p.live):p.latest?.status===productFilter)).length===0?<p className="py-10 text-center text-sm text-slate-500">Bu durumda ürün bulunmuyor.</p>:null}</div>
+            <div className="overflow-x-auto"><table className="min-w-[1080px] w-full text-left text-xs"><thead className="bg-slate-100"><tr>{["Görsel","Ürün Başlığı","Marka","Kategori","Özellikler","Koli Adedi","Stok","Fiyat","Termin","Durum"].map(x=><th key={x} className="px-3 py-3 font-bold">{x}</th>)}</tr></thead><tbody>{(products.data||[]).filter(p=>productFilter==="all"||((Boolean(p.live)&&productFilter==="approved")||p.latest?.status===productFilter)).map(p=><tr key={p.id} className="cursor-pointer border-b hover:bg-amber-50/60" onClick={()=>navigate("/satici/urun/"+p.id)}
+  title="Ürünün tüm bilgilerini görüntüle ve düzenle">
+  <td className="p-3">{(p.live?.imageUrl||p.latest?.content?.imageUrl)?<img src={p.live?.imageUrl||p.latest?.content?.imageUrl} className="h-12 w-12 rounded object-contain" alt="Ürün görseli"/>:null}</td>
+  <td className="p-3 font-semibold"><Link href={"/satici/urun/"+p.id} className="text-slate-950 underline decoration-amber-400 underline-offset-4" onClick={e=>e.stopPropagation()}>{p.live?.name||p.latest?.content?.name||p.sku}</Link>
+  <p className="mt-1 text-[11px] text-slate-500">{p.sku} · Düzenlemek için tıkla</p></td>
+  <td className="p-3">{p.live?.brand||p.latest?.content?.brand||"—"}</td>
+  <td className="p-3">{p.live?.category||p.latest?.content?.category||"—"}</td>
+  <td className="max-w-48 truncate p-3">{p.live?.description||p.latest?.content?.description||"—"}</td>
+  <td className="p-3">{p.live?.unitsPerBox||p.latest?.content?.unitsPerBox||1}</td>
+  <QuickProductPriceStock record={p}/>
+  <td className="p-3">{p.live?.leadDays||p.latest?.content?.leadDays||1} gün</td>
+  <td className="p-3">
+    {p.live?"Yayında":statusTR[p.latest?.status||""]||"—"}
+    {p.latest?.status==="pending"&&p.live?<p className="mt-1 text-xs font-bold text-amber-700">Değişiklik onay bekliyor</p>:null}
+    {p.latest?.review_note?<p className="text-amber-700">{p.latest.review_note}</p>:null}
+  </td>
+</tr>)}</tbody></table>{!products.data?.length?<p className="py-10 text-center text-sm text-slate-500">Henüz ürün yok. Sağ üstteki Ürün Ekle butonuyla başlayın.</p>:(products.data||[]).filter(p=>productFilter==="all"||(productFilter==="approved"?Boolean(p.live):p.latest?.status===productFilter)).length===0?<p className="py-10 text-center text-sm text-slate-500">Bu durumda ürün bulunmuyor.</p>:null}</div>
           </div>:null}
           {tab==="reels"?<div className="grid gap-5 lg:grid-cols-2">
             <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/reels",
