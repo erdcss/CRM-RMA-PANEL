@@ -125,19 +125,49 @@ export function removeB2BCartItem(productId: string) {
 }
 
 export function clearB2BCart() {
-  persist([]);
+  // Paying for company products must not erase unsubmitted supplier products.
+  persist(getB2BCart().filter(item=>item.productId.startsWith("mp-")));
 }
 
 export function useB2BCart() {
   const [items, setItems] = useState<B2BCartItem[]>(() => getB2BCart());
 
   useEffect(() => {
-    const refresh = () => setItems(getB2BCart());
+    let mounted=true,version=0;
+    const refresh = () => {
+      const seq=++version;
+      setItems(getB2BCart());
+      // Approved supplier selections are shared between web and phone for the signed-in account.
+      void fetch("/api/marketplace/cart",{credentials:"include",cache:"no-store"})
+        .then(async response=>{
+          if(!response.ok)throw new Error("Supplier selection unavailable");
+          return response.json() as Promise<{items:Array<{
+            product_id:number;sku:string;stock:number;boxes:number;price:number;unitsPerBox:number;
+            content:{name:string;imageUrl?:string;minBoxes?:number};
+          }>;}>;
+        })
+        .then(result=>{
+          if(!mounted||seq!==version)return;
+          const remote:B2BCartItem[]=result.items.map(line=>({
+            productId:"mp-"+line.product_id,sku:line.sku,name:line.content?.name||"Ürün",
+            image:line.content?.imageUrl||null,price:Number(line.price)||0,
+            quantity:Number(line.boxes)||1,minOrderQty:Math.max(1,Number(line.content?.minBoxes)||1),
+            unitsPerBox:Math.max(1,Number(line.unitsPerBox)||1),stock:Math.max(0,Number(line.stock)||0)
+          }));
+          const local=getB2BCart().filter(item=>!item.productId.startsWith("mp-"));
+          setItems([...remote,...local]);
+        })
+        .catch(()=>{});
+    };
+    refresh();
     window.addEventListener(EVENT_NAME, refresh);
     window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
     return () => {
+      mounted=false;
       window.removeEventListener(EVENT_NAME, refresh);
       window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
     };
   }, []);
 
