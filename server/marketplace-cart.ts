@@ -1,5 +1,6 @@
 
 import type { Express, RequestHandler } from "express";
+import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
 import { z } from "zod";
@@ -97,7 +98,6 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
     const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
     const p=await db.query(`SELECT p.stock,p.supplier_id,v.content
       FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
-      JOIN mp_store_versions st ON st.supplier_id=s.id AND st.is_live=TRUE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       WHERE p.id=$1 AND p.is_enabled AND s.status='approved' LIMIT 1`,[parsed.data.productId]);
     const x=p.rows[0];
@@ -122,7 +122,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
  app.post("/api/marketplace/order-drafts",requireB2B,async(req,res)=>{
   const data=z.object({requestKey:z.string().uuid()}).strict().safeParse(req.body);
   if(!data.success)return res.status(400).json({error:"Tekrarlama korumalı işlem anahtarı gerekiyor"});
-  let client:Awaited<ReturnType<NonNullable<typeof pool>["connect"]>>|undefined;
+  let client:PoolClient|undefined;
   try{
     const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
     client=await db.connect();await client.query("BEGIN");
@@ -132,7 +132,6 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
     const q=await client.query(`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.company_name,
       v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
       JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
-      JOIN mp_store_versions st ON st.supplier_id=s.id AND st.is_live=TRUE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       WHERE c.buyer_user_id=$1 AND p.is_enabled=TRUE ORDER BY p.id FOR UPDATE OF p`,[uid]);
     const cart=lines(q.rows);
