@@ -144,6 +144,11 @@ export type B2BProduct = {
   description?: string | null;
   features?: string[] | null;
   variants?: Array<Record<string, string>> | null;
+  marketplace?: boolean;
+  marketplace_product_id?: string;
+  seller_slug?: string;
+  seller_name?: string;
+  seller_logo_url?: string | null;
 };
 
 // Approved marketplace products use their own IDs and must never be mixed with b2b_products IDs.
@@ -164,6 +169,17 @@ export type MarketplaceProduct = {
     unitsPerBox?: number;
     minBoxes?: number;
   };
+};
+
+export type MarketplaceStore = {
+  id:number;slug:string;company_name:string;description?:string;followers:number;
+  content:{bannerUrl?:string;logoUrl?:string;title?:string;tagline?:string;accent?:string};
+};
+export type MarketplaceConversation = {id:number;company_name:string;slug:string;buyer_user_id:number;latest_message:string};
+export type MarketplaceMessage = {id:number;author_user_id:number;text:string;created_at:string};
+export type MarketplaceCart = {
+  items:Array<{id:number;product_id:number;boxes:number;valid:boolean;total:number;unitsPerBox:number;price:number;company_name:string;sku:string;content:{name:string;imageUrl?:string}}>,
+  subtotal:number;currency:string;paymentEnabled:false;notice:string;
 };
 
 export type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
@@ -659,6 +675,20 @@ export const rmaApi = {
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listB2BProducts: (forceRefresh = false) => loadMobileCatalog(forceRefresh),
   listMarketplaceProducts: () => request<MarketplaceProduct[]>('/api/marketplace/products'),
+  getMarketplaceStore: (slug:string) => request<MarketplaceStore>(`/api/marketplace/stores/${encodeURIComponent(slug)}`),
+  listMarketplaceStoreProducts: (slug:string) => request<MarketplaceProduct[]>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products`),
+  listMarketplaceFollows: () => request<Array<{slug:string;company_name:string}>>('/api/marketplace/follows'),
+  followMarketplaceStore: (slug:string) => request<{following:boolean}>(`/api/marketplace/stores/${encodeURIComponent(slug)}/follow`,{method:'POST',body:'{}'}),
+  unfollowMarketplaceStore: (slug:string) => request<{following:boolean}>(`/api/marketplace/stores/${encodeURIComponent(slug)}/follow`,{method:'DELETE'}),
+  listMarketplaceConversations: () => request<MarketplaceConversation[]>('/api/marketplace/conversations'),
+  startMarketplaceConversation: (slug:string,text:string) => request<{id:number}>('/api/marketplace/conversations',{method:'POST',body:JSON.stringify({slug,text})}),
+  listMarketplaceMessages: (id:number) => request<MarketplaceMessage[]>(`/api/marketplace/conversations/${id}/messages`),
+  sendMarketplaceMessage: (id:number,text:string) => request<MarketplaceMessage>(`/api/marketplace/conversations/${id}/messages`,{method:'POST',body:JSON.stringify({text})}),
+  requestMarketplaceQuote: (conversationId:number,boxes:number,details:string,productId?:number) => request<{id:number}>('/api/marketplace/quotes',{method:'POST',body:JSON.stringify({conversationId,boxes,details,productId:productId||null})}),
+  getMarketplaceCart: () => request<MarketplaceCart>('/api/marketplace/cart'),
+  addMarketplaceCart: (productId:number,boxes:number) => request<{id:number}>('/api/marketplace/cart',{method:'POST',body:JSON.stringify({productId,boxes,deliveryMode:'direct'})}),
+  removeMarketplaceCart: (lineId:number) => request<{ok:boolean}>(`/api/marketplace/cart/${lineId}`,{method:'DELETE'}),
+  createMarketplaceOrderDraft: (requestKey:string) => request<{id:number;paymentEnabled:false;message:string}>('/api/marketplace/order-drafts',{method:'POST',body:JSON.stringify({requestKey})}),
   getMarketplaceProduct: (slug:string,id:string|number) =>
     request<MarketplaceProduct>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products/${encodeURIComponent(String(id))}`),
   getB2BProduct: (id: string | number) =>
