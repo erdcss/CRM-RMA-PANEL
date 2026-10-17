@@ -20,6 +20,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
+import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -60,8 +61,12 @@ export default function ProductsScreen() {
     setError('');
 
     try {
-      const data = await rmaApi.listB2BProducts(refresh);
-      setProducts(Array.isArray(data) ? data : []);
+      const results = await Promise.allSettled([rmaApi.listB2BProducts(refresh),rmaApi.listMarketplaceProducts()]);
+      if(results.every(r=>r.status==='rejected'))throw new Error('Ürün kataloglarına ulaşılamadı.');
+      const own = results[0].status==='fulfilled' && Array.isArray(results[0].value) ? results[0].value : [];
+      const suppliers = results[1].status==='fulfilled' && Array.isArray(results[1].value)
+        ? results[1].value.map(asCatalogProduct) : [];
+      setProducts([...suppliers,...own]);
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -88,6 +93,7 @@ export default function ProductsScreen() {
         product.sku,
         product.barcode,
         product.collection_name,
+        product.seller_name,
       ]
         .filter(Boolean)
         .join(' ')
@@ -166,7 +172,7 @@ export default function ProductsScreen() {
               onPress={() =>
                 router.push({
                   pathname: '/product/[id]',
-                  params: { id: String(item.id) },
+                  params: productParams(item),
                 } as never)
               }
             >
@@ -182,6 +188,7 @@ export default function ProductsScreen() {
                 <Text style={styles.productName} numberOfLines={2}>
                   {item.name || 'Ürün'}
                 </Text>
+                {item.seller_name ? <Text style={styles.metaText} numberOfLines={1}>{item.seller_name}</Text> : null}
 
                 <View style={styles.metaRow}>
                   <Text style={styles.metaText}>Stok Kodu: {item.sku || '—'}</Text>
