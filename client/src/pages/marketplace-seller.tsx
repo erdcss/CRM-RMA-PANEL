@@ -13,7 +13,8 @@ type Quote={id:number;status:string;boxes:number;details:string;sku?:string;comp
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
   storeVersions:Array<{id:number;status:string;is_live:boolean;review_note:string}>;
   reels:Array<{id:number;title:string;status:string;review_note:string}>};
-type Tab="dashboard"|"store"|"products"|"reels"|"messages"|"quotes"|"returns"|"payments"|"verification";
+type SellerOrder={id:number;order_id:number;status:string;subtotal:string;created_at:string;delivery_mode:string;items:Array<{productId:number;name:string;sku:string;boxes:number;unitsPerBox:number;total:string}>};
+type Tab="dashboard"|"store"|"products"|"reels"|"messages"|"quotes"|"returns"|"payments"|"orders"|"verification";
 async function send(method:string,path:string,data?:unknown){const r=await apiRequest(method,path,data);return r.json();}
 const inputStyle="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900";
 const boxStyle="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6";
@@ -128,6 +129,7 @@ export default function MarketplaceSeller(){
   async function submitVerification(){setBusy(true);setMessage("");try {await send("POST","/api/marketplace/seller/verification",verification);setVerificationHiding(true);await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});setTab("dashboard");setMessage("Doğrulama bilgileriniz incelemeye gönderildi.");}catch(e){setMessage(e instanceof Error?e.message:"Bilgiler gönderilemedi");}finally{setBusy(false);}}
   const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:!!me.data,staleTime:0});
   const products=useQuery<Product[]>({queryKey:["/api/marketplace/seller/products"],enabled:approved,staleTime:0});
+  const sellerOrders=useQuery<SellerOrder[]>({queryKey:["/api/marketplace/seller/orders"],enabled:approved,staleTime:0});
   const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0});
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selectedChat+"/messages"],enabled:approved&&!!selectedChat,staleTime:0});
@@ -169,7 +171,7 @@ export default function MarketplaceSeller(){
       </div>
       {message?<Notice text={message}/>:null}
       {me.data ? <nav aria-label="Tedarikçi araçları" className="sticky top-0 z-20 -mx-2 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur">
-        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"quotes",label:"Teklifler",icon:FileText},{key:"reels",label:"Reels",icon:Film}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
+        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"quotes",label:"Teklifler",icon:FileText},{key:"reels",label:"Reels",icon:Film}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
       </nav> : null}
 
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
@@ -200,6 +202,16 @@ export default function MarketplaceSeller(){
             ].map(([name,n])=><div key={String(name)} className={boxStyle}><div className="text-2xl font-black">{n??"—"}</div><p className="text-xs text-slate-500">{name}</p></div>)}
           </div>
           {tab==="dashboard"?<div className={boxStyle+" space-y-4"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Mağazanız, ürünleriniz, müşteri görüşmeleri ve teklifleriniz tek panelde.</p><div className="grid gap-3 sm:grid-cols-3">{[["Ürün",dash.data?.productCount],["Müşteri Görüşmesi",dash.data?.conversations],["Açık Teklif",dash.data?.openQuotes]].map(([label,count])=><div key={String(label)} className="rounded-xl bg-slate-100 p-4"><div className="text-2xl font-black">{count??0}</div><div className="text-xs text-slate-600">{label}</div></div>)}</div></div>:null}
+          {tab==="orders"?<div className={boxStyle+" space-y-4"}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-black">Gelen Tedarikçi Siparişleri</h2><button onClick={()=>void sellerOrders.refetch()} className="rounded-lg border px-3 py-2 text-xs font-bold">Yenile</button></div>
+            <p className="text-sm text-slate-600">Müşterilerin oluşturduğu siparişler burada tedarikçi onayı bekliyor durumuyla görünür. Ödeme veya sevkiyat henüz tetiklenmez.</p>
+            {sellerOrders.isError?<p className="text-sm text-red-700">Siparişler yüklenemedi. Yeniden deneyin.</p>:null}
+            {sellerOrders.isLoading?<p className="text-sm text-slate-500">Siparişler yükleniyor…</p>:null}
+            {sellerOrders.data?.map(order=><div key={order.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><b>Sipariş #{order.order_id}</b><span className="text-xs font-bold text-amber-800">Tedarikçi onayı bekliyor</span></div>
+              <p className="mt-1 text-sm text-slate-600">{new Date(order.created_at).toLocaleString("tr-TR")} · {order.delivery_mode==="direct"?"Doğrudan teslimat":"Depo teslimatı"} · {Number(order.subtotal).toLocaleString("tr-TR",{minimumFractionDigits:2})} ₺</p>
+              <div className="mt-3 space-y-2">{order.items.map((it,i)=><div key={i} className="flex justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>{it.name||it.sku} · {it.boxes} koli × {it.unitsPerBox} adet</span><b>{Number(it.total).toLocaleString("tr-TR",{minimumFractionDigits:2})} ₺</b></div>)}</div>
+            </div>)}
+            {!sellerOrders.isLoading&&!sellerOrders.data?.length?<p className="text-sm text-slate-500">Bekleyen sipariş bulunmuyor.</p>:null}
+          </div>:null}
           {tab==="returns"?<div className={boxStyle}><h2 className="text-lg font-black">İade Takibi</h2><p className="mt-2 text-sm text-slate-600">İade talepleri entegrasyonu hazırlanıyor. Şu anda bu bölümde gerçek iade kaydı gösterilmiyor.</p></div>:null}
           {tab==="payments"?<div className={boxStyle}><h2 className="text-lg font-black">Ödeme Takibi</h2><p className="mt-2 text-sm text-slate-600">Satıcı hakediş ve ödeme hareketlerinin entegrasyonu hazırlanıyor. Burada henüz doğrulanmış ödeme verisi bulunmuyor.</p></div>:null}
           {tab==="store"?<div className="grid gap-5 lg:grid-cols-2">
