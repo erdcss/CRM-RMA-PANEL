@@ -19,14 +19,20 @@ function requestKey(){
 export default function MarketplaceCartPage(){
   const {palette}=useAppearance();const router=useRouter();
   const [cart,setCart]=useState<MarketplaceCart|null>(null);
+  const [pastOrders,setPastOrders]=useState<Array<{id:number;status:string;subtotal:number;created_at:string}>>([]);
   const [loading,setLoading]=useState(true);const [refreshing,setRefreshing]=useState(false);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   const [confirmed,setConfirmed]=useState<number|null>(null);
   const orderKey=useRef<string|null>(null);
   const load=useCallback(async(pull=false)=>{
     if(pull)setRefreshing(true);else setLoading(true);
-    try{setCart(await rmaApi.getMarketplaceCart());setError('');}
-    catch(e){setError(e instanceof Error?e.message:'Sepet yüklenemedi.');}
+    try{
+      const [cartResult,ordersResult]=await Promise.allSettled([rmaApi.getMarketplaceCart(),rmaApi.listMarketplaceOrders()]);
+      if(cartResult.status==='rejected')throw cartResult.reason;
+      setCart(cartResult.value);
+      if(ordersResult.status==='fulfilled')setPastOrders(ordersResult.value);
+      setError('');
+    }catch(e){setError(e instanceof Error?e.message:'Sepet yüklenemedi.');}
     finally{setLoading(false);setRefreshing(false);}
   },[]);
   useFocusEffect(useCallback(()=>{void load();},[load]));
@@ -79,6 +85,18 @@ export default function MarketplaceCartPage(){
         <Text style={styles.actionText}>{busy?'Oluşturuluyor…':'Siparişi Oluştur'}</Text>
       </Pressable>
     </View> : null}
+    <View style={{gap:10,marginTop:18}}>
+      <Text style={[styles.heading,{color:palette.text,fontSize:19}]}>Oluşturulan Siparişler</Text>
+      {pastOrders.map(order=><View key={order.id} style={[styles.item,{backgroundColor:palette.surface,borderColor:palette.border}]}>
+        <Ionicons name="receipt-outline" size={23} color={palette.textSecondary}/>
+        <View style={{flex:1,gap:4}}>
+          <Text style={[styles.name,{color:palette.text}]}>Sipariş #{order.id}</Text>
+          <Text style={[styles.info,{color:palette.textSecondary}]}>Tedarikçi onayı bekleniyor · {new Date(order.created_at).toLocaleDateString('tr-TR')}</Text>
+        </View>
+        <Text style={[styles.total,{color:palette.text}]}>{money(order.subtotal)}</Text>
+      </View>)}
+      {!pastOrders.length?<Text style={[styles.info,{color:palette.textSecondary}]}>Henüz oluşturulmuş tedarikçi siparişi bulunmuyor.</Text>:null}
+    </View>
   </ScrollView></SafeAreaView>;
 }
 const styles=StyleSheet.create({
