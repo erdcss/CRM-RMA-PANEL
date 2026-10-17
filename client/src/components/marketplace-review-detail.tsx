@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 export type ReviewKind = "products" | "stores" | "reels";
 type Content = {
-  name?:string;description?:string;category?:string;brand?:string;barcode?:string;
+  name?:string;sku?:string;description?:string;category?:string;brand?:string;barcode?:string;
   imageUrl?:string;price?:number;unitsPerBox?:number;minBoxes?:number;leadDays?:number;
   title?:string;tagline?:string;accent?:string;bannerUrl?:string|null;logoUrl?:string|null;sections?:string[];
 };
@@ -76,7 +76,7 @@ function ProductPreview({review,content,title}:{review:ReviewInfo;content:Conten
           <Info name="Minimum alım" value={text(content.minBoxes)+" koli"}/>
           <Info name="Stok (adet)" value={review.stock??"—"}/>
           <Info name="Tedarik süresi" value={text(content.leadDays)+" gün"}/>
-          <Info name="Stok kodu" value={review.sku}/>
+          <Info name="Stok kodu" value={content.sku||review.sku}/>
           <Info name="Barkod" value={content.barcode}/>
           <Info name="Marka" value={content.brand}/>
           <Info name="Kategori" value={content.category}/>
