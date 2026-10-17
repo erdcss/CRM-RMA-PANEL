@@ -53,6 +53,9 @@ export default function ProductDetailScreen() {
   const [quantity, setQuantity] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if(successTimer.current) clearTimeout(successTimer.current); }, []);
   const progress = useRef(new Animated.Value(0)).current;
   const [detailsHeight, setDetailsHeight] = useState(0);
 
@@ -368,8 +371,8 @@ export default function ProductDetailScreen() {
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={loggedIn ? (isSellerProduct ? 'Sepete ekle' : 'Sipariş listesine ekle') : 'İşletme hesabıyla giriş yap'}
-            style={[styles.fixedCartButton, (adding || (loggedIn && maxBoxes < min)) && styles.disabledButton]}
+            accessibilityLabel={loggedIn ? (added ? 'Siparişlere eklendi' : 'Siparişlere ekle') : 'İşletme hesabıyla giriş yap'}
+            style={[styles.fixedCartButton, added && styles.fixedCartSuccess, (adding || (loggedIn && maxBoxes < min)) && styles.disabledButton]}
             disabled={adding || (loggedIn && maxBoxes < min)}
             onPress={async () => {
               if (!loggedIn) {
@@ -379,18 +382,20 @@ export default function ProductDetailScreen() {
               if (adding) return;
               setAdding(true);
               try {
-                if (isSellerProduct) {
-                  await rmaApi.addMarketplaceCart(Number(product.marketplace_product_id), effectiveQuantity);
-                  appAlert('Sepete eklendi', product.name + ' · ' + effectiveQuantity + ' koli eklendi.', undefined, 'success');
-                  router.push('/marketplace/cart' as never);
-                } else {
-                  await addToOrderList({
-                    productId: String(product.id), sku: String(product.sku || ''),
-                    name: product.name || 'Ürün', image, unitPrice: Number(product.price || 0),
-                    unitsPerBox: pack, boxQuantity: effectiveQuantity, minOrderQty: min, stock,
-                  });
-                  appAlert('Siparişlere eklendi', product.name + ' · ' + effectiveQuantity + ' koli listeye eklendi.', undefined, 'success');
-                }
+                await addToOrderList({
+                  productId: String(product.id), sku: String(product.sku || ''),
+                  name: product.name || 'Ürün', image, unitPrice: Number(product.price || 0),
+                  unitsPerBox: pack, boxQuantity: effectiveQuantity, minOrderQty: min, stock,
+                  ...(isSellerProduct ? {
+                    marketplaceProductId: Number(product.marketplace_product_id),
+                    sellerSlug: product.seller_slug,
+                    sellerName: product.seller_name,
+                  } : {}),
+                });
+                setAdded(true);
+                if(successTimer.current)clearTimeout(successTimer.current);
+                successTimer.current=setTimeout(()=>setAdded(false),2400);
+                appAlert('Siparişlere eklendi', product.name + ' · ' + effectiveQuantity + ' koli sipariş listenize eklendi.', undefined, 'success');
               } catch (e) {
                 appAlert('Ürün eklenemedi', e instanceof Error ? e.message : 'Tekrar deneyin.');
               } finally {
@@ -400,7 +405,7 @@ export default function ProductDetailScreen() {
           >
             <Ionicons name={loggedIn ? 'cart-outline' : 'log-in-outline'} size={17} color="#111827" />
             <Text style={styles.fixedCartText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {adding ? 'Ekleniyor…' : !loggedIn ? 'Giriş Yap' : isSellerProduct ? 'Sepete Ekle' : 'Listeye Ekle'}
+              {adding ? 'Ekleniyor…' : !loggedIn ? 'Giriş Yap' : added ? 'Siparişlere Eklendi' : 'Siparişlere Ekle'}
             </Text>
           </Pressable>
         </View>
@@ -524,6 +529,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     gap: 5,
     paddingHorizontal: 9,
   },
+  fixedCartSuccess: { backgroundColor: '#22C55E' },
   fixedCartText: { fontSize: 11, fontWeight: '900', color: '#111827', flexShrink: 1 },
 
   page: {
