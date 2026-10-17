@@ -146,6 +146,26 @@ export type B2BProduct = {
   variants?: Array<Record<string, string>> | null;
 };
 
+// Approved marketplace products use their own IDs and must never be mixed with b2b_products IDs.
+export type MarketplaceProduct = {
+  id: string | number;
+  sku: string;
+  stock: number;
+  seller_slug: string;
+  seller_name: string;
+  seller_logo_url?: string | null;
+  content: {
+    name: string;
+    description?: string;
+    imageUrl?: string;
+    price?: string | number | null;
+    category?: string;
+    brand?: string;
+    unitsPerBox?: number;
+    minBoxes?: number;
+  };
+};
+
 export type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
 export type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
 export type B2BHomepage = {
@@ -638,6 +658,9 @@ export const rmaApi = {
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listB2BProducts: (forceRefresh = false) => loadMobileCatalog(forceRefresh),
+  listMarketplaceProducts: () => request<MarketplaceProduct[]>('/api/marketplace/products'),
+  getMarketplaceProduct: (slug:string,id:string|number) =>
+    request<MarketplaceProduct>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products/${encodeURIComponent(String(id))}`),
   getB2BProduct: (id: string | number) =>
     request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
   getB2BHomepage: async (): Promise<B2BHomepage> => {
