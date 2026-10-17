@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -51,6 +53,19 @@ export default function ProductDetailScreen() {
   const [quantity, setQuantity] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const progress = useRef(new Animated.Value(0)).current;
+  const [detailsHeight, setDetailsHeight] = useState(0);
+
+  useEffect(() => {
+    const animation = Animated.timing(progress, {
+      toValue: drawerOpen ? 1 : 0,
+      duration: 380,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // Height and opacity move together for a true sliding drawer.
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [drawerOpen, progress]);
 
   const id = String(params.id || '');
   const marketplaceId = id.startsWith('mp-') ? Number(id.slice(3)) : null;
@@ -219,66 +234,176 @@ export default function ProductDetailScreen() {
           </View>
         </View>
       </ScrollView>
-      <View style={[styles.bottomDock,{backgroundColor:palette.surface,borderColor:palette.border}]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={drawerOpen?'Sipariş ayrıntılarını kapat':'Sipariş ayrıntılarını aç'}
-          onPress={()=>setDrawerOpen(open=>!open)} style={styles.dockHeader}>
-          <View style={{flex:1}}>
-            <Text style={[styles.dockLabel,{color:palette.textSecondary}]}>{loggedIn ? `${effectiveQuantity} koli · Toplam tutar` : 'B2B fiyatı · İşletme girişi gerekli'}</Text>
-            <Text style={[styles.dockTotal,{color:palette.text}]}>{loggedIn && product.price!=null ? money(total) : 'Fiyat için giriş yapın'}</Text>
-          </View>
-          <Ionicons name={drawerOpen?'chevron-down':'chevron-up'} size={23} color={palette.text}/>
-        </Pressable>
-        {drawerOpen ? <View style={styles.dockExpanded}>
-          {loggedIn ? <>
+      <View style={[styles.dockContainer, { backgroundColor: palette.background }]}>
+        <Animated.View
+          pointerEvents={drawerOpen ? 'none' : 'auto'}
+          importantForAccessibility={drawerOpen ? 'no-hide-descendants' : 'auto'}
+          style={[
+            styles.collapsedSummary,
+            {
+              backgroundColor: palette.surfaceSecondary,
+              borderColor: palette.border,
+              height: progress.interpolate({ inputRange: [0, 1], outputRange: [43, 0] }),
+              opacity: progress.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0, 0] }),
+            },
+          ]}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Sipariş ayrıntılarını aç"
+            onPress={() => setDrawerOpen(true)}
+            style={styles.summaryPress}
+          >
+            <View style={styles.summaryField}>
+              <Text style={[styles.summaryLabel, { color: palette.textSecondary }]}>GENEL TUTAR</Text>
+              <Text style={[styles.summaryValue, { color: palette.text }]} numberOfLines={1}>
+                {loggedIn && product.price != null ? money(total) : 'Giriş gerekli'}
+              </Text>
+            </View>
+            <View style={styles.summaryField}>
+              <Text style={[styles.summaryLabel, { color: palette.textSecondary }]}>SİPARİŞ EDİLEN ADET</Text>
+              <Text style={[styles.summaryValue, { color: palette.text }]}>{effectiveQuantity * pack} adet</Text>
+            </View>
+            <Ionicons name="chevron-up" size={21} color={palette.text} />
+          </Pressable>
+        </Animated.View>
+        <Animated.View
+          pointerEvents={drawerOpen ? 'auto' : 'none'}
+          importantForAccessibility={drawerOpen ? 'auto' : 'no-hide-descendants'}
+          style={{
+            height: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, detailsHeight],
+            }),
+            opacity: progress.interpolate({ inputRange: [0, 0.22, 1], outputRange: [0, 0.15, 1] }),
+            overflow: 'hidden',
+          }}
+        >
+          <View
+            onLayout={event => {
+              const height = Math.ceil(event.nativeEvent.layout.height);
+              if (height > 0 && height !== detailsHeight) setDetailsHeight(height);
+            }}
+            style={[styles.expandedPanel, { backgroundColor: palette.surface, borderColor: palette.border }]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sipariş ayrıntılarını kapat"
+              onPress={() => setDrawerOpen(false)}
+              style={styles.expandedHeader}
+            >
+              <Text style={[styles.expandedTitle, { color: palette.text }]}>Sipariş Detayları</Text>
+              <Ionicons name="chevron-down" size={22} color={palette.text} />
+            </Pressable>
             <View style={styles.dockFacts}>
-              <View style={styles.dockFact}><Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Koli</Text><Text style={[styles.dockValue,{color:palette.text}]}>{effectiveQuantity}</Text></View>
-              <View style={styles.dockFact}><Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Koli içi</Text><Text style={[styles.dockValue,{color:palette.text}]}>{pack} adet</Text></View>
-              <View style={styles.dockFact}><Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Toplam adet</Text><Text style={[styles.dockValue,{color:palette.text}]}>{effectiveQuantity * pack}</Text></View>
-            </View>
-            <View style={styles.dockPriceRow}>
-              <Text style={[styles.dockLabel,{color:palette.textSecondary}]}>Birim fiyat: {product.price == null?'—':money(product.price)} · Koli tutarı: {product.price==null?'—':money(Number(product.price)*pack)}</Text>
-            </View>
-            <View style={styles.dockOrderRow}>
-              <View style={styles.quantityControl}>
-                <Pressable style={styles.quantityButton} disabled={effectiveQuantity<=min} onPress={()=>setQuantity(Math.max(min,effectiveQuantity-1))} accessibilityLabel="Bir koli azalt">
-                  <Ionicons name="remove" size={20} color={effectiveQuantity<=min?palette.muted:palette.text}/>
-                </Pressable>
-                <Text style={styles.quantityValue}>{effectiveQuantity}</Text>
-                <Pressable style={styles.quantityButton} disabled={effectiveQuantity>=maxBoxes} onPress={()=>setQuantity(Math.min(maxBoxes,effectiveQuantity+1))} accessibilityLabel="Bir koli artır">
-                  <Ionicons name="add" size={20} color={effectiveQuantity>=maxBoxes?palette.muted:palette.text}/>
-                </Pressable>
+              <View style={[styles.dockFact, { backgroundColor: palette.surfaceSecondary }]}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Sipariş koli</Text>
+                <Text style={[styles.dockValue, { color: palette.text }]}>{effectiveQuantity} koli</Text>
               </View>
-              <Pressable style={[styles.drawerCartButton,(adding||maxBoxes<min)&&styles.disabledButton]}
-                disabled={adding||maxBoxes<min}
-                onPress={async()=>{
-                  if(adding)return;
-                  setAdding(true);
-                  try{
-                    if(isSellerProduct){
-                      await rmaApi.addMarketplaceCart(Number(product.marketplace_product_id),effectiveQuantity);
-                      appAlert('Sepete eklendi',product.name+' · '+effectiveQuantity+' koli eklendi.',undefined,'success');
-                      router.push('/marketplace/cart' as never);
-                    }else{
-                      await addToOrderList({
-                        productId:String(product.id),sku:String(product.sku||''),name:product.name||'Ürün',
-                        image,unitPrice:Number(product.price||0),unitsPerBox:pack,boxQuantity:effectiveQuantity,
-                        minOrderQty:min,stock,
-                      });
-                      appAlert('Siparişlere eklendi',product.name+' · '+effectiveQuantity+' koli listeye eklendi.',undefined,'success');
-                    }
-                  }catch(e){appAlert('Ürün eklenemedi',e instanceof Error?e.message:'Tekrar deneyin.');}
-                  finally{setAdding(false);}
-                }}>
-                <Ionicons name="cart-outline" size={19} color="#111827"/>
-                <Text style={styles.drawerCartText}>{adding?'Ekleniyor…':isSellerProduct?'Sepete Ekle':'Siparişlere Ekle'}</Text>
-              </Pressable>
+              <View style={[styles.dockFact, { backgroundColor: palette.surfaceSecondary }]}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Koli içi</Text>
+                <Text style={[styles.dockValue, { color: palette.text }]}>{pack} adet</Text>
+              </View>
+              <View style={[styles.dockFact, { backgroundColor: palette.surfaceSecondary }]}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Toplam adet</Text>
+                <Text style={[styles.dockValue, { color: palette.text }]}>{effectiveQuantity * pack}</Text>
+              </View>
             </View>
-            {maxBoxes<min ? <Text style={styles.stockWarning}>Minimum koli için yeterli stok bulunmuyor.</Text>:null}
-          </> : <Pressable style={styles.primaryButton} onPress={()=>router.push('/login')}>
-            <Ionicons name="log-in-outline" size={18} color="#FFFFFF"/>
-            <Text style={styles.primaryButtonText}>İşletme Hesabıyla Giriş Yap</Text>
-          </Pressable>}
-        </View>:null}
+            <View style={styles.detailLines}>
+              <View style={styles.detailLine}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Birim ürün fiyatı</Text>
+                <Text style={[styles.detailAmount, { color: palette.text }]}>
+                  {loggedIn && product.price != null ? money(product.price) : 'Giriş gerekli'}
+                </Text>
+              </View>
+              <View style={styles.detailLine}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Koli fiyatı</Text>
+                <Text style={[styles.detailAmount, { color: palette.text }]}>
+                  {loggedIn && product.price != null ? money(Number(product.price) * pack) : '—'}
+                </Text>
+              </View>
+              <View style={styles.detailLine}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Minimum sipariş</Text>
+                <Text style={[styles.detailAmount, { color: palette.text }]}>{min} koli</Text>
+              </View>
+              <View style={styles.detailLine}>
+                <Text style={[styles.dockLabel, { color: palette.textSecondary }]}>Mevcut stok</Text>
+                <Text style={[styles.detailAmount, { color: palette.text }]}>{stock} adet · {maxBoxes} koli</Text>
+              </View>
+            </View>
+            <View style={styles.dockTotalRow}>
+              <Text style={[styles.detailAmount, { color: palette.textSecondary }]}>Genel toplam</Text>
+              <Text style={styles.expandedTotal}>
+                {loggedIn && product.price != null ? money(total) : 'Giriş gerekli'}
+              </Text>
+            </View>
+            {maxBoxes < min ? <Text style={styles.stockWarning}>Minimum sipariş için yeterli stok yok.</Text> : null}
+          </View>
+        </Animated.View>
+        <View style={[styles.fixedOrderRow, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          <View style={[styles.compactStepper, { borderColor: palette.border }]}>
+            <Pressable
+              style={styles.compactStepButton}
+              accessibilityLabel="Koli azalt"
+              disabled={!loggedIn || adding || effectiveQuantity <= min}
+              onPress={() => setQuantity(Math.max(min, effectiveQuantity - 1))}
+            >
+              <Ionicons name="remove" size={19} color={!loggedIn || effectiveQuantity <= min ? palette.muted : palette.text} />
+            </Pressable>
+            <Text style={[styles.compactStepValue, { color: palette.text }]}>{effectiveQuantity}</Text>
+            <Pressable
+              style={styles.compactStepButton}
+              accessibilityLabel="Koli artır"
+              disabled={!loggedIn || adding || effectiveQuantity >= maxBoxes}
+              onPress={() => setQuantity(Math.min(maxBoxes, effectiveQuantity + 1))}
+            >
+              <Ionicons name="add" size={19} color={!loggedIn || effectiveQuantity >= maxBoxes ? palette.muted : palette.text} />
+            </Pressable>
+          </View>
+          <View style={styles.unitPriceColumn}>
+            <Text style={[styles.unitPriceLabel, { color: palette.textSecondary }]}>ÜRÜN FİYATI / ADET</Text>
+            <Text style={[styles.unitPriceValue, { color: palette.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {loggedIn && product.price != null ? money(product.price) : 'Giriş gerekli'}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={loggedIn ? (isSellerProduct ? 'Sepete ekle' : 'Sipariş listesine ekle') : 'İşletme hesabıyla giriş yap'}
+            style={[styles.fixedCartButton, (adding || (loggedIn && maxBoxes < min)) && styles.disabledButton]}
+            disabled={adding || (loggedIn && maxBoxes < min)}
+            onPress={async () => {
+              if (!loggedIn) {
+                router.push('/login');
+                return;
+              }
+              if (adding) return;
+              setAdding(true);
+              try {
+                if (isSellerProduct) {
+                  await rmaApi.addMarketplaceCart(Number(product.marketplace_product_id), effectiveQuantity);
+                  appAlert('Sepete eklendi', product.name + ' · ' + effectiveQuantity + ' koli eklendi.', undefined, 'success');
+                  router.push('/marketplace/cart' as never);
+                } else {
+                  await addToOrderList({
+                    productId: String(product.id), sku: String(product.sku || ''),
+                    name: product.name || 'Ürün', image, unitPrice: Number(product.price || 0),
+                    unitsPerBox: pack, boxQuantity: effectiveQuantity, minOrderQty: min, stock,
+                  });
+                  appAlert('Siparişlere eklendi', product.name + ' · ' + effectiveQuantity + ' koli listeye eklendi.', undefined, 'success');
+                }
+              } catch (e) {
+                appAlert('Ürün eklenemedi', e instanceof Error ? e.message : 'Tekrar deneyin.');
+              } finally {
+                setAdding(false);
+              }
+            }}
+          >
+            <Ionicons name={loggedIn ? 'cart-outline' : 'log-in-outline'} size={17} color="#111827" />
+            <Text style={styles.fixedCartText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {adding ? 'Ekleniyor…' : !loggedIn ? 'Giriş Yap' : isSellerProduct ? 'Sepete Ekle' : 'Listeye Ekle'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </Screen>
   );
@@ -306,18 +431,100 @@ function InfoCard({
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
   sellerCard:{marginTop:14,padding:12,borderRadius:12,borderWidth:1,flexDirection:'row',alignItems:'center',gap:10},
-  bottomDock:{borderTopWidth:1,paddingHorizontal:spacing.lg,paddingTop:8,paddingBottom:7},
-  dockHeader:{minHeight:57,flexDirection:'row',alignItems:'center',gap:10},
-  dockLabel:{fontSize:12,fontWeight:'600'},
-  dockTotal:{fontSize:20,fontWeight:'900',marginTop:2},
-  dockExpanded:{paddingTop:11,paddingBottom:4,borderTopWidth:1,borderColor:palette.border,gap:12},
-  dockFacts:{flexDirection:'row',gap:7},
-  dockFact:{flex:1,padding:9,backgroundColor:palette.surfaceSecondary,borderRadius:10},
-  dockValue:{fontSize:13,fontWeight:'800',marginTop:5},
-  dockPriceRow:{paddingVertical:2},
-  dockOrderRow:{flexDirection:'row',alignItems:'center',gap:10},
-  drawerCartButton:{flex:1,minHeight:48,backgroundColor:'#FFCD00',borderRadius:12,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:8},
-  drawerCartText:{fontWeight:'900',fontSize:13,color:'#111827'},
+  dockContainer: { paddingTop: 0 },
+  collapsedSummary: {
+    marginHorizontal: 14,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  summaryPress: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 13,
+    gap: 10,
+  },
+  summaryField: { flex: 1, minWidth: 0 },
+  summaryLabel: { fontSize: 9, fontWeight: '700' },
+  summaryValue: { fontSize: 13, fontWeight: '900', marginTop: 2 },
+  expandedPanel: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 17,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+  },
+  expandedHeader: {
+    minHeight: 39,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  expandedTitle: { fontSize: 16, fontWeight: '900' },
+  dockLabel: { fontSize: 11, fontWeight: '600' },
+  dockFacts: { flexDirection: 'row', gap: 7 },
+  dockFact: { flex: 1, minWidth: 0, padding: 9, borderRadius: 10 },
+  dockValue: { fontSize: 14, fontWeight: '800', marginTop: 5 },
+  detailLines: { marginTop: 9 },
+  detailLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 30,
+    gap: 10,
+  },
+  detailAmount: { fontSize: 12, fontWeight: '800', textAlign: 'right' },
+  dockTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderColor: palette.border,
+    marginTop: 10,
+    paddingTop: 11,
+  },
+  expandedTotal: { fontSize: 20, fontWeight: '900', color: '#FACC15' },
+  fixedOrderRow: {
+    borderTopWidth: 1,
+    minHeight: 68,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactStepper: {
+    height: 46,
+    borderRadius: 11,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  compactStepButton: { width: 34, height: 44, alignItems: 'center', justifyContent: 'center' },
+  compactStepValue: { minWidth: 29, textAlign: 'center', fontWeight: '900', color: palette.text, fontSize: 14 },
+  unitPriceColumn: { flex: 1, minWidth: 0 },
+  unitPriceLabel: { fontSize: 9, fontWeight: '600' },
+  unitPriceValue: { fontSize: 13, fontWeight: '900', marginTop: 3 },
+  fixedCartButton: {
+    minHeight: 46,
+    minWidth: 96,
+    maxWidth: 128,
+    borderRadius: 11,
+    backgroundColor: '#FFCD00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+  },
+  fixedCartText: { fontSize: 11, fontWeight: '900', color: '#111827', flexShrink: 1 },
 
   page: {
     paddingHorizontal: spacing.lg,
