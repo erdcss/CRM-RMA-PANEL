@@ -15,6 +15,7 @@ import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
+import { asCatalogProduct, isMarketplaceProduct } from '@/lib/marketplace-products';
 import { addToOrderList } from '@/lib/b2b-order-list';
 import { appAlert } from '@/lib/appAlert';
 
@@ -41,7 +42,7 @@ export default function ProductDetailScreen() {
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; slug?: string }>();
   const { session } = useAuth();
 
   const [product, setProduct] = useState<B2BProduct | null>(null);
@@ -50,14 +51,18 @@ export default function ProductDetailScreen() {
   const [quantity, setQuantity] = useState(1);
 
   const id = String(params.id || '');
+  const marketplaceId = id.startsWith('mp-') ? Number(id.slice(3)) : null;
+  const sellerSlug = String(params.slug || '');
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setError('');
 
-    rmaApi
-      .getB2BProduct(id)
+    const request = marketplaceId && sellerSlug
+      ? rmaApi.getMarketplaceProduct(sellerSlug, marketplaceId).then(asCatalogProduct)
+      : rmaApi.getB2BProduct(id);
+    request
       .then((value) => {
         setProduct(value);
         setQuantity(Math.max(1, Number(value.min_order_qty || 1)));
@@ -68,7 +73,7 @@ export default function ProductDetailScreen() {
         );
       })
       .finally(() => setLoading(false));
-  }, [id, session?.access_token]);
+  }, [id, sellerSlug, session?.access_token]);
 
   const pack = Math.max(1, Number(product?.units_per_box || 1));
   const min = Math.max(1, Number(product?.min_order_qty || 1));
@@ -111,6 +116,7 @@ export default function ProductDetailScreen() {
   }
 
   const image = productImage(product);
+  const isSellerProduct = isMarketplaceProduct(product);
   const loggedIn =
     session?.user?.role === 'b2b_customer' && session?.user?.isActive === true;
 
@@ -143,6 +149,17 @@ export default function ProductDetailScreen() {
           </Text>
 
           <Text style={styles.name}>{product.name || 'Ürün'}</Text>
+          {isSellerProduct ? <Pressable
+            onPress={() => router.push({pathname:'/marketplace/store/[slug]',params:{slug:product.seller_slug!}} as never)}
+            style={{marginTop:14,padding:12,borderRadius:12,backgroundColor:'#FFF7D6',flexDirection:'row',alignItems:'center',gap:10}}
+          >
+            <View style={{height:44,width:44,borderRadius:11,backgroundColor:'#FFCD00',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+              {product.seller_logo_url ? <Image source={{uri:absoluteMediaUrl(product.seller_logo_url)||undefined}} style={{height:'100%',width:'100%'}} contentFit="contain" /> : <Ionicons name="storefront-outline" size={24} color="#92400E"/>}
+            </View>
+            <View style={{flex:1}}><Text numberOfLines={1} style={{fontWeight:'800',fontSize:14,color:'#111827'}}>{product.seller_name}</Text>
+              <Text style={{fontSize:12,color:'#92400E',marginTop:3,fontWeight:'700'}}>Mağazayı görüntüle →</Text></View>
+            <Ionicons name="chevron-forward" color="#92400E" size={20}/>
+          </Pressable> : null}
 
           {product.description ? (
             <View style={styles.descriptionBox}>
@@ -265,6 +282,14 @@ export default function ProductDetailScreen() {
                 ]}
                 disabled={maxBoxes < min}
                 onPress={async () => {
+                  if(isSellerProduct){
+                    try{
+                      await rmaApi.addMarketplaceCart(Number(product.marketplace_product_id),effectiveQuantity);
+                      appAlert('Sepete eklendi',product.name+' · '+effectiveQuantity+' koli pazaryeri sepetine eklendi.',undefined,'success');
+                      router.push('/marketplace/cart' as never);
+                    }catch(e){appAlert('Sepete eklenemedi',e instanceof Error?e.message:'İşlem başarısız');}
+                    return;
+                  }
                   await addToOrderList({
                     productId: String(product.id),
                     sku: String(product.sku || ''),
@@ -287,7 +312,7 @@ export default function ProductDetailScreen() {
               >
                 <Ionicons name="cart-outline" size={22} color="#111827" />
                 <Text style={styles.checkoutButtonText}>
-                  Siparişlere Ekle
+                  {isSellerProduct ? 'Sepete Ekle' : 'Siparişlere Ekle'}
                 </Text>
               </Pressable>
             </View>
