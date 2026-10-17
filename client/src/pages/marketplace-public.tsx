@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, Redirect } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BadgeCheck, FileText, Film, Heart, MessageCircle, Package, Store, Truck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -118,61 +118,10 @@ export function MarketplaceShop({slug}:{slug:string}){
     </div>
   </main>;
 }
-export function MarketplaceProduct({slug,productId}:{slug:string;productId:string}){
-  const key="/api/marketplace/stores/"+encodeURIComponent(slug)+"/products/"+encodeURIComponent(productId);
-  const {data:product,isLoading,isError}=useQuery<ShopProductDetail>({queryKey:[key],retry:false,staleTime:15000});
-  const {data:shop}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:30000});
-  const [boxes,setBoxes]=useState(1);
-  const [status,setStatus]=useState("");
-  const [busy,setBusy]=useState(false);
-  const seller=product?.seller_name||shop?.company_name||"";
-  const logo=product?.seller_logo_url||shop?.content?.logoUrl;
-  const storeUrl="/magaza/"+encodeURIComponent(slug);
-  if(isLoading)return <main className="p-8 text-center text-slate-500">Ürün yükleniyor...</main>;
-  if(isError||!product)return <main className="p-8 text-center"><p>Ürün bulunamadı veya yayından kaldırıldı.</p><Link href={storeUrl} className="text-amber-700 underline">Mağazaya dön</Link></main>;
-  const minimum=Math.max(1,Number(product.content.minBoxes)||1);
-  const pack=Math.max(1,Number(product.content.unitsPerBox)||1);
-  const maximum=Math.floor(Number(product.stock||0)/pack);
-  const requested=Math.min(maximum,Math.max(minimum,boxes));
-  return <main className="min-h-screen bg-[#f6f7f9] px-4 py-6 text-slate-900">
-    <div className="mx-auto max-w-5xl">
-      <Link href={storeUrl} className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-950"><ArrowLeft className="h-4 w-4"/>Mağazaya dön</Link>
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
-        <div className="flex aspect-square items-center justify-center rounded-2xl border bg-white p-6">
-          {product.content.imageUrl?<img src={product.content.imageUrl} alt={product.content.name} className="max-h-full w-full object-contain"/>:<Package className="h-24 w-24 text-slate-200"/>}
-        </div>
-        <section className="rounded-2xl border bg-white p-5 sm:p-6">
-          <p className="text-xs text-slate-500">SKU: {product.sku}</p>
-          <h1 className="mt-2 text-xl font-black leading-snug sm:text-2xl">{product.content.name}</h1>
-          <Link href={storeUrl} className="mt-5 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50/60 p-3 transition hover:border-amber-300">
-            <ShopAvatar logo={logo} name={seller}/>
-            <span className="min-w-0 flex-1"><span className="flex items-center gap-1 text-sm font-bold"><span className="truncate">{seller}</span><BadgeCheck className="h-4 w-4 shrink-0 text-green-600"/></span>
-              <span className="mt-1 block text-xs font-semibold text-amber-800">Mağazayı görüntüle →</span></span>
-          </Link>
-          <div className="mt-5 border-y py-4"><p className="text-xs text-slate-500">B2B birim fiyatı</p>
-            <p className="mt-1 text-2xl font-black">{product.content.price==null?"Fiyat için giriş yapın":money(Number(product.content.price))}</p>
-            <p className="mt-1 text-xs text-slate-500">Koli içi {pack} adet · Minimum {minimum} koli · Stok {product.stock} adet</p>
-          </div>
-          {product.content.description?<p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-600">{product.content.description}</p>:null}
-          {status?<p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{status}</p>:null}
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <label className="text-sm font-medium" htmlFor="product-boxes">Koli adedi</label>
-            <input id="product-boxes" type="number" min={minimum} max={maximum} disabled={maximum<minimum} value={boxes} onChange={e=>setBoxes(Number(e.target.value)||minimum)} className="w-24 rounded-lg border px-3 py-2 text-sm"/>
-            <button disabled={busy||maximum<minimum} onClick={async()=>{
-              setBusy(true);setStatus("");
-              try{await apiRequest("POST","/api/marketplace/cart",{productId:Number(product.id),boxes:requested,deliveryMode:"direct"});setStatus("Ürün sepete eklendi.");}
-              catch(e){setStatus(e instanceof Error?e.message:"Sepete eklenemedi. İşletme hesabıyla giriş yapın.");}
-              finally{setBusy(false);}
-            }} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">Sepete ekle</button>
-          </div>
-          {maximum<minimum?<p className="mt-2 text-xs text-red-700">Minimum sipariş için yeterli stok yok.</p>:null}
-          <Link href={storeUrl} className="mt-5 inline-flex text-sm font-semibold text-amber-800 hover:underline">Satıcının diğer ürünlerini görüntüle →</Link>
-        </section>
-      </div>
-    </div>
-  </main>;
+/** Legacy supplier product links use the standard B2B product page and order list. */
+export function MarketplaceProduct({slug: _slug,productId}:{slug:string;productId:string}){
+  return <Redirect to={"/urun/mp-"+encodeURIComponent(productId)} />;
 }
-
 export function MarketplaceReels(){
   const {data:reels=[],isLoading}=useQuery<Reel[]>({queryKey:["/api/marketplace/reels"],staleTime:15000});
   return <main className="min-h-screen bg-[#f6f7f9] px-4 py-6 text-slate-900"><div className="mx-auto max-w-5xl">
