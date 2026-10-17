@@ -17,7 +17,7 @@ export function MarketplaceDirectory(){
     <div className="mx-auto max-w-6xl"><Link href="/" className="text-sm text-slate-600"><ArrowLeft className="mr-1 inline h-4 w-4"/>Ürün kataloğuna dön</Link>
       <div className="my-6 flex flex-wrap items-center justify-between gap-4">
         <div><h1 className="text-2xl font-black">Toptancı Mağazaları</h1><p className="mt-1 text-sm text-slate-500">Çalışkan B2B tarafından onaylanmış tedarikçiler</p></div>
-        <Link href="/satici" className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Çalışkan B2B'de Satıcı Ol</Link>
+        <a href="https://pazaryeri.ecalisgan.com" className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Tedarikçi Başvurusu / Girişi</a>
       </div>
       {isLoading?<p>Mağazalar yükleniyor...</p>:data.length===0?<div className={box+" py-16 text-center text-sm text-slate-500"}>Henüz yayında tedarikçi mağazası bulunmuyor.</div>:null}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{data.map(shop=><Link key={shop.id} href={"/magaza/"+shop.slug} className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:shadow-lg">
