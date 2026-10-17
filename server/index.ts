@@ -11,6 +11,21 @@ import { getUploadsDir } from "./image-storage";
 const app = express();
 const uploadsDir = getUploadsDir();
 
+// Old supplier URLs on the B2B storefront move to the dedicated marketplace
+// domain. Redirect at HTTP level, including deep links and query parameters.
+app.use((req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  const host = req.hostname.toLowerCase();
+  const b2bHost = host === "b2b.ecalisgan.com" ||
+    (host.startsWith("caliskan-b2b-web-") && host.endsWith(".up.railway.app"));
+  if (!b2bHost || !/^\/satici(?:\/|$)/.test(req.path)) return next();
+  const original = req.originalUrl;
+  const queryIndex = original.indexOf("?");
+  const query = queryIndex < 0 ? "" : original.slice(queryIndex);
+  const path = req.path === "/satici" || req.path === "/satici/" ? "/" : req.path;
+  return res.redirect(302, "https://pazaryeri.ecalisgan.com" + path + query);
+});
+
 // This deployment is dedicated to suppliers. Keep the existing admin and buyer
 // APIs on their respective services, even though they share the source repo.
 if (process.env.APP_SERVICE_MODE === "marketplace") {
