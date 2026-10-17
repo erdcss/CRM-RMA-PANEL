@@ -2396,7 +2396,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller, requireMarketplaceParticipant);
   void ensureMarketplaceSchema().catch(error => console.error("Marketplace schema migration failed:",error));
   registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
-  registerMarketplaceCartRoutes(app, requireB2B);
+  registerMarketplaceCartRoutes(app, requireB2B, requireSeller);
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
