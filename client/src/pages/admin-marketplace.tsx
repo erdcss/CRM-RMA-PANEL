@@ -168,7 +168,7 @@ export default function AdminMarketplace(){
                 <Button disabled={!!processing} variant="outline" onClick={()=>void decision(tab,r,"rejected")}>Gerekçeli Reddet</Button>
               </div>
             </div>:null}
-            {tab!=="suppliers" && tab!=="overview" ?
+            {tab!=="suppliers" ?
               <div className="mt-4 border-t pt-4">
                 <Button variant={r.status==="pending"?"default":"outline"}
                   onClick={()=>setSelectedReview({kind:tab,id:r.id})}>
