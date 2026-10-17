@@ -55,7 +55,7 @@ async function ready(){
  await schema;return pool;
 }
 const listQuery=`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.company_name,
- v.id AS revision_id,v.content
+ v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
  FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
  JOIN mp_suppliers s ON s.id=p.supplier_id
  LEFT JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
@@ -130,7 +130,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
     const previous=await client.query("SELECT id,subtotal,status FROM mp_order_drafts WHERE buyer_user_id=$1 AND request_key=$2",[uid,data.data.requestKey]);
     if(previous.rows[0]){await client.query("COMMIT");return res.json({...previous.rows[0],paymentEnabled:false});}
     const q=await client.query(`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.company_name,
-      v.id AS revision_id,v.content FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
+      v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
       JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
       JOIN mp_store_versions st ON st.supplier_id=s.id AND st.is_live=TRUE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
