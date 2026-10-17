@@ -162,11 +162,11 @@ export default function AdminCategoryEdit() {
               <label className="block space-y-2 text-sm font-semibold">Atanmış etiketler (virgülle ayırın)
                 <Input value={tagText} onChange={e => setTagText(e.target.value)} placeholder="elektronik, küçük ev aletleri" />
               </label>
-              {data.availableTags?.length ? (
+              {data?.availableTags?.length ? (
                 <div>
                   <p className="mb-2 text-xs font-semibold text-muted-foreground">Ürünlerde bulunan etiketler — seçmek için tıklayın</p>
                   <div className="flex flex-wrap gap-2">
-                    {data.availableTags.map(tag => {
+                    {data?.availableTags?.map(tag => {
                       const active = selectedTags.some(value => value.toLocaleLowerCase("tr-TR") === tag.toLocaleLowerCase("tr-TR"));
                       return <Button key={tag} type="button" size="sm" variant={active ? "default" : "outline"} onClick={() => toggleTag(tag)}>{tag}</Button>;
                     })}
