@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { absoluteMediaUrl, rmaApi, type MarketplaceCart } from '@/lib/api';
@@ -20,7 +21,8 @@ export default function MarketplaceCartPage(){
   const [cart,setCart]=useState<MarketplaceCart|null>(null);
   const [loading,setLoading]=useState(true);const [refreshing,setRefreshing]=useState(false);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
-  const draftKey=useRef<string|null>(null);
+  const [confirmed,setConfirmed]=useState<number|null>(null);
+  const orderKey=useRef<string|null>(null);
   const load=useCallback(async(pull=false)=>{
     if(pull)setRefreshing(true);else setLoading(true);
     try{setCart(await rmaApi.getMarketplaceCart());setError('');}
@@ -30,26 +32,30 @@ export default function MarketplaceCartPage(){
   useFocusEffect(useCallback(()=>{void load();},[load]));
   const remove=async(id:number)=>{
     if(busy)return;setBusy(true);
-    try{await rmaApi.removeMarketplaceCart(id);draftKey.current=null;await load(true);}
+    try{await rmaApi.removeMarketplaceCart(id);orderKey.current=null;await load(true);}
     catch(e){setError(e instanceof Error?e.message:'Ürün silinemedi.');}
     finally{setBusy(false);}
   };
-  const draft=async()=>{
+  const placeOrder=async()=>{
     if(busy||!cart?.items.length||cart.items.some(x=>!x.valid))return;
     setBusy(true);setError('');
     try{
-      if(!draftKey.current)draftKey.current=requestKey();
-      const saved=await rmaApi.createMarketplaceOrderDraft(draftKey.current);
-      appAlert('Sipariş taslağı oluşturuldu','Taslak #'+saved.id+' kaydedildi. Pazaryerinde online ödeme ve kesin sipariş henüz aktif değil.',undefined,'success');
+      if(!orderKey.current)orderKey.current=requestKey();
+      const saved=await rmaApi.createMarketplaceOrder(orderKey.current);
+      setConfirmed(saved.id);
+      await load(true);
+      appAlert('Sipariş oluşturuldu','Sipariş #'+saved.id+' tedarikçiye iletildi. Satıcı onayı bekleniyor, ödeme henüz alınmadı.',undefined,'success');
+      orderKey.current=null;
     }catch(e){setError(e instanceof Error?e.message:'Sipariş taslağı oluşturulamadı.');}
     finally{setBusy(false);}
   };
-  return <ScrollView style={[styles.page,{backgroundColor:palette.background}]} contentContainerStyle={styles.body}
+  return <SafeAreaView edges={['top','bottom']} style={[styles.page,{backgroundColor:palette.background}]}><ScrollView style={styles.page} contentContainerStyle={styles.body}
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>void load(true)}/>}>
     <Pressable onPress={()=>router.back()} style={styles.back}><Ionicons name="chevron-back" size={21} color={palette.text}/><Text style={{color:palette.text,fontWeight:'800'}}>Geri</Text></Pressable>
     <Text style={[styles.heading,{color:palette.text}]}>Sepetim</Text>
     <Text style={[styles.info,{color:palette.textSecondary}]}>Tedarikçi pazaryeri ürünleri</Text>
     {error?<Text style={styles.error}>{error}</Text>:null}
+    {confirmed!=null?<View style={styles.success}><Ionicons name="checkmark-circle" size={22} color="#16A34A"/><View style={{flex:1}}><Text style={styles.successTitle}>Sipariş #{confirmed} oluşturuldu</Text><Text style={styles.successText}>Tedarikçi onayı bekleniyor. Ödeme alınmadı.</Text></View></View>:null}
     {loading?<Text style={{color:palette.textSecondary}}>Sepet yükleniyor…</Text>:null}
     {cart?.items.map(item=><View key={item.id} style={[styles.item,{backgroundColor:palette.surface,borderColor:palette.border}]}>
       <View style={styles.imageWrap}>{item.content?.imageUrl ? <Image source={{uri:absoluteMediaUrl(item.content.imageUrl)||undefined}} style={styles.image} contentFit="contain"/>:
@@ -67,17 +73,18 @@ export default function MarketplaceCartPage(){
     {!loading&&!cart?.items.length?<Text style={[styles.empty,{color:palette.textSecondary}]}>Sepetinizde ürün bulunmuyor.</Text>:null}
     {cart?.items.length ? <View style={[styles.summary,{backgroundColor:palette.surface,borderColor:palette.border}]}>
       <Text style={[styles.total,{color:palette.text}]}>Ara toplam: {money(cart.subtotal)}</Text>
-      <Text style={[styles.info,{color:palette.textSecondary}]}>Teslimat, satıcı ve koli kuralları uygulama tarafından doğrulanır.</Text>
-      <Text style={styles.notice}>{cart.notice||'Online ödeme ve kesin sipariş henüz aktif değil.'}</Text>
-      <Pressable disabled={busy||cart.items.some(i=>!i.valid)} onPress={()=>void draft()}
+      <Text style={[styles.info,{color:palette.textSecondary}]}>Siparişiniz tedarikçiye iletilir. Ödeme, satıcı onayından sonra ayrıca planlanacaktır.</Text>
+      <Pressable disabled={busy||cart.items.some(i=>!i.valid)} onPress={()=>void placeOrder()}
         style={[styles.action,(busy||cart.items.some(i=>!i.valid))&&{opacity:0.5}]}>
-        <Text style={styles.actionText}>{busy?'Kaydediliyor…':'Sipariş Taslağı Oluştur'}</Text>
+        <Text style={styles.actionText}>{busy?'Oluşturuluyor…':'Siparişi Oluştur'}</Text>
       </Pressable>
     </View> : null}
-  </ScrollView>;
+  </ScrollView></SafeAreaView>;
 }
 const styles=StyleSheet.create({
-  page:{flex:1},body:{padding:16,paddingBottom:60,gap:12},back:{flexDirection:'row',alignItems:'center',gap:5,minHeight:44},
+  page:{flex:1},body:{paddingHorizontal:16,paddingTop:8,paddingBottom:60,gap:12},back:{flexDirection:'row',alignItems:'center',gap:5,minHeight:48},
+  success:{flexDirection:'row',gap:9,alignItems:'center',backgroundColor:'#E9F9EF',borderRadius:12,padding:13},
+  successTitle:{fontSize:13,color:'#14532D',fontWeight:'900'},successText:{fontSize:12,color:'#166534',marginTop:2},
   heading:{fontWeight:'900',fontSize:23},info:{fontSize:12,lineHeight:18},error:{color:'#B91C1C',fontSize:12},
   item:{flexDirection:'row',alignItems:'center',gap:11,padding:11,borderWidth:1,borderRadius:14},
   imageWrap:{width:78,height:78,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center',borderRadius:9,padding:4},
