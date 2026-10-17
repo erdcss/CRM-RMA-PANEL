@@ -74,7 +74,6 @@ export function RootStack() {
       <Stack.Screen name="marketplace/store/[slug]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="marketplace/chat/[slug]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="marketplace/quote/[slug]" options={{ animation: 'slide_from_right' }} />
-      <Stack.Screen name="marketplace/cart" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="checkout" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="payment-card" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="payment-result" options={{ animation: 'fade' }} />
