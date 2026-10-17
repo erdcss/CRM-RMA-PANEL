@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,11 +18,17 @@ export default function SellerChat() {
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
+  const [sellerName,setSellerName]=useState('Satıcıyla İletişime Geç');
   const refresh=useCallback(async()=>{
     try{
       const threads=await rmaApi.listMarketplaceConversations();
       const thread=threads.find(item=>item.slug===slug)||null;
       setConversation(thread);
+      if(thread?.company_name)setSellerName(thread.company_name);
+      else {
+        const shop=await rmaApi.getMarketplaceStore(String(slug));
+        setSellerName(shop.company_name);
+      }
       if(thread)setMessages(await rmaApi.listMarketplaceMessages(Number(thread.id)));
       else setMessages([]);
       setError('');
@@ -43,10 +50,11 @@ export default function SellerChat() {
     finally{setBusy(false);}
   };
   const me=Number(session?.user?.id||0);
-  return <KeyboardAvoidingView style={[styles.root,{backgroundColor:palette.background}]} behavior={Platform.OS==='ios'?'padding':undefined}>
+  return <SafeAreaView edges={['top','bottom']} style={[styles.root,{backgroundColor:palette.background}]}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS==='ios'?'padding':undefined}>
     <View style={[styles.header,{backgroundColor:palette.surface,borderBottomColor:palette.border}]}>
-      <Pressable accessibilityLabel="Geri" onPress={()=>router.back()}><Ionicons name="chevron-back" size={24} color={palette.text}/></Pressable>
-      <View style={{flex:1}}><Text style={[styles.heading,{color:palette.text}]} numberOfLines={1}>{conversation?.company_name||'Satıcıyla İletişime Geç'}</Text>
+      <Pressable accessibilityLabel="Geri" style={styles.backButton} onPress={()=>router.back()}><Ionicons name="chevron-back" size={24} color={palette.text}/></Pressable>
+      <View style={{flex:1}}><Text style={[styles.heading,{color:palette.text}]} numberOfLines={1}>{conversation?.company_name||sellerName}</Text>
         <Text style={[styles.subheading,{color:palette.textSecondary}]}>Uygulama içi güvenli sohbet</Text></View>
       <Pressable onPress={()=>void refresh()}><Ionicons name="refresh" size={21} color={palette.text}/></Pressable>
     </View>
@@ -67,11 +75,13 @@ export default function SellerChat() {
         <Ionicons name="send" size={21} color="#111827"/>
       </Pressable>
     </View>
-  </KeyboardAvoidingView>;
+    </KeyboardAvoidingView>
+  </SafeAreaView>;
 }
 const styles=StyleSheet.create({
-  root:{flex:1},header:{padding:15,paddingTop:20,flexDirection:'row',gap:12,alignItems:'center',borderBottomWidth:1},
-  heading:{fontSize:17,fontWeight:'900'},subheading:{fontSize:11,marginTop:3},messages:{padding:16,flexGrow:1,gap:9},
+  root:{flex:1},header:{paddingHorizontal:14,paddingTop:12,paddingBottom:15,flexDirection:'row',gap:10,alignItems:'center',borderBottomWidth:1,minHeight:76},
+  backButton:{width:35,height:48,alignItems:'center',justifyContent:'center'},
+  heading:{fontSize:17,fontWeight:'900',lineHeight:23},subheading:{fontSize:12,marginTop:3},messages:{padding:16,flexGrow:1,gap:9},
   empty:{textAlign:'center',marginTop:80,fontSize:13},bubble:{maxWidth:'83%',borderRadius:15,padding:12},
   mine:{alignSelf:'flex-end',backgroundColor:'#FFCD00'},theirs:{alignSelf:'flex-start',backgroundColor:'#E2E8F0'},
   bubbleText:{fontSize:14,lineHeight:21,color:'#111827'},error:{color:'#B91C1C',padding:12},
