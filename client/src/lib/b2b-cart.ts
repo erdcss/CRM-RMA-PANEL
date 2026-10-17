@@ -65,7 +65,8 @@ function normalize(items: unknown): B2BCartItem[] {
 export function getB2BCart(): B2BCartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    return normalize(JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]"));
+    // Supplier selections belong to the signed-in account on the server, never browser storage.
+    return normalize(JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]")).filter(item=>!item.productId.startsWith("mp-"));
   } catch {
     return [];
   }
@@ -78,6 +79,7 @@ function persist(items: B2BCartItem[]) {
 }
 
 export function addB2BCartItem(item: B2BCartItem) {
+  if(item.productId.startsWith("mp-"))return; // Supplier orders are persisted through authenticated API.
   const current = getB2BCart();
   const index = current.findIndex((entry) => entry.productId === item.productId);
   const availableBoxes = maxBoxes(item);
@@ -125,8 +127,12 @@ export function removeB2BCartItem(productId: string) {
 }
 
 export function clearB2BCart() {
-  // Paying for company products must not erase unsubmitted supplier products.
-  persist(getB2BCart().filter(item=>item.productId.startsWith("mp-")));
+  // Supplier selections are persisted on the server and never cleared by admin checkout.
+  persist([]);
+}
+
+export function refreshB2BCart(){
+  if(typeof window!=="undefined")window.dispatchEvent(new CustomEvent(EVENT_NAME));
 }
 
 export function useB2BCart() {
