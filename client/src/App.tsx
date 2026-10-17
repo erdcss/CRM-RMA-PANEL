@@ -53,6 +53,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
 import { trackSession } from "@/lib/analytics";
 
+function isMarketplaceHost() {
+  const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
+  if (configuredMode === "marketplace") return true;
+  if (configuredMode === "admin" || configuredMode === "b2b") return false;
+  if (typeof window === "undefined") return false;
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname === "pazaryeri.ecalisgan.com" ||
+    hostname.startsWith("pazaryeri-") && hostname.endsWith(".up.railway.app");
+}
+
 function isB2BHost() {
   const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
   if (configuredMode === "b2b") return true;
@@ -188,12 +198,29 @@ function B2BWebsite() {
   );
 }
 
+function MarketplaceWebsite() {
+  useEffect(() => {
+    document.title = "Çalışkan B2B | Tedarikçi Paneli";
+  }, []);
+  return (
+    <div className="b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain">
+      <Switch>
+        <Route path="/" component={MarketplaceSeller} />
+        <Route path="/satici" component={MarketplaceSeller} />
+        <Route path="/satici/urun/:id">{(params) => <MarketplaceSellerProduct id={params.id} />}</Route>
+        <Route component={MarketplaceSeller} />
+      </Switch>
+    </div>
+  );
+}
+
 function BrandingRuntime() {
   const { data: branding } = useBranding();
 
   useEffect(() => {
-    const isB2B = isB2BHost();
-    const appName = isB2B ? "Çalışkan B2B" : "Çalışkan Core";
+    const marketplace = isMarketplaceHost();
+    const isB2B = isB2BHost() || marketplace;
+    const appName = marketplace ? "Çalışkan B2B | Tedarikçi Paneli" : isB2B ? "Çalışkan B2B" : "Çalışkan Core";
     const iconEndpoint = `/api/public/branding-icon/${isB2B ? "b2b" : "admin"}?v=6`;
     const uploadedFavicon = isB2B ? branding?.b2b_favicon : branding?.admin_favicon;
 
@@ -238,7 +265,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <BrandingRuntime />
-        {isB2BHost() ? <B2BWebsite /> : <AppContent />}
+        {isMarketplaceHost() ? <MarketplaceWebsite /> : isB2BHost() ? <B2BWebsite /> : <AppContent />}
       </TooltipProvider>
     </QueryClientProvider>
   );
