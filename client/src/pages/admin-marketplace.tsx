@@ -6,6 +6,8 @@ import { Store, ClipboardCheck, Package, Film, ShieldCheck, RefreshCw, MessageSq
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { MarketplaceReviewDialog, type ReviewKind } from "@/components/marketplace-review-detail";
+import { Eye, ImageOff } from "lucide-react";
 
 type Status = "pending" | "approved" | "rejected" | "suspended";
 type Review = {id:number;status:Status;created_at:string;review_note?:string;company_name?:string;contact_name?:string;
@@ -31,6 +33,7 @@ export default function AdminMarketplace(){
   const [tab,setTab]=useState<Tab>("overview");
   const [notes,setNotes]=useState<Record<string,string>>({});
   const [processing,setProcessing]=useState<string|null>(null);
+  const [selectedReview,setSelectedReview]=useState<{kind:ReviewKind;id:number}|null>(null);
   const {toast}=useToast();
   const overview=useQuery<Overview>({queryKey:["/api/admin/marketplace/overview"],staleTime:0,refetchInterval:30000});
   const queue=useQuery<Queue>({queryKey:["/api/admin/marketplace/review-queue"],staleTime:0,refetchInterval:30000});
@@ -49,6 +52,7 @@ export default function AdminMarketplace(){
         queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/overview"]})
       ]);
       toast({title:value==="approved"?"İçerik onaylandı":"İçerik reddedildi"});
+      if(kind!=="suppliers")setSelectedReview(null);
     }catch(e){toast({title:"İşlem yapılamadı",description:e instanceof Error?e.message:"Hata",variant:"destructive"});}
     finally{setProcessing(null);}
   }
@@ -120,14 +124,37 @@ export default function AdminMarketplace(){
   {r.description?<p>Faaliyet Alanı: {r.description}</p>:null}
   {r.has_tax_document?<a className="inline-flex rounded-lg border px-3 py-2 font-semibold text-foreground underline" href={"/api/admin/marketplace/suppliers/"+r.id+"/tax-document"} target="_blank" rel="noopener noreferrer">Vergi Levhasını Görüntüle</a>:null}
 </div>:null}
-                {tab==="products"?<p className="mt-2 text-sm">{String(r.content?.description||"").slice(0,220)} · Fiyat: {String(r.content?.price??"—")} ₺</p>:null}
-                {tab==="stores"?<p className="mt-2 text-sm">Mağaza başlığı: {String(r.content?.title||"")}, renk: {String(r.content?.accent||"")}</p>:null}
-                {tab==="reels"&&r.video_url?<a target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm underline" href={r.video_url}>Videoyu görüntüle ↗</a>:null}
+                {tab==="products"?
+                  <div className="mt-3 flex flex-wrap items-start gap-4">
+                    {typeof r.content?.imageUrl==="string" && /^\/api\/marketplace\/media\/[a-f0-9]{32}$/.test(r.content.imageUrl)?
+                      <img src={r.content.imageUrl} alt="Ürün önizlemesi" className="h-28 w-28 rounded-xl border bg-background object-contain p-2"/>:
+                      <div className="flex h-28 w-28 items-center justify-center rounded-xl bg-muted"><ImageOff className="h-8 w-8 text-muted-foreground"/></div>}
+                    <div className="min-w-0 flex-1 space-y-1 text-sm">
+                      <p className="font-semibold">{String(r.content?.name||"Ürün")}</p>
+                      <p className="text-muted-foreground">{String(r.content?.description||"Açıklama bulunmuyor").slice(0,180)}</p>
+                      <p className="font-semibold">Birim fiyatı: {Number(r.content?.price||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"})}</p>
+                      <p className="text-muted-foreground">Marka: {String(r.content?.brand||"—")} · Koli içi: {String(r.content?.unitsPerBox||"—")}</p>
+                    </div>
+                  </div>:null}
+                {tab==="stores"?
+                  <div className="mt-3 flex items-center gap-4 rounded-xl border bg-muted/20 p-3">
+                    <div className="h-14 w-14 shrink-0 rounded-xl border" style={{backgroundColor:typeof r.content?.accent==="string"&&/^#[a-fA-F0-9]{6}$/.test(r.content.accent)?r.content.accent:"#FACC15"}}/>
+                    <div className="min-w-0 text-sm">
+                      <p className="font-semibold">{String(r.content?.title||r.company_name||"Mağaza")}</p>
+                      <p className="text-muted-foreground">{String(r.content?.tagline||"Slogan eklenmemiş")}</p>
+                      <p className="text-xs text-muted-foreground">Logo, banner, renk paleti ve blok yerleşimini inceleyin</p>
+                    </div>
+                  </div>:null}
+                {tab==="reels"?
+                  <div className="mt-3 flex items-center gap-3 text-sm text-muted-foreground">
+                    <Film className="h-8 w-8 shrink-0 text-amber-600"/>
+                    <span>Video oynatıcı, ürün etiketi ve yayın durumu detaylı incelemede görüntülenebilir.</span>
+                  </div>:null}
               </div>
               <span className={"rounded-full px-3 py-1 text-xs font-semibold "+(r.status==="pending"?"bg-amber-100 text-amber-800":r.status==="approved"?"bg-green-100 text-green-800":"bg-slate-100 text-slate-700")}>{statusNames[r.status]||r.status}</span>
             </div>
             {r.review_note?<p className="mt-3 text-xs text-muted-foreground">Son yönetici notu: {r.review_note}</p>:null}
-            {r.status==="pending" ? <div className="mt-4 space-y-3 border-t pt-4">
+            {tab==="suppliers" && r.status==="pending" ? <div className="mt-4 space-y-3 border-t pt-4">
               <textarea aria-label="Onay veya ret gerekçesi" value={notes[key]||""} onChange={e=>setNotes(v=>({...v,[key]:e.target.value}))}
                 placeholder="Yönetici notu / ret gerekçesi" maxLength={1000} rows={2} className="w-full rounded-lg border bg-background p-3 text-sm"/>
               <div className="flex flex-wrap gap-2">
@@ -135,9 +162,31 @@ export default function AdminMarketplace(){
                 <Button disabled={!!processing} variant="outline" onClick={()=>void decision(tab,r,"rejected")}>Gerekçeli Reddet</Button>
               </div>
             </div>:null}
+            {tab!=="suppliers" && tab!=="overview" ?
+              <div className="mt-4 border-t pt-4">
+                <Button variant={r.status==="pending"?"default":"outline"}
+                  onClick={()=>setSelectedReview({kind:tab,id:r.id})}>
+                  <Eye className="mr-2 h-4 w-4"/>Detaylı İncele
+                </Button>
+                {r.status==="pending"?<span className="ml-3 text-xs text-muted-foreground">Onay ve ret işlemleri inceleme ekranında</span>:null}
+              </div>:null}
           </article>;
         })}
       </section>}
+      <MarketplaceReviewDialog
+        selection={selectedReview}
+        note={selectedReview?notes[selectedReview.kind+":"+selectedReview.id]||"":""}
+        onNote={(value)=>{
+          if(selectedReview)setNotes(prev=>({...prev,[selectedReview.kind+":"+selectedReview.id]:value}));
+        }}
+        onClose={()=>setSelectedReview(null)}
+        processing={!!processing}
+        onDecision={(value)=>{
+          if(!selectedReview)return;
+          const review=groups[selectedReview.kind].find(item=>Number(item.id)===Number(selectedReview.id));
+          if(review)void decision(selectedReview.kind,review,value);
+        }}
+      />
     </div>
   </main>;
 }
