@@ -85,6 +85,11 @@ export default function MarketplaceSeller(){
   const [uploadingCount,setUploadingCount]=useState(0);
   const uploading=uploadingCount>0;
   async function upload(file:File, target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"){
+    if(target==="videoUrl"){
+      setReel(value=>({...value,videoUrl:""}));
+      if(file.size>9*1024*1024){setMessage("MP4 video 9 MB sınırını aşıyor. Videoyu sıkıştırıp yeniden seçin.");return;}
+      if(file.type!=="video/mp4" && !file.name.toLowerCase().endsWith(".mp4")){setMessage("Lütfen MP4 formatında video seçin.");return;}
+    }
     setUploadingCount(count=>count+1);setMessage("");
     try{
       const dataUrl=await new Promise<string>((resolve,reject)=>{
@@ -133,6 +138,24 @@ export default function MarketplaceSeller(){
     setBusy(true);setMessage("");
     try{await action();setMessage("İşlem başarıyla kaydedildi.");await Promise.all(refresh.map(key=>queryClient.invalidateQueries({queryKey:[key]})));}
     catch(e){setMessage(e instanceof Error?e.message:"İşlem tamamlanamadı.");}
+    finally{setBusy(false);}
+  }
+  async function submitReel(form:HTMLFormElement){
+    if(busy||uploading){setMessage("Video yükleniyor. Yüklemenin tamamlanmasını bekleyin.");return;}
+    if(!reel.title.trim()){setMessage("Reels için video başlığı girin.");return;}
+    if(!/^\/api\/marketplace\/media\/[a-f0-9]{32}$/.test(reel.videoUrl)){
+      setMessage("Video henüz sunucuya yüklenmedi. MP4 dosyasını seçin ve Video yüklendi mesajını bekleyin.");return;
+    }
+    setBusy(true);setMessage("");
+    try{
+      await send("POST","/api/marketplace/seller/reels",{
+        title:reel.title.trim(),videoUrl:reel.videoUrl,productId:reel.productId?Number(reel.productId):null,
+      });
+      setReel({title:"",videoUrl:"",productId:""});
+      form.reset();
+      await queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/dashboard"]});
+      setMessage("Reels yönetici onayına gönderildi. Video geçmişinde Onay bekliyor olarak listelenir.");
+    }catch(e){setMessage(e instanceof Error?e.message:"Reels onaya gönderilemedi.");}
     finally{setBusy(false);}
   }
   if (!me.isLoading && me.isError) return <SellerAccess onAuthenticated={async()=>{ await me.refetch(); await queryClient.invalidateQueries({queryKey:["/api/auth/me"]}); }}/>;
@@ -260,15 +283,15 @@ export default function MarketplaceSeller(){
 </tr>)}</tbody></table>{!products.data?.length?<p className="py-10 text-center text-sm text-slate-500">Henüz ürün yok. Sağ üstteki Ürün Ekle butonuyla başlayın.</p>:(products.data||[]).filter(p=>productFilter==="all"||(productFilter==="approved"?Boolean(p.live):p.latest?.status===productFilter)).length===0?<p className="py-10 text-center text-sm text-slate-500">Bu durumda ürün bulunmuyor.</p>:null}</div>
           </div>:null}
           {tab==="reels"?<div className="grid gap-5 lg:grid-cols-2">
-            <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/seller/reels",
-              {title:reel.title,videoUrl:reel.videoUrl,productId:reel.productId?Number(reel.productId):null}),["/api/marketplace/seller/dashboard"]);}}>
+            <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void submitReel(e.currentTarget);}}>
               <h2 className="text-lg font-bold">Reels Stüdyosu</h2>
               <Field label="Video başlığı"><input className={inputStyle} required value={reel.title} onChange={e=>setReel(v=>({...v,title:e.target.value}))}/></Field>
-              <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p className="text-xs text-slate-500">{reel.videoUrl?"Video yüklendi":"En fazla 9 MB, MP4 formatı"}</p></Field>
+              <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p role="status" className={"text-xs "+(reel.videoUrl?"font-bold text-green-700":"text-slate-500")}>{uploading?"Video sunucuya yükleniyor…":reel.videoUrl?"Video yüklendi · Onaya gönderilmeye hazır":"En fazla 9 MB, MP4 formatı. Onaya göndermek için yükleme tamamlanmalı."}</p></Field>
               <Field label="Ürün seç"><select className={inputStyle} value={reel.productId} onChange={e=>setReel(v=>({...v,productId:e.target.value}))}>
-                <option value="">Ürün seçilmedi</option>{products.data?.map(p=><option key={p.id} value={p.id}>{p.latest?.content?.name||p.sku}</option>)}
+                <option value="">Ürün seçilmedi</option>{products.data?.filter(p=>Boolean(p.live)).map(p=><option key={p.id} value={p.id}>{p.live?.name||p.sku}</option>)}
               </select></Field>
-              <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white">Videoyu Onaya Gönder</button>
+              <p className="text-xs text-slate-500">Etiketlenen ürün de onaylanmış olmalıdır. Ürün seçimi isteğe bağlıdır.</p>
+              <button disabled={busy||uploading||!reel.videoUrl||!reel.title.trim()} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{uploading?"Video yükleniyor…":busy?"Gönderiliyor…":"Videoyu Onaya Gönder"}</button>
             </form>
             <div className={boxStyle+" space-y-3"}><h2 className="text-lg font-bold">Video geçmişi</h2>
               {dash.data?.reels.map(r=><div key={r.id} className="rounded-xl border p-3 text-sm"><b>{r.title}</b>
