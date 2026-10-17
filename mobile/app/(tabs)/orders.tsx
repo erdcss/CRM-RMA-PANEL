@@ -15,6 +15,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { rmaApi } from '@/lib/api';
+import { appAlert } from '@/lib/appAlert';
 import {
   getOrderList,
   orderListItemTotal,
@@ -25,6 +27,7 @@ import {
   type B2BOrderListItem,
 } from '@/lib/b2b-order-list';
 
+function idempotencyKey(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.floor(Math.random()*16);return(c==='x'?r:(r&3)|8).toString(16);});}
 function money(value: number) {
   return `${Number(value || 0).toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
@@ -37,12 +40,31 @@ export default function OrderListScreen() {
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const [items, setItems] = useState<B2BOrderListItem[]>([]);
+  const [supplierBusy,setSupplierBusy]=useState(false);
+  const [supplierOrders,setSupplierOrders]=useState<Array<{id:number;status:string;subtotal:number;created_at:string}>>([]);
+  const submissionKey=useRef<string|null>(null);
   const [expanded, setExpanded] = useState(false);
   const drawer = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
-    setItems(await getOrderList());
+    const [list,orders]=await Promise.allSettled([getOrderList(),rmaApi.listMarketplaceOrders()]);
+    if(list.status==='fulfilled')setItems(list.value);
+    if(orders.status==='fulfilled')setSupplierOrders(orders.value);
   }, []);
+  const supplierItems=items.filter(item=>Boolean(item.marketplaceProductId));
+  const ownItems=items.filter(item=>!item.marketplaceProductId);
+  const submitSuppliers=async()=>{
+    if(supplierBusy||!supplierItems.length)return;
+    setSupplierBusy(true);
+    try{
+      if(!submissionKey.current)submissionKey.current=idempotencyKey();
+      const submitted=await rmaApi.createMarketplaceOrderFromList(submissionKey.current,supplierItems.map(item=>({productId:Number(item.marketplaceProductId),boxes:item.boxQuantity})));
+      submissionKey.current=null;
+      await load();
+      appAlert('Tedarikçi siparişi oluşturuldu','Sipariş #'+submitted.id+' · Onay bekliyor. Ödeme alınmadı.',undefined,'success');
+    }catch(e){appAlert('Sipariş oluşturulamadı',e instanceof Error?e.message:'Tekrar deneyin.',undefined,'error');}
+    finally{setSupplierBusy(false);}
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -121,7 +143,7 @@ export default function OrderListScreen() {
                     onPress={() =>
                       router.push({
                         pathname: '/product/[id]',
-                        params: { id: item.productId },
+                        params: { id: item.productId, ...(item.sellerSlug?{slug:item.sellerSlug}:{}) },
                       } as never)
                     }
                   >
@@ -148,6 +170,7 @@ export default function OrderListScreen() {
                     <Text style={styles.itemMeta}>
                       {item.boxQuantity} koli · Koli içi {item.unitsPerBox} adet
                     </Text>
+                    {item.sellerName ? <Text style={styles.itemMeta} numberOfLines={1}>{item.sellerName} · Onaylı tedarikçi</Text> : null}
 
                     <View style={styles.quantityRow}>
                       <Pressable
@@ -293,19 +316,30 @@ export default function OrderListScreen() {
             </View>
           </Animated.View>
 
-          {items.length ? (
+          {supplierItems.length ? (
             <Pressable
-              style={styles.checkoutButton}
-              onPress={() =>
-                router.push({
-                  pathname: '/checkout',
-                  params: { list: '1' },
-                } as never)
-              }
+              accessibilityRole="button"
+              disabled={supplierBusy}
+              style={[styles.checkoutButton,supplierBusy&&{opacity:0.6}]}
+              onPress={()=>void submitSuppliers()}
             >
               <Ionicons name="bag-check-outline" size={19} color="#101010" />
-              <Text style={styles.checkoutButtonText}>Siparişi Tamamla</Text>
+              <Text style={styles.checkoutButtonText}>{supplierBusy?'Oluşturuluyor…':'Tedarikçi Siparişini Oluştur'}</Text>
             </Pressable>
+          ) : null}
+          {ownItems.length ? (
+            <Pressable style={styles.checkoutButton} onPress={()=>router.push({pathname:'/checkout',params:{list:'1'}} as never)}>
+              <Ionicons name="card-outline" size={19} color="#101010" />
+              <Text style={styles.checkoutButtonText}>Çalışkan Ürünlerini Ödemeye Geç</Text>
+            </Pressable>
+          ) : null}
+          {supplierOrders.length ? (
+            <View style={{paddingHorizontal:15,paddingVertical:8}}>
+              <Text style={{color:palette.text,fontWeight:'800',fontSize:12}}>Oluşturulan tedarikçi siparişleri</Text>
+              {supplierOrders.slice(0,2).map(order=><Text key={order.id} style={{color:palette.textSecondary,fontSize:11,marginTop:5}}>
+                #{order.id} · Satıcı onayı bekliyor · {money(Number(order.subtotal))}
+              </Text>)}
+            </View>
           ) : null}
         </View>
       </View>
