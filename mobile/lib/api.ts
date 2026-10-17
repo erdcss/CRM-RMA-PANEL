@@ -257,6 +257,10 @@ export type B2BReel = {
   product_id?: string | null;
   sort_order?: number | null;
   created_at?: string | null;
+  seller_name?: string | null;
+  seller_slug?: string | null;
+  seller_logo_url?: string | null;
+  marketplace?: boolean;
 };
 
 export type B2BAccount = {
@@ -669,6 +673,11 @@ export const rmaApi = {
     } catch {
       return request<B2BReel[]>('/api/public/reels');
     }
+  },
+  listMarketplaceReels: async (): Promise<B2BReel[]> => {
+    // Only supplier-approved, live videos are returned by this public endpoint.
+    const rows = await request<B2BReel[]>('/api/marketplace/reels');
+    return Array.isArray(rows) ? rows.map(row => ({...row,id:`marketplace-${row.id}`,marketplace:true})) : [];
   },
   previewB2BLedgerPdf: (fileName:string,dataBase64:string) =>
     request<B2BLedgerPdfPreview>('/api/b2b/ledger/import/pdf/preview', {method:'POST',body:JSON.stringify({fileName,dataBase64})}),
