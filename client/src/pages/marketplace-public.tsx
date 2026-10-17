@@ -1,9 +1,11 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BadgeCheck, FileText, Film, Heart, MessageCircle, Package, Store, Truck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { B2BProductCard } from "@/components/b2b-product-card";
+import { toUnifiedProduct } from "@/lib/b2b-marketplace-products";
 type Shop={id:number;slug:string;company_name:string;description:string;followers:number;content:{
   title:string;tagline:string;accent:string;bannerUrl?:string;logoUrl?:string;sections:string[]}};
 type ShopProduct={id:number;sku:string;stock:number;content:{name:string;description:string;category:string;
@@ -42,107 +44,80 @@ export function MarketplaceDirectory(){
 }
 export function MarketplaceShop({slug}:{slug:string}){
   const [message,setMessage]=useState("");
-  const [text,setText]=useState("");
   const [busy,setBusy]=useState(false);
-  const [boxes,setBoxes]=useState<Record<string,number>>({});
-  const [delivery,setDelivery]=useState<Record<string,"direct"|"warehouse">>({});
-  const [following,setFollowing]=useState(false);
-  const {data:shop,isLoading}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:0});
-  const {data:products=[]}=useQuery<ShopProduct[]>({queryKey:["/api/marketplace/stores/"+slug+"/products"],staleTime:0});
-  const {data:reels=[]}=useQuery<Reel[]>({queryKey:["/api/marketplace/stores/"+slug+"/reels"],staleTime:0});
+  const {data:shop,isLoading}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:30000});
+  const {data:products=[]}=useQuery<ShopProduct[]>({queryKey:["/api/marketplace/stores/"+slug+"/products"],staleTime:30000});
+  const {data:reels=[]}=useQuery<Reel[]>({queryKey:["/api/marketplace/stores/"+slug+"/reels"],staleTime:30000});
   const {data:follows=[]}=useQuery<Array<{slug:string}>>({queryKey:["/api/marketplace/follows"],retry:false,staleTime:0});
-
-  const isFollowing=following||follows.some(f=>f.slug===slug);
-  async function follow() {
+  const {data:session}=useQuery<{role:string;isActive:boolean}|null>({queryKey:["/api/auth/me"],retry:false,staleTime:15000});
+  const isFollowing=follows.some(f=>f.slug===slug);
+  const loggedIn=session?.role==="b2b_customer" && session?.isActive===true;
+  async function follow(){
+    if(busy)return;
     setBusy(true);setMessage("");
-    try{
-      await apiRequest(isFollowing?"DELETE":"POST","/api/marketplace/stores/"+slug+"/follow");
-      setFollowing(false);
-      await queryClient.invalidateQueries({queryKey:["/api/marketplace/follows"]});
-      await queryClient.invalidateQueries({queryKey:["/api/marketplace/stores/"+slug]});
-    }catch(e){setMessage(e instanceof Error?e.message:"Takip edilemedi. Giriş yapmanız gerekebilir.");}
+    try {
+      await apiRequest(isFollowing?"DELETE":"POST","/api/marketplace/stores/"+encodeURIComponent(slug)+"/follow");
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/follows"]}),
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/stores/"+slug]})
+      ]);
+    }catch(e){setMessage(e instanceof Error?e.message:"Mağaza takip edilemedi. İşletme hesabıyla giriş yapın.");}
     finally{setBusy(false);}
   }
-  async function contact() {
-    if(!text.trim())return;
-    setBusy(true);setMessage("");
-    try{
-      const response=await apiRequest("POST","/api/marketplace/conversations",{slug,text});
-      const c=await response.json() as {id:number};
-      window.location.assign("/mesajlarim?conversation="+c.id);
-    }catch(e){setMessage(e instanceof Error?e.message:"Sohbet açılamadı. Önce giriş yapın.");}
-    finally{setBusy(false);}
-  }
-  if(isLoading)return <div className="p-8">Mağaza yükleniyor...</div>;
-  if(!shop)return <div className="p-8">Mağaza bulunamadı. <Link href="/magazalar">Tüm mağazalar</Link></div>;
+  if(isLoading)return <main className="min-h-screen bg-[#f6f7f9] p-8 text-slate-600">Mağaza yükleniyor...</main>;
+  if(!shop)return <main className="min-h-screen bg-[#f6f7f9] p-8">Mağaza bulunamadı. <Link href="/magazalar" className="font-bold text-amber-800">Tüm mağazalar</Link></main>;
+  const storeProducts=products.map(p=>toUnifiedProduct({...p,seller_slug:slug,seller_name:shop.company_name,seller_logo_url:shop.content?.logoUrl}));
   return <main className="min-h-screen bg-[#f6f7f9] pb-12 text-slate-900">
-    <div className="mx-auto max-w-6xl px-4 pt-6"><Link href="/magazalar" className="text-sm text-slate-600"><ArrowLeft className="mr-1 inline h-4 w-4"/>Tüm mağazalar</Link>
+    <div className="mx-auto max-w-6xl px-4 pt-6">
+      <Link href="/magazalar" className="inline-flex items-center gap-1 text-sm font-semibold text-slate-600 hover:text-slate-950"><ArrowLeft className="h-4 w-4"/>Tüm mağazalar</Link>
       <div className="mt-5 overflow-hidden rounded-2xl border bg-white">
-        <div className="relative aspect-[3/1] w-full bg-[#FACC15]">
+        <div className="relative aspect-[3/1] w-full bg-[#FFCD00]">
           {shop.content?.bannerUrl?<img src={shop.content.bannerUrl} alt={shop.company_name+" mağaza kapağı"} className="absolute inset-0 h-full w-full object-cover"/>:null}
         </div>
-        <div className="relative px-5 pb-4 pt-12 sm:px-8">
+        <div className="relative px-5 pb-5 pt-14 sm:px-8">
           <div className="absolute -top-10 left-5 sm:left-8"><ShopAvatar logo={shop.content?.logoUrl} name={shop.company_name} size="lg"/></div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-green-700"><BadgeCheck className="h-4 w-4"/>Onaylı Çalışkan B2B tedarikçisi</div>
-          <h1 className="mt-2 text-2xl font-black">{shop.company_name}</h1>
-          <p className="mt-1 text-sm text-slate-700">{shop.content?.tagline||shop.description||"Bu mağazanın ürünlerini keşfedin."}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 border-t p-4">
-          <span className="mr-auto text-xs text-slate-500">{shop.followers} takipçi</span>
-          <Link href="/pazaryeri-sepetim" className="rounded-xl border px-4 py-2 text-sm font-semibold">Sepetim</Link>
-          <button disabled={busy} onClick={()=>void follow()} className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold">
-            <Heart className="h-4 w-4"/>{isFollowing?"Takip ediliyor":"Mağazayı Takip Et"}
-          </button>
-          <a href="#iletisim" className="flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"><MessageCircle className="h-4 w-4"/>Mesaj / Teklif İste</a>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-black sm:text-2xl">{shop.company_name}</h1>
+            <BadgeCheck aria-label="Onaylı tedarikçi" className="h-5 w-5 text-green-600"/>
+            <span className="text-xs font-semibold text-slate-500">{shop.followers||0} takipçi</span>
+          </div>
+          <p className="mt-2 text-sm text-slate-600">{shop.content?.tagline||shop.description||"Onaylı Çalışkan B2B tedarikçisi"}</p>
+          <Link href={"/mesajlarim?store="+encodeURIComponent(slug)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-950 hover:bg-amber-200">
+            <MessageCircle className="h-4 w-4"/>İletişime Geç
+          </Link>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <Link href={"/mesajlarim?store="+encodeURIComponent(slug)+"&quote=1"} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
+              <FileText className="h-4 w-4"/>Teklif İste
+            </Link>
+            <Link href="/pazaryeri-sepetim" className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
+              <Store className="h-4 w-4"/>Sepetim
+            </Link>
+            <button type="button" disabled={busy} onClick={()=>void follow()} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 disabled:opacity-50 sm:flex-row sm:text-sm">
+              <Heart className="h-4 w-4"/>{isFollowing?"Takip Ediliyor":"Mağazayı Takip Et"}
+            </button>
+          </div>
+          {message?<p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">{message}</p>:null}
         </div>
       </div>
-      {message?<p role="status" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{message}</p>:null}
-      <h2 className="mt-8 text-xl font-black">Toptan ürünler</h2>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-5">
-        {products.map(p=><div key={p.id} className={box+" space-y-2"}>
-          <Link href={"/magaza/"+encodeURIComponent(slug)+"/urun/"+p.id} className="block rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500">
-            {p.content.imageUrl?<img src={p.content.imageUrl} alt={p.content.name} loading="lazy" className="h-36 w-full object-contain"/>:<div className="flex h-36 items-center justify-center bg-slate-50"><Package className="h-12 w-12 text-slate-300"/></div>}
-            <h3 className="mt-2 line-clamp-2 text-sm font-bold hover:underline">{p.content.name}</h3>
-          </Link>
-          <p className="text-xs text-slate-500">{p.content.unitsPerBox} adet / koli · Min. {p.content.minBoxes} koli</p>
-          <p className="text-sm font-bold">{p.content.price==null?"Fiyat için giriş yapın":money(Number(p.content.price))}</p>
-          <p className="text-xs text-slate-500">Stok: {p.stock}</p>
-          <div className="flex gap-2">
-            <input aria-label="Koli adedi" type="number" min={p.content.minBoxes} max={Math.floor(p.stock/p.content.unitsPerBox)} value={boxes[p.id]??p.content.minBoxes}
-              onChange={e=>setBoxes(v=>({...v,[p.id]:Number(e.target.value)}))} className="w-20 rounded-lg border px-2 text-xs"/>
-            <select aria-label="Sevkiyat seçimi" value={delivery[p.id]||"direct"} onChange={e=>setDelivery(v=>({...v,[p.id]:e.target.value as "direct"|"warehouse"}))}
-              className="min-w-0 flex-1 rounded-lg border px-1 text-xs"><option value="direct">Doğrudan</option><option value="warehouse">Depo kontrolü</option></select>
-          </div>
-          <button onClick={async()=>{setMessage("");try{await apiRequest("POST","/api/marketplace/cart",
-            {productId:Number(p.id),boxes:boxes[p.id]??p.content.minBoxes,deliveryMode:delivery[p.id]||"direct"});
-            setMessage(p.content.name+" sepete eklendi.");}catch(e){setMessage(e instanceof Error?e.message:"Sepete eklenemedi");}}}
-            className="w-full rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">Sepete ekle</button>
-          <button onClick={()=>{setText("Merhaba, "+p.content.name+" (SKU "+p.sku+") için toptan fiyat ve sevkiyat bilgisi alabilir miyim?");document.getElementById("iletisim")?.scrollIntoView({behavior:"smooth"});}}
-            className="w-full rounded-lg border px-3 py-2 text-xs font-semibold">Ürün için teklif iste</button>
-        </div>)}
-        {!products.length?<p className="col-span-full rounded-xl border bg-white p-8 text-sm text-slate-500">Onaylanmış ürün bulunmuyor.</p>:null}
+      <h2 className="mb-4 mt-8 text-xl font-black">Ürünler</h2>
+      <div className="grid grid-cols-2 gap-3 sm:gap-5">
+        {storeProducts.map(product=><B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>)}
+        {!storeProducts.length?<p className="col-span-full rounded-xl border bg-white p-8 text-sm text-slate-500">Onaylanmış ürün bulunmuyor.</p>:null}
       </div>
       <div className="mt-9 flex items-center justify-between gap-2"><h2 className="text-xl font-black">Mağaza Reels</h2><Link href="/reels" className="text-sm font-semibold text-amber-800 hover:underline">Tüm Reels →</Link></div>
       <div className="mt-4 flex gap-4 overflow-x-auto">{reels.map(r=><div key={r.id} className="w-48 shrink-0 overflow-hidden rounded-xl border bg-white">
-        <video controls preload="none" src={r.video_url} className="aspect-[9/16] w-full bg-slate-950 object-contain"/>
+        <video controls preload="metadata" playsInline src={r.video_url} className="aspect-[9/16] w-full bg-slate-950 object-contain"/>
         <div className="space-y-2 p-3"><p className="text-sm font-semibold">{r.title}</p>
           <Link href={"/magaza/"+encodeURIComponent(slug)} className="flex items-center gap-2 text-xs font-semibold text-slate-700 hover:underline">
             <ShopAvatar logo={r.seller_logo_url||shop.content?.logoUrl} name={shop.company_name} size="sm"/>
             <span className="min-w-0"><span className="block truncate">{shop.company_name}</span><span className="block text-amber-700">Mağazayı görüntüle</span></span>
-          </Link></div>
-      </div>)}{!reels.length?<p className="text-sm text-slate-500">Henüz onaylanmış video yok.</p>:null}</div>
-      <section id="iletisim" className={box+" mt-9 max-w-2xl space-y-4"}>
-        <div className="flex items-center gap-2"><MessageCircle className="h-5 w-5"/><h2 className="text-lg font-bold">Satıcıyla iletişime geç</h2></div>
-        <p className="text-sm text-slate-600">Görüşmeyi yalnızca müşteri başlatabilir. Mesajlaşma ve resmi teklif süreci Çalışkan B2B içerisindedir.</p>
-        <textarea rows={4} maxLength={4000} value={text} onChange={e=>setText(e.target.value)}
-          placeholder="Toptan ürün, koli adedi ve teslimat koşullarını sorun..." className="w-full rounded-xl border p-3 text-sm"/>
-        <button disabled={busy||!text.trim()} onClick={()=>void contact()} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
-          <MessageCircle className="mr-2 inline h-4 w-4"/>Görüşme Başlat</button>
-      </section>
+          </Link>
+        </div>
+      </div>)}</div>
+      {!reels.length?<p className="mt-3 text-sm text-slate-500">Henüz onaylanmış video yok.</p>:null}
     </div>
   </main>;
 }
-
 export function MarketplaceProduct({slug,productId}:{slug:string;productId:string}){
   const key="/api/marketplace/stores/"+encodeURIComponent(slug)+"/products/"+encodeURIComponent(productId);
   const {data:product,isLoading,isError}=useQuery<ShopProductDetail>({queryKey:[key],retry:false,staleTime:15000});
