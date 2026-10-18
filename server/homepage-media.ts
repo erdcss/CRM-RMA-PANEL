@@ -75,6 +75,41 @@ export async function saveMobileHomeLayout(raw: unknown): Promise<MobileHomeLayo
   return result;
 }
 
+// Read intrinsic dimensions without relying on MIME headers supplied by clients.
+function imageDimensions(bytes: Buffer, mime: string): { width: number; height: number } | null {
+  if (mime === "image/png" && bytes.length >= 24) {
+    return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+  }
+  if (mime === "image/gif" && bytes.length >= 10) {
+    return { width: bytes.readUInt16LE(6), height: bytes.readUInt16LE(8) };
+  }
+  if (mime === "image/webp" && bytes.length >= 30) {
+    const type = bytes.toString("ascii", 12, 16);
+    if (type === "VP8X") return { width: 1 + bytes.readUIntLE(24, 3), height: 1 + bytes.readUIntLE(27, 3) };
+    if (type === "VP8 " && bytes.length >= 30) return { width: bytes.readUInt16LE(26) & 0x3fff, height: bytes.readUInt16LE(28) & 0x3fff };
+    if (type === "VP8L" && bytes.length >= 25 && bytes[20] === 0x2f) {
+      return { width: 1 + (((bytes[22] & 0x3f) << 8) | bytes[21]), height: 1 + (((bytes[24] & 0x0f) << 10) | (bytes[23] << 2) | ((bytes[22] & 0xc0) >> 6)) };
+    }
+  }
+  if (mime === "image/jpeg") {
+    let i = 2;
+    while (i + 9 < bytes.length) {
+      if (bytes[i] !== 0xff) { i++; continue; }
+      const marker = bytes[i + 1];
+      if (marker === 0xd9 || marker === 0xda) break;
+      if (marker === 0xff) { i++; continue; }
+      if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd8)) { i += 2; continue; }
+      const len = bytes.readUInt16BE(i + 2);
+      if (len < 2 || i + 2 + len > bytes.length) break;
+      if ([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker)) {
+        return { width: bytes.readUInt16BE(i + 7), height: bytes.readUInt16BE(i + 5) };
+      }
+      i += 2 + len;
+    }
+  }
+  return null;
+}
+
 export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestHandler) {
   app.post("/api/admin/homepage/media", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
@@ -93,6 +128,12 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
     const isWebp = bytes.subarray(0,4).toString("ascii") === "RIFF" && bytes.subarray(8,12).toString("ascii") === "WEBP";
     if (!(mime === "image/png" && isPng || mime === "image/jpeg" && isJpeg || mime === "image/gif" && isGif || mime === "image/webp" && isWebp)) {
       return res.status(400).json({ error: "Görsel dosyası hatalı." });
+    }
+    if (req.body?.purpose === "mobile_banner") {
+      const dimensions = imageDimensions(bytes, mime);
+      if (!dimensions || dimensions.width !== 1200 || dimensions.height !== 360) {
+        return res.status(400).json({ error: "Mobil banner görseli tam olarak 1200 × 360 piksel olmalıdır." });
+      }
     }
     const id = randomBytes(16).toString("hex");
     try {
