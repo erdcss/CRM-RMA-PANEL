@@ -4005,6 +4005,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } finally { client.release(); }
 
+    // A placed EFT order now lives in order history; remove only its selected
+    // supplier cart lines, but do NOT mark it paid or alert suppliers yet.
+    void removePurchasedMarketplaceCartItems(Number(user.id),orderItems)
+      .catch(e=>console.error("Pending EFT cart cleanup",e));
     void sendPushToApp("business", {
       title: "Yeni sipariş",
       body: `${orderNumber} · ${Number(total).toLocaleString("tr-TR")} ₺ · Havale/EFT`,
