@@ -85,14 +85,8 @@ export function MarketplaceShop({slug}:{slug:string}){
           <Link href={"/mesajlarim?store="+encodeURIComponent(slug)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-950 hover:bg-amber-200">
             <MessageCircle className="h-4 w-4"/>İletişime Geç
           </Link>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <Link href={"/mesajlarim?store="+encodeURIComponent(slug)+"&quote=1"} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
-              <FileText className="h-4 w-4"/>Teklif İste
-            </Link>
-            <Link href="/siparislerim" className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 sm:flex-row sm:text-sm">
-              <Store className="h-4 w-4"/>Siparişlerim
-            </Link>
-            <button type="button" disabled={busy} onClick={()=>void follow()} className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl bg-[#FFCD00] px-2 py-2 text-center text-xs font-bold text-slate-950 hover:bg-amber-300 disabled:opacity-50 sm:flex-row sm:text-sm">
+          <div className="mt-4 flex gap-2">
+            <button type="button" disabled={busy} onClick={()=>void follow()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#FFCD00] px-4 text-sm font-bold text-slate-950 disabled:opacity-50">
               <Heart className="h-4 w-4"/>{isFollowing?"Takip Ediliyor":"Mağazayı Takip Et"}
             </button>
           </div>
@@ -150,8 +144,6 @@ export function MarketplaceBuyerInbox(){
   });
   const [storeSlug]=useState(()=>new URLSearchParams(window.location.search).get("store")||"");
   const [text,setText]=useState("");
-  const [boxes,setBoxes]=useState("1");
-  const [quoteMessage,setQuoteMessage]=useState("");
   const [message,setMessage]=useState("");
   const {data:conversations=[]}=useQuery<Array<{id:number;company_name:string;slug:string;latest_message:string}>>({queryKey:["/api/marketplace/conversations"],retry:false,staleTime:0});
   const {data:selectedStore}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+storeSlug],enabled:!!storeSlug,retry:false,staleTime:30000});
@@ -162,8 +154,6 @@ export function MarketplaceBuyerInbox(){
   },[selected,storeSlug,conversations]);
   const {data:messages=[]}=useQuery<Array<{id:number;text:string;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selected+"/messages"],enabled:!!selected,staleTime:0});
-  const {data:quotes=[]}=useQuery<Array<{id:number;conversation_id:number;status:string;boxes:number;latest_offer?:{amount_per_box:string;expires_at:string}}>>({
-    queryKey:["/api/marketplace/quotes"],staleTime:0});
   async function sendMessage(){
     const clean=text.trim();if(!clean)return;
     setMessage("");
@@ -179,14 +169,9 @@ export function MarketplaceBuyerInbox(){
       if(selected)await queryClient.invalidateQueries({queryKey:["/api/marketplace/conversations/"+selected+"/messages"]});
     }catch(e){setMessage(e instanceof Error?e.message:"Mesaj gönderilemedi. İşletme hesabıyla giriş yapın.");}
   }
-  async function doAction(path:string,body:object,refresh:string[]){
-    setMessage("");
-    try{await apiRequest("POST",path,body);await Promise.all(refresh.map(k=>queryClient.invalidateQueries({queryKey:[k]})));setText("");setQuoteMessage("");}
-    catch(e){setMessage(e instanceof Error?e.message:"İşlem başarısız");}
-  }
   return <main className="min-h-screen bg-[#f6f7f9] p-4 text-slate-900"><div className="mx-auto max-w-5xl space-y-4">
     <Link href="/magazalar" className="text-sm"><ArrowLeft className="mr-1 inline h-4 w-4"/>Mağazalar</Link>
-    <h1 className="text-2xl font-black">Mesajlarım ve Tekliflerim</h1>
+    <h1 className="text-2xl font-black">Mesajlarım</h1>
     {message?<p className="rounded-xl bg-amber-50 p-3 text-sm">{message}</p>:null}
     <div className="grid gap-4 md:grid-cols-3">
       <div className={box+" space-y-2"}><h2 className="font-bold">Görüşmeler</h2>{conversations.map(c=><button key={c.id}
@@ -202,27 +187,9 @@ export function MarketplaceBuyerInbox(){
           <input value={text} onChange={e=>setText(e.target.value)} required className="min-w-0 flex-1 rounded-lg border p-3 text-sm" placeholder="Mesaj yaz"/>
           <button className="rounded-lg bg-slate-950 px-4 text-sm font-bold text-white">Gönder</button>
         </form>
-        <div className="space-y-2 border-t pt-4"><h3 className="font-semibold">Toptan teklif talebi oluştur</h3>
-          {!selected?<p className="text-xs text-amber-800">Teklif isteyebilmek için önce mağazaya bir mesaj gönderin.</p>:null}
-          <p className="text-xs text-slate-500">Satıcı bu görüşmeden koli bazlı resmi fiyat teklifi gönderebilir.</p>
-          <div className="flex gap-2"><input className="w-24 rounded-lg border p-2 text-sm" type="number" min="1" value={boxes} onChange={e=>setBoxes(e.target.value)}/>
-          <input className="min-w-0 flex-1 rounded-lg border p-2 text-sm" placeholder="Ürün ve teslimat bilgisi" value={quoteMessage} onChange={e=>setQuoteMessage(e.target.value)}/></div>
-          <button disabled={!selected} onClick={()=>void doAction("/api/marketplace/quotes",{conversationId:selected,boxes:Number(boxes),details:quoteMessage},
-            ["/api/marketplace/quotes"])} className="rounded-lg border px-4 py-2 text-sm font-bold"><FileText className="mr-2 inline h-4 w-4"/>Teklif İste</button>
-        </div></>}
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</div>
+        </>}
       </div>
-    </div>
-    <div className={box+" space-y-3"}><h2 className="font-bold">Tekliflerim</h2>
-      {quotes.map(q=><div key={q.id} className="rounded-lg border p-3 text-sm">
-        <p><b>#{q.id}</b> · {q.boxes} koli · {q.status}</p>
-        {q.latest_offer?<><p className="text-xs">Koli fiyatı: {money(Number(q.latest_offer.amount_per_box))} · Son geçerlilik: {new Date(q.latest_offer.expires_at).toLocaleString("tr-TR")}</p>
-          {q.status==="offered"?<div className="mt-2 flex gap-2">
-            <button onClick={()=>void doAction("/api/marketplace/quotes/"+q.id+"/decision",{decision:"accepted"},["/api/marketplace/quotes"])} className="rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">Teklifi Kabul Et</button>
-            <button onClick={()=>void doAction("/api/marketplace/quotes/"+q.id+"/decision",{decision:"rejected"},["/api/marketplace/quotes"])} className="rounded-lg border px-3 py-2 text-xs">Reddet</button>
-          </div>:null}</>:null}
-      </div>)}
-      {!quotes.length?<p className="text-sm text-slate-500">Henüz teklif yok.</p>:null}
-      <p className="text-xs text-amber-800">Teklif kabulü ödeme oluşturmaz. Canlı çok satıcılı ödeme entegrasyonu tamamlanana kadar sipariş tahsilatı kapalıdır.</p>
     </div>
   </div></main>;
 }
