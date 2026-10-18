@@ -5,6 +5,7 @@ import { Link, useRoute } from "wouter";
 import { ArrowLeft, BadgeCheck, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
+import { useBranding } from "@/hooks/use-branding";
 import { addB2BCartItem, refreshB2BCart } from "@/lib/b2b-cart";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -31,6 +32,7 @@ async function loadProduct(id: string): Promise<UnifiedB2BProduct> {
 
 export default function B2BProductPage() {
   const { toast } = useToast();
+  const { data: branding } = useBranding();
   const [, params] = useRoute("/urun/:id");
   const id = params?.id || "";
   const { data: session } = useQuery({
@@ -109,18 +111,31 @@ export default function B2BProductPage() {
           <section className="rounded-xl border bg-white p-4 sm:p-5">
             <div className="text-xs text-slate-500">Stok Kodu: <b className="text-slate-700">{product.sku || "—"}</b></div>
             <h1 className="mt-2 text-xl font-black leading-tight sm:text-2xl">{product.name || "Ürün"}</h1>
-            {isSupplier ? (
-              <Link href={"/magaza/" + encodeURIComponent(product.seller_slug!)} className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-amber-300">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#FFCD00] text-amber-900">
-                  {product.seller_logo_url ? <img src={product.seller_logo_url} alt={product.seller_name + " logosu"} className="h-full w-full object-contain"/> : <Store className="h-6 w-6"/>}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1 text-sm font-bold"><span className="truncate">{product.seller_name}</span><BadgeCheck className="h-4 w-4 shrink-0 text-green-600"/></span>
-                  <span className="mt-1 block text-xs font-bold text-amber-800">Mağazayı görüntüle →</span>
-                </span>
-              </Link>
-            ) : null}
-            {product.description ? (
+            <Link
+               href={isSupplier ? "/magaza/" + encodeURIComponent(product.seller_slug!) : "/"}
+               className="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-amber-300 hover:bg-amber-50"
+               aria-label={isSupplier ? "Satıcı mağazasını görüntüle" : "Çalışkan B2B mağazasını görüntüle"}
+             >
+               <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white text-amber-900">
+                 {(isSupplier ? product.seller_logo_url : (branding?.b2b_logo || branding?.b2b_mobile_logo)) ? (
+                   <img
+                     src={(isSupplier ? product.seller_logo_url : (branding?.b2b_logo || branding?.b2b_mobile_logo)) || ""}
+                     alt={(isSupplier ? product.seller_name || "Tedarikçi" : "Çalışkan B2B") + " logosu"}
+                     className="h-full w-full object-contain p-1"
+                   />
+                 ) : <Store className="h-6 w-6"/>}
+               </span>
+               <span className="min-w-0 flex-1">
+                 <span className="flex items-center gap-1 text-sm font-semibold">
+                   <span className="truncate">{isSupplier ? product.seller_name || "Onaylı tedarikçi" : "Çalışkan B2B"}</span>
+                   <BadgeCheck className="h-4 w-4 shrink-0 text-green-600" aria-label="Doğrulanmış satıcı"/>
+                 </span>
+                 <span className="mt-1 block text-xs font-medium text-amber-800">
+                   {isSupplier ? "Mağazayı görüntüle →" : "Çalışkan mağazasını gör →"}
+                 </span>
+               </span>
+             </Link>
+             {product.description ? (
               <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
                 {product.description}
               </p>
