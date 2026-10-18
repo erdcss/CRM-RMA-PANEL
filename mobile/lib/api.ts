@@ -662,6 +662,7 @@ async function loadMobileCatalog(forceRefresh = false): Promise<B2BProduct[]> {
 }
 
 export const rmaApi = {
+  getPublicBranding: () => request<{b2b_logo?:string|null;b2b_mobile_logo?:string|null}>('/api/public/branding'),
   listTickets: () => request<RmaTicket[]>('/api/tickets'),
   getTicket: (id: number) => request<RmaTicket>(`/api/tickets/${id}`),
   createTicket: (payload: CreateTicketPayload) =>
