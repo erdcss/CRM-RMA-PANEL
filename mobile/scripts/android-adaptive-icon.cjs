@@ -32,12 +32,12 @@ function makeAndroidAdaptiveIcon(logoPath, assetsDir, fullBleed = false) {
   }
   const cropWidth = cropRight - cropLeft + 1;
   const cropHeight = cropBottom - cropTop + 1;
-  // The old diagonal constraint rendered the shared logo at roughly 42%
-  // of the canvas, which made it tiny on Android home screens. Fit to a
-  // consistent visual width instead. Android-specific artwork may fill more
-  // of the mask; the shared logo receives a slightly larger inset.
-  const targetFill = fullBleed ? 0.84 : 0.78;
-  const scale = (size * targetFill) / Math.max(cropWidth, cropHeight);
+  // Android launchers apply circular, squircle and other adaptive-icon masks.
+  // Keep the entire logo rectangle, including its corners, inside the
+  // inscribed circular safe area instead of simply filling by width.
+  // The 0.64 diameter allowance prevents cropping on common launcher masks.
+  const safeDiameter = size * 0.64;
+  const scale = safeDiameter / Math.hypot(cropWidth, cropHeight);
   const width = Math.max(1, Math.round(cropWidth * scale));
   const height = Math.max(1, Math.round(cropHeight * scale));
   const left = Math.floor((size - width) / 2);
