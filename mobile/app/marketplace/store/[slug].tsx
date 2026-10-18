@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { absoluteMediaUrl, rmaApi, type MarketplaceProduct, type MarketplaceStore } from '@/lib/api';
+import { absoluteMediaUrl, rmaApi, type B2BReel, type MarketplaceProduct, type MarketplaceStore } from '@/lib/api';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import { appAlert } from '@/lib/appAlert';
 
@@ -22,6 +22,7 @@ export default function SellerStore() {
   const {palette}=useAppearance();
   const [store,setStore]=useState<MarketplaceStore|null>(null);
   const [products,setProducts]=useState<MarketplaceProduct[]>([]);
+  const [sellerReels,setSellerReels]=useState<B2BReel[]>([]);
   const [following,setFollowing]=useState(false);
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
@@ -34,13 +35,15 @@ export default function SellerStore() {
     const results=await Promise.allSettled([
       rmaApi.getMarketplaceStore(String(slug)),
       rmaApi.listMarketplaceStoreProducts(String(slug)),
+      rmaApi.listMarketplaceReels(),
       session ? rmaApi.listMarketplaceFollows() : Promise.resolve([]),
     ]);
     if(results[0].status==='fulfilled')setStore(results[0].value);
     else setError(results[0].reason instanceof Error ? results[0].reason.message : 'Mağaza bulunamadı');
     if(results[1].status==='fulfilled')setProducts(results[1].value);
     else setError(previous=>previous || 'Mağaza ürünleri yüklenemedi.');
-    if(results[2].status==='fulfilled')setFollowing(results[2].value.some(f=>f.slug===slug));
+    if(results[2].status==='fulfilled')setSellerReels(results[2].value.filter(reel=>reel.seller_slug===String(slug)));
+    if(results[3].status==='fulfilled')setFollowing(results[3].value.some(f=>f.slug===slug));
     setLoading(false);setRefreshing(false);
   },[slug,session?.user?.id]);
   useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
@@ -80,18 +83,24 @@ export default function SellerStore() {
         <Ionicons name="chatbubbles-outline" size={17} color="#111827"/><Text style={styles.messageButtonText}>İletişime Geç</Text>
       </Pressable>
       <View style={styles.actions}>
-        <Pressable style={styles.action} onPress={()=>{if(!requiresLogin())navigate('/marketplace/quote/[slug]',{slug:String(slug)})}}>
-          <Ionicons name="document-text-outline" size={19} color="#111827"/><Text style={styles.actionText}>Teklif İste</Text>
-        </Pressable>
-        <Pressable style={styles.action} onPress={()=>{if(!requiresLogin())navigate('/(tabs)/orders')}}>
-          <Ionicons name="cart-outline" size={19} color="#111827"/><Text style={styles.actionText}>Siparişlerim</Text>
-        </Pressable>
         <Pressable style={[styles.action,following&&styles.following]} disabled={busy} onPress={()=>void follow()}>
           <Ionicons name={following?'checkmark-circle':'heart-outline'} size={18} color="#111827"/>
           <Text style={styles.actionText}>{following?'Takip Ediliyor':'Takip Et'}</Text>
         </Pressable>
       </View>
     </View>
+    {sellerReels.length > 0 ? <>
+      <Text style={[styles.section,{color:palette.text}]}>Satıcının Reels Videoları</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reelsRow}>
+        {sellerReels.map(reel=><Pressable key={String(reel.id)} style={[styles.reelCard,{backgroundColor:palette.surface,borderColor:palette.border}]}
+          onPress={()=>router.push({pathname:'/marketplace/reel/[id]',params:{id:String(reel.id)}} as never)}
+          accessibilityRole="button" accessibilityLabel={reel.title+' videosunu izle'}>
+          {reel.thumbnail_url ? <Image source={{uri:absoluteMediaUrl(reel.thumbnail_url)||undefined}} style={styles.full} contentFit="cover"/> : <Ionicons name="videocam-outline" size={33} color={palette.textSecondary}/>}
+          <View style={styles.reelOverlay}><Ionicons name="play-circle" size={36} color="#FFCD00"/></View>
+          <Text numberOfLines={2} style={styles.reelTitle}>{reel.title}</Text>
+        </Pressable>)}
+      </ScrollView>
+    </> : null}
     <Text style={[styles.section,{color:palette.text}]}>Ürünler</Text>
     {error ? <Text style={{color:'#B91C1C',marginBottom:8}}>{error}</Text>:null}
     <View style={styles.grid}>{products.map(item=>{
@@ -124,7 +133,10 @@ const styles=StyleSheet.create({
   following:{backgroundColor:'#E2E8F0'},actionText:{fontSize:11,color:'#111827',fontWeight:'800',textAlign:'center'},
   messageButton:{marginTop:14,borderRadius:10,flexDirection:'row',justifyContent:'center',alignItems:'center',backgroundColor:'#FDE68A',gap:6,padding:10},
   messageButtonText:{fontSize:12,fontWeight:'800',color:'#111827'},
-  section:{fontSize:21,fontWeight:'900',marginVertical:17},grid:{flexDirection:'row',flexWrap:'wrap',gap:10},
+  section:{fontSize:21,fontWeight:'900',marginVertical:17},
+  reelsRow:{gap:12,paddingBottom:5},reelCard:{width:142,height:205,borderRadius:14,borderWidth:1,overflow:'hidden',justifyContent:'center',alignItems:'center'},
+  reelOverlay:{...StyleSheet.absoluteFillObject,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,0.22)'},
+  reelTitle:{position:'absolute',bottom:0,left:0,right:0,padding:9,color:'#FFFFFF',backgroundColor:'rgba(0,0,0,0.7)',fontWeight:'800',fontSize:12},grid:{flexDirection:'row',flexWrap:'wrap',gap:10},
   card:{width:'48%',minWidth:0,borderRadius:16,borderWidth:1,overflow:'hidden'},
   imageBox:{aspectRatio:1,backgroundColor:'#FAFAFA',alignItems:'center',justifyContent:'center'},
   cardInfo:{padding:12,gap:5},productName:{fontSize:14,fontWeight:'700',minHeight:42,marginTop:2},sku:{fontSize:10},
