@@ -295,7 +295,7 @@ const makeStyles=()=>StyleSheet.create({
     backgroundColor:BG,
   },
   company:{
-    flex:1,fontWeight:'900',fontSize:24,color:WHITE,textAlign:'center',
+    flex:1,fontWeight:'500',fontSize:24,color:WHITE,textAlign:'center',
     letterSpacing:-0.5,
   },
   headerTool:{
@@ -326,7 +326,7 @@ const makeStyles=()=>StyleSheet.create({
     width:43,height:43,borderRadius:13,backgroundColor:'#302A12',
     alignItems:'center',justifyContent:'center',
   },
-  shortcutText:{color:WHITE,flex:1,fontWeight:'800',fontSize:13},
+  shortcutText:{color:WHITE,flex:1,fontWeight:'500',fontSize:13},
   section:{
     backgroundColor:CARD,borderWidth:1,borderColor:BORDER,
     borderRadius:21,paddingHorizontal:15,paddingTop:14,paddingBottom:15,
@@ -341,7 +341,7 @@ const makeStyles=()=>StyleSheet.create({
     width:45,height:45,borderRadius:12,backgroundColor:'#39320E',
     alignItems:'center',justifyContent:'center',
   },
-  sectionHeadingText:{fontWeight:'900',color:WHITE,fontSize:15,flexShrink:1,letterSpacing:0.15},
+  sectionHeadingText:{fontWeight:'500',color:WHITE,fontSize:15,flexShrink:1,letterSpacing:0.15},
   sectionAdd:{
     width:39,height:39,borderRadius:22,borderWidth:1.3,borderColor:YELLOW,
     justifyContent:'center',alignItems:'center',
@@ -357,8 +357,8 @@ const makeStyles=()=>StyleSheet.create({
     width:42,height:42,borderRadius:12,backgroundColor:CARD_INNER,
     justifyContent:'center',alignItems:'center',
   },
-  accountName:{flex:1,minWidth:0,color:WHITE,fontSize:15,fontWeight:'700'},
-  accountBalance:{fontWeight:'900',fontSize:16,fontVariant:['tabular-nums']},
+  accountName:{flex:1,minWidth:0,color:WHITE,fontSize:15,fontWeight:'400'},
+  accountBalance:{fontWeight:'400',fontSize:16,fontVariant:['tabular-nums']},
   importButton:{
     minHeight:80,borderRadius:20,borderColor:YELLOW,borderWidth:1,
     backgroundColor:'#24200E',flexDirection:'row',alignItems:'center',
@@ -368,18 +368,18 @@ const makeStyles=()=>StyleSheet.create({
     width:47,height:47,borderRadius:13,backgroundColor:'#51430D',
     alignItems:'center',justifyContent:'center',
   },
-  importText:{color:WHITE,flex:1,fontSize:14,fontWeight:'800'},
+  importText:{color:WHITE,flex:1,fontSize:14,fontWeight:'500'},
   disclaimer:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10,marginTop:11},
   disclaimerText:{fontSize:11,color:MUTED,flexShrink:1},
   reportCard:{
     borderRadius:18,padding:16,gap:7,backgroundColor:CARD,borderWidth:1,borderColor:BORDER,
   },
   reportHeading:{flexDirection:'row',alignItems:'center',gap:10,marginBottom:5},
-  reportTitle:{flex:1,color:WHITE,fontWeight:'900',fontSize:17},
-  reportSubTitle:{fontWeight:'800',fontSize:14,color:WHITE,marginTop:7},
+  reportTitle:{flex:1,color:WHITE,fontWeight:'500',fontSize:17},
+  reportSubTitle:{fontWeight:'500',fontSize:14,color:WHITE,marginTop:7},
   summaryLine:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:32,gap:10},
   summaryKey:{color:MUTED,flex:1,fontSize:12},
-  summaryValue:{color:WHITE,fontSize:13,fontWeight:'800',fontVariant:['tabular-nums']},
+  summaryValue:{color:WHITE,fontSize:13,fontWeight:'500',fontVariant:['tabular-nums']},
   separator:{height:1,backgroundColor:BORDER,marginVertical:6},
   reportInfo:{fontSize:11,lineHeight:18,color:MUTED,marginTop:8},
   errorBox:{backgroundColor:'#341B20',borderRadius:12,padding:14,borderWidth:1,borderColor:'#8F3943'},
@@ -391,7 +391,7 @@ const makeStyles=()=>StyleSheet.create({
     gap:13,maxHeight:700,
   },
   handle:{height:5,width:45,borderRadius:10,backgroundColor:'#54565A',alignSelf:'center',marginBottom:5},
-  title:{color:WHITE,fontWeight:'900',fontSize:22},
+  title:{color:WHITE,fontWeight:'400',fontSize:22},
   label:{color:MUTED,fontSize:12},
   types:{flexDirection:'row',gap:8},
   typeItem:{
@@ -399,7 +399,7 @@ const makeStyles=()=>StyleSheet.create({
     borderRadius:11,borderWidth:1,borderColor:BORDER,backgroundColor:CARD,
   },
   typeActive:{borderColor:YELLOW,borderWidth:1.5,backgroundColor:'#3A3213'},
-  typeLabel:{fontSize:12,color:WHITE,fontWeight:'800'},
+  typeLabel:{fontSize:12,color:WHITE,fontWeight:'500'},
   input:{
     minHeight:47,color:WHITE,borderColor:BORDER,borderWidth:1,borderRadius:12,
     backgroundColor:'#101113',paddingHorizontal:13,paddingVertical:11,
@@ -408,7 +408,7 @@ const makeStyles=()=>StyleSheet.create({
     backgroundColor:YELLOW,borderRadius:13,minHeight:49,
     alignItems:'center',justifyContent:'center',paddingHorizontal:14,
   },
-  primaryText:{color:'#121212',fontSize:14,fontWeight:'900'},
+  primaryText:{color:'#121212',fontSize:14,fontWeight:'400'},
   note:{
     flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8,
     borderBottomWidth:1,borderBottomColor:BORDER,paddingVertical:12,
