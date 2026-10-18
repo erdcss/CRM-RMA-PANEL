@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { apiFetch } from "../lib/api";
@@ -14,7 +15,7 @@ import type { B2BProduct } from "../types";
 import { C, money } from "../ui/theme";
 import { EmptyState, MiniStat, PageHeader } from "./common";
 
-export function ProductsScreen() {
+export function ProductsScreen({ onAdd }: { onAdd: () => void }) {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -68,7 +69,16 @@ export function ProductsScreen() {
         />
       }
     >
-      <PageHeader title="Ürünler" subtitle="Ürünleri, fiyatları ve stok durumunu yönetin." />
+      <PageHeader
+        title="Ürünler"
+        subtitle="Ürünleri, fiyatları ve stok durumunu yönetin."
+        right={
+          <TouchableOpacity style={s.addButton} onPress={onAdd} activeOpacity={0.78}>
+            <Text style={s.addButtonPlus}>＋</Text>
+            <Text style={s.addButtonText}>Ürün Ekle</Text>
+          </TouchableOpacity>
+        }
+      />
 
       <View style={s.searchBox}>
         <Text style={s.searchIcon}>⌕</Text>
@@ -129,6 +139,19 @@ export function ProductsScreen() {
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.bg },
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 118 },
+  addButton: {
+    minHeight: 44,
+    paddingHorizontal: 13,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: "rgba(59,130,246,0.36)",
+    backgroundColor: C.blueSoft,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addButtonPlus: { color: "#A9C7FF", fontSize: 20, marginRight: 4 },
+  addButtonText: { color: "#A9C7FF", fontSize: 11, fontWeight: "600" },
   searchBox: {
     minHeight: 56,
     marginBottom: 16,
