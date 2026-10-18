@@ -27,6 +27,7 @@ import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
+import { expandScanLookupValues } from "@shared/shipment-barcode";
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceVideoUploadRoutes } from "./marketplace-video-upload";
 import { registerMarketplaceCartRoutes } from "./marketplace-cart";
@@ -2557,29 +2558,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Exact barcode lookup; never rely on a truncated client-side product list.
+  // Resolve an actual product barcode across both company and approved supplier catalogs.
+  // Do not return a price or an unapproved marketplace item in this public lookup.
   app.get("/api/b2b/products/by-barcode/:code", async (req, res) => {
-    if (!pool) return res.status(404).json({ error: "Ürün bulunamadı" });
+    if (!pool) return res.status(503).json({ error: "Ürün veritabanına ulaşılamadı" });
     const code = String(req.params.code || "").trim();
     if (!/^[A-Za-z0-9-]{4,60}$/.test(code)) {
       return res.status(400).json({ error: "Geçersiz barkod" });
     }
+    const values = expandScanLookupValues(code).filter(value => /^[A-Za-z0-9-]{4,60}$/.test(value));
+    if (!values.length) return res.status(400).json({ error: "Geçersiz barkod" });
+    const digits = values.filter(value => /^\d+$/.test(value));
     try {
-      const digits = /^\d+$/.test(code) ? code : null;
-      const result = await pool.query(
+      // Company products have priority when an old supplier barcode is duplicated.
+      const own = await pool.query(
         `SELECT id::text AS id, name, barcode
          FROM b2b_products
          WHERE is_active IS DISTINCT FROM FALSE
-         AND (TRIM(barcode) = $1
-           OR ($2::text IS NOT NULL AND regexp_replace(COALESCE(barcode, ''), '[^0-9]', '', 'g') = $2))
+           AND (TRIM(COALESCE(barcode,'')) = ANY($1::text[])
+             OR (cardinality($2::text[]) > 0
+                 AND regexp_replace(COALESCE(barcode,''), '[^0-9]', '', 'g') = ANY($2::text[])))
          ORDER BY created_at DESC LIMIT 1`,
-        [code, digits],
+        [values,digits],
       );
-      if (!result.rows[0]) return res.status(404).json({ error: "Bu barkodla eşleşen ürün bulunamadı." });
-      return res.json({ id: result.rows[0].id, name: result.rows[0].name, barcode: result.rows[0].barcode });
-    } catch (error) {
-      console.error("B2B barcode lookup failed:", error);
-      return res.status(500).json({ error: "Barkod sorgulaması tamamlanamadı." });
+      if (own.rows[0]) {
+        res.setHeader("Cache-Control", "no-store");
+        return res.json({ ...own.rows[0], marketplace: false });
+      }
+
+      await ensureMarketplaceSchema();
+      const supplier = await pool.query(
+        `SELECT ('mp-' || p.id::text) AS id,
+           v.content->>'name' AS name,
+           v.content->>'barcode' AS barcode,
+           s.slug AS seller_slug
+         FROM mp_products p
+         JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+         JOIN mp_product_versions v
+           ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
+         WHERE p.is_enabled=TRUE
+           AND (TRIM(COALESCE(v.content->>'barcode','')) = ANY($1::text[])
+             OR (cardinality($2::text[]) > 0
+                 AND regexp_replace(COALESCE(v.content->>'barcode',''), '[^0-9]', '', 'g') = ANY($2::text[])))
+         ORDER BY p.id DESC LIMIT 1`,
+        [values,digits],
+      );
+      if (!supplier.rows[0]) return res.status(404).json({error:"Bu barkodla eşleşen satıştaki ürün bulunamadı."});
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ ...supplier.rows[0], marketplace:true });
+    } catch(error) {
+      console.error("Unified B2B barcode lookup failed:",error);
+      return res.status(500).json({error:"Barkod sorgulaması tamamlanamadı."});
     }
   });
 
