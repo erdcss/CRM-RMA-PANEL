@@ -593,6 +593,9 @@ export default function CheckoutScreen() {
                     {line.product.sku || 'STOK'}
                   </Text>
                   <Text style={styles.productName}>{line.product.name}</Text>
+                  {line.product.sellerName ? (
+                    <Text numberOfLines={1} style={styles.productMeta}>Satıcı: {line.product.sellerName}</Text>
+                  ) : null}
                   <Text style={styles.productMeta}>
                     {line.quantity} koli × {line.product.unitsPerBox} adet ={' '}
                     {line.totalUnits} adet
