@@ -626,62 +626,8 @@ export function registerMarketplaceRoutes(
     const q=await db.query("INSERT INTO mp_messages(conversation_id,author_user_id,text) VALUES($1,$2,$3) RETURNING *",[cid,uid,text]);
     res.status(201).json(q.rows[0]);
   }));
-  app.get("/api/marketplace/quotes",requireParticipant,handle(async(_req,res)=>{
-    const db=await ready(),uid=userId(res);
-    const q=await db.query(`SELECT q.*,s.company_name,p.sku,
-      (SELECT json_build_object('amount_per_box',o.amount_per_box,'delivery_terms',o.delivery_terms,'expires_at',o.expires_at)
-       FROM mp_quote_offers o WHERE o.quote_id=q.id ORDER BY o.id DESC LIMIT 1) AS latest_offer
-      FROM mp_quote_requests q JOIN mp_suppliers s ON s.id=q.supplier_id
-      LEFT JOIN mp_products p ON p.id=q.product_id
-      WHERE q.buyer_user_id=$1 OR s.owner_user_id=$1 ORDER BY q.id DESC LIMIT 100`,[uid]);
-    res.json(q.rows);
-  }));
-  app.post("/api/marketplace/quotes",requireParticipant,handle(async(req,res)=>{
-    const db=await ready(),uid=userId(res);
-    const data=z.object({conversationId:z.number().int().positive(),productId:z.number().int().positive().optional().nullable(),
-      boxes:z.number().int().min(1).max(100000),details:z.string().max(2000).default("")}).strict().parse(req.body);
-    const c=await ownConversation(db,data.conversationId,uid);
-    if(Number(c.buyer_user_id)!==uid)throw new ApiError(403,"Teklif talebini müşteri oluşturur");
-    if(data.productId) {
-      const p=await db.query("SELECT id FROM mp_products WHERE id=$1 AND supplier_id=$2",[data.productId,c.supplier_id]);
-      if(!p.rows.length)throw new ApiError(400,"Ürün mağazaya ait değil");
-    }
-    const q=await db.query(`INSERT INTO mp_quote_requests(conversation_id,buyer_user_id,supplier_id,product_id,boxes,details)
-      VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,[c.id,uid,c.supplier_id,data.productId||null,data.boxes,data.details]);
-    res.status(201).json(q.rows[0]);
-  }));
-  app.post("/api/marketplace/quotes/:id/offer",requireSeller,handle(async(req,res)=>{
-    const db=await ready(),uid=userId(res),quoteId=id(req.params.id);
-    const data=z.object({amountPerBox:z.number().finite().positive(),deliveryTerms:z.string().trim().max(500).default(""),
-      validHours:z.number().int().min(1).max(720)}).strict().parse(req.body);
-    const client=await db.connect();
-    try{
-      await client.query("BEGIN");
-      const q=await client.query(`SELECT q.*,s.owner_user_id,s.status AS supplier_status FROM mp_quote_requests q
-        JOIN mp_suppliers s ON s.id=q.supplier_id WHERE q.id=$1 FOR UPDATE OF q`,[quoteId]);
-      if(!q.rows[0]||Number(q.rows[0].owner_user_id)!==uid)throw new ApiError(403,"Bu teklife erişim yok");
-      if(q.rows[0].supplier_status!=="approved"||!["requested","offered"].includes(q.rows[0].status))throw new ApiError(409,"Teklif yanıtlanamaz");
-      const offer=await client.query(`INSERT INTO mp_quote_offers(quote_id,amount_per_box,delivery_terms,expires_at)
-        VALUES($1,$2,$3,NOW()+($4::int * INTERVAL '1 hour')) RETURNING *`,[quoteId,data.amountPerBox.toFixed(2),data.deliveryTerms,data.validHours]);
-      await client.query("UPDATE mp_quote_requests SET status='offered' WHERE id=$1",[quoteId]);
-      await client.query("COMMIT");res.status(201).json(offer.rows[0]);
-    }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
-  }));
-  app.post("/api/marketplace/quotes/:id/decision",requireB2B,handle(async(req,res)=>{
-    const db=await ready(),uid=userId(res),quoteId=id(req.params.id);
-    const data=z.object({decision:z.enum(["accepted","rejected"])}).strict().parse(req.body);
-    const client=await db.connect();
-    try{
-      await client.query("BEGIN");
-      const q=await client.query(`SELECT q.*,o.expires_at FROM mp_quote_requests q
-        LEFT JOIN LATERAL (SELECT expires_at FROM mp_quote_offers WHERE quote_id=q.id ORDER BY id DESC LIMIT 1) o ON true
-        WHERE q.id=$1 FOR UPDATE OF q`,[quoteId]);
-      if(!q.rows[0]||Number(q.rows[0].buyer_user_id)!==uid)throw new ApiError(403,"Bu teklif size ait değil");
-      if(q.rows[0].status!=="offered"||!q.rows[0].expires_at||new Date(q.rows[0].expires_at)<new Date())throw new ApiError(409,"Geçerli teklif bulunamadı");
-      await client.query("UPDATE mp_quote_requests SET status=$1 WHERE id=$2",[data.decision,quoteId]);
-      await client.query("COMMIT");res.json({status:data.decision,checkoutEnabled:false,message:"Teklif kararı kaydedildi. Pazaryeri ödeme entegrasyonu tamamlanana dek ödeme açılmayacak."});
-    }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
-  }));
+  // Quote requests were retired. Existing historical rows remain archived in the DB.
+  // No quote endpoints are registered; clients receive HTTP 404.
   // The admin role is enforced by the existing server authentication middleware.
   app.get("/api/admin/marketplace/overview",requireAdmin,handle(async(_req,res)=>{
     const db=await ready();
