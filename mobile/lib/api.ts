@@ -718,7 +718,7 @@ export const rmaApi = {
     }
   },
   findB2BProductByBarcode: (barcode: string) =>
-    request<{ id: string; name: string; barcode: string }>(
+    request<{ id: string; name: string; barcode: string; marketplace: boolean; seller_slug?: string }>(
       `/api/b2b/products/by-barcode/${encodeURIComponent(barcode.trim())}`
     ),
   listB2BReels: async () => {
