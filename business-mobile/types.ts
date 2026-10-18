@@ -7,6 +7,7 @@ export type Screen =
   | { name: "orders" }
   | { name: "orderDetail"; id: string }
   | { name: "products" }
+  | { name: "productAdd" }
   | { name: "customers" }
   | { name: "customerDetail"; id: string }
   | { name: "support" }
