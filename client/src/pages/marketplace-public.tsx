@@ -131,9 +131,11 @@ export function MarketplaceReels(){
     <div className="grid grid-cols-2 gap-3 sm:gap-5">{reels.map(reel=><article key={reel.id} className="min-w-0 overflow-hidden rounded-2xl border bg-white">
       <video controls preload="metadata" playsInline src={reel.video_url} className="aspect-[9/16] w-full bg-slate-950 object-contain"/>
       <div className="space-y-3 p-3"><h2 className="line-clamp-2 text-sm font-semibold">{reel.title}</h2>
-        {reel.seller_slug&&reel.seller_name?<Link href={"/magaza/"+encodeURIComponent(reel.seller_slug)} className="flex items-center gap-2 rounded-lg bg-amber-50 p-2 hover:bg-amber-100">
-          <ShopAvatar logo={reel.seller_logo_url} name={reel.seller_name} size="sm"/>
-          <span className="min-w-0"><span className="block truncate text-xs font-bold">{reel.seller_name}</span><span className="text-xs text-amber-800">Mağazayı görüntüle</span></span>
+        {reel.seller_slug&&reel.seller_name?<Link href={"/magaza/"+encodeURIComponent(reel.seller_slug)} className="flex items-center gap-2 py-1.5 transition-opacity hover:opacity-75">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-amber-100">
+            {reel.seller_logo_url ? <img src={reel.seller_logo_url} alt={reel.seller_name+" logosu"} className="h-full w-full rounded-full object-cover"/> : <Store className="h-4 w-4 text-slate-700" />}
+          </span>
+          <span className="min-w-0"><span className="block truncate text-xs font-normal text-slate-700">{reel.seller_name}</span><span className="block text-xs font-normal text-amber-800">Mağazayı Gör →</span></span>
         </Link>:null}
         {reel.product_id&&reel.seller_slug?<Link href={"/magaza/"+encodeURIComponent(reel.seller_slug)+"/urun/"+reel.product_id} className="block text-xs font-semibold text-slate-700 underline">Ürünü görüntüle</Link>:null}
       </div>
