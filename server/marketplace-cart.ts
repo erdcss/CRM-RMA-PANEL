@@ -103,8 +103,29 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
      LEFT JOIN mp_product_versions v ON v.id=i.revision_id
      WHERE o.status='pending_confirmation' AND d.status='pending_confirmation'
      GROUP BY d.id,o.id ORDER BY d.id DESC LIMIT 100`,[uid]);
+   // Verified checkout orders are exposed exclusively to their owning supplier;
+   // other sellers' items from a mixed order never leave this endpoint.
+   const paid=await db.query(`
+     SELECT o.id AS order_id,o.created_at,o.buyer_user_id,'paid'::text AS status,
+       o.shipping_method AS delivery_mode,
+       SUM(COALESCE(NULLIF(line.item->>'total','')::numeric,0))::numeric(14,2) AS subtotal,
+       jsonb_agg(jsonb_build_object(
+         'productId',regexp_replace(line.item->>'productId','^mp-','')::bigint,
+         'sku',line.item->>'sku','name',line.item->>'name',
+         'boxes',line.item->>'quantity','unitsPerBox',line.item->>'unitsPerBox',
+         'price',line.item->>'unitPrice','total',line.item->>'total'
+       )) AS items
+     FROM b2b_orders o
+     CROSS JOIN LATERAL jsonb_array_elements(o.items) line(item)
+     JOIN mp_suppliers s ON s.id::text=line.item->>'supplierId' AND s.owner_user_id=$1
+     WHERE o.payment_status IN ('SUCCESS','bank_confirmed')
+       AND line.item->>'productId' LIKE 'mp-%'
+     GROUP BY o.id,o.created_at,o.buyer_user_id,o.shipping_method
+     ORDER BY o.id DESC LIMIT 100`,[uid]);
+   const combined=[...paid.rows.map((row:any)=>({...row,id:-Number(row.order_id),currency:'TRY'})),...result.rows];
+   combined.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
    res.setHeader("Cache-Control","private, no-store");
-   res.json(result.rows);
+   res.json(combined);
   }catch(e){console.error("Seller orders:",e);res.status(500).json({error:"Siparişler yüklenemedi"});}
  });
  app.get("/api/marketplace/cart",requireB2B,async(_req,res)=>{
