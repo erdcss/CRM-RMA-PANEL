@@ -172,7 +172,7 @@ export function MarketplaceBuyerInbox(){
   return <main className="min-h-screen bg-[#f6f7f9] p-4 text-slate-900"><div className="mx-auto max-w-5xl space-y-4">
     <Link href="/magazalar" className="text-sm"><ArrowLeft className="mr-1 inline h-4 w-4"/>Mağazalar</Link>
     <h1 className="text-2xl font-black">Mesajlarım</h1>
-    <div role="alert" className="sticky top-0 z-10 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</div>
+    <div role="alert" className="sticky top-0 z-10 overflow-x-auto whitespace-nowrap rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-950">Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</div>
     {message?<p className="rounded-xl bg-amber-50 p-3 text-sm">{message}</p>:null}
     <div className="grid gap-4 md:grid-cols-3">
       <div className={box+" space-y-2"}><h2 className="font-bold">Görüşmeler</h2>{conversations.map(c=><button key={c.id}
