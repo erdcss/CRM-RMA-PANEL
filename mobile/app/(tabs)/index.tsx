@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  useWindowDimensions,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -54,6 +55,7 @@ function productImage(product: B2BProduct) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
   const { session } = useAuth();
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -72,7 +74,7 @@ export default function HomeScreen() {
   const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
-  const [bannerWidth, setBannerWidth] = useState(0);
+  const bannerWidth = screenWidth;
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
   const bannerIndexRef = useRef(0);
@@ -310,13 +312,13 @@ export default function HomeScreen() {
         {banners.length > 0 ? (
           <>
             <View
-              style={styles.carouselContainer}
-              onLayout={(event) => setBannerWidth(event.nativeEvent.layout.width)}
+              style={[styles.carouselContainer, { width: bannerWidth, height: bannerWidth * 3 / 10 }]}
             >
               {bannerWidth > 0 ? (
                 <ScrollView
                   ref={bannerScrollRef}
                   horizontal
+                  style={{ width: bannerWidth, height: bannerWidth * 3 / 10 }}
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   scrollEventThrottle={100}
@@ -637,7 +639,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: 15, width: 'auto', aspectRatio: 10 / 3, marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselContainer: { marginTop: 15, alignSelf: 'center', width: '100%', aspectRatio: 10 / 3, marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
   carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
   bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
