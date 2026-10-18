@@ -30,6 +30,7 @@ import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplac
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceVideoUploadRoutes } from "./marketplace-video-upload";
 import { registerMarketplaceCartRoutes } from "./marketplace-cart";
+import { isMarketplaceLine, deductMarketplaceStock, notifyVerifiedSupplierOrder, removePurchasedMarketplaceCartItems } from "./marketplace-paid-orders";
 import { reserveB2BBankReference, lockB2BBankReference, bindB2BBankReference, findB2BBankReferenceOrder, ensureB2BBankReferenceTable, BankReferenceError } from "./b2b-bank-transfer-code";
 
 let dbReady = false;
@@ -3347,7 +3348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await client.query("BEGIN");
       const orderResult = await client.query(
-        `SELECT id, order_number, payment_status, items
+        `SELECT id, user_id, total_amount, order_number, payment_status, items
          FROM b2b_orders
          WHERE order_number = $1 AND payment_id = $2
          LIMIT 1
@@ -3419,16 +3420,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         if (!productId || totalUnits <= 0) continue;
 
-        const stockUpdate = await client.query(
-          `UPDATE b2b_products
-           SET stock = stock - $2,
-               updated_at = NOW()
-           WHERE id::text = $1
-             AND stock >= $2
-           RETURNING stock`,
-          [productId, totalUnits],
-        );
-        if (!stockUpdate.rows[0]) stockReview = true;
+        const stockOk = isMarketplaceLine(entry)
+          ? await deductMarketplaceStock(client,entry)
+          : Boolean((await client.query(
+            `UPDATE b2b_products SET stock=stock-$2,updated_at=NOW()
+             WHERE id::text=$1 AND stock >= $2 RETURNING stock`,
+            [productId,totalUnits]
+          )).rows[0]);
+        if (!stockOk) stockReview = true;
       }
 
       await client.query(
@@ -3440,6 +3439,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [order.id, stockReview ? "paid_stock_review" : "paid", payment.paymentId || paymentId],
       );
       await client.query("COMMIT");
+      if(order.user_id){
+        void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
+          .catch(e=>console.error("Supplier cart cleanup",e));
+      }
+      void notifyVerifiedSupplierOrder(String(order.order_number),order.items,stockReview)
+        .catch(e=>console.error("Verified supplier notification",e));
 
       void sendPushToApp("business", {
         title: "Yeni sipariş",
@@ -3699,7 +3704,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await client.query("BEGIN");
       const orderResult = await client.query(
-        `SELECT id, order_number, payment_status, items
+        `SELECT id, user_id, total_amount, order_number, payment_status, items
          FROM b2b_orders
          WHERE payment_token = $1
          LIMIT 1
@@ -3740,17 +3745,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
           if (!productId || boxQuantity <= 0 || totalUnits <= 0) continue;
 
-          const stockUpdate = await client.query(
-            `UPDATE b2b_products
-             SET stock = stock - $2,
-                 updated_at = NOW()
-             WHERE id::text = $1
-               AND stock >= $2
-             RETURNING stock`,
-            [productId, totalUnits],
-          );
+          const stockOk = isMarketplaceLine(entry)
+            ? await deductMarketplaceStock(client,entry)
+            : Boolean((await client.query(
+              `UPDATE b2b_products SET stock=stock-$2,updated_at=NOW()
+               WHERE id::text=$1 AND stock >= $2 RETURNING stock`,
+              [productId,totalUnits]
+            )).rows[0]);
 
-          if (!stockUpdate.rows[0]) {
+          if (!stockOk) {
             await client.query(
               `UPDATE b2b_orders
                SET status = 'paid_stock_review',
@@ -3771,6 +3774,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ],
             );
             await client.query("COMMIT");
+            if(order.user_id)void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
+              .catch(e=>console.error("Supplier cart cleanup",e));
+            void notifyVerifiedSupplierOrder(String(order.order_number),order.items,true)
+              .catch(e=>console.error("Supplier payment stock review notice",e));
             void sendPushToApp("business", {
               title: "Yeni sipariş",
               body: `${order.order_number} · Ödeme başarılı · Stok kontrolü gerekli`,
@@ -3831,6 +3838,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await client.query("COMMIT");
 
       if (success) {
+        if(order.user_id)void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
+          .catch(e=>console.error("Supplier cart cleanup",e));
+        void notifyVerifiedSupplierOrder(String(order.order_number),order.items)
+          .catch(e=>console.error("Supplier payment notification",e));
         void sendPushToApp("business", {
           title: "Yeni sipariş",
           body: `${order.order_number} · Kart ödemesi başarılı`,
