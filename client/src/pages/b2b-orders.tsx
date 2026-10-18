@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowRight,
@@ -70,13 +70,7 @@ export default function B2BOrders() {
   const { toast } = useToast();
   const { items, itemCount, totalUnits, total } = useB2BCart();
   const [selectedOrderId, setSelectedOrderId] = useState<string>("");
-  const [supplierBusy,setSupplierBusy]=useState(false);
   const [supplierUpdating,setSupplierUpdating]=useState<string|null>(null);
-  const [supplierMessage,setSupplierMessage]=useState("");
-  const supplierKey=useRef<string|null>(null);
-  const supplierItems=items.filter(item=>item.productId.startsWith("mp-"));
-  const adminItems=items.filter(item=>!item.productId.startsWith("mp-"));
-  const {data:supplierOrders=[]}=useQuery<Array<{id:number;status:string;subtotal:number;created_at:string}>>({queryKey:["/api/marketplace/orders"],retry:false,staleTime:0});
   async function changeQuantity(item:{productId:string;quantity:number},next:number){
     if(!item.productId.startsWith("mp-")){updateB2BCartQuantity(item.productId,next);return;}
     if(supplierUpdating)return;
@@ -100,24 +94,6 @@ export default function B2BOrders() {
       refreshB2BCart();
     }catch(e){toast({title:"Ürün kaldırılamadı",description:e instanceof Error?e.message:"Tekrar deneyin.",variant:"destructive"});}
     finally{setSupplierUpdating(null);}
-  }
-  async function placeSupplierOrder(){
-    if(supplierBusy||!supplierItems.length)return;
-    setSupplierBusy(true);setSupplierMessage("");
-    if(!supplierKey.current)supplierKey.current=crypto.randomUUID();
-    try{
-      const response=await apiRequest("POST","/api/marketplace/orders/from-list",{
-        requestKey:supplierKey.current,
-        items:supplierItems.map(item=>({productId:Number(item.productId.slice(3)),boxes:item.quantity}))
-      });
-      const order=await response.json() as {id:number};
-      refreshB2BCart();
-      supplierKey.current=null;
-      setSupplierMessage("Sipariş #"+order.id+" oluşturuldu. Satıcı onayı bekleniyor; ödeme alınmadı.");
-      await Promise.all([queryClient.invalidateQueries({queryKey:["/api/marketplace/orders"]}),queryClient.invalidateQueries({queryKey:["/api/marketplace/cart"]})]);
-      toast({title:"Tedarikçi siparişi oluşturuldu",description:"Sipariş #"+order.id+" · Satıcı onayı bekleniyor."});
-    }catch(e){toast({title:"Sipariş oluşturulamadı",description:e instanceof Error?e.message:"Tekrar deneyin.",variant:"destructive"});}
-    finally{setSupplierBusy(false);}
   }
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/b2b/my-orders"],
