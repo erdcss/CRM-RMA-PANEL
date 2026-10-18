@@ -316,21 +316,15 @@ export default function OrderListScreen() {
             </View>
           </Animated.View>
 
-          {supplierItems.length ? (
+          {items.length ? (
             <Pressable
               accessibilityRole="button"
-              disabled={supplierBusy}
-              style={[styles.checkoutButton,supplierBusy&&{opacity:0.6}]}
-              onPress={()=>void submitSuppliers()}
+              accessibilityLabel="Ödemeyi tamamla"
+              style={styles.checkoutButton}
+              onPress={()=>router.push({pathname:'/checkout',params:{list:'1'}} as never)}
             >
-              <Ionicons name="bag-check-outline" size={19} color="#101010" />
-              <Text style={styles.checkoutButtonText}>{supplierBusy?'Oluşturuluyor…':'Tedarikçi Siparişini Oluştur'}</Text>
-            </Pressable>
-          ) : null}
-          {ownItems.length ? (
-            <Pressable style={styles.checkoutButton} onPress={()=>router.push({pathname:'/checkout',params:{list:'1'}} as never)}>
               <Ionicons name="card-outline" size={19} color="#101010" />
-              <Text style={styles.checkoutButtonText}>Çalışkan Ürünlerini Ödemeye Geç</Text>
+              <Text style={styles.checkoutButtonText}>Ödemeyi Tamamla</Text>
             </Pressable>
           ) : null}
           {supplierOrders.length ? (
