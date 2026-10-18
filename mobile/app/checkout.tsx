@@ -135,6 +135,7 @@ export default function CheckoutScreen() {
   const [installmentsLoading, setInstallmentsLoading] = useState(false);
   const [installmentsError, setInstallmentsError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [checkoutError,setCheckoutError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -142,6 +143,8 @@ export default function CheckoutScreen() {
     if (!listMode && !productId) return;
 
     setLoading(true);
+    setCheckoutError('');
+    setPreview(null);
     try {
       let checkoutRequest: Promise<B2BCheckoutPreview | B2BCheckoutCartPreview>;
 
@@ -196,12 +199,9 @@ export default function CheckoutScreen() {
         setPaymentMethod('bank_transfer');
       }
     } catch (error) {
-      appAlert(
-        'Ödeme sayfası açılamadı',
-        error instanceof Error ? error.message : 'Sipariş bilgileri alınamadı.',
-        undefined,
-        'error',
-      );
+      const reason=error instanceof Error ? error.message : 'Sipariş bilgileri alınamadı.';
+      setCheckoutError(reason);
+      appAlert('Sipariş özeti hazırlanamadı',reason,undefined,'error');
     } finally {
       setLoading(false);
     }
@@ -513,6 +513,24 @@ export default function CheckoutScreen() {
           </Text>
           <Pressable style={styles.primaryButton} onPress={() => router.push('/login')}>
             <Text style={styles.primaryButtonText}>Giriş Yap</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
+  if (!loading && checkoutError) {
+    return (
+      <Screen style={{backgroundColor:palette.background}}>
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={34} color={palette.textSecondary}/>
+          <Text style={styles.centerTitle}>Sipariş özeti hazırlanamadı</Text>
+          <Text style={[styles.centerText,{textAlign:'center'}]}>{checkoutError}</Text>
+          <Pressable style={styles.primaryButton} onPress={()=>void load()}>
+            <Text style={styles.primaryButtonText}>Yeniden Dene</Text>
+          </Pressable>
+          <Pressable onPress={()=>router.back()} style={{padding:14}}>
+            <Text style={{color:palette.textSecondary}}>Sipariş listesine dön</Text>
           </Pressable>
         </View>
       </Screen>
