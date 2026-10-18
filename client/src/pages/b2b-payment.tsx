@@ -34,6 +34,7 @@ type CheckoutProduct = {
   minOrderQty: number;
   unitsPerBox: number;
   maxBoxQty: number;
+  sellerName?: string;
 };
 
 type CheckoutLine = {
@@ -1041,6 +1042,7 @@ export default function B2BPaymentPage() {
                 {preview.items.map((line) => (
                   <div key={line.product.id} className="p-3">
                     <div className="text-sm font-semibold">{line.product.name}</div>
+                    {line.product.sellerName ? <div className="mt-1 truncate text-xs font-medium text-slate-500">Satıcı: {line.product.sellerName}</div> : null}
                     <div className="mt-1 text-xs text-slate-500">{line.quantity} koli × {line.product.unitsPerBox} adet = {line.totalUnits} adet</div>
                     <div className="mt-1 text-xs text-slate-500">Birim fiyat {formatMoney(line.product.price)}</div>
                     <div className="mt-1 text-sm font-bold">{formatMoney(line.total)}</div>
