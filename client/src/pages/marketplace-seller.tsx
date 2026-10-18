@@ -235,7 +235,7 @@ export default function MarketplaceSeller(){
             <p className="text-sm text-slate-600">Müşterilerin oluşturduğu siparişler burada tedarikçi onayı bekliyor durumuyla görünür. Ödeme veya sevkiyat henüz tetiklenmez.</p>
             {sellerOrders.isError?<p className="text-sm text-red-700">Siparişler yüklenemedi. Yeniden deneyin.</p>:null}
             {sellerOrders.isLoading?<p className="text-sm text-slate-500">Siparişler yükleniyor…</p>:null}
-            {sellerOrders.data?.map(order=><div key={order.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><b>Sipariş #{order.order_id}</b><span className="text-xs font-bold text-amber-800">Tedarikçi onayı bekliyor</span></div>
+            {sellerOrders.data?.map(order=><div key={order.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><b>Sipariş #{order.order_id}</b><span className={"text-xs font-bold "+(order.status==="paid"?"text-green-700":"text-amber-800")}>{order.status==="paid"?"Ödemesi alındı":"Tedarikçi onayı bekliyor"}</span></div>
               <p className="mt-1 text-sm text-slate-600">{new Date(order.created_at).toLocaleString("tr-TR")} · {order.delivery_mode==="direct"?"Doğrudan teslimat":"Depo teslimatı"} · {Number(order.subtotal).toLocaleString("tr-TR",{minimumFractionDigits:2})} ₺</p>
               <div className="mt-3 space-y-2">{order.items.map((it,i)=><div key={i} className="flex justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm"><span>{it.name||it.sku} · {it.boxes} koli × {it.unitsPerBox} adet</span><b>{Number(it.total).toLocaleString("tr-TR",{minimumFractionDigits:2})} ₺</b></div>)}</div>
             </div>)}
