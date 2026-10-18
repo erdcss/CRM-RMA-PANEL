@@ -327,14 +327,6 @@ export default function OrderListScreen() {
               <Text style={styles.checkoutButtonText}>Ödemeyi Tamamla</Text>
             </Pressable>
           ) : null}
-          {supplierOrders.length ? (
-            <View style={{paddingHorizontal:15,paddingVertical:8}}>
-              <Text style={{color:palette.text,fontWeight:'800',fontSize:12}}>Oluşturulan tedarikçi siparişleri</Text>
-              {supplierOrders.slice(0,2).map(order=><Text key={order.id} style={{color:palette.textSecondary,fontSize:11,marginTop:5}}>
-                #{order.id} · Satıcı onayı bekliyor · {money(Number(order.subtotal))}
-              </Text>)}
-            </View>
-          ) : null}
         </View>
       </View>
     </Screen>
