@@ -139,6 +139,195 @@ async function ensureB2BProductSchema() {
         await pool.query(sql);
       }
 
+
+      // Older installations created tags as JSONB, whereas product create/update,
+      // tag browsing, and mobile catalog search require PostgreSQL TEXT[].
+      // Normalize the legacy representation without deleting existing tags.
+      // The advisory transaction lock serializes migration across Railway replicas.
+      const migrationClient=await pool.connect();
+      try {
+        await migrationClient.query("BEGIN");
+        await migrationClient.query(
+          "SELECT pg_advisory_xact_lock(hashtext('b2b_products_tags_text_array_v1'))",
+        );
+        const tagsInfo=await migrationClient.query(
+          `SELECT data_type FROM information_schema.columns
+           WHERE table_schema='public' AND table_name='b2b_products'
+             AND column_name='tags' LIMIT 1`,
+        );
+        if(tagsInfo.rows[0]?.data_type==="jsonb"){
+          // WITH ORDINALITY preserves tag order, unlike lossy string splitting.
+          await migrationClient.query(`CREATE OR REPLACE FUNCTION public.b2b_convert_tags_jsonb_array(input jsonb)
+            RETURNS text[]
+            LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $function$
+              SELECT COALESCE(array_agg(value ORDER BY position), ARRAY[]::text[])
+              FROM jsonb_array_elements_text(
+                CASE WHEN jsonb_typeof(input)='array' THEN input ELSE '[]'::jsonb END
+              ) WITH ORDINALITY AS tag(value,position)
+            $functionimport type { Express, RequestHandler } from "express";
+import { pool } from "./db";
+import {
+  getAdminPaymentSettings,
+  getPublicPaymentSettings,
+  savePaymentSettings,
+} from "./payment-config";
+import { retrieveIyzicoCheckout } from "./iyzico";
+import {
+  ensureReelVideoCompatibility,
+  saveVideoDataUrl,
+} from "./image-storage";
+import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
+import { registerReelMediaRoutes, saveCompatibleReelVideo, migrateLegacyReelVideo } from "./reels-media";
+
+const PLATFORM_SQL = `
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS analytics_events (
+  id BIGSERIAL PRIMARY KEY,
+  visitor_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  event_value TEXT,
+  product_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS analytics_events_created_at_idx
+  ON analytics_events (created_at DESC);
+CREATE INDEX IF NOT EXISTS analytics_events_type_idx
+  ON analytics_events (event_type, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS b2b_orders (
+  id BIGSERIAL PRIMARY KEY,
+  order_number TEXT UNIQUE,
+  customer_email TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  item_count INTEGER NOT NULL DEFAULT 0,
+  total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  payment_method TEXT,
+  payment_provider TEXT,
+  payment_status TEXT,
+  payment_id TEXT,
+  payment_token TEXT,
+  transfer_code TEXT,
+  shipping_method TEXT,
+  shipping_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  card_last4 TEXT,
+  card_association TEXT,
+  billing_details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb,
+  checkout_trace JSONB NOT NULL DEFAULT '{}'::jsonb,
+  cancel_requested_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS b2b_products (
+  id BIGSERIAL PRIMARY KEY,
+  sku TEXT UNIQUE,
+  name TEXT NOT NULL,
+  brand TEXT,
+  category TEXT,
+  description TEXT,
+  price NUMERIC(14,2),
+  stock INTEGER NOT NULL DEFAULT 0,
+  min_order_qty INTEGER NOT NULL DEFAULT 1,
+  units_per_box INTEGER NOT NULL DEFAULT 1,
+  image_data TEXT,
+  images JSONB NOT NULL DEFAULT '[]'::jsonb,
+  barcode TEXT,
+  collection_name TEXT,
+  tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  features JSONB NOT NULL DEFAULT '[]'::jsonb,
+  variants JSONB NOT NULL DEFAULT '[]'::jsonb,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS b2b_reels (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  video_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  product_id TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS b2b_products_stock_idx ON b2b_products (stock);
+CREATE INDEX IF NOT EXISTS b2b_products_created_at_idx ON b2b_products (created_at DESC);
+CREATE INDEX IF NOT EXISTS b2b_reels_active_sort_idx ON b2b_reels (is_active, sort_order, created_at DESC);
+`;
+
+const BRANDING_KEYS = [
+  "admin_logo",
+  "admin_favicon",
+  "b2b_logo",
+  "b2b_favicon",
+  "b2b_mobile_logo",
+  "b2b_mobile_android_icon",
+  "b2b_mobile_splash",
+  "b2b_mobile_login_background",
+  "business_mobile_logo",
+  "business_mobile_splash",
+] as const;
+
+type BrandingKey = typeof BRANDING_KEYS[number];
+
+let productSchemaReady: Promise<void> | null = null;
+
+async function ensureB2BProductSchema() {
+  if (!pool) return;
+
+  if (!productSchemaReady) {
+    productSchemaReady = (async () => {
+      const migrations = [
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS image_data TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS barcode TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS collection_name TEXT`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS features JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS variants JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+      ];
+
+      // Run each migration separately. A later compatibility repair must never
+      // roll back columns such as images/barcode/variants.
+      for (const sql of migrations) {
+        await pool.query(sql);
+      }
+
+);
+          await migrationClient.query(
+            "ALTER TABLE b2b_products ALTER COLUMN tags DROP DEFAULT",
+          );
+          await migrationClient.query(`ALTER TABLE b2b_products
+            ALTER COLUMN tags TYPE text[]
+            USING public.b2b_convert_tags_jsonb_array(tags)`);
+          await migrationClient.query(`ALTER TABLE b2b_products
+            ALTER COLUMN tags SET DEFAULT ARRAY[]::text[]`);
+          await migrationClient.query(
+            "DROP FUNCTION public.b2b_convert_tags_jsonb_array(jsonb)",
+          );
+        } else if(tagsInfo.rows[0]?.data_type!=="ARRAY"){
+          throw new Error("Ürün etiketleri veritabanı türü desteklenmiyor");
+        }
+        await migrationClient.query("COMMIT");
+      } catch(error){
+        await migrationClient.query("ROLLBACK").catch(()=>undefined);
+        throw error;
+      } finally {
+        migrationClient.release();
+      }
+
       const idInfo = await pool.query(
         `SELECT data_type, column_default
          FROM information_schema.columns
