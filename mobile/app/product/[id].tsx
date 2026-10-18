@@ -176,11 +176,20 @@ export default function ProductDetailScreen() {
         </View>
 
         <View style={styles.detailCard}>
-          <Text style={styles.sku}>
-            Stok Kodu: <Text style={styles.skuStrong}>{product.sku || '—'}</Text>
-          </Text>
-
           <Text style={styles.name}>{product.name || 'Ürün'}</Text>
+          <View style={styles.productAttributes} accessibilityLabel="Ürün bilgileri">
+            {([
+              {key:'barcode',label:'Barkod Numarası',value:product.barcode || 'Belirtilmemiş'},
+              {key:'sku',label:'Stok Kodu',value:product.sku || 'Belirtilmemiş'},
+              {key:'brand',label:'Marka',value:product.brand || 'Belirtilmemiş'},
+              {key:'category',label:'Kategori',value:product.category || 'Belirtilmemiş'},
+            ] as const).map(field => (
+              <View key={field.key} style={[styles.attributeCell,{borderColor:palette.border,backgroundColor:palette.surfaceSecondary}]}>
+                <Text style={[styles.attributeLabel,{color:palette.textSecondary}]}>{field.label}</Text>
+                <Text selectable numberOfLines={2} style={[styles.attributeValue,{color:palette.text}]}>{field.value}</Text>
+              </View>
+            ))}
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={isSellerProduct ? `${product.seller_name || 'Satıcı'} mağazasını görüntüle` : 'Çalışkan B2B ürünlerini görüntüle'}
@@ -606,6 +615,32 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     borderColor: palette.border,
     backgroundColor: palette.surface,
     padding: spacing.lg,
+  },
+  productAttributes:{
+    marginTop:spacing.md,
+    flexDirection:'row',
+    flexWrap:'wrap',
+    gap:8,
+  },
+  attributeCell:{
+    flexGrow:1,
+    flexBasis:'47%',
+    minWidth:130,
+    borderWidth:1,
+    borderRadius:radius.md,
+    paddingHorizontal:12,
+    paddingVertical:10,
+    minHeight:59,
+    justifyContent:'center',
+  },
+  attributeLabel:{
+    fontSize:11,
+    fontWeight:'400',
+    marginBottom:4,
+  },
+  attributeValue:{
+    fontSize:13,
+    fontWeight:'600',
   },
   sku: {
     ...typography.caption,
