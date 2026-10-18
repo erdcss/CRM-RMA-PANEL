@@ -5,8 +5,8 @@ const { PNG } = require("pngjs");
 
 /**
  * Android adaptive icons mask a large part of the 108dp foreground.
- * Keep the ENTIRE admin logo inside the circular safe zone instead of
- * passing the full-bleed iOS icon as the adaptive foreground.
+ * The Android launcher applies its own circular / themed mask. Render the
+ * logo prominently, but leave enough inset to avoid excessive clipping.
  */
 function makeAndroidAdaptiveIcon(logoPath, assetsDir, fullBleed = false) {
   const input = fs.readFileSync(path.join(assetsDir, path.basename(logoPath)));
@@ -32,14 +32,12 @@ function makeAndroidAdaptiveIcon(logoPath, assetsDir, fullBleed = false) {
   }
   const cropWidth = cropRight - cropLeft + 1;
   const cropHeight = cropBottom - cropTop + 1;
-  // The safe area is a circle whose diameter is ~62% of the icon canvas.
-  // Limit the entire source rectangle's diagonal, so even its corners remain visible.
-  const safeDiagonal = size * 0.60;
-  // Android-specific admin artwork is sized to fill the launcher mask;
-  // the shared iOS icon retains conservative safe-zone sizing.
-  const scale = fullBleed
-    ? (size * 1.00) / Math.max(cropWidth, cropHeight)
-    : safeDiagonal / Math.hypot(cropWidth, cropHeight);
+  // The old diagonal constraint rendered the shared logo at roughly 42%
+  // of the canvas, which made it tiny on Android home screens. Fit to a
+  // consistent visual width instead. Android-specific artwork may fill more
+  // of the mask; the shared logo receives a slightly larger inset.
+  const targetFill = fullBleed ? 0.84 : 0.78;
+  const scale = (size * targetFill) / Math.max(cropWidth, cropHeight);
   const width = Math.max(1, Math.round(cropWidth * scale));
   const height = Math.max(1, Math.round(cropHeight * scale));
   const left = Math.floor((size - width) / 2);
