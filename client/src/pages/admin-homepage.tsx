@@ -356,6 +356,11 @@ export default function AdminHomepage() {
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading}
                       onChange={(e) => { const file = e.target.files?.[0]; if (file) void (async () => { if (await validateBannerDimensions(file)) await uploadMedia(file, (imageId) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId } : x)), "mobile_banner"); })(); e.target.value = ""; }} />
                   </label>
+                  <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground" role="note">
+                    <strong className="block text-sm text-foreground">Gerekli banner ölçüsü: 1200 × 360 px</strong>
+                    <span>Uzun-ince yatay görsel · 10:3 oran · Maksimum 3 MB · PNG, JPG, WebP veya GIF</span>
+                    <span className="block">Farklı piksel ölçülerindeki görseller yüklenemez.</span>
+                  </div>
                   {banner.imageId ? <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title || "Banner önizlemesi"} className="w-full max-w-[420px] aspect-[10/3] rounded-lg object-contain" /> : null}
                 </div>
               </div>
