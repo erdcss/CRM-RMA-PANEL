@@ -76,7 +76,7 @@ export default function MarketplaceSeller(){
   const [productFilter,setProductFilter]=useState<"all"|"approved"|"pending"|"rejected">("all");
   const [aiRows,setAiRows]=useState<Array<Record<string,string|number>>>([]);
   const [aiLoading,setAiLoading]=useState(false);
-  const [reel,setReel]=useState({title:"",videoUrl:"",productId:""});
+  const [reel,setReel]=useState({title:"",videoUrl:"",thumbnailUrl:"",productId:""});
   const [reply,setReply]=useState("");
   const [selectedChat,setSelectedChat]=useState<number|null>(null);
   const [message,setMessage]=useState("");
@@ -97,7 +97,7 @@ export default function MarketplaceSeller(){
       reader.readAsDataURL(blob);
     });
   }
-  async function upload(file:File,target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"){
+  async function upload(file:File,target:"logoUrl"|"bannerUrl"|"imageUrl"|"videoUrl"|"thumbnailUrl"){
     if(target==="videoUrl"){
       setReel(value=>({...value,videoUrl:""}));
       setUploadProgress(0);
@@ -133,6 +133,7 @@ export default function MarketplaceSeller(){
         setStoreMediaPreview(v=>({...v,[target]:""}));
       }
       else if(target==="imageUrl")setProduct(v=>({...v,imageUrl:url}));
+      else if(target==="thumbnailUrl")setReel(v=>({...v,thumbnailUrl:url}));
       else setReel(v=>({...v,videoUrl:url}));
       setMessage("Medya güvenli biçimde yüklendi. Reels videosunu onaya gönderebilirsiniz.");
     }catch(e){
@@ -177,7 +178,7 @@ export default function MarketplaceSeller(){
     setBusy(true);setMessage("");
     try{
       await send("POST","/api/marketplace/seller/reels",{
-        title:reel.title.trim(),videoUrl:reel.videoUrl,productId:reel.productId?Number(reel.productId):null,
+        title:reel.title.trim(),videoUrl:reel.videoUrl,thumbnailUrl:reel.thumbnailUrl||null,productId:reel.productId?Number(reel.productId):null,
       });
       setReel({title:"",videoUrl:"",productId:""});
       form.reset();
@@ -325,6 +326,12 @@ export default function MarketplaceSeller(){
               <h2 className="text-lg font-bold">Reels Stüdyosu</h2>
               <Field label="Video başlığı"><input className={inputStyle} required value={reel.title} onChange={e=>setReel(v=>({...v,title:e.target.value}))}/></Field>
               <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p role="status" className={"text-xs "+(reel.videoUrl?"font-bold text-green-700":"text-slate-500")}>{uploading?"Video yükleniyor: %"+uploadProgress:reel.videoUrl?"Video yüklendi · Onaya gönderilmeye hazır":"En fazla 60 MB, MP4 formatı. Onaya göndermek için yükleme tamamlanmalı."}</p></Field>
+              <Field label="Reels kapak görseli (isteğe bağlı)">
+                <input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle}
+                  onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"thumbnailUrl");}}/>
+                <p className="text-xs text-slate-500">Kapak eklenmezse mağaza sayfasında video sessiz önizleme olarak gösterilir.</p>
+                {reel.thumbnailUrl?<img src={reel.thumbnailUrl} alt="Reels kapak önizlemesi" className="mt-2 h-28 w-20 rounded object-cover"/>:null}
+              </Field>
               <Field label="Ürün seç"><select className={inputStyle} value={reel.productId} onChange={e=>setReel(v=>({...v,productId:e.target.value}))}>
                 <option value="">Ürün seçilmedi</option>{products.data?.filter(p=>Boolean(p.live)).map(p=><option key={p.id} value={p.id}>{p.live?.name||p.sku}</option>)}
               </select></Field>
