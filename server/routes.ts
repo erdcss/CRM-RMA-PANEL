@@ -314,7 +314,7 @@ async function newBankTransferCode() {
   throw new Error("Benzersiz havale açıklama kodu oluşturulamadı");
 }
 
-async function checkoutProduct(productId: unknown, quantity: unknown): Promise<CheckoutProduct> {
+async function checkoutProduct(productId: unknown, quantity: unknown, previewOnly = false): Promise<CheckoutProduct> {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
   const qty = cleanOrderQuantity(quantity);
@@ -324,10 +324,10 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
 
   const id=String(productId).trim();
   if (/^mp-[1-9][0-9]*$/.test(id)) {
-    // Only charge third-party inventory once settlement and invoicing arrangements
-    // have been enabled by the merchant; never imply authorization from a cart UI.
-    if (process.env.B2B_SUPPLIER_CHECKOUT_ENABLED !== "true")
-      throw new Error("Bu ürün için çevrimiçi ödeme hazırlığı henüz tamamlanmadı.");
+    // Preview must remain available for multi-supplier orders. Never permit
+    // an actual payment or unpaid bank order until supplier settlement is enabled.
+    if (!previewOnly && process.env.B2B_SUPPLIER_CHECKOUT_ENABLED !== "true")
+      throw new Error("Tedarikçi ürünleri için ödeme henüz etkinleştirilmedi. Lütfen daha sonra tekrar deneyin.");
     await ensureMarketplaceSchema();
     const productNumber=Number(id.slice(3));
     const q=await pool.query(`SELECT p.id,p.sku,p.stock,
@@ -401,7 +401,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
   };
 }
 
-async function checkoutItems(rawItems: unknown) {
+async function checkoutItems(rawItems: unknown, previewOnly = false) {
   if (!Array.isArray(rawItems) || rawItems.length > 100) throw new Error("Sipariş listesinde en fazla 100 ürün olabilir");
   const source = rawItems;
   if (source.length === 0) throw new Error("Siparişe ürün eklenmedi");
@@ -420,7 +420,7 @@ async function checkoutItems(rawItems: unknown) {
     const key=String(value.productId||"");
     if(uniqueIds.has(key))throw new Error("Sipariş listesinde aynı ürün birden fazla kez bulunamaz");
     uniqueIds.add(key);
-    const product = await checkoutProduct(value.productId, quantity);
+    const product = await checkoutProduct(value.productId, quantity, previewOnly);
     const totalUnits = quantity * product.unitsPerBox;
     items.push({
       product,
@@ -2815,7 +2815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
     try {
       const quantity = cleanOrderQuantity(req.query.qty);
-      const product = await checkoutProduct(req.query.productId, quantity);
+      const product = await checkoutProduct(req.query.productId, quantity, true);
       const totalUnits = quantity * product.unitsPerBox;
       const total = Number((product.price * totalUnits).toFixed(2));
 
@@ -2836,7 +2836,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
     try {
-      const cart = await checkoutItems(req.body?.items);
+      const cart = await checkoutItems(req.body?.items, true);
       return res.json({
         items: cart.items.map((entry) => ({
           product: entry.product,
