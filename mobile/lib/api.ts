@@ -354,6 +354,8 @@ export type B2BCheckoutProduct = {
   unitsPerBox: number;
   maxBoxQty: number;
   image?: string | null;
+  sellerName?: string;
+  sellerSlug?: string;
 };
 
 export type B2BCheckoutPreview = {
