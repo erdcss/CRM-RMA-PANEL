@@ -250,6 +250,10 @@ type CheckoutProduct = {
   unitsPerBox: number;
   maxBoxQty: number;
   image: string | null;
+  supplierId?: number;
+  sellerName?: string;
+  sellerSlug?: string;
+  marketplaceRevisionId?: number;
 };
 
 function cleanOrderQuantity(value: unknown) {
@@ -317,6 +321,40 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
     throw new Error("Ürün ve adet bilgisi geçersiz");
   }
 
+  const id=String(productId).trim();
+  if (/^mp-[1-9][0-9]*$/.test(id)) {
+    // Only charge third-party inventory once settlement and invoicing arrangements
+    // have been enabled by the merchant; never imply authorization from a cart UI.
+    if (process.env.B2B_SUPPLIER_CHECKOUT_ENABLED !== "true")
+      throw new Error("Bu ürün için çevrimiçi ödeme hazırlığı henüz tamamlanmadı.");
+    await ensureMarketplaceSchema();
+    const productNumber=Number(id.slice(3));
+    const q=await pool.query(`SELECT p.id,p.sku,p.stock,
+       s.id AS supplier_id,s.slug,s.company_name,v.id AS revision_id,
+       (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
+       FROM mp_products p
+       JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
+       WHERE p.id=$1 AND p.is_enabled=TRUE LIMIT 1`,[productNumber]);
+    const row=q.rows[0];
+    if(!row)throw new Error("Tedarikçi ürünü satışta değil");
+    const data=row.content||{};
+    const price=Number(data.price),stock=Math.max(0,Number(row.stock));
+    const unitsPerBox=Number(data.unitsPerBox),minOrderQty=Number(data.minBoxes||1);
+    if(!Number.isFinite(price)||price<=0||!Number.isSafeInteger(unitsPerBox)||unitsPerBox<1||
+       !Number.isSafeInteger(minOrderQty)||minOrderQty<1)
+      throw new Error("Tedarikçi fiyat veya koli bilgisi eksik");
+    const maxBoxQty=Math.floor(stock/unitsPerBox);
+    if(qty<minOrderQty||qty>maxBoxQty)throw new Error("Tedarikçi ürününde minimum koli veya stok koşulu sağlanmadı");
+    return {
+      id,sku:String(row.sku||""),name:String(data.name||"Ürün"),
+      category:String(data.category||"Genel"),price,stock,minOrderQty,unitsPerBox,maxBoxQty,
+      image:typeof data.imageUrl==="string"&&data.imageUrl?data.imageUrl:null,
+      supplierId:Number(row.supplier_id),sellerName:String(row.company_name),
+      sellerSlug:String(row.slug),marketplaceRevisionId:Number(row.revision_id),
+    };
+  }
+
   const result = await pool.query(
     `SELECT id, sku, name, category, price, stock, min_order_qty, units_per_box,
             image_data, images
@@ -363,7 +401,8 @@ async function checkoutProduct(productId: unknown, quantity: unknown): Promise<C
 }
 
 async function checkoutItems(rawItems: unknown) {
-  const source = Array.isArray(rawItems) ? rawItems.slice(0, 100) : [];
+  if (!Array.isArray(rawItems) || rawItems.length > 100) throw new Error("Sipariş listesinde en fazla 100 ürün olabilir");
+  const source = rawItems;
   if (source.length === 0) throw new Error("Siparişe ürün eklenmedi");
 
   const items: Array<{
@@ -373,9 +412,13 @@ async function checkoutItems(rawItems: unknown) {
     total: number;
   }> = [];
 
+  const uniqueIds=new Set<string>();
   for (const raw of source) {
     const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
     const quantity = cleanOrderQuantity(value.quantity);
+    const key=String(value.productId||"");
+    if(uniqueIds.has(key))throw new Error("Sipariş listesinde aynı ürün birden fazla kez bulunamaz");
+    uniqueIds.add(key);
     const product = await checkoutProduct(value.productId, quantity);
     const totalUnits = quantity * product.unitsPerBox;
     items.push({
@@ -3036,6 +3079,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       unitPrice: entry.product.price,
       total: entry.total,
       image: entry.product.image,
+      ...(entry.product.supplierId ? {
+        supplierId:entry.product.supplierId,sellerName:entry.product.sellerName,
+        sellerSlug:entry.product.sellerSlug,marketplaceRevisionId:entry.product.marketplaceRevisionId,
+      } : {}),
     }));
     const { billingDetails, shippingAddress, checkoutTrace } = buildOrderSnapshots(
       user,
@@ -3498,6 +3545,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       unitPrice: entry.product.price,
       total: entry.total,
       image: entry.product.image,
+      ...(entry.product.supplierId ? {
+        supplierId:entry.product.supplierId,sellerName:entry.product.sellerName,
+        sellerSlug:entry.product.sellerSlug,marketplaceRevisionId:entry.product.marketplaceRevisionId,
+      } : {}),
     }));
     const { billingDetails, shippingAddress, checkoutTrace } = buildOrderSnapshots(
       user,
@@ -3880,6 +3931,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       unitPrice: entry.product.price,
       total: entry.total,
       image: entry.product.image,
+      ...(entry.product.supplierId ? {
+        supplierId:entry.product.supplierId,sellerName:entry.product.sellerName,
+        sellerSlug:entry.product.sellerSlug,marketplaceRevisionId:entry.product.marketplaceRevisionId,
+      } : {}),
     }));
     const { billingDetails, shippingAddress, checkoutTrace } = buildOrderSnapshots(
       user, address, shipping, req.body?.checkoutContext,
