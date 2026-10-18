@@ -351,15 +351,6 @@ export default function B2BOrders() {
           </aside>
         </div>
 
-        {supplierOrders.length ? (
-          <section className="mt-8 rounded-2xl border bg-white p-5">
-            <h2 className="font-black">Tedarikçi Siparişlerim</h2>
-            {supplierOrders.map(order=><div key={order.id} className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t pt-3 text-sm">
-              <span><b>Sipariş #{order.id}</b> · Satıcı onayı bekleniyor</span>
-              <b>{money(Number(order.subtotal))}</b>
-            </div>)}
-          </section>
-        ) : null}
         <section className="mt-8">
           <div className="mb-3">
             <h2 className="text-lg font-black">Geçmiş Siparişler</h2>
