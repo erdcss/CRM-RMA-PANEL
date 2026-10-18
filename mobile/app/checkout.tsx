@@ -146,11 +146,23 @@ export default function CheckoutScreen() {
       let checkoutRequest: Promise<B2BCheckoutPreview | B2BCheckoutCartPreview>;
 
       if (listMode) {
-        const saved = await getOrderList();
-        const items = saved.map((item) => ({
-          productId: item.productId,
-          quantity: item.boxQuantity,
-        }));
+        // A failed supplier lookup must never silently drop products from the payable total.
+        // Fetch the signed-in customer's supplier lines independently from the local catalog.
+        const [saved, supplierCart] = await Promise.all([
+          getOrderList(),
+          rmaApi.getMarketplaceCart(),
+        ]);
+        if (supplierCart.items.some(line => !line.valid)) {
+          throw new Error('Sipariş listenizde fiyat, minimum koli veya stok bilgisi değişen ürünler var. Lütfen listeyi yenileyin.');
+        }
+        const own = saved.filter(item => !item.marketplaceProductId && !item.productId.startsWith('mp-'));
+        const items = [
+          ...own.map(item => ({ productId: item.productId, quantity: item.boxQuantity })),
+          ...supplierCart.items.map(line => ({
+            productId: 'mp-' + String(line.product_id),
+            quantity: Number(line.boxes),
+          })),
+        ];
 
         if (!items.length) {
           throw new Error('Sipariş listeniz boş.');
