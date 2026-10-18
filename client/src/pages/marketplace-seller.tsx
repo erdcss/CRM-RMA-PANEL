@@ -9,12 +9,11 @@ import { SellerAccess } from "@/components/seller-access";
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
-type Quote={id:number;status:string;boxes:number;details:string;sku?:string;company_name?:string;latest_offer?:{amount_per_box:string;expires_at:string}};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
   storeVersions:Array<{id:number;status:string;is_live:boolean;review_note:string}>;
   reels:Array<{id:number;title:string;status:string;review_note:string}>};
 type SellerOrder={id:number;order_id:number;status:string;subtotal:string;created_at:string;delivery_mode:string;items:Array<{productId:number;name:string;sku:string;boxes:number;unitsPerBox:number;total:string}>};
-type Tab="dashboard"|"store"|"products"|"reels"|"messages"|"quotes"|"returns"|"payments"|"orders"|"verification";
+type Tab="dashboard"|"store"|"products"|"reels"|"messages"|"returns"|"payments"|"orders"|"verification";
 async function send(method:string,path:string,data?:unknown){const r=await apiRequest(method,path,data);return r.json();}
 const inputStyle="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900";
 const boxStyle="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6";
@@ -80,7 +79,6 @@ export default function MarketplaceSeller(){
   const [reel,setReel]=useState({title:"",videoUrl:"",productId:""});
   const [reply,setReply]=useState("");
   const [selectedChat,setSelectedChat]=useState<number|null>(null);
-  const [offer,setOffer]=useState({quoteId:"",amountPerBox:"",deliveryTerms:"",validHours:"72"});
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
   const [uploadingCount,setUploadingCount]=useState(0);
@@ -162,7 +160,6 @@ export default function MarketplaceSeller(){
   const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0});
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selectedChat+"/messages"],enabled:approved&&!!selectedChat,staleTime:0});
-  const quotes=useQuery<Quote[]>({queryKey:["/api/marketplace/quotes"],enabled:approved,staleTime:0});
   const previewLogoUrl=storeMediaPreview.logoUrl||store.logoUrl;
   const previewBannerUrl=storeMediaPreview.bannerUrl||store.bannerUrl;
   async function run(action:()=>Promise<unknown>,refresh:string[]=[]) {
@@ -200,7 +197,7 @@ export default function MarketplaceSeller(){
       </div>
       {message?<Notice text={message}/>:null}
       {me.data ? <nav aria-label="Tedarikçi araçları" className="sticky top-0 z-20 -mx-2 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur">
-        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"quotes",label:"Teklifler",icon:FileText},{key:"reels",label:"Reels",icon:Film}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
+        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"reels",label:"Reels",icon:Film}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
       </nav> : null}
 
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
@@ -227,10 +224,10 @@ export default function MarketplaceSeller(){
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               ["Ürünler",dash.data?.productCount],["Takipçiler",dash.data?.followers],
-              ["Görüşmeler",dash.data?.conversations],["Açık teklifler",dash.data?.openQuotes]
+              ["Görüşmeler",dash.data?.conversations]
             ].map(([name,n])=><div key={String(name)} className={boxStyle}><div className="text-2xl font-black">{n??"—"}</div><p className="text-xs text-slate-500">{name}</p></div>)}
           </div>
-          {tab==="dashboard"?<div className={boxStyle+" space-y-4"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Mağazanız, ürünleriniz, müşteri görüşmeleri ve teklifleriniz tek panelde.</p><div className="grid gap-3 sm:grid-cols-3">{[["Ürün",dash.data?.productCount],["Müşteri Görüşmesi",dash.data?.conversations],["Açık Teklif",dash.data?.openQuotes]].map(([label,count])=><div key={String(label)} className="rounded-xl bg-slate-100 p-4"><div className="text-2xl font-black">{count??0}</div><div className="text-xs text-slate-600">{label}</div></div>)}</div></div>:null}
+          {tab==="dashboard"?<div className={boxStyle+" space-y-4"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Mağazanız, ürünleriniz ve müşteri görüşmeleriniz tek panelde.</p><div className="grid gap-3 sm:grid-cols-3">{[["Ürün",dash.data?.productCount],["Müşteri Görüşmesi",dash.data?.conversations]].map(([label,count])=><div key={String(label)} className="rounded-xl bg-slate-100 p-4"><div className="text-2xl font-black">{count??0}</div><div className="text-xs text-slate-600">{label}</div></div>)}</div></div>:null}
           {tab==="orders"?<div className={boxStyle+" space-y-4"}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-black">Gelen Tedarikçi Siparişleri</h2><button onClick={()=>void sellerOrders.refetch()} className="rounded-lg border px-3 py-2 text-xs font-bold">Yenile</button></div>
             <p className="text-sm text-slate-600">Müşterilerin oluşturduğu siparişler burada tedarikçi onayı bekliyor durumuyla görünür. Ödeme veya sevkiyat henüz tetiklenmez.</p>
             {sellerOrders.isError?<p className="text-sm text-red-700">Siparişler yüklenemedi. Yeniden deneyin.</p>:null}
@@ -356,26 +353,6 @@ export default function MarketplaceSeller(){
                   <button disabled={busy} className="rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white">Gönder</button>
                 </form></>:<p className="text-sm text-slate-500">Konuşma seçin.</p>}
             </div>
-          </div>:null}
-          {tab==="quotes"?<div className={boxStyle+" space-y-4"}>
-            <h2 className="text-lg font-bold">Teklif Talepleri</h2>
-            {quotes.data?.map(q=><div key={q.id} className="rounded-xl border p-4 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2"><b>#{q.id} · {q.sku||"Genel talep"} · {q.boxes} koli</b>
-                <span className="text-xs text-slate-500">{statusTR[q.status]||q.status}</span></div>
-              <p className="my-2 text-slate-600">{q.details}</p>
-              {q.latest_offer?<p className="text-xs text-green-700">Son teklif: {q.latest_offer.amount_per_box} ₺ / koli</p>:null}
-              {["requested","offered"].includes(q.status)?<button className="mt-2 rounded-lg border px-3 py-2 text-xs font-bold"
-                onClick={()=>{setOffer(v=>({...v,quoteId:String(q.id)}));}}>Teklif Hazırla</button>:null}
-            </div>)}
-            {!quotes.data?.length?<p className="text-sm text-slate-500">Henüz teklif talebi yok.</p>:null}
-            {offer.quoteId?<form className="space-y-3 rounded-xl bg-slate-50 p-4" onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/quotes/"+offer.quoteId+"/offer",
-              {amountPerBox:Number(offer.amountPerBox),deliveryTerms:offer.deliveryTerms,validHours:Number(offer.validHours)}),["/api/marketplace/quotes"]);}}>
-              <h3 className="font-bold">Teklif #{offer.quoteId}</h3>
-              <Field label="Koli başına fiyat (₺)"><input required type="number" step="0.01" min="0.01" className={inputStyle} value={offer.amountPerBox} onChange={e=>setOffer(v=>({...v,amountPerBox:e.target.value}))}/></Field>
-              <Field label="Teslimat ve ödeme koşulları"><input className={inputStyle} value={offer.deliveryTerms} onChange={e=>setOffer(v=>({...v,deliveryTerms:e.target.value}))}/></Field>
-              <Field label="Teklif geçerlilik süresi (saat)"><input required type="number" min="1" max="720" className={inputStyle} value={offer.validHours} onChange={e=>setOffer(v=>({...v,validHours:e.target.value}))}/></Field>
-              <button disabled={busy} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white">Teklifi Gönder</button>
-            </form>:null}
           </div>:null}
         </div>}
     </div>
