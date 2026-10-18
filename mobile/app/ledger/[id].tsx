@@ -279,7 +279,7 @@ export default function LedgerCurrentAccount() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
             {(Object.keys(NAMES) as TransactionType[]).map(t=><Pressable key={t} style={[styles.tab,type===t&&{borderBottomColor:COLORS[t],borderBottomWidth:3}]}
               onPress={()=>{setType(t);setWalletId('');setTargetId('');}}>
-              <Text style={[styles.tabText,type===t&&{color:COLORS[t],fontWeight:'900'}]}>{NAMES[t]}</Text>
+              <Text style={[styles.tabText,type===t&&{color:COLORS[t],fontWeight:'400'}]}>{NAMES[t]}</Text>
             </Pressable>)}
           </ScrollView>
         </View>
@@ -365,13 +365,13 @@ export default function LedgerCurrentAccount() {
 }
 const makeStyles=(p:AppPalette)=>StyleSheet.create({
   header:{flexDirection:'row',alignItems:'center',height:60,paddingHorizontal:10,backgroundColor:p.surface,borderBottomWidth:1,borderBottomColor:p.border},
-  headerButton:{width:43,height:44,justifyContent:'center',alignItems:'center'},headerTitle:{flex:1,color:p.text,fontSize:18,fontWeight:'900',textAlign:'center'},
+  headerButton:{width:43,height:44,justifyContent:'center',alignItems:'center'},headerTitle:{flex:1,color:p.text,fontSize:18,fontWeight:'500',textAlign:'center'},
   page:{padding:12,gap:12,paddingBottom:70},
   card:{backgroundColor:p.surface,borderRadius:13,borderWidth:1,borderColor:p.border,padding:14,gap:10},
   balance:{paddingVertical:15,borderBottomWidth:1,borderBottomColor:p.border,gap:8},
-  large:{fontSize:30,fontWeight:'900'},small:{fontSize:12,color:p.textSecondary,lineHeight:18},
-  title:{color:p.text,fontSize:17,fontWeight:'900'},historyRow:{flexDirection:'row',gap:8,alignItems:'center',borderTopWidth:1,borderTopColor:p.border,paddingVertical:10},
-  historyLabel:{color:p.text,fontSize:13,fontWeight:'800'},historyAmount:{fontSize:15,fontWeight:'900'},
+  large:{fontSize:30,fontWeight:'400'},small:{fontSize:12,color:p.textSecondary,lineHeight:18},
+  title:{color:p.text,fontSize:17,fontWeight:'400'},historyRow:{flexDirection:'row',gap:8,alignItems:'center',borderTopWidth:1,borderTopColor:p.border,paddingVertical:10},
+  historyLabel:{color:p.text,fontSize:13,fontWeight:'500'},historyAmount:{fontSize:15,fontWeight:'400'},
   editor:{borderWidth:2,borderRadius:12,backgroundColor:p.surface,overflow:'hidden'},
   editorTop:{flexDirection:'row',alignItems:'center',minHeight:43,paddingHorizontal:12,borderBottomWidth:1,borderBottomColor:p.border,gap:8},
   dateInput:{color:p.text,flex:1,fontSize:14,minHeight:41},
@@ -379,19 +379,19 @@ const makeStyles=(p:AppPalette)=>StyleSheet.create({
   selectorText:{color:p.text,fontSize:14,flex:1},
   input:{paddingHorizontal:12,paddingVertical:10,backgroundColor:p.background,color:p.text,minHeight:45,borderColor:p.border,borderWidth:1,borderRadius:9,fontSize:14},
   amountRow:{flexDirection:'row',backgroundColor:p.background,minHeight:66,alignItems:'center',paddingLeft:14},
-  amountText:{fontSize:24,color:p.text,flex:1,fontWeight:'700'},
+  amountText:{fontSize:24,color:p.text,flex:1,fontWeight:'400'},
   submit:{alignSelf:'stretch',minWidth:125,paddingHorizontal:10,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:5},
-  submitText:{color:'#FFFFFF',fontSize:11,fontWeight:'900'},
+  submitText:{color:'#FFFFFF',fontSize:11,fontWeight:'400'},
   tabs:{flexDirection:'row',gap:7,paddingHorizontal:10,backgroundColor:p.surfaceSecondary},
-  tab:{paddingHorizontal:7,paddingVertical:13},tabText:{fontSize:12,color:p.textSecondary,fontWeight:'600'},
+  tab:{paddingHorizontal:7,paddingVertical:13},tabText:{fontSize:12,color:p.textSecondary,fontWeight:'400'},
   keypad:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',gap:7,marginTop:2},
   key:{width:'31.9%',height:65,backgroundColor:p.surfaceSecondary,borderRadius:13,alignItems:'center',justifyContent:'center'},
-  keyText:{color:p.text,fontSize:24,fontWeight:'600'},
+  keyText:{color:p.text,fontSize:24,fontWeight:'400'},
   modal:{flex:1,backgroundColor:'rgba(0,0,0,.55)',justifyContent:'flex-end'},
   sheet:{backgroundColor:p.surface,borderTopLeftRadius:24,borderTopRightRadius:24,padding:18,paddingBottom:45,gap:12,maxHeight:670},
   handle:{height:5,width:43,borderRadius:10,backgroundColor:p.border,alignSelf:'center'},
   sheetRow:{flexDirection:'row',alignItems:'center',gap:12,minHeight:54,borderBottomWidth:1,borderBottomColor:p.border,paddingVertical:8},
   editKinds:{flexDirection:'row',gap:8},kind:{flex:1,borderColor:p.border,borderWidth:1,borderRadius:9,paddingVertical:12,paddingHorizontal:6,alignItems:'center'},
   yellowButton:{minHeight:48,backgroundColor:'#FACC15',borderRadius:10,alignItems:'center',justifyContent:'center',padding:11},
-  yellowText:{color:'#111827',fontWeight:'900',fontSize:14},
+  yellowText:{color:'#111827',fontWeight:'400',fontSize:14},
 });
