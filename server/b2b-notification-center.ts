@@ -2,7 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { sendPushToUsers } from "./push-notifications";
 
-const EVENT_KEYS = ["membership_approved","order_created","order_payment_approved","return_approved","invoice_issued"] as const;
+const EVENT_KEYS = ["membership_approved","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid"] as const;
 export type NotificationEvent = typeof EVENT_KEYS[number];
 const DEFAULTS: Record<NotificationEvent,{title:string;body:string}> = {
   membership_approved: {
@@ -12,6 +12,14 @@ const DEFAULTS: Record<NotificationEvent,{title:string;body:string}> = {
   order_created: {
     title: "Siparişiniz oluşturuldu",
     body: "{orderNumber} numaralı siparişiniz oluşturuldu. Toplam: {amount}.",
+  },
+  supplier_order_paid: {
+    title: "Yeni ödenmiş sipariş",
+    body: "{orderNumber} · {amount} · {status}. Siparişlerinizi tedarikçi panelinden görüntüleyin.",
+  },
+  admin_supplier_paid: {
+    title: "Tedarikçi siparişi ödemesi",
+    body: "{orderNumber} · {amount} · {status}. Tedarikçi siparişi yönetici kontrolüne hazır.",
   },
   order_payment_approved: {
     title: "Havale ödemeniz onaylandı",
