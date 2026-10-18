@@ -162,6 +162,7 @@ export type MarketplaceProduct = {
   content: {
     name: string;
     description?: string;
+    barcode?: string;
     imageUrl?: string;
     price?: string | number | null;
     category?: string;
