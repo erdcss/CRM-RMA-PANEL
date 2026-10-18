@@ -12,6 +12,7 @@ export function asCatalogProduct(item: MarketplaceProduct): B2BProduct {
     image_data: item.content.imageUrl || null,
     image_url: item.content.imageUrl || null,
     images: item.content.imageUrl ? [item.content.imageUrl] : [],
+    barcode: item.content.barcode || null,
     category: item.content.category || null,
     brand: item.content.brand || null,
     units_per_box: Math.max(1, Number(item.content.unitsPerBox) || 1),
