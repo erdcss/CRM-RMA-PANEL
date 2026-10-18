@@ -332,30 +332,21 @@ export default function B2BOrders() {
               </div>
             </div>
 
-            {supplierMessage?<p role="status" className="mt-4 rounded-lg bg-green-50 p-3 text-sm font-medium text-green-800">{supplierMessage}</p>:null}
-            {supplierItems.length ? (
-              <Button type="button" disabled={supplierBusy} onClick={()=>void placeSupplierOrder()} className="mt-5 w-full bg-[#FFCD00] text-slate-950 hover:bg-amber-300" size="lg">
-                {supplierBusy?"Oluşturuluyor…":"Tedarikçi Siparişini Oluştur"}
-              </Button>
-            ) : null}
             <Button
-              asChild={adminItems.length > 0}
-              disabled={adminItems.length === 0}
-              className="mt-3 w-full"
+              asChild={items.length>0}
+              disabled={items.length===0}
+              className="mt-5 w-full bg-[#FFCD00] text-slate-950 hover:bg-amber-300"
               size="lg"
             >
-              {adminItems.length > 0 ? (
+              {items.length>0 ? (
                 <Link href="/odeme?cart=1">
-                  Ödemeye Geç
+                  Ödemeyi Tamamla
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
-              ) : (
-                <span>Ödemeye Geç</span>
-              )}
+              ) : <span>Ödemeyi Tamamla</span>}
             </Button>
-
             <p className="mt-3 text-center text-xs leading-5 text-slate-500">
-              Tedarikçi siparişleri satıcı onayına gönderilir, ödeme alınmaz. Çalışkan ürünleri ise mevcut ödeme sisteminde tamamlanır.
+              Siparişinizdeki tüm ürünleri güvenli ödeme ekranından tek işlemde tamamlayabilirsiniz.
             </p>
           </aside>
         </div>
