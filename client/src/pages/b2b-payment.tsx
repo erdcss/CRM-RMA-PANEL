@@ -138,14 +138,20 @@ async function loadCheckoutPreview(
   qty: number,
 ): Promise<CheckoutPreview> {
   if (cartMode) {
-    const cart = getB2BCart().filter(item=>!item.productId.startsWith("mp-"));
-    if (!cart.length) throw new Error("Sipariş listeniz boş");
-    const response = await apiRequest("POST", "/api/b2b/checkout/preview", {
-      items: cart.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-      })),
-    });
+    const adminItems = getB2BCart().map(item=>({productId:item.productId,quantity:item.quantity}));
+    // Both web and iOS use the customer's account-scoped supplier selection.
+    const supplierResponse=await fetch("/api/marketplace/cart",{credentials:"include",cache:"no-store"});
+    if(!supplierResponse.ok)throw new Error("Sipariş listenizi doğrulayamadık. Yeniden deneyin.");
+    const supplierCart=await supplierResponse.json() as {
+      items:Array<{product_id:number;boxes:number;valid:boolean}>;
+    };
+    if(supplierCart.items.some(item=>!item.valid))
+      throw new Error("Sipariş listesindeki ürünlerden birinin stok veya koli koşulu değişti.");
+    const items=[...adminItems,...supplierCart.items.map(item=>({
+      productId:"mp-"+item.product_id,quantity:item.boxes,
+    }))];
+    if (!items.length) throw new Error("Sipariş listeniz boş");
+    const response = await apiRequest("POST", "/api/b2b/checkout/preview", {items});
     return response.json();
   }
 
