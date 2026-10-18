@@ -20,6 +20,7 @@ import { ModuleScreen } from "./screens/ModuleScreen";
 import { MoreScreen } from "./screens/MoreScreen";
 import { OrderDetailScreen } from "./screens/OrderDetailScreen";
 import { OrdersScreen } from "./screens/OrdersScreen";
+import { ProductAddScreen } from "./screens/ProductAddScreen";
 import { ProductsScreen } from "./screens/ProductsScreen";
 import { SupportScreen } from "./screens/SupportScreen";
 import type { MainTab, Screen } from "./types";
@@ -114,8 +115,15 @@ export default function App() {
           </SafeAreaView>
         ) : screen.name === "products" ? (
           <AdminShell active="products" onTab={openTab}>
-            <ProductsScreen />
+            <ProductsScreen onAdd={() => setScreen({ name: "productAdd" })} />
           </AdminShell>
+        ) : screen.name === "productAdd" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <ProductAddScreen
+              onBack={() => setScreen({ name: "products" })}
+              onCreated={() => setScreen({ name: "products" })}
+            />
+          </SafeAreaView>
         ) : screen.name === "customers" ? (
           <AdminShell active="customers" onTab={openTab}>
             <CustomersScreen
