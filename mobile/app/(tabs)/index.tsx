@@ -332,7 +332,7 @@ export default function HomeScreen() {
                         <Image
                           source={{ uri: homepageMediaUrl(banner.imageId)! }}
                           style={styles.carouselImage}
-                          contentFit="contain"
+                          contentFit="cover"
                           cachePolicy="memory-disk"
                           transition={180}
                           onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
@@ -637,7 +637,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: 15, aspectRatio: 10 / 3, marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselContainer: { marginTop: 15, width: 'auto', aspectRatio: 10 / 3, marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
   carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
   bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
