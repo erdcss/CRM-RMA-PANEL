@@ -2873,7 +2873,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      const checkout = await checkoutItems(rawItems);
+      // Calculating installment options is informational; it must not charge
+      // or bypass the supplier-payment authorization enforced at submission.
+      const checkout = await checkoutItems(rawItems, true);
       const result = await retrieveIyzicoInstallments(checkout.total, binNumber);
       const detail = Array.isArray(result.installmentDetails)
         ? result.installmentDetails[0]
