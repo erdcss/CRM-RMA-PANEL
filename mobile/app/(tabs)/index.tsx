@@ -201,7 +201,10 @@ export default function HomeScreen() {
     setScannerOpen(false);
     try {
       const product = await rmaApi.findB2BProductByBarcode(value);
-      router.push({ pathname: '/product/[id]', params: { id: String(product.id) } } as never);
+      router.push({
+        pathname: '/product/[id]',
+        params: {id:String(product.id), ...(product.seller_slug ? {slug:product.seller_slug} : {})},
+      } as never);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Barkod sorgulanamadı';
       appAlert(
