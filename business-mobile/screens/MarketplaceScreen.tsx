@@ -12,11 +12,10 @@ type AdminStats={suppliers:Array<{status:string;total:number}>;products:Array<{s
   stores:Array<{status:string;total:number}>;reels:Array<{status:string;total:number}>;conversations:number;quotes:number};
 type SupplierStats={supplier:{company_name:string;slug:string};productCount:number;followers:number;conversations:number;openQuotes:number;
   storeVersions:Array<{id:string;status:string;is_live:boolean}>;reels:Array<{id:string;title:string;status:string}>};
-type Quote={id:string;status:string;boxes:number;sku?:string;details?:string;latest_offer?:{amount_per_box:string}};
 type Chat={id:string;latest_message?:string;buyer_user_id:string};
 type Msg={id:string;text:string;created_at:string};
-type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages"|"quotes";
-const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar",quotes:"Teklifler"};
+type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages";
+const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar"};
 const status:Record<string,string>={pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",requested:"Teklif bekleniyor",offered:"Teklif sunuldu",accepted:"Kabul edildi"};
 const Input=({value,onChangeText,placeholder,multiline=false}:{value:string;onChangeText:(x:string)=>void;placeholder:string;multiline?:boolean})=>
   <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.muted}
@@ -31,11 +30,9 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
  const [tab,setTab]=useState<Tab>("overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
  const [queue,setQueue]=useState<Queue|null>(null),[products,setProducts]=useState<any[]>([]);
  const [chats,setChats]=useState<Chat[]>([]),[selectedChat,setSelectedChat]=useState<string|null>(null),[messages,setMessages]=useState<Msg[]>([]);
- const [quotes,setQuotes]=useState<Quote[]>([]);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [note,setNote]=useState(""),[reply,setReply]=useState("");
  const [storeTitle,setStoreTitle]=useState(""),[storeTagline,setStoreTagline]=useState("");
- const [offerAmount,setOfferAmount]=useState(""),[offerTerms,setOfferTerms]=useState("");
  const load=useCallback(async()=>{
   setError("");
   try{
@@ -45,12 +42,11 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
       apiFetch<Queue>("/api/admin/marketplace/review-queue")]);
     setOverview(a);setQueue(q);
    }else{
-    const [a,p,c,q]=await Promise.all([
+    const [a,p,c]=await Promise.all([
       apiFetch<SupplierStats>("/api/marketplace/seller/dashboard"),
       apiFetch<any[]>("/api/marketplace/seller/products"),
-      apiFetch<Chat[]>("/api/marketplace/conversations"),
-      apiFetch<Quote[]>("/api/marketplace/quotes")]);
-    setOverview(a);setProducts(p);setChats(c);setQuotes(q);
+      apiFetch<Chat[]>("/api/marketplace/conversations")]);
+    setOverview(a);setProducts(p);setChats(c);
    }
   }catch(e){setError(e instanceof Error?e.message:"Veriler alınamadı");}
   finally{setLoading(false);setRefreshing(false);}
@@ -72,7 +68,7 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
  const stats=overview as AdminStats|null;
  const seller=overview as SupplierStats|null;
  const items=isSuper?(tab==="suppliers"?queue?.suppliers:tab==="products"?queue?.products:tab==="stores"?queue?.stores:tab==="reels"?queue?.reels:[])||[]:[];
- const shownTabs:Tab[]=isSuper?["overview","suppliers","products","stores","reels"]:["overview","stores","products","reels","messages","quotes"];
+ const shownTabs:Tab[]=isSuper?["overview","suppliers","products","stores","reels"]:["overview","stores","products","reels","messages"];
  return <ScrollView style={s.screen} contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing}
     onRefresh={()=>{setRefreshing(true);void load();}} tintColor={C.text}/>}>
   <BackHeader title="Pazaryeri Yönetimi" subtitle={isSuper?"Süper yönetim merkezi":"Tedarikçi çalışma alanı"} onBack={isSuper?onBack:()=>void onLogout()}/>
@@ -89,7 +85,7 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
        .map(([title,arr])=><View style={s.row} key={title}><Text style={s.text}>{title}</Text>
          <Text style={s.value}>{arr?.find(x=>x.status==="pending")?.total||0}</Text></View>):
       ([["Ürün sayısı",seller?.productCount],["Takipçiler",seller?.followers],
-       ["Sohbetler",seller?.conversations],["Açık teklifler",seller?.openQuotes]] as Array<[string,unknown]>)
+       ["Sohbetler",seller?.conversations]] as Array<[string,unknown]>)
        .map(([title,v])=><View style={s.row} key={title}><Text style={s.text}>{title}</Text>
          <Text style={s.value}>{String(v??0)}</Text></View>)}
     <Text style={s.help}>Standart komisyon %3 · Depo kontrolünde ek %3 · Canlı çok satıcılı tahsilat henüz etkin değil.</Text>
@@ -150,19 +146,6 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
       }}/>
     </View>:null}
     <Text style={s.help}>Yeni görüşmeyi sadece müşteri başlatır.</Text>
-  </View>:null}
-  {!isSuper&&tab==="quotes"?<View style={s.panel}>
-    <Text style={s.heading}>Toptan Teklif Talepleri</Text>
-    {quotes.map(q=><View key={q.id} style={s.card}>
-      <Text style={s.itemTitle}>#{q.id} · {q.boxes} koli · {q.sku||"Genel talep"}</Text>
-      <Text style={s.help}>{status[q.status]||q.status} · {q.details||""}</Text>
-      {["requested","offered"].includes(q.status)?<>
-        <Input value={offerAmount} onChangeText={setOfferAmount} placeholder="Koli fiyatı (₺)"/>
-        <Input value={offerTerms} onChangeText={setOfferTerms} placeholder="Sevkiyat koşulları"/>
-        <Action title="Teklif Sun" disabled={working||!(Number(offerAmount)>0)} onPress={()=>void send("/api/marketplace/quotes/"+q.id+"/offer",
-          {amountPerBox:Number(offerAmount),deliveryTerms:offerTerms,validHours:72})}/>
-      </>:null}
-    </View>)}
   </View>:null}
  </ScrollView>;
 }
