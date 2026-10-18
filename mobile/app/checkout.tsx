@@ -147,7 +147,7 @@ export default function CheckoutScreen() {
 
       if (listMode) {
         const saved = await getOrderList();
-        const items = saved.filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-')).map((item) => ({
+        const items = saved.map((item) => ({
           productId: item.productId,
           quantity: item.boxQuantity,
         }));
