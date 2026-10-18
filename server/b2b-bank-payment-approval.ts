@@ -1,6 +1,7 @@
 import type { Express, Request, RequestHandler } from "express";
 import { pool } from "./db";
 import { notifyB2BEvent } from "./b2b-notification-center";
+import { isMarketplaceLine,deductMarketplaceStock,notifyVerifiedSupplierOrder,removePurchasedMarketplaceCartItems } from "./marketplace-paid-orders";
 
 type UserIdResolver = (req: Request) => number | undefined;
 
@@ -45,14 +46,14 @@ export function registerB2BBankPaymentApproval(
       const client = await pool.connect();
       let order: {
         id: string; user_id: number; order_number: string;
-        transfer_code: string; total_amount: string; status: string;
+        transfer_code: string; total_amount: string; status: string;items?:any[];
       } | null = null;
       let firstApproval = false;
       try {
         await client.query("BEGIN");
         const found = await client.query(`
           SELECT id, user_id, order_number, transfer_code,
-            total_amount, payment_method, payment_status, status
+            total_amount, payment_method, payment_status, status, items
           FROM b2b_orders WHERE id::text=$1 FOR UPDATE
         `, [id]);
         const record = found.rows[0];
@@ -79,10 +80,19 @@ export function registerB2BBankPaymentApproval(
             SET status='paid', payment_status='bank_confirmed'
             WHERE id=$1 AND status='awaiting_bank_confirmation'
               AND payment_status='customer_reported_paid' AND payment_method='bank_transfer'
-            RETURNING id,user_id,order_number,transfer_code,total_amount,status
+            RETURNING id,user_id,order_number,transfer_code,total_amount,status,items
           `, [record.id]);
           if (!updated.rows[0]) throw new Error("Sipariş ödeme durumu değişmiş, yenileyin");
-          const confirmedOrder = updated.rows[0];
+          const confirmedOrder=updated.rows[0];
+          const purchasedItems=Array.isArray(confirmedOrder.items)?confirmedOrder.items:[];
+          let stockReview=false;
+          for(const line of purchasedItems){
+            if(isMarketplaceLine(line) && !await deductMarketplaceStock(client,line))stockReview=true;
+          }
+          if(stockReview){
+            await client.query("UPDATE b2b_orders SET status='paid_stock_review' WHERE id=$1",[record.id]);
+            confirmedOrder.status='paid_stock_review';
+          }
           order = confirmedOrder;
           await client.query(`
             INSERT INTO b2b_bank_payment_approvals
@@ -105,6 +115,12 @@ export function registerB2BBankPaymentApproval(
       }
 
       if (!order || !order.user_id) return res.status(500).json({ error: "Sipariş onay kaydı bulunamadı" });
+      if(firstApproval){
+        void notifyVerifiedSupplierOrder(String(order.order_number),order.items,order.status==='paid_stock_review')
+          .catch(e=>console.error("Bank paid supplier notification",e));
+        void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
+          .catch(e=>console.error("Bank supplier cart cleanup",e));
+      }
       // Persist a targeted notification and attempt to push it to B2B devices.
       // Unique dedupe key also protects retries after a failed network response.
       let notification = { recorded: false, sent: 0 };
@@ -120,7 +136,7 @@ export function registerB2BBankPaymentApproval(
       }
       return res.json({
         ok: true,
-        status: "paid",
+        status: order.status,
         paymentStatus: "bank_confirmed",
         firstApproval,
         notificationRecorded: notification.recorded,
