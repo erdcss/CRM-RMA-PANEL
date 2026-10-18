@@ -15,8 +15,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { rmaApi } from '@/lib/api';
-import { appAlert } from '@/lib/appAlert';
 import {
   getOrderList,
   orderListItemTotal,
@@ -27,7 +25,6 @@ import {
   type B2BOrderListItem,
 } from '@/lib/b2b-order-list';
 
-function idempotencyKey(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.floor(Math.random()*16);return(c==='x'?r:(r&3)|8).toString(16);});}
 function money(value: number) {
   return `${Number(value || 0).toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
@@ -40,31 +37,12 @@ export default function OrderListScreen() {
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const [items, setItems] = useState<B2BOrderListItem[]>([]);
-  const [supplierBusy,setSupplierBusy]=useState(false);
-  const [supplierOrders,setSupplierOrders]=useState<Array<{id:number;status:string;subtotal:number;created_at:string}>>([]);
-  const submissionKey=useRef<string|null>(null);
   const [expanded, setExpanded] = useState(false);
   const drawer = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
-    const [list,orders]=await Promise.allSettled([getOrderList(),rmaApi.listMarketplaceOrders()]);
-    if(list.status==='fulfilled')setItems(list.value);
-    if(orders.status==='fulfilled')setSupplierOrders(orders.value);
+    setItems(await getOrderList());
   }, []);
-  const supplierItems=items.filter(item=>Boolean(item.marketplaceProductId));
-  const ownItems=items.filter(item=>!item.marketplaceProductId);
-  const submitSuppliers=async()=>{
-    if(supplierBusy||!supplierItems.length)return;
-    setSupplierBusy(true);
-    try{
-      if(!submissionKey.current)submissionKey.current=idempotencyKey();
-      const submitted=await rmaApi.createMarketplaceOrderFromList(submissionKey.current,supplierItems.map(item=>({productId:Number(item.marketplaceProductId),boxes:item.boxQuantity})));
-      submissionKey.current=null;
-      await load();
-      appAlert('Tedarikçi siparişi oluşturuldu','Sipariş #'+submitted.id+' · Onay bekliyor. Ödeme alınmadı.',undefined,'success');
-    }catch(e){appAlert('Sipariş oluşturulamadı',e instanceof Error?e.message:'Tekrar deneyin.',undefined,'error');}
-    finally{setSupplierBusy(false);}
-  };
 
   useFocusEffect(
     useCallback(() => {
