@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS mp_reels (
   supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   video_url TEXT NOT NULL,
+  thumbnail_url TEXT,
   product_id BIGINT REFERENCES mp_products(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   is_live BOOLEAN NOT NULL DEFAULT FALSE,
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS mp_reels (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   reviewed_at TIMESTAMPTZ
 );
+ALTER TABLE mp_reels ADD COLUMN IF NOT EXISTS thumbnail_url TEXT;
 CREATE TABLE IF NOT EXISTS mp_follows (
   supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,
   buyer_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -338,7 +340,7 @@ export function registerMarketplaceRoutes(
   }));
   app.get("/api/marketplace/reels",handle(async(_req,res)=>{
     const db=await ready();
-    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.created_at,
+    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.thumbnail_url,r.created_at,
       CASE WHEN p.is_enabled=TRUE AND pv.id IS NOT NULL THEN r.product_id ELSE NULL END AS product_id,
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
@@ -352,7 +354,7 @@ export function registerMarketplaceRoutes(
   }));
   app.get("/api/marketplace/stores/:slug/reels",handle(async(req,res)=>{
     const db=await ready();
-    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.product_id,r.created_at,
+    const q=await db.query(`SELECT r.id,r.title,r.video_url,r.thumbnail_url,r.product_id,r.created_at,
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(v.content->>'logoUrl','') AS seller_logo_url
       FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id
@@ -559,15 +561,16 @@ export function registerMarketplaceRoutes(
     if(typeof req.body?.videoUrl!=="string" || !/^\/api\/marketplace\/media\/[a-f0-9]{32}$/.test(req.body.videoUrl)){
       throw new ApiError(400,"Video yüklenmemiş. MP4 dosyasını yükleyin, Video yüklendi mesajını bekleyin ve ardından onaya gönderin.");
     }
-    const data=z.object({title:bodyText(160),videoUrl:mediaUrl,
+    const data=z.object({title:bodyText(160),videoUrl:mediaUrl,thumbnailUrl:mediaUrl.optional().nullable(),
       productId:z.number().int().positive().nullable().optional()}).strict().parse(req.body);
     await verifyMedia(db,Number(s.id),data.videoUrl,true);
+    if(data.thumbnailUrl) await verifyMedia(db,Number(s.id),data.thumbnailUrl,false);
     if(data.productId){
       const own=await db.query("SELECT id FROM mp_products WHERE id=$1 AND supplier_id=$2",[data.productId,s.id]);
       if(!own.rows.length)throw new ApiError(403,"Ürün bu mağazaya ait değil");
     }
-    const r=await db.query("INSERT INTO mp_reels(supplier_id,title,video_url,product_id) VALUES($1,$2,$3,$4) RETURNING id,status",
-      [s.id,data.title,data.videoUrl,data.productId||null]);
+    const r=await db.query("INSERT INTO mp_reels(supplier_id,title,video_url,thumbnail_url,product_id) VALUES($1,$2,$3,$4,$5) RETURNING id,status",
+      [s.id,data.title,data.videoUrl,data.thumbnailUrl||null,data.productId||null]);
     res.status(201).json(r.rows[0]);
   }));
   app.get("/api/marketplace/follows",requireB2B,handle(async(_req,res)=>{
