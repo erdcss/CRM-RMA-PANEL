@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -59,8 +59,10 @@ export default function SellerChat() {
       <Pressable onPress={()=>void refresh()}><Ionicons name="refresh" size={21} color={palette.text}/></Pressable>
     </View>
     <View style={styles.safetyNotice} accessibilityRole="alert">
-      <Ionicons name="warning-outline" size={20} color="#92400E"/>
-      <Text style={styles.safetyNoticeText}>Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</Text>
+      <Ionicons name="warning-outline" size={15} color="#92400E"/>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{flex:1}} contentContainerStyle={{alignItems:"center"}}>
+        <Text style={styles.safetyNoticeText}>Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</Text>
+      </ScrollView>
     </View>
     {error?<Text role="alert" style={styles.error}>{error}</Text>:null}
     <FlatList data={messages} keyExtractor={item=>String(item.id)} style={{flex:1}}
@@ -85,8 +87,8 @@ export default function SellerChat() {
 const styles=StyleSheet.create({
   root:{flex:1},header:{paddingHorizontal:14,paddingTop:12,paddingBottom:15,flexDirection:'row',gap:10,alignItems:'center',borderBottomWidth:1,minHeight:76},
   backButton:{width:35,height:48,alignItems:'center',justifyContent:'center'},
-  safetyNotice:{margin:12,marginBottom:4,padding:12,borderRadius:12,borderWidth:1,borderColor:'#F59E0B',backgroundColor:'#FFFBEB',flexDirection:'row',alignItems:'flex-start',gap:9},
-  safetyNoticeText:{flex:1,color:'#78350F',fontSize:12,lineHeight:19,fontWeight:'700'},
+  safetyNotice:{marginHorizontal:12,marginTop:6,marginBottom:3,paddingHorizontal:10,height:32,borderRadius:8,borderWidth:1,borderColor:'#F59E0B',backgroundColor:'#FFFBEB',flexDirection:'row',alignItems:'center',gap:7},
+  safetyNoticeText:{color:'#78350F',fontSize:11,lineHeight:16,fontWeight:'600'},
   heading:{fontSize:17,fontWeight:'900',lineHeight:23},subheading:{fontSize:12,marginTop:3},messages:{padding:16,flexGrow:1,gap:9},
   empty:{textAlign:'center',marginTop:80,fontSize:13},bubble:{maxWidth:'83%',borderRadius:15,padding:12},
   mine:{alignSelf:'flex-end',backgroundColor:'#FFCD00'},theirs:{alignSelf:'flex-start',backgroundColor:'#E2E8F0'},
