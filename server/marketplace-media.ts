@@ -58,7 +58,7 @@ export function registerMarketplaceMediaRoutes(app:Express,requireB2B:RequestHan
              AND (v.content->>'logoUrl'=$2 OR v.content->>'bannerUrl'=$2))
            OR EXISTS(SELECT 1 FROM mp_products p JOIN mp_product_versions v ON v.product_id=p.id
              WHERE p.supplier_id=s.id AND p.is_enabled AND v.is_live=TRUE AND v.content->>'imageUrl'=$2)
-           OR EXISTS(SELECT 1 FROM mp_reels r WHERE r.supplier_id=s.id AND r.is_live=TRUE AND r.video_url=$2)
+           OR EXISTS(SELECT 1 FROM mp_reels r WHERE r.supplier_id=s.id AND r.is_live=TRUE AND (r.video_url=$2 OR r.thumbnail_url=$2))
           )
         ) AS public_media
         FROM mp_media m JOIN mp_suppliers s ON s.id=m.supplier_id WHERE m.id=$1`,[req.params.id,url]);
