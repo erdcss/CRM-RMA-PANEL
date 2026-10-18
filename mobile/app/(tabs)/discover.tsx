@@ -194,9 +194,9 @@ function ReelCard({
             </View>
             <View style={styles.sellerDetails}>
               <Text style={styles.sellerName} numberOfLines={1}>{item.seller_name}</Text>
-              <Text style={styles.sellerLink}>Mağazayı görüntüle  →</Text>
+              <Text style={styles.sellerLink}>Mağazayı Gör →</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
+ 
           </Pressable>
         ) : null}
         <Text style={styles.reelTitle}>{item.title || 'Ürün videosu'}</Text>
@@ -434,23 +434,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     marginBottom: spacing.md,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    backgroundColor: 'rgba(15,23,42,0.72)',
+    borderRadius: 0,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: 0,
   },
   sellerAvatar: {
     width: 46,
     height: 46,
     borderRadius: 23,
     backgroundColor: '#FACC15',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   sellerImage: {width: '100%',height: '100%'},
   sellerDetails: {flex: 1, minWidth: 0},
-  sellerName: {color:'#FFFFFF',fontSize:14,fontWeight:'800'},
-  sellerLink: {color:'#FDE68A',fontSize:12,fontWeight:'700',marginTop:3},
+  sellerName: {color:'#FFFFFF',fontSize:14,fontWeight:'400',letterSpacing:0.15},
+  sellerLink: {color:'#FDE68A',fontSize:12,fontWeight:'400',marginTop:3},
   reelTitle: {
     ...typography.title,
     color: '#FFFFFF',
