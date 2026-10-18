@@ -50,6 +50,7 @@ export default function ProductDetailScreen() {
   const [product, setProduct] = useState<B2BProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [companyLogo,setCompanyLogo]=useState<string|null>(null);
   const [quantity, setQuantity] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -94,6 +95,17 @@ export default function ProductDetailScreen() {
       })
       .finally(() => setLoading(false));
   }, [id, sellerSlug, session?.access_token]);
+
+  useEffect(() => {
+    if (!product || isMarketplaceProduct(product)) return;
+    let active=true;
+    void rmaApi.getPublicBranding()
+      .then(branding=>{
+        if (active) setCompanyLogo(absoluteMediaUrl(branding.b2b_mobile_logo || branding.b2b_logo));
+      })
+      .catch(()=>{ /* Use the store icon if the branding service is unavailable. */ });
+    return () => { active=false; };
+  }, [product?.id, product?.seller_slug]);
 
   const pack = Math.max(1, Number(product?.units_per_box || 1));
   const min = Math.max(1, Number(product?.min_order_qty || 1));
@@ -169,19 +181,38 @@ export default function ProductDetailScreen() {
           </Text>
 
           <Text style={styles.name}>{product.name || 'Ürün'}</Text>
-          {isSellerProduct ? <Pressable
-            onPress={() => router.push({pathname:'/marketplace/store/[slug]',params:{slug:product.seller_slug!}} as never)}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isSellerProduct ? `${product.seller_name || 'Satıcı'} mağazasını görüntüle` : 'Çalışkan B2B ürünlerini görüntüle'}
+            onPress={() => {
+              if (isSellerProduct && product.seller_slug) {
+                router.push({pathname:'/marketplace/store/[slug]',params:{slug:product.seller_slug}} as never);
+              } else {
+                router.push('/(tabs)' as never);
+              }
+            }}
             style={[styles.sellerCard,{backgroundColor:palette.surfaceSecondary,borderColor:palette.border}]}
           >
             <View style={{height:44,width:44,borderRadius:11,backgroundColor:palette.surface,alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
-              {product.seller_logo_url ? <Image source={{uri:absoluteMediaUrl(product.seller_logo_url)||undefined}} style={{height:'100%',width:'100%'}} contentFit="contain" /> : <Ionicons name="storefront-outline" size={24} color="#92400E"/>}
+              {(isSellerProduct ? product.seller_logo_url : companyLogo) ? (
+                <Image
+                  source={{uri:absoluteMediaUrl(isSellerProduct ? product.seller_logo_url : companyLogo)||undefined}}
+                  style={{height:'100%',width:'100%'}} contentFit="contain"
+                />
+              ) : (
+                <Ionicons name="storefront-outline" size={24} color={palette.textSecondary}/>
+              )}
             </View>
-            <View style={{flex:1}}><Text numberOfLines={1} style={{fontWeight:'800',fontSize:14,color:palette.text}}>{product.seller_name}</Text>
-              <Text style={{fontSize:12,color:palette.accent,marginTop:3,fontWeight:'700'}}>Mağazayı görüntüle →</Text></View>
+            <View style={{flex:1}}>
+              <Text numberOfLines={1} style={{fontWeight:'800',fontSize:14,color:palette.text}}>
+                {isSellerProduct ? (product.seller_name || 'Onaylı tedarikçi') : 'Çalışkan B2B'}
+              </Text>
+              <Text style={{fontSize:12,color:palette.accent,marginTop:3,fontWeight:'700'}}>
+                {isSellerProduct ? 'Mağazayı görüntüle →' : 'Çalışkan mağazasını gör →'}
+              </Text>
+            </View>
             <Ionicons name="chevron-forward" color={palette.textSecondary} size={20}/>
-          </Pressable> : null}
-
-          {product.description ? (
+          </Pressable>{product.description ? (
             <View style={styles.descriptionBox}>
               <Text style={styles.description}>{product.description}</Text>
             </View>
