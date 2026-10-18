@@ -90,7 +90,7 @@ export default function AdminHomepage() {
     }
   }
 
-  async function uploadMedia(file: File, onReady: (id: string) => void) {
+  async function uploadMedia(file: File, onReady: (id: string) => void, purpose?: "mobile_banner") {
     if (file.size > 3 * 1024 * 1024) {
       toast({ title: "Görsel büyük", description: "En fazla 3 MB PNG, JPEG, WebP veya GIF yüklenebilir.", variant: "destructive" });
       return;
@@ -106,7 +106,7 @@ export default function AdminHomepage() {
       const response = await fetch("/api/admin/homepage/media", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataUrl }),
+        body: JSON.stringify({ dataUrl, ...(purpose ? { purpose } : {}) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Görsel kaydedilemedi");
@@ -354,7 +354,7 @@ export default function AdminHomepage() {
                   <label className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-muted">
                     {banner.imageId ? "Görseli Değiştir" : "Banner Görseli Ekle"}
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading}
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void (async () => { if (await validateBannerDimensions(file)) await uploadMedia(file, (imageId) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId } : x))); })(); e.target.value = ""; }} />
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void (async () => { if (await validateBannerDimensions(file)) await uploadMedia(file, (imageId) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId } : x)), "mobile_banner"); })(); e.target.value = ""; }} />
                   </label>
                   {banner.imageId ? <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title || "Banner önizlemesi"} className="w-full max-w-[420px] aspect-[10/3] rounded-lg object-contain" /> : null}
                 </div>
