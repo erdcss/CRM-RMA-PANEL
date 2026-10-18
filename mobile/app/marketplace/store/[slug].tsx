@@ -79,15 +79,16 @@ export default function SellerStore() {
         <Text style={[styles.followers,{color:palette.textSecondary}]}>{Number(store.followers)||0} takipçi</Text>
       </View>
       <Text style={[styles.bio,{color:palette.textSecondary}]}>{store.content?.tagline||store.description||'Onaylı Çalışkan B2B tedarikçisi'}</Text>
-      <Pressable accessibilityRole="button" onPress={()=>{if(!requiresLogin())navigate('/marketplace/chat/[slug]',{slug:String(slug)})}} style={styles.messageButton}>
-        <Ionicons name="chatbubbles-outline" size={17} color="#111827"/><Text style={styles.messageButtonText}>İletişime Geç</Text>
-      </Pressable>
       <View style={styles.actions}>
+        <Pressable accessibilityRole="button" onPress={()=>{if(!requiresLogin())navigate('/marketplace/chat/[slug]',{slug:String(slug)})}} style={[styles.action,styles.messageButton]}>
+          <Ionicons name="chatbubbles-outline" size={17} color="#111827"/><Text style={styles.actionText}>İletişime Geç</Text>
+        </Pressable>
         <Pressable style={[styles.action,following&&styles.following]} disabled={busy} onPress={()=>void follow()}>
           <Ionicons name={following?'checkmark-circle':'heart-outline'} size={18} color="#111827"/>
           <Text style={styles.actionText}>{following?'Takip Ediliyor':'Takip Et'}</Text>
         </Pressable>
       </View>
+
     </View>
     {sellerReels.length > 0 ? <>
       <Text style={[styles.section,{color:palette.text}]}>Satıcının Reels Videoları</Text>
