@@ -25,6 +25,20 @@
           "color": "#2563EB",
           "defaultChannel": "default"
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Çalışkan Business barkod okutmak için kameranıza erişir.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Çalışkan Business ürün görseli eklemek için fotoğraf arşivinize erişir."
+        }
       ]
     ],
     "extra": {
