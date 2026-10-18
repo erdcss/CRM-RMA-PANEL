@@ -688,7 +688,6 @@ export const rmaApi = {
   startMarketplaceConversation: (slug:string,text:string) => request<{id:number}>('/api/marketplace/conversations',{method:'POST',body:JSON.stringify({slug,text})}),
   listMarketplaceMessages: (id:number) => request<MarketplaceMessage[]>(`/api/marketplace/conversations/${id}/messages`),
   sendMarketplaceMessage: (id:number,text:string) => request<MarketplaceMessage>(`/api/marketplace/conversations/${id}/messages`,{method:'POST',body:JSON.stringify({text})}),
-  requestMarketplaceQuote: (conversationId:number,boxes:number,details:string,productId?:number) => request<{id:number}>('/api/marketplace/quotes',{method:'POST',body:JSON.stringify({conversationId,boxes,details,productId:productId||null})}),
   getMarketplaceCart: () => request<MarketplaceCart>('/api/marketplace/cart'),
   addMarketplaceCart: (productId:number,boxes:number) => request<{id:number}>('/api/marketplace/cart',{method:'POST',body:JSON.stringify({productId,boxes,deliveryMode:'direct'})}),
   removeMarketplaceCart: (lineId:number) => request<{ok:boolean}>(`/api/marketplace/cart/${lineId}`,{method:'DELETE'}),
