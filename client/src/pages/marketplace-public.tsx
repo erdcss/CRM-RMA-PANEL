@@ -172,6 +172,7 @@ export function MarketplaceBuyerInbox(){
   return <main className="min-h-screen bg-[#f6f7f9] p-4 text-slate-900"><div className="mx-auto max-w-5xl space-y-4">
     <Link href="/magazalar" className="text-sm"><ArrowLeft className="mr-1 inline h-4 w-4"/>Mağazalar</Link>
     <h1 className="text-2xl font-black">Mesajlarım</h1>
+    <div role="alert" className="sticky top-0 z-10 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</div>
     {message?<p className="rounded-xl bg-amber-50 p-3 text-sm">{message}</p>:null}
     <div className="grid gap-4 md:grid-cols-3">
       <div className={box+" space-y-2"}><h2 className="font-bold">Görüşmeler</h2>{conversations.map(c=><button key={c.id}
@@ -187,7 +188,6 @@ export function MarketplaceBuyerInbox(){
           <input value={text} onChange={e=>setText(e.target.value)} required className="min-w-0 flex-1 rounded-lg border p-3 text-sm" placeholder="Mesaj yaz"/>
           <button className="rounded-lg bg-slate-950 px-4 text-sm font-bold text-white">Gönder</button>
         </form>
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</div>
         </>}
       </div>
     </div>
