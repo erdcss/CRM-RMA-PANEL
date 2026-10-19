@@ -1,9 +1,11 @@
 
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { apiFetch } from "../lib/api";
 import { C } from "../ui/theme";
 import { BackHeader } from "./common";
+import type { AdminOrder } from "../types";
+import { money, shortDate, statusMeta } from "../ui/theme";
 
 type Review={id:string;company_name?:string;title?:string;status:string;review_note?:string;
   contact_name?:string;created_at?:string;content?:{name?:string;title?:string}};
@@ -11,11 +13,13 @@ type Queue={suppliers:Review[];products:Review[];stores:Review[];reels:Review[]}
 type AdminStats={suppliers:Array<{status:string;total:number}>;products:Array<{status:string;total:number}>;
   stores:Array<{status:string;total:number}>;reels:Array<{status:string;total:number}>;conversations:number;quotes:number};
 type SupplierStats={supplier:{company_name:string;slug:string};productCount:number;followers:number;conversations:number;openQuotes:number;
-  storeVersions:Array<{id:string;status:string;is_live:boolean}>;reels:Array<{id:string;title:string;status:string}>};
+  storeVersions:Array<{id:string;status:string;is_live:boolean}>;reels:Array<{id:string;title:string;video_url:string;thumbnail_url?:string|null;product_id?:number|null;status:string;is_live?:boolean}>};
 type Chat={id:string;latest_message?:string;buyer_user_id:string};
 type Msg={id:string;text:string;created_at:string};
-type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages";
-const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar"};
+type SupplierProfile={id:number;company_name:string;is_admin_paused:boolean;is_holiday:boolean;holiday_reactivate_at?:string|null};
+type SellerOrder={id:number;order_id:number;created_at:string;status:string;subtotal:number|string;delivery_mode:string;items:Array<{name?:string;sku?:string;boxes?:number;total?:number|string}>};
+type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages"|"orders"|"settings";
+const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar",orders:"Siparişler",settings:"Ayarlar"};
 const status:Record<string,string>={pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",requested:"Teklif bekleniyor",offered:"Teklif sunuldu",accepted:"Kabul edildi"};
 const Input=({value,onChangeText,placeholder,multiline=false}:{value:string;onChangeText:(x:string)=>void;placeholder:string;multiline?:boolean})=>
   <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.muted}
@@ -25,10 +29,14 @@ function Action({title,onPress,disabled=false}:{title:string;onPress:()=>void;di
     <Text style={s.buttonText}>{title}</Text>
   </TouchableOpacity>;
 }
-export function MarketplaceScreen({isSuper,onBack,onLogout}:{
-  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>}) {
+export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
+  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void}) {
  const [tab,setTab]=useState<Tab>("overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
  const [queue,setQueue]=useState<Queue|null>(null),[products,setProducts]=useState<any[]>([]);
+ const [profile,setProfile]=useState<SupplierProfile|null>(null),[supplierOrders,setSupplierOrders]=useState<SellerOrder[]>([]);
+ const [adminOrders,setAdminOrders]=useState<AdminOrder[]>([]);
+ const [editingProduct,setEditingProduct]=useState<string|null>(null),[editingPrice,setEditingPrice]=useState(""),[editingStock,setEditingStock]=useState("");
+ const [editingReel,setEditingReel]=useState<string|null>(null),[reelTitle,setReelTitle]=useState("");
  const [chats,setChats]=useState<Chat[]>([]),[selectedChat,setSelectedChat]=useState<string|null>(null),[messages,setMessages]=useState<Msg[]>([]);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [note,setNote]=useState(""),[reply,setReply]=useState("");
@@ -37,16 +45,19 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
   setError("");
   try{
    if(isSuper){
-    const [a,q]=await Promise.all([
+    const [a,q,orders]=await Promise.all([
       apiFetch<AdminStats>("/api/admin/marketplace/overview"),
-      apiFetch<Queue>("/api/admin/marketplace/review-queue")]);
-    setOverview(a);setQueue(q);
+      apiFetch<Queue>("/api/admin/marketplace/review-queue"),
+      apiFetch<AdminOrder[]>("/api/admin/orders")]);
+    setOverview(a);setQueue(q);setAdminOrders(orders);
    }else{
-    const [a,p,c]=await Promise.all([
+    const [a,p,c,orders,account]=await Promise.all([
       apiFetch<SupplierStats>("/api/marketplace/seller/dashboard"),
       apiFetch<any[]>("/api/marketplace/seller/products"),
-      apiFetch<Chat[]>("/api/marketplace/conversations")]);
-    setOverview(a);setProducts(p);setChats(c);
+      apiFetch<Chat[]>("/api/marketplace/conversations"),
+      apiFetch<SellerOrder[]>("/api/marketplace/seller/orders"),
+      apiFetch<SupplierProfile>("/api/marketplace/me")]);
+    setOverview(a);setProducts(p);setChats(c);setSupplierOrders(orders);setProfile(account);
    }
   }catch(e){setError(e instanceof Error?e.message:"Veriler alınamadı");}
   finally{setLoading(false);setRefreshing(false);}
@@ -65,15 +76,46 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
    }catch(e){setError(e instanceof Error?e.message:"İşlem başarısız");}
    finally{setWorking(false);}
  }
+ async function patch(path:string,payload:object,success:string){
+  if(working)return;
+  setWorking(true);setError("");setNotice("");
+  try{
+    await apiFetch(path,{method:"PATCH",body:JSON.stringify(payload)});
+    setNotice(success);await load();
+  }catch(e){setError(e instanceof Error?e.message:"İşlem başarısız");}
+  finally{setWorking(false);}
+ }
+ function openHoliday(){
+   Alert.alert("Tatil modunu aç", "1. Ürünler satıştan kaldırılır.\n2. Mağaza popülerliği düşürülür.\n3. Kapatma talebinden 24 saat sonra yeniden açılır.",[
+     {text:"Vazgeç",style:"cancel"},{text:"Okudum, Onaylıyorum",onPress:()=>void patch("/api/marketplace/seller/settings",{holidayMode:true,confirmConsequences:true},"Tatil modu açıldı.")}
+   ]);
+ }
+ function reopenHoliday(){
+   Alert.alert("Tatil modunu kapat","Mağazanız 24 saat içerisinde görünür olacak. Bu süre dolana kadar ürünleriniz satışa kapalı kalacaktır.",[
+     {text:"Vazgeç",style:"cancel"},{text:"Açılışı planla",onPress:()=>void patch("/api/marketplace/seller/settings",{holidayMode:false},"24 saatlik yeniden açılış planlandı.")}
+   ]);
+ }
  const stats=overview as AdminStats|null;
  const seller=overview as SupplierStats|null;
  const items=isSuper?(tab==="suppliers"?queue?.suppliers:tab==="products"?queue?.products:tab==="stores"?queue?.stores:tab==="reels"?queue?.reels:[])||[]:[];
- const shownTabs:Tab[]=isSuper?["overview","suppliers","products","stores","reels"]:["overview","stores","products","reels","messages"];
+ const shownTabs:Tab[]=isSuper?["overview","orders","suppliers","products","stores","reels"]:["overview","orders","stores","products","reels","messages","settings"];
  return <ScrollView style={s.screen} contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing}
     onRefresh={()=>{setRefreshing(true);void load();}} tintColor={C.text}/>}>
   <BackHeader title="Pazaryeri Yönetimi" subtitle={isSuper?"Süper yönetim merkezi":"Tedarikçi çalışma alanı"} onBack={isSuper?onBack:()=>void onLogout()}/>
   <View style={s.tabs}>{shownTabs.map(t=><TouchableOpacity key={t} onPress={()=>setTab(t)} style={[s.tab,tab===t&&s.tabActive]}>
       <Text style={[s.tabText,tab===t&&s.tabActiveText]}>{names[t]}</Text></TouchableOpacity>)}</View>
+  {!isSuper&&profile?.is_admin_paused?<View style={[s.panel,{borderColor:C.red,marginBottom:12}]}>
+    <Text style={[s.heading,{color:C.red}]}>Mağazanız pasife alındı</Text>
+    <Text style={s.help}>Mağaza ve ürünleriniz satışa kapatıldı. Onaylı kayıtlarınız korunuyor.</Text>
+    <Action title="Tekrardan Satışa Aç" disabled={working} onPress={()=>void patch("/api/marketplace/seller/pause",{paused:false},"Mağaza yeniden aktif edildi.")}/>
+  </View>:null}
+  {!isSuper&&profile?.is_holiday?<View style={[s.panel,{borderColor:"#CA8A04",marginBottom:12}]}>
+    <Text style={s.heading}>Mağazanız tatil modundadır</Text>
+    <Text style={s.help}>{profile.holiday_reactivate_at
+      ?"Yeniden açılış: "+shortDate(profile.holiday_reactivate_at)
+      :"Ürünler satışa kapalıdır. Yeniden açılış talebinden 24 saat sonra satışlar başlar."}</Text>
+    {!profile.holiday_reactivate_at?<Action title="Tekrardan Satışa Aç" disabled={working} onPress={reopenHoliday}/>:null}
+  </View>:null}
   {loading?<ActivityIndicator size="large" color={C.blue}/>:null}
   {error?<Text style={s.error}>{error}</Text>:null}
   {notice?<Text style={s.notice}>{notice}</Text>:null}
@@ -90,6 +132,25 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
          <Text style={s.value}>{String(v??0)}</Text></View>)}
     <Text style={s.help}>Standart komisyon %3 · Depo kontrolünde ek %3 · Canlı çok satıcılı tahsilat henüz etkin değil.</Text>
     {!isSuper?<Action title="Çıkış Yap" onPress={()=>void onLogout()}/>:null}
+  </View>:null}
+  {tab==="orders"?<View style={s.panel}>
+    <Text style={s.heading}>{isSuper?"Tüm Siparişler":"Siparişlerim"}</Text>
+    <Text style={s.help}>{isSuper?"Tüm şirket ve tedarikçi satışlarının sipariş kayıtlarını ve durumlarını inceleyin.":"Yalnızca sizin ürünlerinizi içeren siparişler listelenir."}</Text>
+    {isSuper?adminOrders.length?adminOrders.slice(0,100).map(order=><TouchableOpacity key={String(order.id)} style={s.card}
+      onPress={()=>onOpenOrder?.(String(order.id))}>
+      <Text style={s.itemTitle}>{order.order_number||"#"+order.id} · {money(order.total_amount)}</Text>
+      <Text style={s.text}>{statusMeta(order.status).label} · {String(order.customer_email||"Müşteri")}</Text>
+      <Text style={s.help}>Ödeme: {String(order.payment_status||"Beklemede")} · {String(order.payment_method||"—")} · {shortDate(order.created_at||"")}</Text>
+      <Text style={s.help}>{(order.items||[]).map(item=>String(item.name||item.productName||item.sku||"Ürün")).slice(0,4).join(", ")}</Text>
+      <Text style={[s.help,{color:C.blue}]}>Sipariş içeriği ve durumunu aç →</Text>
+    </TouchableOpacity>):<Text style={s.help}>Henüz sipariş bulunmuyor.</Text>
+    :supplierOrders.length?supplierOrders.map(order=><View key={String(order.id)} style={s.card}>
+      <Text style={s.itemTitle}>Sipariş #{order.order_id} · {money(order.subtotal)}</Text>
+      <Text style={s.help}>Durum: {order.status==="paid"?"Ödeme alındı":order.status} · {shortDate(order.created_at)}</Text>
+      {(order.items||[]).map((item,index)=><View key={index} style={s.row}>
+        <Text style={s.text}>{String(item.name||item.sku||"Ürün")} · {item.boxes||0} koli</Text><Text style={s.value}>{money(item.total||0)}</Text>
+      </View>)}
+    </View>):<Text style={s.help}>Henüz size ait sipariş bulunmuyor.</Text>}
   </View>:null}
   {isSuper && ["suppliers","products","stores","reels"].includes(tab)?<View style={s.panel}>
     <Text style={s.heading}>{names[tab]} — İnceleme</Text>
@@ -124,14 +185,57 @@ export function MarketplaceScreen({isSuper,onBack,onLogout}:{
     {seller?.storeVersions?.map(v=><View style={s.row} key={v.id}><Text style={s.text}>Tasarım #{v.id}</Text>
        <Text style={s.value}>{status[v.status]||v.status}{v.is_live?" · Yayında":""}</Text></View>)}
   </View>:null}
+  {!isSuper&&tab==="settings"?<View style={s.panel}>
+    <Text style={s.heading}>Tedarikçi Ayarları</Text>
+    <Text style={s.text}>{profile?.company_name||"Mağazanız"}</Text>
+    <View style={s.row}><Text style={s.text}>Hesap</Text><Text style={s.value}>{profile?.is_admin_paused?"Pasif":"Onaylı"}</Text></View>
+    <View style={s.row}><Text style={s.text}>Tatil modu</Text><Text style={s.value}>{profile?.is_holiday?"Açık":"Kapalı"}</Text></View>
+    {!profile?.is_holiday?<Action title="Hesabımı Tatil Moduna Al" disabled={working} onPress={openHoliday}/>:
+      !profile.holiday_reactivate_at?<Action title="Tatil Modunu Kapat" disabled={working} onPress={reopenHoliday}/>:
+      <Text style={s.help}>24 saatlik açılış bekleniyor. Planlanan zaman: {shortDate(profile.holiday_reactivate_at)}</Text>}
+    {profile?.is_admin_paused?<Action title="Hesabımı Tekrar Satışa Aç" disabled={working}
+      onPress={()=>void patch("/api/marketplace/seller/pause",{paused:false},"Hesabınız yeniden aktif edildi.")}/>:null}
+  </View>:null}
   {!isSuper&&tab==="products"?<View style={s.panel}>
     <Text style={s.heading}>Ürünlerim</Text>
     {products.map(p=><View key={String(p.id)} style={s.card}><Text style={s.itemTitle}>{p.latest?.content?.name||p.sku}</Text>
-       <Text style={s.help}>{p.sku} · Stok: {p.stock} · {status[p.latest?.status]||"Taslak"}</Text></View>)}
+       <Text style={s.help}>{p.sku} · Stok: {p.stock} · {money(p.current_price||p.latest?.content?.price||0)} · {status[p.latest?.status]||"Taslak"}</Text>
+       {editingProduct===String(p.id)?<View style={{gap:8}}>
+         <Input value={editingPrice} onChangeText={setEditingPrice} placeholder="Yeni fiyat (TL)"/>
+         <Input value={editingStock} onChangeText={setEditingStock} placeholder="Yeni stok adedi"/>
+         <Action title="Fiyat ve Stok Kaydet" disabled={working} onPress={()=>{
+           const price=Number(editingPrice),stock=Number(editingStock);
+           if(!Number.isFinite(price)||price<=0||!Number.isSafeInteger(stock)||stock<0){setError("Geçerli fiyat ve stok girin.");return;}
+           void patch("/api/marketplace/seller/products/"+p.id+"/quick",{price,stock},"Ürün fiyatı ve stok güncellendi.");
+           setEditingProduct(null);
+         }}/>
+       </View>:<Action title="Fiyat / Stok Düzenle" onPress={()=>{
+         setEditingProduct(String(p.id));setEditingPrice(String(p.current_price||p.latest?.content?.price||""));
+         setEditingStock(String(p.stock));
+       }}/>}
+     </View>)}
     <Text style={s.help}>Ürün ekleme ve fotoğraf yükleme, aynı veri kaynağını kullanan web panelinde aktif.</Text>
   </View>:null}
   {!isSuper&&tab==="reels"?<View style={s.panel}><Text style={s.heading}>Mağaza Reels</Text>
-    {seller?.reels?.map(r=><View key={r.id} style={s.card}><Text style={s.itemTitle}>{r.title}</Text><Text style={s.help}>{status[r.status]||r.status}</Text></View>)}
+    {seller?.reels?.map(r=><View key={r.id} style={s.card}>
+      <Text style={s.itemTitle}>{r.title}</Text><Text style={s.help}>{status[r.status]||r.status}{r.is_live?" · Yayında":""}</Text>
+      {editingReel===String(r.id)?<View style={{gap:8}}>
+        <Input value={reelTitle} onChangeText={setReelTitle} placeholder="Reels başlığı"/>
+        <Action title="Tekrar Onaya Gönder" disabled={working||!reelTitle.trim()} onPress={()=>{
+          void patch("/api/marketplace/seller/reels/"+r.id,{title:reelTitle.trim(),videoUrl:r.video_url,thumbnailUrl:r.thumbnail_url||null,productId:r.product_id||null},"Reels yeniden admin onayına gönderildi.");
+          setEditingReel(null);
+        }}/>
+      </View>:<Action title="Başlığı Düzenle" onPress={()=>{setEditingReel(String(r.id));setReelTitle(r.title);}}/>}
+      <Action title="Reels Sil" disabled={working} onPress={()=>Alert.alert("Reels sil","Video kalıcı olarak silinsin mi?",[
+        {text:"Vazgeç",style:"cancel"},
+        {text:"Sil",style:"destructive",onPress:()=>{
+          void (async()=>{setWorking(true);try{
+            await apiFetch("/api/marketplace/seller/reels/"+r.id,{method:"DELETE"});
+            await load();setNotice("Reels silindi.");
+          }catch(e){setError(e instanceof Error?e.message:"Silinemedi");}finally{setWorking(false);}})();
+        }}
+      ])}/>
+    </View>)}
     <Text style={s.help}>Yeni MP4 video yükleme, aynı satıcı hesabının web panelinde kullanılabilir.</Text>
   </View>:null}
   {!isSuper&&tab==="messages"?<View style={s.panel}>
