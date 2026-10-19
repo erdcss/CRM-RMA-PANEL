@@ -7,6 +7,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 import { MarketplaceHolidayBanner } from "@/components/marketplace-holiday-banner";
 import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplier-pause-banner";
+import { MarketplaceActionDialog } from "@/components/marketplace-action-dialog";
+import { toast } from "@/hooks/use-toast";
 
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
@@ -83,11 +85,13 @@ export default function MarketplaceSeller(){
   const [reply,setReply]=useState("");
   const [selectedChat,setSelectedChat]=useState<number|null>(null);
   const [message,setMessage]=useState("");
+  const [pendingAction,setPendingAction]=useState<{kind:"closeChat"|"deleteReel";id:number;label:string}|null>(null);
   const [showHolidayWarning,setShowHolidayWarning]=useState(false);
   const [busy,setBusy]=useState(false);
   const [uploadingCount,setUploadingCount]=useState(0);
   const [uploadProgress,setUploadProgress]=useState(0);
   const uploading=uploadingCount>0;
+  useEffect(()=>{if(message)toast({title:"Tedarikçi paneli",description:message});},[message]);
   async function videoChunkData(blob:Blob):Promise<string>{
     return new Promise((resolve,reject)=>{
       const reader=new FileReader();
@@ -187,6 +191,32 @@ export default function MarketplaceSeller(){
     catch(e){setMessage(e instanceof Error?e.message:"İşlem tamamlanamadı.");}
     finally{setBusy(false);}
   }
+  async function confirmSupplierAction(){
+    const action=pendingAction;
+    if(!action)return;
+    if(busy)throw new Error("Devam eden işlemin tamamlanmasını bekleyin.");
+    setBusy(true);setMessage("");
+    try{
+      if(action.kind==="deleteReel"){
+        await send("DELETE","/api/marketplace/seller/reels/"+action.id);
+        if(editingReelId===action.id){
+          setEditingReelId(null);
+          setReel({title:"",videoUrl:"",thumbnailUrl:"",productId:""});
+        }
+        await queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/dashboard"]});
+        setMessage("Reels silindi. Video mağaza ve Reels listesinden kaldırıldı.");
+      }else{
+        await send("POST","/api/marketplace/conversations/"+action.id+"/close",{});
+        if(selectedChat===action.id){setSelectedChat(null);setReply("");}
+        await Promise.all([
+          queryClient.invalidateQueries({queryKey:["/api/marketplace/conversations"]}),
+          queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/dashboard"]})
+        ]);
+        setMessage("Sohbet sonlandırıldı. Konuşma admin mesaj arşivine aktarıldı.");
+      }
+    }finally{setBusy(false);}
+  }
+
   async function requestHolidayWarning() {
     if(busy)return;
     setMessage("");
@@ -485,8 +515,7 @@ export default function MarketplaceSeller(){
                   <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-bold"
                     onClick={()=>{setEditingReelId(r.id);setReel({title:r.title,videoUrl:r.video_url,thumbnailUrl:r.thumbnail_url||"",productId:r.product_id?String(r.product_id):""});window.scrollTo({top:0,behavior:"smooth"});}}>Düzenle</button>
                   <button type="button" disabled={busy} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700"
-                    onClick={async()=>{if(!window.confirm("Bu Reels videosunu kalıcı olarak silmek istiyor musunuz?"))return;
-                      await run(()=>send("DELETE","/api/marketplace/seller/reels/"+r.id),["/api/marketplace/seller/dashboard"]);}}>Sil</button>
+                    onClick={()=>setPendingAction({kind:"deleteReel",id:r.id,label:r.title})}>Sil</button>
                 </div>
               </div>)}
             </div>
@@ -503,15 +532,7 @@ export default function MarketplaceSeller(){
                   <p>{m.text}</p><span className="text-xs text-slate-400">{new Date(m.created_at).toLocaleString("tr-TR")}</span>
                 </div>)}</div>
                 <button type="button" disabled={busy} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
-                  onClick={async()=>{if(!window.confirm("Bu sohbeti sonlandırıp arşive almak istiyor musunuz?"))return;
-                    setBusy(true);setMessage("");
-                    try{await send("POST","/api/marketplace/conversations/"+selectedChat+"/close",{});
-                      setSelectedChat(null);setReply("");
-                      await queryClient.invalidateQueries({queryKey:["/api/marketplace/conversations"]});
-                      setMessage("Sohbet sonlandırıldı ve yönetici arşivine aktarıldı.");
-                    }catch(e){setMessage(e instanceof Error?e.message:"Sohbet kapatılamadı.");}
-                    finally{setBusy(false);}
-                  }}>Sohbeti Sonlandır</button>
+                  onClick={()=>setPendingAction({kind:"closeChat",id:selectedChat,label:"Müşteri görüşmesi #"+selectedChat})}>Sohbeti Sonlandır</button>
                 <form onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/conversations/"+selectedChat+"/messages",{text:reply}),
                   ["/api/marketplace/conversations/"+selectedChat+"/messages","/api/marketplace/conversations"]);setReply("");}} className="flex gap-2">
                   <input className={inputStyle} value={reply} onChange={e=>setReply(e.target.value)} placeholder="Müşteriye yanıt yazın" required/>
@@ -521,5 +542,16 @@ export default function MarketplaceSeller(){
           </div>:null}
         </div>}
     </div>
+    <MarketplaceActionDialog
+      open={pendingAction!==null}
+      onOpenChange={open=>{if(!open)setPendingAction(null);}}
+      title={pendingAction?.kind==="closeChat"?"Sohbeti sonlandırmak istiyor musunuz?":"Reels videosunu silmek istiyor musunuz?"}
+      description={pendingAction?.kind==="closeChat"
+        ?"Bu görüşme sonlandırılacak ve mesaj geçmişi silinmeden yönetici arşivine aktarılacak. Müşteri yeni sohbet başlatabilecek."
+        :"“"+(pendingAction?.label||"Video")+"” mağaza vitrininizden ve Reels listenizden kaldırılacak. Silme işlemi geri alınamaz."}
+      confirmLabel={pendingAction?.kind==="closeChat"?"Sohbeti Sonlandır":"Reels'i Sil"}
+      destructive={pendingAction?.kind==="deleteReel"}
+      onConfirm={confirmSupplierAction}
+    />
   </main>;
 }
