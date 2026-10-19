@@ -19,7 +19,7 @@ type Overview = {suppliers:Metric[];products:Metric[];stores:Metric[];reels:Metr
 const tabs=[
   {key:"overview",label:"Genel Bakış",icon:Store},{key:"suppliers",label:"Tedarikçiler",icon:ShieldCheck},
   {key:"products",label:"Ürün Onayları",icon:Package},{key:"stores",label:"Mağaza Tasarımları",icon:ClipboardCheck},
-  {key:"reels",label:"Reels Onayları",icon:Film}
+  {key:"reels",label:"Reels Onayları",icon:Film},{key:"archives",label:"Mesaj Arşivleri",icon:MessageSquare}
 ] as const;
 type Tab = typeof tabs[number]["key"];
 const statusNames:Record<string,string>={pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",suspended:"Askıda"};
@@ -34,9 +34,16 @@ export default function AdminMarketplace(){
   const [tab,setTab]=useState<Tab>("overview");
   const [notes,setNotes]=useState<Record<string,string>>({});
   const [processing,setProcessing]=useState<string|null>(null);
+  const [selectedArchive,setSelectedArchive]=useState<number|null>(null);
   const [selectedReview,setSelectedReview]=useState<{kind:ReviewKind;id:number}|null>(null);
   const {toast}=useToast();
   const overview=useQuery<Overview>({queryKey:["/api/admin/marketplace/overview"],staleTime:0,refetchInterval:30000});
+  const archives=useQuery<Array<{id:number;supplier_name:string;customer_name:string;closed_at:string;message_count:number}>>({
+    queryKey:["/api/admin/marketplace/message-archives"],enabled:tab==="archives",staleTime:0
+  });
+  const archivedMessages=useQuery<Array<{id:number;text:string;created_at:string;sender_role:string}>>({
+    queryKey:["/api/admin/marketplace/message-archives/"+selectedArchive],enabled:tab==="archives"&&selectedArchive!==null,staleTime:0
+  });
   const queue=useQuery<Queue>({queryKey:["/api/admin/marketplace/review-queue"],staleTime:0,refetchInterval:30000});
   async function decision(kind:Tab,r:Review,value:"approved"|"rejected"){
     const key=kind+":"+r.id;
@@ -58,7 +65,7 @@ export default function AdminMarketplace(){
     finally{setProcessing(null);}
   }
   const groups={suppliers:queue.data?.suppliers||[],products:queue.data?.products||[],
-    stores:queue.data?.stores||[],reels:queue.data?.reels||[]};
+    stores:queue.data?.stores||[],reels:queue.data?.reels||[],archives:[] as Review[]};
   const stats=overview.data;
   return <main className="h-full overflow-y-auto bg-background px-4 py-6 md:px-8">
     <div className="mx-auto max-w-7xl space-y-6">
@@ -89,6 +96,23 @@ export default function AdminMarketplace(){
           className={"flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition "+(tab===t.key?"bg-slate-950 text-white dark:bg-white dark:text-slate-950":"bg-muted text-muted-foreground hover:text-foreground")}>
           <t.icon className="h-4 w-4"/>{t.label}</button>)}
       </div>
+      {tab==="archives"?<div className="grid gap-4 lg:grid-cols-3">
+        <section className="rounded-xl border bg-card p-4"><h2 className="mb-3 font-bold">Kapatılmış Sohbetler</h2>
+          {archives.data?.map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedArchive(chat.id)}
+            className={"mb-2 block w-full rounded-lg p-3 text-left text-sm "+(selectedArchive===chat.id?"bg-amber-100 text-slate-950":"bg-muted")}>
+            <b>{chat.supplier_name} · {chat.customer_name}</b>
+            <p className="mt-1 text-xs">{new Date(chat.closed_at).toLocaleString("tr-TR")} · {chat.message_count} mesaj</p>
+          </button>)}
+          {!archives.isLoading&&!archives.data?.length?<p className="text-sm text-muted-foreground">Henüz arşivlenmiş sohbet yok.</p>:null}
+        </section>
+        <section className="space-y-2 rounded-xl border bg-card p-4 lg:col-span-2"><h2 className="font-bold">Arşivlenmiş Mesajlar</h2>
+          {archivedMessages.data?.map(m=><div key={m.id} className="rounded-lg bg-muted p-3 text-sm">
+            <b className="text-xs">{m.sender_role==="supplier"?"Tedarikçi":"Müşteri"}</b>
+            <p className="mt-1 whitespace-pre-wrap">{m.text}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("tr-TR")}</p>
+          </div>)}
+          {!selectedArchive?<p className="text-sm text-muted-foreground">Görüşme seçin.</p>:null}
+        </section>
+      </div>:null}
       {tab==="overview"?<div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border p-5"><h2 className="mb-4 font-bold">Pazaryeri işletme kuralları</h2>
           <div className="space-y-3 text-sm">
@@ -107,7 +131,7 @@ export default function AdminMarketplace(){
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Truck className="h-4 w-4"/>Standart ve depo kontrollü teslimat, finans mutabakatına bağlanacak.</div>
         </section>
-      </div>:<section className="space-y-3">
+      </div>:tab==="archives"?null:<section className="space-y-3">
         <div className="flex items-center justify-between gap-2"><h2 className="text-lg font-bold">{tabs.find(t=>t.key===tab)?.label}</h2>
           <span className="text-xs text-muted-foreground">{tab==="stores"?"Tedarikçi başına son gönderilen tasarım · Son 100 mağaza":"Son 100 kayıt · Bekleyenler ve geçmiş"}</span></div>
         {groups[tab].length===0?<div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">Henüz kayıt bulunmuyor.</div>:null}
