@@ -45,10 +45,10 @@ export async function notifyVerifiedSupplierOrder(orderNumber:string,rawItems:un
     const lines=rawItems as PaidLine[];
     const amount=lines.filter(x=>Number(x.supplierId)===Number(supplier.id))
       .reduce((n,x)=>n+Number(x.total||0),0);
-    await notifyB2BEvent(Number(supplier.owner_user_id),"supplier_order_paid",{
+    const notification=await notifyB2BEvent(Number(supplier.owner_user_id),"supplier_order_paid",{
       orderNumber,amount:currency(amount),sellerName:String(supplier.company_name),status:subtitle,
     }, "supplier_order_paid:"+orderNumber+":"+supplier.id).catch(e=>console.error("Seller paid notification",e));
-    await sendBusinessPushToUsers([Number(supplier.owner_user_id)],{
+    if(notification.recorded)await sendBusinessPushToUsers([Number(supplier.owner_user_id)],{
       title:"Ürününüz satıldı",
       body:orderNumber+" · "+currency(amount)+" · "+subtitle,
       data:{type:"supplier_order_paid",orderNumber,supplierId:String(supplier.id)}
