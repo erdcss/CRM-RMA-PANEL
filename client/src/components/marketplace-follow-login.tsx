@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "wouter";
-import { Eye, EyeOff, Heart, LockKeyhole, Mail } from "lucide-react";
+import { Eye, EyeOff, Heart, LockKeyhole, Mail, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type CustomerSession={role?:string;isActive?:boolean};
-type Props={open:boolean;onOpenChange:(open:boolean)=>void;onAuthenticated:()=>Promise<void>};
+type Props={open:boolean;purpose?:"follow"|"contact";onOpenChange:(open:boolean)=>void;onAuthenticated:()=>Promise<void>};
 
 /** Reuses the existing B2B customer login. The dialog animates in and keeps the buyer on the store page. */
-export function MarketplaceFollowLogin({open,onOpenChange,onAuthenticated}:Props){
+export function MarketplaceFollowLogin({open,purpose="follow",onOpenChange,onAuthenticated}:Props){
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [passwordVisible,setPasswordVisible]=useState(false);
@@ -37,7 +37,7 @@ export function MarketplaceFollowLogin({open,onOpenChange,onAuthenticated}:Props
       const account=await response.json() as CustomerSession;
       queryClient.setQueryData(["/api/auth/me"],account);
       if(account.role!=="b2b_customer"||account.isActive!==true){
-        throw new Error("Takip işlemi için aktif bir Çalışkan B2B müşteri hesabıyla giriş yapmalısınız.");
+        throw new Error("Bu işlem için aktif bir Çalışkan B2B müşteri hesabıyla giriş yapmalısınız.");
       }
       await onAuthenticated();
       onOpenChange(false);
@@ -48,10 +48,10 @@ export function MarketplaceFollowLogin({open,onOpenChange,onAuthenticated}:Props
   return <Dialog open={open} onOpenChange={toggle}>
     <DialogContent className="!inset-auto !left-1/2 !top-1/2 !right-auto !bottom-auto !w-[calc(100%-2rem)] !max-w-md !min-h-0 !max-h-[90vh] -translate-x-1/2 -translate-y-1/2 !rounded-2xl bg-white p-6 shadow-2xl data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4">
       <DialogHeader className="pr-6">
-        <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFCD00] text-slate-950"><Heart className="h-5 w-5"/></div>
-        <DialogTitle className="text-xl font-black text-slate-950">Mağazayı Takip Etmek İçin Giriş Yapın</DialogTitle>
+        <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFCD00] text-slate-950">{purpose==="contact"?<MessageCircle className="h-5 w-5"/>:<Heart className="h-5 w-5"/>}</div>
+        <DialogTitle className="text-xl font-black text-slate-950">{purpose==="contact"?"Satıcıyla İletişime Geçmek İçin Giriş Yapın":"Mağazayı Takip Etmek İçin Giriş Yapın"}</DialogTitle>
         <DialogDescription className="text-sm leading-6 text-slate-600">
-          Müşteri hesabınızla giriş yaptığınızda mağaza otomatik olarak takip listenize eklenir.
+          {purpose==="contact"?"Müşteri hesabınızla giriş yaptıktan sonra bu mağazanın sohbet sayfasına yönlendirileceksiniz.":"Müşteri hesabınızla giriş yaptığınızda mağaza otomatik olarak takip listenize eklenir."}
         </DialogDescription>
       </DialogHeader>
       <form className="mt-2 space-y-4" onSubmit={event=>void submit(event)}>
@@ -75,7 +75,7 @@ export function MarketplaceFollowLogin({open,onOpenChange,onAuthenticated}:Props
         </label>
         {error?<p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>:null}
         <button type="submit" disabled={working} className="h-11 w-full rounded-xl bg-[#FFCD00] font-extrabold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50">
-          {working?"Giriş Yapılıyor…":"Giriş Yap ve Takip Et"}
+          {working?"Giriş Yapılıyor…":purpose==="contact"?"Giriş Yap ve İletişime Geç":"Giriş Yap ve Takip Et"}
         </button>
         <div className="flex items-center justify-between gap-3 text-xs">
           <span className="text-slate-600">Hesabınız yok mu?</span>
