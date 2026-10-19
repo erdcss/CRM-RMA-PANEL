@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { useBranding } from "@/hooks/use-branding";
+import { queryClient } from "@/lib/queryClient";
 import { ArrowRight, BadgeCheck, Boxes, Building2, CheckCircle2, Eye, EyeOff, Package, ShieldCheck, Store, Truck } from "lucide-react";
 
 export function SellerAccess({onAuthenticated}:{onAuthenticated:()=>Promise<unknown>}) {
@@ -21,7 +22,11 @@ export function SellerAccess({onAuthenticated}:{onAuthenticated:()=>Promise<unkn
       const response=await fetch(url,{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify(mode==="register"?{...form,confirmPassword}:{email:form.email,password:form.password})});
       const body=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(body.error || "İşlem gerçekleştirilemedi");
-      await onAuthenticated();
+      // This browser may have been used by another supplier. React Query keys for
+      // products, orders, messages and storefronts must never survive login.
+      queryClient.clear();
+      // A full reload discards every component-local draft as well.
+      window.location.replace(window.location.pathname+window.location.search);
     } catch(e) { setError(e instanceof Error?e.message:"Lütfen tekrar deneyin"); }
     finally {setBusy(false);}
   }
