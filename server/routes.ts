@@ -2514,7 +2514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const base=data.companyName.toLocaleLowerCase("tr-TR")
         .replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u")
         .replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c")
-        .normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"")
+        .normalize("NFKD").replace(/[\u0300-\u036f]/g,"")
         .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,65)||"tedarikci";
       const slug=base+"-"+userId;
       const supplier=await client.query(`INSERT INTO mp_suppliers
