@@ -143,6 +143,25 @@ export async function sendPushToApp(app: PushApp, payload: PushPayload) {
   return sendExpoMessages(tokens, payload);
 }
 
+/** Business app pushes are always routed to authenticated recipient accounts.
+ * Never broadcast order/customer information to every installed Business app.
+ */
+export async function sendBusinessPushToUsers(userIds:number[],payload:PushPayload) {
+  if (!pool || !userIds.length) return {sent:0,tokenCount:0};
+  const ids=[...new Set(userIds.filter(id=>Number.isSafeInteger(id)&&id>0))];
+  if(!ids.length)return {sent:0,tokenCount:0};
+  const response=await pool.query(`SELECT t.expo_token FROM mobile_push_tokens t
+    JOIN users u ON u.id=t.user_id
+    WHERE t.app='business' AND t.active=TRUE AND t.user_id=ANY($1::int[]) AND u.is_active=1`,[ids]);
+  const tokens=response.rows.map(row=>String(row.expo_token||"")).filter(Boolean);
+  return {...await sendExpoMessages(tokens,payload),tokenCount:tokens.length};
+}
+export async function sendBusinessPushToSuperAdmins(payload:PushPayload){
+  if(!pool)return {sent:0,tokenCount:0};
+  const admins=await pool.query("SELECT id FROM users WHERE role='super_admin' AND is_active=1");
+  return sendBusinessPushToUsers(admins.rows.map(row=>Number(row.id)),payload);
+}
+
 /** Only deliver customer messages to the explicitly selected account(s).
  * Expo acceptance is not the same as a device delivery receipt.
  */
