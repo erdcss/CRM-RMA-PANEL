@@ -6,6 +6,7 @@ import { ArrowLeft, BadgeCheck, FileText, Film, Heart, MessageCircle, Package, S
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { B2BProductCard } from "@/components/b2b-product-card";
 import { toUnifiedProduct } from "@/lib/b2b-marketplace-products";
+import { MarketplaceFollowLogin } from "@/components/marketplace-follow-login";
 type Shop={id:number;slug:string;company_name:string;description:string;followers:number;content:{
   title:string;tagline:string;accent:string;bannerUrl?:string;logoUrl?:string;sections:string[]}};
 type ShopProduct={id:number;sku:string;stock:number;content:{name:string;description:string;category:string;
@@ -45,6 +46,7 @@ export function MarketplaceDirectory(){
 export function MarketplaceShop({slug}:{slug:string}){
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
+  const [loginOpen,setLoginOpen]=useState(false);
   const {data:shop,isLoading}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:30000});
   const {data:products=[]}=useQuery<ShopProduct[]>({queryKey:["/api/marketplace/stores/"+slug+"/products"],staleTime:30000});
   const {data:reels=[]}=useQuery<Reel[]>({queryKey:["/api/marketplace/stores/"+slug+"/reels"],staleTime:30000});
@@ -52,17 +54,32 @@ export function MarketplaceShop({slug}:{slug:string}){
   const {data:session}=useQuery<{role:string;isActive:boolean}|null>({queryKey:["/api/auth/me"],retry:false,staleTime:15000});
   const isFollowing=follows.some(f=>f.slug===slug);
   const loggedIn=session?.role==="b2b_customer" && session?.isActive===true;
+  async function updateFollowCounts(){
+    await Promise.all([
+      queryClient.invalidateQueries({queryKey:["/api/marketplace/follows"]}),
+      queryClient.invalidateQueries({queryKey:["/api/marketplace/stores/"+slug]})
+    ]);
+  }
   async function follow(){
     if(busy)return;
+    if(!loggedIn){setLoginOpen(true);return;}
     setBusy(true);setMessage("");
     try {
       await apiRequest(isFollowing?"DELETE":"POST","/api/marketplace/stores/"+encodeURIComponent(slug)+"/follow");
-      await Promise.all([
-        queryClient.invalidateQueries({queryKey:["/api/marketplace/follows"]}),
-        queryClient.invalidateQueries({queryKey:["/api/marketplace/stores/"+slug]})
-      ]);
-    }catch(e){setMessage(e instanceof Error?e.message:"Mağaza takip edilemedi. İşletme hesabıyla giriş yapın.");}
-    finally{setBusy(false);}
+      await updateFollowCounts();
+    }catch(e){
+      const reason=e instanceof Error?e.message:"Mağaza takip edilemedi.";
+      if(/401|oturum|giriş yapın|unauthorized/i.test(reason)){
+        await queryClient.invalidateQueries({queryKey:["/api/auth/me"]});
+        setLoginOpen(true);
+      }else setMessage(reason);
+    }finally{setBusy(false);}
+  }
+  async function followAfterLogin(){
+    // Runs only after the login dialog verifies an active B2B customer session.
+    await apiRequest("POST","/api/marketplace/stores/"+encodeURIComponent(slug)+"/follow");
+    await updateFollowCounts();
+    setMessage("Giriş başarılı. Mağaza takip listenize eklendi.");
   }
   if(isLoading)return <main className="min-h-screen bg-[#f6f7f9] p-8 text-slate-600">Mağaza yükleniyor...</main>;
   if(!shop)return <main className="min-h-screen bg-[#f6f7f9] p-8">Mağaza bulunamadı. <Link href="/magazalar" className="font-bold text-amber-800">Tüm mağazalar</Link></main>;
@@ -82,17 +99,21 @@ export function MarketplaceShop({slug}:{slug:string}){
             <span className="text-xs font-semibold text-slate-500">{shop.followers||0} takipçi</span>
           </div>
           <p className="mt-2 text-sm text-slate-600">{shop.content?.tagline||shop.description||"Onaylı Çalışkan B2B tedarikçisi"}</p>
-          <Link href={"/mesajlarim?store="+encodeURIComponent(slug)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-950 hover:bg-amber-200">
-            <MessageCircle className="h-4 w-4"/>İletişime Geç
-          </Link>
-          <div className="mt-4 flex gap-2">
-            <button type="button" disabled={busy} onClick={()=>void follow()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#FFCD00] px-4 text-sm font-bold text-slate-950 disabled:opacity-50">
-              <Heart className="h-4 w-4"/>{isFollowing?"Takip Ediliyor":"Mağazayı Takip Et"}
+          <div className="mt-4 flex w-full max-w-md items-stretch gap-2">
+            <Link href={"/mesajlarim?store="+encodeURIComponent(slug)}
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-100 px-3 text-xs font-bold text-amber-950 transition-colors hover:bg-amber-200 sm:text-sm">
+              <MessageCircle className="h-4 w-4 shrink-0"/><span className="truncate">İletişime Geç</span>
+            </Link>
+            <button type="button" disabled={busy} onClick={()=>void follow()}
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFCD00] px-3 text-xs font-bold text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-50 sm:text-sm"
+              aria-label={isFollowing?"Takipten çık":"Mağazayı takip et"}>
+              <Heart className={"h-4 w-4 shrink-0 "+(isFollowing?"fill-current":"")}/><span className="truncate">{isFollowing?"Takip Ediliyor":"Takip Et"}</span>
             </button>
           </div>
           {message?<p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">{message}</p>:null}
         </div>
       </div>
+      <MarketplaceFollowLogin open={loginOpen} onOpenChange={setLoginOpen} onAuthenticated={followAfterLogin}/>
       <h2 className="mb-4 mt-8 text-xl font-black">Ürünler</h2>
       <div className="grid grid-cols-2 gap-3 sm:gap-5">
         {storeProducts.map(product=><B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>)}
