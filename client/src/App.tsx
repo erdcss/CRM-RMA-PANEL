@@ -295,6 +295,7 @@ function App() {
       <TooltipProvider>
         <BrandingRuntime />
         {isMarketplaceHost() ? <MarketplaceWebsite /> : isB2BHost() ? <B2BWebsite /> : <AppContent />}
+        <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
   );
