@@ -21,9 +21,6 @@ export type CheckoutVisibility={
   card:boolean;
   bank_transfer:boolean;
 };
-const defaultCheckoutVisibility:CheckoutVisibility={
-  cargo:true,freight:true,pickup:true,card:true,bank_transfer:true
-};
 function sanitizeCheckoutVisibility(raw:unknown):CheckoutVisibility{
   const input=raw&&typeof raw==="object"?raw as Record<string,unknown>:{};
   return {
