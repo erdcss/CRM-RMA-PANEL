@@ -211,6 +211,21 @@ export default function CheckoutScreen() {
     void load();
   }, [load]);
 
+  const visibility=settings?.checkoutVisibility||{cargo:true,freight:true,pickup:true,card:true,bank_transfer:true};
+  useEffect(()=>{
+    const shipping=(["cargo","freight","pickup"] as const).find(option=>visibility[option]);
+    if(!visibility[shippingMethod]&&shipping)setShippingMethod(shipping);
+    const payment=(["card","bank_transfer"] as const).find(option=>visibility[option]);
+    if(!visibility[paymentMethod]&&payment)setPaymentMethod(payment);
+  },[visibility.cargo,visibility.freight,visibility.pickup,visibility.card,visibility.bank_transfer,shippingMethod,paymentMethod]);
+  useEffect(()=>{
+    if(!session)return;
+    const timer=setInterval(()=>{
+      void rmaApi.getB2BPaymentSettings().then(setSettings).catch(()=>undefined);
+    },10000);
+    return()=>clearInterval(timer);
+  },[session]);
+
   useEffect(() => {
     const bin = cardNumber.replace(/\D/g, '').slice(0, 8);
 
@@ -330,7 +345,7 @@ export default function CheckoutScreen() {
   const canPay = Boolean(
     preview &&
       selectedAddress &&
-      shippingValid &&
+      shippingValid && visibility[shippingMethod] && visibility[paymentMethod] &&
       ((paymentMethod === 'card' &&
         settings?.iyzicoConfigured &&
         cardFormValid &&
@@ -696,34 +711,34 @@ export default function CheckoutScreen() {
         </Section>
 
         <Section title="Teslimat Yöntemi" icon="car-outline">
-          <ChoiceCard
+          {visibility.cargo?<ChoiceCard
             active={shippingMethod === 'cargo'}
             title="PTT Kargo"
             subtitle="Siparişiniz kayıtlı teslimat adresinize gönderilir."
             icon="cube-outline"
             onPress={() => setShippingMethod('cargo')}
-          />
-          <ChoiceCard
+          />:null}
+          {visibility.freight?<ChoiceCard
             active={shippingMethod === 'freight'}
             title="Ambar"
             subtitle="Belirttiğiniz ambar firmasına teslim edilir."
             icon="trail-sign-outline"
             onPress={() => setShippingMethod('freight')}
-          />
-          {shippingMethod === 'freight' ? (
+          />:null}
+          {shippingMethod === 'freight' && visibility.freight ? (
             <View style={styles.formBox}>
               <Input label="Ambar Firma Adı" value={freightCompany} onChangeText={setFreightCompany} />
               <Input label="Ambar Telefonu" value={freightPhone} onChangeText={setFreightPhone} keyboardType="phone-pad" />
             </View>
           ) : null}
-          <ChoiceCard
+          {visibility.pickup?<ChoiceCard
             active={shippingMethod === 'pickup'}
             title="Depodan Teslim"
             subtitle="Siparişinizi Çalışkan deposundan teslim alın."
             icon="storefront-outline"
             onPress={() => setShippingMethod('pickup')}
-          />
-          {shippingMethod === 'pickup' ? (
+          />:null}
+          {shippingMethod === 'pickup' && visibility.pickup ? (
             <View style={styles.pickupTimes}>
               {(['09:00', '15:00', '17:00'] as const).map((time) => (
                 <Pressable
@@ -739,7 +754,7 @@ export default function CheckoutScreen() {
         </Section>
 
         <Section title="Ödeme Yöntemi" icon="wallet-outline">
-          {settings?.iyzicoConfigured ? (
+          {settings?.iyzicoConfigured && visibility.card ? (
             <ChoiceCard
               active={paymentMethod === 'card'}
               title="Banka / Kredi Kartı"
@@ -752,7 +767,7 @@ export default function CheckoutScreen() {
             />
           ) : null}
 
-          {settings?.bankTransfer.enabled ? (
+          {settings?.bankTransfer.enabled && visibility.bank_transfer ? (
             <ChoiceCard
               active={paymentMethod === 'bank_transfer'}
               title="Havale / EFT"
