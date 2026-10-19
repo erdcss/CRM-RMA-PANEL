@@ -46,7 +46,7 @@ export function MarketplaceDirectory(){
 export function MarketplaceShop({slug}:{slug:string}){
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
-  const [loginOpen,setLoginOpen]=useState(false);
+  const [loginPurpose,setLoginPurpose]=useState<"follow"|"contact"|null>(null);
   const {data:shop,isLoading}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+slug],staleTime:30000});
   const {data:products=[]}=useQuery<ShopProduct[]>({queryKey:["/api/marketplace/stores/"+slug+"/products"],staleTime:30000});
   const {data:reels=[]}=useQuery<Reel[]>({queryKey:["/api/marketplace/stores/"+slug+"/reels"],staleTime:30000});
@@ -62,7 +62,7 @@ export function MarketplaceShop({slug}:{slug:string}){
   }
   async function follow(){
     if(busy)return;
-    if(!loggedIn){setLoginOpen(true);return;}
+    if(!loggedIn){setLoginPurpose("follow");return;}
     setBusy(true);setMessage("");
     try {
       await apiRequest(isFollowing?"DELETE":"POST","/api/marketplace/stores/"+encodeURIComponent(slug)+"/follow");
@@ -71,9 +71,21 @@ export function MarketplaceShop({slug}:{slug:string}){
       const reason=e instanceof Error?e.message:"Mağaza takip edilemedi.";
       if(/401|oturum|giriş yapın|unauthorized/i.test(reason)){
         await queryClient.invalidateQueries({queryKey:["/api/auth/me"]});
-        setLoginOpen(true);
+        setLoginPurpose("follow");
       }else setMessage(reason);
     }finally{setBusy(false);}
+  }
+  function contactSeller(){
+    const destination="/mesajlarim?store="+encodeURIComponent(slug);
+    if(loggedIn){
+      window.location.assign(destination);
+    }else{
+      setLoginPurpose("contact");
+    }
+  }
+  async function contactAfterLogin(){
+    // The shared login dialog already confirmed an active customer session.
+    window.location.assign("/mesajlarim?store="+encodeURIComponent(slug));
   }
   async function followAfterLogin(){
     // Runs only after the login dialog verifies an active B2B customer session.
@@ -100,10 +112,11 @@ export function MarketplaceShop({slug}:{slug:string}){
           </div>
           <p className="mt-2 text-sm text-slate-600">{shop.content?.tagline||shop.description||"Onaylı Çalışkan B2B tedarikçisi"}</p>
           <div className="mt-4 flex w-full max-w-md items-stretch gap-2">
-            <Link href={"/mesajlarim?store="+encodeURIComponent(slug)}
-              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-100 px-3 text-xs font-bold text-amber-950 transition-colors hover:bg-amber-200 sm:text-sm">
+            <button type="button" onClick={contactSeller}
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-amber-100 px-3 text-xs font-bold text-amber-950 transition-colors hover:bg-amber-200 sm:text-sm"
+              aria-label="Satıcıyla iletişime geç">
               <MessageCircle className="h-4 w-4 shrink-0"/><span className="truncate">İletişime Geç</span>
-            </Link>
+            </button>
             <button type="button" disabled={busy} onClick={()=>void follow()}
               className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFCD00] px-3 text-xs font-bold text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-50 sm:text-sm"
               aria-label={isFollowing?"Takipten çık":"Mağazayı takip et"}>
@@ -113,7 +126,9 @@ export function MarketplaceShop({slug}:{slug:string}){
           {message?<p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950">{message}</p>:null}
         </div>
       </div>
-      <MarketplaceFollowLogin open={loginOpen} onOpenChange={setLoginOpen} onAuthenticated={followAfterLogin}/>
+      <MarketplaceFollowLogin open={loginPurpose!==null} purpose={loginPurpose||"follow"}
+        onOpenChange={open=>{if(!open)setLoginPurpose(null);}}
+        onAuthenticated={loginPurpose==="contact"?contactAfterLogin:followAfterLogin}/>
       <h2 className="mb-4 mt-8 text-xl font-black">Ürünler</h2>
       <div className="grid grid-cols-2 gap-3 sm:gap-5">
         {storeProducts.map(product=><B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>)}
