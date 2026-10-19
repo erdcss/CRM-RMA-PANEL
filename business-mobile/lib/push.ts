@@ -5,6 +5,8 @@ import { getBusinessToken } from "./auth";
 
 const API = (process.env.EXPO_PUBLIC_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
 
+let registeredExpoToken: string | null = null;
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
@@ -66,7 +68,21 @@ export async function registerBusinessPush() {
     throw new Error(payload?.error || "Bildirim cihaz kaydı başarısız");
   }
 
+  registeredExpoToken=expoToken;
   return true;
+}
+
+/** Prevent prior Business accounts from receiving sensitive order notifications after logout. */
+export async function unregisterBusinessPush() {
+  const token=getBusinessToken();
+  const expoToken=registeredExpoToken;
+  registeredExpoToken=null;
+  if(!token||!expoToken)return;
+  await fetch(`${API}/api/push/unregister`,{
+    method:"POST",
+    headers:{"Content-Type":"application/json",Authorization:`Bearer ${token}`},
+    body:JSON.stringify({expoToken})
+  }).catch(()=>undefined);
 }
 
 export function listenBusinessNotificationPress(
