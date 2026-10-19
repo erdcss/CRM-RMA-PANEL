@@ -188,8 +188,8 @@ export async function ensureMarketplaceSchema() { await ready(); }
 // A live process also reopens stores when the deadline passes, without requiring the seller to log in.
 // On restart, the stored deadline and reconciliation logic continue to work.
 const holidayScheduler=setInterval(()=>{
-  if(!pool||!schemaPromise)return;
-  void reconcileHolidayStores(pool,true).catch(error=>console.error("Marketplace holiday reactivation:",error));
+  // Start reconciliation even when no marketplace request has arrived since process boot.
+  void ready().catch(error=>console.error("Marketplace holiday reactivation:",error));
 },30_000);
 holidayScheduler.unref();
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
