@@ -1859,7 +1859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user=(await storage.getUserByUsername(email))||(await storage.getUserByEmail(email));
     if(!user||!verifyPassword(password,user.password)||user.role!=="b2b_seller"||user.isActive!==1) return res.status(401).json({error:"Satıcı e-posta adresi veya şifre hatalı"});
     (req.session as {userId?:number}).userId=user.id;
-    return res.json({id:user.id,email:user.email,role:user.role});
+    return res.json(authResponse(user));
   });
 
   app.post("/api/b2b/login", async (req, res) => {
