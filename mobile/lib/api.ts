@@ -685,6 +685,7 @@ export const rmaApi = {
   followMarketplaceStore: (slug:string) => request<{following:boolean}>(`/api/marketplace/stores/${encodeURIComponent(slug)}/follow`,{method:'POST',body:'{}'}),
   unfollowMarketplaceStore: (slug:string) => request<{following:boolean}>(`/api/marketplace/stores/${encodeURIComponent(slug)}/follow`,{method:'DELETE'}),
   listMarketplaceConversations: () => request<MarketplaceConversation[]>('/api/marketplace/conversations'),
+  listClosedMarketplaceConversations: () => request<Array<{id:number;slug:string;company_name:string;closed_at:string}>>('/api/marketplace/conversations/closed'),
   startMarketplaceConversation: (slug:string,text:string) => request<{id:number}>('/api/marketplace/conversations',{method:'POST',body:JSON.stringify({slug,text})}),
   listMarketplaceMessages: (id:number) => request<MarketplaceMessage[]>(`/api/marketplace/conversations/${id}/messages`),
   sendMarketplaceMessage: (id:number,text:string) => request<MarketplaceMessage>(`/api/marketplace/conversations/${id}/messages`,{method:'POST',body:JSON.stringify({text})}),
