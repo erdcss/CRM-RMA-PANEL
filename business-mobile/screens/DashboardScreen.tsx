@@ -18,6 +18,7 @@ import { WarehouseBackdrop } from "../components/WarehouseBackdrop";
 export function DashboardScreen({
   user,
   onOrders,
+  onOpenOrder,
   onSupport,
   onProducts,
   onCustomers,
@@ -25,6 +26,7 @@ export function DashboardScreen({
 }: {
   user: BusinessAuthUser | null;
   onOrders: () => void;
+  onOpenOrder: (id:string)=>void;
   onSupport: () => void;
   onProducts: () => void;
   onCustomers: () => void;
@@ -158,7 +160,7 @@ export function DashboardScreen({
               data?.recentOrders?.slice(0, 4).map((order) => {
                 const meta = statusMeta(order.status);
                 return (
-                  <TouchableOpacity key={String(order.id)} style={s.orderRow} onPress={onOrders}>
+                  <TouchableOpacity key={String(order.id)} style={s.orderRow} onPress={()=>onOpenOrder(String(order.id))}>
                     <View style={s.orderThumb}>
                       <Text style={s.orderThumbText}>B2B</Text>
                     </View>
