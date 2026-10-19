@@ -482,6 +482,14 @@ export function registerMarketplaceRoutes(
     res.json({supplier:s,productCount:products.rows[0]?.n,storeVersions:stores.rows,reels:reels.rows,
       followers:followers.rows[0]?.n,conversations:conversations.rows[0]?.n,openQuotes:quotes.rows[0]?.n});
   }));
+  app.get("/api/marketplace/seller/store",requireSeller,handle(async(_req,res)=>{
+    const supplier=await supplierFor(res),db=await ready();
+    const result=await db.query(`SELECT id,content,status,is_live,review_note,created_at
+      FROM mp_store_versions WHERE supplier_id=$1
+      ORDER BY is_live DESC,id DESC LIMIT 1`,[supplier.id]);
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(result.rows[0]||null);
+  }));
   app.post("/api/marketplace/seller/store",requireSeller,handle(async(req,res)=>{
     const s=await supplierFor(res),db=await ready();
     const content=storeSchema.parse(req.body);
