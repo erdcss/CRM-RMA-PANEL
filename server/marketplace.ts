@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended')),
   is_holiday BOOLEAN NOT NULL DEFAULT FALSE,
+  admin_created BOOLEAN NOT NULL DEFAULT FALSE,
+  admin_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  admin_verified_at TIMESTAMPTZ,
   is_admin_paused BOOLEAN NOT NULL DEFAULT FALSE,
   admin_paused_at TIMESTAMPTZ,
   holiday_started_at TIMESTAMPTZ,
@@ -34,6 +37,9 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   reviewed_at TIMESTAMPTZ
 );
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS is_holiday BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS admin_created BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS admin_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMPTZ;
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS is_admin_paused BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS admin_paused_at TIMESTAMPTZ;
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_started_at TIMESTAMPTZ;
@@ -262,7 +268,7 @@ const decisionSchema=z.object({
 function userId(res:Response){return Number((res.locals as any).b2bUser.id);}
 async function supplierFor(res:Response) {
   const db=await ready();
-  const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,is_admin_paused,admin_paused_at,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
+  const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,admin_created,admin_verified,admin_verified_at,is_holiday,is_admin_paused,admin_paused_at,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
   if (!q.rows[0]) throw new ApiError(403,"Önce tedarikçi başvurusu oluşturun");
   if (["rejected","suspended"].includes(q.rows[0].status)) throw new ApiError(403,"Tedarikçi hesabınız kısıtlandı");
   return q.rows[0];
@@ -427,7 +433,7 @@ export function registerMarketplaceRoutes(
   }));
   app.get("/api/marketplace/me",requireSeller,handle(async(_req,res)=>{
     const db=await ready();
-    const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,is_admin_paused,admin_paused_at,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
+    const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,admin_created,admin_verified,admin_verified_at,is_holiday,is_admin_paused,admin_paused_at,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(r.rows[0]||null);
   }));
@@ -911,7 +917,7 @@ export function registerMarketplaceRoutes(
   app.get("/api/admin/marketplace/review-queue",requireAdmin,handle(async(_req,res)=>{
     const db=await ready();
     const [suppliers,products,stores,reels]=await Promise.all([
-      db.query("SELECT id,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,created_at,status,is_admin_paused,admin_paused_at,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
+      db.query("SELECT id,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,created_at,status,admin_created,admin_verified,admin_verified_at,is_admin_paused,admin_paused_at,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
       db.query(`SELECT v.id,v.product_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,v.created_at,v.status,v.review_note,s.company_name FROM mp_product_versions v
         JOIN mp_products p ON p.id=v.product_id JOIN mp_suppliers s ON s.id=p.supplier_id
         ORDER BY v.id DESC LIMIT 100`),
@@ -926,6 +932,57 @@ export function registerMarketplaceRoutes(
   }));
   // Admin pause is a soft sales hold: product revisions, shop design, reels and the
   // approved supplier status remain intact. It never changes the seller's login.
+  // Only accounts manually created by marketplace administration may be directly
+  // verified. This is an explicit admin attestation, not an external tax check.
+  app.patch("/api/admin/marketplace/suppliers/:id/verification",requireAdmin,handle(async(req,res)=>{
+    const db=await ready(),supplierId=id(req.params.id),actor=sessionUserId(req);
+    if(!actor)throw new ApiError(401,"Yönetici oturumu gerekli");
+    const {verified}=z.object({verified:z.boolean()}).strict().parse(req.body);
+    const client=await db.connect();
+    try{
+      await client.query("BEGIN");
+      const account=await client.query("SELECT id,status,admin_created,admin_verified FROM mp_suppliers WHERE id=$1 FOR UPDATE",[supplierId]);
+      if(!account.rows[0])throw new ApiError(404,"Tedarikçi bulunamadı");
+      if(!account.rows[0].admin_created)throw new ApiError(403,"Bu seçenek yalnızca yönetici tarafından oluşturulan hesaplarda kullanılabilir.");
+      if(!["pending","approved"].includes(account.rows[0].status))
+        throw new ApiError(409,"Reddedilen veya askıya alınan hesapların doğrulama durumu değiştirilemez.");
+      const changed=Boolean(account.rows[0].admin_verified)!==verified;
+      if(changed){
+        await client.query(`UPDATE mp_suppliers SET
+          admin_verified=$2,admin_verified_at=CASE WHEN $2 THEN NOW() ELSE NULL END,
+          status=CASE WHEN $2 THEN 'approved' ELSE 'pending' END,
+          reviewed_at=CASE WHEN $2 THEN NOW() ELSE NULL END,
+          review_note=CASE WHEN $2 THEN 'Yönetici tarafından manuel doğrulandı' ELSE 'Firma doğrulaması bekleniyor' END
+          WHERE id=$1`,[supplierId,verified]);
+        if(verified){
+          // When confirming an already-created unverified account, publish its latest
+          // pending product and store versions. Existing approved live versions survive.
+          const pending=await client.query(`SELECT DISTINCT ON(p.id) v.id,v.product_id
+            FROM mp_product_versions v JOIN mp_products p ON p.id=v.product_id
+            WHERE p.supplier_id=$1 AND v.status='pending'
+            ORDER BY p.id,v.id DESC`,[supplierId]);
+          for(const revision of pending.rows){
+            await client.query("UPDATE mp_product_versions SET is_live=FALSE WHERE product_id=$1 AND is_live=TRUE",[revision.product_id]);
+            await client.query(`UPDATE mp_product_versions SET status='approved',is_live=TRUE,
+              reviewed_at=NOW(),review_note='Yönetici tarafından doğrulanan tedarikçi'
+              WHERE id=$1`,[revision.id]);
+          }
+          const store=await client.query(`SELECT id FROM mp_store_versions
+            WHERE supplier_id=$1 AND status='pending' ORDER BY id DESC LIMIT 1`,[supplierId]);
+          if(store.rows[0]){
+            await client.query("UPDATE mp_store_versions SET is_live=FALSE WHERE supplier_id=$1 AND is_live=TRUE",[supplierId]);
+            await client.query(`UPDATE mp_store_versions SET status='approved',is_live=TRUE,
+              reviewed_at=NOW(),review_note='Yönetici tarafından doğrulanan tedarikçi'
+              WHERE id=$1`,[store.rows[0].id]);
+          }
+        }
+        await client.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
+          [actor,verified?"supplier_admin_verified":"supplier_admin_unverified",supplierId,"Manuel hesap doğrulaması"]);
+      }
+      await client.query("COMMIT");
+      res.json({id:supplierId,status:verified?"approved":"pending",admin_verified:verified,changed});
+    }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
+  }));
   app.patch("/api/admin/marketplace/suppliers/:id/pause",requireAdmin,handle(async(req,res)=>{
     const db=await ready(),supplierId=id(req.params.id),actor=sessionUserId(req);
     if(!actor)throw new ApiError(401,"Yönetici girişi gerekli");
