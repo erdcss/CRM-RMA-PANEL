@@ -89,11 +89,11 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
    }catch(e){setError(e instanceof Error?e.message:"İşlem başarısız");}
    finally{setWorking(false);}
  }
- async function patch(path:string,payload:object,success:string){
+ async function patch(path:string,payload:object,success:string,method:"PATCH"|"POST"="PATCH"){
   if(working)return;
   setWorking(true);setError("");setNotice("");
   try{
-    await apiFetch(path,{method:"PATCH",body:JSON.stringify(payload)});
+    await apiFetch(path,{method,body:JSON.stringify(payload)});
     setNotice(success);await load();
   }catch(e){setError(e instanceof Error?e.message:"İşlem başarısız");}
   finally{setWorking(false);}
@@ -321,7 +321,7 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
              product:{name:d.name.trim(),description:d.description,category:d.category.trim(),brand:d.brand,
                barcode:d.barcode,imageUrl:d.imageUrl,price:Number(p.current_price||p.live?.price||p.latest?.content?.price||1),
                unitsPerBox,minBoxes,leadDays}
-           },"Ürün bilgileri yönetici onayına gönderildi.");
+           },"Ürün bilgileri yönetici onayına gönderildi.","POST");
            setEditingProduct(null);
          }}/>
        </View>:<Action title="Ürünü Düzenle" onPress={()=>{
