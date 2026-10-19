@@ -81,9 +81,9 @@ export default function AdminPaymentSettingsPage() {
     setUpdatingVisibility(true);
     setVisibility(updated);
     try{
-      const response=await fetch("/api/admin/payment-settings",{
-        method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({checkoutVisibility:updated})
+      const response=await fetch("/api/admin/payment-settings/visibility",{
+        method:"PATCH",credentials:"include",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(updated)
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(result.error||"Ödeme seçenekleri güncellenemedi");
