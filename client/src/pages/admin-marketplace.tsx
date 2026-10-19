@@ -9,9 +9,10 @@ import { useToast } from "@/hooks/use-toast";
 import { MarketplaceReviewDialog, type ReviewKind } from "@/components/marketplace-review-detail";
 import { Eye, ImageOff, UserPlus } from "lucide-react";
 import { MarketplaceCreateSupplierDialog } from "@/components/marketplace-create-supplier-dialog";
+import { MarketplaceActionDialog } from "@/components/marketplace-action-dialog";
 
 type Status = "pending" | "approved" | "rejected" | "suspended";
-type Review = {id:number;status:Status;created_at:string;review_note?:string;is_admin_paused?:boolean;admin_paused_at?:string|null;company_name?:string;contact_name?:string;
+type Review = {id:number;status:Status;created_at:string;review_note?:string;admin_created?:boolean;admin_verified?:boolean;admin_verified_at?:string|null;is_admin_paused?:boolean;admin_paused_at?:string|null;company_name?:string;contact_name?:string;
   tax_number?:string;tax_office?:string;contact_phone?:string;contact_email?:string;company_type?:string;iban?:string;has_tax_document?:boolean;description?:string;content?:Record<string,unknown>;title?:string;video_url?:string;is_live?:boolean;product_id?:number};
 type Queue = {suppliers:Review[];products:Review[];stores:Review[];reels:Review[]};
 type ArchivedConversation = {
@@ -43,6 +44,7 @@ export default function AdminMarketplace(){
   const [processing,setProcessing]=useState<string|null>(null);
   const [selectedArchive,setSelectedArchive]=useState<number|null>(null);
   const [createSupplierOpen,setCreateSupplierOpen]=useState(false);
+  const [verifyTarget,setVerifyTarget]=useState<{supplier:Review;verified:boolean}|null>(null);
   const [selectedReview,setSelectedReview]=useState<{kind:ReviewKind;id:number}|null>(null);
   const {toast}=useToast();
   const overview=useQuery<Overview>({queryKey:["/api/admin/marketplace/overview"],staleTime:0,refetchInterval:30000});
@@ -72,6 +74,19 @@ export default function AdminMarketplace(){
       if(kind!=="suppliers")setSelectedReview(null);
     }catch(e){toast({title:"İşlem yapılamadı",description:e instanceof Error?e.message:"Hata",variant:"destructive"});}
     finally{setProcessing(null);}
+  }
+  async function updateSupplierVerification(){
+    if(!verifyTarget) return;
+    const {supplier,verified}=verifyTarget;
+    await apiRequest("PATCH","/api/admin/marketplace/suppliers/"+supplier.id+"/verification",{verified});
+    await Promise.all([
+      queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/review-queue"]}),
+      queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/overview"]}),
+      queryClient.invalidateQueries({queryKey:["/api/marketplace/stores"]}),
+      queryClient.invalidateQueries({queryKey:["/api/marketplace/products"]})
+    ]);
+    toast({title:verified?"Tedarikçi doğrulandı":"Doğrulama kaldırıldı",
+      description:verified?"Mağaza ve onaylı ürünler satışa açıldı.":"Firma belge onayı tamamlanana kadar satışlar kapatıldı."});
   }
   async function updateSupplierPause(supplier:Review,paused:boolean){
     if(processing)return;
@@ -269,12 +284,27 @@ export default function AdminMarketplace(){
                   </div>:null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                 {tab==="suppliers"&&r.admin_created?
+                    <span className={"rounded-full px-3 py-1 text-xs font-bold "+(r.admin_verified?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800")}>
+                      {r.admin_verified?"Doğrulanmış":"Doğrulanmamış"}
+                    </span>:null}
                  {tab==="suppliers"&&r.is_admin_paused?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">Satışa Kapalı</span>:null}
                  <span className={"rounded-full px-3 py-1 text-xs font-semibold "+(r.status==="pending"?"bg-amber-100 text-amber-800":r.status==="approved"?"bg-green-100 text-green-800":"bg-slate-100 text-slate-700")}>{statusNames[r.status]||r.status}</span>
                </div>
             </div>
             {r.review_note?<p className="mt-3 text-xs text-muted-foreground">Son yönetici notu: {r.review_note}</p>:null}
-            {tab==="suppliers" && r.status==="pending" ? <div className="mt-4 space-y-3 border-t pt-4">
+            {tab==="suppliers"&&r.admin_created&&["pending","approved"].includes(r.status)?
+               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                 <p className="text-xs font-medium text-slate-600">
+                   {r.admin_verified?"Yönetici tarafından doğrulandı. Satışa açık.":"Doğrulanmamış hesap. Evrak onayı bekleniyor."}
+                 </p>
+                 <Button type="button" variant="outline" disabled={!!processing}
+                   className={r.admin_verified?"border-amber-300 text-amber-800":"border-emerald-300 text-emerald-800"}
+                   onClick={()=>setVerifyTarget({supplier:r,verified:!r.admin_verified})}>
+                   {r.admin_verified?"Doğrulanmamış Yap":"Doğrulanmış Yap"}
+                 </Button>
+               </div>:null}
+             {tab==="suppliers" && r.status==="pending" ? <div className="mt-4 space-y-3 border-t pt-4">
               <textarea aria-label="Onay veya ret gerekçesi" value={notes[key]||""} onChange={e=>setNotes(v=>({...v,[key]:e.target.value}))}
                 placeholder="Yönetici notu / ret gerekçesi" maxLength={1000} rows={2} className="w-full rounded-lg border bg-background p-3 text-sm"/>
               <div className="flex flex-wrap gap-2">
@@ -306,7 +336,18 @@ export default function AdminMarketplace(){
           </article>;
         })}
       </section>}
-      <MarketplaceCreateSupplierDialog
+      <MarketplaceActionDialog
+        open={verifyTarget!==null}
+        onOpenChange={open=>{if(!open)setVerifyTarget(null);}}
+        title={verifyTarget?.verified?"Tedarikçiyi doğrulamak istiyor musunuz?":"Tedarikçi doğrulamasını kaldırmak istiyor musunuz?"}
+        description={verifyTarget?.verified
+          ?"Yönetici doğrulamasıyla bu mağaza ve onaylı ürünleri doğrudan satışa açılacak; daha sonra eklenen yeni ürün ve mağaza tasarımları da otomatik yayınlanacak."
+          :"Mağaza ve ürünler müşterilerden gizlenecek. Satıcıdan doğrulama belgeleri ve yeniden yönetici onayı istenecek."}
+        confirmLabel={verifyTarget?.verified?"Doğrula ve Satışa Aç":"Doğrulamayı Kaldır"}
+        destructive={!verifyTarget?.verified}
+        onConfirm={updateSupplierVerification}
+      />
+            <MarketplaceCreateSupplierDialog
         open={createSupplierOpen}
         onOpenChange={setCreateSupplierOpen}
         onCreated={()=>{
