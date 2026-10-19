@@ -1672,6 +1672,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/push/unregister",requireAuth,async(req,res)=>{
+    const userId=sessionUserId(req);
+    const token=String(req.body?.expoToken||"");
+    if(!userId||!token)return res.status(400).json({error:"Geçersiz cihaz"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    await pool.query(`UPDATE mobile_push_tokens SET active=FALSE,updated_at=NOW()
+      WHERE user_id=$1 AND expo_token=$2`,[userId,token]);
+    return res.json({ok:true});
+  });
+
   app.get("/api/admin/b2b-support", requireAdmin, async (_req, res) => {
     if (!pool) return res.json([]);
     const result = await pool.query(
