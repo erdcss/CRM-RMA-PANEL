@@ -10,7 +10,7 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GlassTabBar } from "./components/GlassTabBar";
 import { signOut, type BusinessAuthUser } from "./lib/auth";
 import { useMobileBranding } from "./lib/branding";
-import { listenBusinessNotificationPress, registerBusinessPush } from "./lib/push";
+import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
 import { CustomerDetailScreen } from "./screens/CustomerDetailScreen";
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
@@ -85,6 +85,7 @@ export default function App() {
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
               onBack={() => setScreen({ name: "more" })}
               onLogout={async () => {
+                await unregisterBusinessPush();
                 await signOut();
                 setUser(null);
                 setScreen({ name: "login" });
@@ -152,6 +153,7 @@ export default function App() {
               onMarketplace={() => setScreen({ name: "marketplace" })}
               onModule={(slug) => setScreen({ name: "module", slug })}
               onLogout={async () => {
+                await unregisterBusinessPush();
                 await signOut();
                 setUser(null);
                 setScreen({ name: "login" });
