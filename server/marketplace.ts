@@ -22,10 +22,12 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   iban TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended')),
+  is_holiday BOOLEAN NOT NULL DEFAULT FALSE,
   review_note TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   reviewed_at TIMESTAMPTZ
 );
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS is_holiday BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE TABLE IF NOT EXISTS mp_store_versions (
   id BIGSERIAL PRIMARY KEY,
   supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,
@@ -247,7 +249,7 @@ export function registerMarketplaceRoutes(
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
       FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
-      WHERE s.status='approved' ORDER BY s.id DESC LIMIT 100`);
+      WHERE s.status='approved' AND s.is_holiday=FALSE ORDER BY s.id DESC LIMIT 100`);
     res.json(q.rows);
   }));
   // Mobile seller catalogue is separate from the company's own b2b_products table.
@@ -265,7 +267,7 @@ export function registerMarketplaceRoutes(
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
       FROM mp_products p
-      JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+      JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE AND sv.status='approved'
       WHERE p.is_enabled=TRUE
@@ -302,7 +304,7 @@ export function registerMarketplaceRoutes(
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
       FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
-      WHERE s.status='approved' AND s.slug=$1 LIMIT 1`,[req.params.slug]);
+      WHERE s.status='approved' AND s.is_holiday=FALSE AND s.slug=$1 LIMIT 1`,[req.params.slug]);
     if(!q.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
     res.json(q.rows[0]);
   }));
@@ -318,7 +320,7 @@ export function registerMarketplaceRoutes(
       FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
-      WHERE s.slug=$1 AND s.status='approved' AND p.is_enabled=TRUE ORDER BY p.id DESC LIMIT 200`,[req.params.slug]);
+      WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND p.is_enabled=TRUE ORDER BY p.id DESC LIMIT 200`,[req.params.slug]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(q.rows.map((r:any)=>({...r,content:canSeePrice?r.content:{...r.content,price:null}})));
   }));
@@ -353,7 +355,7 @@ export function registerMarketplaceRoutes(
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
       LEFT JOIN mp_products p ON p.id=r.product_id AND p.supplier_id=s.id
       LEFT JOIN mp_product_versions pv ON pv.product_id=p.id AND pv.is_live=TRUE
-      WHERE s.status='approved' AND r.is_live=TRUE
+      WHERE s.status='approved' AND s.is_holiday=FALSE AND r.is_live=TRUE
       ORDER BY r.created_at DESC,r.id DESC LIMIT 100`);
     res.json(q.rows);
   }));
@@ -364,7 +366,7 @@ export function registerMarketplaceRoutes(
       COALESCE(v.content->>'logoUrl','') AS seller_logo_url
       FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id
       LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live
-      WHERE s.slug=$1 AND s.status='approved' AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
+      WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
     res.json(q.rows);
   }));
   // An authenticated seller receives a private workspace immediately.
@@ -441,7 +443,7 @@ export function registerMarketplaceRoutes(
     const [products,stores,reels,followers,conversations,quotes]=await Promise.all([
       db.query("SELECT COUNT(*)::int AS n FROM mp_products WHERE supplier_id=$1",[s.id]),
       db.query("SELECT id,status,is_live,created_at,review_note FROM mp_store_versions WHERE supplier_id=$1 ORDER BY id DESC LIMIT 10",[s.id]),
-      db.query("SELECT id,title,status,is_live,review_note FROM mp_reels WHERE supplier_id=$1 ORDER BY id DESC LIMIT 30",[s.id]),
+      db.query("SELECT id,title,video_url,thumbnail_url,product_id,status,is_live,review_note FROM mp_reels WHERE supplier_id=$1 ORDER BY id DESC LIMIT 30",[s.id]),
       db.query("SELECT COUNT(*)::int AS n FROM mp_follows WHERE supplier_id=$1",[s.id]),
       db.query("SELECT COUNT(*)::int AS n FROM mp_conversations WHERE supplier_id=$1",[s.id]),
       db.query("SELECT COUNT(*)::int AS n FROM mp_quote_requests WHERE supplier_id=$1 AND status IN ('requested','offered')",[s.id])
@@ -578,6 +580,35 @@ export function registerMarketplaceRoutes(
       [s.id,data.title,data.videoUrl,data.thumbnailUrl||null,data.productId||null]);
     res.status(201).json(r.rows[0]);
   }));
+  app.patch("/api/marketplace/seller/reels/:id",requireSeller,handle(async(req,res)=>{
+    const supplier=await supplierFor(res),db=await ready(),reelId=id(req.params.id);
+    const data=z.object({title:bodyText(160),videoUrl:mediaUrl,thumbnailUrl:mediaUrl.nullable().optional(),
+      productId:z.number().int().positive().nullable().optional()}).strict().parse(req.body);
+    await verifyMedia(db,Number(supplier.id),data.videoUrl,true);
+    if(data.thumbnailUrl)await verifyMedia(db,Number(supplier.id),data.thumbnailUrl,false);
+    if(data.productId){
+      const own=await db.query("SELECT id FROM mp_products WHERE id=$1 AND supplier_id=$2",[data.productId,supplier.id]);
+      if(!own.rows.length)throw new ApiError(403,"Ürün mağazanıza ait değil");
+    }
+    const result=await db.query(`UPDATE mp_reels SET title=$3,video_url=$4,thumbnail_url=$5,product_id=$6,
+      status='pending',is_live=FALSE,review_note='',reviewed_at=NULL
+      WHERE id=$1 AND supplier_id=$2 RETURNING id,status`,
+      [reelId,supplier.id,data.title,data.videoUrl,data.thumbnailUrl||null,data.productId||null]);
+    if(!result.rows[0])throw new ApiError(404,"Reels bulunamadı");
+    res.json(result.rows[0]);
+  }));
+  app.delete("/api/marketplace/seller/reels/:id",requireSeller,handle(async(req,res)=>{
+    const supplier=await supplierFor(res),db=await ready();
+    const result=await db.query("DELETE FROM mp_reels WHERE id=$1 AND supplier_id=$2 RETURNING id",[id(req.params.id),supplier.id]);
+    if(!result.rows[0])throw new ApiError(404,"Reels bulunamadı");
+    res.json({deleted:true});
+  }));
+  app.patch("/api/marketplace/seller/settings",requireSeller,handle(async(req,res)=>{
+    const supplier=await supplierFor(res),db=await ready();
+    const data=z.object({holidayMode:z.boolean()}).strict().parse(req.body);
+    const result=await db.query("UPDATE mp_suppliers SET is_holiday=$2 WHERE id=$1 RETURNING is_holiday",[supplier.id,data.holidayMode]);
+    res.json({holidayMode:Boolean(result.rows[0].is_holiday)});
+  }));
   app.get("/api/marketplace/follows",requireB2B,handle(async(_req,res)=>{
     const db=await ready();
     const q=await db.query(`SELECT s.slug,s.company_name,f.created_at FROM mp_follows f
@@ -588,7 +619,7 @@ export function registerMarketplaceRoutes(
     const db=await ready();
     const q=await db.query(`INSERT INTO mp_follows(supplier_id,buyer_user_id)
       SELECT s.id,$1 FROM mp_suppliers s
-      WHERE s.slug=$2 AND s.status='approved' ON CONFLICT DO NOTHING RETURNING supplier_id`,[userId(res),req.params.slug]);
+      WHERE s.slug=$2 AND s.status='approved' AND s.is_holiday=FALSE ON CONFLICT DO NOTHING RETURNING supplier_id`,[userId(res),req.params.slug]);
     res.json({following:Boolean(q.rows.length)});
   }));
   app.delete("/api/marketplace/stores/:slug/follow",requireB2B,handle(async(req,res)=>{
@@ -603,7 +634,7 @@ export function registerMarketplaceRoutes(
     try{
       await client.query("BEGIN");
       const seller=await client.query(`SELECT s.id,s.owner_user_id FROM mp_suppliers s
-        WHERE s.slug=$1 AND s.status='approved' FOR UPDATE OF s`,[data.slug]);
+        WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE FOR UPDATE OF s`,[data.slug]);
       if(!seller.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
       if(Number(seller.rows[0].owner_user_id)===uid)throw new ApiError(400,"Kendi mağazanızla sohbet oluşturamazsınız");
       const c=await client.query(`INSERT INTO mp_conversations(supplier_id,buyer_user_id)
