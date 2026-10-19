@@ -1055,8 +1055,10 @@ export function registerMarketplaceRoutes(
     const client=await db.connect();
     try {
       await client.query("BEGIN");
-      const r=await client.query(`UPDATE mp_suppliers SET status=$1,review_note=$2,reviewed_at=NOW()
-        WHERE id=$3 AND status='pending' AND ($1 <> 'approved' OR (company_type <> '' AND tax_document <> '' AND iban <> '' AND tax_number <> '' AND contact_phone <> '' AND contact_email <> '')) RETURNING id,status`,
+      const r=await client.query(`UPDATE mp_suppliers SET status=$1,review_note=$2,reviewed_at=NOW(),
+          admin_verified=CASE WHEN admin_created AND $1='approved' THEN TRUE ELSE admin_verified END,
+          admin_verified_at=CASE WHEN admin_created AND $1='approved' THEN NOW() ELSE admin_verified_at END
+        WHERE id=$3 AND status='pending' AND ($1 <> 'approved' OR (company_type <> '' AND tax_document <> '' AND iban <> '' AND tax_number <> '' AND contact_phone <> '' AND contact_email <> '')) RETURNING id,status,admin_verified`,
         [data.decision,data.note,supplierId]);
       if(!r.rows[0])throw new ApiError(409,"Başvuru bulunamadı, zaten değerlendirilmiş veya şirket doğrulama evrakları eksik");
       await client.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
