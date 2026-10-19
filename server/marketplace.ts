@@ -297,6 +297,17 @@ export function registerMarketplaceRoutes(
  app:Express, requireAdmin:RequestHandler, requireB2B:RequestHandler,
  sessionUserId:(req:Request)=>number|undefined, requireSeller:RequestHandler, requireParticipant:RequestHandler
 ) {
+  // Authenticated marketplace responses must never be stored by a browser,
+  // CDN, or intermediary and reused after a different supplier logs in.
+  for(const path of ["/api/marketplace/me","/api/marketplace/seller","/api/marketplace/conversations"]){
+    app.use(path,(_req,res,next)=>{
+      res.setHeader("Cache-Control","private, no-store, max-age=0");
+      res.vary("Cookie");
+      res.vary("Authorization");
+      next();
+    });
+  }
+
   app.get("/api/marketplace/stores", handle(async(req,res)=>{
     const db=await ready();
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
