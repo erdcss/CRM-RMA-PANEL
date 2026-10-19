@@ -161,8 +161,19 @@ export default function MarketplaceSeller(){
   const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0});
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selectedChat+"/messages"],enabled:approved&&!!selectedChat,staleTime:0});
-  const previewLogoUrl=storeMediaPreview.logoUrl||store.logoUrl;
-  const previewBannerUrl=storeMediaPreview.bannerUrl||store.bannerUrl;
+  // The preview represents the currently published storefront, not the unsent draft.
+  const liveStore=useQuery<{company_name:string;description:string;content?:{title?:string;tagline?:string;accent?:string;logoUrl?:string;bannerUrl?:string}}>({
+    queryKey:["/api/marketplace/stores/"+(me.data?.slug||"")],
+    enabled:approved&&Boolean(me.data?.slug),
+    retry:false,
+    staleTime:15000,
+  });
+  const published=liveStore.data?.content;
+  const previewLogoUrl=published?.logoUrl||"";
+  const previewBannerUrl=published?.bannerUrl||"";
+  const previewAccent=published?.accent||"#FACC15";
+  const previewTitle=published?.title||liveStore.data?.company_name||me.data?.company_name||"Mağaza";
+  const previewTagline=published?.tagline||liveStore.data?.description||"Toptan satış mağazanız";
   async function run(action:()=>Promise<unknown>,refresh:string[]=[]) {
     setBusy(true);setMessage("");
     try{await action();setMessage("İşlem başarıyla kaydedildi.");await Promise.all(refresh.map(key=>queryClient.invalidateQueries({queryKey:[key]})));}
@@ -253,20 +264,20 @@ export default function MarketplaceSeller(){
               <p className="text-xs text-slate-500">Yeni tasarım yönetici onayından geçene dek mevcut yayındaki mağaza aynı kalır.</p>
               <button disabled={busy||uploading} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Tasarımı Onaya Gönder</button>
             </form>
-            <div className={boxStyle+" space-y-4"}><div><h2 className="text-lg font-bold">Canlı önizleme</h2><p className="mt-1 text-xs text-slate-500">Logo, banner, yazılar ve tema rengi kaydetmeden önce burada görünür.</p></div>
+            <div className={boxStyle+" space-y-4"}><div><h2 className="text-lg font-bold">Yayındaki mağaza önizlemesi</h2><p className="mt-1 text-xs text-slate-500">Müşterilerin şu anda gördüğü onaylı mağaza tasarımı burada gösterilir. Taslak değişiklikler onaylanmadan bu görünüm değişmez.</p></div>
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <div className="h-40 overflow-hidden bg-slate-100 sm:h-48" style={{backgroundColor:store.accent}}>
+                <div className="h-40 overflow-hidden bg-slate-100 sm:h-48" style={{backgroundColor:previewAccent}}>
                   {previewBannerUrl?<img src={previewBannerUrl} alt="Mağaza bannerı canlı önizleme" className="h-full w-full object-cover"/>:
-                    <div className="flex h-full items-center justify-center px-4 text-center text-sm font-medium text-slate-900/70">Banner yüklendiğinde burada görünecek</div>}
+                    <div className="flex h-full items-center justify-center px-4 text-center text-sm font-medium text-slate-900/70">Yayında banner bulunmuyor</div>}
                 </div>
                 <div className="px-5 pb-5">
                   <div className="-mt-8 mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md">
                     {previewLogoUrl?<img src={previewLogoUrl} alt="Mağaza logosu canlı önizleme" className="h-full w-full object-contain"/>:
                       <Store aria-hidden="true" className="h-7 w-7 text-slate-400"/>}
                   </div>
-                  <h3 className="text-xl font-black text-slate-950">{store.title||me.data.company_name}</h3>
-                  <p className="mt-2 text-sm text-slate-600">{store.tagline||"Toptan satış mağazanız"}</p>
-                  <div className="mt-4 border-t-4 pt-4 text-sm text-slate-500" style={{borderColor:store.accent}}>Ürünler · Kategoriler · Reels · Hakkımızda</div>
+                  <h3 className="text-xl font-black text-slate-950">{previewTitle}</h3>
+                  <p className="mt-2 text-sm text-slate-600">{previewTagline}</p>
+                  <div className="mt-4 border-t-4 pt-4 text-sm text-slate-500" style={{borderColor:previewAccent}}>Ürünler · Kategoriler · Reels · Hakkımızda</div>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -274,18 +285,18 @@ export default function MarketplaceSeller(){
                   <p className="text-xs font-bold text-slate-600">Logo önizlemesi</p>
                   <div className="mt-2 flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2">
                     {previewLogoUrl?<img src={previewLogoUrl} alt="Yüklenen mağaza logosu" className="max-h-full max-w-full object-contain"/>:
-                      <span className="text-xs text-slate-400">Henüz logo yüklenmedi</span>}
+                      <span className="text-xs text-slate-400">Yayında logo bulunmuyor</span>}
                   </div>
                 </div>
                 <div className="rounded-xl border border-slate-200 p-3">
                   <p className="text-xs font-bold text-slate-600">Banner önizlemesi</p>
                   <div className="mt-2 flex h-24 items-center justify-center rounded-lg bg-slate-50 p-2">
                     {previewBannerUrl?<img src={previewBannerUrl} alt="Yüklenen mağaza bannerı" className="max-h-full max-w-full object-contain"/>:
-                      <span className="text-xs text-slate-400">Henüz banner yüklenmedi</span>}
+                      <span className="text-xs text-slate-400">Yayında banner bulunmuyor</span>}
                   </div>
                 </div>
               </div>
-              {uploading?<p role="status" className="text-xs text-slate-500">Görsel yükleniyor; önizleme geçici olarak gösteriliyor.</p>:null}
+              {liveStore.isLoading?<p role="status" className="text-xs text-slate-500">Yayındaki mağaza bilgileri yükleniyor…</p>:null}
               <h3 className="font-semibold">Tasarım geçmişi</h3>
               {dash.data?.storeVersions.map(v=><div key={v.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
                 <span>#{v.id} · {statusTR[v.status]||v.status}{v.is_live?" · Yayında":""}</span><span className="text-xs text-slate-500">{v.review_note}</span></div>)}
