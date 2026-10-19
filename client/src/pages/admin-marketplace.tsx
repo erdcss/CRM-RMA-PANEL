@@ -39,7 +39,7 @@ export default function AdminMarketplace(){
   const {toast}=useToast();
   const overview=useQuery<Overview>({queryKey:["/api/admin/marketplace/overview"],staleTime:0,refetchInterval:30000});
   const archives=useQuery<Array<{id:number;supplier_name:string;customer_name:string;closed_at:string;message_count:number}>>({
-    queryKey:["/api/admin/marketplace/message-archives"],enabled:tab==="archives",staleTime:0
+    queryKey:["/api/admin/marketplace/message-archives"],enabled:tab==="archives",staleTime:0,refetchOnMount:"always"
   });
   const archivedMessages=useQuery<Array<{id:number;text:string;created_at:string;sender_role:string}>>({
     queryKey:["/api/admin/marketplace/message-archives/"+selectedArchive],enabled:tab==="archives"&&selectedArchive!==null,staleTime:0
@@ -73,9 +73,16 @@ export default function AdminMarketplace(){
         <div><Link href="/" className="text-xs text-muted-foreground hover:underline">← Ana yönetim paneline dön</Link>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight">Pazaryeri Yönetim Merkezi</h1>
           <p className="text-sm text-muted-foreground">Tedarikçi, ürün, mağaza ve video onayları · Çalışkan B2B</p></div>
-        <Button variant="outline" disabled={overview.isFetching||queue.isFetching} onClick={()=>{void overview.refetch();void queue.refetch();}}>
-          <RefreshCw className="mr-2 h-4 w-4"/>Yenile
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={()=>{setTab("archives");setSelectedArchive(null);void archives.refetch();}}
+            className="gap-2 bg-slate-950 font-bold text-white hover:bg-slate-800">
+            <MessageSquare className="h-4 w-4"/>Mesaj Arşivlerini Gör
+          </Button>
+          <Button variant="outline" disabled={overview.isFetching||queue.isFetching||archives.isFetching}
+            onClick={()=>{void overview.refetch();void queue.refetch();if(tab==="archives")void archives.refetch();if(selectedArchive!==null)void archivedMessages.refetch();}}>
+            <RefreshCw className="mr-2 h-4 w-4"/>Yenile
+          </Button>
+        </div>
       </div>
       {overview.isError||queue.isError ? <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
         Pazaryeri verileri yüklenemedi. Sunucu veya veritabanı bağlantısını kontrol edin.</div>:null}
@@ -96,22 +103,36 @@ export default function AdminMarketplace(){
           className={"flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition "+(tab===t.key?"bg-slate-950 text-white dark:bg-white dark:text-slate-950":"bg-muted text-muted-foreground hover:text-foreground")}>
           <t.icon className="h-4 w-4"/>{t.label}</button>)}
       </div>
-      {tab==="archives"?<div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-xl border bg-card p-4"><h2 className="mb-3 font-bold">Kapatılmış Sohbetler</h2>
+      {tab==="archives"?<div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="text-xl font-extrabold">Tedarikçi - Müşteri Mesaj Arşivleri</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Sonlandırılmış görüşmeler, tedarikçi ve müşteri isimleriyle saklanır.</p>
+          </div>
+          <Button type="button" variant="outline" onClick={()=>void archives.refetch()} disabled={archives.isFetching}>
+            <RefreshCw className="mr-2 h-4 w-4"/>Arşivi Yenile
+          </Button>
+        </div>
+        {archives.isError?<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Görüşme arşivi yüklenemedi. Yetkilerinizi veya sunucu bağlantısını kontrol edin.</p>:null}
+        <div className="grid gap-4 lg:grid-cols-3">
+        <section className="rounded-xl border bg-card p-4"><h2 className="mb-3 font-bold">Kapatılmış Sohbetler {archives.data?("("+archives.data.length+")"):""}</h2>
+          {archives.isLoading?<p className="text-xs text-muted-foreground">Görüşmeler yükleniyor...</p>:null}
           {archives.data?.map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedArchive(chat.id)}
             className={"mb-2 block w-full rounded-lg p-3 text-left text-sm "+(selectedArchive===chat.id?"bg-amber-100 text-slate-950":"bg-muted")}>
             <b>{chat.supplier_name} · {chat.customer_name}</b>
             <p className="mt-1 text-xs">{new Date(chat.closed_at).toLocaleString("tr-TR")} · {chat.message_count} mesaj</p>
           </button>)}
-          {!archives.isLoading&&!archives.data?.length?<p className="text-sm text-muted-foreground">Henüz arşivlenmiş sohbet yok.</p>:null}
+          {!archives.isLoading&&!archives.isError&&!archives.data?.length?<p className="text-sm text-muted-foreground">Henüz arşivlenmiş sohbet yok.</p>:null}
         </section>
         <section className="space-y-2 rounded-xl border bg-card p-4 lg:col-span-2"><h2 className="font-bold">Arşivlenmiş Mesajlar</h2>
           {archivedMessages.data?.map(m=><div key={m.id} className="rounded-lg bg-muted p-3 text-sm">
             <b className="text-xs">{m.sender_role==="supplier"?"Tedarikçi":"Müşteri"}</b>
             <p className="mt-1 whitespace-pre-wrap">{m.text}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("tr-TR")}</p>
           </div>)}
-          {!selectedArchive?<p className="text-sm text-muted-foreground">Görüşme seçin.</p>:null}
+          {!selectedArchive?<p className="text-sm text-muted-foreground">Mesajları görmek için soldaki listeden bir görüşme seçin.</p>:null}
+          {selectedArchive!==null&&archivedMessages.isLoading?<p className="text-sm text-muted-foreground">Mesajlar yükleniyor...</p>:null}
+          {selectedArchive!==null&&archivedMessages.isError?<p role="alert" className="text-sm text-red-700">Görüşme mesajları yüklenemedi.</p>:null}
         </section>
+        </div>
       </div>:null}
       {tab==="overview"?<div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-2xl border p-5"><h2 className="mb-4 font-bold">Pazaryeri işletme kuralları</h2>
@@ -124,7 +145,13 @@ export default function AdminMarketplace(){
             Tedarikçi ürünleri onaydan önce yayımlanmaz. Ödeme ve mali belge mutabakatı tamamlanmadan satıcı siparişleri ödeme ekranına gönderilmez.
           </p>
         </section>
-        <section className="rounded-2xl border p-5"><h2 className="mb-4 font-bold">İletişim ve işlem hacmi</h2>
+        <section className="rounded-2xl border p-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-bold">İletişim ve işlem hacmi</h2>
+          <button type="button" onClick={()=>{setTab("archives");setSelectedArchive(null);void archives.refetch();}}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-950 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800">
+            <MessageSquare className="h-4 w-4"/>Görüşme Arşivleri
+          </button>
+        </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-muted p-4"><MessageSquare className="mb-3 h-5 w-5"/><div className="text-3xl font-black">{stats?.conversations??0}</div><p className="text-xs text-muted-foreground">Müşteri sohbeti</p></div>
             <div className="rounded-xl bg-muted p-4"><CreditCard className="mb-3 h-5 w-5"/><div className="text-3xl font-black">{stats?.quotes??0}</div><p className="text-xs text-muted-foreground">Teklif talebi</p></div>
