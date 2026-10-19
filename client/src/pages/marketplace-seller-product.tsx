@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle2, Clock3, ImagePlus, Package, Save, ShieldCheck 
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { MarketplaceHolidayBanner } from "@/components/marketplace-holiday-banner";
 import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplier-pause-banner";
+import { listenForSupplierSessionChange } from "@/lib/supplier-session-sync";
 
 type Fields={
   name:string;sku:string;description:string;brand:string;category:string;barcode:string;
@@ -30,6 +31,7 @@ function toFields(p:RecordItem):Fields{
   };
 }
 export default function MarketplaceSellerProduct({id}:{id:string}){
+  useEffect(()=>listenForSupplierSessionChange(),[]);
   const {data:identity,isLoading:authLoading}=useQuery<{id:number;role:string}>({
     queryKey:["/api/auth/me"],staleTime:0,retry:false,
     refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
