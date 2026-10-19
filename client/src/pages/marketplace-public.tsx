@@ -145,10 +145,16 @@ export function MarketplaceBuyerInbox(){
   const [storeSlug]=useState(()=>new URLSearchParams(window.location.search).get("store")||"");
   const [text,setText]=useState("");
   const [message,setMessage]=useState("");
-  const {data:conversations=[]}=useQuery<Array<{id:number;company_name:string;slug:string;latest_message:string}>>({queryKey:["/api/marketplace/conversations"],retry:false,staleTime:0});
+  const {data:conversations=[]}=useQuery<Array<{id:number;company_name:string;slug:string;latest_message:string}>>({queryKey:["/api/marketplace/conversations"],retry:false,staleTime:0,refetchInterval:5000});
+  const {data:closedChats=[]}=useQuery<Array<{id:number;closed_at:string;company_name:string;slug:string}>>({
+    queryKey:["/api/marketplace/conversations/closed"],retry:false,staleTime:0,refetchInterval:5000
+  });
+  const latestClosed=closedChats.find(c=>c.slug===storeSlug)||closedChats[0];
   const {data:selectedStore}=useQuery<Shop>({queryKey:["/api/marketplace/stores/"+storeSlug],enabled:!!storeSlug,retry:false,staleTime:30000});
   useEffect(()=>{
-    if(selected||!storeSlug)return;
+    if(!storeSlug)return;
+    if(selected&&!conversations.some(c=>c.id===selected)){setSelected(null);return;}
+    if(selected)return;
     const current=conversations.find(c=>c.slug===storeSlug);
     if(current)setSelected(Number(current.id));
   },[selected,storeSlug,conversations]);
@@ -174,6 +180,14 @@ export function MarketplaceBuyerInbox(){
     <h1 className="text-2xl font-black">Mesajlarım</h1>
     <div role="alert" className="sticky top-0 z-10 overflow-x-auto whitespace-nowrap rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-950">Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</div>
     {message?<p className="rounded-xl bg-amber-50 p-3 text-sm">{message}</p>:null}
+    {latestClosed&&!conversations.some(c=>c.slug===latestClosed.slug)?<div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+      <b>{latestClosed.company_name}: Sohbet satıcı tarafından kapatıldı.</b>
+      <div className="mt-2 flex gap-2">
+        <button type="button" className="rounded-lg bg-slate-950 px-3 py-2 font-semibold text-white" onClick={()=>{window.location.href="/mesajlarim?store="+encodeURIComponent(latestClosed.slug);}}>Yeni sohbet başlat</button>
+        <Link href={"/magaza/"+encodeURIComponent(latestClosed.slug)} className="rounded-lg border px-3 py-2 font-semibold">Mağazaya dön</Link>
+      </div>
+    </div>:null}
+
     <div className="grid gap-4 md:grid-cols-3">
       <div className={box+" space-y-2"}><h2 className="font-bold">Görüşmeler</h2>{conversations.map(c=><button key={c.id}
         onClick={()=>setSelected(Number(c.id))} className={"block w-full rounded-lg p-3 text-left text-sm "+(selected===c.id?"bg-amber-100":"bg-slate-50")}>
