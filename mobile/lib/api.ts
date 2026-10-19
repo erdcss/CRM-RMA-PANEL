@@ -334,6 +334,7 @@ export type B2BPaymentMethod = {
 };
 
 export type B2BPaymentSettings = {
+  checkoutVisibility?:{cargo:boolean;freight:boolean;pickup:boolean;card:boolean;bank_transfer:boolean};
   iyzicoConfigured: boolean;
   paymentLogos?: Array<{id:string;label:string;imageId:string}>;
   bankTransfer: {
