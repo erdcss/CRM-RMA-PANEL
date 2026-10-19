@@ -11,6 +11,11 @@ export function B2BProductCard({
 }) {
   const image = product.image_data || product.image_url;
   const visiblePrice = loggedIn && product.price !== null && product.price !== undefined;
+  // Company-owned products have no seller_name in the catalog response.
+  // Supplier names always come from their verified marketplace listing.
+  const sellerName = product.marketplace || product.seller_slug
+    ? product.seller_name
+    : "ÇALIŞKAN";
   return (
     <Link
       href={unifiedProductHref(product)}
@@ -28,10 +33,10 @@ export function B2BProductCard({
         <div className="p-3">
           <div className="text-[11px] text-slate-400">{product.sku || "STOK"}</div>
           <h3 className="mt-1 min-h-10 line-clamp-2 font-semibold">{product.name || "Ürün"}</h3>
-          {product.seller_name ? (
-            <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-600">
+          {sellerName ? (
+            <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-600" aria-label={"Satıcı: " + sellerName}>
               <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-green-600" />
-              <span className="truncate">{product.seller_name}</span>
+              <span className="truncate">{sellerName}</span>
             </p>
           ) : null}
           <div className="mt-3 text-sm font-semibold text-slate-700">
