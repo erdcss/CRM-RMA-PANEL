@@ -297,9 +297,6 @@ export default function MarketplaceSeller(){
                 </div>
               </div>
               {liveStore.isLoading?<p role="status" className="text-xs text-slate-500">Yayındaki mağaza bilgileri yükleniyor…</p>:null}
-              <h3 className="font-semibold">Tasarım geçmişi</h3>
-              {dash.data?.storeVersions.map(v=><div key={v.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
-                <span>#{v.id} · {statusTR[v.status]||v.status}{v.is_live?" · Yayında":""}</span><span className="text-xs text-slate-500">{v.review_note}</span></div>)}
               {dash.data?.storeVersions.some(v=>v.is_live)?<Link className="inline-block text-sm font-bold underline" href={"/magaza/"+me.data.slug}>Yayındaki mağazayı gör ↗</Link>:null}
             </div>
           </div>:null}
