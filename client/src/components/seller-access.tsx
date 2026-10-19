@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { useBranding } from "@/hooks/use-branding";
 import { queryClient } from "@/lib/queryClient";
+import { announceSupplierSessionChange } from "@/lib/supplier-session-sync";
 import { ArrowRight, BadgeCheck, Boxes, Building2, CheckCircle2, Eye, EyeOff, Package, ShieldCheck, Store, Truck } from "lucide-react";
 
 export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
@@ -25,6 +26,7 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
       // This browser may have been used by another supplier. React Query keys for
       // products, orders, messages and storefronts must never survive login.
       queryClient.clear();
+      announceSupplierSessionChange();
       // A full reload discards every component-local draft as well.
       window.location.replace(window.location.pathname+window.location.search);
     } catch(e) { setError(e instanceof Error?e.message:"Lütfen tekrar deneyin"); }
