@@ -318,3 +318,23 @@ export async function savePaymentSettings(input: any) {
 
   return getAdminPaymentSettings();
 }
+
+/** Independent atomic visibility update, preserving encrypted provider credentials.
+ * Does not require payment providers to be configured.
+ */
+export async function saveCheckoutVisibility(input:unknown){
+  if(!pool)throw new Error("Veritabanı bağlantısı yok");
+  if(!input||typeof input!=="object")throw new Error("Geçersiz görünürlük ayarları");
+  const keys=["cargo","freight","pickup","card","bank_transfer"] as const;
+  const supplied=input as Record<string,unknown>;
+  if(keys.some(key=>typeof supplied[key]!=="boolean")||
+    Object.keys(supplied).some(key=>!keys.includes(key as typeof keys[number])))
+    throw new Error("Yalnızca teslimat ve ödeme görünürlük seçenekleri gönderilebilir");
+  const safe=sanitizeCheckoutVisibility(input);
+  const patch=JSON.stringify({checkoutVisibility:safe});
+  await pool.query(`INSERT INTO platform_settings (key,value,updated_at) VALUES ($1,$2,NOW())
+    ON CONFLICT (key) DO UPDATE SET
+    value=(COALESCE(NULLIF(platform_settings.value,'')::jsonb,'{}'::jsonb) || EXCLUDED.value::jsonb)::text,
+    updated_at=NOW()`,[SETTINGS_KEY,patch]);
+  return {checkoutVisibility:safe};
+}
