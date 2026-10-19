@@ -289,7 +289,7 @@ export function registerMarketplaceRoutes(
       (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
-      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE AND sv.status='approved'
       WHERE p.id=$1 AND p.is_enabled=TRUE LIMIT 1`,[productId]);
@@ -339,7 +339,7 @@ export function registerMarketplaceRoutes(
       FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
-      WHERE p.id=$1 AND s.slug=$2 AND s.status='approved' AND p.is_enabled=TRUE LIMIT 1`,[productId,req.params.slug]);
+      WHERE p.id=$1 AND s.slug=$2 AND s.status='approved' AND s.is_holiday=FALSE AND p.is_enabled=TRUE LIMIT 1`,[productId,req.params.slug]);
     if(!q.rows[0])throw new ApiError(404,"Onaylı ürün bulunamadı");
     res.setHeader("Cache-Control","private, no-store");
     const result=q.rows[0];
