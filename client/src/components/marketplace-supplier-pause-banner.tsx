@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { MarketplaceActionDialog } from "@/components/marketplace-action-dialog";
+import { toast } from "@/hooks/use-toast";
 
 type SupplierStatus={
   id:number;
@@ -14,6 +16,7 @@ type SupplierStatus={
 /** Persistent, server-backed sales-pause warning for every supplier screen. */
 export function MarketplaceSupplierPauseBanner(){
   const [busy,setBusy]=useState(false);
+  const [confirmOpen,setConfirmOpen]=useState(false);
   const [notice,setNotice]=useState("");
   const {data:account,refetch,isFetching}=useQuery<SupplierStatus|null>({
     queryKey:["/api/marketplace/me"],staleTime:0,
@@ -22,7 +25,6 @@ export function MarketplaceSupplierPauseBanner(){
   if(!account?.is_admin_paused)return null;
   async function resumeSales(){
     if(busy)return;
-    if(!window.confirm("Mağazanızı ve onaylı ürünlerinizi yeniden satışa açmak istiyor musunuz? Tatil modu açıksa 24 saatlik bekleme kuralı geçerlidir."))return;
     setBusy(true);setNotice("");
     try{
       const newest=await refetch();
@@ -40,9 +42,11 @@ export function MarketplaceSupplierPauseBanner(){
         queryClient.invalidateQueries({queryKey:["/api/marketplace/stores"]})
       ]);
       setNotice(result.message||"Mağazanız yeniden aktif edildi.");
+      toast({title:"Mağaza durumu güncellendi",description:result.message||"Mağazanız yeniden aktif edildi."});
     }catch(error){
       setNotice(error instanceof Error?error.message:"İşlem başarısız oldu.");
       await refetch();
+      throw error;
     }finally{setBusy(false);}
   }
   return <section role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-950 shadow-sm sm:px-5">
@@ -61,10 +65,18 @@ export function MarketplaceSupplierPauseBanner(){
           {notice?<p role="status" className="mt-2 text-xs font-bold">{notice}</p>:null}
         </div>
       </div>
-      <button type="button" disabled={busy||isFetching} onClick={()=>void resumeSales()}
+      <button type="button" disabled={busy||isFetching} onClick={()=>setConfirmOpen(true)}
         className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-xs font-extrabold text-[#FFCD00] hover:bg-slate-800 disabled:opacity-50 sm:text-sm">
         <RotateCcw className="h-4 w-4"/>{busy?"İşleniyor…":"Tekrardan Satışa Aç"}
       </button>
     </div>
+    <MarketplaceActionDialog
+      open={confirmOpen}
+      onOpenChange={setConfirmOpen}
+      title="Mağazayı yeniden satışa açmak istiyor musunuz?"
+      description="Mağazanızın pasifliği kaldırılacak ve onaylı ürünleriniz yeniden satışa açılacak. Tatil modu açıksa 24 saatlik yeniden açılma kuralı ayrıca geçerlidir."
+      confirmLabel="Tekrardan Satışa Aç"
+      onConfirm={resumeSales}
+    />
   </section>;
 }
