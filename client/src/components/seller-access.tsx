@@ -4,7 +4,7 @@ import { useBranding } from "@/hooks/use-branding";
 import { queryClient } from "@/lib/queryClient";
 import { ArrowRight, BadgeCheck, Boxes, Building2, CheckCircle2, Eye, EyeOff, Package, ShieldCheck, Store, Truck } from "lucide-react";
 
-export function SellerAccess({onAuthenticated}:{onAuthenticated:()=>Promise<unknown>}) {
+export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
   const [mode,setMode]=useState<"home"|"login"|"register">("home");
   const [form,setForm]=useState({firstName:"",lastName:"",companyName:"",email:"",password:""});
   const { data:branding }=useBranding();
