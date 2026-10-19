@@ -2457,6 +2457,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerB2BLedgerRoutes(app, requireB2B);
   registerB2BLedgerImportRoutes(app, requireB2B);
   registerB2BLedgerAdvancedRoutes(app, requireB2B);
+  // Administrative supplier onboarding: creates a dedicated seller login and a
+  // pending marketplace profile atomically. Company verification remains mandatory.
+  app.post("/api/admin/marketplace/suppliers",requireMarketplaceSuperAdmin,async(req,res)=>{
+    const details=z.object({
+      companyName:z.string().trim().min(2).max(180),
+      firstName:z.string().trim().min(2).max(80),
+      lastName:z.string().trim().min(2).max(80),
+      email:z.string().trim().email().max(254).transform(v=>v.toLowerCase()),
+      phone:z.string().trim().min(10).max(25),
+      taxNumber:z.union([z.literal(""),z.string().trim().regex(/^[0-9]{10,11}$/)]).default(""),
+      taxOffice:z.string().trim().max(140).default(""),
+      companyType:z.enum(["","sahis","limited","anonim","kooperatif","diger"]).default(""),
+      iban:z.union([z.literal(""),z.string().trim().toUpperCase().regex(/^TR[0-9]{24}$/)]).default(""),
+      description:z.string().trim().max(600).default("")
+    }).strict().safeParse(req.body);
+    if(!details.success){
+      return res.status(400).json({error:"Firma ve yetkili bilgilerini kontrol edin.",issues:details.error.flatten().fieldErrors});
+    }
+    const actor=sessionUserId(req);
+    if(!actor||!pool)return res.status(503).json({error:"Veritabanı bağlantısı kullanılamıyor"});
+    try{await ensureMarketplaceSchema();}catch(error){
+      console.error("Marketplace onboarding schema not ready",error);
+      return res.status(503).json({error:"Pazaryeri veritabanı henüz hazır değil"});
+    }
+    const data=details.data;
+    const client=await pool.connect();
+    try{
+      await client.query("BEGIN");
+      const duplicate=await client.query(
+        "SELECT id FROM users WHERE LOWER(username)=LOWER($1) OR LOWER(COALESCE(email,''))=LOWER($1) LIMIT 1",
+        [data.email]
+      );
+      if(duplicate.rowCount){
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"Bu e-posta adresiyle daha önce hesap oluşturulmuş."});
+      }
+      if(data.taxNumber){
+        const duplicateTax=await client.query(
+          "SELECT id FROM mp_suppliers WHERE tax_number=$1 LIMIT 1",[data.taxNumber]
+        );
+        if(duplicateTax.rowCount){
+          await client.query("ROLLBACK");
+          return res.status(409).json({error:"Bu vergi numarasıyla kayıtlı bir tedarikçi zaten mevcut."});
+        }
+      }
+      const temporaryPassword=randomBytes(24).toString("base64url");
+      const user=await client.query(`INSERT INTO users
+        (username,password,role,app_access,is_active,company_name,first_name,last_name,
+          email,company_category,application_status,must_change_password)
+        VALUES($1,$2,'b2b_seller','seller',1,$3,$4,$5,$1,'Diğer','pending',0)
+        RETURNING id`,
+        [data.email,hashPassword(temporaryPassword),data.companyName,data.firstName,data.lastName]
+      );
+      const userId=Number(user.rows[0].id);
+      const base=data.companyName.toLocaleLowerCase("tr-TR")
+        .replace(/ı/g,"i").replace(/ğ/g,"g").replace(/ü/g,"u")
+        .replace(/ş/g,"s").replace(/ö/g,"o").replace(/ç/g,"c")
+        .normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"")
+        .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,65)||"tedarikci";
+      const slug=base+"-"+userId;
+      const supplier=await client.query(`INSERT INTO mp_suppliers
+        (owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,
+          contact_email,company_type,iban,description,status)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')
+        RETURNING id,status`,
+        [userId,slug,data.companyName,data.taxNumber,data.taxOffice,
+          data.firstName+" "+data.lastName,data.phone,data.email,data.companyType,data.iban,data.description]
+      );
+      await client.query(
+        "INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
+        [actor,"supplier_created_by_admin",supplier.rows[0].id,"Manuel tedarikçi kaydı"]
+      );
+      await client.query("COMMIT");
+      res.setHeader("Cache-Control","private, no-store");
+      return res.status(201).json({
+        supplierId:Number(supplier.rows[0].id),userId,slug,status:"pending",
+        email:data.email,temporaryPassword,
+        message:"Tedarikçi hesabı oluşturuldu. Satışa açılması için firma doğrulaması ve yönetici onayı gerekli."
+      });
+    }catch(error){
+      await client.query("ROLLBACK").catch(()=>undefined);
+      if((error as {code?:string}).code==="23505")
+        return res.status(409).json({error:"Bu e-posta veya firma bilgisiyle zaten kayıt mevcut."});
+      console.error("Admin supplier onboarding failed",error);
+      return res.status(500).json({error:"Tedarikçi hesabı oluşturulamadı. Lütfen yeniden deneyin."});
+    }finally{client.release();}
+  });
+
   registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller, requireMarketplaceParticipant);
   void ensureMarketplaceSchema().catch(error => console.error("Marketplace schema migration failed:",error));
   registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
