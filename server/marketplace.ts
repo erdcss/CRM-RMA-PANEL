@@ -513,8 +513,13 @@ export function registerMarketplaceRoutes(
     const client=await db.connect();
     try{
       await client.query("BEGIN");
-      await client.query("SELECT id FROM mp_suppliers WHERE id=$1 FOR UPDATE",[s.id]);
-      const r=await client.query("INSERT INTO mp_store_versions(supplier_id,content) VALUES($1,$2) RETURNING id,status,created_at",[s.id,JSON.stringify(content)]);
+      const owner=await client.query("SELECT admin_verified,status FROM mp_suppliers WHERE id=$1 FOR UPDATE",[s.id]);
+      const immediatelyLive=owner.rows[0]?.admin_verified===true && owner.rows[0]?.status==="approved";
+      if(immediatelyLive)await client.query("UPDATE mp_store_versions SET is_live=FALSE WHERE supplier_id=$1 AND is_live=TRUE",[s.id]);
+      const r=await client.query(`INSERT INTO mp_store_versions(supplier_id,content,status,is_live,reviewed_at,review_note)
+        VALUES($1,$2,$3,$4,CASE WHEN $4 THEN NOW() ELSE NULL END,$5) RETURNING id,status,is_live,created_at`,
+        [s.id,JSON.stringify(content),immediatelyLive?"approved":"pending",immediatelyLive,
+          immediatelyLive?"Yönetici tarafından doğrulanmış tedarikçi":""]);
       await client.query("COMMIT");
       res.status(201).json(r.rows[0]);
     }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
@@ -548,6 +553,8 @@ export function registerMarketplaceRoutes(
     const client=await db.connect();
     try{
       await client.query("BEGIN");
+      const supplierState=await client.query("SELECT admin_verified,status FROM mp_suppliers WHERE id=$1 FOR UPDATE",[supplier.id]);
+      const immediatelyLive=supplierState.rows[0]?.admin_verified===true && supplierState.rows[0]?.status==="approved";
       const previous=await client.query(
         "SELECT sku,current_price FROM mp_products WHERE id=$1 AND supplier_id=$2 FOR UPDATE",
         [productId,supplier.id]);
@@ -565,8 +572,16 @@ export function registerMarketplaceRoutes(
       }
       const pending=await client.query("SELECT id FROM mp_product_versions WHERE product_id=$1 AND status='pending' FOR UPDATE",[productId]);
       if(pending.rows.length)throw new ApiError(409,"Bu ürün için onay bekleyen bir değişiklik var. Önce yönetici kararını bekleyin.");
-      const record=await client.query(`INSERT INTO mp_product_versions(product_id,content)
-        VALUES($1,$2) RETURNING id,status,created_at`,[productId,JSON.stringify(safeContent)]);
+      if(immediatelyLive){
+        await client.query("UPDATE mp_product_versions SET is_live=FALSE WHERE product_id=$1 AND is_live=TRUE",[productId]);
+        if(data.sku!==previous.rows[0].sku)
+          await client.query("UPDATE mp_products SET sku=$1 WHERE id=$2",[data.sku,productId]);
+      }
+      const record=await client.query(`INSERT INTO mp_product_versions(product_id,content,status,is_live,reviewed_at,review_note)
+        VALUES($1,$2,$3,$4,CASE WHEN $4 THEN NOW() ELSE NULL END,$5)
+        RETURNING id,status,is_live,created_at`,
+        [productId,JSON.stringify(safeContent),immediatelyLive?"approved":"pending",immediatelyLive,
+          immediatelyLive?"Yönetici tarafından doğrulanmış tedarikçi":""]);
       await client.query("COMMIT");
       res.status(201).json({productId,revision:record.rows[0],message:"Değişiklikler yönetici onayına gönderildi"});
     }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
@@ -610,10 +625,20 @@ export function registerMarketplaceRoutes(
     const client=await db.connect();
     try {
       await client.query("BEGIN");
+      const supplierState=await client.query("SELECT admin_verified,status FROM mp_suppliers WHERE id=$1 FOR UPDATE",[s.id]);
+      const immediatelyLive=supplierState.rows[0]?.admin_verified===true && supplierState.rows[0]?.status==="approved";
       const p=await client.query(`INSERT INTO mp_products(supplier_id,sku,stock,current_price) VALUES($1,$2,$3,$4)
         ON CONFLICT(supplier_id,sku) DO UPDATE SET stock=EXCLUDED.stock,current_price=EXCLUDED.current_price RETURNING id`,
         [s.id,data.sku,data.stock,data.product.price.toFixed(2)]);
-      const v=await client.query("INSERT INTO mp_product_versions(product_id,content) VALUES($1,$2) RETURNING id,status",[p.rows[0].id,JSON.stringify({...data.product,sku:data.sku})]);
+      if(immediatelyLive)
+        await client.query("UPDATE mp_product_versions SET is_live=FALSE WHERE product_id=$1 AND is_live=TRUE",[p.rows[0].id]);
+      const v=await client.query(`INSERT INTO mp_product_versions
+        (product_id,content,status,is_live,reviewed_at,review_note)
+        VALUES($1,$2,$3,$4,CASE WHEN $4 THEN NOW() ELSE NULL END,$5)
+        RETURNING id,status,is_live`,
+        [p.rows[0].id,JSON.stringify({...data.product,sku:data.sku}),
+          immediatelyLive?"approved":"pending",immediatelyLive,
+          immediatelyLive?"Yönetici tarafından doğrulanmış tedarikçi":""]);
       await client.query("COMMIT");res.status(201).json({productId:p.rows[0].id,revision:v.rows[0]});
     }catch(e){await client.query("ROLLBACK");throw e;}finally{client.release();}
   }));
