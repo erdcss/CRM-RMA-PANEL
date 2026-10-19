@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Clock3, ImagePlus, Package, Save, ShieldCheck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { MarketplaceHolidayBanner } from "@/components/marketplace-holiday-banner";
+import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplier-pause-banner";
 
 type Fields={
   name:string;sku:string;description:string;brand:string;category:string;barcode:string;
@@ -106,7 +107,8 @@ export default function MarketplaceSellerProduct({id}:{id:string}){
       <Link href="/satici" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-black">
         <ArrowLeft className="h-4 w-4"/>Ürünlerime dön
       </Link>
-      <div className="sticky top-0 z-30"><MarketplaceHolidayBanner/></div>
+      <div className="sticky top-0 z-30"><MarketplaceSupplierPauseBanner/>
+        <MarketplaceHolidayBanner/></div>
       {isLoading?<div className={section}>Ürün yükleniyor…</div>:
       error?<div role="alert" className={section}>Ürün bilgileri alınamadı. Tedarikçi hesabınızla giriş yapın veya yeniden deneyin.</div>:
       !p?<div className={section}>Ürün bulunamadı veya bu hesaba ait değil.</div>:
