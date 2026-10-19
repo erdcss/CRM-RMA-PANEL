@@ -10,8 +10,15 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
 type PaymentLogo = { id: string; label: string; imageId: string };
+type CheckoutVisibility = {
+  cargo:boolean;freight:boolean;pickup:boolean;card:boolean;bank_transfer:boolean
+};
+const defaultVisibility:CheckoutVisibility={
+  cargo:true,freight:true,pickup:true,card:true,bank_transfer:true
+};
 type PaymentSettings = {
   paymentLogos?: PaymentLogo[];
+  checkoutVisibility?:CheckoutVisibility;
   iyzicoConfigured?: boolean;
   iyzico: {
     enabled: boolean;
@@ -52,6 +59,8 @@ export default function AdminPaymentSettingsPage() {
   const [iban, setIban] = useState("");
   const [paymentLogos, setPaymentLogos] = useState<PaymentLogo[]>([]);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [visibility, setVisibility] = useState<CheckoutVisibility>(defaultVisibility);
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -62,8 +71,32 @@ export default function AdminPaymentSettingsPage() {
     setAccountHolder(data.bankTransfer.accountHolder || "");
     setIban(data.bankTransfer.iban || "");
     setPaymentLogos(data.paymentLogos || []);
+    setVisibility(data.checkoutVisibility || defaultVisibility);
   }, [data]);
 
+  // Each visibility switch saves immediately; no second Save click is required.
+  async function toggleVisibility(key:keyof CheckoutVisibility,next:boolean){
+    if(updatingVisibility)return;
+    const updated={...visibility,[key]:next};
+    setUpdatingVisibility(true);
+    setVisibility(updated);
+    try{
+      const response=await fetch("/api/admin/payment-settings",{
+        method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({checkoutVisibility:updated})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"Ödeme seçenekleri güncellenemedi");
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/payment-settings"]}),
+        queryClient.invalidateQueries({queryKey:["/api/public/payment-settings"]})
+      ]);
+      toast({title:"Ödeme ekranı anında güncellendi",description:next?"Seçenek gösteriliyor.":"Seçenek gizlendi."});
+    }catch(error){
+      setVisibility(visibility);
+      toast({title:"Görünürlük kaydedilemedi",description:error instanceof Error?error.message:"Bağlantıyı kontrol edin",variant:"destructive"});
+    }finally{setUpdatingVisibility(false);}
+  }
   async function addPaymentLogo(file: File) {
     if (paymentLogos.length >= 16) return toast({ title: "En fazla 16 logo eklenebilir.", variant: "destructive" });
     if (!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type) || file.size > 3 * 1024 * 1024) {
@@ -113,6 +146,7 @@ export default function AdminPaymentSettingsPage() {
             baseUrl,
           },
           paymentLogos,
+          checkoutVisibility:visibility,
           bankTransfer: {
             enabled: bankEnabled,
             bankName,
@@ -156,6 +190,37 @@ export default function AdminPaymentSettingsPage() {
           </Button>
         </div>
 
+        <Card className="mb-5">
+          <CardHeader>
+            <CardTitle>Ödeme Sayfasında Göster / Gizle</CardTitle>
+            <CardDescription>Değişiklikler ana Kaydet butonuna basmadan anında kaydedilir ve ödeme sayfasına yansır. Gizlenen seçenek sunucu tarafından da kabul edilmez.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-5 md:grid-cols-2">
+            <section className="space-y-3">
+              <h3 className="text-sm font-extrabold">Teslimat Yöntemleri</h3>
+              {([
+                ["cargo","Kargo ile gönder"],
+                ["freight","Ambar ile gönder"],
+                ["pickup","Kendim teslim alacağım"]
+              ] as const).map(([key,label])=><div key={key} className="flex items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3">
+                <Label className="cursor-pointer" htmlFor={"checkout-"+key}>{label}</Label>
+                <Switch id={"checkout-"+key} disabled={updatingVisibility} checked={visibility[key]}
+                  onCheckedChange={enabled=>void toggleVisibility(key,enabled)}/>
+              </div>)}
+            </section>
+            <section className="space-y-3">
+              <h3 className="text-sm font-extrabold">Ödeme Yöntemleri</h3>
+              {([
+                ["card","Kredi / Banka Kartı"],
+                ["bank_transfer","Havale / EFT"]
+              ] as const).map(([key,label])=><div key={key} className="flex items-center justify-between gap-4 rounded-xl border bg-background px-4 py-3">
+                <Label className="cursor-pointer" htmlFor={"checkout-"+key}>{label}</Label>
+                <Switch id={"checkout-"+key} disabled={updatingVisibility} checked={visibility[key]}
+                  onCheckedChange={enabled=>void toggleVisibility(key,enabled)}/>
+              </div>)}
+            </section>
+          </CardContent>
+        </Card>
         <div className="grid gap-5">
           <Card>
             <CardHeader>
