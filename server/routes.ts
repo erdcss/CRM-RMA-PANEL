@@ -18,7 +18,7 @@ import {
   retrieveIyzicoCheckout,
 } from "./iyzico";
 import { getPaymentConfig } from "./payment-config";
-import { ensureMobilePushTable, registerMobilePushToken, sendPushToApp } from "./push-notifications";
+import { ensureMobilePushTable, registerMobilePushToken, sendBusinessPushToSuperAdmins } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BBankPaymentApproval } from "./b2b-bank-payment-approval";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
@@ -1642,8 +1642,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const appName = req.body?.app === "business" ? "business" : req.body?.app === "b2b" ? "b2b" : "";
     if (!appName) return res.status(400).json({ error: "Geçersiz uygulama bilgisi" });
 
-    if (appName === "business" && !["admin", "super_admin"].includes(user.role)) {
-      return res.status(403).json({ error: "Business bildirimi için yönetici hesabı gerekiyor" });
+    if (appName === "business" && !["admin", "super_admin", "b2b_seller"].includes(user.role)) {
+      return res.status(403).json({ error: "Business bildirimi için yönetici veya tedarikçi hesabı gerekiyor" });
     }
     if (appName === "b2b" && user.role !== "b2b_customer") {
       return res.status(403).json({ error: "B2B bildirimi için müşteri hesabı gerekiyor" });
@@ -3477,7 +3477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       void notifyVerifiedSupplierOrder(String(order.order_number),order.items,stockReview)
         .catch(e=>console.error("Verified supplier notification",e));
 
-      void sendPushToApp("business", {
+      void sendBusinessPushToSuperAdmins( {
         title: "Yeni sipariş",
         body: `${order.order_number} · Kart ödemesi başarılı`,
         data: { type: "order", orderNumber: order.order_number },
@@ -3809,7 +3809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .catch(e=>console.error("Supplier cart cleanup",e));
             void notifyVerifiedSupplierOrder(String(order.order_number),order.items,true)
               .catch(e=>console.error("Supplier payment stock review notice",e));
-            void sendPushToApp("business", {
+            void sendBusinessPushToSuperAdmins( {
               title: "Yeni sipariş",
               body: `${order.order_number} · Ödeme başarılı · Stok kontrolü gerekli`,
               data: { type: "order", orderNumber: order.order_number },
@@ -3873,7 +3873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .catch(e=>console.error("Supplier cart cleanup",e));
         void notifyVerifiedSupplierOrder(String(order.order_number),order.items)
           .catch(e=>console.error("Supplier payment notification",e));
-        void sendPushToApp("business", {
+        void sendBusinessPushToSuperAdmins( {
           title: "Yeni sipariş",
           body: `${order.order_number} · Kart ödemesi başarılı`,
           data: { type: "order", orderNumber: order.order_number },
@@ -4040,7 +4040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // supplier cart lines, but do NOT mark it paid or alert suppliers yet.
     void removePurchasedMarketplaceCartItems(Number(user.id),orderItems)
       .catch(e=>console.error("Pending EFT cart cleanup",e));
-    void sendPushToApp("business", {
+    void sendBusinessPushToSuperAdmins( {
       title: "Yeni sipariş",
       body: `${orderNumber} · ${Number(total).toLocaleString("tr-TR")} ₺ · Havale/EFT`,
       data: { type: "order", orderNumber },
@@ -4083,7 +4083,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "Havale/EFT siparişi bulunamadı" });
     }
 
-    void sendPushToApp("business", {
+    void sendBusinessPushToSuperAdmins( {
       title: "Havale bildirimi",
       body: `${result.rows[0].order_number} için müşteri ödeme yaptığını bildirdi.`,
       data: { type: "order", orderNumber: result.rows[0].order_number },
@@ -4183,7 +4183,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ],
     ).catch(() => undefined);
 
-    void sendPushToApp("business", {
+    void sendBusinessPushToSuperAdmins( {
       title: "Sipariş iptal talebi",
       body: `${result.rows[0].order_number} için müşteri iptal talebi oluşturdu.`,
       data: { type: "support", orderNumber: result.rows[0].order_number },
@@ -4249,7 +4249,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [user.id, subject, message],
     );
 
-    void sendPushToApp("business", {
+    void sendBusinessPushToSuperAdmins( {
       title: "Yeni destek mesajı",
       body: subject,
       data: { type: "support", ticketId: result.rows[0]?.id },
