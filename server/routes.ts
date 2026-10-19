@@ -134,10 +134,11 @@ function mobileTokenUserId(req: Request): number | undefined {
 }
 
 function sessionUserId(req: Request): number | undefined {
-  return (
-    (req.session as { userId?: number }).userId ||
-    mobileTokenUserId(req)
-  );
+  // Authorization is an explicit identity. Never let a pre-existing browser
+  // cookie override a Business mobile Bearer token from a different account.
+  const authorization=String(req.headers.authorization||"").trim();
+  if(authorization)return mobileTokenUserId(req);
+  return (req.session as {userId?:number}).userId;
 }
 
 function authResponseUser(user: any, usernameOverride?: string) {
@@ -1869,7 +1870,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const password=String(req.body?.password||"");
     const user=(await storage.getUserByUsername(email))||(await storage.getUserByEmail(email));
     if(!user||!verifyPassword(password,user.password)||user.role!=="b2b_seller"||user.isActive!==1) return res.status(401).json({error:"Satıcı e-posta adresi veya şifre hatalı"});
-    (req.session as {userId?:number}).userId=user.id;
+    // Replace the previous seller session instead of changing its user ID in
+    // place; prevents session fixation and races with concurrent supplier tabs.
+    try{
+      await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
+      (req.session as {userId?:number}).userId=user.id;
+      await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
+    }catch(error){
+      console.error("Seller session creation failed",error);
+      return res.status(503).json({error:"Satıcı oturumu oluşturulamadı. Tekrar giriş yapın."});
+    }
+    res.setHeader("Cache-Control","private, no-store");
     return res.json(authResponse(user));
   });
 
