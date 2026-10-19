@@ -6,6 +6,7 @@ import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, 
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 import { MarketplaceHolidayBanner } from "@/components/marketplace-holiday-banner";
+import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplier-pause-banner";
 
 type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
@@ -256,6 +257,7 @@ export default function MarketplaceSeller(){
       </div>
       {message?<Notice text={message}/>:null}
       {me.data ? <div className="sticky top-0 z-30 -mx-2 space-y-2">
+        <MarketplaceSupplierPauseBanner/>
         <MarketplaceHolidayBanner/>
         <nav aria-label="Tedarikçi araçları" className="flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur">
         {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"reels",label:"Reels",icon:Film},{key:"settings",label:"Ayarlar",icon:ShieldCheck}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
