@@ -9,6 +9,7 @@ import { MarketplaceHolidayBanner } from "@/components/marketplace-holiday-banne
 import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplier-pause-banner";
 import { MarketplaceActionDialog } from "@/components/marketplace-action-dialog";
 import { toast } from "@/hooks/use-toast";
+import { announceSupplierSessionChange, listenForSupplierSessionChange } from "@/lib/supplier-session-sync";
 
 type Supplier={id:number;owner_user_id:number;slug:string;company_name:string;status:string;admin_created?:boolean;admin_verified?:boolean;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
@@ -72,6 +73,7 @@ function QuickProductPriceStock({record}:{record:Product}){
 }
 
 export default function MarketplaceSeller(){
+  useEffect(()=>listenForSupplierSessionChange(),[]);
   const [tab,setTab]=useState<Tab>("dashboard");
   const [,navigate]=useLocation();
   const isStandaloneMarketplace=typeof window!=="undefined" && (
@@ -356,6 +358,7 @@ export default function MarketplaceSeller(){
     const response=await fetch("/api/auth/logout",{method:"POST",credentials:"include",cache:"no-store"});
     if(!response.ok)throw new Error("Çıkış yapılamadı");
     queryClient.clear();
+    announceSupplierSessionChange();
     window.location.replace("/satici");
   }catch(error){setMessage(error instanceof Error?error.message:"Çıkış işlemi başarısız oldu.");}}} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"><LogOut className="mr-2 inline h-4 w-4"/>Güvenli Çıkış</button></div>
       </div>
