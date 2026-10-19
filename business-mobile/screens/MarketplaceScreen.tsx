@@ -37,6 +37,8 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
  const [profile,setProfile]=useState<SupplierProfile|null>(null),[supplierOrders,setSupplierOrders]=useState<SellerOrder[]>([]);
  const [adminOrders,setAdminOrders]=useState<AdminOrder[]>([]);
  const [editingProduct,setEditingProduct]=useState<string|null>(null),[editingPrice,setEditingPrice]=useState(""),[editingStock,setEditingStock]=useState("");
+ const [productDraft,setProductDraft]=useState({sku:"",name:"",description:"",category:"",brand:"",barcode:"",
+   imageUrl:"",unitsPerBox:"1",minBoxes:"1",leadDays:"1"});
  const [editingReel,setEditingReel]=useState<string|null>(null),[reelTitle,setReelTitle]=useState("");
  const [chats,setChats]=useState<Chat[]>([]),[selectedChat,setSelectedChat]=useState<string|null>(null),[messages,setMessages]=useState<Msg[]>([]);
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
@@ -286,6 +288,7 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
     {products.map(p=><View key={String(p.id)} style={s.card}><Text style={s.itemTitle}>{p.latest?.content?.name||p.sku}</Text>
        <Text style={s.help}>{p.sku} · Stok: {p.stock} · {money(p.current_price||p.latest?.content?.price||0)} · {status[p.latest?.status]||"Taslak"}</Text>
        {editingProduct===String(p.id)?<View style={{gap:8}}>
+         <Text style={s.help}>Fiyat ve stok anında güncellenir. Diğer ürün değişiklikleri yönetici onayına gönderilir.</Text>
          <Input value={editingPrice} onChangeText={setEditingPrice} placeholder="Yeni fiyat (TL)"/>
          <Input value={editingStock} onChangeText={setEditingStock} placeholder="Yeni stok adedi"/>
          <Action title="Fiyat ve Stok Kaydet" disabled={working} onPress={()=>{
@@ -294,9 +297,41 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
            void patch("/api/marketplace/seller/products/"+p.id+"/quick",{price,stock},"Ürün fiyatı ve stok güncellendi.");
            setEditingProduct(null);
          }}/>
-       </View>:<Action title="Fiyat / Stok Düzenle" onPress={()=>{
-         setEditingProduct(String(p.id));setEditingPrice(String(p.current_price||p.latest?.content?.price||""));
+         <Text style={s.itemTitle}>Ürün Bilgileri · Admin Onayı Gerekir</Text>
+         <Input value={productDraft.sku} onChangeText={v=>setProductDraft(x=>({...x,sku:v}))} placeholder="Stok Kodu"/>
+         <Input value={productDraft.name} onChangeText={v=>setProductDraft(x=>({...x,name:v}))} placeholder="Ürün Adı"/>
+         <Input value={productDraft.category} onChangeText={v=>setProductDraft(x=>({...x,category:v}))} placeholder="Kategori"/>
+         <Input value={productDraft.brand} onChangeText={v=>setProductDraft(x=>({...x,brand:v}))} placeholder="Marka"/>
+         <Input value={productDraft.description} onChangeText={v=>setProductDraft(x=>({...x,description:v}))} placeholder="Açıklama" multiline/>
+         <Input value={productDraft.barcode} onChangeText={v=>setProductDraft(x=>({...x,barcode:v}))} placeholder="Barkod"/>
+         <Input value={productDraft.unitsPerBox} onChangeText={v=>setProductDraft(x=>({...x,unitsPerBox:v}))} placeholder="Koli İçi Adet"/>
+         <Input value={productDraft.minBoxes} onChangeText={v=>setProductDraft(x=>({...x,minBoxes:v}))} placeholder="Minimum Koli"/>
+         <Input value={productDraft.leadDays} onChangeText={v=>setProductDraft(x=>({...x,leadDays:v}))} placeholder="Termin Süresi (Gün)"/>
+         <Action title={productDraft.imageUrl?"Ürün Görselini Değiştir":"Ürün Görseli Yükle"} disabled={mediaBusy}
+           onPress={()=>void selectImage(url=>setProductDraft(x=>({...x,imageUrl:url})))}/>
+         <Action title="Bilgileri Yeniden Onaya Gönder" disabled={working||mediaBusy} onPress={()=>{
+           const d=productDraft,unitsPerBox=Number(d.unitsPerBox),minBoxes=Number(d.minBoxes),leadDays=Number(d.leadDays);
+           if(!d.sku.trim()||!d.name.trim()||!d.category.trim()||!d.imageUrl||
+             !Number.isSafeInteger(unitsPerBox)||unitsPerBox<1||!Number.isSafeInteger(minBoxes)||minBoxes<1||
+             !Number.isSafeInteger(leadDays)||leadDays<1||leadDays>14){
+             setError("Ürün adı, stok kodu, kategori, görsel ve koli bilgilerini kontrol edin.");return;
+           }
+           void patch("/api/marketplace/seller/products/"+p.id+"/revisions",{
+             sku:d.sku.trim(),
+             product:{name:d.name.trim(),description:d.description,category:d.category.trim(),brand:d.brand,
+               barcode:d.barcode,imageUrl:d.imageUrl,price:Number(p.current_price||p.live?.price||p.latest?.content?.price||1),
+               unitsPerBox,minBoxes,leadDays}
+           },"Ürün bilgileri yönetici onayına gönderildi.");
+           setEditingProduct(null);
+         }}/>
+       </View>:<Action title="Ürünü Düzenle" onPress={()=>{
+         const d=p.live||p.latest?.content||{};
+         setEditingProduct(String(p.id));setEditingPrice(String(p.current_price||d.price||""));
          setEditingStock(String(p.stock));
+         setProductDraft({sku:String(p.sku||""),name:String(d.name||""),description:String(d.description||""),
+           category:String(d.category||""),brand:String(d.brand||""),barcode:String(d.barcode||""),
+           imageUrl:String(d.imageUrl||""),unitsPerBox:String(d.unitsPerBox||1),
+           minBoxes:String(d.minBoxes||1),leadDays:String(d.leadDays||1)});
        }}/>}
      </View>)}
     <Text style={s.help}>Ürünler aynı tedarikçi hesabıyla web ve mobil panelden yönetilir.</Text>
