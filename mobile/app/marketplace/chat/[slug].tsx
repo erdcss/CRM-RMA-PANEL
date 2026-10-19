@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,11 +19,14 @@ export default function SellerChat() {
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
   const [sellerName,setSellerName]=useState('Satıcıyla İletişime Geç');
+  const [closed,setClosed]=useState(false);
   const refresh=useCallback(async()=>{
     try{
       const threads=await rmaApi.listMarketplaceConversations();
       const thread=threads.find(item=>item.slug===slug)||null;
       setConversation(thread);
+      const closedThreads=await rmaApi.listClosedMarketplaceConversations();
+      setClosed(!thread&&closedThreads.some(item=>item.slug===String(slug)));
       if(thread?.company_name)setSellerName(thread.company_name);
       else {
         const shop=await rmaApi.getMarketplaceStore(String(slug));
@@ -36,6 +39,7 @@ export default function SellerChat() {
     finally{setLoading(false);}
   },[slug]);
   useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
+  useEffect(()=>{const timer=setInterval(()=>{void refresh();},5000);return()=>clearInterval(timer);},[refresh]);
   const send=async()=>{
     const body=text.trim();
     if(!body||busy)return;
@@ -64,11 +68,12 @@ export default function SellerChat() {
         <Text style={styles.safetyNoticeText}>Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</Text>
       </ScrollView>
     </View>
+    {closed?<View style={styles.closedNotice}><Text style={styles.closedText}>Sohbet satıcı tarafından kapatıldı.</Text><View style={styles.closedButtons}><Pressable style={styles.closedButton} onPress={()=>{setClosed(false);setConversation(null);setMessages([]);}}><Text style={styles.closedButtonText}>Yeni Sohbet Başlat</Text></Pressable><Pressable style={styles.closedButton} onPress={()=>router.back()}><Text style={styles.closedButtonText}>Geri Dön</Text></Pressable></View></View>:null}
     {error?<Text role="alert" style={styles.error}>{error}</Text>:null}
-    <FlatList data={messages} keyExtractor={item=>String(item.id)} style={{flex:1}}
+    <FlatList data={closed?[]:messages} keyExtractor={item=>String(item.id)} style={{flex:1}}
       contentContainerStyle={styles.messages}
       ListEmptyComponent={<Text style={[styles.empty,{color:palette.textSecondary}]}>
-        {loading?'Sohbet yükleniyor…':'Satıcıyla yeni sohbet başlatmak için mesaj yazın.'}
+        {closed?'Önceki sohbet arşive alındı.':loading?'Sohbet yükleniyor…':'Satıcıyla yeni sohbet başlatmak için mesaj yazın.'}
       </Text>}
       renderItem={({item})=><View style={[styles.bubble,item.author_user_id===me?styles.mine:styles.theirs]}>
         <Text style={styles.bubbleText}>{item.text}</Text>
@@ -87,6 +92,9 @@ export default function SellerChat() {
 const styles=StyleSheet.create({
   root:{flex:1},header:{paddingHorizontal:14,paddingTop:12,paddingBottom:15,flexDirection:'row',gap:10,alignItems:'center',borderBottomWidth:1,minHeight:76},
   backButton:{width:35,height:48,alignItems:'center',justifyContent:'center'},
+  closedNotice:{margin:12,padding:10,borderRadius:9,backgroundColor:'#FFFBEB',borderColor:'#F59E0B',borderWidth:1},
+  closedText:{fontSize:12,fontWeight:'700',color:'#78350F'},closedButtons:{flexDirection:'row',gap:8,marginTop:8},
+  closedButton:{backgroundColor:'#FFCD00',paddingHorizontal:10,paddingVertical:8,borderRadius:8},closedButtonText:{fontSize:11,fontWeight:'800',color:'#111827'},
   safetyNotice:{marginHorizontal:12,marginTop:6,marginBottom:3,paddingHorizontal:10,height:32,borderRadius:8,borderWidth:1,borderColor:'#F59E0B',backgroundColor:'#FFFBEB',flexDirection:'row',alignItems:'center',gap:7},
   safetyNoticeText:{color:'#78350F',fontSize:11,lineHeight:16,fontWeight:'600'},
   heading:{fontSize:17,fontWeight:'900',lineHeight:23},subheading:{fontSize:12,marginTop:3},messages:{padding:16,flexGrow:1,gap:9},
