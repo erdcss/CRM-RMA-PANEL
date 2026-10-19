@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text,
 import { apiFetch } from "../lib/api";
 import { C } from "../ui/theme";
 import { BackHeader } from "./common";
+import { pickAndUploadSellerImage, pickAndUploadSellerVideo } from "../lib/marketplace-media";
 import type { AdminOrder } from "../types";
 import { money, shortDate, statusMeta } from "../ui/theme";
 
@@ -41,6 +42,12 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
  const [loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const [note,setNote]=useState(""),[reply,setReply]=useState("");
  const [storeTitle,setStoreTitle]=useState(""),[storeTagline,setStoreTagline]=useState("");
+ const [storeLogo,setStoreLogo]=useState<string|null>(null),[storeBanner,setStoreBanner]=useState<string|null>(null);
+ const [storeAccent,setStoreAccent]=useState("#FACC15");
+ const [newSku,setNewSku]=useState(""),[newName,setNewName]=useState(""),[newCategory,setNewCategory]=useState("");
+ const [newPrice,setNewPrice]=useState(""),[newStock,setNewStock]=useState("0"),[newBoxes,setNewBoxes]=useState("1");
+ const [newImage,setNewImage]=useState<string|null>(null),[mediaBusy,setMediaBusy]=useState(false),[mediaProgress,setMediaProgress]=useState(0);
+ const [reelDraftTitle,setReelDraftTitle]=useState(""),[reelDraftVideo,setReelDraftVideo]=useState<string|null>(null),[reelDraftCover,setReelDraftCover]=useState<string|null>(null);
  const load=useCallback(async()=>{
   setError("");
   try{
@@ -51,13 +58,17 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
       apiFetch<AdminOrder[]>("/api/admin/orders")]);
     setOverview(a);setQueue(q);setAdminOrders(orders);
    }else{
-    const [a,p,c,orders,account]=await Promise.all([
+    const [a,p,c,orders,account,store]=await Promise.all([
       apiFetch<SupplierStats>("/api/marketplace/seller/dashboard"),
       apiFetch<any[]>("/api/marketplace/seller/products"),
       apiFetch<Chat[]>("/api/marketplace/conversations"),
       apiFetch<SellerOrder[]>("/api/marketplace/seller/orders"),
-      apiFetch<SupplierProfile>("/api/marketplace/me")]);
+      apiFetch<SupplierProfile>("/api/marketplace/me"),
+      apiFetch<{content:{title:string;tagline:string;accent:string;logoUrl?:string|null;bannerUrl?:string|null}}|null>("/api/marketplace/seller/store")]);
     setOverview(a);setProducts(p);setChats(c);setSupplierOrders(orders);setProfile(account);
+    if(store?.content){setStoreTitle(store.content.title||"");setStoreTagline(store.content.tagline||"");
+      setStoreAccent(store.content.accent||"#FACC15");
+      setStoreLogo(store.content.logoUrl||null);setStoreBanner(store.content.bannerUrl||null);}
    }
   }catch(e){setError(e instanceof Error?e.message:"Veriler alınamadı");}
   finally{setLoading(false);setRefreshing(false);}
@@ -94,6 +105,53 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
    Alert.alert("Tatil modunu kapat","Mağazanız 24 saat içerisinde görünür olacak. Bu süre dolana kadar ürünleriniz satışa kapalı kalacaktır.",[
      {text:"Vazgeç",style:"cancel"},{text:"Açılışı planla",onPress:()=>void patch("/api/marketplace/seller/settings",{holidayMode:false},"24 saatlik yeniden açılış planlandı.")}
    ]);
+ }
+ async function selectImage(onDone:(url:string)=>void){
+   if(mediaBusy)return;
+   setMediaBusy(true);setError("");setNotice("");
+   try{const url=await pickAndUploadSellerImage();if(url){onDone(url);setNotice("Görsel yüklendi. Yayına almak için değişiklikleri onaya gönderin.");}}
+   catch(e){setError(e instanceof Error?e.message:"Görsel yüklenemedi");}
+   finally{setMediaBusy(false);}
+ }
+ async function selectVideo(){
+   if(mediaBusy)return;
+   setMediaBusy(true);setError("");setMediaProgress(0);
+   try{
+     const url=await pickAndUploadSellerVideo(setMediaProgress);
+     if(url){setReelDraftVideo(url);setNotice("Video yüklendi. Onaya gönderebilirsiniz.");}
+   }catch(e){setError(e instanceof Error?e.message:"Video yüklenemedi");}
+   finally{setMediaBusy(false);}
+ }
+ async function addSupplierProduct(){
+   const price=Number(newPrice),stock=Number(newStock),unitsPerBox=Number(newBoxes);
+   if(!newImage||!newSku.trim()||!newName.trim()||!newCategory.trim()||
+      !Number.isFinite(price)||price<=0||!Number.isSafeInteger(stock)||stock<0||
+      !Number.isSafeInteger(unitsPerBox)||unitsPerBox<1){
+     setError("Stok kodu, ürün adı, kategori, görsel, geçerli fiyat, koli adedi ve stok zorunludur.");return;
+   }
+   setWorking(true);setError("");
+   try{
+     await apiFetch("/api/marketplace/seller/products",{method:"POST",
+       body:JSON.stringify({sku:newSku.trim(),stock,product:{
+         sku:newSku.trim(),name:newName.trim(),category:newCategory.trim(),imageUrl:newImage,
+         price,unitsPerBox,minBoxes:1,leadDays:1
+       }})});
+     setNewSku("");setNewName("");setNewCategory("");setNewPrice("");setNewStock("0");setNewBoxes("1");setNewImage(null);
+     setNotice("Ürün yönetici onayına gönderildi.");await load();
+   }catch(e){setError(e instanceof Error?e.message:"Ürün eklenemedi");}
+   finally{setWorking(false);}
+ }
+ async function submitReel(){
+   if(!reelDraftTitle.trim()||!reelDraftVideo){setError("Başlık ve MP4 video zorunludur.");return;}
+   setWorking(true);setError("");
+   try{
+     await apiFetch("/api/marketplace/seller/reels",{method:"POST",body:JSON.stringify({
+       title:reelDraftTitle.trim(),videoUrl:reelDraftVideo,thumbnailUrl:reelDraftCover,productId:null
+     })});
+     setReelDraftTitle("");setReelDraftVideo(null);setReelDraftCover(null);
+     setNotice("Reels yönetici onayına gönderildi.");await load();
+   }catch(e){setError(e instanceof Error?e.message:"Reels gönderilemedi");}
+   finally{setWorking(false);}
  }
  const stats=overview as AdminStats|null;
  const seller=overview as SupplierStats|null;
@@ -178,9 +236,17 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
     <Text style={s.heading}>Mağaza Tasarımı</Text>
     <Input value={storeTitle} onChangeText={setStoreTitle} placeholder="Mağaza başlığı"/>
     <Input value={storeTagline} onChangeText={setStoreTagline} placeholder="Tanıtım metni"/>
-    <Action title="Tasarımı Onaya Gönder" disabled={working||!storeTitle.trim()} onPress={()=>void send("/api/marketplace/seller/store",
-      {title:storeTitle,tagline:storeTagline,accent:"#FACC15",bannerUrl:null,logoUrl:null,
-        sections:["banner","categories","products","reels","about"]})}/>
+    <View style={s.row}><Text style={s.text}>Mağaza logonuz {storeLogo?"✓":""}</Text>
+      <Action title={storeLogo?"Logoyu Değiştir":"Logo Ekle"} disabled={mediaBusy} onPress={()=>void selectImage(setStoreLogo)}/></View>
+    <View style={s.row}><Text style={s.text}>Mağaza bannerı {storeBanner?"✓":""}</Text>
+      <Action title={storeBanner?"Bannerı Değiştir":"Banner Ekle"} disabled={mediaBusy} onPress={()=>void selectImage(setStoreBanner)}/></View>
+    <Input value={storeAccent} onChangeText={setStoreAccent} placeholder="Tema rengi (#FACC15)"/>
+    <Action title="Tasarımı Onaya Gönder" disabled={working||mediaBusy||!storeTitle.trim()} onPress={()=>{
+      if(!/^#[0-9a-fA-F]{6}$/.test(storeAccent)){setError("Tema rengi #RRGGBB biçiminde olmalı.");return;}
+      void send("/api/marketplace/seller/store",
+        {title:storeTitle,tagline:storeTagline,accent:storeAccent,bannerUrl:storeBanner,logoUrl:storeLogo,
+          sections:["banner","categories","products","reels","about"]});
+    }}/>
     <Text style={s.help}>Görsel ve gelişmiş blok düzenleme aynı hesabın web satıcı panelinde bulunur.</Text>
     {seller?.storeVersions?.map(v=><View style={s.row} key={v.id}><Text style={s.text}>Tasarım #{v.id}</Text>
        <Text style={s.value}>{status[v.status]||v.status}{v.is_live?" · Yayında":""}</Text></View>)}
@@ -198,6 +264,17 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
   </View>:null}
   {!isSuper&&tab==="products"?<View style={s.panel}>
     <Text style={s.heading}>Ürünlerim</Text>
+    <View style={[s.card,{gap:9}]}>
+      <Text style={s.itemTitle}>Yeni Ürün Ekle · Admin Onaylı</Text>
+      <Input value={newSku} onChangeText={setNewSku} placeholder="Stok kodu (SKU)"/>
+      <Input value={newName} onChangeText={setNewName} placeholder="Ürün adı"/>
+      <Input value={newCategory} onChangeText={setNewCategory} placeholder="Kategori"/>
+      <Input value={newPrice} onChangeText={setNewPrice} placeholder="Fiyat (TL)"/>
+      <Input value={newStock} onChangeText={setNewStock} placeholder="Stok adedi"/>
+      <Input value={newBoxes} onChangeText={setNewBoxes} placeholder="Koli içi adet"/>
+      <Action title={newImage?"Ürün görseli yüklendi ✓":"Ürün Görseli Seç"} disabled={mediaBusy} onPress={()=>void selectImage(setNewImage)}/>
+      <Action title="Ürünü Onaya Gönder" disabled={working||mediaBusy} onPress={()=>void addSupplierProduct()}/>
+    </View>
     {products.map(p=><View key={String(p.id)} style={s.card}><Text style={s.itemTitle}>{p.latest?.content?.name||p.sku}</Text>
        <Text style={s.help}>{p.sku} · Stok: {p.stock} · {money(p.current_price||p.latest?.content?.price||0)} · {status[p.latest?.status]||"Taslak"}</Text>
        {editingProduct===String(p.id)?<View style={{gap:8}}>
@@ -214,9 +291,18 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
          setEditingStock(String(p.stock));
        }}/>}
      </View>)}
-    <Text style={s.help}>Ürün ekleme ve fotoğraf yükleme, aynı veri kaynağını kullanan web panelinde aktif.</Text>
+    <Text style={s.help}>Ürünler aynı tedarikçi hesabıyla web ve mobil panelden yönetilir.</Text>
   </View>:null}
   {!isSuper&&tab==="reels"?<View style={s.panel}><Text style={s.heading}>Mağaza Reels</Text>
+    <View style={[s.card,{gap:9}]}>
+      <Text style={s.itemTitle}>Yeni Reels Ekle</Text>
+      <Input value={reelDraftTitle} onChangeText={setReelDraftTitle} placeholder="Video başlığı"/>
+      <Action title={reelDraftVideo?"Video yüklendi ✓":mediaBusy?"Video Yükleniyor…":"MP4 Video Seç"} disabled={mediaBusy} onPress={()=>void selectVideo()}/>
+      {mediaBusy&&mediaProgress>0?<Text style={s.help}>Yükleme: %{Math.round(mediaProgress*100)}</Text>:null}
+      <Action title={reelDraftCover?"Kapak görseli yüklendi ✓":"Kapak Görseli Ekle (İsteğe Bağlı)"} disabled={mediaBusy} onPress={()=>void selectImage(setReelDraftCover)}/>
+      <Text style={s.help}>Kapak eklenmezse mağazada video sessiz önizlenir.</Text>
+      <Action title="Reels'i Onaya Gönder" disabled={working||mediaBusy||!reelDraftVideo||!reelDraftTitle.trim()} onPress={()=>void submitReel()}/>
+    </View>
     {seller?.reels?.map(r=><View key={r.id} style={s.card}>
       <Text style={s.itemTitle}>{r.title}</Text><Text style={s.help}>{status[r.status]||r.status}{r.is_live?" · Yayında":""}</Text>
       {editingReel===String(r.id)?<View style={{gap:8}}>
@@ -236,7 +322,7 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
         }}
       ])}/>
     </View>)}
-    <Text style={s.help}>Yeni MP4 video yükleme, aynı satıcı hesabının web panelinde kullanılabilir.</Text>
+    <Text style={s.help}>Video ve kapak yüklendiğinde yönetici incelemesinden sonra yayına alınır.</Text>
   </View>:null}
   {!isSuper&&tab==="messages"?<View style={s.panel}>
     <Text style={s.heading}>Müşteri Mesajları</Text>
