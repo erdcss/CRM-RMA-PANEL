@@ -40,7 +40,7 @@ export async function signIn(email: string, password: string): Promise<BusinessS
   // B2B identity provider, not duplicate credentials or a second user store.
   if (response.status === 401) {
     try {
-      response = await fetch(`${API}/api/b2b/login`, {
+      response = await fetch(`${API}/api/seller/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
@@ -63,7 +63,7 @@ export async function signIn(email: string, password: string): Promise<BusinessS
   }
 
   if (supplierLogin) {
-    if (user.role !== "b2b_seller" && user.role !== "b2b_customer") throw new Error("B2B tedarikçi hesabı gerekiyor");
+    if (user.role !== "b2b_seller") throw new Error("Çalışkan Business için tedarikçi hesabı gerekiyor");
     if (payload.mustChangePassword) throw new Error("Önce Çalışkan B2B web hesabınızda ilk şifrenizi belirleyin.");
     const supplierCheck = await fetch(`${API}/api/marketplace/me`, {
       headers: {Authorization: `Bearer ${token}`, Accept: "application/json"},
