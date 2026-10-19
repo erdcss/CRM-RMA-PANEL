@@ -6,7 +6,7 @@ import { Store, Package, Film, MessageCircle, FileText, ShieldCheck, ArrowLeft, 
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SellerAccess } from "@/components/seller-access";
 
-type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string};
+type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
@@ -81,6 +81,7 @@ export default function MarketplaceSeller(){
   const [reply,setReply]=useState("");
   const [selectedChat,setSelectedChat]=useState<number|null>(null);
   const [message,setMessage]=useState("");
+  const [showHolidayWarning,setShowHolidayWarning]=useState(false);
   const [busy,setBusy]=useState(false);
   const [uploadingCount,setUploadingCount]=useState(0);
   const [uploadProgress,setUploadProgress]=useState(0);
@@ -143,7 +144,7 @@ export default function MarketplaceSeller(){
       setMessage(e instanceof Error?e.message:"Medya yüklenemedi");
     }finally{setUploadingCount(count=>Math.max(0,count-1));}
   }
-  const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0});
+  const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0,refetchInterval:30000});
   useEffect(()=>{
     if (!me.isSuccess || me.data !== null) return;
     let cancelled=false;
@@ -153,7 +154,9 @@ export default function MarketplaceSeller(){
     return ()=>{cancelled=true};
   },[me.isSuccess,me.data]);
   const approved=me.data?.status==="approved";
-  const holidayMode=Boolean((me.data as (Supplier & {is_holiday?:boolean})|null)?.is_holiday);
+  const holidayMode=Boolean(me.data?.is_holiday);
+  const holidayReactivationAt=me.data?.holiday_reactivate_at||null;
+  const holidayReactivationPending=holidayMode&&Boolean(holidayReactivationAt);
   const verificationSubmitted=Boolean(me.data?.has_tax_document && me.data?.company_type);
   const [verificationHiding,setVerificationHiding]=useState(false);
   async function submitVerification(){setBusy(true);setMessage("");try {await send("POST","/api/marketplace/seller/verification",verification);setVerificationHiding(true);await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});setTab("dashboard");setMessage("Doğrulama bilgileriniz incelemeye gönderildi.");}catch(e){setMessage(e instanceof Error?e.message:"Bilgiler gönderilemedi");}finally{setBusy(false);}}
@@ -181,6 +184,25 @@ export default function MarketplaceSeller(){
     try{await action();setMessage("İşlem başarıyla kaydedildi.");await Promise.all(refresh.map(key=>queryClient.invalidateQueries({queryKey:[key]})));}
     catch(e){setMessage(e instanceof Error?e.message:"İşlem tamamlanamadı.");}
     finally{setBusy(false);}
+  }
+  async function updateHolidayMode(nextHolidayMode:boolean) {
+    if(busy||holidayReactivationPending)return;
+    setBusy(true);setMessage("");
+    try{
+      const outcome=await send("PATCH","/api/marketplace/seller/settings",{
+        holidayMode:nextHolidayMode,
+        ...(nextHolidayMode?{confirmConsequences:true}:{})
+      }) as {message?:string;reactivateAt?:string|null};
+      setShowHolidayWarning(false);
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]}),
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/dashboard"]}),
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/stores/"+me.data?.slug]})
+      ]);
+      setMessage(outcome.message||"Mağaza durumu güncellendi.");
+    }catch(error){
+      setMessage(error instanceof Error?error.message:"Tatil modu değiştirilemedi.");
+    }finally{setBusy(false);}
   }
   async function submitReel(form:HTMLFormElement){
     if(busy||uploading){setMessage("Video yükleniyor. Yüklemenin tamamlanmasını bekleyin.");return;}
@@ -248,7 +270,7 @@ export default function MarketplaceSeller(){
                   <h2 className="mt-2 text-2xl font-black">{me.data.company_name}</h2>
                   <p className="mt-2 text-sm text-slate-300">Mağaza, sipariş ve müşteri işlemlerinizi tek yerden yönetin.</p></div>
                 <span className={"rounded-full px-4 py-2 text-xs font-extrabold "+(holidayMode?"bg-amber-100 text-amber-950":"bg-emerald-100 text-emerald-900")}>
-                  {holidayMode?"Tatil Modunda":"Mağaza Aktif"}</span>
+                  {holidayReactivationPending?"24 Saatlik Açılış Bekleniyor":holidayMode?"Tatil Modunda":"Mağaza Aktif"}</span>
               </div>
               <div className="mt-6 flex flex-wrap gap-2">
                 <button onClick={()=>setTab("orders")} className="rounded-lg bg-[#FFCD00] px-4 py-2 text-sm font-bold text-slate-950">Siparişleri Gör</button>
@@ -273,7 +295,7 @@ export default function MarketplaceSeller(){
                 {!sellerOrders.data?.length?<p className="text-sm text-slate-500">Henüz sipariş kaydı yok.</p>:null}
                 <button className="text-sm font-bold text-amber-700" onClick={()=>setTab("orders")}>Tüm siparişler →</button></section>
               <section className={boxStyle+" space-y-3"}><h3 className="font-extrabold">Mağaza Durumu</h3>
-                <p className="text-sm text-slate-600">{holidayMode?"Tatil modu açık. Mağazanız müşterilerden gizleniyor.":"Mağazanız müşterilere açık."}</p>
+                <p className="text-sm text-slate-600">{holidayReactivationPending?"Tatil modunu kapatma talebiniz alındı. Mağazanız planlanan zamanda otomatik açılacak.":holidayMode?"Tatil modu açık. Mağazanız müşterilerden gizleniyor.":"Mağazanız müşterilere açık."}</p>
                 <div className="rounded-xl bg-slate-50 p-4 text-sm"><b>{dash.data?.followers??0}</b> takipçi · <b>{dash.data?.reels.filter(r=>r.status==="pending").length??0}</b> onay bekleyen Reels</div>
                 <button className="text-sm font-bold text-amber-700" onClick={()=>setTab("settings")}>Mağaza ayarları →</button></section>
             </div>
@@ -368,15 +390,45 @@ export default function MarketplaceSeller(){
 </tr>)}</tbody></table>{!products.data?.length?<p className="py-10 text-center text-sm text-slate-500">Henüz ürün yok. Sağ üstteki Ürün Ekle butonuyla başlayın.</p>:(products.data||[]).filter(p=>productFilter==="all"||(productFilter==="approved"?Boolean(p.live):p.latest?.status===productFilter)).length===0?<p className="py-10 text-center text-sm text-slate-500">Bu durumda ürün bulunmuyor.</p>:null}</div>
           </div>:null}
           {tab==="settings"?<div className={boxStyle+" max-w-3xl space-y-5"}>
-            <div><h2 className="text-xl font-black">Tedarikçi Ayarları</h2><p className="mt-1 text-sm text-slate-500">Mağazanızın çalışma durumunu yönetin.</p></div>
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
-              <div><h3 className="font-bold text-slate-900">Hesabımı Tatil Moduna Al</h3>
-                <p className="mt-1 max-w-md text-xs leading-5 text-slate-600">Tatil modu açıkken mağazanız, ürünleriniz ve Reels videolarınız müşterilere gösterilmez. Mevcut kayıtlarınız korunur. İstediğiniz zaman tekrar açabilirsiniz.</p></div>
-              <button type="button" disabled={busy} aria-pressed={holidayMode}
-                className={"rounded-xl px-5 py-3 text-sm font-extrabold disabled:opacity-50 "+(holidayMode?"bg-emerald-700 text-white":"bg-slate-950 text-[#FFCD00]")}
-                onClick={async()=>{await run(()=>send("PATCH","/api/marketplace/seller/settings",{holidayMode:!holidayMode}),["/api/marketplace/me","/api/marketplace/seller/dashboard"]);}}>
-                {holidayMode?"Tatil Modunu Kapat":"Tatil Modunu Aç"}</button>
+            <div><h2 className="text-xl font-black">Tedarikçi Ayarları</h2>
+              <p className="mt-1 text-sm text-slate-500">Mağazanızın çalışma durumunu yönetin.</p>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
+              <div className="max-w-md">
+                <h3 className="font-bold text-slate-900">Hesabımı Tatil Moduna Al</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  Tatil modunda mağazanız ve ürünleriniz satıştan kaldırılır. Yeniden açılma talebinizden 24 saat sonra otomatik yayına alınır.
+                </p>
+                {holidayReactivationPending?<div role="status" className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-900">
+                  Mağazanız 24 saat içerisinde görünür olacak. Planlanan açılış: {new Date(holidayReactivationAt!).toLocaleString("tr-TR",{dateStyle:"medium",timeStyle:"short"})}.
+                  Bu zamana kadar ürünler satışa kapalı kalacak.
+                </div>:holidayMode?<p role="status" className="mt-2 text-xs font-semibold text-amber-800">Mağazanız şu an tatil modundadır.</p>:null}
+              </div>
+              <button type="button" disabled={busy||holidayReactivationPending} aria-pressed={holidayMode}
+                className={"rounded-xl px-5 py-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-60 "+(holidayMode?"bg-emerald-700 text-white":"bg-slate-950 text-[#FFCD00]")}
+                onClick={()=>{if(holidayMode){void updateHolidayMode(false);}else{setShowHolidayWarning(true);}}}>
+                {holidayReactivationPending?"Açılış Bekleniyor":holidayMode?"Tatil Modunu Kapat":"Tatil Modunu Aç"}
+              </button>
+            </div>
+            {showHolidayWarning&&!holidayMode?<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="presentation">
+              <div role="alertdialog" aria-modal="true" aria-labelledby="holiday-dialog-title"
+                aria-describedby="holiday-dialog-description" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 id="holiday-dialog-title" className="text-xl font-black text-slate-950">Tatil modunu açmak istediğinize emin misiniz?</h3>
+                <p id="holiday-dialog-description" className="mt-2 text-sm text-slate-600">Onayladığınızda aşağıdaki kurallar uygulanacaktır:</p>
+                <ol className="mt-4 list-decimal space-y-3 rounded-xl bg-amber-50 px-8 py-4 text-sm font-semibold text-amber-950">
+                  <li>Ürünleriniz satıştan kaldırılır.</li>
+                  <li>Mağaza popülerliği düşürülür.</li>
+                  <li>Tekrardan satışa açılması, tatil modunu kapatma talebinizden 24 saat sonra gerçekleşir.</li>
+                </ol>
+                <div className="mt-5 flex flex-wrap justify-end gap-2">
+                  <button type="button" disabled={busy} onClick={()=>setShowHolidayWarning(false)}
+                    className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700">Vazgeç</button>
+                  <button type="button" disabled={busy} onClick={()=>void updateHolidayMode(true)}
+                    className="rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-[#FFCD00] disabled:opacity-50">
+                    {busy?"İşleniyor…":"Okudum, Onaylıyorum"}</button>
+                </div>
+              </div>
+            </div>:null}
           </div>:null}
           {tab==="reels"?<div className="grid gap-5 lg:grid-cols-2">
             <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void submitReel(e.currentTarget);}}>
