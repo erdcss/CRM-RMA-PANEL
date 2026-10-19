@@ -336,6 +336,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
        (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
        FROM mp_products p
        JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved'
+         AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
        JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
        WHERE p.id=$1 AND p.is_enabled=TRUE LIMIT 1`,[productNumber]);
     const row=q.rows[0];
