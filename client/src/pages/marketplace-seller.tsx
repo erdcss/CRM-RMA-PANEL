@@ -158,7 +158,7 @@ export default function MarketplaceSeller(){
   const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:!!me.data,staleTime:0});
   const products=useQuery<Product[]>({queryKey:["/api/marketplace/seller/products"],enabled:approved,staleTime:0});
   const sellerOrders=useQuery<SellerOrder[]>({queryKey:["/api/marketplace/seller/orders"],enabled:approved,staleTime:0});
-  const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0});
+  const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0,refetchInterval:5000});
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
     queryKey:["/api/marketplace/conversations/"+selectedChat+"/messages"],enabled:approved&&!!selectedChat,staleTime:0});
   // The preview represents the currently published storefront, not the unsent draft.
@@ -362,6 +362,16 @@ export default function MarketplaceSeller(){
                 {messages.data?.map(m=><div key={m.id} className="rounded-lg bg-slate-50 p-3 text-sm">
                   <p>{m.text}</p><span className="text-xs text-slate-400">{new Date(m.created_at).toLocaleString("tr-TR")}</span>
                 </div>)}</div>
+                <button type="button" disabled={busy} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 disabled:opacity-50"
+                  onClick={async()=>{if(!window.confirm("Bu sohbeti sonlandırıp arşive almak istiyor musunuz?"))return;
+                    setBusy(true);setMessage("");
+                    try{await send("POST","/api/marketplace/conversations/"+selectedChat+"/close",{});
+                      setSelectedChat(null);setReply("");
+                      await queryClient.invalidateQueries({queryKey:["/api/marketplace/conversations"]});
+                      setMessage("Sohbet sonlandırıldı ve yönetici arşivine aktarıldı.");
+                    }catch(e){setMessage(e instanceof Error?e.message:"Sohbet kapatılamadı.");}
+                    finally{setBusy(false);}
+                  }}>Sohbeti Sonlandır</button>
                 <form onSubmit={e=>{e.preventDefault();void run(()=>send("POST","/api/marketplace/conversations/"+selectedChat+"/messages",{text:reply}),
                   ["/api/marketplace/conversations/"+selectedChat+"/messages","/api/marketplace/conversations"]);setReply("");}} className="flex gap-2">
                   <input className={inputStyle} value={reply} onChange={e=>setReply(e.target.value)} placeholder="Müşteriye yanıt yazın" required/>
