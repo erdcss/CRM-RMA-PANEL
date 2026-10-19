@@ -10,7 +10,7 @@ import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplie
 import { MarketplaceActionDialog } from "@/components/marketplace-action-dialog";
 import { toast } from "@/hooks/use-toast";
 
-type Supplier={id:number;slug:string;company_name:string;status:string;admin_created?:boolean;admin_verified?:boolean;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
+type Supplier={id:number;owner_user_id:number;slug:string;company_name:string;status:string;admin_created?:boolean;admin_verified?:boolean;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
@@ -19,6 +19,14 @@ type Dashboard={supplier:Supplier;productCount:number;followers:number;conversat
 type SellerOrder={id:number;order_id:number;status:string;subtotal:string;created_at:string;delivery_mode:string;items:Array<{productId:number;name:string;sku:string;boxes:number;unitsPerBox:number;total:string}>};
 type Tab="dashboard"|"store"|"products"|"reels"|"settings"|"messages"|"returns"|"payments"|"orders"|"verification";
 async function send(method:string,path:string,data?:unknown){const r=await apiRequest(method,path,data);return r.json();}
+async function fetchSupplierData<T>(path:string):Promise<T>{
+  const response=await fetch(path,{credentials:"include",cache:"no-store"});
+  if(!response.ok){
+    const body=await response.json().catch(()=>({}));
+    throw new Error(body.error||"Tedarikçi verilerine erişilemiyor.");
+  }
+  return response.json() as Promise<T>;
+}
 const inputStyle="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900";
 const boxStyle="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6";
 const statusTR:Record<string,string>={approved:"Onaylandı",pending:"Onay bekliyor",rejected:"Reddedildi",requested:"Talep edildi",offered:"Teklif verildi",accepted:"Kabul edildi",expired:"Süresi doldu"};
@@ -150,7 +158,27 @@ export default function MarketplaceSeller(){
       setMessage(e instanceof Error?e.message:"Medya yüklenemedi");
     }finally{setUploadingCount(count=>Math.max(0,count-1));}
   }
-  const me=useQuery<Supplier|null>({queryKey:["/api/marketplace/me"],retry:false,staleTime:0,refetchInterval:30000});
+  // Never trust data from an earlier authenticated seller. The account identity
+  // is checked independently of the marketplace profile and revalidated on focus.
+  const authIdentity=useQuery<{id:number;role:string}>({
+    queryKey:["/api/auth/me"],retry:false,staleTime:0,
+    refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
+  });
+  const me=useQuery<Supplier|null>({
+    queryKey:["/api/marketplace/me"],retry:false,staleTime:0,
+    refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
+  });
+  const [accountMismatch,setAccountMismatch]=useState(false);
+  const identityValid=Boolean(me.data && authIdentity.data &&
+    authIdentity.data.role==="b2b_seller" &&
+    Number(me.data.owner_user_id)===Number(authIdentity.data.id));
+  useEffect(()=>{
+    if(!me.data||!authIdentity.data||identityValid)return;
+    // A different user signed in from another tab or the UI retained old data.
+    // Unmount all sensitive data and clear cached seller queries immediately.
+    setAccountMismatch(true);
+    queryClient.clear();
+  },[me.data?.owner_user_id,authIdentity.data?.id,authIdentity.data?.role,identityValid]);
   useEffect(()=>{
     if (!me.isSuccess || me.data !== null) return;
     let cancelled=false;
@@ -159,19 +187,42 @@ export default function MarketplaceSeller(){
       .catch(()=>{if(!cancelled)setMessage("Çalışma alanı oluşturulamadı. Yenile ile tekrar deneyin.");});
     return ()=>{cancelled=true};
   },[me.isSuccess,me.data]);
-  const approved=me.data?.status==="approved";
+  const approved=identityValid && me.data?.status==="approved";
   const holidayMode=Boolean(me.data?.is_holiday);
   const holidayReactivationAt=me.data?.holiday_reactivate_at||null;
   const holidayReactivationPending=holidayMode&&Boolean(holidayReactivationAt);
   const verificationSubmitted=Boolean(me.data?.has_tax_document && me.data?.company_type);
   const [verificationHiding,setVerificationHiding]=useState(false);
   async function submitVerification(){setBusy(true);setMessage("");try {await send("POST","/api/marketplace/seller/verification",verification);setVerificationHiding(true);await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});setTab("dashboard");setMessage("Doğrulama bilgileriniz incelemeye gönderildi.");}catch(e){setMessage(e instanceof Error?e.message:"Bilgiler gönderilemedi");}finally{setBusy(false);}}
-  const dash=useQuery<Dashboard>({queryKey:["/api/marketplace/seller/dashboard"],enabled:!!me.data,staleTime:0});
-  const products=useQuery<Product[]>({queryKey:["/api/marketplace/seller/products"],enabled:approved,staleTime:0});
-  const sellerOrders=useQuery<SellerOrder[]>({queryKey:["/api/marketplace/seller/orders"],enabled:approved,staleTime:0});
-  const conversations=useQuery<Conversation[]>({queryKey:["/api/marketplace/conversations"],enabled:approved,staleTime:0,refetchInterval:5000});
+  // Cache tenant-owned data by authenticated account ID. Invalidation by
+  // endpoint prefix still works, but account A's data can never fill account B.
+  const tenantId=identityValid?Number(me.data!.owner_user_id):null;
+  const dash=useQuery<Dashboard>({
+    queryKey:["/api/marketplace/seller/dashboard",tenantId],
+    queryFn:()=>fetchSupplierData<Dashboard>("/api/marketplace/seller/dashboard"),
+    enabled:identityValid,staleTime:0
+  });
+  const products=useQuery<Product[]>({
+    queryKey:["/api/marketplace/seller/products",tenantId],
+    queryFn:()=>fetchSupplierData<Product[]>("/api/marketplace/seller/products"),
+    enabled:approved,staleTime:0
+  });
+  const sellerOrders=useQuery<SellerOrder[]>({
+    queryKey:["/api/marketplace/seller/orders",tenantId],
+    queryFn:()=>fetchSupplierData<SellerOrder[]>("/api/marketplace/seller/orders"),
+    enabled:approved,staleTime:0
+  });
+  const conversations=useQuery<Conversation[]>({
+    queryKey:["/api/marketplace/conversations",tenantId],
+    queryFn:()=>fetchSupplierData<Conversation[]>("/api/marketplace/conversations"),
+    enabled:approved,staleTime:0,refetchInterval:5000
+  });
+  const messagesPath="/api/marketplace/conversations/"+selectedChat+"/messages";
   const messages=useQuery<Array<{id:number;text:string;author_user_id:number;created_at:string}>>({
-    queryKey:["/api/marketplace/conversations/"+selectedChat+"/messages"],enabled:approved&&!!selectedChat,staleTime:0});
+    queryKey:[messagesPath,tenantId],
+    queryFn:()=>fetchSupplierData<Array<{id:number;text:string;author_user_id:number;created_at:string}>>(messagesPath),
+    enabled:approved&&!!selectedChat,staleTime:0
+  });
   // The preview represents the currently published storefront, not the unsent draft.
   const liveStore=useQuery<{company_name:string;description:string;content?:{title?:string;tagline?:string;accent?:string;logoUrl?:string;bannerUrl?:string}}>({
     queryKey:["/api/marketplace/stores/"+(me.data?.slug||"")],
@@ -276,14 +327,33 @@ export default function MarketplaceSeller(){
     }catch(e){setMessage(e instanceof Error?e.message:"Reels onaya gönderilemedi.");}
     finally{setBusy(false);}
   }
-  if (!me.isLoading && me.isError) return <SellerAccess onAuthenticated={async()=>{ await me.refetch(); await queryClient.invalidateQueries({queryKey:["/api/auth/me"]}); }}/>;
+  if (!me.isLoading && me.isError) return <SellerAccess onAuthenticated={async()=>{window.location.reload();}}/>;
+  if(accountMismatch || (me.data && authIdentity.isSuccess && !identityValid)){
+    return <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <section role="alert" className="w-full max-w-lg rounded-2xl border border-amber-300 bg-white p-6 text-slate-950">
+        <h1 className="text-lg font-black">Hesap değişikliği algılandı</h1>
+        <p className="mt-2 text-sm">Önceki tedarikçinin verileri güvenlik amacıyla gizlendi. Güncel hesabınıza ait paneli açmak için sayfayı yenileyin.</p>
+        <button type="button" onClick={()=>window.location.reload()} className="mt-4 rounded-xl bg-slate-950 px-5 py-3 font-bold text-[#FFCD00]">Güncel Hesabı Yükle</button>
+      </section>
+    </main>;
+  }
+  if(me.data && (!authIdentity.isSuccess || !identityValid)){
+    return <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <Notice text="Tedarikçi hesabınızın kimliği doğrulanıyor…"/>
+    </main>;
+  }
   return <main className="min-h-screen bg-[#f5f6f8] px-4 py-6 text-slate-900 sm:px-6">
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><a href={isStandaloneMarketplace?"https://b2b.ecalisgan.com":"/"} className="mb-2 inline-flex items-center gap-2 text-sm text-slate-600"><ArrowLeft className="h-4 w-4"/>Çalışkan B2B'ye dön</a>
           <h1 className="text-2xl font-black tracking-tight">Tedarikçi Yönetim Paneli</h1>
           <p className="text-sm text-slate-500">Web ve telefondan aynı hesap, aynı yetkiler ve aynı veriler</p></div>
-        <div className="flex flex-wrap gap-2"><button onClick={()=>{void me.refetch();void dash.refetch();void products.refetch();}} className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"><RefreshCw className="mr-2 inline h-4 w-4"/>Yenile</button><button type="button" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST",credentials:"include"});await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});await queryClient.invalidateQueries({queryKey:["/api/auth/me"]});}} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"><LogOut className="mr-2 inline h-4 w-4"/>Güvenli Çıkış</button></div>
+        <div className="flex flex-wrap gap-2"><button onClick={()=>{void me.refetch();void dash.refetch();void products.refetch();}} className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"><RefreshCw className="mr-2 inline h-4 w-4"/>Yenile</button><button type="button" onClick={async()=>{try{
+    const response=await fetch("/api/auth/logout",{method:"POST",credentials:"include",cache:"no-store"});
+    if(!response.ok)throw new Error("Çıkış yapılamadı");
+    queryClient.clear();
+    window.location.replace("/satici");
+  }catch(error){setMessage(error instanceof Error?error.message:"Çıkış işlemi başarısız oldu.");}}} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700"><LogOut className="mr-2 inline h-4 w-4"/>Güvenli Çıkış</button></div>
       </div>
       {message?<Notice text={message}/>:null}
       {me.data ? <div className="sticky top-0 z-30 -mx-2 space-y-2">
