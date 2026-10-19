@@ -46,15 +46,16 @@ export default function App() {
 
   useEffect(() => {
     const subscription = listenBusinessNotificationPress((type, data) => {
-      if (type === "order") {
+      if (type === "order" && user?.role === "super_admin") {
         const orderId = typeof data.orderId === "string" ? data.orderId : "";
         if (orderId) setScreen({ name: "orderDetail", id: orderId });
         else setScreen({ name: "orders" });
       }
-      if (type === "support") setScreen({ name: "support" });
+      if (type === "support" && user?.role === "super_admin") setScreen({ name: "support" });
+      if (["supplier_order_paid","supplier_paused","supplier_resumed"].includes(type) && user?.role === "b2b_seller") setScreen({name:"marketplace"});
     });
     return () => subscription.remove();
-  }, []);
+  }, [user?.role]);
 
   const openTab = (tab: MainTab) => {
     if (tab === "dashboard") setScreen({ name: "dashboard" });
@@ -74,7 +75,7 @@ export default function App() {
             background={branding.business_mobile_splash}
             onSuccess={(nextUser) => {
               setUser(nextUser);
-              setScreen({ name: nextUser.role === "b2b_customer" ? "marketplace" : "dashboard" });
+              setScreen({ name: nextUser.role === "b2b_seller" || nextUser.role === "b2b_customer" ? "marketplace" : "dashboard" });
             }}
           />
         ) : screen.name === "marketplace" ? (
