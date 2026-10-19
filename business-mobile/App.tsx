@@ -96,6 +96,7 @@ export default function App() {
             <DashboardScreen
               user={user}
               onOrders={() => setScreen({ name: "orders" })}
+              onOpenOrder={(id)=>setScreen({name:"orderDetail",id})}
               onSupport={() => setScreen({ name: "support" })}
               onProducts={() => setScreen({ name: "products" })}
               onCustomers={() => setScreen({ name: "customers" })}
