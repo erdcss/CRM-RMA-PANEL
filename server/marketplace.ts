@@ -86,8 +86,13 @@ CREATE TABLE IF NOT EXISTS mp_conversations (
   supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,
   buyer_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (supplier_id, buyer_user_id)
+  closed_at TIMESTAMPTZ,
+  closed_by INTEGER REFERENCES users(id)
 );
+ALTER TABLE mp_conversations ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
+ALTER TABLE mp_conversations ADD COLUMN IF NOT EXISTS closed_by INTEGER REFERENCES users(id);
+ALTER TABLE mp_conversations DROP CONSTRAINT IF EXISTS mp_conversations_supplier_id_buyer_user_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS mp_conversations_one_active_pair ON mp_conversations(supplier_id,buyer_user_id) WHERE closed_at IS NULL;
 CREATE TABLE IF NOT EXISTS mp_messages (
   id BIGSERIAL PRIMARY KEY,
   conversation_id BIGINT NOT NULL REFERENCES mp_conversations(id) ON DELETE CASCADE,
@@ -602,7 +607,7 @@ export function registerMarketplaceRoutes(
       if(!seller.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
       if(Number(seller.rows[0].owner_user_id)===uid)throw new ApiError(400,"Kendi mağazanızla sohbet oluşturamazsınız");
       const c=await client.query(`INSERT INTO mp_conversations(supplier_id,buyer_user_id)
-        VALUES($1,$2) ON CONFLICT(supplier_id,buyer_user_id)
+        VALUES($1,$2) ON CONFLICT(supplier_id,buyer_user_id) WHERE closed_at IS NULL
         DO UPDATE SET buyer_user_id=EXCLUDED.buyer_user_id RETURNING id`,[seller.rows[0].id,uid]);
       await client.query("INSERT INTO mp_messages(conversation_id,author_user_id,text) VALUES($1,$2,$3)",[c.rows[0].id,uid,data.text]);
       await client.query("COMMIT");res.status(201).json({id:c.rows[0].id});
@@ -613,7 +618,7 @@ export function registerMarketplaceRoutes(
     const r=await db.query(`SELECT c.id,c.supplier_id,c.buyer_user_id,c.created_at,s.company_name,s.slug,
       (SELECT text FROM mp_messages m WHERE m.conversation_id=c.id ORDER BY id DESC LIMIT 1) AS latest_message
       FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id
-      WHERE c.buyer_user_id=$1 OR s.owner_user_id=$1 ORDER BY c.id DESC LIMIT 100`,[uid]);
+      WHERE (c.buyer_user_id=$1 OR s.owner_user_id=$1) AND c.closed_at IS NULL ORDER BY c.id DESC LIMIT 100`,[uid]);
     res.json(r.rows);
   }));
   app.get("/api/marketplace/conversations/:id/messages",requireParticipant,handle(async(req,res)=>{
@@ -625,9 +630,45 @@ export function registerMarketplaceRoutes(
   app.post("/api/marketplace/conversations/:id/messages",requireParticipant,handle(async(req,res)=>{
     const db=await ready(),cid=id(req.params.id),uid=userId(res);
     const text=z.object({text:bodyText(4000)}).strict().parse(req.body).text;
-    await ownConversation(db,cid,uid);
+    const conversation=await ownConversation(db,cid,uid);
+    if(conversation.closed_at)throw new ApiError(409,"Bu sohbet sonlandırıldı. Yeni bir sohbet başlatın.");
     const q=await db.query("INSERT INTO mp_messages(conversation_id,author_user_id,text) VALUES($1,$2,$3) RETURNING *",[cid,uid,text]);
     res.status(201).json(q.rows[0]);
+  }));
+  app.post("/api/marketplace/conversations/:id/close",requireSeller,handle(async(req,res)=>{
+    const db=await ready(),cid=id(req.params.id),uid=userId(res);
+    const result=await db.query(`UPDATE mp_conversations c SET closed_at=NOW(),closed_by=$2
+      FROM mp_suppliers s WHERE c.supplier_id=s.id AND c.id=$1 AND s.owner_user_id=$2 AND c.closed_at IS NULL
+      RETURNING c.id,c.buyer_user_id,c.closed_at`,[cid,uid]);
+    if(!result.rows[0])throw new ApiError(404,"Aktif sohbet bulunamadı veya bu sohbet size ait değil");
+    res.json({closed:true,conversationId:cid,message:"Sohbet satıcı tarafından sonlandırıldı.",closed_at:result.rows[0].closed_at});
+  }));
+  app.get("/api/marketplace/conversations/closed",requireB2B,handle(async(_req,res)=>{
+    const db=await ready(),uid=userId(res);
+    const result=await db.query(`SELECT c.id,c.closed_at,s.company_name,s.slug
+      FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id
+      WHERE c.buyer_user_id=$1 AND c.closed_at IS NOT NULL ORDER BY c.closed_at DESC LIMIT 30`,[uid]);
+    res.json(result.rows);
+  }));
+  app.get("/api/admin/marketplace/message-archives",requireAdmin,handle(async(_req,res)=>{
+    const db=await ready();
+    const result=await db.query(`SELECT c.id,c.created_at,c.closed_at,s.company_name AS supplier_name,
+      COALESCE(NULLIF(to_jsonb(b)->>'company_name',''),NULLIF(to_jsonb(b)->>'name',''),NULLIF(to_jsonb(b)->>'full_name',''),b.email,'Müşteri #'||c.buyer_user_id::text) AS customer_name,
+      COALESCE(NULLIF(to_jsonb(o)->>'name',''),s.contact_name) AS supplier_contact,
+      (SELECT COUNT(*)::int FROM mp_messages m WHERE m.conversation_id=c.id) AS message_count
+      FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id
+      JOIN users b ON b.id=c.buyer_user_id
+      LEFT JOIN users o ON o.id=s.owner_user_id
+      WHERE c.closed_at IS NOT NULL ORDER BY c.closed_at DESC LIMIT 200`);
+    res.json(result.rows);
+  }));
+  app.get("/api/admin/marketplace/message-archives/:id",requireAdmin,handle(async(req,res)=>{
+    const db=await ready(),cid=id(req.params.id);
+    const result=await db.query(`SELECT m.id,m.text,m.created_at,m.author_user_id,
+      CASE WHEN m.author_user_id=c.buyer_user_id THEN 'customer' ELSE 'supplier' END AS sender_role
+      FROM mp_messages m JOIN mp_conversations c ON c.id=m.conversation_id
+      WHERE c.id=$1 AND c.closed_at IS NOT NULL ORDER BY m.id ASC LIMIT 2000`,[cid]);
+    res.json(result.rows);
   }));
   // Quote requests were retired. Existing historical rows remain archived in the DB.
   // No quote endpoints are registered; clients receive HTTP 404.
