@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { MarketplaceReviewDialog, type ReviewKind } from "@/components/marketplace-review-detail";
-import { Eye, ImageOff } from "lucide-react";
+import { Eye, ImageOff, UserPlus } from "lucide-react";
+import { MarketplaceCreateSupplierDialog } from "@/components/marketplace-create-supplier-dialog";
 
 type Status = "pending" | "approved" | "rejected" | "suspended";
 type Review = {id:number;status:Status;created_at:string;review_note?:string;is_admin_paused?:boolean;admin_paused_at?:string|null;company_name?:string;contact_name?:string;
@@ -41,6 +42,7 @@ export default function AdminMarketplace(){
   const [notes,setNotes]=useState<Record<string,string>>({});
   const [processing,setProcessing]=useState<string|null>(null);
   const [selectedArchive,setSelectedArchive]=useState<number|null>(null);
+  const [createSupplierOpen,setCreateSupplierOpen]=useState(false);
   const [selectedReview,setSelectedReview]=useState<{kind:ReviewKind;id:number}|null>(null);
   const {toast}=useToast();
   const overview=useQuery<Overview>({queryKey:["/api/admin/marketplace/overview"],staleTime:0,refetchInterval:30000});
@@ -102,6 +104,10 @@ export default function AdminMarketplace(){
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight">Pazaryeri Yönetim Merkezi</h1>
           <p className="text-sm text-muted-foreground">Tedarikçi, ürün, mağaza ve video onayları · Çalışkan B2B</p></div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" onClick={()=>setCreateSupplierOpen(true)}
+            className="gap-2 bg-[#FFCD00] font-extrabold text-slate-950 hover:bg-amber-400">
+            <UserPlus className="h-4 w-4"/>Yeni Tedarikçi Ekle
+          </Button>
           <Button type="button" onClick={()=>{setTab("archives");setSelectedArchive(null);void archives.refetch();}}
             className="gap-2 bg-slate-950 font-bold text-white hover:bg-slate-800">
             <MessageSquare className="h-4 w-4"/>Mesaj Arşivlerini Gör
@@ -300,6 +306,18 @@ export default function AdminMarketplace(){
           </article>;
         })}
       </section>}
+      <MarketplaceCreateSupplierDialog
+        open={createSupplierOpen}
+        onOpenChange={setCreateSupplierOpen}
+        onCreated={()=>{
+          setTab("suppliers");
+          void Promise.all([
+            queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/review-queue"]}),
+            queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/overview"]})
+          ]);
+          toast({title:"Tedarikçi hesabı oluşturuldu",description:"Hesap onay bekliyor. Giriş bilgilerini yeni açılan karttan kopyalayın."});
+        }}
+      />
       <MarketplaceReviewDialog
         selection={selectedReview}
         note={selectedReview?notes[selectedReview.kind+":"+selectedReview.id]||"":""}
