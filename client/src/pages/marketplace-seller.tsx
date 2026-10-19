@@ -160,7 +160,7 @@ export default function MarketplaceSeller(){
   }
   // Never trust data from an earlier authenticated seller. The account identity
   // is checked independently of the marketplace profile and revalidated on focus.
-  const authIdentity=useQuery<{id:number;role:string}>({
+  const authIdentity=useQuery<{id:number;role:string;email?:string;username?:string}>({
     queryKey:["/api/auth/me"],retry:false,staleTime:0,
     refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
   });
@@ -347,7 +347,11 @@ export default function MarketplaceSeller(){
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><a href={isStandaloneMarketplace?"https://b2b.ecalisgan.com":"/"} className="mb-2 inline-flex items-center gap-2 text-sm text-slate-600"><ArrowLeft className="h-4 w-4"/>Çalışkan B2B'ye dön</a>
           <h1 className="text-2xl font-black tracking-tight">Tedarikçi Yönetim Paneli</h1>
-          <p className="text-sm text-slate-500">Web ve telefondan aynı hesap, aynı yetkiler ve aynı veriler</p></div>
+          <p className="text-sm text-slate-500">Web ve telefondan aynı hesap, aynı yetkiler ve aynı veriler</p>
+          {identityValid?<p className="mt-1 text-xs font-bold text-amber-800">
+            Aktif hesap: {authIdentity.data?.email||authIdentity.data?.username||"Kullanıcı #"+authIdentity.data?.id}
+            {" · "}Mağaza: {me.data?.company_name}
+          </p>:null}</div>
         <div className="flex flex-wrap gap-2"><button onClick={()=>{void me.refetch();void dash.refetch();void products.refetch();}} className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold"><RefreshCw className="mr-2 inline h-4 w-4"/>Yenile</button><button type="button" onClick={async()=>{try{
     const response=await fetch("/api/auth/logout",{method:"POST",credentials:"include",cache:"no-store"});
     if(!response.ok)throw new Error("Çıkış yapılamadı");
