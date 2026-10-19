@@ -192,6 +192,14 @@ async function ready() {
         SELECT 1 FROM mp_product_versions v WHERE v.product_id=p.id
         AND (v.content->>'price') ~ '^[0-9]+([.][0-9]+)?$'
       )`);
+      // Backfill manually created suppliers from the existing immutable audit log.
+      // Never infer admin verification for ordinary self-service applicants.
+      await db.query(`UPDATE mp_suppliers s SET admin_created=TRUE,
+        admin_verified=CASE WHEN s.status='approved' THEN TRUE ELSE s.admin_verified END,
+        admin_verified_at=CASE WHEN s.status='approved'
+          THEN COALESCE(s.reviewed_at,NOW()) ELSE s.admin_verified_at END
+        WHERE admin_created=FALSE AND EXISTS(SELECT 1 FROM mp_audit_log a
+          WHERE a.entity_id=s.id AND a.action='supplier_created_by_admin')`);
       // Previously supplier applications belonged to regular customer accounts.
       // Convert only actual marketplace supplier owners to the dedicated seller
       // role, preserving their current password and company information.
@@ -982,11 +990,18 @@ export function registerMarketplaceRoutes(
         if(verified){
           // When confirming an already-created unverified account, publish its latest
           // pending product and store versions. Existing approved live versions survive.
-          const pending=await client.query(`SELECT DISTINCT ON(p.id) v.id,v.product_id
+          const pending=await client.query(`SELECT DISTINCT ON(p.id) v.id,v.product_id,v.content->>'sku' AS next_sku
             FROM mp_product_versions v JOIN mp_products p ON p.id=v.product_id
             WHERE p.supplier_id=$1 AND v.status='pending'
             ORDER BY p.id,v.id DESC`,[supplierId]);
           for(const revision of pending.rows){
+            if(revision.next_sku){
+              const conflict=await client.query(`SELECT 1 FROM mp_products
+                WHERE supplier_id=$1 AND sku=$2 AND id<>$3 LIMIT 1`,
+                [supplierId,revision.next_sku,revision.product_id]);
+              if(conflict.rows.length)throw new ApiError(409,"Mevcut ürün sürümlerinde çakışan stok kodu var. Önce ürünleri düzenleyin.");
+              await client.query("UPDATE mp_products SET sku=$1 WHERE id=$2",[revision.next_sku,revision.product_id]);
+            }
             await client.query("UPDATE mp_product_versions SET is_live=FALSE WHERE product_id=$1 AND is_live=TRUE",[revision.product_id]);
             await client.query(`UPDATE mp_product_versions SET status='approved',is_live=TRUE,
               reviewed_at=NOW(),review_note='Yönetici tarafından doğrulanan tedarikçi'
