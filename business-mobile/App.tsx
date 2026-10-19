@@ -82,6 +82,7 @@ export default function App() {
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <MarketplaceScreen
               isSuper={user?.role === "super_admin"}
+              onOpenOrder={(id)=>{if(user?.role==="super_admin")setScreen({name:"orderDetail",id});}}
               onBack={() => setScreen({ name: "more" })}
               onLogout={async () => {
                 await signOut();
