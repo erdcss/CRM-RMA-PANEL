@@ -793,14 +793,37 @@ export function registerMarketplaceRoutes(
   }));
   app.get("/api/admin/marketplace/message-archives",requireAdmin,handle(async(_req,res)=>{
     const db=await ready();
-    const result=await db.query(`SELECT c.id,c.created_at,c.closed_at,s.company_name AS supplier_name,
-      COALESCE(NULLIF(to_jsonb(b)->>'company_name',''),NULLIF(to_jsonb(b)->>'name',''),NULLIF(to_jsonb(b)->>'full_name',''),b.email,'Müşteri #'||c.buyer_user_id::text) AS customer_name,
-      COALESCE(NULLIF(to_jsonb(o)->>'name',''),s.contact_name) AS supplier_contact,
+    // The B2B address book is created independently; older databases may not have it.
+    const addressTable=await db.query("SELECT to_regclass('b2b_addresses') IS NOT NULL AS available");
+    const addressPhone=addressTable.rows[0]?.available
+      ?`(SELECT NULLIF(BTRIM(a.phone),'')
+          FROM b2b_addresses a
+          WHERE a.user_id=c.buyer_user_id AND NULLIF(BTRIM(a.phone),'') IS NOT NULL
+          ORDER BY a.is_default DESC,a.created_at DESC,a.id DESC LIMIT 1)`
+      :"NULL::text";
+    const result=await db.query(`SELECT c.id,c.created_at,c.closed_at,
+      c.buyer_user_id AS buyer_user_id,
+      s.company_name AS supplier_name,
+      COALESCE(
+        NULLIF(BTRIM(CONCAT_WS(' ',b.first_name,b.last_name)),''),
+        NULLIF(BTRIM(to_jsonb(b)->>'full_name'),''),
+        NULLIF(BTRIM(to_jsonb(b)->>'name'),''),
+        NULLIF(BTRIM(b.company_name),''),
+        NULLIF(BTRIM(b.email),''),
+        'Müşteri #'||c.buyer_user_id::text
+      ) AS customer_name,
+      NULLIF(BTRIM(b.company_name),'') AS customer_company,
+      NULLIF(BTRIM(b.email),'') AS customer_email,
+      COALESCE(NULLIF(BTRIM(to_jsonb(b)->>'phone'),''),
+        NULLIF(BTRIM(to_jsonb(b)->>'contact_phone'),''),${addressPhone}) AS customer_phone,
+      COALESCE(NULLIF(BTRIM(CONCAT_WS(' ',o.first_name,o.last_name)),''),
+        NULLIF(BTRIM(s.contact_name),''),s.company_name) AS supplier_contact,
       (SELECT COUNT(*)::int FROM mp_messages m WHERE m.conversation_id=c.id) AS message_count
       FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id
       JOIN users b ON b.id=c.buyer_user_id
       LEFT JOIN users o ON o.id=s.owner_user_id
       WHERE c.closed_at IS NOT NULL ORDER BY c.closed_at DESC LIMIT 200`);
+    res.setHeader("Cache-Control","private, no-store");
     res.json(result.rows);
   }));
   app.get("/api/admin/marketplace/message-archives/:id",requireAdmin,handle(async(req,res)=>{
