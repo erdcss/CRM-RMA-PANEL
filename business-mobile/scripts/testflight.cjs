@@ -15,8 +15,9 @@ if(app?.ios?.bundleIdentifier!=="com.caliskangroup.business"
 }
 function command(cmd,args,label){
   console.log("\n=== "+label+" ===");
-  const program=process.platform==="win32"?cmd+".cmd":cmd;
-  const run=spawnSync(program,args,{cwd,stdio:"inherit",shell:false,env:process.env});
+  // On Windows, npm/npx are .cmd shims and must be executed through cmd.exe.
+  // All commands and their arguments are static release instructions.
+  const run=spawnSync(cmd,args,{cwd,stdio:"inherit",shell:process.platform==="win32",env:process.env});
   if(run.error) {
     console.error("Komut çalıştırılamadı:",run.error.message);
     process.exit(1);
