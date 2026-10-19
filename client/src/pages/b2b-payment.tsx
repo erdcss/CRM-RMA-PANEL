@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Link } from "wouter";
 import {
   ArrowLeft,
@@ -76,6 +77,7 @@ type AddressForm = {
 };
 
 type PaymentSettings = {
+  checkoutVisibility?:{cargo:boolean;freight:boolean;pickup:boolean;card:boolean;bank_transfer:boolean};
   iyzicoConfigured: boolean;
   bankTransfer: {
     enabled: boolean;
@@ -283,9 +285,22 @@ export default function B2BPaymentPage() {
   const { data: settings } = useQuery<PaymentSettings>({
     queryKey: ["/api/public/payment-settings"],
     queryFn: () => getJson("/api/public/payment-settings"),
-    staleTime: 10_000,
+    staleTime: 0,
+    refetchInterval:5000,
+    refetchOnWindowFocus:true,
   });
 
+  const visibility=settings?.checkoutVisibility||{cargo:true,freight:true,pickup:true,card:true,bank_transfer:true};
+  useEffect(()=>{
+    if(!visibility[shippingMethod]){
+      const first=(["cargo","freight","pickup"] as const).find(k=>visibility[k]);
+      if(first)setShippingMethod(first);
+    }
+    if(!visibility[method]){
+      const first=(["card","bank_transfer"] as const).find(k=>visibility[k]);
+      if(first)setMethod(first);
+    }
+  },[visibility.cargo,visibility.freight,visibility.pickup,visibility.card,visibility.bank_transfer,shippingMethod,method]);
   const { data: billingAccount } = useQuery<BillingAccount>({
     queryKey: ["/api/b2b/account"],
     queryFn: () => getJson("/api/b2b/account"),
@@ -407,6 +422,7 @@ export default function B2BPaymentPage() {
 
   const cardCheckoutReady = Boolean(
     method === "card" &&
+      visibility.card && visibility[shippingMethod] &&
       preview &&
       settings?.iyzicoConfigured &&
       billingAccount?.taxNumber &&
@@ -828,37 +844,38 @@ export default function B2BPaymentPage() {
               <div className="rounded-2xl border bg-white p-5">
                 <h2 className="font-bold">Teslimat Seçeneği</h2>
                 <div className="mt-4 space-y-2">
-                  <DeliveryChoice
+                  {visibility.cargo?<DeliveryChoice
                     active={shippingMethod === "cargo"}
                     icon={<Truck className="h-5 w-5" />}
                     title="Kargo ile gönder"
                     description="PTT Kargo ile gönderilir"
                     onClick={() => setShippingMethod("cargo")}
-                  />
-                  <DeliveryChoice
+                  />:null}
+                  {visibility.freight?<DeliveryChoice
                     active={shippingMethod === "freight"}
                     icon={<Warehouse className="h-5 w-5" />}
                     title="Ambar ile gönder"
                     description="Ambar firma bilgilerinizi girin"
                     onClick={() => setShippingMethod("freight")}
-                  />
-                  <DeliveryChoice
+                  />:null}
+                  {visibility.pickup?<DeliveryChoice
                     active={shippingMethod === "pickup"}
                     icon={<Store className="h-5 w-5" />}
                     title="Kendim teslim alacağım"
                     description="İSTOÇ teslim noktası"
                     onClick={() => setShippingMethod("pickup")}
-                  />
+                  />:null}
                 </div>
 
-                {shippingMethod === "freight" ? (
+                {!visibility.cargo&&!visibility.freight&&!visibility.pickup?<p className="text-sm text-red-700">Şu anda teslimat yöntemi kullanılamıyor.</p>:null}
+                {shippingMethod === "freight" && visibility.freight ? (
                   <div className="mt-3 grid gap-3 rounded-xl border bg-slate-50 p-4 sm:grid-cols-2">
                     <div className="space-y-2"><Label>Ambar Firma İsmi</Label><Input value={freightCompany} onChange={(e) => setFreightCompany(e.target.value)} /></div>
                     <div className="space-y-2"><Label>Telefon Numarası</Label><Input inputMode="tel" value={freightPhone} onChange={(e) => setFreightPhone(e.target.value)} /></div>
                   </div>
                 ) : null}
 
-                {shippingMethod === "pickup" ? (
+                {shippingMethod === "pickup" && visibility.pickup ? (
                   <div className="mt-3 rounded-xl border bg-slate-50 p-4">
                     <div className="text-sm font-semibold">İSTOÇ Toptan Ticaret Merkezi Mahmutbey Mh. 19 Ada 23 Numara Bağcılar/İstanbul</div>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -873,18 +890,18 @@ export default function B2BPaymentPage() {
               <div className="rounded-2xl border bg-white p-5">
                 <h2 className="font-bold">Ödeme Yöntemi</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <button type="button" onClick={() => setMethod("card")} className={`rounded-xl border p-4 text-left ${method === "card" ? "bg-slate-950 text-white" : ""}`}>
+                  {visibility.card?<button type="button" onClick={() => setMethod("card")} className={`rounded-xl border p-4 text-left ${method === "card" ? "bg-slate-950 text-white" : ""}`}>
                     <CreditCard className="h-5 w-5" />
                     <div className="mt-2 font-bold">Kredi / Banka Kartı</div>
-                  </button>
-                  <button type="button" onClick={() => setMethod("bank_transfer")} className={`rounded-xl border p-4 text-left ${method === "bank_transfer" ? "bg-slate-950 text-white" : ""}`}>
+                  </button>:null}
+                  {visibility.bank_transfer?<button type="button" onClick={() => setMethod("bank_transfer")} className={`rounded-xl border p-4 text-left ${method === "bank_transfer" ? "bg-slate-950 text-white" : ""}`}>
                     <Landmark className="h-5 w-5" />
                     <div className="mt-2 font-bold">Havale / EFT</div>
-                  </button>
+                  </button>:null}
                 </div>
               </div>
 
-              {method === "card" ? (
+              {visibility.card&&visibility[shippingMethod]&&method === "card" ? (
                 <div
                   className="rounded-2xl border bg-white p-5"
                   data-b2b-card-fields="persistent"
