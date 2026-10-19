@@ -19,8 +19,8 @@ type Chat={id:string;latest_message?:string;buyer_user_id:string};
 type Msg={id:string;text:string;created_at:string};
 type SupplierProfile={id:number;company_name:string;is_admin_paused:boolean;is_holiday:boolean;holiday_reactivate_at?:string|null};
 type SellerOrder={id:number;order_id:number;created_at:string;status:string;subtotal:number|string;delivery_mode:string;items:Array<{name?:string;sku?:string;boxes?:number;total?:number|string}>};
-type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages"|"orders"|"settings";
-const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar",orders:"Siparişler",settings:"Ayarlar"};
+type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages"|"orders"|"returns"|"payments"|"settings";
+const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar",orders:"Siparişler",returns:"İadeler",payments:"Ödemeler",settings:"Ayarlar"};
 const status:Record<string,string>={pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",requested:"Teklif bekleniyor",offered:"Teklif sunuldu",accepted:"Kabul edildi"};
 const Input=({value,onChangeText,placeholder,multiline=false}:{value:string;onChangeText:(x:string)=>void;placeholder:string;multiline?:boolean})=>
   <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.muted}
@@ -156,7 +156,7 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
  const stats=overview as AdminStats|null;
  const seller=overview as SupplierStats|null;
  const items=isSuper?(tab==="suppliers"?queue?.suppliers:tab==="products"?queue?.products:tab==="stores"?queue?.stores:tab==="reels"?queue?.reels:[])||[]:[];
- const shownTabs:Tab[]=isSuper?["overview","orders","suppliers","products","stores","reels"]:["overview","orders","stores","products","reels","messages","settings"];
+ const shownTabs:Tab[]=isSuper?["overview","orders","suppliers","products","stores","reels"]:["overview","orders","returns","payments","stores","products","reels","messages","settings"];
  return <ScrollView style={s.screen} contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing}
     onRefresh={()=>{setRefreshing(true);void load();}} tintColor={C.text}/>}>
   <BackHeader title="Pazaryeri Yönetimi" subtitle={isSuper?"Süper yönetim merkezi":"Tedarikçi çalışma alanı"} onBack={isSuper?onBack:()=>void onLogout()}/>
@@ -251,6 +251,14 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
     {seller?.storeVersions?.map(v=><View style={s.row} key={v.id}><Text style={s.text}>Tasarım #{v.id}</Text>
        <Text style={s.value}>{status[v.status]||v.status}{v.is_live?" · Yayında":""}</Text></View>)}
   </View>:null}
+  {!isSuper&&tab==="returns"?<View style={s.panel}>
+    <Text style={s.heading}>İade Takibi</Text>
+    <Text style={s.help}>Tedarikçi iade taleplerinin canlı entegrasyonu hazırlanıyor. Henüz doğrulanmış bir iade kaydı gösterilmiyor.</Text>
+  </View>:null}
+  {!isSuper&&tab==="payments"?<View style={s.panel}>
+    <Text style={s.heading}>Ödeme Takibi</Text>
+    <Text style={s.help}>Tedarikçi hakedişleri ve ödeme hareketlerinin canlı entegrasyonu henüz etkin değil. Burada doğrulanmamış finansal rakam gösterilmiyor.</Text>
+  </View>:null}
   {!isSuper&&tab==="settings"?<View style={s.panel}>
     <Text style={s.heading}>Tedarikçi Ayarları</Text>
     <Text style={s.text}>{profile?.company_name||"Mağazanız"}</Text>
@@ -334,6 +342,15 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
       <Action title="Yanıtla" disabled={working||!reply.trim()} onPress={()=>{
         void send("/api/marketplace/conversations/"+selectedChat+"/messages",{text:reply});setReply("");
       }}/>
+      <Action title="Sohbeti Sonlandır" disabled={working} onPress={()=>Alert.alert("Sohbeti Sonlandır","Bu görüşme arşive alınacak. Müşteri yeni sohbet başlatabilecek.",[
+        {text:"Vazgeç",style:"cancel"},
+        {text:"Sohbeti Kapat",style:"destructive",onPress:()=>{
+          void (async()=>{setWorking(true);try{
+            await apiFetch("/api/marketplace/conversations/"+selectedChat+"/close",{method:"POST",body:"{}"});
+            setSelectedChat(null);setMessages([]);setNotice("Sohbet arşive alındı.");await load();
+          }catch(e){setError(e instanceof Error?e.message:"Sohbet kapatılamadı");}finally{setWorking(false);}})();
+        }}
+      ])}/>
     </View>:null}
     <Text style={s.help}>Yeni görüşmeyi sadece müşteri başlatır.</Text>
   </View>:null}
