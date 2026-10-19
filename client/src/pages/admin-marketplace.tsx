@@ -13,6 +13,12 @@ type Status = "pending" | "approved" | "rejected" | "suspended";
 type Review = {id:number;status:Status;created_at:string;review_note?:string;is_admin_paused?:boolean;admin_paused_at?:string|null;company_name?:string;contact_name?:string;
   tax_number?:string;tax_office?:string;contact_phone?:string;contact_email?:string;company_type?:string;iban?:string;has_tax_document?:boolean;description?:string;content?:Record<string,unknown>;title?:string;video_url?:string;is_live?:boolean;product_id?:number};
 type Queue = {suppliers:Review[];products:Review[];stores:Review[];reels:Review[]};
+type ArchivedConversation = {
+  id:number;supplier_name:string;supplier_contact?:string|null;customer_name:string;
+  customer_company?:string|null;customer_email?:string|null;customer_phone?:string|null;
+  buyer_user_id:number;closed_at:string;message_count:number;
+};
+type ArchivedMessage={id:number;text:string;created_at:string;sender_role:"customer"|"supplier"};
 type Metric = {status:string;total:number};
 type Overview = {suppliers:Metric[];products:Metric[];stores:Metric[];reels:Metric[];
   conversations:number;quotes:number;commissionPercent:number;warehouseControlExtraPercent:number;liveSupplierCheckout:boolean};
@@ -38,13 +44,14 @@ export default function AdminMarketplace(){
   const [selectedReview,setSelectedReview]=useState<{kind:ReviewKind;id:number}|null>(null);
   const {toast}=useToast();
   const overview=useQuery<Overview>({queryKey:["/api/admin/marketplace/overview"],staleTime:0,refetchInterval:30000});
-  const archives=useQuery<Array<{id:number;supplier_name:string;customer_name:string;closed_at:string;message_count:number}>>({
+  const archives=useQuery<ArchivedConversation[]>({
     queryKey:["/api/admin/marketplace/message-archives"],enabled:tab==="archives",staleTime:0,refetchOnMount:"always"
   });
-  const archivedMessages=useQuery<Array<{id:number;text:string;created_at:string;sender_role:string}>>({
+  const archivedMessages=useQuery<ArchivedMessage[]>({
     queryKey:["/api/admin/marketplace/message-archives/"+selectedArchive],enabled:tab==="archives"&&selectedArchive!==null,staleTime:0
   });
   const queue=useQuery<Queue>({queryKey:["/api/admin/marketplace/review-queue"],staleTime:0,refetchInterval:30000});
+  const selectedArchiveInfo=archives.data?.find(chat=>chat.id===selectedArchive);
   async function decision(kind:Tab,r:Review,value:"approved"|"rejected"){
     const key=kind+":"+r.id;
     const note=(notes[key]||"").trim();
@@ -138,15 +145,41 @@ export default function AdminMarketplace(){
         <section className="rounded-xl border bg-card p-4"><h2 className="mb-3 font-bold">Kapatılmış Sohbetler {archives.data?("("+archives.data.length+")"):""}</h2>
           {archives.isLoading?<p className="text-xs text-muted-foreground">Görüşmeler yükleniyor...</p>:null}
           {archives.data?.map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedArchive(chat.id)}
-            className={"mb-2 block w-full rounded-lg p-3 text-left text-sm "+(selectedArchive===chat.id?"bg-amber-100 text-slate-950":"bg-muted")}>
-            <b>{chat.supplier_name} · {chat.customer_name}</b>
-            <p className="mt-1 text-xs">{new Date(chat.closed_at).toLocaleString("tr-TR")} · {chat.message_count} mesaj</p>
+            aria-pressed={selectedArchive===chat.id}
+            className={"mb-2 block w-full space-y-1 rounded-lg p-3 text-left text-sm "+(selectedArchive===chat.id?"bg-amber-100 text-slate-950":"bg-muted")}>
+            <b className="block">{chat.supplier_name} · {chat.customer_name||"Bilinmeyen Müşteri"}</b>
+            <p className="text-xs">Müşteri: {chat.customer_name||"Bilinmiyor"}</p>
+            <p className="break-all text-xs">E-posta: {chat.customer_email||"Yok"}</p>
+            <p className="text-xs">Telefon: {chat.customer_phone||"Yok"}</p>
+            <p className="text-xs">Müşteri ID: #{chat.buyer_user_id}</p>
+            <p className="pt-1 text-xs">{new Date(chat.closed_at).toLocaleString("tr-TR")} · {chat.message_count} mesaj</p>
           </button>)}
           {!archives.isLoading&&!archives.isError&&!archives.data?.length?<p className="text-sm text-muted-foreground">Henüz arşivlenmiş sohbet yok.</p>:null}
         </section>
-        <section className="space-y-2 rounded-xl border bg-card p-4 lg:col-span-2"><h2 className="font-bold">Arşivlenmiş Mesajlar</h2>
+        <section className="space-y-3 rounded-xl border bg-card p-4 lg:col-span-2"><h2 className="font-bold">Arşivlenmiş Mesajlar</h2>
+          {selectedArchiveInfo?<div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
+            <h3 className="mb-3 text-sm font-extrabold">Görüşme Tarafları</h3>
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-500">Tedarikçi</p>
+                <p className="font-semibold">{selectedArchiveInfo.supplier_name}</p>
+                {selectedArchiveInfo.supplier_contact?<p className="text-xs text-slate-600">Yetkili: {selectedArchiveInfo.supplier_contact}</p>:null}
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-500">Müşteri</p>
+                <p className="font-semibold">{selectedArchiveInfo.customer_name||"Bilinmiyor"}</p>
+                {selectedArchiveInfo.customer_company&&selectedArchiveInfo.customer_company!==selectedArchiveInfo.customer_name?
+                  <p className="text-xs text-slate-600">Firma: {selectedArchiveInfo.customer_company}</p>:null}
+                <p className="break-all text-xs text-slate-600">E-posta: {selectedArchiveInfo.customer_email||"Yok"}</p>
+                <p className="text-xs text-slate-600">Telefon: {selectedArchiveInfo.customer_phone||"Yok"}</p>
+                <p className="text-xs text-slate-600">Kullanıcı ID: #{selectedArchiveInfo.buyer_user_id}</p>
+              </div>
+            </div>
+          </div>:null}
           {archivedMessages.data?.map(m=><div key={m.id} className="rounded-lg bg-muted p-3 text-sm">
-            <b className="text-xs">{m.sender_role==="supplier"?"Tedarikçi":"Müşteri"}</b>
+            <b className="text-xs">{m.sender_role==="supplier"
+              ?"Tedarikçi · "+(selectedArchiveInfo?.supplier_name||"Bilinmiyor")
+              :"Müşteri · "+(selectedArchiveInfo?.customer_name||"Bilinmiyor")}</b>
             <p className="mt-1 whitespace-pre-wrap">{m.text}</p><p className="mt-1 text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("tr-TR")}</p>
           </div>)}
           {!selectedArchive?<p className="text-sm text-muted-foreground">Mesajları görmek için soldaki listeden bir görüşme seçin.</p>:null}
