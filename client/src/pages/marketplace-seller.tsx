@@ -10,7 +10,7 @@ import { MarketplaceSupplierPauseBanner } from "@/components/marketplace-supplie
 import { MarketplaceActionDialog } from "@/components/marketplace-action-dialog";
 import { toast } from "@/hooks/use-toast";
 
-type Supplier={id:number;slug:string;company_name:string;status:string;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
+type Supplier={id:number;slug:string;company_name:string;status:string;admin_created?:boolean;admin_verified?:boolean;review_note?:string;has_tax_document?:boolean;company_type?:string;is_holiday?:boolean;holiday_reactivate_at?:string|null;holiday_popularity_penalty?:number};
 type Product={id:number;sku:string;stock:number;current_price?:number|string|null;latest?:{id:number;status:string;content:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number};review_note?:string};live?:{name:string;imageUrl?:string;brand?:string;category?:string;description?:string;unitsPerBox?:number;price?:number;leadDays?:number}};
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
@@ -289,6 +289,16 @@ export default function MarketplaceSeller(){
       {me.data ? <div className="sticky top-0 z-30 -mx-2 space-y-2">
         <MarketplaceSupplierPauseBanner/>
         <MarketplaceHolidayBanner/>
+        {me.data.admin_created&&!me.data.admin_verified&&!approved?
+          <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">
+            <div>
+              <p className="text-sm font-extrabold">Mağazanız doğrulanmamış · Satışa kapalı</p>
+              <p className="mt-1 text-xs">Tedarikçi hesabınız yönetici tarafından doğrulanmadı. Satışa başlamak için firma bilgilerini ve vergi levhanızı gönderin; yönetici onayını bekleyin.</p>
+            </div>
+            {!verificationSubmitted?<button type="button" className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-[#FFCD00]"
+              onClick={()=>setTab("verification")}>Hesabımı Doğrula</button>:
+              <span className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold">Onay Bekleniyor</span>}
+          </div>:null}
         <nav aria-label="Tedarikçi araçları" className="flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur">
         {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"reels",label:"Reels",icon:Film},{key:"settings",label:"Ayarlar",icon:ShieldCheck}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
         </nav>
