@@ -99,7 +99,7 @@ export default function B2BStorefront() {
 
       const matchesSearch =
         !term ||
-        [product.name, product.sku, product.category, product.collection_name, product.seller_name]
+        [product.name, product.sku, product.category, product.collection_name, product.marketplace ? product.seller_name : "ÇALIŞKAN"]
           .filter(Boolean)
           .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(term));
 
