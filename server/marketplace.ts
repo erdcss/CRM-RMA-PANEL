@@ -413,7 +413,7 @@ export function registerMarketplaceRoutes(
   }));
   app.get("/api/marketplace/me",requireSeller,handle(async(_req,res)=>{
     const db=await ready();
-    const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
+    const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(r.rows[0]||null);
   }));
@@ -642,7 +642,14 @@ export function registerMarketplaceRoutes(
         holiday_popularity_penalty=holiday_popularity_penalty+1
         WHERE id=$1 AND is_holiday=FALSE
         RETURNING is_holiday,holiday_reactivate_at,holiday_popularity_penalty`,[supplier.id]);
-      if(!updated.rows[0])throw new ApiError(409,"Mağazanız zaten tatil modunda.");
+      if(!updated.rows[0]){
+        const current=await db.query("SELECT is_holiday,holiday_reactivate_at FROM mp_suppliers WHERE id=$1",[supplier.id]);
+        if(!current.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
+        return res.json({holidayMode:Boolean(current.rows[0].is_holiday),
+          reactivateAt:current.rows[0].holiday_reactivate_at||null,
+          reactivationPending:Boolean(current.rows[0].holiday_reactivate_at),
+          message:"Mağazanız zaten tatil modunda. Mevcut durum yenilendi."});
+      }
       return res.json({holidayMode:true,reactivateAt:null,reactivationPending:false,
         message:"Tatil modu açıldı. Ürünler satıştan kaldırıldı ve mağaza sıralama puanı düşürüldü."});
     }
@@ -650,7 +657,16 @@ export function registerMarketplaceRoutes(
       SET holiday_reactivate_at=NOW()+INTERVAL '24 hours'
       WHERE id=$1 AND is_holiday=TRUE AND holiday_reactivate_at IS NULL
       RETURNING is_holiday,holiday_reactivate_at`,[supplier.id]);
-    if(!updated.rows[0])throw new ApiError(409,"Mağaza aktif veya yeniden açılma talebi zaten alınmış.");
+    if(!updated.rows[0]){
+      const current=await db.query("SELECT is_holiday,holiday_reactivate_at FROM mp_suppliers WHERE id=$1",[supplier.id]);
+      if(!current.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
+      return res.json({holidayMode:Boolean(current.rows[0].is_holiday),
+        reactivationPending:Boolean(current.rows[0].holiday_reactivate_at),
+        reactivateAt:current.rows[0].holiday_reactivate_at||null,
+        message:current.rows[0].holiday_reactivate_at
+          ?"Yeniden açılış talebiniz zaten alındı. Mağazanız belirtilen saatte otomatik açılacak."
+          :"Mağazanız zaten aktif."});
+    }
     return res.json({holidayMode:true,reactivationPending:true,
       reactivateAt:updated.rows[0].holiday_reactivate_at,
       message:"Mağazanız 24 saat içerisinde görünür olacak. Bu süre dolana kadar ürünler satışa kapalı kalacaktır."});
