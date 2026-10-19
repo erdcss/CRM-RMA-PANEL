@@ -23,11 +23,17 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended')),
   is_holiday BOOLEAN NOT NULL DEFAULT FALSE,
+  holiday_started_at TIMESTAMPTZ,
+  holiday_reactivate_at TIMESTAMPTZ,
+  holiday_popularity_penalty INTEGER NOT NULL DEFAULT 0,
   review_note TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   reviewed_at TIMESTAMPTZ
 );
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS is_holiday BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_started_at TIMESTAMPTZ;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_reactivate_at TIMESTAMPTZ;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_popularity_penalty INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS mp_store_versions (
   id BIGSERIAL PRIMARY KEY,
   supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE CASCADE,
@@ -134,6 +140,17 @@ CREATE TABLE IF NOT EXISTS mp_audit_log (
 `;
 
 let schemaPromise: Promise<unknown> | undefined;
+// Database timestamps are the authority; requests and the periodic worker both reconcile due reopenings.
+let nextHolidayReconcile=0;
+async function reconcileHolidayStores(db:NonNullable<typeof pool>,force=false) {
+  const now=Date.now();
+  if(!force&&now<nextHolidayReconcile)return;
+  nextHolidayReconcile=now+30_000;
+  try{
+    await db.query(`UPDATE mp_suppliers SET is_holiday=FALSE,holiday_reactivate_at=NULL
+      WHERE is_holiday=TRUE AND holiday_reactivate_at IS NOT NULL AND holiday_reactivate_at<=NOW()`);
+  }catch(error){nextHolidayReconcile=0;throw error;}
+}
 async function ready() {
   const db = pool;
   if (!db) throw new ApiError(503, "Pazaryeri veritabanı hazır değil");
@@ -164,9 +181,17 @@ async function ready() {
     })().catch(error => { schemaPromise = undefined; throw error; });
   }
   await schemaPromise;
+  await reconcileHolidayStores(db);
   return db;
 }
 export async function ensureMarketplaceSchema() { await ready(); }
+// A live process also reopens stores when the deadline passes, without requiring the seller to log in.
+// On restart, the stored deadline and reconciliation logic continue to work.
+const holidayScheduler=setInterval(()=>{
+  if(!pool||!schemaPromise)return;
+  void reconcileHolidayStores(pool,true).catch(error=>console.error("Marketplace holiday reactivation:",error));
+},30_000);
+holidayScheduler.unref();
 class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 function handle(fn: (req: Request, res: Response) => Promise<unknown>): RequestHandler {
   return (req,res,next) => { Promise.resolve(fn(req,res)).catch((error) => {
@@ -223,7 +248,7 @@ const decisionSchema=z.object({
 function userId(res:Response){return Number((res.locals as any).b2bUser.id);}
 async function supplierFor(res:Response) {
   const db=await ready();
-  const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
+  const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
   if (!q.rows[0]) throw new ApiError(403,"Önce tedarikçi başvurusu oluşturun");
   if (["rejected","suspended"].includes(q.rows[0].status)) throw new ApiError(403,"Tedarikçi hesabınız kısıtlandı");
   return q.rows[0];
@@ -249,7 +274,8 @@ export function registerMarketplaceRoutes(
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
       FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
-      WHERE s.status='approved' AND s.is_holiday=FALSE ORDER BY s.id DESC LIMIT 100`);
+      WHERE s.status='approved' AND s.is_holiday=FALSE
+      ORDER BY ((SELECT COUNT(*) FROM mp_follows f WHERE f.supplier_id=s.id) - (s.holiday_popularity_penalty*10)) DESC,s.id DESC LIMIT 100`);
     res.json(q.rows);
   }));
   // Mobile seller catalogue is separate from the company's own b2b_products table.
@@ -605,9 +631,29 @@ export function registerMarketplaceRoutes(
   }));
   app.patch("/api/marketplace/seller/settings",requireSeller,handle(async(req,res)=>{
     const supplier=await supplierFor(res),db=await ready();
-    const data=z.object({holidayMode:z.boolean()}).strict().parse(req.body);
-    const result=await db.query("UPDATE mp_suppliers SET is_holiday=$2 WHERE id=$1 RETURNING is_holiday",[supplier.id,data.holidayMode]);
-    res.json({holidayMode:Boolean(result.rows[0].is_holiday)});
+    const data=z.object({holidayMode:z.boolean(),confirmConsequences:z.boolean().optional()}).strict().parse(req.body);
+    if(data.holidayMode && data.confirmConsequences!==true){
+      throw new ApiError(400,"Tatil modunun satış, popülerlik ve 24 saatlik geri açılma koşullarını onaylamalısınız.");
+    }
+    // Conditional writes make rapid double clicks and concurrent requests safe.
+    if(data.holidayMode){
+      const updated=await db.query(`UPDATE mp_suppliers SET is_holiday=TRUE,
+        holiday_started_at=NOW(),holiday_reactivate_at=NULL,
+        holiday_popularity_penalty=holiday_popularity_penalty+1
+        WHERE id=$1 AND is_holiday=FALSE
+        RETURNING is_holiday,holiday_reactivate_at,holiday_popularity_penalty`,[supplier.id]);
+      if(!updated.rows[0])throw new ApiError(409,"Mağazanız zaten tatil modunda.");
+      return res.json({holidayMode:true,reactivateAt:null,reactivationPending:false,
+        message:"Tatil modu açıldı. Ürünler satıştan kaldırıldı ve mağaza sıralama puanı düşürüldü."});
+    }
+    const updated=await db.query(`UPDATE mp_suppliers
+      SET holiday_reactivate_at=NOW()+INTERVAL '24 hours'
+      WHERE id=$1 AND is_holiday=TRUE AND holiday_reactivate_at IS NULL
+      RETURNING is_holiday,holiday_reactivate_at`,[supplier.id]);
+    if(!updated.rows[0])throw new ApiError(409,"Mağaza aktif veya yeniden açılma talebi zaten alınmış.");
+    return res.json({holidayMode:true,reactivationPending:true,
+      reactivateAt:updated.rows[0].holiday_reactivate_at,
+      message:"Mağazanız 24 saat içerisinde görünür olacak. Bu süre dolana kadar ürünler satışa kapalı kalacaktır."});
   }));
   app.get("/api/marketplace/follows",requireB2B,handle(async(_req,res)=>{
     const db=await ready();
