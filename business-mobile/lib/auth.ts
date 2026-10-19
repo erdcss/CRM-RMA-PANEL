@@ -63,7 +63,7 @@ export async function signIn(email: string, password: string): Promise<BusinessS
   }
 
   if (supplierLogin) {
-    if (user.role !== "b2b_customer") throw new Error("B2B tedarikçi hesabı gerekiyor");
+    if (user.role !== "b2b_seller" && user.role !== "b2b_customer") throw new Error("B2B tedarikçi hesabı gerekiyor");
     if (payload.mustChangePassword) throw new Error("Önce Çalışkan B2B web hesabınızda ilk şifrenizi belirleyin.");
     const supplierCheck = await fetch(`${API}/api/marketplace/me`, {
       headers: {Authorization: `Bearer ${token}`, Accept: "application/json"},
@@ -71,6 +71,11 @@ export async function signIn(email: string, password: string): Promise<BusinessS
     if (!supplierCheck.ok) throw new Error("Tedarikçi yetkisi doğrulanamadı");
     const supplier = await supplierCheck.json().catch(() => null);
     if (supplier?.status !== "approved") throw new Error("Çalışkan Business erişimi için tedarikçi onayı gerekiyor.");
+  } else if (user.role === "b2b_seller") {
+    const supplierCheck = await fetch(`${API}/api/marketplace/me`, {headers:{Authorization:`Bearer ${token}`,Accept:"application/json"}});
+    if (!supplierCheck.ok) throw new Error("Tedarikçi yetkisi doğrulanamadı");
+    const supplier = await supplierCheck.json().catch(() => null);
+    if (!supplier || supplier.status !== "approved") throw new Error("Onaylı tedarikçi hesabı gerekiyor");
   } else if (user.appAccess !== "business" && !["admin","super_admin"].includes(user.role)) {
     throw new Error("Bu hesabın Çalışkan Business erişimi yok");
   }
