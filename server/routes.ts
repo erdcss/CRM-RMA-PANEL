@@ -2461,6 +2461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // pending marketplace profile atomically. Company verification remains mandatory.
   app.post("/api/admin/marketplace/suppliers",requireMarketplaceSuperAdmin,async(req,res)=>{
     const details=z.object({
+      verificationStatus:z.enum(["verified","unverified"]).default("unverified"),
       companyName:z.string().trim().min(2).max(180),
       firstName:z.string().trim().min(2).max(80),
       lastName:z.string().trim().min(2).max(80),
@@ -2502,6 +2503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(409).json({error:"Bu vergi numarasıyla kayıtlı bir tedarikçi zaten mevcut."});
         }
       }
+      const verified=data.verificationStatus==="verified";
       const temporaryPassword=randomBytes(24).toString("base64url");
       const user=await client.query(`INSERT INTO users
         (username,password,role,app_access,is_active,company_name,first_name,last_name,
@@ -2519,22 +2521,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const slug=base+"-"+userId;
       const supplier=await client.query(`INSERT INTO mp_suppliers
         (owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,
-          contact_email,company_type,iban,description,status)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'pending')
+          contact_email,company_type,iban,description,status,admin_created,admin_verified,admin_verified_at,reviewed_at,review_note)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,TRUE,$13,
+          CASE WHEN $13 THEN NOW() ELSE NULL END,CASE WHEN $13 THEN NOW() ELSE NULL END,
+          CASE WHEN $13 THEN 'Yönetici tarafından manuel doğrulandı' ELSE '' END)
         RETURNING id,status`,
         [userId,slug,data.companyName,data.taxNumber,data.taxOffice,
-          data.firstName+" "+data.lastName,data.phone,data.email,data.companyType,data.iban,data.description]
+          data.firstName+" "+data.lastName,data.phone,data.email,data.companyType,data.iban,data.description,verified?"approved":"pending",verified]
       );
       await client.query(
         "INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
-        [actor,"supplier_created_by_admin",supplier.rows[0].id,"Manuel tedarikçi kaydı"]
+        [actor,"supplier_created_by_admin",supplier.rows[0].id,verified?"Manuel tedarikçi kaydı; yönetici doğruladı":"Manuel tedarikçi kaydı; belge doğrulaması bekliyor"]
       );
       await client.query("COMMIT");
       res.setHeader("Cache-Control","private, no-store");
       return res.status(201).json({
-        supplierId:Number(supplier.rows[0].id),userId,slug,status:"pending",
+        supplierId:Number(supplier.rows[0].id),userId,slug,status:verified?"approved":"pending",
+        admin_verified:verified,
         email:data.email,temporaryPassword,
-        message:"Tedarikçi hesabı oluşturuldu. Satışa açılması için firma doğrulaması ve yönetici onayı gerekli."
+        message:verified
+          ?"Tedarikçi yönetici tarafından doğrulandı. Mağaza aktif; yeni ürünler doğrudan satışa açılabilir."
+          :"Tedarikçi hesabı doğrulanmamış oluşturuldu. Satış için belge ve yönetici onayı gerekli."
       });
     }catch(error){
       await client.query("ROLLBACK").catch(()=>undefined);
