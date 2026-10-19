@@ -185,6 +185,21 @@ export default function MarketplaceSeller(){
     catch(e){setMessage(e instanceof Error?e.message:"İşlem tamamlanamadı.");}
     finally{setBusy(false);}
   }
+  async function requestHolidayWarning() {
+    if(busy)return;
+    setMessage("");
+    // Check the persisted status before offering an irreversible ranking penalty.
+    const latest=await me.refetch();
+    if(latest.isError){setMessage("Mağaza durumu doğrulanamadı. Yenileyip tekrar deneyin.");return;}
+    if(latest.data?.is_holiday){
+      setShowHolidayWarning(false);
+      setMessage(latest.data.holiday_reactivate_at
+        ?"Yeniden açılış talebiniz zaten alındı."
+        :"Mağazanız zaten tatil modunda. Tatil Modunu Kapat seçeneğini kullanabilirsiniz.");
+      return;
+    }
+    setShowHolidayWarning(true);
+  }
   async function updateHolidayMode(nextHolidayMode:boolean) {
     if(busy||holidayReactivationPending)return;
     setBusy(true);setMessage("");
@@ -192,8 +207,13 @@ export default function MarketplaceSeller(){
       const outcome=await send("PATCH","/api/marketplace/seller/settings",{
         holidayMode:nextHolidayMode,
         ...(nextHolidayMode?{confirmConsequences:true}:{})
-      }) as {message?:string;reactivateAt?:string|null};
+      }) as {message?:string;holidayMode:boolean;reactivateAt?:string|null};
       setShowHolidayWarning(false);
+      queryClient.setQueryData<Supplier|null>(["/api/marketplace/me"],current=>current?{
+        ...current,
+        is_holiday:outcome.holidayMode,
+        holiday_reactivate_at:outcome.reactivateAt||null
+      }:current);
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]}),
         queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/dashboard"]}),
@@ -201,6 +221,8 @@ export default function MarketplaceSeller(){
       ]);
       setMessage(outcome.message||"Mağaza durumu güncellendi.");
     }catch(error){
+      setShowHolidayWarning(false);
+      await me.refetch();
       setMessage(error instanceof Error?error.message:"Tatil modu değiştirilemedi.");
     }finally{setBusy(false);}
   }
@@ -404,9 +426,9 @@ export default function MarketplaceSeller(){
                   Bu zamana kadar ürünler satışa kapalı kalacak.
                 </div>:holidayMode?<p role="status" className="mt-2 text-xs font-semibold text-amber-800">Mağazanız şu an tatil modundadır.</p>:null}
               </div>
-              <button type="button" disabled={busy||holidayReactivationPending} aria-pressed={holidayMode}
+              <button type="button" disabled={busy||me.isFetching||holidayReactivationPending} aria-pressed={holidayMode}
                 className={"rounded-xl px-5 py-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-60 "+(holidayMode?"bg-emerald-700 text-white":"bg-slate-950 text-[#FFCD00]")}
-                onClick={()=>{if(holidayMode){void updateHolidayMode(false);}else{setShowHolidayWarning(true);}}}>
+                onClick={()=>{if(holidayMode){void updateHolidayMode(false);}else{void requestHolidayWarning();}}}>
                 {holidayReactivationPending?"Açılış Bekleniyor":holidayMode?"Tatil Modunu Kapat":"Tatil Modunu Aç"}
               </button>
             </div>
