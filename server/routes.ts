@@ -1718,6 +1718,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/auth/me", async (req, res) => {
+    res.setHeader("Cache-Control","private, no-store, max-age=0");
+    res.vary("Cookie");
+    res.vary("Authorization");
     const userId = sessionUserId(req);
     if (!userId) {
       return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
