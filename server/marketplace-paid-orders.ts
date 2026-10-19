@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { notifyB2BEvent } from "./b2b-notification-center";
+import { sendBusinessPushToUsers } from "./push-notifications";
 
 type PaidLine={
   productId?:unknown;supplierId?:unknown;quantity?:unknown;
@@ -47,6 +48,11 @@ export async function notifyVerifiedSupplierOrder(orderNumber:string,rawItems:un
     await notifyB2BEvent(Number(supplier.owner_user_id),"supplier_order_paid",{
       orderNumber,amount:currency(amount),sellerName:String(supplier.company_name),status:subtitle,
     }, "supplier_order_paid:"+orderNumber+":"+supplier.id).catch(e=>console.error("Seller paid notification",e));
+    await sendBusinessPushToUsers([Number(supplier.owner_user_id)],{
+      title:"Ürününüz satıldı",
+      body:orderNumber+" · "+currency(amount)+" · "+subtitle,
+      data:{type:"supplier_order_paid",orderNumber,supplierId:String(supplier.id)}
+    }).catch(e=>console.error("Business seller paid push",e));
   }
   for(const row of admin.rows){
     await notifyB2BEvent(Number(row.id),"admin_supplier_paid",{
