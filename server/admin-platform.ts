@@ -4,6 +4,7 @@ import {
   getAdminPaymentSettings,
   getPublicPaymentSettings,
   savePaymentSettings,
+  saveCheckoutVisibility,
 } from "./payment-config";
 import { retrieveIyzicoCheckout } from "./iyzico";
 import {
@@ -967,6 +968,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       console.error("Admin payment settings load failed:", error);
       return res.status(500).json({ error: "Ödeme ayarları alınamadı" });
     }
+  });
+
+  app.patch("/api/admin/payment-settings/visibility",requireAdmin,async(req,res)=>{
+    try{return res.json(await saveCheckoutVisibility(req.body));}
+    catch(error){console.error("Payment visibility update failed",error);
+      return res.status(400).json({error:error instanceof Error?error.message:"Görünürlük ayarları kaydedilemedi"});}
   });
 
   app.put("/api/admin/payment-settings", requireAdmin, async (req, res) => {
