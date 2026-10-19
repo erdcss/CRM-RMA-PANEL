@@ -487,6 +487,14 @@ function checkoutShipping(value: unknown): ShippingSelection {
   throw new Error("Nakliye seçeneği seçin");
 }
 
+async function assertCheckoutVisibility(payment:"card"|"bank_transfer",shipping:ShippingSelection){
+  const config=await getPaymentConfig();
+  if(!config.checkoutVisibility[payment])
+    throw new Error("Seçilen ödeme yöntemi yönetici tarafından kullanıma kapatılmıştır.");
+  if(!config.checkoutVisibility[shipping.method])
+    throw new Error("Seçilen teslimat yöntemi yönetici tarafından kullanıma kapatılmıştır.");
+}
+
 async function checkoutAddress(userId: number, addressId: unknown) {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
@@ -3025,6 +3033,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       checkout = await checkoutItems(rawItems);
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
+      await assertCheckoutVisibility("card",shipping);
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Sipariş bilgileri geçersiz",
@@ -3534,6 +3543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       checkout = await checkoutItems(rawItems);
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
+      await assertCheckoutVisibility("card",shipping);
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Sipariş bilgileri geçersiz",
@@ -3955,6 +3965,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       checkout = await checkoutItems(rawItems);
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
+      await assertCheckoutVisibility("bank_transfer",shipping);
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Sipariş bilgileri geçersiz",
