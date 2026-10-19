@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 
 type SupplierForm={
+  verificationStatus:"verified"|"unverified";
   companyName:string;firstName:string;lastName:string;email:string;phone:string;
   taxNumber:string;taxOffice:string;companyType:""|"sahis"|"limited"|"anonim"|"kooperatif"|"diger";
   iban:string;description:string;
 };
-type CreatedSupplier={supplierId:number;userId:number;slug:string;status:"pending";email:string;temporaryPassword:string;message:string};
+type CreatedSupplier={supplierId:number;userId:number;slug:string;status:"pending"|"approved";admin_verified:boolean;email:string;temporaryPassword:string;message:string};
 const blank:SupplierForm={
+  verificationStatus:"unverified",
   companyName:"",firstName:"",lastName:"",email:"",phone:"",
   taxNumber:"",taxOffice:"",companyType:"",iban:"",description:""
 };
@@ -52,7 +54,7 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
       "Kullanıcı adı: "+created.email,
       "Başlangıç şifresi: "+created.temporaryPassword,
       "Firma: "+form.companyName,
-      "Hesap durumu: Yönetici onayı ve firma doğrulaması bekleniyor"
+      "Hesap durumu: "+(created.admin_verified?"Yönetici tarafından doğrulandı; satışa açık":"Firma doğrulaması ve onay bekleniyor")
     ].join("\n");
     try{await navigator.clipboard.writeText(value);setCopied(true);}
     catch{setError("Otomatik kopyalama engellendi. Giriş bilgilerini bu pencereden elle kopyalayın.");}
@@ -70,12 +72,12 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
         </DialogTitle>
         <DialogDescription>
           {created?"Başlangıç şifresi yalnızca bu pencerede gösterilir. Kapatmadan önce güvenli biçimde paylaşın.":
-            "Tedarikçinin giriş hesabını ve pazaryeri mağaza kaydını birlikte oluşturun. Satışlar firma belgeleri onaylandıktan sonra açılır."}
+            "Tedarikçi hesabı oluşturun ve doğrulama durumunu belirleyin. Yönetici tarafından doğrulanan hesaplar doğrudan satışa açılır."}
         </DialogDescription>
       </DialogHeader>
       {created?<div className="space-y-4">
         <div className="space-y-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-slate-900">
-          <div className="flex items-center gap-2 font-extrabold text-emerald-900"><CheckCircle2 className="h-4 w-4"/>Kayıt başarılı · Onay bekliyor</div>
+          <div className="flex items-center gap-2 font-extrabold text-emerald-900"><CheckCircle2 className="h-4 w-4"/>Kayıt başarılı · {created.admin_verified?"Doğrulanmış / Satışa Açık":"Doğrulanmamış / Onay Bekliyor"}</div>
           <p><b>Firma:</b> {form.companyName}</p>
           <p><b>Yetkili:</b> {form.firstName} {form.lastName}</p>
           <p><b>Tedarikçi ID:</b> #{created.supplierId}</p>
@@ -85,7 +87,9 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
             <code className="block select-all break-all text-sm">{created.temporaryPassword}</code>
           </div>
         </div>
-        <p className="text-xs leading-5 text-slate-600">Bu şifre tekrar görüntülenemez. E-posta veya şifre paylaşımı otomatik yapılmadı. Giriş bilgilerini yalnızca yetkili kişiyle güvenli bir kanaldan paylaşın. Eksik vergi levhası ve diğer doğrulama belgelerini tedarikçi panelinden tamamlayabilir.</p>
+        <p className="text-xs leading-5 text-slate-600">Bu şifre tekrar görüntülenemez. Giriş bilgilerini yetkili kişiyle güvenli biçimde paylaşın. {created.admin_verified
+          ?"Hesap yönetici tarafından doğrulandı. Tedarikçi ürün ekleyerek doğrudan satışa başlayabilir; tatil modu veya yönetici pasifliği uygulanırsa satışlar kapalı kalır."
+          :"Tedarikçi panelinden doğrulama belgeleri tamamlanmalı ve yönetici onayı alınmalıdır."}</p>
         {error?<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>:null}
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={()=>toggle(false)}>Kapat</Button>
@@ -94,6 +98,23 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
           </Button>
         </div>
       </div>:<form className="space-y-4" onSubmit={event=>void submit(event)}>
+        <div className="space-y-2">
+          <p className="text-sm font-extrabold text-slate-900">Tedarikçi Hesap Doğrulaması *</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className={"cursor-pointer rounded-xl border p-3 text-sm transition "+(form.verificationStatus==="unverified"?"border-amber-400 bg-amber-50":"border-slate-200 bg-white")}>
+              <input type="radio" name="verificationStatus" checked={form.verificationStatus==="unverified"}
+                onChange={()=>change("verificationStatus","unverified")} className="mr-2 accent-amber-600"/>
+              <span className="font-extrabold">Doğrulanmamış</span>
+              <p className="mt-2 text-xs leading-5 text-slate-600">Tedarikçi, panelinden vergi levhası ve firma belgelerini yüklemeli. Yönetici onayından önce satış yapamaz.</p>
+            </label>
+            <label className={"cursor-pointer rounded-xl border p-3 text-sm transition "+(form.verificationStatus==="verified"?"border-emerald-400 bg-emerald-50":"border-slate-200 bg-white")}>
+              <input type="radio" name="verificationStatus" checked={form.verificationStatus==="verified"}
+                onChange={()=>change("verificationStatus","verified")} className="mr-2 accent-emerald-600"/>
+              <span className="font-extrabold">Doğrulanmış</span>
+              <p className="mt-2 text-xs leading-5 text-slate-600">Yönetici firma bilgilerinin doğruluğunu onaylar. Hesap anında aktif olur, yeni ürünler satışa açılır.</p>
+            </label>
+          </div>
+        </div>
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-extrabold"><Building2 className="h-4 w-4"/>Firma Bilgileri</div>
           <label className="block space-y-1 text-xs font-bold text-slate-700">Firma adı *
@@ -142,7 +163,7 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
         </div>
         {error?<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>:null}
         <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-          Satıcıya güçlü bir başlangıç şifresi üretilecek. Hesap, satış onayı tamamlanana kadar <b>Onay Bekliyor</b> durumunda kalacak.
+          Satıcıya güçlü bir başlangıç şifresi üretilecek. {form.verificationStatus==="verified"?<b>Hesap doğrudan onaylanacak ve ürünler satışa açılabilecek.</b>:<b>Firma doğrulaması ve yönetici onayına kadar satış kapalı kalacak.</b>} Yönetici doğrulaması, harici resmi doğrulama yerine geçmez.
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" disabled={working} onClick={()=>toggle(false)}>Vazgeç</Button>
