@@ -900,7 +900,9 @@ export default function B2BPaymentPage() {
                 </div>
               </div>
 
-              {visibility.card&&visibility[shippingMethod]&&method === "card" ? (
+              {(!visibility[method]||!visibility[shippingMethod]) ? (
+                <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">Seçilen ödeme veya teslimat yöntemi şu anda kullanılamıyor. Lütfen görünür seçeneklerden birini seçin.</div>
+              ) : method === "card" ? (
                 <div
                   className="rounded-2xl border bg-white p-5"
                   data-b2b-card-fields="persistent"
