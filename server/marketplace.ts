@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','suspended')),
   is_holiday BOOLEAN NOT NULL DEFAULT FALSE,
+  is_admin_paused BOOLEAN NOT NULL DEFAULT FALSE,
+  admin_paused_at TIMESTAMPTZ,
   holiday_started_at TIMESTAMPTZ,
   holiday_reactivate_at TIMESTAMPTZ,
   holiday_popularity_penalty INTEGER NOT NULL DEFAULT 0,
@@ -31,6 +33,8 @@ CREATE TABLE IF NOT EXISTS mp_suppliers (
   reviewed_at TIMESTAMPTZ
 );
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS is_holiday BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS is_admin_paused BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS admin_paused_at TIMESTAMPTZ;
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_started_at TIMESTAMPTZ;
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_reactivate_at TIMESTAMPTZ;
 ALTER TABLE mp_suppliers ADD COLUMN IF NOT EXISTS holiday_popularity_penalty INTEGER NOT NULL DEFAULT 0;
@@ -248,7 +252,7 @@ const decisionSchema=z.object({
 function userId(res:Response){return Number((res.locals as any).b2bUser.id);}
 async function supplierFor(res:Response) {
   const db=await ready();
-  const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
+  const q=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,is_admin_paused,admin_paused_at,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1 LIMIT 1",[userId(res)]);
   if (!q.rows[0]) throw new ApiError(403,"Önce tedarikçi başvurusu oluşturun");
   if (["rejected","suspended"].includes(q.rows[0].status)) throw new ApiError(403,"Tedarikçi hesabınız kısıtlandı");
   return q.rows[0];
@@ -274,7 +278,7 @@ export function registerMarketplaceRoutes(
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
       FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
-      WHERE s.status='approved' AND s.is_holiday=FALSE
+      WHERE s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
       ORDER BY ((SELECT COUNT(*) FROM mp_follows f WHERE f.supplier_id=s.id) - (s.holiday_popularity_penalty*10)) DESC,s.id DESC LIMIT 100`);
     res.json(q.rows);
   }));
@@ -293,7 +297,7 @@ export function registerMarketplaceRoutes(
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
       FROM mp_products p
-      JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
+      JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE AND sv.status='approved'
       WHERE p.is_enabled=TRUE
@@ -315,7 +319,7 @@ export function registerMarketplaceRoutes(
       (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
-      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
+      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE AND sv.status='approved'
       WHERE p.id=$1 AND p.is_enabled=TRUE LIMIT 1`,[productId]);
@@ -330,7 +334,7 @@ export function registerMarketplaceRoutes(
     const q=await db.query(`SELECT s.id,s.slug,s.company_name,s.description,COALESCE(v.content,'{}'::jsonb) AS content,
       (SELECT COUNT(*)::int FROM mp_follows f WHERE f.supplier_id=s.id) AS followers
       FROM mp_suppliers s LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live=TRUE
-      WHERE s.status='approved' AND s.is_holiday=FALSE AND s.slug=$1 LIMIT 1`,[req.params.slug]);
+      WHERE s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE AND s.slug=$1 LIMIT 1`,[req.params.slug]);
     if(!q.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
     res.json(q.rows[0]);
   }));
@@ -346,7 +350,7 @@ export function registerMarketplaceRoutes(
       FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
-      WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND p.is_enabled=TRUE ORDER BY p.id DESC LIMIT 200`,[req.params.slug]);
+      WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE AND p.is_enabled=TRUE ORDER BY p.id DESC LIMIT 200`,[req.params.slug]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(q.rows.map((r:any)=>({...r,content:canSeePrice?r.content:{...r.content,price:null}})));
   }));
@@ -365,7 +369,7 @@ export function registerMarketplaceRoutes(
       FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
-      WHERE p.id=$1 AND s.slug=$2 AND s.status='approved' AND s.is_holiday=FALSE AND p.is_enabled=TRUE LIMIT 1`,[productId,req.params.slug]);
+      WHERE p.id=$1 AND s.slug=$2 AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE AND p.is_enabled=TRUE LIMIT 1`,[productId,req.params.slug]);
     if(!q.rows[0])throw new ApiError(404,"Onaylı ürün bulunamadı");
     res.setHeader("Cache-Control","private, no-store");
     const result=q.rows[0];
@@ -381,7 +385,7 @@ export function registerMarketplaceRoutes(
       LEFT JOIN mp_store_versions sv ON sv.supplier_id=s.id AND sv.is_live=TRUE
       LEFT JOIN mp_products p ON p.id=r.product_id AND p.supplier_id=s.id
       LEFT JOIN mp_product_versions pv ON pv.product_id=p.id AND pv.is_live=TRUE
-      WHERE s.status='approved' AND s.is_holiday=FALSE AND r.is_live=TRUE
+      WHERE s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE AND r.is_live=TRUE
       ORDER BY r.created_at DESC,r.id DESC LIMIT 100`);
     res.json(q.rows);
   }));
@@ -392,7 +396,7 @@ export function registerMarketplaceRoutes(
       COALESCE(v.content->>'logoUrl','') AS seller_logo_url
       FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id
       LEFT JOIN mp_store_versions v ON v.supplier_id=s.id AND v.is_live
-      WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
+      WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE AND r.is_live=TRUE ORDER BY r.id DESC LIMIT 50`,[req.params.slug]);
     res.json(q.rows);
   }));
   // An authenticated seller receives a private workspace immediately.
@@ -413,7 +417,7 @@ export function registerMarketplaceRoutes(
   }));
   app.get("/api/marketplace/me",requireSeller,handle(async(_req,res)=>{
     const db=await ready();
-    const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
+    const r=await db.query("SELECT id,owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,status,is_holiday,is_admin_paused,admin_paused_at,holiday_reactivate_at,holiday_started_at,holiday_popularity_penalty,review_note,created_at,reviewed_at FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     res.setHeader("Cache-Control","private, no-store");
     res.json(r.rows[0]||null);
   }));
@@ -629,6 +633,25 @@ export function registerMarketplaceRoutes(
     if(!result.rows[0])throw new ApiError(404,"Reels bulunamadı");
     res.json({deleted:true});
   }));
+  // A supplier can request to reopen the account using the panel action.
+  // A separate holiday hold is not cleared, and its 24-hour rule still applies.
+  app.patch("/api/marketplace/seller/pause",requireSeller,handle(async(req,res)=>{
+    const seller=await supplierFor(res),db=await ready();
+    if(seller.status!=="approved")throw new ApiError(409,"Tedarikçi hesabı onaylı değil");
+    const data=z.object({paused:z.literal(false)}).strict().parse(req.body);
+    const changed=await db.query(`UPDATE mp_suppliers
+      SET is_admin_paused=FALSE,admin_paused_at=NULL
+      WHERE id=$1 AND is_admin_paused=TRUE RETURNING id,is_holiday,holiday_reactivate_at`,[seller.id]);
+    if(changed.rows[0]){
+      await log(userId(res),"supplier_sales_self_resumed",Number(seller.id),"Tedarikçi panelinden yeniden açıldı");
+    }
+    const current=changed.rows[0]||seller;
+    res.json({paused:false,holidayMode:Boolean(current.is_holiday),
+      holidayReactivationAt:current.holiday_reactivate_at||null,
+      message:current.is_holiday
+        ?"Hesabınızın pasifliği kaldırıldı. Tatil modu devam ettiği için satışlar tatil modu kurallarına göre açılacak."
+        :"Mağazanız ve onaylı ürünleriniz yeniden satışa açıldı."});
+  }));
   app.patch("/api/marketplace/seller/settings",requireSeller,handle(async(req,res)=>{
     const supplier=await supplierFor(res),db=await ready();
     const data=z.object({holidayMode:z.boolean(),confirmConsequences:z.boolean().optional()}).strict().parse(req.body);
@@ -681,7 +704,7 @@ export function registerMarketplaceRoutes(
     const db=await ready();
     const q=await db.query(`INSERT INTO mp_follows(supplier_id,buyer_user_id)
       SELECT s.id,$1 FROM mp_suppliers s
-      WHERE s.slug=$2 AND s.status='approved' AND s.is_holiday=FALSE ON CONFLICT DO NOTHING RETURNING supplier_id`,[userId(res),req.params.slug]);
+      WHERE s.slug=$2 AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE ON CONFLICT DO NOTHING RETURNING supplier_id`,[userId(res),req.params.slug]);
     res.json({following:Boolean(q.rows.length)});
   }));
   app.delete("/api/marketplace/stores/:slug/follow",requireB2B,handle(async(req,res)=>{
@@ -696,7 +719,7 @@ export function registerMarketplaceRoutes(
     try{
       await client.query("BEGIN");
       const seller=await client.query(`SELECT s.id,s.owner_user_id FROM mp_suppliers s
-        WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE FOR UPDATE OF s`,[data.slug]);
+        WHERE s.slug=$1 AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE FOR UPDATE OF s`,[data.slug]);
       if(!seller.rows[0])throw new ApiError(404,"Mağaza bulunamadı");
       if(Number(seller.rows[0].owner_user_id)===uid)throw new ApiError(400,"Kendi mağazanızla sohbet oluşturamazsınız");
       const c=await client.query(`INSERT INTO mp_conversations(supplier_id,buyer_user_id)
@@ -840,7 +863,7 @@ export function registerMarketplaceRoutes(
   app.get("/api/admin/marketplace/review-queue",requireAdmin,handle(async(_req,res)=>{
     const db=await ready();
     const [suppliers,products,stores,reels]=await Promise.all([
-      db.query("SELECT id,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,created_at,status,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
+      db.query("SELECT id,company_name,tax_number,tax_office,contact_name,contact_phone,contact_email,company_type,iban,(tax_document <> '') AS has_tax_document,description,created_at,status,is_admin_paused,admin_paused_at,review_note FROM mp_suppliers ORDER BY id DESC LIMIT 100"),
       db.query(`SELECT v.id,v.product_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,v.created_at,v.status,v.review_note,s.company_name FROM mp_product_versions v
         JOIN mp_products p ON p.id=v.product_id JOIN mp_suppliers s ON s.id=p.supplier_id
         ORDER BY v.id DESC LIMIT 100`),
@@ -852,6 +875,28 @@ export function registerMarketplaceRoutes(
         FROM mp_reels r JOIN mp_suppliers s ON s.id=r.supplier_id ORDER BY r.id DESC LIMIT 100`)
     ]);
     res.json({suppliers:suppliers.rows,products:products.rows,stores:stores.rows,reels:reels.rows});
+  }));
+  // Admin pause is a soft sales hold: product revisions, shop design, reels and the
+  // approved supplier status remain intact. It never changes the seller's login.
+  app.patch("/api/admin/marketplace/suppliers/:id/pause",requireAdmin,handle(async(req,res)=>{
+    const db=await ready(),supplierId=id(req.params.id),actor=sessionUserId(req);
+    if(!actor)throw new ApiError(401,"Yönetici girişi gerekli");
+    const input=z.object({paused:z.boolean()}).strict().parse(req.body);
+    const client=await db.connect();
+    try{
+      await client.query("BEGIN");
+      const current=await client.query("SELECT id,status,is_admin_paused,is_holiday FROM mp_suppliers WHERE id=$1 FOR UPDATE",[supplierId]);
+      if(!current.rows[0])throw new ApiError(404,"Tedarikçi bulunamadı");
+      if(current.rows[0].status!=="approved")throw new ApiError(409,"Yalnızca onaylı tedarikçilerin satış durumları değiştirilebilir");
+      const change=Boolean(current.rows[0].is_admin_paused)!==input.paused;
+      if(change){
+        await client.query("UPDATE mp_suppliers SET is_admin_paused=$2,admin_paused_at=CASE WHEN $2 THEN NOW() ELSE NULL END WHERE id=$1",[supplierId,input.paused]);
+        await client.query("INSERT INTO mp_audit_log(actor_user_id,action,entity_id,notes) VALUES($1,$2,$3,$4)",
+          [actor,input.paused?"supplier_sales_paused":"supplier_sales_resumed",supplierId,"Admin yönetim paneli"]);
+      }
+      await client.query("COMMIT");
+      res.json({id:supplierId,paused:input.paused,holidayMode:Boolean(current.rows[0].is_holiday),changed:change});
+    }catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
   }));
   app.get("/api/admin/marketplace/suppliers/:id/tax-document",requireAdmin,handle(async(req,res)=>{
     const db=await ready(),supplierId=id(req.params.id);
