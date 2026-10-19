@@ -20,13 +20,15 @@ export default function SellerChat() {
   const [loading,setLoading]=useState(true);
   const [sellerName,setSellerName]=useState('Satıcıyla İletişime Geç');
   const [closed,setClosed]=useState(false);
+  const [restartRequested,setRestartRequested]=useState(false);
   const refresh=useCallback(async()=>{
     try{
       const threads=await rmaApi.listMarketplaceConversations();
       const thread=threads.find(item=>item.slug===slug)||null;
       setConversation(thread);
       const closedThreads=await rmaApi.listClosedMarketplaceConversations();
-      setClosed(!thread&&closedThreads.some(item=>item.slug===String(slug)));
+      if(thread)setRestartRequested(false);
+      setClosed(!thread&&!restartRequested&&closedThreads.some(item=>item.slug===String(slug)));
       if(thread?.company_name)setSellerName(thread.company_name);
       else {
         const shop=await rmaApi.getMarketplaceStore(String(slug));
@@ -37,12 +39,12 @@ export default function SellerChat() {
       setError('');
     }catch(e){setError(e instanceof Error?e.message:'Sohbet açılamadı.');}
     finally{setLoading(false);}
-  },[slug]);
+  },[slug,restartRequested]);
   useFocusEffect(useCallback(()=>{void refresh();},[refresh]));
   useEffect(()=>{const timer=setInterval(()=>{void refresh();},5000);return()=>clearInterval(timer);},[refresh]);
   const send=async()=>{
     const body=text.trim();
-    if(!body||busy)return;
+    if(!body||busy||closed)return;
     if(!session){router.push('/login');return;}
     setBusy(true);setError('');
     try {
@@ -68,7 +70,7 @@ export default function SellerChat() {
         <Text style={styles.safetyNoticeText}>Çalışkan B2B uygulaması dışında gerçekleştirilen her türlü işlem sizin sorumluluğunuzdadır.</Text>
       </ScrollView>
     </View>
-    {closed?<View style={styles.closedNotice}><Text style={styles.closedText}>Sohbet satıcı tarafından kapatıldı.</Text><View style={styles.closedButtons}><Pressable style={styles.closedButton} onPress={()=>{setClosed(false);setConversation(null);setMessages([]);}}><Text style={styles.closedButtonText}>Yeni Sohbet Başlat</Text></Pressable><Pressable style={styles.closedButton} onPress={()=>router.back()}><Text style={styles.closedButtonText}>Geri Dön</Text></Pressable></View></View>:null}
+    {closed?<View style={styles.closedNotice}><Text style={styles.closedText}>Sohbet satıcı tarafından kapatıldı.</Text><View style={styles.closedButtons}><Pressable style={styles.closedButton} onPress={()=>{setRestartRequested(true);setClosed(false);setConversation(null);setMessages([]);}}><Text style={styles.closedButtonText}>Yeni Sohbet Başlat</Text></Pressable><Pressable style={styles.closedButton} onPress={()=>router.back()}><Text style={styles.closedButtonText}>Geri Dön</Text></Pressable></View></View>:null}
     {error?<Text role="alert" style={styles.error}>{error}</Text>:null}
     <FlatList data={closed?[]:messages} keyExtractor={item=>String(item.id)} style={{flex:1}}
       contentContainerStyle={styles.messages}
@@ -81,7 +83,7 @@ export default function SellerChat() {
     <View style={[styles.composer,{backgroundColor:palette.surface,borderTopColor:palette.border}]}>
       <TextInput multiline value={text} onChangeText={setText} placeholder="Mesajınızı yazın…"
         placeholderTextColor={palette.textSecondary} style={[styles.input,{color:palette.text,borderColor:palette.border}]} maxLength={4000}/>
-      <Pressable accessibilityRole="button" disabled={busy||!text.trim()} onPress={()=>void send()}
+      <Pressable accessibilityRole="button" disabled={busy||closed||!text.trim()} onPress={()=>void send()}
         style={[styles.send,(busy||!text.trim())&&{opacity:0.5}]}>
         <Ionicons name="send" size={21} color="#111827"/>
       </Pressable>
