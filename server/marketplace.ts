@@ -152,8 +152,17 @@ async function reconcileHolidayStores(db:NonNullable<typeof pool>,force=false) {
   if(!force&&now<nextHolidayReconcile)return;
   nextHolidayReconcile=now+30_000;
   try{
-    await db.query(`UPDATE mp_suppliers SET is_holiday=FALSE,holiday_reactivate_at=NULL
-      WHERE is_holiday=TRUE AND holiday_reactivate_at IS NOT NULL AND holiday_reactivate_at<=NOW()`);
+    const reactivated=await db.query(`UPDATE mp_suppliers SET is_holiday=FALSE,holiday_reactivate_at=NULL
+      WHERE is_holiday=TRUE AND holiday_reactivate_at IS NOT NULL AND holiday_reactivate_at<=NOW()
+      RETURNING id,owner_user_id,is_admin_paused`);
+    for(const shop of reactivated.rows){
+      if(shop.is_admin_paused)continue; // Admin suspension still blocks sales.
+      void sendBusinessPushToUsers([Number(shop.owner_user_id)],{
+        title:"Mağazanız aktif edildi",
+        body:"Tatil süreniz sona erdi. Mağazanız ve onaylı ürünleriniz tekrar satışa açıldı.",
+        data:{type:"supplier_resumed",supplierId:String(shop.id)}
+      }).catch(error=>console.error("Holiday activation push",error));
+    }
   }catch(error){nextHolidayReconcile=0;throw error;}
 }
 async function ready() {
