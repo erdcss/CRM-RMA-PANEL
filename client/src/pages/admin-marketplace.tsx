@@ -10,7 +10,7 @@ import { MarketplaceReviewDialog, type ReviewKind } from "@/components/marketpla
 import { Eye, ImageOff } from "lucide-react";
 
 type Status = "pending" | "approved" | "rejected" | "suspended";
-type Review = {id:number;status:Status;created_at:string;review_note?:string;company_name?:string;contact_name?:string;
+type Review = {id:number;status:Status;created_at:string;review_note?:string;is_admin_paused?:boolean;admin_paused_at?:string|null;company_name?:string;contact_name?:string;
   tax_number?:string;tax_office?:string;contact_phone?:string;contact_email?:string;company_type?:string;iban?:string;has_tax_document?:boolean;description?:string;content?:Record<string,unknown>;title?:string;video_url?:string;is_live?:boolean;product_id?:number};
 type Queue = {suppliers:Review[];products:Review[];stores:Review[];reels:Review[]};
 type Metric = {status:string;total:number};
@@ -63,6 +63,27 @@ export default function AdminMarketplace(){
       if(kind!=="suppliers")setSelectedReview(null);
     }catch(e){toast({title:"İşlem yapılamadı",description:e instanceof Error?e.message:"Hata",variant:"destructive"});}
     finally{setProcessing(null);}
+  }
+  async function updateSupplierPause(supplier:Review,paused:boolean){
+    if(processing)return;
+    if(!window.confirm(paused
+      ?supplier.company_name+" mağazasını ve bütün ürünlerini satışa kapatmak istiyor musunuz? Mevcut ürünler silinmez."
+      :supplier.company_name+" mağazasını ve onaylı ürünlerini yeniden satışa açmak istiyor musunuz? Tatil modu ayrıca geçerli olabilir."))return;
+    const key="pause:"+supplier.id;
+    setProcessing(key);
+    try{
+      await apiRequest("PATCH","/api/admin/marketplace/suppliers/"+supplier.id+"/pause",{paused});
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/review-queue"]}),
+        queryClient.invalidateQueries({queryKey:["/api/admin/marketplace/overview"]}),
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/stores"]}),
+        queryClient.invalidateQueries({queryKey:["/api/marketplace/products"]})
+      ]);
+      toast({title:paused?"Mağaza pasife alındı":"Mağaza yeniden aktif edildi",
+        description:paused?"Tedarikçinin mağazası ve ürünleri satıştan kaldırıldı.":"Onaylı mağaza ve ürünlerin erişimi geri açıldı; tatil modu varsa devam eder."});
+    }catch(error){
+      toast({title:"Tedarikçi durumu değiştirilemedi",description:error instanceof Error?error.message:"Hata",variant:"destructive"});
+    }finally{setProcessing(null);}
   }
   const groups={suppliers:queue.data?.suppliers||[],products:queue.data?.products||[],
     stores:queue.data?.stores||[],reels:queue.data?.reels||[],archives:[] as Review[]};
@@ -208,7 +229,10 @@ export default function AdminMarketplace(){
                     <span>Video oynatıcı, ürün etiketi ve yayın durumu detaylı incelemede görüntülenebilir.</span>
                   </div>:null}
               </div>
-              <span className={"rounded-full px-3 py-1 text-xs font-semibold "+(r.status==="pending"?"bg-amber-100 text-amber-800":r.status==="approved"?"bg-green-100 text-green-800":"bg-slate-100 text-slate-700")}>{statusNames[r.status]||r.status}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                 {tab==="suppliers"&&r.is_admin_paused?<span className="rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">Satışa Kapalı</span>:null}
+                 <span className={"rounded-full px-3 py-1 text-xs font-semibold "+(r.status==="pending"?"bg-amber-100 text-amber-800":r.status==="approved"?"bg-green-100 text-green-800":"bg-slate-100 text-slate-700")}>{statusNames[r.status]||r.status}</span>
+               </div>
             </div>
             {r.review_note?<p className="mt-3 text-xs text-muted-foreground">Son yönetici notu: {r.review_note}</p>:null}
             {tab==="suppliers" && r.status==="pending" ? <div className="mt-4 space-y-3 border-t pt-4">
@@ -219,6 +243,19 @@ export default function AdminMarketplace(){
                 <Button disabled={!!processing} variant="outline" onClick={()=>void decision(tab,r,"rejected")}>Gerekçeli Reddet</Button>
               </div>
             </div>:null}
+            {tab==="suppliers" && r.status==="approved" ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+               <div className="text-xs text-muted-foreground">
+                 {r.is_admin_paused
+                   ?"Mağaza ve tüm onaylı ürünler satıştan kaldırıldı; veriler korunuyor."
+                   :"Mağaza ve onaylı ürünler müşterilere açık (tatil modu hariç)."}
+               </div>
+               <Button type="button" disabled={!!processing}
+                 variant={r.is_admin_paused?"default":"outline"}
+                 className={r.is_admin_paused?"bg-emerald-700 font-bold text-white hover:bg-emerald-800":"border-red-300 font-bold text-red-700 hover:bg-red-50"}
+                 onClick={()=>void updateSupplierPause(r,!r.is_admin_paused)}>
+                 {processing==="pause:"+r.id?"İşleniyor…":r.is_admin_paused?"Yeniden Aktif Et":"Hesabı Pasife Al"}
+               </Button>
+             </div>:null}
             {tab!=="suppliers" ?
               <div className="mt-4 border-t pt-4">
                 <Button variant={r.status==="pending"?"default":"outline"}
