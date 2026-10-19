@@ -18,7 +18,7 @@ import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BReel } from '@/lib/api';
 
-function ReelCard({
+export function ReelCard({
   item,
   active,
   height,
