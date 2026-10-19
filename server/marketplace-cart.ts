@@ -60,7 +60,7 @@ async function ready(){
 const listQuery=`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.slug AS seller_slug,s.company_name,
  v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
  FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
- JOIN mp_suppliers s ON s.id=p.supplier_id AND s.is_holiday=FALSE
+ JOIN mp_suppliers s ON s.id=p.supplier_id AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
  LEFT JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
  WHERE c.buyer_user_id=$1 ORDER BY s.id,c.id`;
 function asMoney(value:number){return Math.round((value+Number.EPSILON)*100)/100;}
@@ -139,9 +139,9 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
   try{
     const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
     const p=await db.query(`SELECT p.stock,p.supplier_id,v.content
-      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.is_holiday=FALSE
+      FROM mp_products p JOIN mp_suppliers s ON s.id=p.supplier_id AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
-      WHERE p.id=$1 AND p.is_enabled AND s.status='approved' AND s.is_holiday=FALSE LIMIT 1`,[parsed.data.productId]);
+      WHERE p.id=$1 AND p.is_enabled AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE LIMIT 1`,[parsed.data.productId]);
     const x=p.rows[0];
     if(!x)return res.status(404).json({error:"Satışa açık ürün bulunamadı"});
     const units=Number(x.content.unitsPerBox),min=Number(x.content.minBoxes);
@@ -173,7 +173,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
     if(previous.rows[0]){await client.query("COMMIT");return res.json({...previous.rows[0],paymentEnabled:false});}
     const q=await client.query(`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.slug AS seller_slug,s.company_name,
       v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
-      JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
+      JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
       JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
       WHERE c.buyer_user_id=$1 AND p.is_enabled=TRUE ORDER BY p.id FOR UPDATE OF p`,[uid]);
     const cart=lines(q.rows);
@@ -220,7 +220,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    const q=await client.query(`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.slug AS seller_slug,s.company_name,
      v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
      FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
-     JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
+     JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
      JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
      WHERE c.buyer_user_id=$1 AND p.is_enabled=TRUE ORDER BY p.id FOR UPDATE OF p`,[uid]);
    const cart=lines(q.rows);
@@ -279,7 +279,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
      v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
      FROM jsonb_to_recordset($2::jsonb) AS c(product_id bigint,boxes integer)
      JOIN mp_products p ON p.id=c.product_id AND p.is_enabled=TRUE
-     JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE
+     JOIN mp_suppliers s ON s.id=p.supplier_id AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
      JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
      ORDER BY p.id FOR UPDATE OF p`,[uid,JSON.stringify(chosen.map(x=>({product_id:x.productId,boxes:x.boxes})))]);
    if(q.rows.length!==chosen.length)throw new Error("Sipariş listesindeki bir ürün onaylı değil veya yayından kaldırılmış.");
