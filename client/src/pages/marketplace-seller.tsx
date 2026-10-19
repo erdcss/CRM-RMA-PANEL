@@ -11,9 +11,9 @@ type Product={id:number;sku:string;stock:number;current_price?:number|string|nul
 type Conversation={id:number;company_name:string;slug:string;latest_message:string;buyer_user_id:number};
 type Dashboard={supplier:Supplier;productCount:number;followers:number;conversations:number;openQuotes:number;
   storeVersions:Array<{id:number;status:string;is_live:boolean;review_note:string}>;
-  reels:Array<{id:number;title:string;status:string;review_note:string}>};
+  reels:Array<{id:number;title:string;video_url:string;thumbnail_url:string|null;product_id:number|null;status:string;is_live:boolean;review_note:string}>};
 type SellerOrder={id:number;order_id:number;status:string;subtotal:string;created_at:string;delivery_mode:string;items:Array<{productId:number;name:string;sku:string;boxes:number;unitsPerBox:number;total:string}>};
-type Tab="dashboard"|"store"|"products"|"reels"|"messages"|"returns"|"payments"|"orders"|"verification";
+type Tab="dashboard"|"store"|"products"|"reels"|"settings"|"messages"|"returns"|"payments"|"orders"|"verification";
 async function send(method:string,path:string,data?:unknown){const r=await apiRequest(method,path,data);return r.json();}
 const inputStyle="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-slate-900";
 const boxStyle="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6";
@@ -77,6 +77,7 @@ export default function MarketplaceSeller(){
   const [aiRows,setAiRows]=useState<Array<Record<string,string|number>>>([]);
   const [aiLoading,setAiLoading]=useState(false);
   const [reel,setReel]=useState({title:"",videoUrl:"",thumbnailUrl:"",productId:""});
+  const [editingReelId,setEditingReelId]=useState<number|null>(null);
   const [reply,setReply]=useState("");
   const [selectedChat,setSelectedChat]=useState<number|null>(null);
   const [message,setMessage]=useState("");
@@ -152,6 +153,7 @@ export default function MarketplaceSeller(){
     return ()=>{cancelled=true};
   },[me.isSuccess,me.data]);
   const approved=me.data?.status==="approved";
+  const holidayMode=Boolean((me.data as (Supplier & {is_holiday?:boolean})|null)?.is_holiday);
   const verificationSubmitted=Boolean(me.data?.has_tax_document && me.data?.company_type);
   const [verificationHiding,setVerificationHiding]=useState(false);
   async function submitVerification(){setBusy(true);setMessage("");try {await send("POST","/api/marketplace/seller/verification",verification);setVerificationHiding(true);await queryClient.invalidateQueries({queryKey:["/api/marketplace/me"]});setTab("dashboard");setMessage("Doğrulama bilgileriniz incelemeye gönderildi.");}catch(e){setMessage(e instanceof Error?e.message:"Bilgiler gönderilemedi");}finally{setBusy(false);}}
@@ -188,7 +190,7 @@ export default function MarketplaceSeller(){
     }
     setBusy(true);setMessage("");
     try{
-      await send("POST","/api/marketplace/seller/reels",{
+      await send(editingReelId?"PATCH":"POST",editingReelId?"/api/marketplace/seller/reels/"+editingReelId:"/api/marketplace/seller/reels",{
         title:reel.title.trim(),videoUrl:reel.videoUrl,thumbnailUrl:reel.thumbnailUrl||null,productId:reel.productId?Number(reel.productId):null,
       });
       setReel({title:"",videoUrl:"",productId:""});
@@ -209,7 +211,7 @@ export default function MarketplaceSeller(){
       </div>
       {message?<Notice text={message}/>:null}
       {me.data ? <nav aria-label="Tedarikçi araçları" className="sticky top-0 z-20 -mx-2 flex gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 px-2 py-2 shadow-sm backdrop-blur">
-        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"reels",label:"Reels",icon:Film}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
+        {([{key:"dashboard",label:"Genel Bakış",icon:LayoutDashboard},{key:"store",label:"Mağazam",icon:Store},{key:"products",label:"Ürünlerim",icon:Package},{key:"orders",label:"Siparişler",icon:FileText},{key:"returns",label:"İadeler",icon:RotateCcw},{key:"payments",label:"Ödemeler",icon:Wallet},{key:"messages",label:"Müşteri Mesajları",icon:MessageCircle},{key:"reels",label:"Reels",icon:Film},{key:"settings",label:"Ayarlar",icon:ShieldCheck}] as const).map(item=><button key={item.key} type="button" onClick={()=>setTab(item.key)} aria-current={tab===item.key?"page":undefined} className={"flex min-h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition sm:text-sm "+(tab===item.key?"bg-[#0d0d0d] text-[#ffcc00] shadow-sm":"text-slate-600 hover:bg-amber-50 hover:text-black")}><item.icon className="h-4 w-4"/>{item.label}</button>)}
       </nav> : null}
 
       {me.isLoading?<Notice text="Hesap bilgileri kontrol ediliyor..."/>:
@@ -239,7 +241,43 @@ export default function MarketplaceSeller(){
               ["Görüşmeler",dash.data?.conversations]
             ].map(([name,n])=><div key={String(name)} className={boxStyle}><div className="text-2xl font-black">{n??"—"}</div><p className="text-xs text-slate-500">{name}</p></div>)}
           </div>
-          {tab==="dashboard"?<div className={boxStyle+" space-y-4"}><h2 className="text-xl font-black">Tedarikçi Kontrol Merkezi</h2><p className="text-sm text-slate-600">Mağazanız, ürünleriniz ve müşteri görüşmeleriniz tek panelde.</p><div className="grid gap-3 sm:grid-cols-3">{[["Ürün",dash.data?.productCount],["Müşteri Görüşmesi",dash.data?.conversations]].map(([label,count])=><div key={String(label)} className="rounded-xl bg-slate-100 p-4"><div className="text-2xl font-black">{count??0}</div><div className="text-xs text-slate-600">{label}</div></div>)}</div></div>:null}
+          {tab==="dashboard"?<div className="space-y-5">
+            <section className="overflow-hidden rounded-2xl bg-slate-950 p-6 text-white sm:p-8">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div><p className="text-xs font-bold uppercase tracking-widest text-amber-300">Çalışkan B2B · Tedarikçi Kontrol Merkezi</p>
+                  <h2 className="mt-2 text-2xl font-black">{me.data.company_name}</h2>
+                  <p className="mt-2 text-sm text-slate-300">Mağaza, sipariş ve müşteri işlemlerinizi tek yerden yönetin.</p></div>
+                <span className={"rounded-full px-4 py-2 text-xs font-extrabold "+(holidayMode?"bg-amber-100 text-amber-950":"bg-emerald-100 text-emerald-900")}>
+                  {holidayMode?"Tatil Modunda":"Mağaza Aktif"}</span>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-2">
+                <button onClick={()=>setTab("orders")} className="rounded-lg bg-[#FFCD00] px-4 py-2 text-sm font-bold text-slate-950">Siparişleri Gör</button>
+                <button onClick={()=>setTab("products")} className="rounded-lg border border-slate-500 px-4 py-2 text-sm font-semibold text-white">Ürünleri Yönet</button>
+                <button onClick={()=>setTab("messages")} className="rounded-lg border border-slate-500 px-4 py-2 text-sm font-semibold text-white">Mesajlara Git</button>
+              </div>
+            </section>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                {label:"Toplam Ürün",value:dash.data?.productCount,detail:"Kayıtlı ürünler",action:"products" as Tab},
+                {label:"Aktif Görüşmeler",value:conversations.data?.length,detail:"Müşteri mesajları",action:"messages" as Tab},
+                {label:"Siparişler",value:sellerOrders.data?.length,detail:"Tedarikçi sipariş kayıtları",action:"orders" as Tab},
+                {label:"Yayındaki Reels",value:dash.data?.reels.filter(r=>r.is_live).length,detail:"Onaylı videolar",action:"reels" as Tab}
+              ].map(item=><button key={item.label} onClick={()=>setTab(item.action)} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-amber-300 hover:shadow-md">
+                <p className="text-xs font-semibold text-slate-500">{item.label}</p><p className="mt-3 text-3xl font-black">{item.value??"—"}</p>
+                <p className="mt-2 text-xs text-slate-500">{item.detail} ↗</p></button>)}
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className={boxStyle+" space-y-3"}><h3 className="font-extrabold">Son Siparişler</h3>
+                {sellerOrders.data?.slice(0,4).map(o=><div key={o.id} className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-sm">
+                  <span>Sipariş #{o.order_id}</span><b>{Number(o.subtotal).toLocaleString("tr-TR",{minimumFractionDigits:2})} ₺</b></div>)}
+                {!sellerOrders.data?.length?<p className="text-sm text-slate-500">Henüz sipariş kaydı yok.</p>:null}
+                <button className="text-sm font-bold text-amber-700" onClick={()=>setTab("orders")}>Tüm siparişler →</button></section>
+              <section className={boxStyle+" space-y-3"}><h3 className="font-extrabold">Mağaza Durumu</h3>
+                <p className="text-sm text-slate-600">{holidayMode?"Tatil modu açık. Mağazanız müşterilerden gizleniyor.":"Mağazanız müşterilere açık."}</p>
+                <div className="rounded-xl bg-slate-50 p-4 text-sm"><b>{dash.data?.followers??0}</b> takipçi · <b>{dash.data?.reels.filter(r=>r.status==="pending").length??0}</b> onay bekleyen Reels</div>
+                <button className="text-sm font-bold text-amber-700" onClick={()=>setTab("settings")}>Mağaza ayarları →</button></section>
+            </div>
+          </div>:null}
           {tab==="orders"?<div className={boxStyle+" space-y-4"}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-lg font-black">Gelen Tedarikçi Siparişleri</h2><button onClick={()=>void sellerOrders.refetch()} className="rounded-lg border px-3 py-2 text-xs font-bold">Yenile</button></div>
             <p className="text-sm text-slate-600">Müşterilerin oluşturduğu siparişler burada tedarikçi onayı bekliyor durumuyla görünür. Ödeme veya sevkiyat henüz tetiklenmez.</p>
             {sellerOrders.isError?<p className="text-sm text-red-700">Siparişler yüklenemedi. Yeniden deneyin.</p>:null}
@@ -329,9 +367,21 @@ export default function MarketplaceSeller(){
   </td>
 </tr>)}</tbody></table>{!products.data?.length?<p className="py-10 text-center text-sm text-slate-500">Henüz ürün yok. Sağ üstteki Ürün Ekle butonuyla başlayın.</p>:(products.data||[]).filter(p=>productFilter==="all"||(productFilter==="approved"?Boolean(p.live):p.latest?.status===productFilter)).length===0?<p className="py-10 text-center text-sm text-slate-500">Bu durumda ürün bulunmuyor.</p>:null}</div>
           </div>:null}
+          {tab==="settings"?<div className={boxStyle+" max-w-3xl space-y-5"}>
+            <div><h2 className="text-xl font-black">Tedarikçi Ayarları</h2><p className="mt-1 text-sm text-slate-500">Mağazanızın çalışma durumunu yönetin.</p></div>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-5">
+              <div><h3 className="font-bold text-slate-900">Hesabımı Tatil Moduna Al</h3>
+                <p className="mt-1 max-w-md text-xs leading-5 text-slate-600">Tatil modu açıkken mağazanız, ürünleriniz ve Reels videolarınız müşterilere gösterilmez. Mevcut kayıtlarınız korunur. İstediğiniz zaman tekrar açabilirsiniz.</p></div>
+              <button type="button" disabled={busy} aria-pressed={holidayMode}
+                className={"rounded-xl px-5 py-3 text-sm font-extrabold disabled:opacity-50 "+(holidayMode?"bg-emerald-700 text-white":"bg-slate-950 text-[#FFCD00]")}
+                onClick={async()=>{await run(()=>send("PATCH","/api/marketplace/seller/settings",{holidayMode:!holidayMode}),["/api/marketplace/me","/api/marketplace/seller/dashboard"]);}}>
+                {holidayMode?"Tatil Modunu Kapat":"Tatil Modunu Aç"}</button>
+            </div>
+          </div>:null}
           {tab==="reels"?<div className="grid gap-5 lg:grid-cols-2">
             <form className={boxStyle+" space-y-4"} onSubmit={e=>{e.preventDefault();void submitReel(e.currentTarget);}}>
-              <h2 className="text-lg font-bold">Reels Stüdyosu</h2>
+              <h2 className="text-lg font-bold">{editingReelId?"Reels Düzenle · #"+editingReelId:"Reels Stüdyosu"}</h2>
+              {editingReelId?<button type="button" className="text-xs font-bold text-red-700 underline" onClick={()=>{setEditingReelId(null);setReel({title:"",videoUrl:"",thumbnailUrl:"",productId:""});}}>Düzenlemeyi İptal Et</button>:null}
               <Field label="Video başlığı"><input className={inputStyle} required value={reel.title} onChange={e=>setReel(v=>({...v,title:e.target.value}))}/></Field>
               <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p role="status" className={"text-xs "+(reel.videoUrl?"font-bold text-green-700":"text-slate-500")}>{uploading?"Video yükleniyor: %"+uploadProgress:reel.videoUrl?"Video yüklendi · Onaya gönderilmeye hazır":"En fazla 60 MB, MP4 formatı. Onaya göndermek için yükleme tamamlanmalı."}</p></Field>
               <Field label="Reels kapak görseli (isteğe bağlı)">
@@ -344,11 +394,21 @@ export default function MarketplaceSeller(){
                 <option value="">Ürün seçilmedi</option>{products.data?.filter(p=>Boolean(p.live)).map(p=><option key={p.id} value={p.id}>{p.live?.name||p.sku}</option>)}
               </select></Field>
               <p className="text-xs text-slate-500">Etiketlenen ürün de onaylanmış olmalıdır. Ürün seçimi isteğe bağlıdır.</p>
-              <button disabled={busy||uploading||!reel.videoUrl||!reel.title.trim()} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{uploading?"Video yükleniyor…":busy?"Gönderiliyor…":"Videoyu Onaya Gönder"}</button>
+              <button disabled={busy||uploading||!reel.videoUrl||!reel.title.trim()} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">{uploading?"Video yükleniyor…":busy?"Gönderiliyor…":editingReelId?"Güncelle ve Yeniden Onaya Gönder":"Videoyu Onaya Gönder"}</button>
             </form>
             <div className={boxStyle+" space-y-3"}><h2 className="text-lg font-bold">Video geçmişi</h2>
-              {dash.data?.reels.map(r=><div key={r.id} className="rounded-xl border p-3 text-sm"><b>{r.title}</b>
-                <p className="text-xs text-slate-500">{statusTR[r.status]||r.status}</p>{r.review_note?<p className="text-xs text-amber-700">{r.review_note}</p>:null}</div>)}
+              {dash.data?.reels.map(r=><div key={r.id} className="rounded-xl border p-3 text-sm">
+                <b>{r.title}</b>
+                <p className="text-xs text-slate-500">{statusTR[r.status]||r.status}{r.is_live?" · Yayında":""}</p>
+                {r.review_note?<p className="text-xs text-amber-700">{r.review_note}</p>:null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-bold"
+                    onClick={()=>{setEditingReelId(r.id);setReel({title:r.title,videoUrl:r.video_url,thumbnailUrl:r.thumbnail_url||"",productId:r.product_id?String(r.product_id):""});window.scrollTo({top:0,behavior:"smooth"});}}>Düzenle</button>
+                  <button type="button" disabled={busy} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700"
+                    onClick={async()=>{if(!window.confirm("Bu Reels videosunu kalıcı olarak silmek istiyor musunuz?"))return;
+                      await run(()=>send("DELETE","/api/marketplace/seller/reels/"+r.id),["/api/marketplace/seller/dashboard"]);}}>Sil</button>
+                </div>
+              </div>)}
             </div>
           </div>:null}
           {tab==="messages"?<div className="grid gap-4 lg:grid-cols-3">
