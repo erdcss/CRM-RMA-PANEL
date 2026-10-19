@@ -14,6 +14,7 @@
     "dev:live": "node scripts/live-dev.cjs --lan",
     "dev:live:tunnel": "node scripts/live-dev.cjs --tunnel",
     "sync:branding": "node scripts/sync-mobile-branding.cjs business",
+    "testflight": "node scripts/testflight.cjs",
     "eas-build-pre-install": "npm run sync:branding"
   },
   "dependencies": {
