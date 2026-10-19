@@ -30,10 +30,26 @@ function toFields(p:RecordItem):Fields{
   };
 }
 export default function MarketplaceSellerProduct({id}:{id:string}){
-  const {data:items=[],isLoading,error}=useQuery<RecordItem[]>({
-    queryKey:["/api/marketplace/seller/products"],staleTime:0,
+  const {data:identity,isLoading:authLoading}=useQuery<{id:number;role:string}>({
+    queryKey:["/api/auth/me"],staleTime:0,retry:false,
+    refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
   });
-  const p=items.find(item=>String(item.id)===id);
+  const {data:supplier,isLoading:supplierLoading}=useQuery<{owner_user_id:number}>({
+    queryKey:["/api/marketplace/me"],staleTime:0,retry:false,
+    refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
+  });
+  const identityValid=Boolean(identity&&supplier&&identity.role==="b2b_seller" &&
+    Number(identity.id)===Number(supplier.owner_user_id));
+  const {data:items=[],isLoading,error}=useQuery<RecordItem[]>({
+    queryKey:["/api/marketplace/seller/products",identityValid?supplier!.owner_user_id:null],
+    queryFn:async()=>{
+      const response=await fetch("/api/marketplace/seller/products",{credentials:"include",cache:"no-store"});
+      if(!response.ok)throw new Error("Bu tedarikçi hesabının ürünlerine erişilemedi.");
+      return response.json() as Promise<RecordItem[]>;
+    },
+    enabled:identityValid,staleTime:0
+  });
+  const p=identityValid?items.find(item=>String(item.id)===id):undefined;
   const [stock,setStock]=useState("");
   const [price,setPrice]=useState("");
   const [form,setForm]=useState<Fields|null>(null);
@@ -102,6 +118,15 @@ export default function MarketplaceSellerProduct({id}:{id:string}){
     finally{setBusy(false);}
   }
   const pending=p?.latest?.status==="pending";
+  if(!identityValid){
+    return <main role="status" className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <section className="max-w-lg rounded-2xl border bg-white p-6 text-sm text-slate-700">
+        <h1 className="mb-2 text-lg font-black text-slate-950">Hesap doğrulaması gerekiyor</h1>
+        <p>{authLoading||supplierLoading?"Giriş yapılan tedarikçi doğrulanıyor…":"Bu hesapla ürün bilgileri görüntülenemiyor. Başka tedarikçinin verileri gösterilmez."}</p>
+        <Link href="/satici" className="mt-4 inline-block rounded-lg bg-slate-950 px-4 py-2 font-bold text-white">Tedarikçi Paneline Dön</Link>
+      </section>
+    </main>;
+  }
   return <main className="min-h-screen bg-[#f6f7f9] px-4 py-6 text-slate-950">
     <div className="mx-auto max-w-6xl space-y-5">
       <Link href="/satici" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-black">
