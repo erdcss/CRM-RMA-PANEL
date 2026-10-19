@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import type { Express, Request, Response, RequestHandler } from "express";
 import { z } from "zod";
 import { pool } from "./db";
+import { sendBusinessPushToUsers } from "./push-notifications";
 
 // Marketplace data is strictly separate from the original Çalışkan B2B catalogue.
 // No unapproved supplier content is ever served from the public endpoints.
@@ -644,6 +645,13 @@ export function registerMarketplaceRoutes(
       WHERE id=$1 AND is_admin_paused=TRUE RETURNING id,is_holiday,holiday_reactivate_at`,[seller.id]);
     if(changed.rows[0]){
       await log(userId(res),"supplier_sales_self_resumed",Number(seller.id),"Tedarikçi panelinden yeniden açıldı");
+      void sendBusinessPushToUsers([Number(seller.owner_user_id)],{
+        title:"Mağazanız aktif edildi",
+        body:changed.rows[0].is_holiday
+          ?"Pasiflik kaldırıldı. Tatil modu sona erdiğinde mağazanız tekrar satışa açılacak."
+          :"Mağazanız ve onaylı ürünleriniz tekrar satışa açıldı.",
+        data:{type:"supplier_resumed",supplierId:String(seller.id)}
+      }).catch(e=>console.error("Supplier resume push",e));
     }
     const current=changed.rows[0]||seller;
     res.json({paused:false,holidayMode:Boolean(current.is_holiday),
@@ -885,7 +893,7 @@ export function registerMarketplaceRoutes(
     const client=await db.connect();
     try{
       await client.query("BEGIN");
-      const current=await client.query("SELECT id,status,is_admin_paused,is_holiday FROM mp_suppliers WHERE id=$1 FOR UPDATE",[supplierId]);
+      const current=await client.query("SELECT id,status,is_admin_paused,is_holiday,owner_user_id FROM mp_suppliers WHERE id=$1 FOR UPDATE",[supplierId]);
       if(!current.rows[0])throw new ApiError(404,"Tedarikçi bulunamadı");
       if(current.rows[0].status!=="approved")throw new ApiError(409,"Yalnızca onaylı tedarikçilerin satış durumları değiştirilebilir");
       const change=Boolean(current.rows[0].is_admin_paused)!==input.paused;
@@ -895,6 +903,15 @@ export function registerMarketplaceRoutes(
           [actor,input.paused?"supplier_sales_paused":"supplier_sales_resumed",supplierId,"Admin yönetim paneli"]);
       }
       await client.query("COMMIT");
+      if(change)void sendBusinessPushToUsers([Number(current.rows[0].owner_user_id)],{
+        title:input.paused?"Hesabınız pasife alındı":"Mağazanız aktif edildi",
+        body:input.paused
+          ?"Çalışkan B2B mağazanız ve ürünleriniz satıştan kaldırıldı. Tedarikçi panelinden tekrar açabilirsiniz."
+          :current.rows[0].is_holiday
+            ?"Pasiflik kaldırıldı. Mağazanız tatil modu kurallarına göre yeniden açılacak."
+            :"Mağazanız ve onaylı ürünleriniz tekrar satışa açıldı.",
+        data:{type:input.paused?"supplier_paused":"supplier_resumed",supplierId:String(supplierId)}
+      }).catch(e=>console.error("Supplier status push",e));
       res.json({id:supplierId,paused:input.paused,holidayMode:Boolean(current.rows[0].is_holiday),changed:change});
     }catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
   }));
