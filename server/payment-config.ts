@@ -14,8 +14,26 @@ function safePaymentLogos(input: unknown): PaymentLogo[] {
     validAssetId.test(String(item.id || "")))
     .map(item => ({ id: item.id, label: String(item.label || "").trim().slice(0, 60), imageId: item.imageId }));
 }
+export type CheckoutVisibility={
+  cargo:boolean;
+  freight:boolean;
+  pickup:boolean;
+  card:boolean;
+  bank_transfer:boolean;
+};
+const defaultCheckoutVisibility:CheckoutVisibility={
+  cargo:true,freight:true,pickup:true,card:true,bank_transfer:true
+};
+function sanitizeCheckoutVisibility(raw:unknown):CheckoutVisibility{
+  const input=raw&&typeof raw==="object"?raw as Record<string,unknown>:{};
+  return {
+    cargo:input.cargo!==false,freight:input.freight!==false,pickup:input.pickup!==false,
+    card:input.card!==false,bank_transfer:input.bank_transfer!==false,
+  };
+}
 type StoredPaymentSettings = {
   paymentLogos?: PaymentLogo[];
+  checkoutVisibility?: CheckoutVisibility;
   iyzico?: {
     enabled?: boolean;
     apiKey?: string;
@@ -31,6 +49,7 @@ type StoredPaymentSettings = {
 };
 
 export type RuntimePaymentConfig = {
+  checkoutVisibility:CheckoutVisibility;
   paymentLogos: PaymentLogo[];
   iyzico: {
     enabled: boolean;
@@ -143,6 +162,7 @@ export async function getPaymentConfig(): Promise<RuntimePaymentConfig> {
       : Boolean(apiKey && secretKey);
 
   return {
+    checkoutVisibility:sanitizeCheckoutVisibility(stored.checkoutVisibility),
     paymentLogos: safePaymentLogos(stored.paymentLogos),
     iyzico: {
       enabled: iyzicoEnabled,
@@ -170,6 +190,7 @@ export async function getPublicPaymentSettings() {
         config.iyzico.secretKey,
     ),
     bankTransfer: config.bankTransfer,
+    checkoutVisibility:config.checkoutVisibility,
     paymentLogos: config.paymentLogos,
   };
 }
@@ -188,6 +209,7 @@ export async function getAdminPaymentSettings() {
       baseUrl: config.iyzico.baseUrl,
     },
     bankTransfer: config.bankTransfer,
+    checkoutVisibility:config.checkoutVisibility,
     paymentLogos: config.paymentLogos,
   };
 }
@@ -271,6 +293,9 @@ export async function savePaymentSettings(input: any) {
   }
 
   const next: StoredPaymentSettings = {
+    checkoutVisibility:input?.checkoutVisibility!==undefined
+      ?sanitizeCheckoutVisibility(input.checkoutVisibility)
+      :sanitizeCheckoutVisibility(current.checkoutVisibility),
     paymentLogos: input?.paymentLogos !== undefined ? safePaymentLogos(input.paymentLogos) : safePaymentLogos(current.paymentLogos),
     iyzico: {
       enabled: iyzicoEnabled,
