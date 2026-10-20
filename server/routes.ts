@@ -3035,6 +3035,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalUnits,
         total,
         currency: "TRY",
+        supplierPaymentEnabled: !product.supplierId || process.env.B2B_SUPPLIER_CHECKOUT_ENABLED === "true",
+        supplierPaymentNotice: product.supplierId && process.env.B2B_SUPPLIER_CHECKOUT_ENABLED !== "true" ? "Onaylı tedarikçi tahsilatı yönetici tarafından henüz etkinleştirilmedi." : null,
         iyzicoConfigured: await isIyzicoConfigured(),
       });
     } catch (error) {
@@ -3058,6 +3060,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         itemCount: cart.itemCount,
         boxCount: cart.boxCount,
         currency: "TRY",
+        supplierPaymentEnabled: !cart.items.some(entry => Boolean(entry.product.supplierId)) || process.env.B2B_SUPPLIER_CHECKOUT_ENABLED === "true",
+        supplierPaymentNotice: cart.items.some(entry => Boolean(entry.product.supplierId)) && process.env.B2B_SUPPLIER_CHECKOUT_ENABLED !== "true" ? "Onaylı tedarikçi tahsilatı yönetici tarafından henüz etkinleştirilmedi." : null,
         iyzicoConfigured: await isIyzicoConfigured(),
       });
     } catch (error) {
