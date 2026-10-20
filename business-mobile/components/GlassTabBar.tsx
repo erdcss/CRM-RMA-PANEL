@@ -1,13 +1,18 @@
+import type { ComponentProps } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MainTab } from "../types";
 import { C } from "../ui/theme";
 
-const tabs: Array<{ key: MainTab; label: string; icon: string }> = [
-  { key: "dashboard", label: "Ana Sayfa", icon: "⌂" },
-  { key: "orders", label: "Siparişler", icon: "▱" },
-  { key: "products", label: "Ürünler", icon: "□" },
-  { key: "customers", label: "Müşteriler", icon: "◎" },
-  { key: "more", label: "Daha Fazla", icon: "•••" },
+type IconName = ComponentProps<typeof Ionicons>["name"];
+
+const tabs: Array<{ key: MainTab; label: string; icon: IconName; activeIcon: IconName }> = [
+  { key: "dashboard", label: "Ana Sayfa", icon: "home-outline", activeIcon: "home" },
+  { key: "orders", label: "Siparişler", icon: "receipt-outline", activeIcon: "receipt" },
+  { key: "products", label: "Ürünler", icon: "cube-outline", activeIcon: "cube" },
+  { key: "customers", label: "Müşteriler", icon: "people-outline", activeIcon: "people" },
+  { key: "more", label: "Daha Fazla", icon: "grid-outline", activeIcon: "grid" },
 ];
 
 export function GlassTabBar({
@@ -17,9 +22,11 @@ export function GlassTabBar({
   active: MainTab;
   onTab: (tab: MainTab) => void;
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={s.wrap} pointerEvents="box-none">
-      <View style={s.glass}>
+    <View style={[s.wrap, { bottom: Math.max(8, insets.bottom + 4) }]} pointerEvents="box-none">
+      <View style={s.glass} accessibilityRole="tablist">
         {tabs.map((tab) => {
           const selected = tab.key === active;
           return (
@@ -28,12 +35,21 @@ export function GlassTabBar({
               style={s.button}
               activeOpacity={0.72}
               onPress={() => onTab(tab.key)}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected }}
             >
               <View style={[s.iconWrap, selected && s.iconWrapActive]}>
-                <Text style={[s.icon, selected && s.active]}>{tab.icon}</Text>
+                <Ionicons
+                  name={selected ? tab.activeIcon : tab.icon}
+                  size={23}
+                  color={selected ? "#A6C7FF" : "#8D9BAA"}
+                />
               </View>
-              <Text style={[s.label, selected && s.active]}>{tab.label}</Text>
-              {selected ? <View style={s.indicator} /> : null}
+              <Text style={[s.label, selected && s.active]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {tab.label}
+              </Text>
+              <View style={[s.indicator, !selected && s.indicatorHidden]} />
             </TouchableOpacity>
           );
         })}
@@ -47,60 +63,61 @@ const s = StyleSheet.create({
     position: "absolute",
     left: 10,
     right: 10,
-    bottom: 8,
+    zIndex: 50,
   },
   glass: {
-    minHeight: 78,
-    borderRadius: 28,
+    minHeight: 76,
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    backgroundColor: "rgba(12,18,25,0.94)",
+    borderColor: "rgba(170,202,241,0.17)",
+    backgroundColor: "rgba(12,19,29,0.97)",
     flexDirection: "row",
-    paddingHorizontal: 4,
-    paddingVertical: 8,
+    paddingHorizontal: 5,
+    paddingTop: 9,
+    paddingBottom: 6,
     shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.48,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
     elevation: 18,
   },
   button: {
     flex: 1,
+    minWidth: 0,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 58,
+    paddingHorizontal: 2,
   },
   iconWrap: {
-    height: 28,
-    minWidth: 32,
+    height: 32,
+    width: 42,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   iconWrapActive: {
-    borderRadius: 10,
-    backgroundColor: "rgba(59,130,246,0.10)",
-  },
-  icon: {
-    color: "#84909F",
-    fontSize: 23,
-    fontWeight: "400",
-    lineHeight: 25,
+    backgroundColor: "rgba(59,130,246,0.20)",
+    borderWidth: 1,
+    borderColor: "rgba(102,162,255,0.19)",
   },
   label: {
-    color: "#84909F",
+    color: "#99A8B9",
     fontSize: 10,
     marginTop: 3,
-    fontWeight: "400",
+    fontWeight: "600",
+    textAlign: "center",
   },
   active: {
-    color: C.blue,
-    fontWeight: "600",
+    color: "#C1D7FF",
+    fontWeight: "800",
   },
   indicator: {
-    width: 28,
+    width: 17,
     height: 3,
     marginTop: 5,
-    borderRadius: 999,
+    borderRadius: 99,
     backgroundColor: C.blue,
   },
+  indicatorHidden: { backgroundColor: "transparent" },
 });
