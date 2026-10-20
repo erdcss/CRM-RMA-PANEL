@@ -21,6 +21,7 @@ import { MoreScreen } from "./screens/MoreScreen";
 import { OrderDetailScreen } from "./screens/OrderDetailScreen";
 import { OrdersScreen } from "./screens/OrdersScreen";
 import { ProductAddScreen } from "./screens/ProductAddScreen";
+import { AiProductStudioScreen } from "./screens/AiProductStudioScreen";
 import { ProductsScreen } from "./screens/ProductsScreen";
 import { SupportScreen } from "./screens/SupportScreen";
 import type { MainTab, Screen } from "./types";
@@ -82,6 +83,7 @@ export default function App() {
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <MarketplaceScreen
               isSuper={user?.role === "super_admin" || user?.role === "admin"}
+              onAiProductAdd={() => setScreen({ name: "aiProductStudio", mode: user?.role === "super_admin" ? "super_admin" : "supplier" })}
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
               onBack={() => setScreen({ name: "more" })}
               onLogout={async () => {
@@ -119,13 +121,22 @@ export default function App() {
           </SafeAreaView>
         ) : screen.name === "products" ? (
           <AdminShell active="products" onTab={openTab}>
-            <ProductsScreen onAdd={() => setScreen({ name: "productAdd" })} />
+            <ProductsScreen onAdd={() => setScreen({ name: "productAdd" })}
+              onAiAdd={() => setScreen({ name: "aiProductStudio", mode: "super_admin" })} />
           </AdminShell>
         ) : screen.name === "productAdd" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <ProductAddScreen
               onBack={() => setScreen({ name: "products" })}
               onCreated={() => setScreen({ name: "products" })}
+            />
+          </SafeAreaView>
+        ) : screen.name === "aiProductStudio" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <AiProductStudioScreen
+              mode={screen.mode}
+              onBack={() => setScreen({ name: screen.mode === "supplier" ? "marketplace" : "products" })}
+              onCreated={() => setScreen({ name: screen.mode === "supplier" ? "marketplace" : "products" })}
             />
           </SafeAreaView>
         ) : screen.name === "customers" ? (
