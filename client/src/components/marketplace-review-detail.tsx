@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 export type ReviewKind = "products" | "stores" | "reels";
 type Content = {
   name?:string;sku?:string;description?:string;category?:string;brand?:string;barcode?:string;
-  imageUrl?:string;price?:number;unitsPerBox?:number;minBoxes?:number;leadDays?:number;
+  imageUrl?:string;imageUrls?:string[];price?:number;unitsPerBox?:number;minBoxes?:number;leadDays?:number;
   model?:string;color?:string;material?:string;size?:string;collectionName?:string;tags?:string[];
   title?:string;tagline?:string;accent?:string;bannerUrl?:string|null;logoUrl?:string|null;sections?:string[];
 };
@@ -64,7 +64,18 @@ function ProductPreview({review,content,title}:{review:ReviewInfo;content:Conten
       <span className="rounded-lg bg-muted px-2 py-1 text-xs text-muted-foreground">Ürün #{review.product_id||review.id}</span>
     </div>
     <div className="grid gap-4 md:grid-cols-[minmax(220px,0.9fr)_minmax(0,1.1fr)]">
-      <ImagePreview src={content.imageUrl} alt={content.name||"Ürün görseli"}/>
+      <div className="space-y-3">
+        <ImagePreview src={content.imageUrl} alt={content.name||"Ürün görseli"}/>
+        {Array.isArray(content.imageUrls)&&content.imageUrls.length>1?
+          <div className="grid grid-cols-2 gap-2">
+            {content.imageUrls.filter(url=>media(url)).slice(0,4).map((src,index)=>
+              <a key={src} href={src} target="_blank" rel="noopener noreferrer"
+                className="overflow-hidden rounded-xl border p-2 hover:border-blue-400">
+                <img src={src} alt={`Ürün fotoğrafı ${index+1}`} className="h-24 w-full object-contain"/>
+                <span className="block pt-1 text-center text-xs text-muted-foreground">{index+1}. fotoğraf</span>
+              </a>)}
+          </div>:null}
+      </div>
       <div className="space-y-3">
         <h4 className="text-lg font-bold">{text(content.name)}</h4>
         <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">
