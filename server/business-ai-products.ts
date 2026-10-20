@@ -88,7 +88,7 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
       const hash=hashParts.update(JSON.stringify(parsed.data.hints)).digest("hex");
       const hit=cache.get(hash);
       if(hit&&hit.expires>now)return res.json({product:hit.product,cached:true});
-      const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:20000,maxRetries:0});
+      const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:40000,maxRetries:0});
       const start=Date.now();
       const reply=await ai.responses.create({
         model:process.env.OPENAI_BUSINESS_PRODUCT_MODEL||"gpt-4.1-mini",
