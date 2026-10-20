@@ -14,7 +14,11 @@ export function homepageMediaUrl(imageId?: string | null): string | null {
 export function absoluteMediaUrl(value?: string | null) {
   if (!value) return null;
   if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
-  if (value.startsWith('/api/public/homepage/media/')) return `${ADMIN_CONTENT_URL}${value}`;
+  // Editorial Reels share the admin media service with the homepage assets.
+  // Marketplace supplier media remains on the B2B API service.
+  if (value.startsWith('/api/public/homepage/media/') || value.startsWith('/api/public/reels/media/')) {
+    return `${ADMIN_CONTENT_URL}${value}`;
+  }
   return `${API_URL}${value.startsWith('/') ? value : `/${value}`}`;
 }
 
