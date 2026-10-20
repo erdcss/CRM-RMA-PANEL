@@ -122,7 +122,7 @@ export default function App() {
         ) : screen.name === "products" ? (
           <AdminShell active="products" onTab={openTab}>
             <ProductsScreen onAdd={() => setScreen({ name: "productAdd" })}
-              onAiAdd={() => setScreen({ name: "aiProductStudio", mode: "super_admin" })} />
+              onAiAdd={user?.role === "super_admin" ? () => setScreen({ name: "aiProductStudio", mode: "super_admin" }) : undefined} />
           </AdminShell>
         ) : screen.name === "productAdd" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
