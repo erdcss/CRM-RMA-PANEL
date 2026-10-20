@@ -184,7 +184,7 @@ export type MarketplaceConversation = {id:number;company_name:string;slug:string
 export type MarketplaceMessage = {id:number;author_user_id:number;text:string;created_at:string};
 export type MarketplaceCart = {
   items:Array<{id:number;product_id:number;boxes:number;valid:boolean;total:number;unitsPerBox:number;price:number;stock:number;company_name:string;seller_slug?:string;sku:string;content:{name:string;imageUrl?:string;minBoxes?:number}}>,
-  subtotal:number;currency:string;paymentEnabled:false;notice:string;
+  subtotal:number;currency:string;paymentEnabled:boolean;notice:string;
 };
 
 export type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
