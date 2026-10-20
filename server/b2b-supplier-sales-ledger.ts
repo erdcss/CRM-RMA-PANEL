@@ -1,4 +1,6 @@
 import type { PoolClient } from "pg";
+import { pool } from "./db";
+
 
 /**
  * Verified gross supplier sales. These records are NOT disbursements.
@@ -13,6 +15,29 @@ function toCents(value: unknown): number {
   const cents = Math.round(amount * 100);
   if (!Number.isSafeInteger(cents)) throw new Error("Tedarikçi satış tutarı çok yüksek");
   return cents;
+}
+
+let schemaReady: Promise<unknown> | null = null;
+
+export async function ensureSupplierSalesLedger(): Promise<void> {
+  if (!pool) throw new Error("Veritabanı bağlantısı yok");
+  if (!schemaReady) {
+    schemaReady = pool.query(`
+    CREATE TABLE IF NOT EXISTS b2b_supplier_sales_ledger (
+      order_id BIGINT NOT NULL REFERENCES b2b_orders(id) ON DELETE RESTRICT,
+      supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE RESTRICT,
+      order_number TEXT NOT NULL,
+      gross_amount NUMERIC(14,2) NOT NULL CHECK (gross_amount > 0),
+      currency TEXT NOT NULL DEFAULT 'TRY',
+      payment_method TEXT NOT NULL CHECK (payment_method IN ('card', 'bank_transfer')),
+      settlement_status TEXT NOT NULL DEFAULT 'awaiting_reconciliation'
+        CHECK (settlement_status IN ('awaiting_reconciliation', 'reconciled', 'disputed')),
+      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY(order_id, supplier_id)
+    )
+    `).catch(error => { schemaReady = null; throw error; });
+  }
+  await schemaReady;
 }
 
 /** Called inside the same DB transaction that marks provider-confirmed payment paid. */
@@ -35,21 +60,6 @@ export async function recordVerifiedSupplierSales(
   }
   if (!groups.size) return;
 
-  await client.query("SELECT pg_advisory_xact_lock(hashtext('b2b_supplier_sales_ledger_v1'))");
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS b2b_supplier_sales_ledger (
-      order_id BIGINT NOT NULL REFERENCES b2b_orders(id) ON DELETE RESTRICT,
-      supplier_id BIGINT NOT NULL REFERENCES mp_suppliers(id) ON DELETE RESTRICT,
-      order_number TEXT NOT NULL,
-      gross_amount NUMERIC(14,2) NOT NULL CHECK (gross_amount > 0),
-      currency TEXT NOT NULL DEFAULT 'TRY',
-      payment_method TEXT NOT NULL CHECK (payment_method IN ('card', 'bank_transfer')),
-      settlement_status TEXT NOT NULL DEFAULT 'awaiting_reconciliation'
-        CHECK (settlement_status IN ('awaiting_reconciliation', 'reconciled', 'disputed')),
-      recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY(order_id, supplier_id)
-    )
-  `);
   for (const [supplierId, cents] of groups) {
     if (cents <= 0) throw new Error("Tedarikçi satış tutarı sıfır olamaz");
     await client.query(
