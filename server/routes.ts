@@ -4422,14 +4422,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!verifyPassword(password, user.password)) {
       return res.status(401).json({ error: "Hesabı silmek için mevcut şifrenizi doğru girin" });
     }
+    if (!pool) {
+      return res.status(503).json({ error: "Veritabanı şu anda kullanılamıyor" });
+    }
 
-    await storage.updateUser(user.id, {
-      username: `deleted-${user.id}-${Date.now()}`,
-      email: null,
-      isActive: 0,
-      applicationStatus: "deleted",
-      password: hashPassword(randomBytes(32).toString("hex")),
-    });
+    // Keep transactionally required invoices and purchase history intact.
+    // Remove profile PII and optional delivery/payment preferences atomically.
+    const connection = await pool.connect();
+    try {
+      await connection.query("BEGIN");
+      await connection.query("DELETE FROM b2b_addresses WHERE user_id = $1", [user.id]);
+      await connection.query("DELETE FROM b2b_payment_methods WHERE user_id = $1", [user.id]);
+      await connection.query(
+        `UPDATE users
+         SET username = $2, password = $3, email = NULL, is_active = 0,
+             first_name = NULL, last_name = NULL, company_name = NULL,
+             company_category = NULL, tax_number = NULL, tax_office = NULL,
+             tax_verified = 0, application_status = 'deleted',
+             must_change_password = 0, approved_at = NULL, credentials_sent_at = NULL
+         WHERE id = $1 AND role = 'b2b_customer'`,
+        [user.id, `deleted-${user.id}-${Date.now()}`, hashPassword(randomBytes(32).toString("hex"))],
+      );
+      await connection.query("COMMIT");
+    } catch (error) {
+      await connection.query("ROLLBACK");
+      console.error("B2B account deletion failed:", error);
+      return res.status(500).json({ error: "Hesabınız silinemedi, lütfen tekrar deneyin" });
+    } finally {
+      connection.release();
+    }
 
     req.session.destroy(() => undefined);
     res.clearCookie("connect.sid");
