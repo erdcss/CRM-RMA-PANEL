@@ -77,6 +77,9 @@ export default function ProfileScreen() {
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const loadAccount = useCallback(async () => {
     if (!session) return;
@@ -328,6 +331,69 @@ export default function ProfileScreen() {
               <Text style={styles.settingsLabel}>Gizlilik Politikası ve KVKK</Text>
               <Ionicons name="open-outline" size={18} color={palette.muted} />
             </Pressable>
+            <View style={styles.divider} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Hesabımı silme seçeneklerini aç"
+              style={styles.settingsRow}
+              onPress={() => setDeleteAccountOpen((open) => !open)}
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.danger} />
+              <Text style={[styles.settingsLabel, { color: colors.danger }]}>Hesabımı Sil</Text>
+              <Ionicons name={deleteAccountOpen ? "chevron-up" : "chevron-forward"} size={18} color={palette.muted} />
+            </Pressable>
+            {deleteAccountOpen ? (
+              <View style={{ paddingVertical: spacing.md }}>
+                <Text style={{ color: palette.textSecondary, lineHeight: 21, marginBottom: spacing.md }}>
+                  Bu işlem hesabınıza erişimi kalıcı olarak kapatır. Sipariş ve fatura gibi yasal saklama zorunluluğu bulunan kayıtlar ilgili süre boyunca korunabilir.
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={deletePassword}
+                  onChangeText={setDeletePassword}
+                  placeholder="Onaylamak için mevcut şifreniz"
+                  placeholderTextColor={palette.muted}
+                  secureTextEntry
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="password"
+                  accessibilityLabel="Hesap silme şifresi"
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!deletePassword.trim() || deletingAccount}
+                  style={[styles.primaryButton, { backgroundColor: colors.danger }, (!deletePassword.trim() || deletingAccount) && styles.disabled]}
+                  onPress={() => {
+                    appAlert(
+                      'Hesabınızı silmek istiyor musunuz?',
+                      'Hesap erişiminiz kalıcı olarak kapanır. Bu işlem geri alınamaz. Yasal olarak saklanması zorunlu kayıtlar korunabilir.',
+                      [
+                        { text: 'Vazgeç', style: 'cancel' },
+                        { text: 'Hesabımı Sil', style: 'destructive', onPress: () => {
+                          if (deletingAccount || !deletePassword.trim()) return;
+                          void (async () => {
+                            setDeletingAccount(true);
+                            try {
+                              await rmaApi.deleteB2BAccount(deletePassword);
+                              setDeletePassword('');
+                              await signOut();
+                              router.replace('/login');
+                            } catch (error) {
+                              appAlert('Hesap silinemedi', error instanceof Error ? error.message : 'Lütfen tekrar deneyin.', undefined, 'error');
+                            } finally {
+                              setDeletingAccount(false);
+                            }
+                          })();
+                        } },
+                      ],
+                      'warning',
+                    );
+                  }}
+                >
+                  <Text style={styles.primaryButtonText}>{deletingAccount ? 'İşleniyor...' : 'Kalıcı Silmeyi Onayla'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <View style={styles.divider} />
             <Pressable
               style={styles.settingsRow}
