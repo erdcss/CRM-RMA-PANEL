@@ -95,9 +95,9 @@ export default function SellerStore() {
       <Text style={[styles.section,{color:palette.text}]}>Satıcının Reels Videoları</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.reelsRow}>
         {sellerReels.map(reel=><Pressable key={String(reel.id)} style={[styles.reelCard,{backgroundColor:palette.surface,borderColor:palette.border}]}
-          onPress={()=>router.push({pathname:'/marketplace/reel/[id]',params:{id:String(reel.id)}} as never)}
+          onPress={()=>router.push({pathname:'/marketplace/reel/[id]',params:{id:String(reel.id),slug:String(slug)}} as never)}
           accessibilityRole="button" accessibilityLabel={reel.title+' videosunu izle'}>
-          {reel.thumbnail_url ? <Image source={{uri:absoluteMediaUrl(reel.thumbnail_url)||undefined}} style={styles.full} contentFit="cover"/> : reel.video_url ? <Video source={{uri:absoluteMediaUrl(reel.video_url)!}} style={styles.full} resizeMode={ResizeMode.COVER} shouldPlay isLooping isMuted={true} useNativeControls={false}/> : <Ionicons name="videocam-outline" size={33} color={palette.textSecondary}/>}
+          {reel.thumbnail_url ? <Image source={{uri:absoluteMediaUrl(reel.thumbnail_url)||undefined}} style={styles.full} contentFit="cover"/> : reel.video_url ? <Video source={{uri:absoluteMediaUrl(reel.video_url)!}} style={styles.full} resizeMode={ResizeMode.COVER} shouldPlay={false} isMuted useNativeControls={false}/> : <Ionicons name="videocam-outline" size={33} color={palette.textSecondary}/>}
           <View style={styles.reelOverlay}><Ionicons name="play-circle" size={36} color="#FFCD00"/></View>
           <Text numberOfLines={2} style={styles.reelTitle}>{reel.title}</Text>
         </Pressable>)}
