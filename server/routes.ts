@@ -33,6 +33,7 @@ import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceVideoUploadRoutes } from "./marketplace-video-upload";
 import { registerMarketplaceCartRoutes } from "./marketplace-cart";
 import { isMarketplaceLine, deductMarketplaceStock, notifyVerifiedSupplierOrder, removePurchasedMarketplaceCartItems } from "./marketplace-paid-orders";
+import { ensureSupplierSalesLedger, recordVerifiedSupplierSales } from "./b2b-supplier-sales-ledger";
 import { reserveB2BBankReference, lockB2BBankReference, bindB2BBankReference, findB2BBankReferenceOrder, ensureB2BBankReferenceTable, BankReferenceError } from "./b2b-bank-transfer-code";
 
 let dbReady = false;
@@ -332,6 +333,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
     if (!previewOnly && process.env.B2B_SUPPLIER_CHECKOUT_ENABLED !== "true")
       throw new Error("Tedarikçi ürünleri için ödeme henüz etkinleştirilmedi. Lütfen daha sonra tekrar deneyin.");
     await ensureMarketplaceSchema();
+    if (!previewOnly) await ensureSupplierSalesLedger();
     const productNumber=Number(id.slice(3));
     const q=await pool.query(`SELECT p.id,p.sku,p.stock,
        s.id AS supplier_id,s.slug,s.company_name,v.id AS revision_id,
@@ -3571,6 +3573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const items = Array.isArray(order.items) ? order.items : [];
+      await recordVerifiedSupplierSales(client, order.id, String(order.order_number), "card", items);
       let stockReview = false;
       for (const entry of items) {
         const productId = String(entry?.productId || "").trim();
@@ -3898,6 +3901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (success) {
         const items = Array.isArray(order.items) ? order.items : [];
+        await recordVerifiedSupplierSales(client, order.id, String(order.order_number), "card", items);
         for (const entry of items) {
           const productId = String(entry?.productId || "").trim();
           const boxQuantity = Math.max(0, cleanOrderQuantity(entry?.quantity));
