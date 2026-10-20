@@ -20,7 +20,7 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
       "Sipariş ve teslimat verileri: ürünler, miktarlar, fiyatlar, adresler, sipariş ve iade geçmişi.",
       "Hesap/Defterim içerikleri: kullanıcı tarafından oluşturulan cari kayıtlar, notlar ve işletme finans takibi bilgileri.",
       "Destek iletişimleri: destek taleplerinin konusu, mesajlar ve talebe eklenen bilgiler.",
-      "Teknik ve kullanım verileri: IP adresi, cihaz ve tarayıcı bilgileri, oturum güvenliği kayıtları, hata günlükleri ve uygulama etkileşimleri."
+      "Teknik ve kullanım verileri: IP adresi, cihaz ve tarayıcı bilgileri, oturum güvenliği kayıtları, hata günlükleri ve uygulama etkileşimleri., kullanıcının izin vermesi halinde bildirim gönderimi için push belirteçleri."
     ]
   },
   {
@@ -66,7 +66,7 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
     title: "8. Haklarınız ve hesap silme",
     paragraphs: [
       "KVKK'nın 11. maddesi uyarınca verilerinizin işlenip işlenmediğini öğrenme, işlenmişse bilgi talep etme, işleme amacını öğrenme, yanlış veya eksik verilerin düzeltilmesini isteme, şartları varsa silinmesini veya yok edilmesini talep etme ve kanunda belirtilen diğer haklarınızı kullanabilirsiniz.",
-      "Çalışkan B2B web hesabındaki Hesabım → Ayarlar → Hesabımı Sil akışı üzerinden hesap kapatma işlemi başlatılabilir. Hesap kapatma, mevzuat gereği tutulması zorunlu sipariş ve fatura kayıtlarının derhal silinmesi anlamına gelmeyebilir. Kişisel veri talepleriniz için Destek Merkezi aracılığıyla başvurabilirsiniz."
+      "Çalışkan B2B hesabınızda Hesabım → Ayarlar → Hesabımı Sil seçeneğinden, mevcut şifreniz ve açık onayınız ile hesabınızı kapatabilirsiniz. Bu işlem giriş erişiminizi kaldırır ve profil bilgileriniz ile kayıtlı adres ve ödeme yöntemi tercihlerinizi siler. Sipariş, fatura ve kanunen muhafazası zorunlu ticari kayıtlar ilgili yükümlülükler boyunca saklanabilir. Diğer kayıtlarınızın incelenmesi ve kişisel veri talepleriniz için Destek Merkezi üzerinden başvurabilirsiniz."
     ]
   },
   {
