@@ -591,6 +591,7 @@ export function registerMarketplaceRoutes(
       const price=Number(previous.rows[0].current_price??prior.rows[0].content.price);
       const safeContent={...prior.rows[0].content,...data.product,sku:data.sku,price};
       await verifyMedia(db,Number(supplier.id),data.product.imageUrl,false);
+      for(const url of data.product.imageUrls||[])await verifyMedia(db,Number(supplier.id),url,false);
       if(data.sku!==previous.rows[0].sku){
         const conflict=await client.query("SELECT 1 FROM mp_products WHERE supplier_id=$1 AND sku=$2 AND id<>$3",
           [supplier.id,data.sku,productId]);
@@ -648,6 +649,7 @@ export function registerMarketplaceRoutes(
     const s=await supplierFor(res),db=await ready();
     const data=z.object({sku:bodyText(90),stock:z.number().int().min(0).max(100000000),product:productSchema}).strict().parse(req.body);
     await verifyMedia(db,Number(s.id),data.product.imageUrl,false);
+    for(const url of data.product.imageUrls||[])await verifyMedia(db,Number(s.id),url,false);
     const client=await db.connect();
     try {
       await client.query("BEGIN");
