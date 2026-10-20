@@ -406,6 +406,7 @@ const styles = StyleSheet.create({
   },
   topBar: {
     position: 'absolute',
+    zIndex: 20,
     left: spacing.lg,
     right: spacing.lg,
     top: spacing.lg,
