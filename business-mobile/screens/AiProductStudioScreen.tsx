@@ -131,7 +131,9 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
       const recognized={...aiValues.current};
       let total=0;
       for(const field of required){
-        if(field.numeric||userEdited.current.has(field.key))continue;
+        // Barcode may be read from a clear label photo; prices and quantities
+        // must still come from the user, never model guesses.
+        if((field.numeric&&field.key!=="barcode")||userEdited.current.has(field.key))continue;
         const suggestion=result.product?.[field.key];
         if(typeof suggestion!=="string"||!suggestion.trim())continue;
         const oldAi=aiValues.current[field.key];
