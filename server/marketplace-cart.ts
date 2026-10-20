@@ -57,11 +57,13 @@ async function ready(){
   .catch(e=>{schema=undefined;throw e;});
  await schema;return pool;
 }
-const listQuery=`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,s.id AS supplier_id,s.slug AS seller_slug,s.company_name,
+const listQuery=`SELECT c.id,c.product_id,c.boxes,c.delivery_mode,p.stock,p.sku,p.is_enabled,
+ s.id AS supplier_id,s.slug AS seller_slug,s.company_name,
+ s.status AS supplier_status,s.is_holiday,s.is_admin_paused,
  v.id AS revision_id,(v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content
  FROM mp_cart_lines c JOIN mp_products p ON p.id=c.product_id
- JOIN mp_suppliers s ON s.id=p.supplier_id AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE
- LEFT JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE
+ JOIN mp_suppliers s ON s.id=p.supplier_id
+ LEFT JOIN mp_product_versions v ON v.product_id=p.id AND v.is_live=TRUE AND v.status='approved'
  WHERE c.buyer_user_id=$1 ORDER BY s.id,c.id`;
 function asMoney(value:number){return Math.round((value+Number.EPSILON)*100)/100;}
 function lines(rows:any[]){
@@ -69,7 +71,7 @@ function lines(rows:any[]){
  const values=rows.map(r=>{
    const units=Number(r.content?.unitsPerBox||0),price=Number(r.content?.price),boxes=Number(r.boxes);
    const min=Number(r.content?.minBoxes||1);
-   const available=r.content!=null&&r.stock>=boxes*units&&boxes>=min;
+   const available=r.supplier_status==='approved'&&!r.is_holiday&&!r.is_admin_paused&&r.is_enabled===true&&r.content!=null&&Number.isSafeInteger(units)&&units>0&&Number.isFinite(price)&&price>0&&boxes>=min&&r.stock>=boxes*units;
    const total=Number.isFinite(price)?asMoney(price*units*boxes):0;
    subtotal+=total;
    return {...r,total,valid:available,unitsPerBox:units,price};
@@ -83,7 +85,10 @@ function lines(rows:any[]){
  }
  for(const g of groups.values()){g.platformFee=asMoney(g.subtotal*0.03);g.warehouseFee=g.deliveryMode==="warehouse"?asMoney(g.subtotal*0.03):0;}
  return {items:values,subtotal:asMoney(subtotal),supplierOrders:[...groups.values()],currency:"TRY",
-   paymentEnabled:false,notice:"Ödeme, resmi satıcı mutabakatı ve fatura entegrasyonu tamamlanmadan aktif değildir."};
+   paymentEnabled:process.env.B2B_SUPPLIER_CHECKOUT_ENABLED==="true"&&values.every(line=>line.valid),
+   notice:process.env.B2B_SUPPLIER_CHECKOUT_ENABLED==="true"?
+     "Onaylı tedarikçi ürünlerini B2B ödeme sayfasından satın alabilirsiniz; bu sepetin taslak talebi ödeme değildir.":
+     "Tedarikçi ödemesi yönetici tarafından henüz etkinleştirilmedi."};
 }
 const validateCart=z.object({productId:z.number().int().positive(),boxes:z.number().int().min(1).max(10000),
   deliveryMode:z.enum(["direct","warehouse"])}).strict();
