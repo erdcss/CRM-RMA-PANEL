@@ -81,10 +81,12 @@ export function registerMarketplaceMediaRoutes(app:Express,requireB2B:RequestHan
         const m=/^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range));
         if(!m||(!m[1]&&!m[2])){res.setHeader("Content-Range","bytes */"+length);return res.status(416).end();}
         let start=m[1]?Number(m[1]):Math.max(0,length-Number(m[2]));
-        const end=m[1]?(m[2]?Number(m[2]):length-1):length-1;
-        if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start<0||end>=length||start>end){
+        const requestedEnd=m[1]?(m[2]?Number(m[2]):length-1):length-1;
+        if(!Number.isSafeInteger(start)||!Number.isSafeInteger(requestedEnd)||start<0||start>=length||start>requestedEnd){
           res.setHeader("Content-Range","bytes */"+length);return res.status(416).end();
         }
+        // HTTP range ends past EOF are valid: clamp instead of returning 416.
+        const end=Math.min(requestedEnd,length-1);
         res.status(206);res.setHeader("Content-Range","bytes "+start+"-"+end+"/"+length);
         res.setHeader("Content-Length",end-start+1);
         return res.end(bytes.subarray(start,end+1));
