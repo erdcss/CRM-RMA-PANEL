@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, type ViewToken } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View, type ViewToken } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { rmaApi, type B2BReel } from '@/lib/api';
 import { ReelCard } from '../../(tabs)/discover';
 
 export default function SellerReelScreen() {
-  const { id } = useLocalSearchParams<{id:string}>();
+  const { id, slug } = useLocalSearchParams<{id:string;slug?:string}>();
   const router = useRouter();
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,15 +19,25 @@ export default function SellerReelScreen() {
     setFocused(true);
     return () => setFocused(false);
   }, []));
+  const returnToStore = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else if (slug) {
+      router.replace({ pathname: '/marketplace/store/[slug]', params: { slug } } as never);
+    } else {
+      router.replace('/(tabs)/discover' as never);
+    }
+  }, [router, slug]);
   useEffect(() => {
     let mounted = true;
     void rmaApi.listMarketplaceReels().then(rows => {
-      if(mounted) setReels(rows);
+      // Store entry shows that supplier's videos using the exact shared Reels UI.
+      if (mounted) setReels(slug ? rows.filter(reel => reel.seller_slug === slug) : rows);
     }).catch(() => undefined).finally(() => {
-      if(mounted) setLoading(false);
+      if (mounted) setLoading(false);
     });
     return () => { mounted = false; };
-  }, []);
+  }, [slug]);
   const firstIndex = useMemo(() => Math.max(0, reels.findIndex(r => String(r.id) === String(id))), [reels, id]);
   useEffect(() => {
     if (!reels.length || !height || initialScrolled.current) return;
@@ -45,23 +54,18 @@ export default function SellerReelScreen() {
     <View style={styles.viewport} onLayout={e=>setHeight(e.nativeEvent.layout.height)}>
       {height > 0 && reels.length ? <FlatList ref={listRef} data={reels}
         keyExtractor={item=>String(item.id)}
-        renderItem={({item,index})=><ReelCard item={item} active={focused&&index===activeIndex} height={height}/>}
+        renderItem={({item,index})=><ReelCard item={item} active={focused&&index===activeIndex} height={height} onBack={returnToStore}/>}
         pagingEnabled decelerationRate="fast" showsVerticalScrollIndicator={false} bounces={false}
         onViewableItemsChanged={onVisible} viewabilityConfig={config}
         getItemLayout={(_,index)=>({length:height,offset:height*index,index})}
       /> : <View style={styles.empty}>{loading?<ActivityIndicator color="#FFCD00"/>:
         <Text style={styles.emptyText}>Video bulunamadı veya yayından kaldırıldı.</Text>}</View>}
-      <Pressable style={styles.back} onPress={()=>router.back()} accessibilityRole="button" accessibilityLabel="Mağazaya dön">
-        <Ionicons name="chevron-back" color="#FFFFFF" size={21}/><Text style={styles.backText}>Geri</Text>
-      </Pressable>
     </View>
   </SafeAreaView>;
 }
 const styles=StyleSheet.create({
   root:{flex:1,backgroundColor:'#050505'},
   viewport:{flex:1,backgroundColor:'#050505'},
-  back:{position:'absolute',top:9,left:12,zIndex:20,flexDirection:'row',alignItems:'center',gap:3,paddingVertical:7,paddingHorizontal:10,borderRadius:20,backgroundColor:'rgba(0,0,0,0.54)'},
-  backText:{fontSize:13,fontWeight:'800',color:'#FFFFFF'},
   empty:{flex:1,alignItems:'center',justifyContent:'center'},
   emptyText:{color:'#FFFFFF',fontSize:14},
 });
