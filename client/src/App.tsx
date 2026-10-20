@@ -42,6 +42,7 @@ import B2BAccount from "@/pages/b2b-account";
 import B2BOrders from "@/pages/b2b-orders";
 import B2BPaymentPage from "@/pages/b2b-payment";
 import B2BSupport from "@/pages/b2b-support";
+import B2BPrivacyPage from "@/pages/b2b-privacy";
 import B2BInfoPage from "@/pages/b2b-info";
 import AdminMarketplace from "@/pages/admin-marketplace";
 import MarketplaceSeller from "@/pages/marketplace-seller";
@@ -211,6 +212,8 @@ function B2BWebsite() {
         <Route path="/kampanyalar" component={B2BInfoPage} />
         <Route path="/akademi" component={B2BInfoPage} />
         <Route path="/support" component={B2BSupport} />
+        <Route path="/privacy" component={B2BPrivacyPage} />
+        <Route path="/gizlilik-politikasi" component={B2BPrivacyPage} />
         <Route component={B2BStorefront} />
       </Switch>
     </div>
