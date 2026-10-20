@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../lib/api";
 import type { B2BProduct } from "../types";
 import { C, money } from "../ui/theme";
@@ -72,23 +73,39 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
       <PageHeader
         title="Ürünler"
         subtitle="Ürünleri, fiyatları ve stok durumunu yönetin."
-        right={
-          <TouchableOpacity style={s.addButton} onPress={onAdd} activeOpacity={0.78}>
-            <Text style={s.addButtonPlus}>＋</Text>
-            <Text style={s.addButtonText}>Ürün Ekle</Text>
-          </TouchableOpacity>
-        }
       />
 
-      {onAiAdd ? <TouchableOpacity style={s.aiEntry} onPress={onAiAdd} activeOpacity={0.83}>
-        <View style={s.aiIcon}><Text style={s.aiIconText}>✦</Text></View>
-        <View style={{flex:1}}>
-          <Text style={s.aiEyebrow}>YAPAY ZEKÂ DESTEKLİ ÜRÜN STÜDYOSU</Text>
-          <Text style={s.aiTitle}>Fotoğrafla ürün oluştur</Text>
-          <Text style={s.aiSubtitle}>AI analiz · eksiksiz ürün kartı · önizleme · doğrudan yayın</Text>
-        </View>
-        <Text style={s.aiArrow}>→</Text>
-      </TouchableOpacity> : null}
+      <View style={s.actions}>
+        {onAiAdd ? (
+          <TouchableOpacity
+            style={s.aiEntry}
+            onPress={onAiAdd}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="AI ile Ürün Ekle"
+            accessibilityHint="Fotoğraf analizi ve ürün önizleme ekranını açar"
+          >
+            <View style={s.aiIcon}><Ionicons name="sparkles" size={25} color="#B3D4FF" /></View>
+            <View style={s.aiCopy}>
+              <Text style={s.aiEyebrow}>ÇALIŞKAN BUSINESS · AI STUDIO</Text>
+              <Text style={s.aiTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>AI ile Ürün Ekle</Text>
+              <Text style={s.aiSubtitle}>Görsel analizi · zorunlu alanlar · önizleme</Text>
+            </View>
+            <Ionicons name="arrow-forward-circle" size={27} color="#8FBFFF" />
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity
+          style={s.manualAction}
+          onPress={onAdd}
+          activeOpacity={0.78}
+          accessibilityRole="button"
+          accessibilityLabel="Manuel Ürün Ekle"
+        >
+          <Ionicons name="add-circle-outline" size={18} color="#CEDFF7" />
+          <Text style={s.manualText}>Manuel Ürün Ekle</Text>
+          <Ionicons name="chevron-forward" size={14} color="#7E8998" />
+        </TouchableOpacity>
+      </View>
 
       <View style={s.searchBox}>
         <Text style={s.searchIcon}>⌕</Text>
@@ -148,28 +165,28 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
 
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.bg },
-  aiEntry:{flexDirection:"row",alignItems:"center",gap:12,borderRadius:22,padding:16,marginBottom:16,
-    borderWidth:1,borderColor:"rgba(59,130,246,0.48)",backgroundColor:"#112039"},
-  aiIcon:{width:50,height:50,borderRadius:17,backgroundColor:"rgba(59,130,246,.18)",
-    borderWidth:1,borderColor:"rgba(59,130,246,.35)",alignItems:"center",justifyContent:"center"},
-  aiIconText:{fontSize:30,color:"#94BEFF"},aiEyebrow:{fontSize:9,fontWeight:"900",color:"#8CB8FF",letterSpacing:0.7},
-  aiTitle:{fontSize:17,fontWeight:"900",color:"#FFFFFF",marginTop:5},aiSubtitle:{fontSize:10,color:"#B9C9DC",lineHeight:15,marginTop:5},
-  aiArrow:{fontSize:23,color:"#91BFFF"},
-
-  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 118 },
-  addButton: {
-    minHeight: 44,
-    paddingHorizontal: 13,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "rgba(59,130,246,0.36)",
-    backgroundColor: C.blueSoft,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  actions: { marginBottom: 17, gap: 10 },
+  aiEntry: {
+    flexDirection: "row", alignItems: "center", gap: 11, borderRadius: 21, padding: 15,
+    borderWidth: 1, borderColor: "rgba(105,166,255,0.55)", backgroundColor: "#112741",
+    minHeight: 90,
   },
-  addButtonPlus: { color: "#A9C7FF", fontSize: 20, marginRight: 4 },
-  addButtonText: { color: "#A9C7FF", fontSize: 11, fontWeight: "600" },
+  aiIcon: {
+    width: 49, height: 49, borderRadius: 15, backgroundColor: "rgba(59,130,246,0.24)",
+    borderWidth: 1, borderColor: "rgba(126,181,255,0.28)",
+    alignItems: "center", justifyContent: "center",
+  },
+  aiCopy: { flex: 1, minWidth: 0 },
+  aiEyebrow: { fontSize: 9, fontWeight: "800", color: "#9EC4FF", letterSpacing: 0.45 },
+  aiTitle: { fontSize: 18, fontWeight: "900", color: "#FFFFFF", marginTop: 5 },
+  aiSubtitle: { fontSize: 10, color: "#B9CCDE", lineHeight: 15, marginTop: 5 },
+  manualAction: {
+    minHeight: 47, borderRadius: 15, borderWidth: 1, borderColor: C.line,
+    backgroundColor: C.panel2, flexDirection: "row", gap: 8,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 14,
+  },
+  manualText: { color: "#C9DBF2", fontSize: 12, fontWeight: "750" },
+  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 136 },
   searchBox: {
     minHeight: 56,
     marginBottom: 16,
