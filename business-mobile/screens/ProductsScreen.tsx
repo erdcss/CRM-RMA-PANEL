@@ -15,7 +15,7 @@ import type { B2BProduct } from "../types";
 import { C, money } from "../ui/theme";
 import { EmptyState, MiniStat, PageHeader } from "./common";
 
-export function ProductsScreen({ onAdd }: { onAdd: () => void }) {
+export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd: () => void }) {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -80,6 +80,16 @@ export function ProductsScreen({ onAdd }: { onAdd: () => void }) {
         }
       />
 
+      <TouchableOpacity style={s.aiEntry} onPress={onAiAdd} activeOpacity={0.83}>
+        <View style={s.aiIcon}><Text style={s.aiIconText}>✦</Text></View>
+        <View style={{flex:1}}>
+          <Text style={s.aiEyebrow}>YAPAY ZEKÂ DESTEKLİ ÜRÜN STÜDYOSU</Text>
+          <Text style={s.aiTitle}>Fotoğrafla ürün oluştur</Text>
+          <Text style={s.aiSubtitle}>AI analiz · eksiksiz ürün kartı · önizleme · doğrudan yayın</Text>
+        </View>
+        <Text style={s.aiArrow}>→</Text>
+      </TouchableOpacity>
+
       <View style={s.searchBox}>
         <Text style={s.searchIcon}>⌕</Text>
         <TextInput
@@ -138,6 +148,14 @@ export function ProductsScreen({ onAdd }: { onAdd: () => void }) {
 
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.bg },
+  aiEntry:{flexDirection:"row",alignItems:"center",gap:12,borderRadius:22,padding:16,marginBottom:16,
+    borderWidth:1,borderColor:"rgba(59,130,246,0.48)",backgroundColor:"#112039"},
+  aiIcon:{width:50,height:50,borderRadius:17,backgroundColor:"rgba(59,130,246,.18)",
+    borderWidth:1,borderColor:"rgba(59,130,246,.35)",alignItems:"center",justifyContent:"center"},
+  aiIconText:{fontSize:30,color:"#94BEFF"},aiEyebrow:{fontSize:9,fontWeight:"900",color:"#8CB8FF",letterSpacing:0.7},
+  aiTitle:{fontSize:17,fontWeight:"900",color:"#FFFFFF",marginTop:5},aiSubtitle:{fontSize:10,color:"#B9C9DC",lineHeight:15,marginTop:5},
+  aiArrow:{fontSize:23,color:"#91BFFF"},
+
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 118 },
   addButton: {
     minHeight: 44,
