@@ -2,6 +2,7 @@ import type { Express, Request, RequestHandler } from "express";
 import { pool } from "./db";
 import { notifyB2BEvent } from "./b2b-notification-center";
 import { isMarketplaceLine,deductMarketplaceStock,notifyVerifiedSupplierOrder,removePurchasedMarketplaceCartItems } from "./marketplace-paid-orders";
+import { ensureSupplierSalesLedger, recordVerifiedSupplierSales } from "./b2b-supplier-sales-ledger";
 
 type UserIdResolver = (req: Request) => number | undefined;
 
@@ -43,6 +44,7 @@ export function registerB2BBankPaymentApproval(
     if (!actor) return res.status(401).json({ error: "Yönetici oturumu bulunamadı" });
     try {
       await ensureAudit();
+      await ensureSupplierSalesLedger();
       const client = await pool.connect();
       let order: {
         id: string; user_id: number; order_number: string;
@@ -93,6 +95,7 @@ export function registerB2BBankPaymentApproval(
             await client.query("UPDATE b2b_orders SET status='paid_stock_review' WHERE id=$1",[record.id]);
             confirmedOrder.status='paid_stock_review';
           }
+          await recordVerifiedSupplierSales(client, confirmedOrder.id, String(confirmedOrder.order_number), "bank_transfer", purchasedItems);
           order = confirmedOrder;
           await client.query(`
             INSERT INTO b2b_bank_payment_approvals
