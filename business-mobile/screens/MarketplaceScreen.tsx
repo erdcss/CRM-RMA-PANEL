@@ -30,9 +30,9 @@ function Action({title,onPress,disabled=false}:{title:string;onPress:()=>void;di
     <Text style={s.buttonText}>{title}</Text>
   </TouchableOpacity>;
 }
-export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onAiProductAdd}:{
-  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void;onAiProductAdd:()=>void}) {
- const [tab,setTab]=useState<Tab>("overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
+export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onAiProductAdd,initialTab}:{
+  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void;onAiProductAdd:()=>void;initialTab?:"products"}) {
+ const [tab,setTab]=useState<Tab>(initialTab||"overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
  const [queue,setQueue]=useState<Queue|null>(null),[products,setProducts]=useState<any[]>([]);
  const [profile,setProfile]=useState<SupplierProfile|null>(null),[supplierOrders,setSupplierOrders]=useState<SellerOrder[]>([]);
  const [adminOrders,setAdminOrders]=useState<AdminOrder[]>([]);
