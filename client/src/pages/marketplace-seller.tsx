@@ -322,7 +322,7 @@ export default function MarketplaceSeller(){
       await send(editingReelId?"PATCH":"POST",editingReelId?"/api/marketplace/seller/reels/"+editingReelId:"/api/marketplace/seller/reels",{
         title:reel.title.trim(),videoUrl:reel.videoUrl,thumbnailUrl:reel.thumbnailUrl||null,productId:reel.productId?Number(reel.productId):null,
       });
-      setReel({title:"",videoUrl:"",productId:""});
+      setReel({title:"",videoUrl:"",thumbnailUrl:"",productId:""});
       form.reset();
       await queryClient.invalidateQueries({queryKey:["/api/marketplace/seller/dashboard"]});
       setMessage("Reels yönetici onayına gönderildi. Video geçmişinde Onay bekliyor olarak listelenir.");
