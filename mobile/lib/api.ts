@@ -371,6 +371,8 @@ export type B2BCheckoutPreview = {
   total: number;
   currency: 'TRY';
   iyzicoConfigured: boolean;
+  supplierPaymentEnabled?: boolean;
+  supplierPaymentNotice?: string | null;
 };
 
 export type B2BCheckoutLine = {
@@ -387,6 +389,8 @@ export type B2BCheckoutCartPreview = {
   boxCount: number;
   currency: 'TRY';
   iyzicoConfigured: boolean;
+  supplierPaymentEnabled?: boolean;
+  supplierPaymentNotice?: string | null;
 };
 
 export type B2BBankTransferReference = {
