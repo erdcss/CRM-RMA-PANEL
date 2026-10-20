@@ -8,6 +8,53 @@ import { getUploadsDir, saveVideoDataUrl, ensureReelVideoCompatibility } from ".
 const VIDEO_PREFIX = "b2b_reels_video_";
 const VIDEO_ID = /^[a-f0-9]{32}$/;
 
+const MAX_VIDEO_CACHE_BYTES = 64 * 1024 * 1024;
+const VIDEO_CACHE_TTL_MS = 10 * 60 * 1000;
+const videoCache = new Map<string, { bytes: Buffer; loadedAt: number }>();
+const videoLoads = new Map<string, Promise<Buffer | null>>();
+let cachedVideoBytes = 0;
+
+async function getCachedReelBytes(id: string): Promise<Buffer | null> {
+  const current = videoCache.get(id);
+  if (current) {
+    videoCache.delete(id);
+    cachedVideoBytes -= current.bytes.length;
+    if (Date.now() - current.loadedAt < VIDEO_CACHE_TTL_MS) {
+      videoCache.set(id, current); // LRU: most recently played
+      cachedVideoBytes += current.bytes.length;
+      return current.bytes;
+    }
+  }
+  const pending = videoLoads.get(id);
+  if (pending) return pending;
+  if (!pool) return null;
+  const loading = (async () => {
+    const row = await pool.query("SELECT value FROM platform_settings WHERE key=$1 LIMIT 1", [VIDEO_PREFIX + id]);
+    const raw = String(row.rows[0]?.value || "");
+    const prefix = "data:video/mp4;base64,";
+    if (!raw.startsWith(prefix)) return null;
+    const bytes = Buffer.from(raw.slice(prefix.length), "base64");
+    if (bytes.length && bytes.length <= MAX_VIDEO_CACHE_BYTES) {
+      while (cachedVideoBytes + bytes.length > MAX_VIDEO_CACHE_BYTES && videoCache.size) {
+        const oldestId = videoCache.keys().next().value;
+        if (!oldestId) break;
+        const oldest = videoCache.get(oldestId)!;
+        videoCache.delete(oldestId);
+        cachedVideoBytes -= oldest.bytes.length;
+      }
+      videoCache.set(id, { bytes, loadedAt: Date.now() });
+      cachedVideoBytes += bytes.length;
+    }
+    return bytes;
+  })();
+  videoLoads.set(id, loading);
+  try {
+    return await loading;
+  } finally {
+    videoLoads.delete(id);
+  }
+}
+
 // Mobile video assets must survive independent Railway service deployments.
 // Videos are capped at 10 MB; use shared object storage when the catalog grows.
 export async function saveCompatibleReelVideo(raw: string): Promise<string> {
@@ -65,11 +112,8 @@ export function registerReelMediaRoutes(app: Express, _requireAdmin: RequestHand
     const id = String(req.params.id || "");
     if (!VIDEO_ID.test(id) || !pool) return res.status(404).end();
     try {
-      const row = await pool.query("SELECT value FROM platform_settings WHERE key=$1 LIMIT 1", [VIDEO_PREFIX + id]);
-      const raw = String(row.rows[0]?.value || "");
-      const prefix = "data:video/mp4;base64,";
-      if (!raw.startsWith(prefix)) return res.status(404).end();
-      const bytes = Buffer.from(raw.slice(prefix.length), "base64");
+      const bytes = await getCachedReelBytes(id);
+      if (!bytes) return res.status(404).end();
       const length = bytes.length;
       res.setHeader("Content-Type", "video/mp4");
       res.setHeader("Accept-Ranges", "bytes");
