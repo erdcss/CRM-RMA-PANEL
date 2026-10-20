@@ -15,7 +15,7 @@ import type { B2BProduct } from "../types";
 import { C, money } from "../ui/theme";
 import { EmptyState, MiniStat, PageHeader } from "./common";
 
-export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd: () => void }) {
+export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?: () => void }) {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd:
         }
       />
 
-      <TouchableOpacity style={s.aiEntry} onPress={onAiAdd} activeOpacity={0.83}>
+      {onAiAdd ? <TouchableOpacity style={s.aiEntry} onPress={onAiAdd} activeOpacity={0.83}>
         <View style={s.aiIcon}><Text style={s.aiIconText}>✦</Text></View>
         <View style={{flex:1}}>
           <Text style={s.aiEyebrow}>YAPAY ZEKÂ DESTEKLİ ÜRÜN STÜDYOSU</Text>
@@ -88,7 +88,7 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd:
           <Text style={s.aiSubtitle}>AI analiz · eksiksiz ürün kartı · önizleme · doğrudan yayın</Text>
         </View>
         <Text style={s.aiArrow}>→</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> : null}
 
       <View style={s.searchBox}>
         <Text style={s.searchIcon}>⌕</Text>
