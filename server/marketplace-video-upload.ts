@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
+import { normalizeMarketplaceVideo } from "./marketplace-video-normalize";
 
 const CHUNK_BYTES=2*1024*1024;
 const MAX_BYTES=60*1024*1024;
@@ -56,27 +57,58 @@ export function registerMarketplaceVideoUploadRoutes(app:Express,requireB2B:Requ
  app.post("/api/marketplace/seller/video-upload/complete",requireB2B,async(req,res)=>{
   const uploadId=req.body?.uploadId;
   if(!validId(uploadId))return res.status(400).json({error:"Geçersiz yükleme"});
-  const db=await ready(),client=await db.connect();
   try{
-   await client.query("BEGIN");
-   const uid=Number((res.locals as any).b2bUser.id);
-   const found=await client.query("SELECT u.* FROM mp_media_uploads u JOIN mp_suppliers s ON s.id=u.supplier_id WHERE u.id=$1 AND s.owner_user_id=$2 AND u.created_at>NOW()-INTERVAL '12 hours' FOR UPDATE OF u",[uploadId,uid]);
-   if(!found.rows[0]){await client.query("ROLLBACK");return res.status(404).json({error:"Yükleme bulunamadı"});}
-   const p=await client.query("SELECT part_index,data FROM mp_media_upload_parts WHERE upload_id=$1 ORDER BY part_index",[uploadId]);
+   const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
+   const found=await db.query(
+    "SELECT u.* FROM mp_media_uploads u JOIN mp_suppliers s ON s.id=u.supplier_id WHERE u.id=$1 AND s.owner_user_id=$2 AND u.created_at>NOW()-INTERVAL '12 hours'",
+    [uploadId,uid]
+   );
+   if(!found.rows[0])return res.status(404).json({error:"Yükleme bulunamadı"});
+   const parts=await db.query("SELECT part_index,data FROM mp_media_upload_parts WHERE upload_id=$1 ORDER BY part_index",[uploadId]);
    const n=Number(found.rows[0].part_count),size=Number(found.rows[0].expected_size);
-   if(p.rows.length!==n||p.rows.some((x:any,i:number)=>x.part_index!==i)){
-    await client.query("ROLLBACK");return res.status(409).json({error:"Video yüklenmesi tamamlanmadı"});
+   if(parts.rows.length!==n||parts.rows.some((entry:any,index:number)=>Number(entry.part_index)!==index)){
+    return res.status(409).json({error:"Video yüklenmesi tamamlanmadı"});
    }
-   const bytes=Buffer.concat(p.rows.map((x:any)=>x.data));
+   const bytes=Buffer.concat(parts.rows.map((entry:any)=>entry.data as Buffer));
    if(bytes.length!==size||bytes.toString("ascii",4,8)!=="ftyp"){
-    await client.query("ROLLBACK");return res.status(400).json({error:"Video doğrulaması başarısız"});
+    return res.status(400).json({error:"Video doğrulaması başarısız"});
    }
-   const mediaId=randomBytes(16).toString("hex");
-   await client.query("INSERT INTO mp_media(id,supplier_id,mime,data) VALUES($1,$2,'video/mp4',$3)",[mediaId,found.rows[0].supplier_id,bytes]);
-   await client.query("DELETE FROM mp_media_uploads WHERE id=$1",[uploadId]);
-   await client.query("COMMIT");
-   return res.status(201).json({url:"/api/marketplace/media/"+mediaId,size:bytes.length,mime:"video/mp4"});
-  }catch(e){await client.query("ROLLBACK").catch(()=>{});console.error("Video upload complete",e);return res.status(500).json({error:"Video kaydedilemedi"});}
-  finally{client.release();}
+   // Do the CPU-intensive conversion outside a PostgreSQL transaction.
+   // Merely checking the MP4 file signature cannot guarantee iPhone playback.
+   let compatible:Buffer;
+   try{
+    compatible=await normalizeMarketplaceVideo(bytes);
+   }catch(error){
+    console.error("Supplier Reel conversion failed:",error);
+    return res.status(422).json({error:error instanceof Error?error.message:"Video dönüştürülemedi"});
+   }
+   const client=await db.connect();
+   try{
+    await client.query("BEGIN");
+    // Recheck ownership while holding a lock; a concurrent completion or
+    // deletion cannot publish the same upload twice.
+    const current=await client.query(
+     "SELECT u.supplier_id FROM mp_media_uploads u JOIN mp_suppliers s ON s.id=u.supplier_id WHERE u.id=$1 AND s.owner_user_id=$2 AND u.created_at>NOW()-INTERVAL '12 hours' FOR UPDATE OF u",
+     [uploadId,uid]
+    );
+    if(!current.rows[0]){
+     await client.query("ROLLBACK");
+     return res.status(404).json({error:"Yükleme artık kullanılabilir değil"});
+    }
+    const mediaId=randomBytes(16).toString("hex");
+    await client.query("INSERT INTO mp_media(id,supplier_id,mime,data) VALUES($1,$2,'video/mp4',$3)",[mediaId,current.rows[0].supplier_id,compatible]);
+    await client.query("DELETE FROM mp_media_uploads WHERE id=$1",[uploadId]);
+    await client.query("COMMIT");
+    return res.status(201).json({url:"/api/marketplace/media/"+mediaId,size:compatible.length,mime:"video/mp4"});
+   }catch(error){
+    await client.query("ROLLBACK").catch(()=>{});
+    throw error;
+   }finally{
+    client.release();
+   }
+  }catch(error){
+   console.error("Video upload complete",error);
+   return res.status(500).json({error:"Video kaydedilemedi"});
+  }
  });
 }
