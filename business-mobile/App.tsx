@@ -83,6 +83,7 @@ export default function App() {
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <MarketplaceScreen
               isSuper={user?.role === "super_admin" || user?.role === "admin"}
+              initialTab={screen.tab}
               onAiProductAdd={() => setScreen({ name: "aiProductStudio", mode: user?.role === "super_admin" ? "super_admin" : "supplier" })}
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
               onBack={() => setScreen({ name: "more" })}
@@ -135,8 +136,8 @@ export default function App() {
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <AiProductStudioScreen
               mode={screen.mode}
-              onBack={() => setScreen({ name: screen.mode === "supplier" ? "marketplace" : "products" })}
-              onCreated={() => setScreen({ name: screen.mode === "supplier" ? "marketplace" : "products" })}
+              onBack={() => setScreen(screen.mode === "supplier" ? { name: "marketplace", tab: "products" } : { name: "products" })}
+              onCreated={() => setScreen(screen.mode === "supplier" ? { name: "marketplace", tab: "products" } : { name: "products" })}
             />
           </SafeAreaView>
         ) : screen.name === "customers" ? (
