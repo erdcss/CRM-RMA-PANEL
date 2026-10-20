@@ -30,8 +30,8 @@ function Action({title,onPress,disabled=false}:{title:string;onPress:()=>void;di
     <Text style={s.buttonText}>{title}</Text>
   </TouchableOpacity>;
 }
-export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
-  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void}) {
+export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onAiProductAdd}:{
+  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void;onAiProductAdd:()=>void}) {
  const [tab,setTab]=useState<Tab>("overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
  const [queue,setQueue]=useState<Queue|null>(null),[products,setProducts]=useState<any[]>([]);
  const [profile,setProfile]=useState<SupplierProfile|null>(null),[supplierOrders,setSupplierOrders]=useState<SellerOrder[]>([]);
@@ -274,6 +274,16 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder}:{
   </View>:null}
   {!isSuper&&tab==="products"?<View style={s.panel}>
     <Text style={s.heading}>Ürünlerim</Text>
+    <TouchableOpacity
+      onPress={onAiProductAdd}
+      activeOpacity={0.82}
+      style={{borderRadius:20,borderColor:"rgba(59,130,246,0.55)",borderWidth:1,backgroundColor:"#10223A",padding:18,marginBottom:14}}
+    >
+      <Text style={{color:"#8FBEFF",fontWeight:"900",letterSpacing:1.3,fontSize:10}}>ÇALIŞKAN BUSINESS · AI STUDIO</Text>
+      <Text style={{color:"#FFFFFF",fontWeight:"900",fontSize:19,marginTop:8}}>✦  AI ile Hızlı Ürün Ekle</Text>
+      <Text style={{color:"#B5C7DC",fontSize:12,lineHeight:18,marginTop:7}}>Ürün fotoğrafından otomatik bilgi oluştur, zorunlu alanları kontrol et, önizle ve yöneticinin onayına gönder.</Text>
+      <Text style={{color:"#9CC4FF",fontWeight:"800",fontSize:12,marginTop:12}}>Stüdyoyu aç  →</Text>
+    </TouchableOpacity>
     <View style={[s.card,{gap:9}]}>
       <Text style={s.itemTitle}>Yeni Ürün Ekle · Admin Onaylı</Text>
       <Input value={newSku} onChangeText={setNewSku} placeholder="Stok kodu (SKU)"/>
