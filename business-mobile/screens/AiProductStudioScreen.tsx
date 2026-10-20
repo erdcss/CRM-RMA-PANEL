@@ -69,6 +69,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   const [form,setForm]=useState<Draft>(emptyDraft);
   const [notes,setNotes]=useState("");
   const [phase,setPhase]=useState<Phase>("image");
+  const [analyzed,setAnalyzed]=useState(false);
   const [analyzing,setAnalyzing]=useState(false);
   const [submitting,setSubmitting]=useState(false);
   const [error,setError]=useState("");
@@ -114,17 +115,13 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
       const asset=result.assets[0],mime=asset.mimeType==="image/png"?"image/png":asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
       const image="data:"+mime+";base64,"+asset.base64;
       if(image.length>5_600_000){Alert.alert("Görsel çok büyük","4 MB altında bir ürün görseli seçin.");return;}
-      setPhoto(image);setPhase("image");setAnalysisInfo("");setError("");
+      setPhoto(image);setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
     }catch(e){setError(e instanceof Error?e.message:"Fotoğraf seçilemedi.");}
   }
 
   async function analyze() {
     if(analyzing||submitting)return;
     if(!photo){setError("Yapay zekâ için en az bir ürün görseli zorunlu.");return;}
-    if(!form.name.trim()&&!form.barcode.trim()&&!form.sku.trim()){
-      setError("Hızlı ve doğru analiz için ürün adı, barkod veya stok kodundan en az birini girin.");
-      return;
-    }
     setAnalyzing(true);setError("");setAnalysisInfo("");
     try{
       const result=await apiFetch<AiResult>("/api/business/ai-products/analyze",{
@@ -143,12 +140,14 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         }
         return updated;
       });
+      setAnalyzed(true);
       setPhase("editing");
       setAnalysisInfo(result.cached?"Görsel önceki analizden anında dolduruldu.":"Görsel analizi tamamlandı. Tüm alanları kontrol edin.");
     }catch(e){setError(e instanceof Error?e.message:"Yapay zekâ analiz edemedi.");}
     finally{setAnalyzing(false);}
   }
   function review(){
+    if(!analyzed){setError("Önizleme için önce fotoğrafı AI ile analiz edin.");setPhase("image");return;}
     if(invalid.length){
       setError("Eksik veya hatalı alanlar: "+required.filter(field=>invalid.includes(field.key)).map(field=>field.label).join(", "));
       setPhase("editing");return;
@@ -157,7 +156,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   }
   async function submit(){
     if(submitting||analyzing)return;
-    if(!photo||invalid.length){review();return;}
+    if(!photo||!analyzed||invalid.length){review();return;}
     setSubmitting(true);setError("");
     try{
       const data={
@@ -231,7 +230,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 
       {phase!=="preview"?<>
         <View style={styles.card}>
-          <View style={styles.cardHeading}><Text style={styles.sectionIndex}>02</Text><View style={styles.flex}><Text style={styles.heading}>Yapay zekâyı yönlendir</Text><Text style={styles.subheading}>En az bir ürün adı, barkod veya SKU girin</Text></View></View>
+          <View style={styles.cardHeading}><Text style={styles.sectionIndex}>02</Text><View style={styles.flex}><Text style={styles.heading}>Yapay zekâyı yönlendir</Text><Text style={styles.subheading}>İsteğe bağlı ipuçları analizin doğruluğunu artırır</Text></View></View>
           {required.filter(field=>["name","sku","barcode","brand","category"].includes(field.key)).map(field=>
             <View key={field.key} style={styles.inputGroup}>
               <Text style={styles.inputLabel}>{field.label} <Text style={styles.star}>*</Text></Text>
