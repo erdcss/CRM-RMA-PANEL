@@ -68,7 +68,9 @@ export function ReelCard({
         style={StyleSheet.absoluteFill}
         onPress={() => setPaused((value) => !value)}
       >
-        {videoUrl && !videoError ? (
+        {/* Keep only the visible Reel mounted as a native video player. Offscreen
+            players otherwise trigger simultaneous HTTP range requests on iOS. */}
+        {videoUrl && !videoError && active ? (
           <>
             <Video
               key={String(item.id) + '-' + retry}
@@ -137,7 +139,7 @@ export function ReelCard({
         )}
 
         {!playing && !videoError ? (
-          <View style={styles.playOverlay}>
+          <View style={styles.playOverlay} pointerEvents="none">
             <View style={styles.playButton}>
               <Ionicons name="play" size={30} color="#FFFFFF" />
             </View>
