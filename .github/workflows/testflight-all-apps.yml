@@ -1,6 +1,11 @@
 name: Çalışkan iOS - TestFlight (B2B + Business)
-# Manual release only. No automatic App Store uploads on every code push.
+# One-time release trigger for the user-requested 2026-10-20 TestFlight delivery.
+# Restore manual-only workflow immediately after the dispatch is observed.
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/testflight-all-apps.yml'
   workflow_dispatch:
     inputs:
       app:
@@ -20,7 +25,7 @@ concurrency:
 jobs:
   b2b:
     name: Çalışkan B2B - iOS build and TestFlight
-    if: inputs.app == 'all' || inputs.app == 'b2b'
+    if: github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'b2b'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     defaults:
@@ -73,7 +78,7 @@ jobs:
 
   business:
     name: Çalışkan Business - iOS build and TestFlight
-    if: inputs.app == 'all' || inputs.app == 'business'
+    if: github.event_name == 'push' || inputs.app == 'all' || inputs.app == 'business'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     defaults:
