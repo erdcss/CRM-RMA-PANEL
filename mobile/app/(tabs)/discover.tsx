@@ -22,10 +22,13 @@ export function ReelCard({
   item,
   active,
   height,
+  onBack,
 }: {
   item: B2BReel;
   active: boolean;
   height: number;
+  /** Optional contextual navigation when opening the shared feed from a store. */
+  onBack?: () => void;
 }) {
   const router = useRouter();
   const videoRef = useRef<Video>(null);
@@ -170,10 +173,23 @@ export function ReelCard({
           <Ionicons name="open-outline" color="#FFFFFF" size={16} />
         </Pressable>
       ) : null}
-      <View style={styles.topBar} pointerEvents="none">
-        <View>
-          <Text style={styles.eyebrow}>ÇALIŞKAN B2B</Text>
-          <Text style={styles.discoverTitle}>Keşfet</Text>
+      <View style={styles.topBar} pointerEvents="box-none">
+        <View style={styles.headerIdentityRow}>
+          {onBack ? (
+            <Pressable
+              style={styles.headerBackButton}
+              onPress={onBack}
+              accessibilityRole="button"
+              accessibilityLabel="Tedarikçi mağazasına geri dön"
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-back" size={23} color="#FFFFFF" />
+            </Pressable>
+          ) : null}
+          <View style={styles.headerIdentity}>
+            <Text style={styles.eyebrow}>ÇALIŞKAN B2B</Text>
+            <Text style={styles.discoverTitle}>Keşfet</Text>
+          </View>
         </View>
         <View style={styles.reelsBadge}>
           <Ionicons name="play-circle" size={17} color="#FFFFFF" />
@@ -396,6 +412,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerIdentityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    minWidth: 0,
+    gap: spacing.sm,
+  },
+  headerIdentity: { flexShrink: 1, minWidth: 0 },
+  headerBackButton: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.70)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   eyebrow: {
     ...typography.caption,
