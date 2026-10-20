@@ -797,6 +797,10 @@ export const rmaApi = {
     method: 'PUT', body: JSON.stringify(payload),
   }),
   getB2BAccount: () => request<B2BAccount>('/api/b2b/account'),
+  deleteB2BAccount: (password: string) => request<{ ok: boolean }>('/api/b2b/account', {
+    method: 'DELETE',
+    body: JSON.stringify({ password }),
+  }),
   listB2BAddresses: () => request<B2BAddress[]>('/api/b2b/addresses'),
   listB2BPaymentMethods: () => request<B2BPaymentMethod[]>('/api/b2b/payment-methods'),
   getB2BPaymentSettings: () =>
