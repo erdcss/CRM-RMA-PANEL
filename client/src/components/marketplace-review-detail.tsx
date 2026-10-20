@@ -7,6 +7,7 @@ export type ReviewKind = "products" | "stores" | "reels";
 type Content = {
   name?:string;sku?:string;description?:string;category?:string;brand?:string;barcode?:string;
   imageUrl?:string;price?:number;unitsPerBox?:number;minBoxes?:number;leadDays?:number;
+  model?:string;color?:string;material?:string;size?:string;collectionName?:string;tags?:string[];
   title?:string;tagline?:string;accent?:string;bannerUrl?:string|null;logoUrl?:string|null;sections?:string[];
 };
 type ReviewInfo = {
@@ -80,6 +81,12 @@ function ProductPreview({review,content,title}:{review:ReviewInfo;content:Conten
           <Info name="Barkod" value={content.barcode}/>
           <Info name="Marka" value={content.brand}/>
           <Info name="Kategori" value={content.category}/>
+          <Info name="Model" value={content.model}/>
+          <Info name="Renk" value={content.color}/>
+          <Info name="Malzeme" value={content.material}/>
+          <Info name="Ölçü" value={content.size}/>
+          <Info name="Koleksiyon" value={content.collectionName}/>
+          <Info name="Ürün etiketleri" value={content.tags?.join(", ")}/>
         </div>
         {review.is_enabled===false?<p className="text-sm font-semibold text-amber-700">Ürün satıcı tarafından pasifleştirilmiş.</p>:null}
       </div>
