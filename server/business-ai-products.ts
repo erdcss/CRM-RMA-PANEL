@@ -7,6 +7,13 @@ import { ensureMarketplaceSchema } from "./marketplace";
 
 const required = (n: number) => z.string().trim().min(1).max(n);
 const picture = z.string().max(5_600_000).regex(/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/);
+const gallerySchema=z.array(picture).min(1).max(4);
+function gallery(image:string|undefined,images:string[]|undefined){
+  const list=images?.length?images:(image?[image]:[]);
+  if(!list.length||list.length>4||list.reduce((total,src)=>total+src.length,0)>12_000_000)
+    throw Error("En fazla 4 görsel, toplam 12 MB seçebilirsiniz.");
+  return list;
+}
 const details = z.object({
   sku:required(90), name:required(220), barcode:required(60), brand:required(120),
   category:required(120), description:required(3000), model:required(120),
@@ -18,13 +25,19 @@ const details = z.object({
   minOrderQty:z.number().int().min(1).max(100000),
   leadDays:z.number().int().min(1).max(14),
   image:picture,
-}).strict();
+  images:gallerySchema.optional(),
+}).strict().superRefine((value,ctx)=>{
+  if(value.images?.length&&value.images[0]!==value.image)
+    ctx.addIssue({code:"custom",path:["images"],message:"Kapak fotoğrafı ilk fotoğraf olmalıdır."});
+});
 const hints = z.object({
   name:z.string().trim().max(220).default(""), brand:z.string().trim().max(120).default(""),
   barcode:z.string().trim().max(60).default(""), sku:z.string().trim().max(90).default(""),
   category:z.string().trim().max(120).default(""), notes:z.string().trim().max(700).default(""),
 }).strict();
-const extraction = z.object({image:picture,hints}).strict();
+const extraction = z.object({
+  image:picture.optional(),images:gallerySchema.optional(),hints
+}).strict().refine(data=>!!data.image||!!data.images?.length,{message:"En az 1 görsel ekleyin"});
 type Actor={id:number;role:"super_admin"|"b2b_seller";supplierId?:number};
 const limits=new Map<number,number[]>();
 const cache=new Map<string,{expires:number;product:Record<string,string>}>();
@@ -65,11 +78,14 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
       if(!process.env.OPENAI_API_KEY)return res.status(503).json({error:"AI sunucu anahtarı yapılandırılmamış."});
       const parsed=extraction.safeParse(req.body);
       if(!parsed.success)return res.status(400).json({error:"Ürün görselini ve ipuçlarını kontrol edin."});
-      const bytes=imageBytes(parsed.data.image);
+      const sources=gallery(parsed.data.image,parsed.data.images);
+      const bytes=sources.map(imageBytes);
       const now=Date.now(),recent=(limits.get(actor.id)||[]).filter(time=>now-time<60000);
       if(recent.length>=8)return res.status(429).json({error:"Bir dakikada en fazla 8 analiz yapılabilir."});
       limits.set(actor.id,[...recent,now]);
-      const hash=createHash("sha256").update(bytes).update(JSON.stringify(parsed.data.hints)).digest("hex");
+      const hashParts=createHash("sha256");
+      for(const bytesPart of bytes)hashParts.update(bytesPart).update("|");
+      const hash=hashParts.update(JSON.stringify(parsed.data.hints)).digest("hex");
       const hit=cache.get(hash);
       if(hit&&hit.expires>now)return res.json({product:hit.product,cached:true});
       const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:20000,maxRetries:0});
@@ -78,7 +94,9 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
         model:process.env.OPENAI_BUSINESS_PRODUCT_MODEL||"gpt-4.1-mini",
         input:[{role:"user",content:[
           {type:"input_text",text:[
-            "Bu fotoğraftan Çalışkan B2B için Türkçe ürün kartı taslağı çıkar.",
+            "Bu aynı ürüne ait "+sources.length+" farklı fotoğraftan TEK bir Çalışkan B2B ürün kartı oluştur.",
+            "Ön, arka, etiket ve barkod fotoğraflarını birlikte incele; okunabilen bilgileri birleştir.",
+            "Fotoğraflarda bilgiler çelişiyorsa bilinmeyen alanı boş bırak.",
             "Yanıtın yalnızca JSON nesnesi olsun; her alan string:",
             fields.join(", "),
             "tags alanını virgülle ayrılmış string yap.",
@@ -88,7 +106,11 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
             "Açıklama kısa ve gerçekçi olsun; teknik özellik uydurma.",
             "İpuçları:",JSON.stringify(parsed.data.hints)
           ].join("\n")},
-          {type:"input_image",image_url:parsed.data.image,detail:"low"}
+          ...sources.map((src,index)=>({
+            type:"input_image" as const,
+            image_url:src,
+            detail:(index===0?"low":"high") as "low"|"high"
+          }))
         ]}],
         text:{format:{type:"json_object"}},
         max_output_tokens:1100
@@ -112,12 +134,13 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
       if(!actor||!pool)return res.status(403).json({error:"Ürün yayınlama yetkisi yok."});
       const checked=details.safeParse(req.body);
       if(!checked.success)return res.status(400).json({error:"Bütün ürün alanları zorunludur.",fields:checked.error.issues.map(issue=>issue.path.join("."))});
-      const p=checked.data,bytes=imageBytes(p.image),description=enrichDescription(p);
+      const p=checked.data,sources=gallery(p.image,p.images);
+      const bytes=sources.map(imageBytes),description=enrichDescription(p);
       if(actor.role==="super_admin"){
         const row=await pool.query(
           "INSERT INTO b2b_products(sku,name,brand,category,description,price,stock,min_order_qty,units_per_box,image_data,images,barcode,collection_name,tags,variants,is_active,updated_at) "+
           "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::text[],'[]'::jsonb,TRUE,NOW()) RETURNING id",
-          [p.sku,p.name,p.brand,p.category,description,p.price,p.stock,p.minOrderQty,p.unitsPerBox,p.image,JSON.stringify([p.image]),p.barcode,p.collectionName,p.tags]
+          [p.sku,p.name,p.brand,p.category,description,p.price,p.stock,p.minOrderQty,p.unitsPerBox,sources[0],JSON.stringify(sources),p.barcode,p.collectionName,p.tags]
         );
         return res.status(201).json({productId:row.rows[0].id,status:"approved",isLive:true,message:"Çalışkan ürünü doğrudan yayında."});
       }
@@ -127,12 +150,17 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
         await client.query("BEGIN");
         const supplier=await client.query("SELECT id FROM mp_suppliers WHERE id=$1 AND owner_user_id=$2 AND status='approved' FOR UPDATE",[actor.supplierId,actor.id]);
         if(!supplier.rows.length){await client.query("ROLLBACK");return res.status(403).json({error:"Tedarikçi yetkisi doğrulanamadı"});}
-        const mediaId=randomBytes(16).toString("hex");
-        const mime=p.image.slice(5,p.image.indexOf(";"));
-        await client.query("INSERT INTO mp_media(id,supplier_id,mime,data) VALUES($1,$2,$3,$4)",[mediaId,actor.supplierId,mime,bytes]);
+        const savedUrls:string[]=[];
+        for(let index=0;index<sources.length;index++){
+          const mediaId=randomBytes(16).toString("hex");
+          const mime=sources[index].slice(5,sources[index].indexOf(";"));
+          await client.query("INSERT INTO mp_media(id,supplier_id,mime,data) VALUES($1,$2,$3,$4)",
+            [mediaId,actor.supplierId,mime,bytes[index]]);
+          savedUrls.push("/api/marketplace/media/"+mediaId);
+        }
         const item=await client.query("INSERT INTO mp_products(supplier_id,sku,stock,current_price) VALUES($1,$2,$3,$4) RETURNING id",[actor.supplierId,p.sku,p.stock,p.price.toFixed(2)]);
         const product={sku:p.sku,name:p.name,category:p.category,brand:p.brand,description,barcode:p.barcode,
-          imageUrl:"/api/marketplace/media/"+mediaId,price:p.price,unitsPerBox:p.unitsPerBox,
+          imageUrl:savedUrls[0],imageUrls:savedUrls,price:p.price,unitsPerBox:p.unitsPerBox,
           minBoxes:p.minOrderQty,leadDays:p.leadDays,collectionName:p.collectionName,
           tags:p.tags,model:p.model,color:p.color,material:p.material,size:p.size};
         const version=await client.query(
