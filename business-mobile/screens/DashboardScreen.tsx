@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import type { BusinessAuthUser } from "../lib/auth";
@@ -32,6 +33,8 @@ export function DashboardScreen({
   onCustomers: () => void;
   onModule: (slug: string) => void;
 }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const compact = windowWidth < 375;
   const [data, setData] = useState<DashboardOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,30 +79,37 @@ export function DashboardScreen({
       }
     >
       <View style={s.hero}>
-        <WarehouseBackdrop />
-        <View style={s.heroShade} />
+        <WarehouseBackdrop dimmed />
+        <View style={s.heroShade} pointerEvents="none" />
         <View style={s.topRow}>
-          <View>
-            <Text style={s.brand}>
+          <View style={s.brandBlock}>
+            <Text style={[s.brand, compact && s.brandCompact]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
               Çalışkan <Text style={s.brandLight}>Business</Text>
             </Text>
-            <Text style={s.welcome}>Merhaba, {name}</Text>
+            <Text style={s.welcome} numberOfLines={1}>Merhaba, {name}</Text>
           </View>
           <View style={s.userPill}>
             <View style={s.avatar}>
               <Text style={s.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>
             </View>
-            <View>
-              <Text style={s.userTitle}>Yönetici</Text>
-              <Text style={s.userSub}>Çalışkan B2B</Text>
-            </View>
+            {!compact && (
+              <View style={s.userDetails}>
+                <Text style={s.userTitle} numberOfLines={1}>Yönetici</Text>
+                <Text style={s.userSub} numberOfLines={1}>Çalışkan B2B</Text>
+              </View>
+            )}
           </View>
         </View>
-
         <View style={s.heroCopy}>
-          <Text style={s.heroTitle}>Yönetim{"\n"}Dashboard</Text>
+          <View style={s.heroEyebrow}>
+            <View style={s.heroDot} />
+            <Text style={s.heroEyebrowText}>İŞLETME KONTROL PANELİ</Text>
+          </View>
+          <Text style={[s.heroTitle, compact && s.heroTitleCompact]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>
+            Yönetim{"\n"}merkezi
+          </Text>
           <Text style={s.heroSub}>
-            İşletmenizi tek ekrandan yönetin, her zaman bir adım önde olun.
+            Sipariş, stok ve operasyonlarınız tek ekranda.
           </Text>
         </View>
       </View>
@@ -236,60 +246,83 @@ const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.bg },
   content: { paddingBottom: 118 },
   hero: {
-    minHeight: 410,
+    minHeight: 355,
     paddingHorizontal: 18,
-    paddingTop: 10,
+    paddingTop: 16,
+    paddingBottom: 46,
     overflow: "hidden",
+    justifyContent: "space-between",
   },
   heroShade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(3,6,10,0.30)",
+    backgroundColor: "rgba(3,6,10,0.16)",
   },
   topRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     zIndex: 2,
+    gap: 10,
+    minHeight: 50,
   },
-  brand: { color: C.text, fontSize: 22, fontWeight: "650", letterSpacing: -0.7 },
+  brandBlock: { flex: 1, minWidth: 0, paddingRight: 2, justifyContent: "center" },
+  brand: { color: C.text, fontSize: 21, fontWeight: "750", letterSpacing: -0.7 },
+  brandCompact: { fontSize: 19 },
   brandLight: { color: C.text2, fontWeight: "300" },
-  welcome: { color: C.text2, fontSize: 13, marginTop: 5 },
+  welcome: { color: C.text2, fontSize: 12, marginTop: 5 },
   userPill: {
-    minWidth: 138,
-    padding: 8,
-    borderRadius: 21,
+    flexShrink: 0,
+    padding: 6,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: C.lineSoft,
-    backgroundColor: "rgba(10,15,21,0.78)",
+    backgroundColor: "rgba(10,15,21,0.88)",
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
   avatar: {
-    width: 38,
-    height: 38,
-    marginRight: 9,
-    borderRadius: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     backgroundColor: C.white10,
     alignItems: "center",
     justifyContent: "center",
   },
+  userDetails: { maxWidth: 85, paddingRight: 4 },
   avatarText: { color: C.text2, fontWeight: "600" },
   userTitle: { color: C.text, fontSize: 12, fontWeight: "600" },
   userSub: { color: C.muted, fontSize: 10, marginTop: 2 },
-  heroCopy: { zIndex: 2, marginTop: 54, width: "64%" },
+  heroCopy: {
+    zIndex: 2,
+    alignSelf: "stretch",
+    backgroundColor: "rgba(5,10,18,0.88)",
+    borderColor: "rgba(119,160,216,0.20)",
+    borderWidth: 1,
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 19,
+    marginTop: 28,
+    minWidth: 0,
+  },
+  heroEyebrow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 10 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.green },
+  heroEyebrowText: { fontSize: 10, letterSpacing: 1.05, color: "#A4C4EE", fontWeight: "800" },
   heroTitle: {
     color: C.text,
-    fontSize: 44,
-    lineHeight: 48,
-    fontWeight: "700",
-    letterSpacing: -1.7,
+    fontSize: 34,
+    lineHeight: 39,
+    fontWeight: "800",
+    letterSpacing: -1,
+    flexShrink: 1,
   },
+  heroTitleCompact: { fontSize: 30, lineHeight: 36 },
   heroSub: {
     color: C.text2,
-    fontSize: 14,
-    lineHeight: 21,
-    marginTop: 14,
-    fontWeight: "400",
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 10,
+    maxWidth: 285,
   },
   error: { color: C.red, marginHorizontal: 18, marginTop: 12 },
   grid: {
