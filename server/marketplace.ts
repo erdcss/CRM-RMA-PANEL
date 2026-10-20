@@ -257,6 +257,7 @@ const productSchema = z.object({
   category:bodyText(120), brand:z.string().trim().max(120).default(""),
   barcode:z.string().trim().max(60).default(""),
   imageUrl:mediaUrl,
+  imageUrls:z.array(mediaUrl).min(1).max(4).optional(),
   price:z.number().finite().positive().max(100000000),
   unitsPerBox:z.number().int().min(1).max(100000),
   minBoxes:z.number().int().min(1).max(100000).default(1),
