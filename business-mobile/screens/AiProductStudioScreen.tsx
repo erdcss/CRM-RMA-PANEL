@@ -97,15 +97,19 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     if(phase==="preview")setPhase("editing");
   }
 
-  async function pickImage() {
+  async function pickImage(fromCamera=false) {
     if(analyzing||submitting)return;
     try{
-      const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if(!permission.granted){Alert.alert("Fotoğraf erişimi gerekli","Ürün fotoğrafını seçmek için galeri izni verin.");return;}
-      const result=await ImagePicker.launchImageLibraryAsync({
-        mediaTypes:["images"],allowsEditing:false,base64:true,quality:0.54,
-        selectionLimit:1,
-      });
+      const permission=fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if(!permission.granted){Alert.alert("Görsel izni gerekli",fromCamera?"Ürün fotoğrafı çekmek için kamera izni verin.":"Ürün fotoğrafını seçmek için galeri izni verin.");return;}
+      const result=fromCamera
+        ? await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.54})
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes:["images"],allowsEditing:false,base64:true,quality:0.54,
+            selectionLimit:1,
+          });
       if(result.canceled||!result.assets[0]?.base64)return;
       const asset=result.assets[0],mime=asset.mimeType==="image/png"?"image/png":asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
       const image="data:"+mime+";base64,"+asset.base64;
@@ -215,6 +219,14 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
             <View style={styles.uploadEmpty}><Text style={styles.uploadIcon}>▧</Text><Text style={styles.uploadTitle}>Ürün fotoğrafını seç</Text><Text style={styles.uploadHint}>Net, aydınlık, ürünü önden gösteren fotoğraf</Text></View>}
           {photo?<View style={styles.replace}><Text style={styles.replaceText}>↻  Fotoğrafı değiştir</Text></View>:null}
         </TouchableOpacity>
+        <View style={styles.photoActions}>
+          <TouchableOpacity style={styles.photoAction} onPress={()=>void pickImage(true)}>
+            <Text style={styles.photoActionText}>◎  Kamerayla çek</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.photoAction} onPress={()=>void pickImage(false)}>
+            <Text style={styles.photoActionText}>▧  Galeriden seç</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {phase!=="preview"?<>
@@ -315,6 +327,9 @@ const styles=StyleSheet.create({
   uploadEmpty:{alignItems:"center",padding:20},uploadIcon:{color:"#90BDFF",fontSize:45,fontWeight:"300"},
   uploadTitle:{color:C.text,fontSize:15,fontWeight:"800",marginTop:8},
   uploadHint:{color:C.muted,fontSize:11,textAlign:"center",marginTop:8,lineHeight:17},
+  photoActions:{flexDirection:"row",gap:9,marginTop:12},
+  photoAction:{flex:1,borderRadius:13,borderWidth:1,borderColor:C.line,paddingVertical:12,alignItems:"center",backgroundColor:C.panel2},
+  photoActionText:{color:"#BBD5FF",fontSize:11,fontWeight:"800"},
   photo:{width:"100%",height:220},replace:{position:"absolute",bottom:12,alignSelf:"center",backgroundColor:"rgba(5,12,23,.88)",paddingHorizontal:14,paddingVertical:9,borderRadius:20},
   replaceText:{color:"#D5E8FF",fontWeight:"800",fontSize:11},
   inputGroup:{marginBottom:11},inputLabel:{color:C.text2,fontSize:11,fontWeight:"700",marginBottom:7},
