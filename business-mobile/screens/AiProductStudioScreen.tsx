@@ -70,6 +70,11 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   const [notes,setNotes]=useState("");
   const [phase,setPhase]=useState<Phase>("image");
   const [analyzed,setAnalyzed]=useState(false);
+  const [aiFilledKeys,setAiFilledKeys]=useState<ProductKey[]>([]);
+  const userEdited=useRef<Set<ProductKey>>(new Set());
+  const aiValues=useRef<Partial<Record<ProductKey,string>>>({});
+  const analysisRequest=useRef(0);
+  const formRef=useRef<Draft>(form);
   const [analyzing,setAnalyzing]=useState(false);
   const [submitting,setSubmitting]=useState(false);
   const [error,setError]=useState("");
@@ -80,6 +85,9 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   const invalid=useMemo(()=>validate(form),[form]);
   const done=required.length-invalid.length;
   const completion=Math.round(done/required.length*100);
+  const fieldsToComplete=useMemo(()=>required.filter(field=>!aiFilledKeys.includes(field.key)),[aiFilledKeys]);
+  const detectedFields=useMemo(()=>required.filter(field=>aiFilledKeys.includes(field.key)),[aiFilledKeys]);
+  useEffect(()=>()=>{analysisRequest.current+=1;},[]);
   useEffect(()=>{
     const anim=Animated.loop(Animated.sequence([
       Animated.timing(pulse,{toValue:1,duration:1700,useNativeDriver:true}),
@@ -92,60 +100,120 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     Animated.timing(progress,{toValue:completion,duration:380,useNativeDriver:false}).start();
   },[completion,progress]);
 
+
   function change(key:ProductKey,value:string) {
-    setForm(old=>({...old,[key]:value}));
-    setError("");
+    userEdited.current.add(key);
+    const updated={...formRef.current,[key]:value};
+    formRef.current=updated;
+    setForm(updated);setError("");
     if(phase==="preview")setPhase("editing");
   }
 
-  async function pickImage(fromCamera=false) {
-    if(analyzing||submitting)return;
-    try{
-      const permission=fromCamera
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if(!permission.granted){Alert.alert("Görsel izni gerekli",fromCamera?"Ürün fotoğrafı çekmek için kamera izni verin.":"Ürün fotoğrafını seçmek için galeri izni verin.");return;}
-      const result=fromCamera
-        ? await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.54})
-        : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes:["images"],allowsEditing:false,base64:true,quality:0.54,
-            selectionLimit:1,
-          });
-      if(result.canceled||!result.assets[0]?.base64)return;
-      const asset=result.assets[0],mime=asset.mimeType==="image/png"?"image/png":asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
-      const image="data:"+mime+";base64,"+asset.base64;
-      if(image.length>5_600_000){Alert.alert("Görsel çok büyük","4 MB altında bir ürün görseli seçin.");return;}
-      setPhoto(image);setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
-    }catch(e){setError(e instanceof Error?e.message:"Fotoğraf seçilemedi.");}
+  // Pass the freshly selected image directly; photo state is asynchronous.
+  async function analyzeImage(image:string,requestId:number){
+    setAnalyzing(true);setError("");setAnalysisInfo("");
+    const draft=formRef.current;
+    const hint=(key:"name"|"sku"|"barcode"|"brand"|"category")=>
+      userEdited.current.has(key)?draft[key].trim():"";
+    try {
+      const result=await apiFetch<AiResult>("/api/business/ai-products/analyze",{
+        method:"POST",body:JSON.stringify({image,hints:{
+          name:hint("name"),sku:hint("sku"),barcode:hint("barcode"),
+          brand:hint("brand"),category:hint("category"),notes:notes.trim(),
+        }})
+      });
+      if(requestId!==analysisRequest.current)return;
+      const updated={...formRef.current};
+      const recognized={...aiValues.current};
+      let total=0;
+      for(const field of required){
+        if(field.numeric||userEdited.current.has(field.key))continue;
+        const suggestion=result.product?.[field.key];
+        if(typeof suggestion!=="string"||!suggestion.trim())continue;
+        const oldAi=aiValues.current[field.key];
+        if(updated[field.key].trim()&&updated[field.key]!==oldAi)continue;
+        updated[field.key]=suggestion.trim();
+        recognized[field.key]=suggestion.trim();
+        total++;
+      }
+      aiValues.current=recognized;
+      formRef.current=updated;
+      setForm(updated);
+      setAiFilledKeys(required.filter(field=>!!recognized[field.key]&&!userEdited.current.has(field.key)).map(field=>field.key));
+      setAnalyzed(true);setPhase("editing");
+      setAnalysisInfo(result.cached?"Önceki analiz anında yüklendi. Eksikleri tamamlayın.":
+        total+" bilgi AI tarafından dolduruldu. Görülemeyen bilgileri siz tamamlayın.");
+    }catch(e){
+      if(requestId!==analysisRequest.current)return;
+      setError((e instanceof Error?e.message:"Görsel analiz edilemedi.")+
+        " Yeniden deneyebilir veya bilgileri manuel doldurabilirsiniz.");
+      setPhase("image");
+    }finally{if(requestId===analysisRequest.current)setAnalyzing(false);}
   }
 
-  async function analyze() {
+  async function pickImage(fromCamera=false){
     if(analyzing||submitting)return;
-    if(!photo){setError("Yapay zekâ için en az bir ürün görseli zorunlu.");return;}
-    setAnalyzing(true);setError("");setAnalysisInfo("");
     try{
-      const result=await apiFetch<AiResult>("/api/business/ai-products/analyze",{
-        method:"POST",body:JSON.stringify({image:photo,hints:{
-          name:form.name.trim(),sku:form.sku.trim(),barcode:form.barcode.trim(),
-          brand:form.brand.trim(),category:form.category.trim(),notes:notes.trim(),
-        }}),
-      });
-      setForm(previous=>{
-        const updated={...previous};
-        for(const field of required){
-          const suggested=result.product[field.key];
-          // Never erase manually entered business data or trade parameters.
-          if(field.numeric||previous[field.key].trim())continue;
-          if(typeof suggested==="string"&&suggested.trim())updated[field.key]=suggested.trim();
-        }
-        return updated;
-      });
-      setAnalyzed(true);
-      setPhase("editing");
-      setAnalysisInfo(result.cached?"Görsel önceki analizden anında dolduruldu.":"Görsel analizi tamamlandı. Tüm alanları kontrol edin.");
-    }catch(e){setError(e instanceof Error?e.message:"Yapay zekâ analiz edemedi.");}
-    finally{setAnalyzing(false);}
+      const permission=fromCamera?await ImagePicker.requestCameraPermissionsAsync():
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if(!permission.granted){
+        Alert.alert("Görsel izni gerekli",fromCamera?
+          "Ürün fotoğrafı çekmek için kamera izni verin.":"Ürün görseli seçmek için galeri izni verin.");
+        return;
+      }
+      const result=fromCamera?
+        await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.54}):
+        await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsEditing:false,base64:true,quality:0.54,selectionLimit:1});
+      if(result.canceled||!result.assets[0]?.base64)return;
+      const asset=result.assets[0],mime=asset.mimeType==="image/png"?"image/png":
+        asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
+      const image="data:"+mime+";base64,"+asset.base64;
+      if(image.length>5_600_000){Alert.alert("Görsel çok büyük","4 MB altında bir görsel seçin.");return;}
+      // Do not carry unedited AI values to a completely different product image.
+      const cleaned={...formRef.current};
+      for(const field of required){
+        const oldAi=aiValues.current[field.key];
+        if(oldAi&&!userEdited.current.has(field.key)&&cleaned[field.key]===oldAi)cleaned[field.key]="";
+      }
+      aiValues.current={};formRef.current=cleaned;setForm(cleaned);setAiFilledKeys([]);
+      setPhoto(image);setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
+      const requestId=++analysisRequest.current;
+      void analyzeImage(image,requestId);
+    }catch(e){setError(e instanceof Error?e.message:"Görsel seçilemedi.");}
   }
+
+  function retryAnalysis(){
+    if(!photo||analyzing||submitting)return;
+    setPhase("image");
+    void analyzeImage(photo,++analysisRequest.current);
+  }
+
+  function useManualEntry(){
+    if(!photo||analyzing)return;
+    setAnalyzed(true);setAiFilledKeys([]);setPhase("editing");setError("");
+    setAnalysisInfo("Manuel giriş açık. Önizleme için tüm zorunlu bilgileri doldurun.");
+  }
+
+  function renderField(field:FieldDefinition,detected:boolean){
+    const missing=invalid.includes(field.key);
+    return <View key={field.key} style={styles.inputGroup}>
+      <View style={styles.fieldHeading}>
+        <Text style={styles.inputLabel}>{field.label} <Text style={styles.star}>*</Text></Text>
+        <Text style={[styles.fieldStatus,missing?styles.fieldMissing:styles.fieldComplete]}>
+          {missing?"Gerekli":detected&&!userEdited.current.has(field.key)?"AI doldurdu":"Tamamlandı"}
+        </Text>
+      </View>
+      <TextInput
+        style={[styles.input,field.multiline&&styles.multi,missing&&styles.pendingInput]}
+        value={form[field.key]} onChangeText={value=>change(field.key,value)}
+        placeholder={field.hint||field.label+" girin"} placeholderTextColor={C.muted}
+        keyboardType={field.numeric?(field.key==="price"?"decimal-pad":"number-pad"):"default"}
+        multiline={field.multiline} textAlignVertical={field.multiline?"top":"center"}
+        autoCorrect={field.key==="description"||field.key==="name"}
+      />
+    </View>;
+  }
+
   function review(){
     if(!analyzed){setError("Önizleme için önce fotoğrafı AI ile analiz edin.");setPhase("image");return;}
     if(invalid.length){
@@ -197,7 +265,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         <Animated.View style={[styles.halo,{opacity,transform:[{translateY:lift}]}]}/>
         <Text style={styles.eyebrow}>YENİ NESİL ÜRÜN YÖNETİMİ</Text>
         <Text style={styles.title}>AI ile ürün{"\n"}eklemek artık <Text style={styles.titleBlue}>çok hızlı.</Text></Text>
-        <Text style={styles.subtitle}>Fotoğrafı yükleyin, ürün bilgilerini AI hazırlasın. Eksikleri tamamlayın, önizleyin ve tek dokunuşla gönderin.</Text>
+        <Text style={styles.subtitle}>Fotoğraf çekin veya yükleyin. AI gördüğü bilgileri otomatik ekler; yalnızca eksikleri sizden ister.</Text>
         <View style={styles.ribbon}>
           <Text style={styles.ribbonText}>GÖRSEL ANALİZİ</Text><Text style={styles.ribbonArrow}>→</Text>
           <Text style={styles.ribbonText}>KONTROL</Text><Text style={styles.ribbonArrow}>→</Text>
@@ -212,7 +280,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
       <View style={styles.progressTrack}><Animated.View style={[styles.progressFill,{width:barWidth}]}/></View>
 
       <View style={styles.card}>
-        <View style={styles.cardHeading}><Text style={styles.sectionIndex}>01</Text><View style={styles.flex}><Text style={styles.heading}>Ürün görseli</Text><Text style={styles.subheading}>Görsel zorunlu · JPG, PNG, WebP</Text></View><Text style={styles.asterisk}>*</Text></View>
+        <View style={styles.cardHeading}><Text style={styles.sectionIndex}>01</Text><View style={styles.flex}><Text style={styles.heading}>Ürün görseli</Text><Text style={styles.subheading}>Görsel seçilince AI otomatik başlar · JPG, PNG, WebP</Text></View><Text style={styles.asterisk}>*</Text></View>
         <TouchableOpacity style={styles.imageDrop} onPress={()=>void pickImage()} activeOpacity={0.83}>
           {photo?<Image source={{uri:photo}} style={styles.photo} resizeMode="contain"/>:
             <View style={styles.uploadEmpty}><Text style={styles.uploadIcon}>▧</Text><Text style={styles.uploadTitle}>Ürün fotoğrafını seç</Text><Text style={styles.uploadHint}>Net, aydınlık, ürünü önden gösteren fotoğraf</Text></View>}
@@ -228,52 +296,79 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         </View>
       </View>
 
-      {phase!=="preview"?<>
-        <View style={styles.card}>
-          <View style={styles.cardHeading}><Text style={styles.sectionIndex}>02</Text><View style={styles.flex}><Text style={styles.heading}>Yapay zekâyı yönlendir</Text><Text style={styles.subheading}>İsteğe bağlı ipuçları analizin doğruluğunu artırır</Text></View></View>
-          {required.filter(field=>["name","sku","barcode","brand","category"].includes(field.key)).map(field=>
-            <View key={field.key} style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>{field.label} <Text style={styles.star}>*</Text></Text>
-              <TextInput style={styles.input} value={form[field.key]} onChangeText={value=>change(field.key,value)}
-                placeholder={field.hint||field.label} placeholderTextColor={C.muted} autoCorrect={false}
-                keyboardType={field.key==="barcode"?"number-pad":"default"}/>
-            </View>
-          )}
-          <Text style={styles.inputLabel}>AI'ya özel açıklama</Text>
-          <TextInput style={[styles.input,styles.note]} value={notes} onChangeText={setNotes}
-            multiline placeholder="Ürünün modeli, kullanım şekli, farkları veya önemli ayrıntılar..." placeholderTextColor={C.muted}/>
-          <TouchableOpacity style={[styles.primary,(analyzing||!photo)&&styles.disabled]} disabled={analyzing||!photo}
-            onPress={()=>void analyze()} activeOpacity={0.8}>
-            {analyzing?<ActivityIndicator color="#051021"/>:<Text style={styles.primaryText}>✦  Görseli AI ile analiz et</Text>}
-          </TouchableOpacity>
-          {analyzing?<View style={styles.busyRow}><Animated.View style={[styles.busyDot,{opacity}]}/><Text style={styles.busyText}>Görsel analiz ediliyor · hızlı model aktif</Text></View>:null}
-          {!!analysisInfo?<Text style={styles.notice}>{analysisInfo}</Text>:null}
-        </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardHeading}><Text style={styles.sectionIndex}>03</Text><View style={styles.flex}><Text style={styles.heading}>Gelişmiş ürün bilgileri</Text><Text style={styles.subheading}>Tüm bilgiler zorunlu ve düzenlenebilir</Text></View></View>
-          <Text style={styles.helper}>Ürünün fotoğrafında görünmeyen ticari değerleri siz girin. AI kesin olmayan bilgileri üretmez.</Text>
-          {required.filter(field=>!["name","sku","barcode","brand","category"].includes(field.key)).map(field=>
-            <View key={field.key} style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>{field.label} <Text style={styles.star}>*</Text></Text>
-              <TextInput style={[styles.input,field.multiline&&styles.multi,!form[field.key].trim()&&styles.pendingInput]}
-                value={form[field.key]} onChangeText={value=>change(field.key,value)}
-                placeholder={field.hint||field.label+" girin"} placeholderTextColor={C.muted}
-                keyboardType={field.numeric?(field.key==="price"?"decimal-pad":"number-pad"):"default"}
-                multiline={field.multiline} textAlignVertical={field.multiline?"top":"center"}/>
+      {phase!=="preview"?<>
+        {analyzing ? <View style={styles.analysisCard}>
+          <View style={styles.analysisHeading}>
+            <Animated.View style={[styles.scanPulse,{opacity}]}/>
+            <View style={styles.flex}>
+              <Text style={styles.analysisTitle}>AI görseli inceliyor</Text>
+              <Text style={styles.analysisText}>Fotoğrafta görünen ürün bilgileri otomatik okunuyor.</Text>
             </View>
-          )}
-          <View style={styles.policy}>
-            <Text style={styles.policyTitle}>{isOwner?"SÜPER YÖNETİCİ · ÇALIŞKAN ÜRÜNÜ":"TEDARİKÇİ ÜRÜNÜ · ONAY SÜRECİ"}</Text>
-            <Text style={styles.policyText}>{isOwner?
-              "Onayladığınızda Çalışkan B2B kataloğuna doğrudan yayımlanır.":
-              "Siz onayladığınızda süper yöneticinin ürün inceleme sırasına gider. İnceleme tamamlanmadan yayımlanmaz."}</Text>
+            <ActivityIndicator color="#90BFFF"/>
           </View>
-          <TouchableOpacity style={[styles.primary,(completion<100||analyzing)&&styles.disabled]}
-            disabled={analyzing} onPress={review}>
-            <Text style={styles.primaryText}>Ürün önizlemesini aç  →</Text>
+          <Text style={styles.analysisHint}>Analiz fotoğrafı seçer seçmez otomatik başladı.</Text>
+        </View> : null}
+        {photo&&!analyzing&&!analyzed ? <View style={styles.card}>
+          <View style={styles.cardHeading}><Text style={styles.sectionIndex}>02</Text><View style={styles.flex}>
+            <Text style={styles.heading}>Görsel analizi</Text>
+            <Text style={styles.subheading}>Bağlantı hatası olduysa yeniden deneyin</Text>
+          </View></View>
+          <TouchableOpacity style={styles.primary} onPress={retryAnalysis}>
+            <Text style={styles.primaryText}>✦  AI analizini yeniden dene</Text>
           </TouchableOpacity>
-        </View>
+          <TouchableOpacity style={styles.secondary} onPress={useManualEntry}>
+            <Text style={styles.secondaryText}>Bilgileri kendim dolduracağım</Text>
+          </TouchableOpacity>
+        </View> : null}
+        {analyzed&&!analyzing ? <>
+          {!!analysisInfo ? <View style={styles.successInfo}>
+            <Text style={styles.successTitle}>✓  Ürün bilgileri hazır</Text>
+            <Text style={styles.successText}>{analysisInfo}</Text>
+          </View> : null}
+          <View style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.sectionIndex}>02</Text><View style={styles.flex}>
+                <Text style={styles.heading}>Eksik bilgileri tamamlayın</Text>
+                <Text style={styles.subheading}>{fieldsToComplete.length} bilgi için kullanıcı kontrolü gerekli</Text>
+              </View>
+              <View style={styles.missingCount}><Text style={styles.missingCountText}>{invalid.length} eksik</Text></View>
+            </View>
+            <Text style={styles.helper}>AI'nin doğrulayamadığı barkod, fiyat, stok veya koli bilgilerini siz girin. Eksikler tamamlandıkça durum güncellenir.</Text>
+            {fieldsToComplete.map(field=>renderField(field,false))}
+            {fieldsToComplete.length===0?<Text style={styles.notice}>Görsel bilgilerini kontrol edin.</Text>:null}
+          </View>
+          {detectedFields.length>0 ? <View style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.sectionIndex}>03</Text><View style={styles.flex}>
+                <Text style={styles.heading}>AI'nin doldurduğu bilgiler</Text>
+                <Text style={styles.subheading}>{detectedFields.length} alan hazır · Düzenlenebilir</Text>
+              </View></View>
+            <Text style={styles.helper}>AI'nin önerilerini kontrol edin, yanlış veya eksik olanı doğrudan düzenleyin.</Text>
+            {detectedFields.map(field=>renderField(field,true))}
+          </View> : null}
+          <View style={styles.card}>
+            <View style={styles.cardHeading}><Text style={styles.sectionIndex}>04</Text><View style={styles.flex}>
+              <Text style={styles.heading}>Son kontrol ve önizleme</Text>
+              <Text style={styles.subheading}>Tüm zorunlu bilgiler tamamlanmalı</Text>
+            </View></View>
+            <Text style={styles.inputLabel}>AI için ek açıklama (isteğe bağlı)</Text>
+            <TextInput style={[styles.input,styles.note]} value={notes} onChangeText={setNotes}
+              multiline placeholder="Ürünün farkları, modeli, ambalajı..." placeholderTextColor={C.muted}/>
+            <TouchableOpacity style={styles.secondary} onPress={retryAnalysis}>
+              <Text style={styles.secondaryText}>✦  Yeni bilgilerle yeniden analiz et</Text>
+            </TouchableOpacity>
+            <View style={styles.policy}>
+              <Text style={styles.policyTitle}>{isOwner?"SÜPER YÖNETİCİ · ÇALIŞKAN ÜRÜNÜ":"TEDARİKÇİ ÜRÜNÜ · ONAY SÜRECİ"}</Text>
+              <Text style={styles.policyText}>{isOwner?
+                "Ürün onayınızın ardından Çalışkan B2B kataloğunda doğrudan yayımlanır.":
+                "Ürün süper yöneticinin inceleme sırasına gönderilir. Onaylanmadan yayımlanmaz."}</Text>
+            </View>
+            <TouchableOpacity style={[styles.primary,invalid.length>0&&styles.disabled]} onPress={review}>
+              <Text style={styles.primaryText}>{invalid.length>0?invalid.length+" alan eksik · Tamamlayın":"Ürünü önizle  →"}</Text>
+            </TouchableOpacity>
+          </View>
+        </>:null}
       </>:<View style={styles.card}>
         <View style={styles.cardHeading}><Text style={styles.sectionIndex}>✓</Text><View style={styles.flex}>
           <Text style={styles.heading}>Ürün önizleme</Text><Text style={styles.subheading}>Göndermeden önce son kontrol</Text>
@@ -298,6 +393,20 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 }
 
 const styles=StyleSheet.create({
+  fieldHeading:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:7,gap:6},
+  fieldStatus:{fontSize:10,fontWeight:"800",textAlign:"right"},
+  fieldMissing:{color:"#FFAD79"},fieldComplete:{color:"#72D9B2"},
+  analysisCard:{backgroundColor:"#0E2137",borderWidth:1,borderColor:"#3566A4",borderRadius:22,padding:18,marginBottom:16},
+  analysisHeading:{flexDirection:"row",alignItems:"center",gap:12},
+  scanPulse:{width:16,height:16,borderRadius:8,backgroundColor:"#76B5FF"},
+  analysisTitle:{color:"#EAF3FF",fontSize:16,fontWeight:"900"},
+  analysisText:{color:"#B0C5E0",fontSize:11,lineHeight:17,marginTop:5},
+  analysisHint:{color:"#8DAACE",fontSize:10,marginTop:12},
+  successInfo:{borderRadius:18,padding:14,backgroundColor:"#10302A",borderColor:"#1D6856",borderWidth:1,marginBottom:13},
+  successTitle:{color:"#85E6C1",fontSize:13,fontWeight:"900"},
+  successText:{color:"#BCDCD2",fontSize:11,lineHeight:17,marginTop:5},
+  missingCount:{paddingVertical:5,paddingHorizontal:9,backgroundColor:"#37251C",borderRadius:12},
+  missingCountText:{color:"#FFB58B",fontSize:10,fontWeight:"900"},
   root:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:18,paddingTop:12,paddingBottom:48},
   flex:{flex:1}, top:{flexDirection:"row",alignItems:"center",gap:10,marginBottom:14},
   back:{width:39,height:39,borderRadius:14,borderWidth:1,borderColor:C.line,alignItems:"center",justifyContent:"center",backgroundColor:C.panel},
