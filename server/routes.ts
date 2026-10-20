@@ -6,6 +6,7 @@ import { saveImageDataUrl, persistProductImageUrl } from "./image-storage";
 import { z } from "zod";
 import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
+import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
@@ -2567,6 +2568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }finally{client.release();}
   });
 
+  registerBusinessAiProductRoutes(app, sessionUserId);
   registerMarketplaceRoutes(app, requireMarketplaceSuperAdmin, requireB2B, sessionUserId, requireSeller, requireMarketplaceParticipant);
   void ensureMarketplaceSchema().catch(error => console.error("Marketplace schema migration failed:",error));
   registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
