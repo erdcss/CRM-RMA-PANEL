@@ -51,6 +51,8 @@ type CheckoutPreview = {
   total: number;
   currency: "TRY";
   iyzicoConfigured: boolean;
+  supplierPaymentEnabled?: boolean;
+  supplierPaymentNotice?: string | null;
 };
 
 type Address = {
@@ -164,6 +166,8 @@ async function loadCheckoutPreview(
     total: number;
     currency: "TRY";
     iyzicoConfigured: boolean;
+    supplierPaymentEnabled?: boolean;
+    supplierPaymentNotice?: string | null;
   }>(
     `/api/b2b/checkout/preview?productId=${encodeURIComponent(productId)}&qty=${qty}`,
   );
@@ -180,6 +184,8 @@ async function loadCheckoutPreview(
     total: single.total,
     currency: single.currency,
     iyzicoConfigured: single.iyzicoConfigured,
+    supplierPaymentEnabled: single.supplierPaymentEnabled,
+    supplierPaymentNotice: single.supplierPaymentNotice,
   };
 }
 
@@ -423,6 +429,7 @@ export default function B2BPaymentPage() {
     method === "card" &&
       visibility.card && visibility[shippingMethod] &&
       preview &&
+      preview.supplierPaymentEnabled !== false &&
       settings?.iyzicoConfigured &&
       billingAccount?.taxNumber &&
       selectedAddressId &&
@@ -636,6 +643,10 @@ export default function B2BPaymentPage() {
   }
 
   async function createBankTransferOrder() {
+    if (preview?.supplierPaymentEnabled === false) {
+      toast({ title: "Ödeme şu anda kullanılamıyor", description: preview.supplierPaymentNotice || "Tedarikçi tahsilatı henüz etkinleştirilmedi", variant: "destructive" });
+      return;
+    }
     if (!preview || !selectedAddressId) {
       toast({ title: "Teslimat adresi seçin", variant: "destructive" });
       return;
@@ -745,6 +756,11 @@ export default function B2BPaymentPage() {
           </div>
         ) : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+            {preview.supplierPaymentEnabled === false ? (
+              <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-900 lg:col-span-2">
+                {preview.supplierPaymentNotice || "Tedarikçi ürünleri için ödeme henüz etkin değil."}
+              </div>
+            ) : null}
             <section className="space-y-4">
               <div className="rounded-2xl border bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
