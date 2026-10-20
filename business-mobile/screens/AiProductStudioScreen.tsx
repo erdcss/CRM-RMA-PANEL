@@ -65,7 +65,11 @@ function Tile({label,value}:{label:string;value:string}){
 export function AiProductStudioScreen({mode,onBack,onCreated}:{
   mode:"super_admin"|"supplier";onBack:()=>void;onCreated:()=>void;
 }) {
-  const [photo,setPhoto]=useState("");
+  const [photos,setPhotos]=useState<string[]>([]);
+  const photo=photos[0]||"";
+  const maxPhotos=4;
+  const maxImageLength=3_500_000;
+  const maxGalleryLength=12_000_000;
   const [form,setForm]=useState<Draft>(emptyDraft);
   const [notes,setNotes]=useState("");
   const [phase,setPhase]=useState<Phase>("image");
@@ -110,14 +114,14 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   }
 
   // Pass the freshly selected image directly; photo state is asynchronous.
-  async function analyzeImage(image:string,requestId:number){
+  async function analyzeImages(images:string[],requestId:number){
     setAnalyzing(true);setError("");setAnalysisInfo("");
     const draft=formRef.current;
     const hint=(key:"name"|"sku"|"barcode"|"brand"|"category")=>
       userEdited.current.has(key)?draft[key].trim():"";
     try {
       const result=await apiFetch<AiResult>("/api/business/ai-products/analyze",{
-        method:"POST",body:JSON.stringify({image,hints:{
+        method:"POST",body:JSON.stringify({images,hints:{
           name:hint("name"),sku:hint("sku"),barcode:hint("barcode"),
           brand:hint("brand"),category:hint("category"),notes:notes.trim(),
         }})
@@ -151,8 +155,24 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     }finally{if(requestId===analysisRequest.current)setAnalyzing(false);}
   }
 
+  function restartForGallery(nextImages:string[]){
+    // Removing or adding a photo invalidates earlier model output, but
+    // manually entered fields stay intact across multiple scans.
+    const cleaned={...formRef.current};
+    for(const field of required){
+      const oldAi=aiValues.current[field.key];
+      if(oldAi&&!userEdited.current.has(field.key)&&cleaned[field.key]===oldAi)cleaned[field.key]="";
+    }
+    aiValues.current={};
+    formRef.current=cleaned;setForm(cleaned);setAiFilledKeys([]);
+    setPhotos(nextImages);setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
+    const requestId=++analysisRequest.current;
+    if(nextImages.length)void analyzeImages(nextImages,requestId);
+    else setAnalyzing(false);
+  }
+
   async function pickImage(fromCamera=false){
-    if(analyzing||submitting)return;
+    if(submitting||photos.length>=maxPhotos)return;
     try{
       const permission=fromCamera?await ImagePicker.requestCameraPermissionsAsync():
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -161,31 +181,44 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
           "Ürün fotoğrafı çekmek için kamera izni verin.":"Ürün görseli seçmek için galeri izni verin.");
         return;
       }
+      const remaining=maxPhotos-photos.length;
       const result=fromCamera?
-        await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.54}):
-        await ImagePicker.launchImageLibraryAsync({mediaTypes:["images"],allowsEditing:false,base64:true,quality:0.54,selectionLimit:1});
-      if(result.canceled||!result.assets[0]?.base64)return;
-      const asset=result.assets[0],mime=asset.mimeType==="image/png"?"image/png":
-        asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
-      const image="data:"+mime+";base64,"+asset.base64;
-      if(image.length>5_600_000){Alert.alert("Görsel çok büyük","4 MB altında bir görsel seçin.");return;}
-      // Do not carry unedited AI values to a completely different product image.
-      const cleaned={...formRef.current};
-      for(const field of required){
-        const oldAi=aiValues.current[field.key];
-        if(oldAi&&!userEdited.current.has(field.key)&&cleaned[field.key]===oldAi)cleaned[field.key]="";
+        await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.5}):
+        await ImagePicker.launchImageLibraryAsync({
+          mediaTypes:["images"],allowsEditing:false,allowsMultipleSelection:true,
+          selectionLimit:remaining,base64:true,quality:0.5
+        });
+      if(result.canceled||!result.assets.length)return;
+      const next=[...photos];
+      for(const asset of result.assets.slice(0,remaining)){
+        if(!asset.base64)continue;
+        const mime=asset.mimeType==="image/png"?"image/png":
+          asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
+        const image="data:"+mime+";base64,"+asset.base64;
+        if(image.length>maxImageLength){
+          Alert.alert("Fotoğraf çok büyük","Her fotoğraf en fazla yaklaşık 2,5 MB olmalıdır.");
+          continue;
+        }
+        if(next.includes(image))continue;
+        if(next.reduce((n,x)=>n+x.length,0)+image.length>maxGalleryLength){
+          Alert.alert("Görsel sınırı","Toplam fotoğraf boyutu fazla. Daha küçük görseller seçin.");
+          break;
+        }
+        next.push(image);
       }
-      aiValues.current={};formRef.current=cleaned;setForm(cleaned);setAiFilledKeys([]);
-      setPhoto(image);setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
-      const requestId=++analysisRequest.current;
-      void analyzeImage(image,requestId);
-    }catch(e){setError(e instanceof Error?e.message:"Görsel seçilemedi.");}
+      if(next.length>photos.length)restartForGallery(next);
+    }catch(e){setError(e instanceof Error?e.message:"Fotoğraf seçilemedi.");}
+  }
+
+  function removePhoto(index:number){
+    if(submitting)return;
+    restartForGallery(photos.filter((_,i)=>i!==index));
   }
 
   function retryAnalysis(){
-    if(!photo||analyzing||submitting)return;
+    if(!photos.length||analyzing||submitting)return;
     setPhase("image");
-    void analyzeImage(photo,++analysisRequest.current);
+    void analyzeImages(photos,++analysisRequest.current);
   }
 
   function useManualEntry(){
@@ -224,7 +257,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   }
   async function submit(){
     if(submitting||analyzing)return;
-    if(!photo||!analyzed||invalid.length){review();return;}
+    if(!photos.length||!analyzed||invalid.length){review();return;}
     setSubmitting(true);setError("");
     try{
       const data={
@@ -237,7 +270,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         tags:form.tags.split(",").map(tag=>tag.trim()).filter(Boolean),
         price:parseNumber(form.price),stock:parseNumber(form.stock),
         unitsPerBox:parseNumber(form.unitsPerBox),minOrderQty:parseNumber(form.minOrderQty),
-        leadDays:parseNumber(form.leadDays),image:photo,
+        leadDays:parseNumber(form.leadDays),image:photo,images:photos,
       };
       const result=await apiFetch<SubmitResult>("/api/business/ai-products/submit",{
         method:"POST",body:JSON.stringify(data),
@@ -265,7 +298,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         <Animated.View style={[styles.halo,{opacity,transform:[{translateY:lift}]}]}/>
         <Text style={styles.eyebrow}>YENİ NESİL ÜRÜN YÖNETİMİ</Text>
         <Text style={styles.title}>AI ile ürün{"\n"}eklemek artık <Text style={styles.titleBlue}>çok hızlı.</Text></Text>
-        <Text style={styles.subtitle}>Fotoğraf çekin veya yükleyin. AI gördüğü bilgileri otomatik ekler; yalnızca eksikleri sizden ister.</Text>
+        <Text style={styles.subtitle}>Ürünün ön, arka, etiket ve barkod fotoğraflarını ekleyin. AI tüm fotoğrafları birlikte analiz eder; eksikleri sizden ister.</Text>
         <View style={styles.ribbon}>
           <Text style={styles.ribbonText}>GÖRSEL ANALİZİ</Text><Text style={styles.ribbonArrow}>→</Text>
           <Text style={styles.ribbonText}>KONTROL</Text><Text style={styles.ribbonArrow}>→</Text>
@@ -280,20 +313,36 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
       <View style={styles.progressTrack}><Animated.View style={[styles.progressFill,{width:barWidth}]}/></View>
 
       <View style={styles.card}>
-        <View style={styles.cardHeading}><Text style={styles.sectionIndex}>01</Text><View style={styles.flex}><Text style={styles.heading}>Ürün görseli</Text><Text style={styles.subheading}>Görsel seçilince AI otomatik başlar · JPG, PNG, WebP</Text></View><Text style={styles.asterisk}>*</Text></View>
-        <TouchableOpacity style={styles.imageDrop} onPress={()=>void pickImage()} activeOpacity={0.83}>
+        <View style={styles.cardHeading}><Text style={styles.sectionIndex}>01</Text><View style={styles.flex}><Text style={styles.heading}>Ürün görseli</Text><Text style={styles.subheading}>En fazla 4 fotoğraf · Ön, arka, etiket ve barkod</Text></View><Text style={styles.asterisk}>*</Text></View>
+        <TouchableOpacity style={styles.imageDrop} onPress={()=>void pickImage()} activeOpacity={0.83} disabled={photos.length>=maxPhotos||submitting}>
           {photo?<Image source={{uri:photo}} style={styles.photo} resizeMode="contain"/>:
             <View style={styles.uploadEmpty}><Text style={styles.uploadIcon}>▧</Text><Text style={styles.uploadTitle}>Ürün fotoğrafını seç</Text><Text style={styles.uploadHint}>Net, aydınlık, ürünü önden gösteren fotoğraf</Text></View>}
-          {photo?<View style={styles.replace}><Text style={styles.replaceText}>↻  Fotoğrafı değiştir</Text></View>:null}
+          {photo?<View style={styles.replace}><Text style={styles.replaceText}>{photos.length}/{maxPhotos} · Kapak fotoğrafı</Text></View>:null}
         </TouchableOpacity>
         <View style={styles.photoActions}>
-          <TouchableOpacity style={styles.photoAction} onPress={()=>void pickImage(true)}>
-            <Text style={styles.photoActionText}>◎  Kamerayla çek</Text>
+          <TouchableOpacity style={[styles.photoAction,photos.length>=maxPhotos&&styles.disabled]}
+            disabled={photos.length>=maxPhotos||submitting} onPress={()=>void pickImage(true)}>
+            <Text style={styles.photoActionText}>◎  Fotoğraf çek</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.photoAction} onPress={()=>void pickImage(false)}>
-            <Text style={styles.photoActionText}>▧  Galeriden seç</Text>
+          <TouchableOpacity style={[styles.photoAction,photos.length>=maxPhotos&&styles.disabled]}
+            disabled={photos.length>=maxPhotos||submitting} onPress={()=>void pickImage(false)}>
+            <Text style={styles.photoActionText}>▧  Çoklu fotoğraf seç</Text>
           </TouchableOpacity>
         </View>
+        {photos.length>0?<View style={styles.galleryWrap}>
+          <Text style={styles.galleryTitle}>{photos.length}/{maxPhotos} fotoğraf · AI hepsini tarar</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {photos.map((src,index)=><View key={index} style={styles.galleryItem}>
+              <Image source={{uri:src}} style={styles.galleryImage} resizeMode="cover"/>
+              <Text style={styles.galleryCaption}>{index===0?"Kapak":index+1+". fotoğraf"}</Text>
+              <TouchableOpacity style={styles.galleryRemove} accessibilityLabel={(index+1)+". fotoğrafı kaldır"}
+                disabled={submitting} onPress={()=>removePhoto(index)}>
+                <Text style={styles.galleryRemoveText}>×</Text>
+              </TouchableOpacity>
+            </View>)}
+          </ScrollView>
+          <Text style={styles.galleryHint}>Ambalajın farklı yüzlerini ve barkodu yakından çekmek doğruluğu artırır.</Text>
+        </View>:null}
       </View>
 
 
@@ -303,13 +352,13 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
             <Animated.View style={[styles.scanPulse,{opacity}]}/>
             <View style={styles.flex}>
               <Text style={styles.analysisTitle}>AI görseli inceliyor</Text>
-              <Text style={styles.analysisText}>Fotoğrafta görünen ürün bilgileri otomatik okunuyor.</Text>
+              <Text style={styles.analysisText}>{photos.length} fotoğraftaki ürün bilgileri birleştiriliyor.</Text>
             </View>
             <ActivityIndicator color="#90BFFF"/>
           </View>
           <Text style={styles.analysisHint}>Analiz fotoğrafı seçer seçmez otomatik başladı.</Text>
         </View> : null}
-        {photo&&!analyzing&&!analyzed ? <View style={styles.card}>
+        {photos.length>0&&!analyzing&&!analyzed ? <View style={styles.card}>
           <View style={styles.cardHeading}><Text style={styles.sectionIndex}>02</Text><View style={styles.flex}>
             <Text style={styles.heading}>Görsel analizi</Text>
             <Text style={styles.subheading}>Bağlantı hatası olduysa yeniden deneyin</Text>
@@ -374,6 +423,9 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
           <Text style={styles.heading}>Ürün önizleme</Text><Text style={styles.subheading}>Göndermeden önce son kontrol</Text>
         </View></View>
         <View style={styles.previewImageBox}><Image source={{uri:photo}} style={styles.previewImage} resizeMode="contain"/></View>
+        {photos.length>1?<View style={styles.previewGallery}>
+          {photos.map((src,index)=><Image key={index} source={{uri:src}} style={styles.previewGalleryImage} resizeMode="cover"/>)}
+        </View>:null}
         <Text style={styles.previewTitle}>{form.name}</Text>
         <Text style={styles.previewSubtitle}>{form.brand} · {form.model} · {form.category}</Text>
         <View style={styles.priceRow}><Text style={styles.price}>{formatValue("price",form.price)}</Text><Text style={styles.stock}>Stok {form.stock}</Text></View>
@@ -393,6 +445,17 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 }
 
 const styles=StyleSheet.create({
+  galleryWrap:{marginTop:13},
+  galleryTitle:{fontSize:12,color:"#C7DCFB",fontWeight:"800",marginBottom:10},
+  galleryRow:{gap:10,paddingRight:5},
+  galleryItem:{width:95,position:"relative"},
+  galleryImage:{width:95,height:91,borderRadius:13,backgroundColor:"#121B26",borderWidth:1,borderColor:"#294363"},
+  galleryCaption:{fontSize:10,color:"#A8C1E6",marginTop:5,textAlign:"center"},
+  galleryRemove:{position:"absolute",top:4,right:4,width:26,height:26,borderRadius:13,alignItems:"center",justifyContent:"center",backgroundColor:"rgba(17,24,39,.95)",borderWidth:1,borderColor:"#67778C"},
+  galleryRemoveText:{color:"#FFFFFF",fontSize:20,lineHeight:22,fontWeight:"900"},
+  galleryHint:{fontSize:10,color:"#95A8C5",marginTop:10,lineHeight:16},
+  previewGallery:{flexDirection:"row",gap:8,flexWrap:"wrap",marginBottom:14},
+  previewGalleryImage:{width:64,height:64,borderRadius:12,borderWidth:1,borderColor:"#344966"},
   fieldHeading:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:7,gap:6},
   fieldStatus:{fontSize:10,fontWeight:"800",textAlign:"right"},
   fieldMissing:{color:"#FFAD79"},fieldComplete:{color:"#72D9B2"},
