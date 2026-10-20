@@ -289,7 +289,7 @@ export default function CheckoutScreen() {
   // Reference is allocated server-side before an order exists. A payment reference
   // is not a paid invoice or proof of receiving a bank transfer.
   useEffect(() => {
-    if (!session || !preview || paymentMethod !== 'bank_transfer' ||
+    if (!session || !preview || preview.supplierPaymentEnabled === false || paymentMethod !== 'bank_transfer' ||
         !settings?.bankTransfer.enabled || bankReference || bankOrder) return;
     let active = true;
     setBankReferenceLoading(true);
@@ -344,6 +344,7 @@ export default function CheckoutScreen() {
 
   const canPay = Boolean(
     preview &&
+      preview.supplierPaymentEnabled !== false &&
       selectedAddress &&
       shippingValid && visibility[shippingMethod] && visibility[paymentMethod] &&
       ((paymentMethod === 'card' &&
@@ -594,6 +595,15 @@ export default function CheckoutScreen() {
             Teslimat ve ödeme bilgilerinizi kontrol ederek siparişinizi tamamlayın.
           </Text>
         </View>
+
+        {preview.supplierPaymentEnabled === false ? (
+          <View style={[styles.installmentInfo, { marginBottom: spacing.md }]}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.warning} />
+            <Text style={styles.installmentInfoText}>
+              {preview.supplierPaymentNotice || 'Tedarikçi ürünleri için online ödeme şu anda kullanılamıyor.'}
+            </Text>
+          </View>
+        ) : null}
 
         <Section title="Sipariş Özeti" icon="bag-handle-outline" collapsible defaultCollapsed summaryValue={money(paymentMethod === 'card' ? payableTotal : preview.total)}>
           {checkoutLines.map((line, index) => {
