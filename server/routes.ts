@@ -2576,6 +2576,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerMarketplaceMediaRoutes(app, requireSeller, sessionUserId);
   registerMarketplaceVideoUploadRoutes(app, requireSeller);
   registerMarketplaceCartRoutes(app, requireB2B, requireSeller);
+
+  // Only recorded, confirmed collections are shown here. These are gross
+  // receivables awaiting manual supplier reconciliation; NOT completed payouts.
+  app.get("/api/admin/marketplace/supplier-payment-ledger", requireAdmin, async (_req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try {
+      await ensureSupplierSalesLedger();
+      const report = await pool.query(`
+        SELECT l.order_id, l.order_number, l.supplier_id, s.company_name,
+               l.gross_amount, l.currency, l.payment_method,
+               l.settlement_status, l.recorded_at, o.payment_status
+        FROM b2b_supplier_sales_ledger l
+        JOIN mp_suppliers s ON s.id=l.supplier_id
+        JOIN b2b_orders o ON o.id=l.order_id
+        WHERE o.payment_status IN ('SUCCESS','bank_confirmed')
+        ORDER BY l.recorded_at DESC
+        LIMIT 250`
+      );
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({ rows: report.rows, note: "Brüt tahsilat kayıtlarıdır; tedarikçiye ödeme veya mutabakat tamamlandı anlamına gelmez." });
+    } catch (error) {
+      console.error("Supplier payment ledger:", error);
+      return res.status(500).json({ error: "Tedarikçi ödeme kayıtları alınamadı" });
+    }
+  });
+
+  app.get("/api/marketplace/seller/payment-ledger", requireSeller, async (_req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    try {
+      await ensureSupplierSalesLedger();
+      const user = (res.locals as any).b2bUser;
+      const report = await pool.query(`
+        SELECT l.order_number, l.gross_amount, l.currency, l.payment_method,
+               l.settlement_status, l.recorded_at
+        FROM b2b_supplier_sales_ledger l
+        JOIN mp_suppliers s ON s.id=l.supplier_id AND s.owner_user_id=$1
+        JOIN b2b_orders o ON o.id=l.order_id
+        WHERE o.payment_status IN ('SUCCESS','bank_confirmed')
+        ORDER BY l.recorded_at DESC
+        LIMIT 200`, [user.id]
+      );
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({ rows: report.rows, note: "Brüt satış kayıtlarıdır; tedarikçiye ödeme veya mutabakat tamamlandı anlamına gelmez." });
+    } catch (error) {
+      console.error("Seller payment ledger:", error);
+      return res.status(500).json({ error: "Satış tahsilat kayıtları alınamadı" });
+    }
+  });
+
   registerB2BInvoiceDocumentRoutes(app, requireAdmin, requireB2B);
   void ensureB2BNotificationTables().catch(error => console.error("B2B notifications init failed:", error));
 
