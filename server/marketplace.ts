@@ -260,7 +260,13 @@ const productSchema = z.object({
   price:z.number().finite().positive().max(100000000),
   unitsPerBox:z.number().int().min(1).max(100000),
   minBoxes:z.number().int().min(1).max(100000).default(1),
-  leadDays:z.number().int().min(1).max(14).default(1)
+  leadDays:z.number().int().min(1).max(14).default(1),
+  model:z.string().trim().max(120).optional(),
+  color:z.string().trim().max(100).optional(),
+  material:z.string().trim().max(120).optional(),
+  size:z.string().trim().max(150).optional(),
+  collectionName:z.string().trim().max(120).optional(),
+  tags:z.array(z.string().trim().min(1).max(70)).max(12).optional(),
 }).strict();
 const applicationSchema=z.object({
   companyName:bodyText(220),taxNumber:z.string().trim().regex(/^[0-9]{10,11}$/),
@@ -582,7 +588,7 @@ export function registerMarketplaceRoutes(
         WHERE product_id=$1 ORDER BY is_live DESC,id DESC LIMIT 1`,[productId]);
       if(!prior.rows[0])throw new ApiError(404,"Ürün sürümü bulunamadı");
       const price=Number(previous.rows[0].current_price??prior.rows[0].content.price);
-      const safeContent={...data.product,sku:data.sku,price};
+      const safeContent={...prior.rows[0].content,...data.product,sku:data.sku,price};
       await verifyMedia(db,Number(supplier.id),data.product.imageUrl,false);
       if(data.sku!==previous.rows[0].sku){
         const conflict=await client.query("SELECT 1 FROM mp_products WHERE supplier_id=$1 AND sku=$2 AND id<>$3",
