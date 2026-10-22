@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { rmaApi } from '@/lib/api';
@@ -12,6 +13,8 @@ export default function MenuScreen() {
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
+  const {user}=useAuth();
+  const mayAdd=user?.role==='super_admin'||user?.role==='b2b_seller';
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
@@ -63,6 +66,14 @@ export default function MenuScreen() {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
         </Pressable>
+
+        {mayAdd?<Pressable style={[styles.allCard,{backgroundColor:'#FFCD00'}]}
+          onPress={()=>router.push('/ai-product-studio' as never)}>
+          <View style={styles.iconBoxDark}><Ionicons name="sparkles-outline" size={24} color="#FFF"/></View>
+          <View style={styles.textGroup}><Text style={[styles.allTitle,{color:'#111827'}]}>AI ile Ürün Ekle</Text>
+            <Text style={[styles.itemSubtitle,{color:'#334155'}]}>Görselden bilgiler, beyaz fon ve onay</Text></View>
+          <Ionicons name="chevron-forward" size={19} color="#111827"/>
+        </Pressable>:null}
 
         <View style={styles.list}>
           {categories.map((category, index) => (
