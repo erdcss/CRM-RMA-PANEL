@@ -1,6 +1,6 @@
 import type { Express, Request } from "express";
 import { createHash, randomBytes } from "node:crypto";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { z } from "zod";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
@@ -41,6 +41,9 @@ const extraction = z.object({
 type Actor={id:number;role:"super_admin"|"b2b_seller";supplierId?:number};
 const limits=new Map<number,number[]>();
 const cache=new Map<string,{expires:number;product:Record<string,string>}>();
+const renderLimits=new Map<number,number[]>();
+const renderCache=new Map<string,{expires:number;image:string}>();
+const renderSchema=z.object({images:gallerySchema,includePackaging:z.boolean().default(false)}).strict();
 const fields=["sku","name","barcode","brand","category","description","model","color","material","size","collectionName","tags"] as const;
 
 function imageBytes(data:string):Buffer {
@@ -125,6 +128,53 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
       cache.set(hash,{expires:Date.now()+20*60_000,product});
       return res.json({product,cached:false,elapsedMs:Date.now()-start});
     }catch(e){console.error("Business AI extract",e);return res.status(502).json({error:e instanceof Error&&e.message.includes("görseli")?e.message:"AI analiz edilemedi; fotoğrafı tekrar deneyin."});}
+  });
+
+  app.post("/api/business/ai-products/render",async(req,res)=>{
+    res.setHeader("Cache-Control","no-store");
+    try{
+      const actor=await actorFor(req,userId);
+      if(!actor)return res.status(403).json({error:"Görsel düzenleme yetkiniz yok."});
+      if(!process.env.OPENAI_API_KEY)return res.status(503).json({error:"AI görsel servisi yapılandırılmamış."});
+      const parsed=renderSchema.safeParse(req.body);
+      if(!parsed.success)return res.status(400).json({error:"Geçerli görsel veya seçenek gönderin."});
+      const sources=gallery(undefined,parsed.data.images);
+      if(parsed.data.includePackaging&&sources.length<2)
+        return res.status(400).json({error:"Gerçek ambalaj görselini ikinci fotoğraf olarak yükleyin."});
+      const now=Date.now(),recent=(renderLimits.get(actor.id)||[]).filter(t=>now-t<60000);
+      if(recent.length>=3)return res.status(429).json({error:"Dakikada en fazla 3 görsel düzenlenebilir."});
+      const sourceImages=sources.slice(0,parsed.data.includePackaging?2:1);
+      const bytes=sourceImages.map(imageBytes);
+      const hash=createHash("sha256");
+      bytes.forEach(b=>hash.update(b).update("|"));
+      const key=hash.update(String(parsed.data.includePackaging)).digest("hex");
+      const cached=renderCache.get(key);
+      if(cached&&cached.expires>now)return res.json({image:cached.image,cached:true});
+      renderLimits.set(actor.id,[...recent,now]);
+      const input=await Promise.all(bytes.map((b,i)=>{
+        const mime=sourceImages[i].slice(5,sourceImages[i].indexOf(";"));
+        return toFile(b,"product-"+i+(mime==="image/png"?".png":mime==="image/webp"?".webp":".jpg"),{type:mime});
+      }));
+      const instruction=parsed.data.includePackaging
+        ?"Create one photorealistic commercial product image on pure white (#FFFFFF). The real PRODUCT from reference 1 floats slightly angled on the LEFT, the real original PACKAGING from reference 2 is on the RIGHT. Preserve the reference product, actual package shape, brand and legible logo. Never invent packaging text, models or labels. No added captions, prices, watermarks or unrelated objects."
+        :"Create one photorealistic commercial product image from the reference on pure white (#FFFFFF). Show ONLY the real product in a slightly floating three-quarter view with natural studio shadow. Preserve its exact shape, color, brand and visible logo. No invented product details, package, text, price, banner or watermark.";
+      const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:110000,maxRetries:0});
+      const output=await ai.images.edit({
+        model:process.env.OPENAI_BUSINESS_IMAGE_MODEL||"gpt-image-1.5",
+        image:input,prompt:instruction,size:"1024x1024",quality:"medium",
+        output_format:"jpeg",output_compression:76,n:1
+      });
+      const b64=output.data?.[0]?.b64_json;
+      if(!b64)return res.status(502).json({error:"AI görsel döndürmedi."});
+      const image="data:image/jpeg;base64,"+b64;
+      imageBytes(image);
+      if(renderCache.size>40)renderCache.clear();
+      renderCache.set(key,{image,expires:Date.now()+15*60_000});
+      return res.json({image,cached:false});
+    }catch(err){
+      console.error("Business AI render",err);
+      return res.status(502).json({error:"Görsel düzenlenemedi. Orijinal görsel korunuyor; tekrar deneyin."});
+    }
   });
 
   app.post("/api/business/ai-products/submit",async(req,res)=>{

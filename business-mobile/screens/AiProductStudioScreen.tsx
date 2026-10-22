@@ -66,7 +66,11 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   mode:"super_admin"|"supplier";onBack:()=>void;onCreated:()=>void;
 }) {
   const [photos,setPhotos]=useState<string[]>([]);
-  const photo=photos[0]||"";
+  const [renderEnabled,setRenderEnabled]=useState(false);
+  const [includePackaging,setIncludePackaging]=useState(false);
+  const [renderedImage,setRenderedImage]=useState("");
+  const [rendering,setRendering]=useState(false);
+  const photo=renderEnabled&&renderedImage?renderedImage:photos[0]||"";
   const maxPhotos=4;
   const maxImageLength=3_500_000;
   const maxGalleryLength=12_000_000;
@@ -167,7 +171,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     }
     aiValues.current={};
     formRef.current=cleaned;setForm(cleaned);setAiFilledKeys([]);
-    setPhotos(nextImages);setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
+    setPhotos(nextImages);setRenderedImage("");setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
     const requestId=++analysisRequest.current;
     if(nextImages.length)void analyzeImages(nextImages,requestId);
     else setAnalyzing(false);
@@ -223,6 +227,23 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     void analyzeImages(photos,++analysisRequest.current);
   }
 
+  async function renderProductPhoto(){
+    if(!photos.length||rendering||submitting)return;
+    if(includePackaging&&photos.length<2){
+      setError("Ambalaj seçildi. İkinci fotoğraf olarak gerçek ürün ambalajını yükleyin.");return;
+    }
+    setRendering(true);setError("");
+    try{
+      const result=await apiFetch<{image:string}>("/api/business/ai-products/render",{
+        method:"POST",body:JSON.stringify({images:photos,includePackaging}),
+      });
+      if(!result.image.startsWith("data:image/"))throw Error("Görsel alınamadı.");
+      setRenderedImage(result.image);
+      setAnalysisInfo("Beyaz fon görseli hazır. Ürün bilgileri yalnızca orijinal fotoğraflardan okunur.");
+    }catch(e){setError(e instanceof Error?e.message:"Görsel oluşturulamadı.");}
+    finally{setRendering(false);}
+  }
+
   function useManualEntry(){
     if(!photo||analyzing)return;
     setAnalyzed(true);setAiFilledKeys([]);setPhase("editing");setError("");
@@ -258,7 +279,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     setError("");setPhase("preview");
   }
   async function submit(){
-    if(submitting||analyzing)return;
+    if(submitting||analyzing||rendering)return;
     if(!photos.length||!analyzed||invalid.length){review();return;}
     setSubmitting(true);setError("");
     try{
@@ -272,7 +293,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         tags:form.tags.split(",").map(tag=>tag.trim()).filter(Boolean),
         price:parseNumber(form.price),stock:parseNumber(form.stock),
         unitsPerBox:parseNumber(form.unitsPerBox),minOrderQty:parseNumber(form.minOrderQty),
-        leadDays:parseNumber(form.leadDays),image:photo,images:photos,
+        leadDays:parseNumber(form.leadDays),image:photo,images:renderEnabled&&renderedImage?[renderedImage,...photos.slice(0,3)]:photos,
       };
       const result=await apiFetch<SubmitResult>("/api/business/ai-products/submit",{
         method:"POST",body:JSON.stringify(data),
@@ -347,6 +368,28 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         </View>:null}
       </View>
 
+      {photos.length>0?<View style={styles.card}>
+        <Text style={styles.heading}>AI görsel düzenleme · İsteğe bağlı</Text>
+        <TouchableOpacity style={styles.secondary} disabled={rendering||submitting} onPress={()=>{
+          setRenderEnabled(!renderEnabled);setRenderedImage("");
+        }}><Text style={styles.secondaryText}>{renderEnabled?"☑  Beyaz fon açık":"☐  Beyaz fonu düzenle"}</Text></TouchableOpacity>
+        {renderEnabled?<>
+          <TouchableOpacity style={styles.secondary} disabled={rendering||submitting}
+            onPress={()=>{setIncludePackaging(!includePackaging);setRenderedImage("");}}>
+            <Text style={styles.secondaryText}>{includePackaging?"☑  Ambalajı yanında göster":"☐  Ambalajı yanında göster"}</Text>
+          </TouchableOpacity>
+          <Text style={styles.helper}>Saf beyaz fon, hafif 3D açı. Ambalaj seçilirse ikinci görsel gerçek ürün ambalajına ait olmalıdır.</Text>
+          <TouchableOpacity style={[styles.primary,(rendering||analyzing||submitting)&&styles.disabled]}
+            disabled={rendering||analyzing||submitting} onPress={()=>void renderProductPhoto()}>
+            {rendering?<ActivityIndicator color="#081726"/>:<Text style={styles.primaryText}>✦  Görseli AI ile oluştur</Text>}
+          </TouchableOpacity>
+          {renderedImage?<View style={styles.previewImageBox}><Image source={{uri:renderedImage}}
+            style={styles.previewImage} resizeMode="contain"/></View>:null}
+          {renderedImage?<TouchableOpacity style={styles.secondary} onPress={()=>setRenderedImage("")}>
+            <Text style={styles.secondaryText}>Orijinal fotoğrafı kullan</Text>
+          </TouchableOpacity>:null}
+        </>:null}
+      </View>:null}
 
       {phase!=="preview"?<>
         {analyzing ? <View style={styles.analysisCard}>

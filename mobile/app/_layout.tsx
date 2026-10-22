@@ -46,10 +46,10 @@ function AppContent() {
       </AuthGate>
       {showSplash ? (
         <View style={styles.splash} pointerEvents="auto">
-          {managedSplash ? (
-            <ImageBackground source={managedSplash} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-          ) : branding.b2b_mobile_splash ? (
+          {branding.b2b_mobile_splash ? (
             <ImageBackground source={{ uri: branding.b2b_mobile_splash }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          ) : managedSplash ? (
+            <ImageBackground source={managedSplash} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
           ) : (
             <View style={styles.splashFallback}>
               <Text style={styles.splashBrand}>ÇALIŞKAN</Text>

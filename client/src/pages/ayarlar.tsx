@@ -332,8 +332,8 @@ export default function Ayarlar() {
 
             <div className="rounded-2xl border bg-background p-4 text-sm text-muted-foreground">
               <b className="text-foreground">Mobil build notu:</b> Logo ve splash görselleri burada merkezi olarak saklanır.
-              Native iOS/Android uygulama ikonu veya işletim sistemi açılış ekranındaki değişikliklerin App Store/TestFlight buildine
-              yansıması için yeni mobil build gerekir.
+              Uygulama içi splash bir sonraki açılışta güncellenir. Sonraki native build güncel logo ve splash görsellerini otomatik indirir;
+              sistemin ilk açılış ekranı ve uygulama ikonu için yeni iOS/Android buildin dağıtılması gerekir.
             </div>
 
             <div className="sticky bottom-4 flex justify-end">

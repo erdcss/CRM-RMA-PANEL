@@ -34,9 +34,10 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setShowSplash(false), 900);
+    // Load the current admin-managed splash at each startup, with an offline deadline.
+    const timer = setTimeout(() => setShowSplash(false), branding.loaded ? 1400 : 3500);
     return () => clearTimeout(timer);
-  }, []);
+  }, [branding.loaded]);
 
   useEffect(() => {
     if (!user) return;

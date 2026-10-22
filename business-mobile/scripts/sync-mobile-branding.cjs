@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const {createHash}=require("node:crypto");
 
 const target = process.argv[2] === "business" ? "business" : "b2b";
 const root = process.cwd();
@@ -47,7 +48,8 @@ async function saveAsset(name, value) {
   if (!asset || !asset.buffer.length) return null;
   fs.mkdirSync(assetsDir, { recursive: true });
   const ext = extensionFromMime(asset.mime);
-  const filename = `managed-${name}.${ext}`;
+  const digest=createHash("sha256").update(asset.buffer).digest("hex").slice(0,12);
+  const filename = `managed-${name}-${digest}.${ext}`;
   const filePath = path.join(assetsDir, filename);
   fs.writeFileSync(filePath, asset.buffer);
   return `./assets/${filename}`;
@@ -65,7 +67,7 @@ async function main() {
 
   const branding = await response.json();
   const logoPath = await saveAsset("logo", branding.logo);
-  const splashPath = await saveAsset("splash", branding.splash || branding.logo);
+  const splashPath = await saveAsset("splash", branding.splash);
 
   if (target === "business" && (!logoPath || !splashPath)) {
     throw new Error("Çalışkan Business logo/splash görselleri admin panelinden alınamadı");
