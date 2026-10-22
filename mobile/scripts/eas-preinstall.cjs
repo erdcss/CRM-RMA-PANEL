@@ -1,6 +1,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+// Refresh native assets on the remote build worker before Expo prebuild.
+const {spawnSync}=require("node:child_process");
+const branding=spawnSync(process.execPath,[path.join(__dirname,"eas-branding-preinstall.cjs")],{
+  stdio:"inherit",env:process.env
+});
+if(branding.status!==0)process.exit(branding.status||1);
+
 const mobileRoot = path.resolve(__dirname, "..");
 const packagePath = path.join(mobileRoot, "package.json");
 
