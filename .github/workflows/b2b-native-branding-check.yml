@@ -7,6 +7,8 @@ on:
       - 'mobile/package.json'
       - 'mobile/package-lock.json'
       - 'mobile/scripts/check-brand-sync.cjs'
+      - 'mobile/scripts/eas-preinstall.cjs'
+      - 'mobile/scripts/eas-branding-preinstall.cjs'
       - 'mobile/app.json'
       - '.github/workflows/b2b-native-branding-check.yml'
   workflow_dispatch:
@@ -25,5 +27,7 @@ jobs:
           node --check mobile/scripts/sync-mobile-branding.cjs
           node --check mobile/scripts/android-adaptive-icon.cjs
           node --check mobile/scripts/check-brand-sync.cjs
+          node --check mobile/scripts/eas-preinstall.cjs
+          node --check mobile/scripts/eas-branding-preinstall.cjs
       - name: Validate admin-only brand sync
         run: node mobile/scripts/check-brand-sync.cjs
