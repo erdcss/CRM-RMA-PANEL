@@ -6,13 +6,13 @@ const path=require("node:path");
 const {createHash}=require("node:crypto");
 const root=path.resolve(__dirname,"..");
 const assetsDir=path.join(root,"assets");
-const api=(process.env.EXPO_PUBLIC_BRANDING_API_URL||"https://admin.ecalisgan.com").replace(/\\/$/,"");
+const api=(process.env.EXPO_PUBLIC_BRANDING_API_URL||"https://admin.ecalisgan.com").replace(/\/$/,"");
 
 async function download(value,name){
   if(!value||typeof value!=="string")throw Error("Admin panelinde "+name+" bulunmuyor.");
   let bytes,mime;
   if(value.startsWith("data:image/")){
-    const match=/^data:(image\\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/s.exec(value);
+    const match=/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/s.exec(value);
     if(!match)throw Error("Geçersiz "+name+" görseli");
     mime=match[1];bytes=Buffer.from(match[2],"base64");
   }else{
