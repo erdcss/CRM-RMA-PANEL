@@ -1,0 +1,57 @@
+name: Çalışkan B2B - iOS TestFlight sürüm düzeltme
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/release-requests/b2b-testflight-1-1-0.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-b2b-ios-version-1-1-0
+  cancel-in-progress: false
+
+jobs:
+  b2b-testflight:
+    name: B2B iOS 1.1.0 derle ve TestFlight'a gönder
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Expo token varlığını doğrula
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN eksik."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Sürüm kontrolü ve güncel splash
+        run: |
+          node -e 'if (require("./app.json").expo.version !== "1.1.0") process.exit(1)'
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          npm run typecheck
+      - name: B2B iOS 1.1.0 derle
+        run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
+      - name: TestFlight gönderimi
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
