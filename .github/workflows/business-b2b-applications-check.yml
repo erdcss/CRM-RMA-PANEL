@@ -33,7 +33,11 @@ jobs:
         run: npm ci --ignore-scripts
       - name: TypeScript compile check
         run: npx tsc --noEmit --project tsconfig.json
-      - name: Export mobile web bundle
+      - name: Export iOS JavaScript bundle
         env:
           EXPO_NO_TELEMETRY: '1'
-        run: npm run build:web
+        run: npx expo export --platform ios --output-dir /tmp/business-ios-bundle
+      - name: Export Android JavaScript bundle
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: npx expo export --platform android --output-dir /tmp/business-android-bundle
