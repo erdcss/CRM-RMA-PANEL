@@ -51,6 +51,7 @@ const rmaItems = [
 
 const standaloneItems = [
   { title: "Başvurular", url: "/basvurular", icon: ClipboardList },
+  { title: "B2B Müşteriler", url: "/b2b-musteriler", icon: Users },
   { title: "Ödeme Ekranı", url: "/odeme-ekrani", icon: WalletCards },
   { title: "Reelsler", url: "/reelsler", icon: Film },
   { title: "Bildirimler", url: "/bildirimler", icon: Bell },
@@ -146,7 +147,7 @@ export function AppSidebar({ username, role }: { username: string; role: string 
 
               {standaloneItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location === item.url}>
+                  <SidebarMenuButton asChild isActive={location === item.url || (item.url === "/basvurular" && location.startsWith("/basvurular/")) || (item.url === "/b2b-musteriler" && location.startsWith("/b2b-musteriler/"))}>
                     <Link href={item.url} onClick={() => setOpenMobile(false)}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
