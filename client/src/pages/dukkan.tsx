@@ -46,8 +46,11 @@ export default function Dukkan() {
   const [showNewStore,setShowNewStore]=useState(false);
   const [refresh,setRefresh]=useState(0);
   const currentStore=stores.find(s=>String(s.id)===storeId);
+  const cashier=currentStore?.role==="cashier";
   const base="/api/dukkan/stores/"+encodeURIComponent(storeId);
   const isWriter=currentStore?.role!=="viewer";
+  const canManage=currentStore?.role==="owner"||currentStore?.role==="manager";
+  const canAccount=!cashier;
   const isManager=["owner","manager"].includes(String(currentStore?.role));
   const identity=useMemo(()=>new URLSearchParams(window.location.search).get("tab"),[]);
 
@@ -63,7 +66,7 @@ export default function Dukkan() {
     if(!storeId)return;
     try{
       const [p,pr,b,summary]=await Promise.all([
-        api(base+"/data/parties"),api(base+"/data/products"),api(base+"/data/banks"),api(base+"/report")
+        api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
       ]);
       setParties(p);setProducts(pr);setBanks(b);setReport(summary);
       const resource:Record<Section,string|null>={
@@ -74,7 +77,7 @@ export default function Dukkan() {
       setRows(result);
       setError("");
     }catch(e){setError((e as Error).message);}
-  },[base,storeId,section]);
+  },[base,storeId,section,cashier]);
   useEffect(()=>{void load();},[load,refresh]);
   useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);},[section,storeId]);
 
@@ -166,9 +169,9 @@ export default function Dukkan() {
         {showNewStore&&<form onSubmit={createStore} className={softCard+" mb-4 flex flex-wrap gap-2"}><input className={inputClass+" flex-1"} placeholder="Yeni mağaza adı" required value={newStoreName} onChange={e=>setNewStoreName(e.target.value)}/><button className={buttonClass} disabled={busy}>Oluştur</button></form>}
         {!storeId?<div className={softCard+" text-center"}><Building2 className="mx-auto mb-3 text-slate-400" size={34}/><h2 className="font-bold">Henüz erişilebilir mağaza yok</h2><p className="mt-2 text-sm text-slate-500">Çalışkan Admin yöneticisi mağaza oluşturup kullanıcıları mağazaya atayabilir.</p></div>:<>
           <nav aria-label="Çalışkan Dükkan modülleri" className="mb-5 flex gap-2 overflow-x-auto pb-2">
-            {SECTIONS.map(t=><button key={t.key} onClick={()=>setSection(t.key)} className={"shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold "+(section===t.key?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600 hover:bg-slate-50")}>{t.label}</button>)}
+            {SECTIONS.filter(t=>!cashier||!["purchases","instruments","banks","reports","stock","products"].includes(t.key)).map(t=><button key={t.key} onClick={()=>setSection(t.key)} className={"shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold "+(section===t.key?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600 hover:bg-slate-50")}>{t.label}</button>)}
           </nav>
-          {(section==="overview"||section==="reports")&&<div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+          {canAccount&&(section==="overview"||section==="reports")&&<div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
             {[
               ["Net Satış",currency(report?.sales)],["Net Alış",currency(report?.purchases)],
               ["Stok Maliyeti",currency(report?.stock?.stock_cost)],["Ürün Çeşidi",fmt(report?.stock?.product_count)],
@@ -179,7 +182,7 @@ export default function Dukkan() {
           <div className={softCard}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h2 className="text-lg font-black">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="text-xs text-slate-500">{displayed.length} kayıt · Mağaza: {currentStore?.name}</p></div>
-              {isWriter&&!["overview","reports"].includes(section)&&<button onClick={()=>setShowForm(v=>!v)} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
+              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&!["overview","reports"].includes(section)&&<button onClick={()=>setShowForm(v=>!v)} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
             {showForm&&fields.length>0&&<form onSubmit={onSubmit} className="mb-5 rounded-xl border bg-slate-50 p-4">
               <h3 className="mb-4 font-bold">Yeni kayıt oluştur</h3>
