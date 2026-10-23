@@ -54,6 +54,8 @@ function safe(fn: SafeHandler): RequestHandler {
   }); };
 }
 function deny(message: string): never { throw Object.assign(new Error(message), { status: 403 }); }
+function accountant(res: Response) { if (!["owner","manager","accountant"].includes(res.locals.dukkanRole)) deny("Muhasebe yetkisi gerekiyor"); }
+function manager(res: Response) { if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Mağaza yönetim yetkisi gerekiyor"); }
 function store(req: Request) { return id.parse(req.params.storeId); }
 function user(res: Response) { return Number(res.locals.dukkanUserId); }
 async function transaction<T>(cb: (c: PoolClient) => Promise<T>): Promise<T> {
@@ -141,11 +143,19 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     "cari-movements":"SELECT e.*,p.name AS party_name FROM dukkan_cari_entries e JOIN dukkan_parties p ON p.id=e.party_id AND p.store_id=e.store_id WHERE e.store_id=$1 ORDER BY e.id DESC LIMIT 500"
   };
   app.get("/api/dukkan/stores/:storeId/data/:resource",safe(async(req,res)=>{
-    const query=listQueries[req.params.resource];
+    const resource=req.params.resource;
+    const query=listQueries[resource];
     if (!query) return res.status(404).json({error:"Bölüm bulunamadı"});
-    const db=await ready(); const r=await db.query(query,[store(req)]);res.json(r.rows);
+    const cashier=res.locals.dukkanRole==="cashier";
+    if(cashier && ["banks","bank-movements","instruments","payments","cari-movements"].includes(resource))deny("Bu bölüm için muhasebe yetkisi gerekiyor");
+    const db=await ready();
+    const sql=cashier&&resource==="invoices"?query.replace("ORDER BY i.id DESC","AND i.kind IN (\'sale\',\'sale_return\') ORDER BY i.id DESC"):query;
+    const r=await db.query(sql,[store(req)]);
+    const rows=cashier&&resource==="products"?r.rows.map(({purchase_price,...rest})=>rest):cashier&&resource==="parties"?r.rows.map(({balance,...rest})=>rest):r.rows;
+    res.json(rows);
   }));
   app.get("/api/dukkan/stores/:storeId/report",safe(async(req,res)=>{
+    if(res.locals.dukkanRole==="cashier")deny("Rapor yetkisi gerekiyor");
     const db=await ready();const sid=store(req);
     const [sales,purchases,stock,receivables,banks,overdue]=await Promise.all([
       db.query("SELECT COALESCE(SUM(CASE WHEN kind='sale' THEN grand_total WHEN kind='sale_return' THEN -grand_total ELSE 0 END),0) AS total FROM dukkan_invoices WHERE store_id=$1",[sid]),
@@ -163,10 +173,12 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const db=await ready();const r=await db.query("INSERT INTO dukkan_parties(store_id,name,type,tax_number,phone,email) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",[store(req),p.name,p.type,p.taxNumber||null,p.phone||null,p.email||null]);res.status(201).json(r.rows[0]);
   }));
   app.post("/api/dukkan/stores/:storeId/products",safe(async(req,res)=>{
+    manager(res);
     const p=z.object({name:string,sku:string,barcode:z.string().trim().max(64).optional(),unit:z.string().max(20).default("adet"),purchasePrice:z.coerce.number().min(0).default(0),salePrice:z.coerce.number().min(0).default(0)}).parse(req.body);
     const db=await ready();const r=await db.query("INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,purchase_price,sale_price) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",[store(req),p.name,p.sku,p.barcode||null,p.unit,money(p.purchasePrice),money(p.salePrice)]);res.status(201).json(r.rows[0]);
   }));
   app.post("/api/dukkan/stores/:storeId/stock-movements",safe(async(req,res)=>{
+    manager(res);
     const p=z.object({productId:id,delta:z.coerce.number().finite().refine(v=>v!==0),note:z.string().max(500).optional()}).parse(req.body);
     const sid=store(req);
     const r=await transaction(async c=>{
@@ -178,7 +190,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.status(201).json(r);
   }));
   app.post("/api/dukkan/stores/:storeId/invoices",safe(async(req,res)=>{
-    const p=docSchema.parse(req.body);const sid=store(req);
+    const p=docSchema.parse(req.body);
+    if(p.kind!=="sale")accountant(res);const sid=store(req);
     const invoice=await transaction(async c=>{
       const duplicate=await c.query("SELECT * FROM dukkan_invoices WHERE store_id=$1 AND request_key=$2",[sid,p.requestKey]);
       if(duplicate.rowCount)return duplicate.rows[0];
@@ -209,7 +222,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.status(201).json(invoice);
   }));
   app.post("/api/dukkan/stores/:storeId/orders",safe(async(req,res)=>{
-    const p=orderSchema.parse(req.body);const sid=store(req);
+    const p=orderSchema.parse(req.body);
+    if(p.kind!=="sale")accountant(res);const sid=store(req);
     const result=await transaction(async c=>{
       await exists(c,"dukkan_parties",sid,p.partyId);
       const row=await c.query("INSERT INTO dukkan_orders(store_id,party_id,kind,order_no,created_by) VALUES($1,$2,$3,$4,$5) RETURNING *",[sid,p.partyId,p.kind,p.number,user(res)]);
@@ -218,11 +232,12 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     });res.status(201).json(result);
   }));
   app.post("/api/dukkan/stores/:storeId/banks",safe(async(req,res)=>{
+    accountant(res);
     const p=z.object({name:string,iban:z.string().max(34).optional()}).parse(req.body);
     const db=await ready();const r=await db.query("INSERT INTO dukkan_banks(store_id,name,iban) VALUES($1,$2,$3) RETURNING *",[store(req),p.name,p.iban||null]);res.status(201).json(r.rows[0]);
   }));
   app.post("/api/dukkan/stores/:storeId/bank-movements",safe(async(req,res)=>{
-    if(res.locals.dukkanRole==="cashier")deny("Banka hareketi için muhasebe yetkisi gerekir");
+    accountant(res);
     const p=z.object({bankId:id,type:z.enum(["deposit","withdrawal"]),amount, note:z.string().max(500).optional()}).parse(req.body);
     const sid=store(req);const result=await transaction(async c=>{
       await exists(c,"dukkan_banks",sid,p.bankId);
@@ -233,6 +248,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   app.post("/api/dukkan/stores/:storeId/payments",safe(async(req,res)=>{
     const p=z.object({partyId:id,direction:z.enum(["collection","payment"]),method:z.enum(["cash","bank"]),bankId:id.optional(),amount,note:z.string().max(500).optional()}).parse(req.body);
     if (p.method==="bank"&&!p.bankId) return res.status(400).json({error:"Banka seçmelisiniz"});
+    if(p.direction==="payment" || (res.locals.dukkanRole==="cashier" && p.method==="bank"))accountant(res);
     const sid=store(req);
     const result=await transaction(async c=>{
       await exists(c,"dukkan_parties",sid,p.partyId);
@@ -247,6 +263,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     });res.status(201).json(result);
   }));
   app.post("/api/dukkan/stores/:storeId/instruments",safe(async(req,res)=>{
+    accountant(res);
     const p=z.object({partyId:id,kind:z.enum(["cheque","promissory"]),direction:z.enum(["received","issued"]),number:string,amount,dueDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),note:z.string().max(500).optional()}).parse(req.body);
     const sid=store(req);
     const result=await transaction(async c=>{
@@ -255,7 +272,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     });res.status(201).json(result);
   }));
   app.patch("/api/dukkan/stores/:storeId/instruments/:instrumentId",safe(async(req,res)=>{
-    if(res.locals.dukkanRole==="cashier")deny("Çek/senet güncelleme yetkisi yok");
+    accountant(res);
     const p=z.object({status:z.enum(["pending","settled","bounced","cancelled"])}).parse(req.body);
     const db=await ready();
     const r=await db.query("UPDATE dukkan_instruments SET status=$3 WHERE store_id=$1 AND id=$2 AND status='pending' RETURNING *",[store(req),id.parse(req.params.instrumentId),p.status]);
