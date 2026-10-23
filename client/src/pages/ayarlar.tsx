@@ -544,7 +544,7 @@ function B2BMailSettings() {
 
   async function testMail() {
     const recipient = testRecipient.trim().toLowerCase();
-    if (!/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(recipient) || recipient.length > 254) {
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(recipient) || recipient.length > 254) {
       toast({title:"Geçerli bir alıcı e-posta adresi girin",variant:"destructive"});
       return;
     }
