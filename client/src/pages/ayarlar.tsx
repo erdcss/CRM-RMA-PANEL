@@ -4,6 +4,8 @@ import {
   Bell,
   CreditCard,
   Database,
+  Copy,
+  KeyRound,
   FileImage,
   Image as ImageIcon,
   Landmark,
@@ -20,6 +22,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { BrandingConfig } from "@/hooks/use-branding";
 import { emptyStoreLinks, type StoreLinks } from "@/components/b2b-footer";
@@ -178,6 +181,7 @@ export default function Ayarlar() {
             <TabsTrigger value="branding">Marka & Görseller</TabsTrigger>
             <TabsTrigger value="payments">Ödeme</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
+            <TabsTrigger value="apple-review">Apple İnceleme Hesabı</TabsTrigger>
           </TabsList>
 
           <TabsContent value="branding" className="space-y-6">
@@ -436,6 +440,10 @@ export default function Ayarlar() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="apple-review" className="space-y-6">
+            <AppleReviewAccountSettings />
+          </TabsContent>
+
           <TabsContent value="system" className="space-y-6">
             <Card>
               <CardHeader>
@@ -486,6 +494,100 @@ export default function Ayarlar() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+
+function AppleReviewAccountSettings() {
+  const { toast } = useToast();
+  const [email, setEmail] = useState("caliskanb2b.review@gmail.com");
+  const [busy, setBusy] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
+
+  async function reviewAction(mode: "create" | "reset") {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      toast({ title: "Geçerli bir e-posta girin", variant: "destructive" });
+      return;
+    }
+    if (mode === "reset" && !window.confirm("Mevcut Apple inceleme şifresi geçersiz olacak. Devam edilsin mi?")) return;
+
+    setBusy(true);
+    try {
+      const response = await fetch(mode === "create"
+        ? "/api/admin/b2b-review-account"
+        : "/api/admin/b2b-review-account/reset-password", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail }),
+      });
+      const result = await response.json().catch(() => ({})) as { email?: string; password?: string; error?: string };
+      if (!response.ok || !result.email || !result.password) {
+        throw new Error(result.error || "Apple inceleme hesabı işlemi tamamlanamadı");
+      }
+      setCredentials({ email: result.email, password: result.password });
+      setCreateDialogOpen(false);
+      toast({ title: mode === "create" ? "İnceleme hesabı oluşturuldu" : "İnceleme şifresi yenilendi",
+        description: "Giriş bilgileri yalnızca bu kez görüntülenir. App Store Connect'e kaydedin." });
+    } catch (error) {
+      toast({ title: "İşlem başarısız",
+        description: error instanceof Error ? error.message : "Lütfen tekrar deneyin",
+        variant: "destructive" });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />Apple App Store İnceleme Hesabı</CardTitle>
+          <CardDescription>
+            Apple inceleme ekibi için ayrı, yetkisiz B2B müşteri hesabı yönetin. Bu hesap firma üyelik başvurusu gerektirmez ve yönetici erişimi vermez.
+            Gerçek müşteri hesaplarının e-posta ile ilk şifre oluşturma sürecini etkilemez.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Button disabled={busy} variant="outline" onClick={() => void reviewAction("reset")}>Mevcut Hesabın Şifresini Yenile</Button>
+          <Button disabled={busy} onClick={() => setCreateDialogOpen(true)}>İnceleme Hesabı Oluştur</Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apple inceleme hesabı oluştur</DialogTitle>
+            <DialogDescription>İnceleme için ayrı bir e-posta girin. Başka bir kullanıcının hesabı etkilenmez.</DialogDescription>
+          </DialogHeader>
+          <label className="space-y-2 text-sm font-medium">
+            <span>İnceleme hesabı e-posta adresi</span>
+            <Input type="email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </label>
+          <Button disabled={busy || !email.includes("@")} onClick={() => void reviewAction("create")}>
+            {busy ? "Oluşturuluyor…" : "Hesabı Oluştur"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(credentials)} onOpenChange={(open) => { if (!open) setCredentials(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apple inceleme hesabı hazır</DialogTitle>
+            <DialogDescription>Giriş bilgilerini App Store Connect → App Review Information bölümüne kaydedin. Şifre pencere kapatıldıktan sonra gösterilmez.</DialogDescription>
+          </DialogHeader>
+          {credentials ? <div className="space-y-3">
+            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">E-posta</div><code className="break-all">{credentials.email}</code></div>
+            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Şifre</div><code className="break-all">{credentials.password}</code></div>
+            <Button onClick={() => {
+              void navigator.clipboard.writeText(`Username: ${credentials.email}\nPassword: ${credentials.password}`)
+                .then(() => toast({ title: "Giriş bilgileri kopyalandı" }))
+                .catch(() => toast({ title: "Kopyalama başarısız", variant: "destructive" }));
+            }}><Copy className="mr-2 h-4 w-4" />Giriş Bilgilerini Kopyala</Button>
+            <p className="text-xs text-muted-foreground">Bu şifreyi yalnızca Apple inceleme ekibiyle paylaşın.</p>
+          </div> : null}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

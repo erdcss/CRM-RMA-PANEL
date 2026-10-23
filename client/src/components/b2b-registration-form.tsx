@@ -68,6 +68,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [taxChecking, setTaxChecking] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [reapplied, setReapplied] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -169,7 +170,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
 
     setBusy(true);
     try {
-      await apiRequest("POST", "/api/b2b/register", {
+      const response = await apiRequest("POST", "/api/b2b/register", {
         companyName: companyName.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -177,6 +178,8 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         companyCategory,
         taxNumber,
       });
+      const result = await response.json() as { reapplied?: boolean };
+      setReapplied(result.reapplied === true);
       setDone(true);
       onCompleted?.();
     } catch (err) {
@@ -190,9 +193,9 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     return (
       <div className="px-6 py-10 text-center sm:px-8">
         <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-        <h2 className="mt-4 text-xl font-black">Başvurunuz alındı</h2>
+        <h2 className="mt-4 text-xl font-black">{reapplied ? "Yeniden başvurunuz alındı" : "Başvurunuz alındı"}</h2>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
-          Başvurunuz yönetici onayına gönderildi. Onaylandıktan sonra tek kullanımlık giriş şifreniz e-posta adresinize gönderilecektir.
+          {reapplied ? "Reddedilen önceki başvurunuz güncellenerek tekrar incelemeye gönderildi. " : ""}Yönetici onayından sonra tek kullanımlık giriş şifreniz e-posta adresinize gönderilecektir.
         </p>
       </div>
     );
