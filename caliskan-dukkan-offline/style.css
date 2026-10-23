@@ -1,4 +1,3 @@
-@import url('');
 :root{font-family:Inter,"Segoe UI",Arial,sans-serif;color:#182943;background:#f5f7fb;font-size:14px}
 *{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:wait;opacity:.55}
 .app{height:100vh;display:flex;min-width:1050px}.sidebar{width:255px;background:#122339;color:#d2deed;flex-shrink:0;display:flex;flex-direction:column}
