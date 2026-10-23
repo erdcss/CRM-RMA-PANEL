@@ -95,7 +95,7 @@ export function BusinessCustomerCenterScreen({
     tab==="addresses"?String(r.title||"Adres"):
     tab==="ledger"?String(r.contact_name||"Defter"):String(r.id);
   const recordDetail=(r:CenterRecord):string=>tab==="orders"?
-    §¤{r.item_count||0} ürün · ¤{r.payment_method||"Ödeme yöntemi belirtilmemiş"}§:
+    `${r.item_count||0} ürün · ${r.payment_method||"Ödeme yöntemi belirtilmemiş"}`:
     tab==="returns"?String(r.reason||"İade talebi"):
     tab==="addresses"?[r.recipient,r.phone,r.city,r.district,r.address_line,r.postal_code].filter(Boolean).join(" · "):
     tab==="ledger"?[statusName(r.type),r.description].filter(Boolean).join(" · "):
