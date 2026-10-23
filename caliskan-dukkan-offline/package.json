@@ -1,20 +1,22 @@
 {
   "name": "caliskan-dukkan-offline",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Çalışkan Dükkan - bağımsız çevrimdışı ön muhasebe",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
     "test": "node --test test.cjs",
-    "dist": "electron-builder --win nsis --x64"
+    "dist": "electron-builder --win nsis --x64",
+    "verify:package": "node verify-package.cjs"
   },
   "dependencies": {
     "sql.js": "^1.13.0"
   },
   "devDependencies": {
     "electron": "^33.4.11",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "@electron/asar": "^3.4.1"
   },
   "build": {
     "appId": "com.caliskan.dukkan.offline",
@@ -25,6 +27,8 @@
       "preload.cjs",
       "backend.cjs",
       "index.html",
+      "app.js",
+      "style.css",
       "package.json",
       "node_modules/sql.js/dist/**/*"
     ],
