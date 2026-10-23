@@ -1266,11 +1266,18 @@ async function getGoogleMailAccessToken(): Promise<string> {
   };
 
   if (!response.ok || !payload.access_token) {
-    const detail =
-      payload.error_description ||
-      payload.error ||
-      `HTTP ${response.status}`;
-    throw new Error(`Google Mail yetkilendirmesi başarısız: ${detail}`);
+    // Google OAuth commonly returns invalid_grant when an account revokes
+    // consent, a refresh token expires, or the OAuth app remains in Testing.
+    // Never log access tokens, client secrets or refresh tokens.
+    const oauthCode = String(payload.error || "").trim();
+    if (oauthCode === "invalid_grant" || (response.status === 400 && !oauthCode)) {
+      throw new Error("Google Gmail bağlantısının yetkisi sona ermiş veya iptal edilmiş. Yönetici yeni bir GOOGLE_GMAIL_REFRESH_TOKEN tanımlamalı ya da Resend e-posta servisini bağlamalı.");
+    }
+    if (oauthCode === "invalid_client") {
+      throw new Error("Google Gmail OAuth istemci bilgileri geçersiz. GOOGLE_GMAIL_CLIENT_ID ve GOOGLE_GMAIL_CLIENT_SECRET kontrol edilmeli.");
+    }
+    const safeCode = oauthCode && /^[a-z_]+$/.test(oauthCode) ? oauthCode : `HTTP ${response.status}`;
+    throw new Error(`Google Gmail yetkilendirmesi başarısız (${safeCode}). E-posta bağlantısını Ayarlar'dan test edin.`);
   }
 
   return payload.access_token;
@@ -1337,6 +1344,74 @@ async function sendViaGoogleMail(input: {
   }
 }
 
+type B2BMailProvider = "resend" | "gmail_api" | "webhook" | "gmail_smtp" | "none";
+type B2BMailMessage = { to: string; subject: string; text: string; html: string };
+
+let latestB2BMailAttempt: {
+  at: string; provider: B2BMailProvider; success: boolean; error?: string;
+} | null = null;
+
+function b2bMailProvider(): B2BMailProvider {
+  // Prefer authenticated HTTPS mail APIs on Railway. Raw SMTP egress is
+  // often blocked and a configured but revoked Google token must not
+  // override a healthy, verified Resend configuration.
+  if (process.env.RESEND_API_KEY?.trim() && process.env.B2B_MAIL_FROM?.trim()) return "resend";
+  if (process.env.GOOGLE_GMAIL_CLIENT_ID?.trim()
+    && process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim()
+    && process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim()
+    && process.env.GOOGLE_GMAIL_SENDER?.trim()) return "gmail_api";
+  if (process.env.B2B_MAIL_WEBHOOK_URL?.trim()) return "webhook";
+  if (process.env.GOOGLE_GMAIL_SENDER?.trim()
+    && process.env.GOOGLE_GMAIL_APP_PASSWORD?.replace(/\s+/g, "").trim()) return "gmail_smtp";
+  return "none";
+}
+
+async function dispatchB2BMail(input: B2BMailMessage): Promise<void> {
+  const provider = b2bMailProvider();
+  try {
+    if (provider === "resend") {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: \`Bearer \${process.env.RESEND_API_KEY!.trim()}\`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: process.env.B2B_MAIL_FROM!.trim(),
+          to: [input.to], subject: input.subject, text: input.text, html: input.html,
+        }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok) {
+        // Do not print provider responses containing mailbox or account details.
+        throw new Error(\`Resend e-posta gönderimi başarısız (HTTP \${response.status}). Gönderici alan adını ve RESEND_API_KEY yetkisini kontrol edin.\`);
+      }
+    } else if (provider === "gmail_api") {
+      await sendViaGoogleMail(input);
+    } else if (provider === "webhook") {
+      const response = await fetch(process.env.B2B_MAIL_WEBHOOK_URL!.trim(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok) throw new Error(\`E-posta webhook servisi HTTP \${response.status} yanıtı verdi.\`);
+    } else if (provider === "gmail_smtp") {
+      await sendViaGoogleSmtp(input);
+    } else {
+      throw new Error("E-posta servisi tanımlı değil. Ayarlar > E-posta Servisi bölümündeki kurulum adımlarını tamamlayın.");
+    }
+    latestB2BMailAttempt = { at: new Date().toISOString(), provider, success: true };
+  } catch (error) {
+    const safeMessage = normalizeMailError(error);
+    latestB2BMailAttempt = {
+      at: new Date().toISOString(), provider, success: false, error: safeMessage,
+    };
+    console.error("B2B mail delivery error", { provider, error: safeMessage });
+    throw new Error(safeMessage);
+  }
+}
+
 async function sendTemporaryPasswordEmail(input: {
   to: string;
   firstName?: string | null;
@@ -1381,83 +1456,7 @@ async function sendTemporaryPasswordEmail(input: {
     </div>
   `;
 
-  const gmailSmtpConfigured =
-    Boolean(process.env.GOOGLE_GMAIL_SENDER?.trim()) &&
-    Boolean(process.env.GOOGLE_GMAIL_APP_PASSWORD?.replace(/\s+/g, "").trim());
-
-  if (gmailSmtpConfigured) {
-    await sendViaGoogleSmtp({
-      to: input.to,
-      subject,
-      text,
-      html,
-    });
-    return;
-  }
-
-  const gmailOauthConfigured =
-    Boolean(process.env.GOOGLE_GMAIL_CLIENT_ID?.trim()) &&
-    Boolean(process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim()) &&
-    Boolean(process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim()) &&
-    Boolean(process.env.GOOGLE_GMAIL_SENDER?.trim());
-
-  if (gmailOauthConfigured) {
-    await sendViaGoogleMail({
-      to: input.to,
-      subject,
-      text,
-      html,
-    });
-    return;
-  }
-
-  const webhookUrl = process.env.B2B_MAIL_WEBHOOK_URL?.trim();
-  if (webhookUrl) {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: input.to,
-        subject,
-        text,
-        html,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) {
-      throw new Error(`E-posta servisi HTTP ${response.status}`);
-    }
-    return;
-  }
-
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.B2B_MAIL_FROM?.trim();
-  if (resendApiKey && from) {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [input.to],
-        subject,
-        text,
-        html,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!response.ok) {
-      const details = await response.text().catch(() => "");
-      console.error("Resend email failed:", response.status, details);
-      throw new Error("Tek kullanımlık şifre e-posta ile gönderilemedi");
-    }
-    return;
-  }
-
-  throw new Error("Google Mail bağlantısı henüz yapılandırılmamış");
+  await dispatchB2BMail({ to: input.to, subject, text, html });
 }
 
 async function initDatabase(): Promise<void> {
@@ -2310,6 +2309,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(applications);
   });
 
+  app.get("/api/admin/b2b-mail/status", requireAdmin, async (_req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    const provider = b2bMailProvider();
+    const missing: string[] = [];
+    if (provider === "none") {
+      missing.push("RESEND_API_KEY + B2B_MAIL_FROM veya geçerli Google Gmail OAuth bilgileri");
+    }
+    return res.json({
+      provider, configured: provider !== "none",
+      sender: provider === "resend" ? process.env.B2B_MAIL_FROM?.trim()
+        : provider.startsWith("gmail") ? process.env.GOOGLE_GMAIL_SENDER?.trim()
+        : null,
+      verification: latestB2BMailAttempt?.success === true ? "last_send_succeeded"
+        : latestB2BMailAttempt?.success === false ? "last_send_failed" : "not_tested_since_restart",
+      latestAttempt: latestB2BMailAttempt, missing,
+      guidance: provider === "gmail_api"
+        ? "Google bağlantısının geçerliliğini Test E-postası Gönder ile doğrulayın. invalid_grant hatasında Gmail OAuth yenileme anahtarını yeniden oluşturun veya Resend'i bağlayın."
+        : provider === "resend"
+          ? "RESEND_API_KEY ve doğrulanmış bir B2B_MAIL_FROM gönderen alan adı gerekir."
+          : "HTTPS üzerinden Resend veya Gmail API tercih edin; Railway SMTP çıkışı engellenebilir.",
+    });
+  });
+
+  // Sends only to the logged-in admin. Never accepts an arbitrary recipient,
+  // and never emails customer passwords. Throttled to prevent mailbox abuse.
+  const lastMailTest = new Map<number, number>();
+  app.post("/api/admin/b2b-mail/test", requireAdmin, async (req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    const id = sessionUserId(req);
+    if (!id) return res.status(401).json({ error: "Yönetici oturumu gerekli." });
+    const admin = await storage.getUser(id);
+    const recipient = String(admin?.email || admin?.username || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
+      return res.status(400).json({ error: "Yönetici hesabının geçerli e-posta adresi bulunmuyor." });
+    if (Date.now() - (lastMailTest.get(id) || 0) < 60000)
+      return res.status(429).json({ error: "Yeni bir e-posta testi için 60 saniye bekleyin." });
+    lastMailTest.set(id, Date.now());
+    try {
+      await dispatchB2BMail({
+        to: recipient,
+        subject: "Çalışkan B2B - E-posta Servisi Testi",
+        text: "Çalışkan B2B e-posta gönderim testi başarılı. Bu e-postada müşteri şifresi bulunmaz.",
+        html: "<p>Çalışkan B2B e-posta gönderim testi başarılı.</p><p>Bu e-postada müşteri şifresi bulunmaz.</p>",
+      });
+      return res.json({ ok: true, message: "Test e-postası yönetici hesabına gönderildi. Gelen Kutusu ve Spam klasörünü kontrol edin." });
+    } catch (error) {
+      return res.status(503).json({
+        error: normalizeMailError(error),
+        code: "MAIL_DELIVERY_UNAVAILABLE",
+      });
+    }
+  });
+
   app.post("/api/admin/b2b-applications/:id/approve", requireAdmin, async (req, res) => {
     const id = Number(req.params.id);
     const user = await storage.getUser(id);
@@ -2337,7 +2389,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("B2B approval email failed:", error);
       return res.status(502).json({
-        error: "Başvuru beklemede bırakıldı: tek kullanımlık şifre e-postası gönderilemedi. E-posta bağlantısını kontrol edip tekrar onaylayın.",
+        error: `Başvuru beklemede bırakıldı. ${normalizeMailError(error)}`,
+        code: "MAIL_DELIVERY_UNAVAILABLE",
+        settingsPath: "/ayarlar?tab=email",
       });
     }
 
