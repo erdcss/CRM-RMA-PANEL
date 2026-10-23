@@ -215,6 +215,7 @@ async function requireMarketplaceParticipant(req: Request, res: Response, next: 
   if(!id) return res.status(401).json({error:"Giriş yapmanız gerekiyor"});
   const user = await storage.getUser(id);
   if(!user || user.isActive !== 1 || !["b2b_customer","b2b_seller"].includes(user.role)) return res.status(403).json({error:"Marketplace hesabı gerekiyor"});
+  if(user.mustChangePassword===1)return res.status(403).json({error:"Önce ilk giriş şifrenizi oluşturun.",mustChangePassword:true});
   (res.locals as any).b2bUser=user;
   return next();
 }
@@ -226,6 +227,9 @@ async function requireB2B(req: Request, res: Response, next: NextFunction) {
   const user = await storage.getUser(userId);
   if (!user || user.isActive !== 1 || user.role !== "b2b_customer") {
     return res.status(403).json({ error: "Aktif B2B hesabı gerekiyor" });
+  }
+  if (user.mustChangePassword === 1) {
+    return res.status(403).json({ error: "İlk girişte yeni şifre belirlemeniz gerekiyor.", mustChangePassword: true });
   }
 
   (res.locals as any).b2bUser = user;
@@ -240,7 +244,8 @@ async function canViewB2BPrices(req: Request): Promise<boolean> {
   return Boolean(
     user &&
     user.isActive === 1 &&
-    user.role === "b2b_customer",
+    user.role === "b2b_customer" &&
+    user.mustChangePassword !== 1,
   );
 }
 
@@ -2108,14 +2113,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Vergi numarası geçersiz" });
     }
 
-    const existing = await storage.getUserByUsername(email);
-    if (existing) {
-      return res.status(409).json({ error: "Bu e-posta ile daha önce başvuru oluşturulmuş" });
+    const existing = (await storage.getUserByUsername(email)) || (await storage.getUserByEmail(email));
+    const reapplication = existing?.role === "b2b_customer"
+      && existing.applicationStatus === "rejected"
+      && existing.isActive === 0 && existing.taxNumber === taxNumber
+      ? existing : null;
+    if (existing && !reapplication) {
+      return res.status(409).json({ error: "Bu e-postaya ait bekleyen/onaylı başvuru var veya bilgiler önceki reddedilen başvuruyla eşleşmiyor." });
     }
 
     const allUsers = await storage.listUsers();
-    if (allUsers.some((user) => user.taxNumber === taxNumber)) {
-      return res.status(409).json({ error: "Bu vergi numarasıyla daha önce başvuru oluşturulmuş" });
+    if (allUsers.some((user) => user.taxNumber === taxNumber && user.id !== reapplication?.id)) {
+      return res.status(409).json({ error: "Bu vergi numarası farklı bir hesaba kayıtlı. Destek ekibiyle iletişime geçin." });
     }
 
     let taxLookup: TaxLookupResult = {
@@ -2135,6 +2144,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
+      // Reuse a rejected, inactive record; never duplicate or auto-approve.
+      if (reapplication) {
+        const user = await storage.updateUser(reapplication.id, {
+          username: email, email,
+          password: hashPassword(randomBytes(32).toString("hex")),
+          companyName: taxLookup.companyName || companyName,
+          firstName, lastName, companyCategory, taxNumber,
+          taxOffice: taxLookup.taxOffice || null,
+          taxVerified: taxLookup.verified && taxLookup.taxOffice ? 1 : 0,
+          isActive: 0, applicationStatus: "pending", mustChangePassword: 0,
+          approvedAt: null, credentialsSentAt: null,
+        });
+        if (!user) return res.status(404).json({ error: "Önceki başvuru bulunamadı." });
+        return res.status(201).json({
+          id: user.id, username: user.username, status: "pending", reapplied: true,
+          taxVerified: user.taxVerified === 1, taxOffice: user.taxOffice,
+          message: "Yeniden başvurunuz alındı. Yönetici onayından sonra tek kullanımlık şifreniz e-posta ile gönderilecektir.",
+        });
+      }
       const user = await storage.createUser({
         username: email,
         password: hashPassword(randomBytes(32).toString("hex")),
@@ -2258,14 +2286,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user || user.role !== "b2b_customer") {
       return res.status(404).json({ error: "Başvuru bulunamadı" });
     }
+    if (user.applicationStatus !== "pending" || user.isActive !== 0) {
+      return res.status(409).json({ error: "Yalnızca bekleyen firma başvuruları onaylanabilir." });
+    }
     if (!user.email) {
       return res.status(400).json({ error: "Başvuruda e-posta adresi bulunmuyor" });
     }
-    if (user.applicationStatus === "rejected") {
-      return res.status(409).json({ error: "Reddedilmiş başvuru doğrudan onaylanamaz" });
-    }
 
     const temporaryPassword = generateTemporaryPassword();
+    // Email delivery must succeed before account activation; never expose a
+    // customer password to the admin browser when mail is unavailable.
+    try {
+      await sendTemporaryPasswordEmail({
+        to: user.email,
+        firstName: user.firstName,
+        companyName: user.companyName,
+        temporaryPassword,
+        reason: "approval",
+      });
+    } catch (error) {
+      console.error("B2B approval email failed:", error);
+      return res.status(502).json({
+        error: "Başvuru beklemede bırakıldı: tek kullanımlık şifre e-postası gönderilemedi. E-posta bağlantısını kontrol edip tekrar onaylayın.",
+      });
+    }
 
     const updated = await storage.updateUser(id, {
       password: hashPassword(temporaryPassword),
@@ -2273,51 +2317,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       applicationStatus: "approved",
       mustChangePassword: 1,
       approvedAt: new Date(),
-      credentialsSentAt: null,
+      credentialsSentAt: new Date(),
     });
-
     if (!updated) {
-      return res.status(404).json({ error: "Başvuru bulunamadı" });
+      return res.status(500).json({ error: "E-posta gönderildi fakat hesap etkinleştirilemedi. Yönetici desteği gerekiyor." });
     }
-
-    let emailSent = false;
-    let emailError: string | null = null;
-
-    try {
-      await sendTemporaryPasswordEmail({
-        to: user.email,
-        firstName: user.firstName,
-        companyName: user.companyName,
-        temporaryPassword,
-      });
-
-      emailSent = true;
-      await storage.updateUser(id, {
-        credentialsSentAt: new Date(),
-      });
-    } catch (error) {
-      emailError =
-        error instanceof Error
-          ? error.message
-          : "Tek kullanımlık şifre e-posta ile gönderilemedi";
-      console.error("B2B temporary password email failed after approval:", error);
-    }
-
     void notifyB2BEvent(id, "membership_approved", {}, `membership_approved:${id}`)
       .catch(error => console.error("Membership approval notification", error));
-
     const { password, ...safeUser } = updated;
+    res.setHeader("Cache-Control", "no-store");
     return res.json({
       ...safeUser,
-      isActive: true,
-      taxVerified: safeUser.taxVerified === 1,
-      mustChangePassword: true,
-      emailSent,
-      emailError,
-      temporaryPassword: emailSent ? undefined : temporaryPassword,
-      message: emailSent
-        ? "Başvuru onaylandı ve tek kullanımlık şifre e-posta ile gönderildi."
-        : "Başvuru onaylandı. E-posta servisi hazır olmadığı için tek kullanımlık şifre yöneticiye gösterildi.",
+      isActive: true, taxVerified: safeUser.taxVerified === 1,
+      mustChangePassword: true, emailSent: true,
+      message: "Başvuru onaylandı. Tek kullanımlık şifre e-postayla gönderildi. İlk girişte yeni şifre zorunludur.",
     });
   });
 
@@ -2326,6 +2339,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await storage.getUser(id);
     if (!user || user.role !== "b2b_customer") {
       return res.status(404).json({ error: "Başvuru bulunamadı" });
+    }
+
+    if (user.applicationStatus !== "pending") {
+      return res.status(409).json({ error: "Yalnızca bekleyen başvurular reddedilebilir." });
     }
 
     const updated = await storage.updateUser(id, {
@@ -2354,8 +2371,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user || user.role !== "b2b_customer") {
       return res.status(404).json({ error: "Başvuru bulunamadı" });
     }
-    if (user.applicationStatus !== "approved" || user.isActive !== 1 || !user.email) {
-      return res.status(409).json({ error: "Yalnızca onaylı ve aktif hesaplara yeni tek kullanımlık şifre gönderilebilir" });
+    if (user.applicationStatus !== "approved" || user.isActive !== 1 || !user.email || user.mustChangePassword !== 1) {
+      return res.status(409).json({ error: "Tek kullanımlık şifre yalnızca henüz ilk şifresini belirlememiş hesaplara yeniden gönderilebilir. Diğer kullanıcılar Şifremi Unuttum akışını kullanmalıdır." });
     }
 
     const temporaryPassword = generateTemporaryPassword();
