@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
@@ -523,6 +523,7 @@ type B2BMailStatus = {
 function B2BMailSettings() {
   const { toast } = useToast();
   const [sendingTest,setSendingTest] = useState(false);
+  const [testRecipient,setTestRecipient] = useState("");
   const {data,refetch,isLoading,error}=useQuery<B2BMailStatus>({
     queryKey:["/api/admin/b2b-mail/status"],
     retry:false,
@@ -533,10 +534,23 @@ function B2BMailSettings() {
       return b as B2BMailStatus;
     },
   });
+  // Gmail can safely prefill the already configured mailbox; users can
+  // change the destination when the super-admin login has no email.
+  useEffect(() => {
+    if (data?.provider === "gmail_api" && data.sender) {
+      setTestRecipient(current => current || data.sender || "");
+    }
+  }, [data?.provider, data?.sender]);
+
   async function testMail() {
+    const recipient = testRecipient.trim().toLowerCase();
+    if (!/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(recipient) || recipient.length > 254) {
+      toast({title:"Geçerli bir alıcı e-posta adresi girin",variant:"destructive"});
+      return;
+    }
     setSendingTest(true);
     try {
-      const r=await fetch("/api/admin/b2b-mail/test",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}});
+      const r=await fetch("/api/admin/b2b-mail/test",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({recipient})});
       const b=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(b.error||"Test e-postası gönderilemedi.");
       toast({title:"E-posta servisi yanıt verdi",description:b.message||"Test gönderimi kabul edildi."});
@@ -587,9 +601,20 @@ function B2BMailSettings() {
           {data?.guidance?<p className="text-sm leading-6 text-muted-foreground">{data.guidance}</p>:null}
           {data?.missing?.length?<p className="text-sm text-destructive">Eksik: {data.missing.join(", ")}</p>:null}
         </div>}
+      <div className="max-w-md space-y-2">
+        <Label htmlFor="b2b-mail-test-recipient">Test e-postasının gönderileceği adres</Label>
+        <Input id="b2b-mail-test-recipient" type="email" value={testRecipient}
+          maxLength={254} autoComplete="email" placeholder="ornek@firma.com"
+          onChange={event=>setTestRecipient(event.target.value)} />
+        <p className="text-xs text-muted-foreground">
+          Yönetici hesabının e-posta adresi kayıtlı olmasa da test yapabilirsiniz.
+          Test mesajı şifre veya müşteri bilgisi içermez.
+        </p>
+      </div>
       <div className="flex flex-wrap gap-2">
-        <Button disabled={sendingTest||isLoading||!data?.configured} onClick={()=>void testMail()}>
-          <Mail className="mr-2 h-4 w-4"/>{sendingTest?"Test gönderiliyor…":"Yönetici E-postasına Test Gönder"}
+        <Button disabled={sendingTest||isLoading||!data?.configured||!testRecipient.trim()}
+          onClick={()=>void testMail()}>
+          <Mail className="mr-2 h-4 w-4"/>{sendingTest?"Test gönderiliyor…":"Belirtilen Adrese Test Gönder"}
         </Button>
         <Button variant="outline" onClick={()=>void refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Durumu Yenile</Button>
       </div>

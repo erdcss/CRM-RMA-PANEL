@@ -2339,10 +2339,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader("Cache-Control", "private, no-store");
     const id = sessionUserId(req);
     if (!id) return res.status(401).json({ error: "Yönetici oturumu gerekli." });
-    const admin = await storage.getUser(id);
-    const recipient = String(admin?.email || admin?.username || "").trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient))
-      return res.status(400).json({ error: "Yönetici hesabının geçerli e-posta adresi bulunmuyor." });
+    // The super-admin login name is not necessarily a mailbox.
+    // Let an authenticated administrator choose the test destination;
+    // unlike customer onboarding this message never contains credentials.
+    const recipient = typeof req.body?.recipient === "string"
+      ? req.body.recipient.trim().toLowerCase() : "";
+    if (!recipient || recipient.length > 254
+        || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(recipient)) {
+      return res.status(400).json({
+        error: "Test için geçerli bir alıcı e-posta adresi girin.",
+      });
+    }
     if (Date.now() - (lastMailTest.get(id) || 0) < 60000)
       return res.status(429).json({ error: "Yeni bir e-posta testi için 60 saniye bekleyin." });
     lastMailTest.set(id, Date.now());
@@ -2353,7 +2360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         text: "Çalışkan B2B e-posta gönderim testi başarılı. Bu e-postada müşteri şifresi bulunmaz.",
         html: "<p>Çalışkan B2B e-posta gönderim testi başarılı.</p><p>Bu e-postada müşteri şifresi bulunmaz.</p>",
       });
-      return res.json({ ok: true, message: "Test e-postası yönetici hesabına gönderildi. Gelen Kutusu ve Spam klasörünü kontrol edin." });
+      return res.json({ ok: true, message: "Test gönderimi e-posta sağlayıcısı tarafından kabul edildi. Gelen Kutusu ve Spam klasörünü kontrol edin." });
     } catch (error) {
       return res.status(503).json({
         error: normalizeMailError(error),
