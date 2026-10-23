@@ -1,0 +1,38 @@
+name: Caliskan Business - B2B Applications & Customer Center
+on:
+  push:
+    paths:
+      - 'business-mobile/App.tsx'
+      - 'business-mobile/types.ts'
+      - 'business-mobile/screens/MoreScreen.tsx'
+      - 'business-mobile/screens/CustomersScreen.tsx'
+      - 'business-mobile/screens/BusinessApplicationsScreen.tsx'
+      - 'business-mobile/screens/BusinessCustomerCenterScreen.tsx'
+      - 'business-mobile/lib/b2b-customer-center.ts'
+      - '.github/workflows/business-b2b-applications-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  typecheck:
+    name: Business Mobil TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: business-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: TypeScript compile check
+        run: npx tsc --noEmit --project tsconfig.json
+      - name: Export mobile web bundle
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: npm run build:web
