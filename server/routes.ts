@@ -10,6 +10,7 @@ import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
+import { registerDukkanRoutes } from "./dukkan";
 import {
   completeIyzico3DS,
   initializeIyzico3DS,
@@ -2577,6 +2578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
+  registerDukkanRoutes(app, sessionUserId);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
   registerB2BBankPaymentApproval(app, requireAdmin, sessionUserId);
   registerB2BShortageRoutes(app, requireB2B, sessionUserId, requireAdmin);
