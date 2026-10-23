@@ -112,6 +112,8 @@ const BRANDING_KEYS = [
   "b2b_mobile_login_background",
   "business_mobile_logo",
   "business_mobile_splash",
+  "dukkan_logo",
+  "dukkan_splash",
 ] as const;
 
 type BrandingKey = typeof BRANDING_KEYS[number];
@@ -404,6 +406,8 @@ async function brandingMap() {
     b2b_mobile_login_background: null,
     business_mobile_logo: null,
     business_mobile_splash: null,
+    dukkan_logo: null,
+    dukkan_splash: null,
   };
   if (!pool) return defaults;
 
@@ -842,6 +846,11 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           loginBackground: image(login),
           updatedAt: version,
         });
+      }
+
+      if (target === "dukkan") {
+        const refs = await brandingReferences();
+        return res.json({ logo: refs.dukkan_logo, splash: refs.dukkan_splash, appName: "Çalışkan Dükkan", updatedAt: Date.now() });
       }
 
       if (target === "business") {

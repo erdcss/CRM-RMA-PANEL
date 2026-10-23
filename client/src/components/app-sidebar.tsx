@@ -50,6 +50,7 @@ const rmaItems = [
 ];
 
 const standaloneItems = [
+  { title: "Çalışkan Dükkan", url: "/dukkan", icon: Store },
   { title: "Başvurular", url: "/basvurular", icon: ClipboardList },
   { title: "B2B Müşteriler", url: "/b2b-musteriler", icon: Users },
   { title: "Ödeme Ekranı", url: "/odeme-ekrani", icon: WalletCards },

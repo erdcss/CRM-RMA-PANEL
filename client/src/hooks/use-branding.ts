@@ -11,6 +11,8 @@ export type BrandingConfig = {
   b2b_mobile_login_background?: string | null;
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
+  dukkan_logo?: string | null;
+  dukkan_splash?: string | null;
 };
 
 async function fetchBranding(): Promise<BrandingConfig> {

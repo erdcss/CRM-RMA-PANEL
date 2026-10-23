@@ -36,6 +36,7 @@ import AdminCategoryEdit from "@/pages/admin-category-edit";
 import AdminPaymentSettingsPage from "@/pages/admin-payment-settings";
 import AdminReels from "@/pages/admin-reels";
 import AdminNotifications from "@/pages/admin-notifications";
+import Dukkan from "@/pages/dukkan";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
@@ -85,6 +86,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/pazaryeri" component={AdminMarketplace} />
+      <Route path="/dukkan" component={Dukkan} />
       <Route path="/kayitlar" component={Kayitlar} />
       <Route path="/kayit/:id" component={KayitDetay} />
       <Route path="/istatistikler" component={Istatistikler} />
@@ -139,7 +141,9 @@ function AppContent() {
 
   return (
     <>
-      {isLoading ? null : user && ["super_admin", "admin"].includes(user.role) ? (
+      {isLoading ? null : user && typeof window !== "undefined" && window.location.pathname.startsWith("/dukkan") && !["super_admin", "admin"].includes(user.role) ? (
+          <Dukkan />
+        ) : user && ["super_admin", "admin"].includes(user.role) ? (
           <SidebarProvider defaultOpen={true} style={style as React.CSSProperties}>
             <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
               <AppSidebar username={user.username} role={user.role} />
@@ -259,9 +263,10 @@ function BrandingRuntime() {
   useEffect(() => {
     const marketplace = isMarketplaceHost();
     const isB2B = isB2BHost() || marketplace;
-    const appName = marketplace ? "Çalışkan B2B | Tedarikçi Paneli" : isB2B ? "Çalışkan B2B" : "Çalışkan Core";
+    const isDukkan = typeof window !== "undefined" && window.location.pathname.startsWith("/dukkan");
+    const appName = isDukkan ? "Çalışkan Dükkan" : marketplace ? "Çalışkan B2B | Tedarikçi Paneli" : isB2B ? "Çalışkan B2B" : "Çalışkan Core";
     const iconEndpoint = `/api/public/branding-icon/${isB2B ? "b2b" : "admin"}?v=6`;
-    const uploadedFavicon = isB2B ? branding?.b2b_favicon : branding?.admin_favicon;
+    const uploadedFavicon = isDukkan ? branding?.dukkan_logo : isB2B ? branding?.b2b_favicon : branding?.admin_favicon;
 
     document.title = appName;
 
@@ -294,7 +299,7 @@ function BrandingRuntime() {
       document.head.appendChild(manifest);
     }
     manifest.href = `/manifest.webmanifest?v=6&app=${isB2B ? "b2b" : "admin"}`;
-  }, [branding?.admin_favicon, branding?.b2b_favicon]);
+  }, [branding?.admin_favicon, branding?.b2b_favicon, branding?.dukkan_logo]);
 
   return null;
 }
