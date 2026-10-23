@@ -1,0 +1,36 @@
+{
+  "name": "caliskan-dukkan-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Çalışkan Dükkan Windows desktop shell",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.caliskan.dukkan",
+    "productName": "Çalışkan Dükkan",
+    "files": [
+      "main.cjs",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Caliskan-Dukkan-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
