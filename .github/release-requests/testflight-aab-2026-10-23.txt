@@ -1,6 +1,6 @@
-Çalışkan Native Release - 23 Ekim 2026
-Kaynak commit: 007ac3ff3c3f5caf2762876b36f540645c4c3d8f
-Hedefler:
-- Çalışkan B2B: iOS TestFlight gönderimi ve Android AAB derlemesi
-- Çalışkan Business: iOS TestFlight gönderimi ve Android AAB derlemesi
-GitHub Actions güvenli tetikleyicisi; hiçbir gizli anahtar burada tutulmaz.
+Çalışkan B2B ve Business · iOS TestFlight + Android AAB yeniden başlatma
+Tetikleme: EXPO_TOKEN GitHub Actions Secret eklendikten sonra
+Kaynak revizyon: 6758c93321a39661ae48b18c4899107db404b50b
+Uygulamalar: B2B ve Business
+Platformlar: iOS TestFlight ve Android app-bundle
+Bu dosyada gizli anahtar bulunmaz.
