@@ -6,6 +6,10 @@ import {
   Database,
   Copy,
   KeyRound,
+  Mail,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
   FileImage,
   Image as ImageIcon,
   Landmark,
@@ -52,6 +56,10 @@ async function fetchPaymentSettings(): Promise<PaymentSettings> {
 export default function Ayarlar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "email"
+      ? "email" : "branding",
+  );
   const [footerDraft, setFooterDraft] = useState<Partial<StoreLinks>>({});
   const [savingFooter,setSavingFooter]=useState(false);
   const { data: footerSettings = emptyStoreLinks } = useQuery<StoreLinks>({ queryKey:["/api/admin/b2b-footer"],queryFn:async()=>{const r=await fetch("/api/admin/b2b-footer");if(!r.ok)throw new Error("Alt bilgi okunamadı");return r.json();} });
@@ -176,12 +184,13 @@ export default function Ayarlar() {
           </p>
         </div>
 
-        <Tabs defaultValue="branding" className="space-y-5">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="branding">Marka & Görseller</TabsTrigger>
             <TabsTrigger value="payments">Ödeme</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
             <TabsTrigger value="apple-review">Apple İnceleme Hesabı</TabsTrigger>
+            <TabsTrigger value="email">E-posta Servisi</TabsTrigger>
           </TabsList>
 
           <TabsContent value="branding" className="space-y-6">
@@ -443,6 +452,9 @@ export default function Ayarlar() {
           <TabsContent value="apple-review" className="space-y-6">
             <AppleReviewAccountSettings />
           </TabsContent>
+          <TabsContent value="email" className="space-y-6">
+            <B2BMailSettings />
+          </TabsContent>
 
           <TabsContent value="system" className="space-y-6">
             <Card>
@@ -497,6 +509,107 @@ export default function Ayarlar() {
   );
 }
 
+
+
+type B2BMailStatus = {
+  provider: "resend"|"gmail_api"|"webhook"|"gmail_smtp"|"none";
+  configured: boolean;
+  sender?: string|null;
+  verification: "last_send_succeeded"|"last_send_failed"|"not_tested_since_restart";
+  latestAttempt?: { at: string; provider: string; success: boolean; error?: string } | null;
+  missing?: string[];
+  guidance?: string;
+};
+function B2BMailSettings() {
+  const { toast } = useToast();
+  const [sendingTest,setSendingTest] = useState(false);
+  const {data,refetch,isLoading,error}=useQuery<B2BMailStatus>({
+    queryKey:["/api/admin/b2b-mail/status"],
+    retry:false,
+    queryFn:async()=>{
+      const r=await fetch("/api/admin/b2b-mail/status",{credentials:"include",cache:"no-store"});
+      const b=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(b.error||"E-posta durumu alınamadı.");
+      return b as B2BMailStatus;
+    },
+  });
+  async function testMail() {
+    setSendingTest(true);
+    try {
+      const r=await fetch("/api/admin/b2b-mail/test",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}});
+      const b=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(b.error||"Test e-postası gönderilemedi.");
+      toast({title:"E-posta servisi yanıt verdi",description:b.message||"Test gönderimi kabul edildi."});
+    }catch(e){
+      toast({title:"E-posta bağlantısı çalışmıyor",
+        description:e instanceof Error?e.message:"Tekrar deneyin.",
+        variant:"destructive"});
+    }finally{
+      await refetch();
+      setSendingTest(false);
+    }
+  }
+  const providerLabel={
+    resend:"Resend (HTTPS API)",
+    gmail_api:"Google Gmail API (OAuth)",
+    webhook:"E-posta webhook",
+    gmail_smtp:"Gmail SMTP (Railway üzerinde önerilmez)",
+    none:"E-posta sağlayıcısı bulunamadı",
+  }[data?.provider||"none"];
+  const statusBad=!data?.configured||data?.verification==="last_send_failed";
+  return <Card>
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5"/>B2B E-posta Gönderim Merkezi</CardTitle>
+      <CardDescription>
+        Firma başvurusu onaylandığında tek kullanımlık giriş şifresi gönderilir.
+        Şifre e-postası gönderilemezse başvuru beklemede kalır; kullanıcıya erişim açılmaz.
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-5">
+      {isLoading?<p className="text-sm text-muted-foreground">E-posta servisi kontrol ediliyor…</p>:
+        error?<p className="text-sm text-destructive">{error instanceof Error?error.message:"Durum kontrolü başarısız"}</p>:
+        <div className="space-y-3 rounded-xl border p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {statusBad?<AlertTriangle className="h-5 w-5 text-amber-600"/>:
+              data?.verification==="last_send_succeeded"?<CheckCircle2 className="h-5 w-5 text-emerald-600"/>:
+                <Mail className="h-5 w-5"/>}
+            <span className="font-semibold">{providerLabel}</span>
+            <span className="text-xs text-muted-foreground">
+              {statusBad?"Bağlantı düzeltmesi gerekli":data?.verification==="last_send_succeeded"
+                ?"Son gönderim kabul edildi":"Kurulu / canlı test henüz yapılmadı"}
+            </span>
+          </div>
+          <div className="text-sm text-muted-foreground">Gönderici: <strong>{data?.sender||"Tanımlanmamış"}</strong></div>
+          {data?.latestAttempt?<div className="text-sm">
+            <p>Son deneme: {new Date(data.latestAttempt.at).toLocaleString("tr-TR")} · {data.latestAttempt.success?"Başarılı":"Başarısız"}</p>
+            {data.latestAttempt.error?<p className="mt-1 text-destructive">{data.latestAttempt.error}</p>:null}
+          </div>:null}
+          {data?.guidance?<p className="text-sm leading-6 text-muted-foreground">{data.guidance}</p>:null}
+          {data?.missing?.length?<p className="text-sm text-destructive">Eksik: {data.missing.join(", ")}</p>:null}
+        </div>}
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={sendingTest||isLoading||!data?.configured} onClick={()=>void testMail()}>
+          <Mail className="mr-2 h-4 w-4"/>{sendingTest?"Test gönderiliyor…":"Yönetici E-postasına Test Gönder"}
+        </Button>
+        <Button variant="outline" onClick={()=>void refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Durumu Yenile</Button>
+      </div>
+      <div className="space-y-3 rounded-xl border bg-muted/15 p-4 text-sm leading-6">
+        <p className="font-semibold">Gmail yetkilendirmesi geçersizse iki çözüm bulunur:</p>
+        <p><strong>1. Gmail hesabını yeniden yetkilendirme:</strong> Aynı OAuth istemcisinden yeni bir refresh token
+          alın ve Railway CRM-RMA-PANEL servisindeki <code>GOOGLE_GMAIL_REFRESH_TOKEN</code> değişkenini yenileyin.
+          <code> gmail.send</code> izni ve Gmail API etkin olmalıdır.</p>
+        <p><strong>2. Resend ile gönderim:</strong> Gönderici alan adını doğrulayın.
+          Railway CRM-RMA-PANEL servisinde <code>RESEND_API_KEY</code> ve doğrulanmış
+          <code> B2B_MAIL_FROM</code> değerlerini tanımlayın.
+          Geçerli Resend yapılandırması Gmail yerine öncelikli kullanılır.</p>
+        <p className="text-muted-foreground">
+          Değişkenleri yalnızca Railway’in gizli değişkenler alanında saklayın; bu ekrana veya sohbete API anahtarı yapıştırmayın.
+          Kaydettikten sonra test gönderimini doğrulayın ve bekleyen firma başvurusunu yeniden onaylayın.
+        </p>
+      </div>
+    </CardContent>
+  </Card>;
+}
 
 function AppleReviewAccountSettings() {
   const { toast } = useToast();
