@@ -120,11 +120,11 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
 
   app.post("/api/dukkan/stores/:storeId/members",safe(async(req,res)=>{
     if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Üye ekleme yetkiniz yok");
-    const p=z.object({userId:id,role:z.enum(["manager","accountant","cashier","viewer"])}).parse(req.body);
+    const p=z.object({userId:id.optional(),username:z.string().trim().min(1).max(254).optional(),role:z.enum(["manager","accountant","cashier","viewer"])}).refine(v=>Boolean(v.userId||v.username),"Kullanıcı seçiniz").parse(req.body);
     const db=await ready();
-    const existsUser=await storage.getUser(p.userId);
+    const existsUser=p.userId?await storage.getUser(p.userId):await storage.getUserByUsername(p.username||"");
     if(!existsUser || existsUser.isActive!==1) return res.status(404).json({error:"Aktif kullanıcı bulunamadı"});
-    await db.query("INSERT INTO dukkan_members(store_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(store_id,user_id) DO UPDATE SET role=EXCLUDED.role WHERE dukkan_members.role<>'owner'",[store(req),p.userId,p.role]);
+    await db.query("INSERT INTO dukkan_members(store_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(store_id,user_id) DO UPDATE SET role=EXCLUDED.role WHERE dukkan_members.role<>'owner'",[store(req),existsUser.id,p.role]);
     res.status(201).json({ok:true});
   }));
   app.get("/api/dukkan/stores/:storeId/members",safe(async(req,res)=>{
