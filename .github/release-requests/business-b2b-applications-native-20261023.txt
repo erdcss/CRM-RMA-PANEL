@@ -1,0 +1,5 @@
+Çalışkan Business 23.10.2026 mobil başvuru ve müşteri dashboard sürümü
+Kaynak SHA: c41d6d24716d8534374ffaedabf4b9609c577e78
+TestFlight (iOS) + Android AAB EAS derlemeleri için tetikleyici.
+Başvurular, firma detayları, e-posta şifresi onay akışı, müşteri dashboard ve hareket kayıtları.
+B2B uygulamasının build'i değiştirilmeyecek.
