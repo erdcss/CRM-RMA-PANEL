@@ -35,7 +35,8 @@ export function MoreScreen({
       <MenuCard title="Destek Merkezi" subtitle="Müşteri talepleri ve mesajlar" onPress={onSupport} />
       <MenuCard title="İade İşlemleri" subtitle="İade ve onay süreçleri" onPress={() => onModule("iade-islemleri")} />
       <MenuCard title="Stok Durumu" subtitle="Kritik stok ve ürün kontrolü" onPress={() => onModule("stok-durumu")} />
-      <MenuCard title="Başvurular" subtitle="B2B müşteri başvuruları" onPress={() => onModule("basvurular")} />
+      <MenuCard title="Başvurular" subtitle="Firma bilgileri, inceleme, onay ve ret işlemleri" onPress={() => onModule("basvurular")} />
+      <MenuCard title="B2B Müşteriler" subtitle="Onaylı firmalar, dashboard ve tüm hareketler" onPress={() => onModule("b2b-musteriler")} />
 
       <SectionTitle title="Yönetim" />
       <MenuCard title="Ayarlar" subtitle="Marka, logo ve uygulama ayarları" onPress={() => onModule("ayarlar")} />

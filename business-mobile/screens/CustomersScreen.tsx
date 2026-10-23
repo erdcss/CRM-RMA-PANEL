@@ -34,8 +34,11 @@ export function CustomersScreen({
     try {
       const result = await apiFetch<B2BCustomer[]>("/api/admin/b2b-customers");
       const rows = Array.isArray(result) ? result : [];
-      setCustomers(rows);
-      if (!expanded && rows[0]?.id !== undefined) setExpanded(String(rows[0].id));
+      const approved = rows.filter(customer =>
+        customer.application_status === "approved" &&
+        (customer.is_active === true || customer.is_active === 1));
+      setCustomers(approved);
+      if (!expanded && approved[0]?.id !== undefined) setExpanded(String(approved[0].id));
     } catch (error) {
       setError(error instanceof Error ? error.message : "Müşteriler alınamadı");
     } finally {

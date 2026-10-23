@@ -11,12 +11,14 @@ import { GlassTabBar } from "./components/GlassTabBar";
 import { signOut, type BusinessAuthUser } from "./lib/auth";
 import { useMobileBranding } from "./lib/branding";
 import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
-import { CustomerDetailScreen } from "./screens/CustomerDetailScreen";
+
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { LoginScreen } from "./screens/LoginScreen";
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
 import { ModuleScreen } from "./screens/ModuleScreen";
+import { BusinessApplicationsScreen } from "./screens/BusinessApplicationsScreen";
+import { BusinessCustomerCenterScreen } from "./screens/BusinessCustomerCenterScreen";
 import { MoreScreen } from "./screens/MoreScreen";
 import { OrderDetailScreen } from "./screens/OrderDetailScreen";
 import { OrdersScreen } from "./screens/OrdersScreen";
@@ -58,6 +60,12 @@ export default function App() {
     });
     return () => subscription.remove();
   }, [user?.role]);
+
+  const openModule = (slug: string) => {
+    if (slug === "basvurular") setScreen({ name: "applications" });
+    else if (slug === "b2b-musteriler") setScreen({ name: "customers" });
+    else setScreen({ name: "module", slug });
+  };
 
   const openTab = (tab: MainTab) => {
     if (tab === "dashboard") setScreen({ name: "dashboard" });
@@ -105,7 +113,7 @@ export default function App() {
               onSupport={() => setScreen({ name: "support" })}
               onProducts={() => setScreen({ name: "products" })}
               onCustomers={() => setScreen({ name: "customers" })}
-              onModule={(slug) => setScreen({ name: "module", slug })}
+              onModule={openModule}
             />
           </AdminShell>
         ) : screen.name === "orders" ? (
@@ -149,9 +157,27 @@ export default function App() {
           </AdminShell>
         ) : screen.name === "customerDetail" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
-            <CustomerDetailScreen
+            <BusinessCustomerCenterScreen
               id={screen.id}
+              mode="customer"
               onBack={() => setScreen({ name: "customers" })}
+            />
+          </SafeAreaView>
+        ) : screen.name === "applications" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <BusinessApplicationsScreen
+              onBack={() => setScreen({ name: "more" })}
+              onOpenApplication={(id) => setScreen({ name: "applicationDetail", id })}
+              onOpenCustomer={() => setScreen({ name: "customers" })}
+            />
+          </SafeAreaView>
+        ) : screen.name === "applicationDetail" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <BusinessCustomerCenterScreen
+              id={screen.id}
+              mode="application"
+              onBack={() => setScreen({ name: "applications" })}
+              onOpenCustomer={(id) => setScreen({ name: "customerDetail", id })}
             />
           </SafeAreaView>
         ) : screen.name === "support" ? (
@@ -164,7 +190,7 @@ export default function App() {
               user={user}
               onSupport={() => setScreen({ name: "support" })}
               onMarketplace={() => setScreen({ name: "marketplace" })}
-              onModule={(slug) => setScreen({ name: "module", slug })}
+              onModule={openModule}
               onLogout={async () => {
                 await unregisterBusinessPush();
                 await signOut();

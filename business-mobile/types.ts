@@ -10,6 +10,8 @@ export type Screen =
   | { name: "productAdd" }
   | { name: "aiProductStudio"; mode: "super_admin" | "supplier" }
   | { name: "customers" }
+  | { name: "applications" }
+  | { name: "applicationDetail"; id: string }
   | { name: "customerDetail"; id: string }
   | { name: "support" }
   | { name: "more" }
