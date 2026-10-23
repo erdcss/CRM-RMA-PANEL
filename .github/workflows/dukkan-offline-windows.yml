@@ -24,6 +24,9 @@ jobs:
           node-version: "22"
       - name: Bağımlılıkları kur
         run: npm install --no-audit --no-fund
+      - name: JavaScript syntax kontrolü
+        run: node --check backend.cjs && node --check app.js && node --check main.cjs && node --check preload.cjs
+        shell: bash
       - name: Yerel muhasebe bütünlük testleri
         run: npm test
       - name: Windows kurulum dosyası oluştur
