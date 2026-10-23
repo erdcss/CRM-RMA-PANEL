@@ -1,0 +1,4 @@
+Çalışkan B2B iOS 1.1.0 TestFlight hedefli yeniden gönderim.
+Önceki deneme: https://github.com/erdcss/CRM-RMA-PANEL/actions/runs/39955183772
+Neden: App Store Connect, 1.0.1 versiyonunu yeni gönderimlere kapattı.
+Yalnızca B2B iOS derlenecek; başarılı AAB ve Business sürümleri tekrar derlenmeyecek.
