@@ -51,6 +51,19 @@
         "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
       },
       "environment": "production"
+    },
+    "android-aab": {
+      "extends": "production",
+      "distribution": "store",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EAS_NO_VCS": "1",
+        "EXPO_PUBLIC_API_URL": "https://admin.ecalisgan.com"
+      },
+      "environment": "production"
     }
   },
   "submit": {

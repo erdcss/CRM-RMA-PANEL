@@ -1,0 +1,179 @@
+name: Çalışkan B2B + Business - TestFlight ve AAB
+# Güvenli, isteğe bağlı sürüm: yeni kod push'larında otomatik App Store dağıtımı yok.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/release-requests/testflight-aab-2026-10-23.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-native-release
+  cancel-in-progress: false
+
+jobs:
+  credentials:
+    name: Expo erişimini doğrula
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify EXPO_TOKEN is configured (never log its value)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=Expo yetkilendirme eksik::GitHub Actions için EXPO_TOKEN secret ekleyin. Expo Settings > Access Tokens bölümünden oluşturun. Secret değerini kod veya sohbet içine yazmayın."
+            exit 1
+          fi
+          echo "Expo token tanımlı."
+
+  testflight-b2b:
+    name: B2B iOS derle ve TestFlight'a gönder
+    needs: credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Üretim sürümünü ve güncel splash görsellerini hazırla
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          npm run typecheck
+      - name: Expo erişimi
+        run: eas whoami
+      - name: iOS TestFlight paketi
+        run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
+      - name: TestFlight'a gönder
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
+
+  testflight-business:
+    name: Business iOS derle ve TestFlight'a gönder
+    needs: credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Yeni Business logo/splash varlıklarını paketle
+        run: npm run sync:branding
+      - name: Expo erişimi
+        run: eas whoami
+      - name: iOS TestFlight paketi
+        run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
+      - name: TestFlight'a gönder
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
+
+  aab-b2b:
+    name: B2B Android AAB derle
+    needs: credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Son kod ve görselleri doğrula
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          npm run typecheck
+      - name: Expo erişimi
+        run: eas whoami
+      - name: Google Play AAB paketi
+        run: eas build --platform android --profile android-aab --non-interactive --clear-cache --wait
+      - name: Paketin bulunduğu yer
+        run: |
+          echo "AAB dosyası Expo EAS Builds ekranından indirilebilir." >> "$GITHUB_STEP_SUMMARY"
+
+  aab-business:
+    name: Business Android AAB derle
+    needs: credentials
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Son Business logo/splash görsellerini paketle
+        run: npm run sync:branding
+      - name: Expo erişimi
+        run: eas whoami
+      - name: Google Play AAB paketi
+        run: eas build --platform android --profile android-aab --non-interactive --clear-cache --wait
+      - name: Paketin bulunduğu yer
+        run: |
+          echo "AAB dosyası Expo EAS Builds ekranından indirilebilir." >> "$GITHUB_STEP_SUMMARY"
