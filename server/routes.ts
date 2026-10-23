@@ -1373,7 +1373,7 @@ async function dispatchB2BMail(input: B2BMailMessage): Promise<void> {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          Authorization: \`Bearer \${process.env.RESEND_API_KEY!.trim()}\`,
+          Authorization: `Bearer ${process.env.RESEND_API_KEY!.trim()}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -1384,7 +1384,7 @@ async function dispatchB2BMail(input: B2BMailMessage): Promise<void> {
       });
       if (!response.ok) {
         // Do not print provider responses containing mailbox or account details.
-        throw new Error(\`Resend e-posta gönderimi başarısız (HTTP \${response.status}). Gönderici alan adını ve RESEND_API_KEY yetkisini kontrol edin.\`);
+        throw new Error(`Resend e-posta gönderimi başarısız (HTTP ${response.status}). Gönderici alan adını ve RESEND_API_KEY yetkisini kontrol edin.`);
       }
     } else if (provider === "gmail_api") {
       await sendViaGoogleMail(input);
@@ -1395,7 +1395,7 @@ async function dispatchB2BMail(input: B2BMailMessage): Promise<void> {
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(12000),
       });
-      if (!response.ok) throw new Error(\`E-posta webhook servisi HTTP \${response.status} yanıtı verdi.\`);
+      if (!response.ok) throw new Error(`E-posta webhook servisi HTTP ${response.status} yanıtı verdi.`);
     } else if (provider === "gmail_smtp") {
       await sendViaGoogleSmtp(input);
     } else {
