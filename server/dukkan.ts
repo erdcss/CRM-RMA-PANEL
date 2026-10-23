@@ -35,11 +35,13 @@ async function ready() {
   return pool;
 }
 const id = z.coerce.number().int().positive();
-const amount = z.coerce.number().finite().positive().max(999999999999);
-const qty = z.coerce.number().finite().positive().max(999999999);
+const twoDecimals=(n:number)=>Math.abs(n*100-Math.round(n*100))<0.00001;
+const threeDecimals=(n:number)=>Math.abs(n*1000-Math.round(n*1000))<0.00001;
+const amount = z.coerce.number().finite().min(0.01).max(999999999999).refine(twoDecimals,"Tutar en fazla iki ondalık basamak içerebilir");
+const qty = z.coerce.number().finite().positive().max(999999999).refine(threeDecimals,"Miktar en fazla üç ondalık basamak içerebilir");
 const string = z.string().trim().min(1).max(200);
 const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const lineSchema = z.object({ productId: id, quantity: qty, unitPrice: z.coerce.number().finite().min(0).max(999999999), taxRate: z.coerce.number().min(0).max(100).default(20) });
+const lineSchema = z.object({ productId: id, quantity: qty, unitPrice: z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals), taxRate: z.coerce.number().min(0).max(100).default(20) });
 const docSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase", "sale_return", "purchase_return"]), number: string, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), requestKey: z.string().uuid(), lines: z.array(lineSchema).min(1).max(200) });
 const orderSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase"]), number: string, lines: z.array(lineSchema).min(1).max(200) });
 
@@ -179,7 +181,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
   app.post("/api/dukkan/stores/:storeId/stock-movements",safe(async(req,res)=>{
     manager(res);
-    const p=z.object({productId:id,delta:z.coerce.number().finite().refine(v=>v!==0),note:z.string().max(500).optional()}).parse(req.body);
+    const p=z.object({productId:id,delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),note:z.string().max(500).optional()}).parse(req.body);
     const sid=store(req);
     const r=await transaction(async c=>{
       const updated=await c.query("UPDATE dukkan_products SET stock=stock+$3 WHERE store_id=$1 AND id=$2 AND stock+$3>=0 RETURNING stock",[sid,p.productId,p.delta]);
