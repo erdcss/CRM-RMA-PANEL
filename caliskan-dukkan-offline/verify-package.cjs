@@ -19,7 +19,7 @@ for (const file of needed) {
   // They are still shipped with the installer and transparently readable by Electron.
   // Electron's asar reader treats embedded WASM specially; existence in the
   // archive file table is verified above. UI JS/CSS must also be extractable.
-  if (file.endsWith(".wasm")) continue;
+  if (file.startsWith("node_modules/")) continue;
   const unpackedFile = path.resolve(__dirname, "dist", "win-unpacked", "resources", "app.asar.unpacked", ...file.split("/"));
   const bytes = fs.existsSync(unpackedFile)
     ? fs.readFileSync(unpackedFile)
