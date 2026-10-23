@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
 import { Building2, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
 
@@ -29,6 +30,8 @@ const softCard="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-
 export default function Dukkan() {
   const {data:branding}=useBranding();
   const [stores,setStores]=useState<Entry[]>([]);
+  const [isAdmin,setIsAdmin]=useState(false);
+  const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState("");
   const [section,setSection]=useState<Section>("overview");
   const [rows,setRows]=useState<Entry[]>([]);
@@ -61,7 +64,7 @@ export default function Dukkan() {
       setStores(list);setStoreId(previous=>list.some(s=>String(s.id)===previous)?previous:String(list[0]?.id||""));
     }catch(e){setError((e as Error).message);}
   },[]);
-  useEffect(()=>{void loadStores();},[loadStores]);
+  useEffect(()=>{void loadStores(); void api("/api/auth/me").then(person=>setIsAdmin(["super_admin","admin"].includes(person.role))).catch(()=>{});},[loadStores]);
   const load=useCallback(async()=>{
     if(!storeId)return;
     try{
@@ -69,6 +72,7 @@ export default function Dukkan() {
         api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
       ]);
       setParties(p);setProducts(pr);setBanks(b);setReport(summary);
+      if(section==="overview"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
         orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements"
@@ -77,7 +81,7 @@ export default function Dukkan() {
       setRows(result);
       setError("");
     }catch(e){setError((e as Error).message);}
-  },[base,storeId,section,cashier]);
+  },[base,storeId,section,cashier,canManage]);
   useEffect(()=>{void load();},[load,refresh]);
   useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);},[section,storeId]);
 
@@ -92,16 +96,16 @@ export default function Dukkan() {
       case "products":return [{key:"name",label:"Ürün Adı",required:true},{key:"sku",label:"Stok Kodu",required:true},{key:"barcode",label:"Barkod"},{key:"unit",label:"Birim"},{key:"purchasePrice",label:"Alış Fiyatı",type:"number"},{key:"salePrice",label:"Satış Fiyatı",type:"number"}];
       case "parties":return [{key:"name",label:"Firma / Kişi Adı",required:true},{key:"type",label:"Cari Tipi",type:"select",options:[{value:"customer",label:"Müşteri"},{value:"supplier",label:"Tedarikçi"},{value:"both",label:"Her ikisi"}]},{key:"taxNumber",label:"Vergi Numarası"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"}];
       case "stock":return [product,{key:"delta",label:"Stok Değişimi (+/-)",type:"number",required:true},{key:"note",label:"Açıklama"}];
-      case "sales":case "purchases":return [party,{key:"number",label:"Fatura Numarası",required:true},{key:"date",label:"Fatura Tarihi",type:"date"},{key:"kind",label:"İşlem Türü",type:"select",options:section==="sales"?[{value:"sale",label:"Satış faturası"},{value:"sale_return",label:"Satış iadesi"}]:[{value:"purchase",label:"Alış faturası"},{value:"purchase_return",label:"Alış iadesi"}]}];
-      case "orders":return [party,{key:"number",label:"Sipariş Numarası",required:true},{key:"kind",label:"Sipariş Tipi",type:"select",options:[{value:"sale",label:"Müşteri siparişi"},{value:"purchase",label:"Tedarikçi siparişi"}]}];
+      case "sales":case "purchases":return [party,{key:"number",label:"Fatura Numarası",required:true},{key:"date",label:"Fatura Tarihi",type:"date"},{key:"kind",label:"İşlem Türü",type:"select",options:section==="sales"?(cashier?[{value:"sale",label:"Satış faturası"}]:[{value:"sale",label:"Satış faturası"},{value:"sale_return",label:"Satış iadesi"}]):[{value:"purchase",label:"Alış faturası"},{value:"purchase_return",label:"Alış iadesi"}]}];
+      case "orders":return [party,{key:"number",label:"Sipariş Numarası",required:true},{key:"kind",label:"Sipariş Tipi",type:"select",options:cashier?[{value:"sale",label:"Müşteri siparişi"}]:[{value:"sale",label:"Müşteri siparişi"},{value:"purchase",label:"Tedarikçi siparişi"}]}];
       case "instruments":return [party,{key:"kind",label:"Tür",type:"select",options:[{value:"cheque",label:"Çek"},{value:"promissory",label:"Senet"}]},{key:"direction",label:"Yön",type:"select",options:[{value:"received",label:"Alınan"},{value:"issued",label:"Verilen"}]},{key:"number",label:"Belge Numarası",required:true},{key:"amount",label:"Tutar (TL)",type:"number",required:true},{key:"dueDate",label:"Vade",type:"date",required:true},{key:"note",label:"Açıklama"}];
       case "banks":return [bank,{key:"type",label:"İşlem",type:"select",options:[{value:"deposit",label:"Para girişi"},{value:"withdrawal",label:"Para çıkışı"}]},{key:"amount",label:"Tutar (TL)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       default:return [];
     }
-  },[section,parties,products,banks]);
+  },[section,parties,products,banks,cashier]);
 
   const put=(k:string,v:string)=>setDraft(d=>({...d,[k]:v}));
-  const onSubmit=async(e:React.FormEvent)=>{
+  const onSubmit=async(e:FormEvent)=>{
     e.preventDefault();if(!storeId)return;
     setBusy(true);setError("");setNotice("");
     try{
@@ -126,7 +130,7 @@ export default function Dukkan() {
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
-  const createStore=async(e:React.FormEvent)=>{
+  const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
     try{await api("/api/dukkan/stores",{method:"POST",body:JSON.stringify({name:newStoreName})});setNewStoreName("");setShowNewStore(false);await loadStores();}
     catch(e){setError((e as Error).message);}finally{setBusy(false);}
@@ -161,7 +165,7 @@ export default function Dukkan() {
           <div className="flex flex-wrap items-center gap-2">
             {stores.length>0&&<select aria-label="Mağaza seç" className={inputClass} value={storeId} onChange={e=>setStoreId(e.target.value)}>{stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>}
             <button className="rounded-lg border bg-white p-2.5" onClick={()=>setRefresh(n=>n+1)} aria-label="Yenile"><RefreshCw size={17}/></button>
-            <button className="rounded-lg border bg-white px-3 py-2.5 text-xs font-semibold" onClick={()=>setShowNewStore(v=>!v)}><Plus size={15} className="inline"/> Mağaza Oluştur</button>
+            {isAdmin&&<button className="rounded-lg border bg-white px-3 py-2.5 text-xs font-semibold" onClick={()=>setShowNewStore(v=>!v)}><Plus size={15} className="inline"/> Mağaza Oluştur</button>}
           </div>
         </header>
         {error&&<div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -179,6 +183,7 @@ export default function Dukkan() {
             ].map(([title,value])=><div key={title} className={softCard}><p className="text-xs text-slate-500">{title}</p><p className="mt-2 text-lg font-bold tabular-nums">{value}</p></div>)}
           </div>}
           {section==="reports"&&<div className={softCard+" mb-4"}><h2 className="font-bold">Vadesi geçmiş çek ve senetler</h2><p className="mt-2 text-sm">Belge: {fmt(report?.overdue?.count)} · Toplam: {currency(report?.overdue?.amount)}</p><p className="mt-2 text-xs text-slate-500">Raporlar kayıtlı işlemlerden üretilir; resmî mali tablo veya GİB e-Fatura yerine geçmez.</p></div>}
+          {section==="overview"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
           <div className={softCard}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h2 className="text-lg font-black">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="text-xs text-slate-500">{displayed.length} kayıt · Mağaza: {currentStore?.name}</p></div>
