@@ -1,0 +1,46 @@
+{
+  "name": "caliskan-dukkan-offline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Çalışkan Dükkan - bağımsız çevrimdışı ön muhasebe",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test.cjs",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "dependencies": {
+    "sql.js": "^1.13.0"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.caliskan.dukkan.offline",
+    "productName": "Çalışkan Dükkan",
+    "asar": true,
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "backend.cjs",
+      "index.html",
+      "package.json",
+      "node_modules/sql.js/dist/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "Caliskan-Dukkan-Bagimsiz-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
