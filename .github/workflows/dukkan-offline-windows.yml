@@ -5,6 +5,10 @@ on:
     paths:
       - "caliskan-dukkan-offline/**"
       - ".github/workflows/dukkan-offline-windows.yml"
+  pull_request:
+    paths:
+      - "caliskan-dukkan-offline/**"
+      - ".github/workflows/dukkan-offline-windows.yml"
   workflow_dispatch:
 jobs:
   windows:
