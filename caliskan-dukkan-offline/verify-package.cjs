@@ -15,7 +15,12 @@ const needed = [
 ];
 for (const file of needed) {
   assert.ok(entries.includes(file), "Kurulumda kritik dosya eksik: " + file);
-  const bytes = asar.extractFile(archive, file);
+  // Electron Builder stores some binary assets in app.asar.unpacked.
+  // They are still shipped with the installer and transparently readable by Electron.
+  const unpackedFile = path.resolve(__dirname, "dist", "win-unpacked", "resources", "app.asar.unpacked", ...file.split("/"));
+  const bytes = fs.existsSync(unpackedFile)
+    ? fs.readFileSync(unpackedFile)
+    : asar.extractFile(archive, file);
   assert.ok(bytes.length > 100, "Kurulumda boş veya çok küçük dosya: " + file);
 }
 const html = asar.extractFile(archive, "index.html").toString("utf8");
