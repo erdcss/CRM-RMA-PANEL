@@ -1,0 +1,29 @@
+name: B2B Customer Center - Build and Types
+on:
+  push:
+    paths:
+      - 'server/b2b-admin-customer-center.ts'
+      - 'server/routes.ts'
+      - 'client/src/pages/admin-applications.tsx'
+      - 'client/src/pages/admin-b2b-customers.tsx'
+      - 'client/src/pages/admin-b2b-customer-detail.tsx'
+      - 'client/src/App.tsx'
+      - 'client/src/components/app-sidebar.tsx'
+      - '.github/workflows/b2b-customer-center-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: TypeScript ve üretim derlemesi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run build
