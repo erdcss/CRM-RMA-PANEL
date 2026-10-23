@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, BackHandler, Image, Linking, SafeAreaView, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -48,7 +49,7 @@ export default function App() {
       }}
       renderError={()=> <View style={{flex:1,alignItems:"center",justifyContent:"center",padding:24}}><Text style={{fontSize:17,fontWeight:"700"}}>Sunucuya bağlanılamadı</Text><Text>İnternet bağlantısını kontrol edip uygulamayı yeniden açın.</Text></View>}
     />
-    {loading && <View style={{position:"absolute",inset:0,alignItems:"center",justifyContent:"center",backgroundColor:"#f5f7fb"}}>
+    {loading && <View style={{position:"absolute",top:0,left:0,right:0,bottom:0,alignItems:"center",justifyContent:"center",backgroundColor:"#f5f7fb"}}>
       {splash?<Image source={{uri:splash}} resizeMode="contain" style={{width:"95%",height:"65%"}}/>:logo?<Image source={{uri:logo}} resizeMode="contain" style={{width:144,height:144}}/>:<Text style={{fontSize:25,fontWeight:"900",color:"#111827"}}>Çalışkan Dükkan</Text>}
       <ActivityIndicator size="large" color="#111827" style={{marginTop:28}}/>
     </View>}
