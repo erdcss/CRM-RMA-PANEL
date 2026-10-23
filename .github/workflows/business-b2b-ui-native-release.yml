@@ -1,0 +1,105 @@
+name: Caliskan Business - Updated B2B UI TestFlight and AAB
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/release-requests/business-b2b-applications-native-20261023.txt'
+permissions:
+  contents: read
+concurrency:
+  group: caliskan-business-b2b-ui-native-release
+  cancel-in-progress: false
+jobs:
+  validate:
+    name: Expo access and TypeScript validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Check Expo access without revealing token
+        run: |
+          test -n "$EXPO_TOKEN" || (echo "::error::Missing EXPO_TOKEN" && exit 1)
+          eas whoami
+      - run: npm ci
+      - run: npx tsc --noEmit --project tsconfig.json
+
+  testflight:
+    name: Build iOS and submit to TestFlight
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Sync current business native assets
+        run: npm run sync:branding
+      - name: Build iOS TestFlight package
+        run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
+      - name: Submit to App Store Connect TestFlight
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
+
+  aab:
+    name: Build Android app bundle AAB
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Sync current business native assets
+        run: npm run sync:branding
+      - name: Build Android App Bundle
+        run: eas build --platform android --profile android-aab --non-interactive --clear-cache --wait
+      - name: AAB download location
+        run: |
+          echo "See Expo EAS Builds for the signed Android AAB download link." >> "$GITHUB_STEP_SUMMARY"
