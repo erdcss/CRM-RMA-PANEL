@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Çalışkan Dükkan",
+    "slug": "caliskan-dukkan",
+    "scheme": "caliskandukkan",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.caliskan.dukkan",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.caliskan.dukkan",
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "plugins": []
+  }
+}
