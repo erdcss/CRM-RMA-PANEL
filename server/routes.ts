@@ -25,6 +25,7 @@ import { registerB2BBankPaymentApproval } from "./b2b-bank-payment-approval";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
+import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
@@ -2292,6 +2293,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ error: "İnceleme hesabı şifresi yenilenemedi." });
     }
   });
+
+  registerB2BAdminCustomerCenter(app, requireAdmin);
 
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
     const allUsers = await storage.listUsers();
