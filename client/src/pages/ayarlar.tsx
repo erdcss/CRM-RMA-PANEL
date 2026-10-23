@@ -17,6 +17,7 @@ import {
   Save,
   Settings as SettingsIcon,
   Smartphone,
+  Store,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -314,6 +315,20 @@ export default function Ayarlar() {
                       portrait
                     />
                   </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Store className="h-5 w-5" />
+                    Çalışkan Dükkan · Masaüstü ve Mobil
+                  </CardTitle>
+                  <CardDescription>Masaüstü ile iOS/Android uygulamasında ortak kullanılan logo ve açılış görseli.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <AssetUploader title="Çalışkan Dükkan Logosu" description="Programın üst alanı ve mobil uygulama logosu." value={values.dukkan_logo} onChange={value=>setAsset("dukkan_logo",value)} square />
+                  <AssetUploader title="Çalışkan Dükkan Splash" description="Açılış ekranı görseli." value={values.dukkan_splash} onChange={value=>setAsset("dukkan_splash",value)} />
                 </CardContent>
               </Card>
 
