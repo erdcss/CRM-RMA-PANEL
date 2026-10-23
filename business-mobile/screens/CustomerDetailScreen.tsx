@@ -182,7 +182,7 @@ const s = StyleSheet.create({
   },
   avatarText: { color: C.text2, fontSize: 27, fontWeight: "600" },
   profileMain: { flex: 1, paddingHorizontal: 13 },
-  company: { color: C.text, fontSize: 17, fontWeight: "650" },
+  company: { color: C.text, fontSize: 17, fontWeight: "600" },
   contact: { color: C.muted, fontSize: 11, marginTop: 5 },
   stats: { flexDirection: "row", gap: 8, marginTop: 12 },
   stat: {
@@ -246,5 +246,5 @@ const s = StyleSheet.create({
   orderMain: { flex: 1 },
   orderNo: { color: C.text, fontSize: 13, fontWeight: "600" },
   orderMeta: { color: C.muted, fontSize: 10, marginTop: 5 },
-  orderAmount: { color: C.text, fontSize: 13, fontWeight: "650" },
+  orderAmount: { color: C.text, fontSize: 13, fontWeight: "600" },
 });

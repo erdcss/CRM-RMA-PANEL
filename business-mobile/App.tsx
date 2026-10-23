@@ -85,7 +85,7 @@ export default function App() {
             background={branding.business_mobile_splash}
             onSuccess={(nextUser) => {
               setUser(nextUser);
-              setScreen({ name: nextUser.role === "b2b_seller" || nextUser.role === "b2b_customer" ? "marketplace" : "dashboard" });
+              setScreen(nextUser.role === "b2b_seller" || nextUser.role === "b2b_customer" ? { name: "marketplace" } : { name: "dashboard" });
             }}
           />
         ) : screen.name === "marketplace" ? (
@@ -256,7 +256,7 @@ const s = StyleSheet.create({
   fullSafe: { flex: 1, backgroundColor: C.bg },
   shell: { flex: 1, backgroundColor: C.bg },
   splash: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9999,
     backgroundColor: C.bg,
     alignItems: "center",

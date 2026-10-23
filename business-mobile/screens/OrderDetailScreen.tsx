@@ -143,7 +143,7 @@ export function OrderDetailScreen({
           items.map((item, index) => (
             <View key={String(item.productId || item.id || index)} style={s.itemRow}>
               {item.image ? (
-                <Image source={{ uri: item.image }} style={s.itemImage} resizeMode="cover" />
+                <Image source={{ uri: item.image }} style={s.itemImage as import("react-native").ImageStyle} resizeMode="cover" />
               ) : (
                 <View style={s.itemImageFallback}><Text style={s.itemImageText}>B2B</Text></View>
               )}
@@ -294,7 +294,7 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   heroLabel: { color: C.muted, fontSize: 12 },
-  heroValue: { color: C.text, fontSize: 29, fontWeight: "650", marginTop: 7, letterSpacing: -0.7 },
+  heroValue: { color: C.text, fontSize: 29, fontWeight: "600", marginTop: 7, letterSpacing: -0.7 },
   infoCard: {
     borderRadius: 20,
     borderWidth: 1,
@@ -343,7 +343,7 @@ const s = StyleSheet.create({
   itemName: { color: C.text, fontSize: 13, fontWeight: "600" },
   itemMeta: { color: C.muted, fontSize: 10, marginTop: 5 },
   itemSide: { alignItems: "flex-end" },
-  itemPrice: { color: C.text, fontSize: 13, fontWeight: "650" },
+  itemPrice: { color: C.text, fontSize: 13, fontWeight: "600" },
   unitPrice: { color: C.muted, fontSize: 9, marginTop: 5 },
   muted: { color: C.muted, padding: 18 },
 });

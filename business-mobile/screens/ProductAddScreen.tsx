@@ -283,7 +283,7 @@ export function ProductAddScreen({
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.imageRail}>
               {form.images.map((image, index) => (
                 <View key={`${image.slice(0, 28)}-${index}`} style={s.imageWrap}>
-                  <Image source={{ uri: image }} style={s.image} resizeMode="cover" />
+                  <Image source={{ uri: image }} style={s.image as import("react-native").ImageStyle} resizeMode="cover" />
                   {index === 0 ? <Text style={s.mainBadge}>ANA</Text> : null}
                   <TouchableOpacity
                     style={s.removeImage}
@@ -547,7 +547,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  saveText: { color: "#071019", fontSize: 16, fontWeight: "650" },
+  saveText: { color: "#071019", fontSize: 16, fontWeight: "600" },
   saveArrow: { color: "#071019", fontSize: 23, marginLeft: 10 },
   disabled: { opacity: 0.55 },
 
@@ -571,7 +571,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   closeScannerText: { color: "#FFF", fontSize: 14, fontWeight: "500" },
-  scannerTitle: { color: "#FFF", fontSize: 28, fontWeight: "650", marginTop: 24 },
+  scannerTitle: { color: "#FFF", fontSize: 28, fontWeight: "600", marginTop: 24 },
   scannerSub: { color: "rgba(255,255,255,0.72)", fontSize: 13, lineHeight: 19, marginTop: 8 },
   scanFrame: {
     position: "absolute",

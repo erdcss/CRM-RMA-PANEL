@@ -173,7 +173,7 @@ export function OrdersScreen({
                 <View style={s.cardBody}>
                   <View style={s.thumbRow}>
                     {firstImage ? (
-                      <Image source={{ uri: firstImage }} style={s.thumb} resizeMode="cover" />
+                      <Image source={{ uri: firstImage }} style={s.thumb as import("react-native").ImageStyle} resizeMode="cover" />
                     ) : (
                       <View style={s.thumbFallback}><Text style={s.thumbFallbackText}>B2B</Text></View>
                     )}
@@ -262,7 +262,7 @@ const s = StyleSheet.create({
   },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   cardTitleBlock: { flex: 1, paddingRight: 10 },
-  orderNo: { color: C.text, fontSize: 16, fontWeight: "650", letterSpacing: -0.3 },
+  orderNo: { color: C.text, fontSize: 16, fontWeight: "600", letterSpacing: -0.3 },
   orderDate: { color: C.muted, fontSize: 11, marginTop: 5 },
   cardBody: { flexDirection: "row", alignItems: "center", marginTop: 16 },
   thumbRow: { flexDirection: "row", alignItems: "center" },
@@ -292,7 +292,7 @@ const s = StyleSheet.create({
   customer: { color: C.text, fontSize: 14, fontWeight: "600" },
   customerSub: { color: C.muted, fontSize: 10, marginTop: 4 },
   amountBlock: { alignItems: "flex-end" },
-  amount: { color: C.text, fontSize: 15, fontWeight: "650" },
+  amount: { color: C.text, fontSize: 15, fontWeight: "600" },
   payment: { color: C.muted, fontSize: 10, marginTop: 5 },
   chevron: { color: C.text2, fontSize: 27, marginLeft: 10 },
 });

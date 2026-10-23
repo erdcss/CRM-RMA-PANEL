@@ -192,7 +192,7 @@ const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   flex: { flex: 1 },
   backdropShade: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(2,5,8,0.34)",
   },
   content: {
@@ -218,7 +218,7 @@ const s = StyleSheet.create({
   title: {
     color: C.text,
     fontSize: 32,
-    fontWeight: "650",
+    fontWeight: "600",
     textAlign: "center",
     letterSpacing: -1,
   },
@@ -279,7 +279,7 @@ const s = StyleSheet.create({
   loginButtonText: {
     color: "#080B0F",
     fontSize: 17,
-    fontWeight: "650",
+    fontWeight: "600",
   },
   loginArrow: {
     color: "#080B0F",

@@ -31,7 +31,7 @@ export function WarehouseBackdrop({ dimmed = false }: { dimmed?: boolean }) {
 
 const s = StyleSheet.create({
   bg: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#04070A",
   },
   lightA: {
@@ -141,7 +141,7 @@ const s = StyleSheet.create({
   },
   floorDim: { opacity: 0.72 },
   blurMask: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(2,5,9,0.56)",
   },
 });

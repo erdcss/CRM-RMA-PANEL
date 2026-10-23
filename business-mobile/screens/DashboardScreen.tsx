@@ -254,7 +254,7 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
   },
   heroShade: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(3,6,10,0.16)",
   },
   topRow: {
@@ -266,7 +266,7 @@ const s = StyleSheet.create({
     minHeight: 50,
   },
   brandBlock: { flex: 1, minWidth: 0, paddingRight: 2, justifyContent: "center" },
-  brand: { color: C.text, fontSize: 21, fontWeight: "750", letterSpacing: -0.7 },
+  brand: { color: C.text, fontSize: 21, fontWeight: "700", letterSpacing: -0.7 },
   brandCompact: { fontSize: 19 },
   brandLight: { color: C.text2, fontWeight: "300" },
   welcome: { color: C.text2, fontSize: 12, marginTop: 5 },
@@ -355,7 +355,7 @@ const s = StyleSheet.create({
   metricIconText: { color: C.text2, fontSize: 20 },
   metricTrend: { fontSize: 17, fontWeight: "600" },
   metricTitle: { color: C.text2, fontSize: 13, marginTop: 11 },
-  metricValue: { color: C.text, fontSize: 25, fontWeight: "650", marginTop: 5, letterSpacing: -0.7 },
+  metricValue: { color: C.text, fontSize: 25, fontWeight: "600", marginTop: 5, letterSpacing: -0.7 },
   metricNote: { color: C.muted, fontSize: 10, marginTop: 5 },
   quickGrid: { paddingHorizontal: 18, flexDirection: "row", gap: 9 },
   quick: {

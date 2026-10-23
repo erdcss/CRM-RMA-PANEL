@@ -140,7 +140,7 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
             return (
               <View key={String(product.id)} style={s.card}>
                 {image ? (
-                  <Image source={{ uri: image }} style={s.image} resizeMode="cover" />
+                  <Image source={{ uri: image }} style={s.image as import("react-native").ImageStyle} resizeMode="cover" />
                 ) : (
                   <View style={s.imageFallback}><Text style={s.imageText}>B2B</Text></View>
                 )}
@@ -185,7 +185,7 @@ const s = StyleSheet.create({
     backgroundColor: C.panel2, flexDirection: "row", gap: 8,
     alignItems: "center", justifyContent: "center", paddingHorizontal: 14,
   },
-  manualText: { color: "#C9DBF2", fontSize: 12, fontWeight: "750" },
+  manualText: { color: "#C9DBF2", fontSize: 12, fontWeight: "700" },
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 136 },
   searchBox: {
     minHeight: 56,
@@ -228,6 +228,6 @@ const s = StyleSheet.create({
   name: { color: C.text, fontSize: 14, fontWeight: "600", lineHeight: 19 },
   meta: { color: C.muted, fontSize: 10, marginTop: 5 },
   bottomRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 12 },
-  price: { color: C.text, fontSize: 14, fontWeight: "650" },
+  price: { color: C.text, fontSize: 14, fontWeight: "600" },
   stock: { color: C.green, fontSize: 11, fontWeight: "500" },
 });

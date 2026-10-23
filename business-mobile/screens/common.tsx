@@ -106,7 +106,7 @@ const s = StyleSheet.create({
     color: C.text,
     fontSize: 30,
     lineHeight: 35,
-    fontWeight: "650",
+    fontWeight: "600",
     letterSpacing: -0.7,
   },
   subtitle: {
