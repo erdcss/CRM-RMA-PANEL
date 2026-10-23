@@ -1644,6 +1644,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
     .catch(err => console.error("DB/B2B account init error:", err));
 
+  // Fail closed: a newly approved B2B customer may hold a login cookie or
+  // mobile bearer token, but cannot use ANY authenticated API before choosing
+  // their permanent password. Only onboarding/session and public assets remain.
+  app.use("/api", async (req, res, next) => {
+    const id = sessionUserId(req);
+    if (!id) return next();
+    const allowed = new Set([
+      "/auth/session", "/auth/me", "/auth/logout", "/b2b/login",
+      "/b2b/change-initial-password", "/b2b/forgot-password",
+      "/b2b/register", "/b2b/tax-verify", "/health",
+    ]);
+    if (allowed.has(req.path) || (req.method === "GET" && req.path.startsWith("/public/"))) return next();
+    try {
+      const user = await storage.getUser(id);
+      if (user?.role === "b2b_customer" && user.mustChangePassword === 1) {
+        return res.status(403).json({
+          error: "Hesabınızı kullanmak için önce yeni şifrenizi oluşturun.",
+          mustChangePassword: true,
+        });
+      }
+      return next();
+    } catch (error) {
+      console.error("B2B initial password gate failed:", error);
+      return res.status(503).json({ error: "Oturum doğrulanamadı. Tekrar deneyin." });
+    }
+  });
+
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
   });
@@ -2269,7 +2296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
     const allUsers = await storage.listUsers();
     const applications = allUsers
-      .filter((user) => user.role === "b2b_customer" && Boolean(user.applicationStatus))
+      .filter((user) => user.role === "b2b_customer" && Boolean(user.applicationStatus) && user.companyName !== "Çalışkan B2B - Apple İnceleme")
       .map(({ password, ...user }) => ({
         ...user,
         isActive: user.isActive === 1,

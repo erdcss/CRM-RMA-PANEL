@@ -1,0 +1,29 @@
+name: B2B Başvuru ve Şifre Akışı Kontrolü
+on:
+  push:
+    paths:
+      - 'server/routes.ts'
+      - 'client/src/pages/admin-applications.tsx'
+      - 'client/src/pages/ayarlar.tsx'
+      - 'client/src/components/b2b-registration-form.tsx'
+      - '.github/workflows/b2b-application-flow-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: TypeScript ve uygulama derlemesi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install
+        run: npm ci --ignore-scripts
+      - name: TypeScript
+        run: npm run check
+      - name: Production build
+        run: npm run build
