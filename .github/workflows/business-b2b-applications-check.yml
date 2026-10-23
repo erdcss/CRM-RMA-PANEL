@@ -4,6 +4,7 @@ on:
     paths:
       - 'business-mobile/App.tsx'
       - 'business-mobile/types.ts'
+      - 'business-mobile/tsconfig.json'
       - 'business-mobile/screens/MoreScreen.tsx'
       - 'business-mobile/screens/CustomersScreen.tsx'
       - 'business-mobile/screens/BusinessApplicationsScreen.tsx'
