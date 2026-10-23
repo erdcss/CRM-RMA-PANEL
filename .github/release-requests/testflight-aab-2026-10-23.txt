@@ -1,0 +1,6 @@
+Çalışkan Native Release - 23 Ekim 2026
+Kaynak commit: 007ac3ff3c3f5caf2762876b36f540645c4c3d8f
+Hedefler:
+- Çalışkan B2B: iOS TestFlight gönderimi ve Android AAB derlemesi
+- Çalışkan Business: iOS TestFlight gönderimi ve Android AAB derlemesi
+GitHub Actions güvenli tetikleyicisi; hiçbir gizli anahtar burada tutulmaz.
