@@ -30,11 +30,15 @@
   },
   "submit": {
     "production": {
-      "ios": {}
+      "ios": {
+        "appleTeamId": "U3WGSDJCT2",
+        "ascAppId": "6826848065"
+      }
     },
     "testflight": {
       "ios": {
-        "appleTeamId": "U3WGSDJCT2"
+        "appleTeamId": "U3WGSDJCT2",
+        "ascAppId": "6826848065"
       }
     }
   }
