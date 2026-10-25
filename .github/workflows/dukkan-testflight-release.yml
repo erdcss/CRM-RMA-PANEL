@@ -1,42 +1,93 @@
-name: Çalışkan Dükkan - TestFlight Gönderimi
+name: Çalışkan Dükkan - iOS TestFlight (ortak Expo hesabı)
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/dukkan-testflight-release.yml"
-  workflow_dispatch:
+      - '.github/release-requests/dukkan-testflight-*.txt'
+permissions:
+  contents: read
+concurrency:
+  group: caliskan-dukkan-ios-testflight
+  cancel-in-progress: false
 jobs:
-  submit:
+  validate:
+    name: Check reused Expo access and native accounting build
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: dukkan-mobile
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      EAS_NO_VCS: "1"
-      CI: "1"
+      EAS_NO_VCS: '1'
+      CI: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
-      - name: Expo/Apple dağıtım erişimini doğrula
+          node-version: '22'
+      - name: Require existing Expo authorization
         run: |
-          if [ -z "${EXPO_TOKEN}" ]; then
-            echo "::error::TestFlight gönderilemedi: EXPO_TOKEN GitHub Actions secret olarak eklenmemiş."
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN is missing; existing Expo project credentials cannot be used."
             exit 1
           fi
-          echo "EXPO_TOKEN tanımlı; Expo/Apple projesi kontrol edilecek."
-      - name: Native bağımlılıkları kur
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Expo account
+        run: eas whoami
+      - name: Dependencies
         run: npm install --no-audit --no-fund
-      - name: Test ve kontrol
+      - name: Windows / mobile accounting schema verification
+        run: node --test check-schema.cjs
+      - name: Mobile TypeScript and iOS bundle
         run: |
-          node --test check-schema.cjs
           npm run check
-      - name: EAS giriş ve proje erişimi
+          npx expo export --platform ios --output-dir dist-ios-check
+      - name: Check the unique iOS identifier
         run: |
-          npx --yes eas-cli whoami --non-interactive
-          npx --yes eas-cli project:info --non-interactive
-      - name: Apple için iOS üretim paketi oluştur ve TestFlight'a gönder
-        run: npx --yes eas-cli build --platform ios --profile production --auto-submit --non-interactive --wait
+          node -e 'const a=require("./app.json").expo; if(a.ios.bundleIdentifier!=="com.caliskan.dukkan")process.exit(1)'
+  release:
+    name: Build dedicated Çalışkan Dükkan iOS IPA and submit to TestFlight
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: dukkan-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm install --no-audit --no-fund
+      - name: Find existing Dükkan EAS project or create under existing account
+        run: |
+          if eas project:info --non-interactive; then
+            echo 'Connected to existing Çalışkan Dükkan Expo project.'
+          else
+            echo 'No Çalışkan Dükkan EAS project linked; initializing under existing erdcls owner.'
+            eas init --non-interactive
+            eas project:info --non-interactive
+          fi
+      - name: iOS TestFlight build (dedicated bundle)
+        run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
+      - name: Submit IPA to App Store Connect TestFlight
+        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
+      - name: Release receipt
+        run: |
+          echo 'iOS EAS build and App Store Connect submission completed. Check TestFlight processing in App Store Connect.' >> "$GITHUB_STEP_SUMMARY"
