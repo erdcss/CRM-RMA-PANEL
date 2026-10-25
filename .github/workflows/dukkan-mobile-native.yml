@@ -24,6 +24,8 @@ jobs:
           node-version: "22"
       - name: Dependencies
         run: npm install --no-audit --no-fund
+      - name: Windows-mobile offline schema contract
+        run: node --test check-schema.cjs
       - name: Native TypeScript check
         run: npm run check
       - name: Expo iOS JavaScript bundle check
