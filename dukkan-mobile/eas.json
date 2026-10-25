@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 16.0.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -17,11 +17,25 @@
     "production": {
       "autoIncrement": true,
       "distribution": "store"
+    },
+    "testflight": {
+      "extends": "production",
+      "autoIncrement": true,
+      "distribution": "store",
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "environment": "production"
     }
   },
   "submit": {
     "production": {
       "ios": {}
+    },
+    "testflight": {
+      "ios": {
+        "appleTeamId": "U3WGSDJCT2"
+      }
     }
   }
 }

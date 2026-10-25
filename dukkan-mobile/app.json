@@ -4,12 +4,12 @@
     "slug": "caliskan-dukkan",
     "scheme": "caliskandukkan",
     "version": "1.0.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.caliskan.dukkan",
       "supportsTablet": true,
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -26,6 +26,10 @@
       "expo-sqlite",
       "expo-document-picker"
     ],
-    "description": "Çevrimdışı çalışan bağımsız ön muhasebe uygulaması"
+    "description": "Çevrimdışı çalışan bağımsız ön muhasebe uygulaması",
+    "owner": "erdcls",
+    "extra": {
+      "releaseChannel": "testflight"
+    }
   }
 }
