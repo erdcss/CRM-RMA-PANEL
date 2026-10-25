@@ -15,14 +15,28 @@ iOS için Expo/Apple hesaplarının kurulmuş olması ve Apple Developer + App S
 Yükleme: Expo giriş ve Apple imzalama tamamlandıktan sonra `npx eas-cli build --platform ios --profile production --auto-submit --non-interactive`.
 
 **Yasal uyarı:** Elektronik fatura/e-Arşiv GİB entegrasyonu bulunmaz, dahili fatura kaydı resmî vergi belgesi yerine geçmez. Ticari verilerin şifreli depolanması, yetki sistemi ve gerçek çok cihazlı senkronizasyon tamamlanmadan üretim şirket verileriyle kullanmayın.
-## 25 Ekim 2026 gerçek TestFlight denemesi
 
-- Expo hesabının GitHub `EXPO_TOKEN` erişimi doğrulandı (`erdcls` üzerinde Caliskan-CI-Build robot).
-- Dükkan için **ayrı** EAS projesi oluşturuldu ve `app.json` içine kalıcı olarak bağlandı: `21b3de7c-763f-4c25-87aa-66e818498d6e`.
-- `com.caliskan.dukkan` bundle ID doğrulandı, iOS `eas build --profile testflight --non-interactive` başlatıldı.
-- **Bloke:** Expo EAS, yeni Dükkan uygulaması için Apple signing credentials/provisioning profile bulunmadığını bildirdi: `Credentials are not set up. Run this command again in interactive mode.`. `ipa` ve TestFlight gönderimi oluşturulamadı.
-- Apple Developer takımı diğer uygulamalar ile aynıdır, fakat her benzersiz bundle ID için ayrı iOS App Store provisioning profile gerekir. Eski uygulamaların profilleri Dükkan için kullanılamaz.
-- Bu uygulama için bir defalık Apple Developer signing kurulumu: `cd dukkan-mobile && npx eas-cli credentials -p ios` (mevcut Apple takımını seçip uygun App Store dağıtım sertifikası/provisioning profile oluşturarak EAS'a kaydet). Gizli Apple anahtarlarını GitHub'a commit etmeyin.
-- App Store Connect'te `com.caliskan.dukkan` için **yeni uygulama kaydı** ve buna ait yeni `ascAppId` gereklidir. Eski iki uygulamanın `ascAppId` değerlerini asla kopyalamayın. Yeni kayıt hazır olduğunda `eas.json` `submit.testflight.ios.ascAppId` alanını güncelleyin ve Dükkan için EAS Submit Apple API anahtarı erişimini doğrulayın.
-- Sonra `.github/workflows/dukkan-testflight-release.yml` iş akışını manuel başlatın veya kontrollü bir sürüm tetikleyicisi kullanın. Repo ortak `EXPO_TOKEN` bilgisini halihazırda kullanabilir.
-- Deneme kaydı: https://github.com/erdcss/CRM-RMA-PANEL/actions/runs/40182819821
+## 25 Ekim 2026 — İmzalama ve gerçek TestFlight denemeleri
+
+- Expo robot hesabı `Caliskan-CI-Build` mevcut `EXPO_TOKEN` ile `erdcls` hesabına giriş yapabildi.
+- Yeni EAS projesi `21b3de7c-763f-4c25-87aa-66e818498d6e` oluşturuldu ve `app.json` dosyasına kaydedildi.
+- Apple Developer kayıtlı Bundle ID: `com.caliskan.dukkan`; Apple Team ID: `U3WGSDJCT2`.
+- Kullanıcı App Store Connect'te Dükkan uygulamasını oluşturdu. ASC Apple ID `6826848065`, `eas.json` içinde `production` ve `testflight` submit profillerine kaydedildi.
+- Gerçek `eas build --platform ios --profile testflight --non-interactive` denemeleri, **`Credentials are not set up. Run this command again in interactive mode.`** hatasıyla iptal edildi. `.ipa` oluşturulamadı, TestFlight'a teslim yapılmadı.
+- Expo fatura döneminde dahil olan kotayı aşan derlemelerin ücretlendirildiğini bildirdi. **İmzalama tamamlanmadan yeni iOS derlemesi başlatmayın.** TestFlight workflow'u bu yüzden yalnızca manuel çalıştırılır.
+
+### Kalan tek seferlik Apple imzalama kurulumu
+
+`EXPO_TOKEN` Expo'ya yetki verir; Apple Developer oturumunun / uygulamaya özel App Store **provisioning profile**'ının yerine geçmez.
+
+1. İlgili Apple Developer hesabında App Store dağıtım sertifikası ve `com.caliskan.dukkan` için **App Store** provisioning profile'ı oluşturun veya hazır profili doğrulayın. Mevcut B2B/Business sertifikalarını **iptal etmeyin**.
+2. Yetkili Apple geliştirici hesabıyla `cd dukkan-mobile && npx eas-cli credentials -p ios` komutunu **etkileşimli ortamda** çalıştırın. `testflight` profilini seçin ve kullanılabilir dağıtım sertifikasını / Dükkan'a özel provisioning profile'ı EAS'e kaydedin.
+3. EAS Submit için mevcut yetkili App Store Connect API anahtarını Dükkan projesine bağlayın (`eas credentials -p ios` → App Store Connect API Key). Apple özel anahtarlarını depoya, issue'ya veya sohbet metnine koymayın.
+4. İmzalama ve EAS Submit anahtarı tamamlandıktan sonra `.github/workflows/dukkan-testflight-release.yml` üzerinden **Run workflow** (main) yapın. İş akışı yalnızca belirlenmiş Dükkan Apple uygulaması / Expo proje kimliklerini doğrulayıp mevcut kimlik bilgileriyle `.ipa` oluşturacak, başarılıysa TestFlight'a gönderecektir.
+5. **Yalnızca** iOS build, EAS Submit ve App Store Connect TestFlight görünürlüğü başarıyla doğrulanınca süreç tamamlandı denebilir.
+
+Kayıtlar: https://github.com/erdcss/CRM-RMA-PANEL/actions/runs/40182819821
+
+### Üretim güvenliği
+
+Bu sürüm tek cihaz SQLite yerel veri aktarımı kullanır; gerçek zamanlı Windows–mobil senkronizasyonu, GİB e-Fatura/e-Arşiv, kullanıcı yetkilendirmesi ve kapsamlı muhasebe güvenlik denetimi tamamlanmadı. Şirketin gerçek kayıtlarında üretim kullanımı için hazır değildir.

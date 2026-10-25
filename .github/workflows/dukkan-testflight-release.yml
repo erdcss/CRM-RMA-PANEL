@@ -1,10 +1,6 @@
 name: Çalışkan Dükkan - iOS TestFlight (ortak Expo hesabı)
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/release-requests/dukkan-testflight-*.txt'
 permissions:
   contents: read
 concurrency:
@@ -47,9 +43,10 @@ jobs:
         run: |
           npm run check
           npx expo export --platform ios --output-dir dist-ios-check
-      - name: Check the unique iOS identifier
+      - name: Verify isolated Apple / Expo application identifiers (no Apple API calls)
         run: |
-          node -e 'const a=require("./app.json").expo; if(a.ios.bundleIdentifier!=="com.caliskan.dukkan")process.exit(1)'
+          node -e 'const app=require("./app.json").expo; const eas=require("./eas.json"); const s=eas.submit.testflight.ios; if(app.ios.bundleIdentifier!=="com.caliskan.dukkan" || app.extra?.eas?.projectId!=="21b3de7c-763f-4c25-87aa-66e818498d6e" || s.appleTeamId!=="U3WGSDJCT2" || s.ascAppId!=="6826848065"){console.error("Dükkan App Store Connect / Expo project identity mismatch");process.exit(1)}; console.log("Verified dedicated Dükkan iOS identity")'
+
   release:
     name: Build dedicated Çalışkan Dükkan iOS IPA and submit to TestFlight
     needs: validate
@@ -75,17 +72,10 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm install --no-audit --no-fund
-      - name: Find existing Dükkan EAS project or create under existing account
-        run: |
-          if eas project:info --non-interactive; then
-            echo 'Connected to existing Çalışkan Dükkan Expo project.'
-          else
-            echo 'No Çalışkan Dükkan EAS project linked; initializing under existing erdcls owner.'
-            eas init --non-interactive
-            eas project:info --non-interactive
-          fi
+      - name: Verify linked Dükkan Expo project
+        run: eas project:info --non-interactive
       - name: iOS TestFlight build (dedicated bundle)
-        run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
+        run: eas build --platform ios --profile testflight --freeze-credentials --non-interactive --wait
       - name: Submit IPA to App Store Connect TestFlight
         run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
       - name: Release receipt
