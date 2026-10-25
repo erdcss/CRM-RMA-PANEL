@@ -1,0 +1,42 @@
+name: Çalışkan Dükkan - TestFlight Gönderimi
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/dukkan-testflight-release.yml"
+  workflow_dispatch:
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: dukkan-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Expo/Apple dağıtım erişimini doğrula
+        run: |
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "::error::TestFlight gönderilemedi: EXPO_TOKEN GitHub Actions secret olarak eklenmemiş."
+            exit 1
+          fi
+          echo "EXPO_TOKEN tanımlı; Expo/Apple projesi kontrol edilecek."
+      - name: Native bağımlılıkları kur
+        run: npm install --no-audit --no-fund
+      - name: Test ve kontrol
+        run: |
+          node --test check-schema.cjs
+          npm run check
+      - name: EAS giriş ve proje erişimi
+        run: |
+          npx --yes eas-cli whoami --non-interactive
+          npx --yes eas-cli project:info --non-interactive
+      - name: Apple için iOS üretim paketi oluştur ve TestFlight'a gönder
+        run: npx --yes eas-cli build --platform ios --profile production --auto-submit --non-interactive --wait
