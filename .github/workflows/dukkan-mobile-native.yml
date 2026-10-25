@@ -1,0 +1,59 @@
+name: Çalışkan Dükkan Yerel Mobil iOS Android
+on:
+  push:
+    branches: [main, "feat/dukkan-mobile-native-offline"]
+    paths:
+      - "dukkan-mobile/**"
+      - ".github/workflows/dukkan-mobile-native.yml"
+  pull_request:
+    paths:
+      - "dukkan-mobile/**"
+      - ".github/workflows/dukkan-mobile-native.yml"
+  workflow_dispatch:
+jobs:
+  native-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: dukkan-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Dependencies
+        run: npm install --no-audit --no-fund
+      - name: Windows-mobile offline schema contract
+        run: node --test check-schema.cjs
+      - name: Native TypeScript check
+        run: npm run check
+      - name: Expo iOS JavaScript bundle check
+        run: npx expo export --platform ios --output-dir dist-ios-check
+      - name: Expo Android JavaScript bundle check
+        run: npx expo export --platform android --output-dir dist-android-check
+  testflight:
+    if: github.event_name == 'workflow_dispatch'
+    needs: native-check
+    runs-on: ubuntu-latest
+    environment: testflight
+    defaults:
+      run:
+        working-directory: dukkan-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --no-audit --no-fund
+      - name: Check Expo login authorization
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN tanımlanmamış. Expo ve Apple kimlik doğrulaması olmadan TestFlight'a yükleme yapılamaz."
+            exit 1
+          fi
+      - name: Submit build to TestFlight
+        run: npx --yes eas-cli build --platform ios --profile production --auto-submit --non-interactive --wait

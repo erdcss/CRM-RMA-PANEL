@@ -3,19 +3,29 @@
     "name": "Çalışkan Dükkan",
     "slug": "caliskan-dukkan",
     "scheme": "caliskandukkan",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "default",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.caliskan.dukkan",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.caliskan.dukkan",
-      "permissions": [
-        "INTERNET"
-      ]
+      "permissions": [],
+      "versionCode": 1
     },
-    "plugins": []
+    "plugins": [
+      "expo-sqlite",
+      "expo-document-picker"
+    ],
+    "description": "Çevrimdışı çalışan bağımsız ön muhasebe uygulaması"
   }
 }
