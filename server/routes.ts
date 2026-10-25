@@ -1272,7 +1272,7 @@ async function getGoogleMailAccessToken(): Promise<string> {
     // Never log access tokens, client secrets or refresh tokens.
     const oauthCode = String(payload.error || "").trim();
     if (oauthCode === "invalid_grant" || (response.status === 400 && !oauthCode)) {
-      throw new Error("Google Gmail bağlantısının yetkisi sona ermiş veya iptal edilmiş. Yönetici yeni bir GOOGLE_GMAIL_REFRESH_TOKEN tanımlamalı ya da Resend e-posta servisini bağlamalı.");
+      throw new Error("Google OAuth invalid_grant: Refresh Token süresi dolmuş, iptal edilmiş veya farklı bir OAuth istemcisinden oluşturulmuş olabilir. Yönetici panelinde istemci numarasını kontrol edin ve aynı istemciden yeni token oluşturun.");
     }
     if (oauthCode === "invalid_client") {
       throw new Error("Google Gmail OAuth istemci bilgileri geçersiz. GOOGLE_GMAIL_CLIENT_ID ve GOOGLE_GMAIL_CLIENT_SECRET kontrol edilmeli.");
@@ -2319,6 +2319,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     return res.json({
       provider, configured: provider !== "none",
+      // OAuth Client IDs are public identifiers, but show only an abbreviated
+      // prefix to help administrators diagnose a mismatched OAuth project.
+      gmailClientIdPrefix: provider === "gmail_api"
+        ? (process.env.GOOGLE_GMAIL_CLIENT_ID?.trim().slice(0, 12) || null)
+        : null,
       sender: provider === "resend" ? process.env.B2B_MAIL_FROM?.trim()
         : provider.startsWith("gmail") ? process.env.GOOGLE_GMAIL_SENDER?.trim()
         : null,

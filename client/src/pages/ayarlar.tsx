@@ -529,6 +529,7 @@ export default function Ayarlar() {
 type B2BMailStatus = {
   provider: "resend"|"gmail_api"|"webhook"|"gmail_smtp"|"none";
   configured: boolean;
+  gmailClientIdPrefix?: string|null;
   sender?: string|null;
   verification: "last_send_succeeded"|"last_send_failed"|"not_tested_since_restart";
   latestAttempt?: { at: string; provider: string; success: boolean; error?: string } | null;
@@ -634,6 +635,16 @@ function B2BMailSettings() {
             </span>
           </div>
           <div className="text-sm text-muted-foreground">Gönderici: <strong>{data?.sender||"Tanımlanmamış"}</strong></div>
+          {data?.provider === "gmail_api" && data.gmailClientIdPrefix ? (
+            <div className="text-sm text-muted-foreground">
+              Sunucunun OAuth Client ID başlangıcı: <strong className="font-mono">{data.gmailClientIdPrefix}…</strong>
+              <p className="mt-1 text-xs">
+                Google Cloud → Clients bölümündeki Caliskan B2B Gmail Production
+                istemcisinin Client ID başlangıcıyla aynı olmalıdır.
+                Eşleşmiyorsa GOOGLE_GMAIL_CLIENT_ID yanlış servis veya ortama kaydedilmiş olabilir.
+              </p>
+            </div>
+          ) : null}
           {data?.latestAttempt?<div className="text-sm">
             <p>Son deneme: {new Date(data.latestAttempt.at).toLocaleString("tr-TR")} · {data.latestAttempt.success?"Başarılı":"Başarısız"}</p>
             {data.latestAttempt.error?<p className="mt-1 text-destructive">{data.latestAttempt.error}</p>:null}
