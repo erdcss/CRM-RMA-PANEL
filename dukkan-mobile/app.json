@@ -29,7 +29,10 @@
     "description": "Çevrimdışı çalışan bağımsız ön muhasebe uygulaması",
     "owner": "erdcls",
     "extra": {
-      "releaseChannel": "testflight"
+      "releaseChannel": "testflight",
+      "eas": {
+        "projectId": "21b3de7c-763f-4c25-87aa-66e818498d6e"
+      }
     }
   }
 }
