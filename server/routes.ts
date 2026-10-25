@@ -2322,7 +2322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // OAuth Client IDs are public identifiers, but show only an abbreviated
       // prefix to help administrators diagnose a mismatched OAuth project.
       gmailClientIdPrefix: provider === "gmail_api"
-        ? (process.env.GOOGLE_GMAIL_CLIENT_ID?.trim().slice(0, 12) || null)
+        ? (process.env.GOOGLE_GMAIL_CLIENT_ID?.trim().slice(0, 24) || null)
         : null,
       sender: provider === "resend" ? process.env.B2B_MAIL_FROM?.trim()
         : provider.startsWith("gmail") ? process.env.GOOGLE_GMAIL_SENDER?.trim()
