@@ -538,6 +538,7 @@ type B2BMailStatus = {
 function B2BMailSettings() {
   const { toast } = useToast();
   const [sendingTest,setSendingTest] = useState(false);
+  const [checkingOauth,setCheckingOauth] = useState(false);
   const [testRecipient,setTestRecipient] = useState("");
   const {data,refetch,isLoading,error}=useQuery<B2BMailStatus>({
     queryKey:["/api/admin/b2b-mail/status"],
@@ -556,6 +557,30 @@ function B2BMailSettings() {
       setTestRecipient(current => current || data.sender || "");
     }
   }, [data?.provider, data?.sender]);
+
+  async function checkGmailOAuth() {
+    setCheckingOauth(true);
+    try {
+      const response = await fetch("/api/admin/b2b-mail/check-gmail-oauth", {
+        method: "POST", credentials: "include",
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Google OAuth kontrolü başarısız.");
+      toast({
+        title: "Google OAuth yenilemesi başarılı",
+        description: result.message || "Şimdi e-posta gönderim testi yapabilirsiniz.",
+      });
+    } catch (error) {
+      toast({
+        title: "Google OAuth yenilemesi başarısız",
+        description: error instanceof Error ? error.message : "OAuth bağlantısını kontrol edin.",
+        variant: "destructive",
+      });
+    } finally {
+      setCheckingOauth(false);
+      void refetch();
+    }
+  }
 
   async function testMail() {
     const recipient = testRecipient.trim().toLowerCase();
@@ -631,6 +656,13 @@ function B2BMailSettings() {
           onClick={()=>void testMail()}>
           <Mail className="mr-2 h-4 w-4"/>{sendingTest?"Test gönderiliyor…":"Belirtilen Adrese Test Gönder"}
         </Button>
+        {data?.provider === "gmail_api" ? (
+          <Button variant="outline" disabled={checkingOauth || sendingTest || isLoading}
+            onClick={() => void checkGmailOAuth()}>
+            <RefreshCw className="mr-2 h-4 w-4"/>
+            {checkingOauth ? "OAuth kontrol ediliyor…" : "Google OAuth Bağlantısını Kontrol Et"}
+          </Button>
+        ) : null}
         <Button variant="outline" onClick={()=>void refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Durumu Yenile</Button>
       </div>
       <div className="space-y-3 rounded-xl border bg-muted/15 p-4 text-sm leading-6">

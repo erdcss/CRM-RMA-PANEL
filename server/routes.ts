@@ -2333,6 +2333,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Admin-only OAuth diagnostic: exercises refresh token exchange without
+  // sending mail, storing credentials, or returning access/refresh tokens.
+  // Distinguishes revoked/expired refresh grants from invalid client secrets.
+  const lastGmailOAuthCheck = new Map<number, number>();
+  app.post("/api/admin/b2b-mail/check-gmail-oauth", requireAdmin, async (req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    const id = sessionUserId(req);
+    if (!id) return res.status(401).json({ error: "Yönetici oturumu gerekli." });
+    if (b2bMailProvider() !== "gmail_api") {
+      return res.status(409).json({ error: "Aktif e-posta sağlayıcısı Gmail API değil veya Gmail OAuth yapılandırması eksik." });
+    }
+    if (Date.now() - (lastGmailOAuthCheck.get(id) || 0) < 30_000) {
+      return res.status(429).json({ error: "Yeniden kontrol için 30 saniye bekleyin." });
+    }
+    lastGmailOAuthCheck.set(id, Date.now());
+    try {
+      // Access token is deliberately discarded and never returned.
+      await getGoogleMailAccessToken();
+      return res.json({
+        ok: true,
+        message: "Google OAuth erişim anahtarı yenilendi. Şimdi test e-postası göndererek Gmail gönderimini doğrulayın.",
+      });
+    } catch (error) {
+      const safeMessage = normalizeMailError(error);
+      return res.status(503).json({
+        ok: false,
+        code: "GMAIL_OAUTH_REFRESH_FAILED",
+        error: safeMessage,
+      });
+    }
+  });
+
   // Sends only to the logged-in admin. Never accepts an arbitrary recipient,
   // and never emails customer passwords. Throttled to prevent mailbox abuse.
   const lastMailTest = new Map<number, number>();
