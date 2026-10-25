@@ -1,0 +1,5 @@
+Apple Developer App ID registered: com.caliskan.dukkan
+App Store Connect numeric Apple ID: 6826848065
+Apple Team: U3WGSDJCT2
+Expo EAS project: 21b3de7c-763f-4c25-87aa-66e818498d6e
+Trigger automated iOS signing/build/submit, report any missing credentials truthfully.
