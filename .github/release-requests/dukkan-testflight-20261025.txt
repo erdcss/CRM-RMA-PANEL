@@ -1,0 +1,4 @@
+Çalışkan Dükkan bağımsız ön muhasebe iOS TestFlight gönderim talebi.
+2026-10-25: Eski iki uygulamanın çalışan Expo EAS / GitHub secrets altyapısı kullanılarak yeni com.caliskan.dukkan bundle ID için build + submit çalıştırılsın.
+Mevcut Çalışkan B2B ve Çalışkan Business App Store Connect uygulama kayıtlarına dokunulmayacak.
+GitHub iş akışı: .github/workflows/dukkan-testflight-release.yml
