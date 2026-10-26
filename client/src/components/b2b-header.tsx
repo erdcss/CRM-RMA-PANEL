@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { LogIn, PackageSearch, UserRound, Menu, X, ChevronRight } from "lucide-react";
-import { footerGroups, B2BSocialAndStores } from "@/components/b2b-footer";
+import { footerGroups, B2BSocialAndStores, B2BMobileDownloadHeader } from "@/components/b2b-footer";
 
 import { Button } from "@/components/ui/button";
 import { useBranding } from "@/hooks/use-branding";
@@ -96,6 +96,7 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
           </Button>
         )}
       </div>
+      <B2BMobileDownloadHeader />
       <div className={`fixed inset-0 z-[100] h-[100dvh] transition-all duration-300 md:hidden ${drawerOpen?"pointer-events-auto visible":"pointer-events-none invisible"}`}>
         <button type="button" aria-label="Menüyü kapat" className={`absolute inset-0 h-full w-full bg-black/60 transition-opacity duration-300 ${drawerOpen?"opacity-100":"opacity-0"}`} onClick={()=>setDrawerOpen(false)}/>
         <aside role="dialog" aria-modal="true" aria-label="Çalışkan B2B menüsü" className={`absolute inset-y-0 left-0 flex w-[min(88vw,360px)] flex-col overflow-y-auto bg-white shadow-2xl transition-transform duration-300 ${drawerOpen?"translate-x-0":"-translate-x-full"}`}>
