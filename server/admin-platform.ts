@@ -692,7 +692,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
-  const footerDefaults = { instagram:"", facebook:"", youtube:"", tiktok:"", appStoreUrl:"", googlePlayUrl:"", appStoreImage:"", googlePlayImage:"" };
+  const footerDefaults = { instagram:"", facebook:"", youtube:"", tiktok:"", appStoreUrl:"", googlePlayUrl:"", appStoreImage:"", googlePlayImage:"",
+    appStoreBannerTitle:"",appStoreBannerText:"",appStoreBannerImage:"",appStoreBannerButton:"",
+    googlePlayBannerTitle:"",googlePlayBannerText:"",googlePlayBannerImage:"",googlePlayBannerButton:"",
+    downloadHeaderTitle:"",downloadHeaderText:"",latestIosVersion:"",latestAndroidVersion:"" };
   const footerFields = Object.keys(footerDefaults);
   const readFooter = async () => {
     if (!pool) return footerDefaults;
@@ -712,9 +715,14 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     const result: Record<string,string> = {};
     for (const key of footerFields) {
       const value = String(req.body?.[key] || "").trim();
-      if (value.length > (key.endsWith("Image") ? 3_000_000 : 2000)) return res.status(400).json({error:"Bağlantı veya görsel çok büyük"});
-      if (value && !/^https:\/\//i.test(value) && !/^data:image\/(png|jpeg|webp);base64,/i.test(value)) return res.status(400).json({error:key+" için HTTPS URL veya görsel girin"});
-      if (value.startsWith("data:") && !key.endsWith("Image")) return res.status(400).json({error:"Bağlantıya görsel verisi girilemez"});
+      const imageField=key.endsWith("Image");
+      const linkField=key.endsWith("Url")||["instagram","facebook","youtube","tiktok"].includes(key);
+      const maxLength=imageField?3_000_000:linkField?2000:220;
+      if (value.length > maxLength) return res.status(400).json({error:"Bağlantı, metin veya görsel çok büyük"});
+      if (imageField && value && !/^https:\/\//i.test(value) && !/^data:image\/(png|jpeg|webp);base64,/i.test(value))
+        return res.status(400).json({error:key+" için güvenli HTTPS görsel bağlantısı veya PNG/JPEG/WebP seçin"});
+      if (linkField && value && !/^https:\/\//i.test(value)) return res.status(400).json({error:key+" için HTTPS bağlantısı gerekli"});
+      if (!imageField && value.startsWith("data:")) return res.status(400).json({error:"Görsel verisi yalnızca görsel alanlarına yüklenebilir"});
       result[key] = value;
     }
     try {
