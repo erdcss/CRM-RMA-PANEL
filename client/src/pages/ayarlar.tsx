@@ -38,6 +38,8 @@ async function fetchBranding(): Promise<BrandingConfig> {
   return response.json();
 }
 
+type MetaTrackingSettings={enabled:boolean;pixelId:string};
+
 type PaymentSettings = {
   iyzicoConfigured: boolean;
   bankTransfer: {
@@ -62,6 +64,14 @@ export default function Ayarlar() {
       ? "email" : "branding",
   );
   const [footerDraft, setFooterDraft] = useState<Partial<StoreLinks>>({});
+  const [metaDraft,setMetaDraft]=useState<Partial<MetaTrackingSettings>>({});
+  const [savingMeta,setSavingMeta]=useState(false);
+  const {data:metaSettings={enabled:false,pixelId:""}}=useQuery<MetaTrackingSettings>({
+    queryKey:["/api/admin/meta-tracking"],
+    queryFn:async()=>{const r=await fetch("/api/admin/meta-tracking",{credentials:"include"});if(!r.ok)throw new Error("Meta ayarları alınamadı");return r.json();}
+  });
+  const metaValues={...metaSettings,...metaDraft};
+
   const [savingFooter,setSavingFooter]=useState(false);
   const { data: footerSettings = emptyStoreLinks } = useQuery<StoreLinks>({ queryKey:["/api/admin/b2b-footer"],queryFn:async()=>{const r=await fetch("/api/admin/b2b-footer");if(!r.ok)throw new Error("Alt bilgi okunamadı");return r.json();} });
   const footerValues = {...footerSettings,...footerDraft};
@@ -89,6 +99,26 @@ export default function Ayarlar() {
     accountHolder: "",
     iban: "",
   };
+
+  async function saveMetaTracking(){
+    setSavingMeta(true);
+    try{
+      const response=await fetch("/api/admin/meta-tracking",{
+        method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(metaValues)
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||"Meta ayarları kaydedilemedi");
+      setMetaDraft({});
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/meta-tracking"]}),
+        queryClient.invalidateQueries({queryKey:["/api/public/meta-tracking"]})
+      ]);
+      toast({title:"Meta ayarları kaydedildi",description:"B2B web Pixel ve onay tercihi yönetimi güncellendi."});
+    }catch(error){
+      toast({title:"Meta ayarları kaydedilemedi",description:error instanceof Error?error.message:"Hata oluştu",variant:"destructive"});
+    }finally{setSavingMeta(false);}
+  }
 
   async function saveFooter() {
     setSavingFooter(true);
@@ -189,12 +219,48 @@ export default function Ayarlar() {
           <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="branding">Marka & Görseller</TabsTrigger>
             <TabsTrigger value="mobile-download">Uygulama İndirme Bannerları</TabsTrigger>
+            <TabsTrigger value="meta">Meta Pixel</TabsTrigger>
             <TabsTrigger value="payments">Ödeme</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
             <TabsTrigger value="apple-review">Apple İnceleme Hesabı</TabsTrigger>
             <TabsTrigger value="email">E-posta Servisi</TabsTrigger>
           </TabsList>
 
+
+          <TabsContent value="meta" className="space-y-5">
+            <Card>
+              <CardHeader>
+                <CardTitle>Meta Pixel · Çalışkan B2B Web</CardTitle>
+                <CardDescription>
+                  Sadece halka açık B2B web mağazasında çalışır. Kullanıcı reklam ölçümüne açıkça izin verene
+                  kadar Meta kodu yüklenmez. İşlemler PageView, ViewContent, Search, AddToCart,
+                  InitiateCheckout ve doğrulanmış Purchase olaylarıyla izlenir.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="flex items-center gap-4 rounded-xl border p-4">
+                  <Switch checked={metaValues.enabled} onCheckedChange={enabled=>setMetaDraft(current=>({...current,enabled}))}/>
+                  <div><div className="font-semibold">B2B web Meta Pixel etkin</div>
+                    <p className="text-xs text-muted-foreground">Yalnızca izin veren ziyaretçiler için etkinleştirilir.</p></div>
+                </div>
+                <label className="block max-w-lg space-y-2">
+                  <span className="text-sm font-semibold">Meta Pixel / Dataset ID</span>
+                  <Input inputMode="numeric" pattern="[0-9]*" value={metaValues.pixelId}
+                    onChange={event=>setMetaDraft(current=>({...current,pixelId:event.target.value.replace(/[^0-9]/g,"")}))}
+                    placeholder="Sayısal Pixel ID"/>
+                  <p className="text-xs text-muted-foreground">26 Ekim 2026 tarihli Meta Pixel kurulum e-postasında yer alan ID varsayılan olarak tanımlandı. Gerekirse burada güncelleyin.</p>
+                </label>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Conversions API için ayrıca güvenli bir Meta erişim belirteci ve uygulama olayları için
+                  iOS/Android Meta App ID gerekir. Bu gizli bilgiler burada yayınlanmaz.
+                  Kurulumun etkinliğini Meta Events Manager → Test Events ekranında doğrulayın.
+                </p>
+                <Button disabled={savingMeta} onClick={()=>void saveMetaTracking()}>
+                  <Save className="mr-2 h-4 w-4"/>{savingMeta?"Kaydediliyor…":"Meta Ayarlarını Kaydet"}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="mobile-download" className="space-y-5">
             <Card>
