@@ -692,6 +692,37 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  // Only the numeric Pixel ID is public; never place Meta API tokens here.
+  const metaDefaults={enabled:true,pixelId:"949840147857568"};
+  const readMetaConfig=async()=>{
+    if(!pool)return metaDefaults;
+    const rows=await pool.query("SELECT value FROM platform_settings WHERE key='b2b_meta_tracking' LIMIT 1");
+    try{
+      const parsed=JSON.parse(String(rows.rows[0]?.value||"{}"));
+      return {enabled:parsed.enabled===undefined?metaDefaults.enabled:parsed.enabled===true,
+        pixelId:typeof parsed.pixelId==="string"&&/^[0-9]{10,20}$/.test(parsed.pixelId)?parsed.pixelId:metaDefaults.pixelId};
+    }catch{return metaDefaults;}
+  };
+  app.get("/api/public/meta-tracking",async(_req,res)=>{
+    res.setHeader("Cache-Control","no-store");
+    try{return res.json(await readMetaConfig());}catch{return res.json({enabled:false,pixelId:""});}
+  });
+  app.get("/api/admin/meta-tracking",requireAdmin,async(_req,res)=>{
+    try{return res.json(await readMetaConfig());}
+    catch{return res.status(503).json({error:"Meta ayarları yüklenemedi"});}
+  });
+  app.put("/api/admin/meta-tracking",requireAdmin,async(req,res)=>{
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    if(typeof req.body?.enabled!=="boolean")return res.status(400).json({error:"Aktif/Pasif seçimi gerekli"});
+    const pixelId=String(req.body?.pixelId||"").trim();
+    if(!/^[0-9]{10,20}$/.test(pixelId))return res.status(400).json({error:"Geçerli sayısal Meta Pixel ID girin"});
+    const config={enabled:req.body.enabled,pixelId};
+    try{
+      await pool.query("INSERT INTO platform_settings(key,value,updated_at) VALUES ('b2b_meta_tracking',$1,NOW()) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()",[JSON.stringify(config)]);
+      return res.json(config);
+    }catch{return res.status(500).json({error:"Meta ayarları kaydedilemedi"});}
+  });
+
   const footerDefaults = { instagram:"", facebook:"", youtube:"", tiktok:"", appStoreUrl:"", googlePlayUrl:"", appStoreImage:"", googlePlayImage:"",
     appStoreBannerTitle:"",appStoreBannerText:"",appStoreBannerImage:"",appStoreBannerButton:"",
     googlePlayBannerTitle:"",googlePlayBannerText:"",googlePlayBannerImage:"",googlePlayBannerButton:"",
