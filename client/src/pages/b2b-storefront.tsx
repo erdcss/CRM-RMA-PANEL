@@ -9,7 +9,7 @@ import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
 import { B2BProductCard } from "@/components/b2b-product-card";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
-import { loadB2BHomepageCategories } from "@/lib/b2b-categories";
+import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
 
 type SessionUser = {
@@ -68,7 +68,7 @@ export default function B2BStorefront() {
   const products = useMemo(() => [...supplierProducts, ...ownProducts], [supplierProducts, ownProducts]);
   const isLoading = loadingOwn || loadingSuppliers;
 
-  const { data: homepage = { categories: [] } } = useQuery<HomepageData>({
+  const { data: homepage = { categories: [] } } = useQuery<B2BHomepageCategories>({
     queryKey: ["/api/public/homepage"],
     queryFn: loadB2BHomepageCategories,
     staleTime: 15_000,
