@@ -8,13 +8,13 @@ import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Do
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
 type DocLine = { productId: string; quantity: string; unitPrice: string; taxRate: string };
-type Section = "overview" | "sales" | "purchases" | "products" | "stock" | "orders" | "instruments" | "banks" | "parties" | "reports";
+type Section = "overview" | "sales" | "purchases" | "products" | "stock" | "orders" | "instruments" | "banks" | "parties" | "reports" | "settings";
 const SECTIONS: Array<{ key: Section; label: string }> = [
   { key:"overview",label:"Genel Bakış" },{key:"sales",label:"Satış Faturaları"},
   {key:"purchases",label:"Satın Alma Faturaları"},{key:"products",label:"Ürünler"},
   {key:"stock",label:"Stok Hareketleri"},{key:"orders",label:"Siparişler"},
   {key:"instruments",label:"Çek ve Senetler"},{key:"banks",label:"Bankalar"},
-  {key:"parties",label:"Cari Hesaplar"},{key:"reports",label:"Raporlar"}
+  {key:"parties",label:"Cari Hesaplar"},{key:"reports",label:"Raporlar"},{key:"settings",label:"Ayarlar"}
 ];
 const NEW_LINE: DocLine = { productId:"",quantity:"1",unitPrice:"0",taxRate:"20" };
 const currency=(v: unknown)=>Number(v||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
@@ -60,6 +60,10 @@ export default function Dukkan() {
   const canManage=currentStore?.role==="owner"||currentStore?.role==="manager";
   const canAccount=!cashier;
   const isManager=["owner","manager"].includes(String(currentStore?.role));
+  const canAccessSettings=canManage||isSuperAdmin;
+  useEffect(()=>{
+    if(section==="settings"&&!canAccessSettings)setSection("overview");
+  },[section,canAccessSettings]);
   const identity=useMemo(()=>new URLSearchParams(window.location.search).get("tab"),[]);
 
   useEffect(()=>{if(identity && SECTIONS.some(s=>s.key===identity))setSection(identity as Section);},[identity]);
@@ -77,10 +81,10 @@ export default function Dukkan() {
         api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
       ]);
       setParties(p);setProducts(pr);setBanks(b);setReport(summary);
-      if(section==="overview"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
+      if(section==="settings"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
-        orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements"
+        orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements",settings:null
       };
       const result=resource[section]?await api(base+"/data/"+resource[section]):[];
       setRows(result);
@@ -188,7 +192,7 @@ export default function Dukkan() {
         {notice&&<div role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
         {showNewStore&&<form onSubmit={createStore} className={softCard+" mb-4 flex flex-wrap gap-2"}><input className={inputClass+" flex-1"} placeholder="Yeni mağaza adı" required value={newStoreName} onChange={e=>setNewStoreName(e.target.value)}/><button className={buttonClass} disabled={busy}>Oluştur</button></form>}
         {!storeId?<div className={softCard+" text-center"}><Building2 className="mx-auto mb-3 text-slate-400" size={34}/><h2 className="font-bold">Henüz erişilebilir mağaza yok</h2><p className="mt-2 text-sm text-slate-500">Çalışkan Admin yöneticisi mağaza oluşturup kullanıcıları mağazaya atayabilir.</p></div>:<>
-          <DukkanWorkspaceLayout selected={section} onSelect={setSection} cashier={cashier}>
+          <DukkanWorkspaceLayout selected={section} onSelect={setSection} cashier={cashier} showSettings={canAccessSettings}>
           {section==="overview"&&<div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
              {([{title:"Yeni Satış",subtitle:"Hızlı fatura oluştur",icon:ReceiptText,key:"sales"},{title:"Ürün Yönetimi",subtitle:"Stok kartlarına eriş",icon:Package,key:"products"},
                {title:"Cari Hesaplar",subtitle:"Tahsilat ve alacaklar",icon:Users,key:"parties"},{title:"Rapor Merkezi",subtitle:"İşletme performansı",icon:BarChart3,key:"reports"}] as const)
@@ -211,11 +215,21 @@ export default function Dukkan() {
                </div>)}
           </div>}
           {section==="reports"&&<div className={softCard+" mb-4"}><h2 className="font-bold">Vadesi geçmiş çek ve senetler</h2><p className="mt-2 text-sm">Belge: {fmt(report?.overdue?.count)} · Toplam: {currency(report?.overdue?.amount)}</p><p className="mt-2 text-xs text-slate-500">Raporlar kayıtlı işlemlerden üretilir; resmî mali tablo veya GİB e-Fatura yerine geçmez.</p></div>}
-          {section==="overview"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
-          {section==="overview"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
+          {section==="settings"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
+          {section==="settings"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
             onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
             onError={setError}/>}
-          <div className={softCard}>
+          {section==="settings"&&<div className="mb-5">
+            <div className={softCard}>
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-[#e6f2ff] p-3 text-[#124b85]"><Building2 size={22}/></div>
+                <div><h2 className="text-lg font-black text-[#132b50]">Mağaza Ayarları</h2>
+                  <p className="mt-1 text-xs text-slate-500">{currentStore?.name} · Kullanıcı ve yetki yönetimi</p></div>
+              </div>
+              <p className="mt-4 text-xs leading-6 text-slate-600">Personel yetkileri yalnızca seçili mağaza için geçerlidir. Süper yönetici ise tüm Çalışkan Admin modüllerine erişebilen yüksek yetkili bir hesaptır.</p>
+            </div>
+          </div>}
+          {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{displayed.length} kayıt · {currentStore?.name}</p></div>
               {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setDraft({});}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
@@ -308,7 +322,7 @@ export default function Dukkan() {
               </table>
               {displayed.length===0&&<p className="py-10 text-center text-sm text-slate-500">Henüz kayıt bulunmuyor.</p>}
             </div>
-          </div>
+          </div>}
           <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
           </DukkanWorkspaceLayout>
         </>}
