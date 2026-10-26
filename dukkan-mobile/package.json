@@ -10,7 +10,8 @@
     "build:android": "eas build --platform android --profile production",
     "build:ios": "eas build --platform ios --profile production",
     "check": "tsc --noEmit",
-    "submit:ios": "eas submit --platform ios --profile production"
+    "submit:ios": "eas submit --platform ios --profile production",
+    "prepare:branding": "node scripts/prepare-branding.cjs"
   },
   "dependencies": {
     "expo": "~54.0.0",
@@ -25,7 +26,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "sharp": "^0.33.5"
   },
   "description": "Çalışkan Dükkan shared-account connected mobile client (previous offline engine retained for migration)"
 }
