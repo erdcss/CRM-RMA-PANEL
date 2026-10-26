@@ -13,6 +13,8 @@ export const DUKKAN_THEME=StyleSheet.create({
  tab:{backgroundColor:"#eef4fb",paddingHorizontal:14,paddingVertical:11,borderRadius:15,borderWidth:1,borderColor:"#e6edf6"},
  selectedTab:{backgroundColor:blue,borderColor:blue},
  tabText:{fontSize:12,fontWeight:"800",color:"#415773"},
+ content:{flex:1},
+ lineInputRow:{flexDirection:"row",gap:9,marginTop:12},
  contentInner:{paddingHorizontal:17,paddingTop:23,paddingBottom:34},
  pageHead:{marginBottom:19},
  pageTitle:{fontSize:25,fontWeight:"900",color:ink,letterSpacing:-0.5},
