@@ -168,6 +168,7 @@ export default function ProductDetailScreen() {
         <View style={styles.imageCard} onLayout={(event) => setGalleryWidth(event.nativeEvent.layout.width)}>
           {images.length ? (
             <ScrollView
+              style={{width:galleryWidth || 320,height:galleryWidth || 320}}
               horizontal
               pagingEnabled
               nestedScrollEnabled
@@ -182,7 +183,7 @@ export default function ProductDetailScreen() {
                 <Image
                   key={url + index}
                   source={{ uri: url }}
-                  style={[styles.productImage, { width: galleryWidth || 320 }]}
+                  style={[styles.productImage, { width: galleryWidth || 320, height: galleryWidth || 320 }]}
                   contentFit="contain"
                   cachePolicy="memory-disk"
                 />
