@@ -1,8 +1,8 @@
-RELEASE REQUEST — Çalışkan Business iOS TestFlight + Android AAB
-Requested on: 2026-10-26
-User explicitly requested both iOS apps be submitted to TestFlight after UI changes.
-Revision before request: 92edd130bab599616029bdeb11e93674b1a647ff
-This workflow must build current main, verify Expo credentials, sign app and await App Store Connect submit.
-Native package scope: com.caliskangroup.business.
-Features: Business AI 4-image editable gallery, generated image primary, accurate vision extraction, barcode scanner. B2B multi-image product slider 1/n indicator, configurable App Store/Google Play download panels, and My Account update banner. Admin settings manage headings, images, links and store buttons.
-Do not claim TestFlight success unless EAS build and submission steps succeed.
+ÇALIŞKAN BUSINESS iOS TESTFLIGHT — FINAL SOURCE RELEASE
+Date: 2026-10-26
+Current main revision: 7e377b90d82931e65e14faac36c7b8a73c40df72
+App: com.caliskangroup.business only
+User requested TestFlight upload after complete AI Product Studio gallery/AI/barcode fixes.
+Changes: 4-image gallery including rendered image, removable originals and generated cover, barcode camera scan, multi-image high-detail visual extraction with manual completion.
+Run Expo access, npm ci, TypeScript check, latest Business branding, signed iOS EAS build, awaited App Store Connect submission. Android AAB is also built by this workflow.
+Never report TestFlight approved/available before confirming successful submit and App Store Connect processing.
