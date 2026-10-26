@@ -59,6 +59,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
 import { trackSession } from "@/lib/analytics";
 import { B2BMetaPixelConsent } from "@/components/meta-pixel-consent";
+import { B2BBottomNav } from "@/components/b2b-bottom-nav";
 
 function isMarketplaceHost() {
   const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
@@ -201,7 +202,7 @@ function B2BWebsite() {
   }, []);
 
   return (
-    <div className="b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain">
+    <div className="b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain pb-[calc(106px+env(safe-area-inset-bottom,0px))] md:pb-[116px]">
       <B2BMetaPixelConsent />
       <Switch>
         <Route path="/" component={B2BStorefront} />
@@ -233,6 +234,7 @@ function B2BWebsite() {
         <Route path="/kullanim-kosullari" component={B2BTermsPage} />
         <Route component={B2BStorefront} />
       </Switch>
+      <B2BBottomNav />
     </div>
   );
 }
