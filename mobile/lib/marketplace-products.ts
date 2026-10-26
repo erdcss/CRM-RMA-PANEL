@@ -11,7 +11,9 @@ export function asCatalogProduct(item: MarketplaceProduct): B2BProduct {
     stock: Number(item.stock),
     image_data: item.content.imageUrl || null,
     image_url: item.content.imageUrl || null,
-    images: item.content.imageUrl ? [item.content.imageUrl] : [],
+    images: Array.isArray(item.content.imageUrls) && item.content.imageUrls.length
+      ? item.content.imageUrls.filter((url):url is string => typeof url === 'string' && Boolean(url))
+      : item.content.imageUrl ? [item.content.imageUrl] : [],
     barcode: item.content.barcode || null,
     category: item.content.category || null,
     brand: item.content.brand || null,
