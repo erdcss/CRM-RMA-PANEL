@@ -91,11 +91,11 @@ export function B2BDesktopAppBanners() {
     {id:"android",name:"Google Play",url:links.googlePlayUrl,title:links.googlePlayBannerTitle || "Android'de B2B",text:links.googlePlayBannerText || "Her yerden alışveriş",image:links.googlePlayBannerImage || links.googlePlayImage,button:links.googlePlayBannerButton || "İndir"},
   ].filter(item=>Boolean(item.url));
   if(!items.length)return null;
-  return <aside aria-label="Mobil uygulama indirme bannerları" className="pointer-events-none fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 2xl:flex">
+  return <aside aria-label="Mobil uygulama indirme bannerları" className="pointer-events-none fixed right-1 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 xl:flex 2xl:right-3">
     {items.map(item=><a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
-      className="pointer-events-auto flex min-h-[212px] w-[116px] flex-col items-center justify-between overflow-hidden rounded-[21px] border border-[#ffcd00]/40 bg-[#111827] px-2 py-3 text-center text-white shadow-2xl transition hover:scale-[1.03] hover:border-[#ffcd00]">
+      className="pointer-events-auto flex min-h-[195px] w-[86px] 2xl:min-h-[212px] 2xl:w-[116px] flex-col items-center justify-between overflow-hidden rounded-[21px] border border-[#ffcd00]/40 bg-[#111827] px-2 py-3 text-center text-white shadow-2xl transition hover:scale-[1.03] hover:border-[#ffcd00]">
       <span className="text-[10px] font-black text-[#ffcd00]">{item.name}</span>
-      {item.image ? <img src={item.image} alt={item.name+" görseli"} className="h-[84px] w-[94px] rounded-xl object-contain"/> : <span className="flex h-[84px] w-[94px] items-center justify-center rounded-xl border border-white/20 text-4xl">↧</span>}
+      {item.image ? <img src={item.image} alt={item.name+" görseli"} className="h-[65px] w-[70px] rounded-xl object-contain 2xl:h-[84px] 2xl:w-[94px]"/> : <span className="flex h-[65px] w-[70px] items-center justify-center 2xl:h-[84px] 2xl:w-[94px] rounded-xl border border-white/20 text-4xl">↧</span>}
       <div className="w-full"><div className="text-xs font-black leading-4">{item.title}</div><div className="mt-1 text-[10px] leading-3 text-slate-300">{item.text}</div></div>
       <span className="mt-2 w-full rounded-lg bg-[#ffcd00] px-2 py-1.5 text-[11px] font-black text-slate-950">{item.button}</span>
     </a>)}
