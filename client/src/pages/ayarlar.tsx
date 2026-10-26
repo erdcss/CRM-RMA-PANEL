@@ -188,11 +188,69 @@ export default function Ayarlar() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
           <TabsList className="h-auto flex-wrap justify-start">
             <TabsTrigger value="branding">Marka & Görseller</TabsTrigger>
+            <TabsTrigger value="mobile-download">Uygulama İndirme Bannerları</TabsTrigger>
             <TabsTrigger value="payments">Ödeme</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
             <TabsTrigger value="apple-review">Apple İnceleme Hesabı</TabsTrigger>
             <TabsTrigger value="email">E-posta Servisi</TabsTrigger>
           </TabsList>
+
+
+          <TabsContent value="mobile-download" className="space-y-5">
+            <Card>
+              <CardHeader>
+                <CardTitle>Uygulama İndirme Alanı · Çalışkan B2B</CardTitle>
+                <CardDescription>
+                  Masaüstü ana sayfanın sağındaki sabit dikey bannerları, mobil web üst indirme şeridini
+                  ve B2B uygulamasının Hesabım bölümündeki güncelleme bağlantısını buradan yönetin.
+                  Bağlantı boşsa ilgili banner görünmez.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {([
+                    ["appStoreUrl","App Store indirme bağlantısı"],
+                    ["googlePlayUrl","Google Play indirme bağlantısı"],
+                    ["latestIosVersion","Güncel iOS sürümü (örn. 1.1.0)"],
+                    ["latestAndroidVersion","Güncel Android sürümü (örn. 1.1.0)"],
+                    ["downloadHeaderTitle","Mobil web indirme başlığı"],
+                    ["downloadHeaderText","Mobil web indirme açıklaması"]
+                  ] as const).map(([key,label])=><label key={key} className="space-y-2">
+                    <span className="text-sm font-semibold">{label}</span>
+                    <Input value={footerValues[key]} placeholder={key.endsWith("Url")?"https://":"Metin girin"}
+                      onChange={event=>setFooterDraft(current=>({...current,[key]:event.target.value}))}/>
+                  </label>)}
+                </div>
+              </CardContent>
+            </Card>
+            {([
+              {key:"appStore",title:"App Store · iPhone",imageKey:"appStoreBannerImage" as const,titleKey:"appStoreBannerTitle" as const,textKey:"appStoreBannerText" as const,buttonKey:"appStoreBannerButton" as const},
+              {key:"googlePlay",title:"Google Play · Android",imageKey:"googlePlayBannerImage" as const,titleKey:"googlePlayBannerTitle" as const,textKey:"googlePlayBannerText" as const,buttonKey:"googlePlayBannerButton" as const}
+            ]).map(item=><Card key={item.key}>
+              <CardHeader><CardTitle>{item.title} · Dikey İndirme Bannerı</CardTitle>
+                <CardDescription>Dikey dar tasarıma uygun görsel, kısa metin ve bağlantıya giden indirme butonu.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+                <AssetUploader portrait cover title={item.title+" banner görseli"}
+                  description="Dikey görsel önerilir; PNG, JPG veya WebP."
+                  value={footerValues[item.imageKey] || null}
+                  onChange={value=>setFooterDraft(current=>({...current,[item.imageKey]:value||""}))}/>
+                <div className="grid content-start gap-4">
+                  {([
+                    [item.titleKey,"Banner başlığı"],
+                    [item.textKey,"Banner açıklaması"],
+                    [item.buttonKey,"Buton yazısı"]
+                  ] as const).map(([key,label])=><label key={key} className="space-y-2">
+                    <span className="text-sm font-semibold">{label}</span>
+                    <Input value={footerValues[key]} onChange={event=>setFooterDraft(current=>({...current,[key]:event.target.value}))}/>
+                  </label>)}
+                </div>
+              </CardContent>
+            </Card>)}
+            <Button disabled={savingFooter} onClick={()=>void saveFooter()}>
+              <Save className="mr-2 h-4 w-4"/>{savingFooter?"Kaydediliyor…":"İndirme Bannerlarını Kaydet"}
+            </Button>
+          </TabsContent>
 
           <TabsContent value="branding" className="space-y-6">
             <Card>
