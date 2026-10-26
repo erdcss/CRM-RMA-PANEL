@@ -38,7 +38,7 @@ async function fetchBranding(): Promise<BrandingConfig> {
   return response.json();
 }
 
-type MetaTrackingSettings={enabled:boolean;pixelId:string};
+type MetaTrackingSettings={enabled:boolean;pixelId:string;capiConfigured?:boolean};
 
 type PaymentSettings = {
   iyzicoConfigured: boolean;
@@ -250,6 +250,11 @@ export default function Ayarlar() {
                     placeholder="Sayısal Pixel ID"/>
                   <p className="text-xs text-muted-foreground">26 Ekim 2026 tarihli Meta Pixel kurulum e-postasında yer alan ID varsayılan olarak tanımlandı. Gerekirse burada güncelleyin.</p>
                 </label>
+                <div className="rounded-xl border border-slate-200 bg-muted/30 px-4 py-3 text-sm">
+                  <strong>Conversions API bağlantısı:</strong> {metaSettings.capiConfigured
+                    ? "Sunucuda erişim belirteci tanımlı (Meta tarafından kabul edildiği henüz test edilmelidir)."
+                    : "Eksik · Railway API servisine META_CONVERSIONS_ACCESS_TOKEN gizli değişkeni eklenmeli."}
+                </div>
                 <p className="text-xs leading-5 text-muted-foreground">
                   Conversions API için ayrıca güvenli bir Meta erişim belirteci ve uygulama olayları için
                   iOS/Android Meta App ID gerekir. Bu gizli bilgiler burada yayınlanmaz.
