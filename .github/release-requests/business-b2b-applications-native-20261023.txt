@@ -1,5 +1,15 @@
-Çalışkan Business 23.10.2026 mobil başvuru ve müşteri dashboard sürümü
-Kaynak SHA: c41d6d24716d8534374ffaedabf4b9609c577e78
-TestFlight (iOS) + Android AAB EAS derlemeleri için tetikleyici.
-Başvurular, firma detayları, e-posta şifresi onay akışı, müşteri dashboard ve hareket kayıtları.
-B2B uygulamasının build'i değiştirilmeyecek.
+Çalışkan Business AI Ürün Ekle — iOS TestFlight ve Android AAB düzeltme yayını
+Tarih: 2026-10-26
+Kaynak main commit: e51ab2f0c1a2904fc99eb23e1bb12e99115963bf
+Hedef: com.caliskangroup.business (yalnızca Business App; B2B ve Dükkan native uygulamalarına dokunmayın).
+
+Önemli düzeltmeler:
+- Fotoğraf seçicide iOS HEIC için compatible temsil tercih edilir.
+- Gerçek dosya biçimi byte imzasından belirlenir ve JPEG/PNG/WebP MIME olarak doğru iletilir.
+- Sunucu yanlış etiketlenmiş desteklenen görselleri normalize eder.
+- Desteklenmeyen biçimler AI servis çağrısından önce anlaşılır 422 uyarısıyla reddedilir.
+- AI analiz, düzenleme ve ürün kaydetme akışlarında hata yönetimi iyileştirilir.
+
+Workflow: business-b2b-ui-native-release.yml
+Sıra: Expo access > npm ci > TypeScript > iOS signed EAS build > TestFlight submit, ayrıca Android AAB.
+Derleme/submit sonucu başarılı olmadan yayımlandı denmemeli.
