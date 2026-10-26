@@ -56,10 +56,12 @@ async function runCase(withSplash) {
     if (withSplash) {
       assert.equal(result.code, 0, result.out);
       assert.match(config.expo.icon, /^\.\/assets\/managed-logo-[a-f0-9]{12}\.png$/);
-      assert.equal(config.expo.splash.image, undefined, "Native splash must never freeze the admin image");
+      assert.match(config.expo.splash.image, /^\.\/assets\/managed-splash-[a-f0-9]{12}\.png$/, "Native iOS splash must show branded artwork immediately");
+      assert.equal(config.expo.ios.splash.image, config.expo.splash.image);
+      assert.equal(config.expo.ios.splash.resizeMode, "cover");
       assert.equal(config.expo.splash.backgroundColor, "#101010");
       const logoFile = path.join(tmp, config.expo.icon);
-      const splashFile = null;
+      const splashFile = path.join(tmp, config.expo.splash.image);
       assert.ok(
         path.basename(config.expo.android.adaptiveIcon.foregroundImage).startsWith("managed-android-foreground-") &&
         config.expo.android.adaptiveIcon.foregroundImage.endsWith(".png"),
@@ -76,7 +78,7 @@ async function runCase(withSplash) {
         "Logo must remain visible at the icon center");
 
       assert.ok(fs.statSync(logoFile).size > 50);
-      assert.ok(splashFile === null);
+      assert.ok(fs.statSync(splashFile).size > 50);
       assert.equal(
         fs.existsSync(path.join(tmp, "lib", "managed-header-logo.ts")),
         false,
@@ -90,17 +92,18 @@ async function runCase(withSplash) {
       // Repeating sync must reuse the same files rather than overwrite files
       // that may be held open in Windows Photos.
       const logoModifiedAt = fs.statSync(logoFile).mtimeMs;
-      const splashModifiedAt = fs.readFileSync(runtimeModule, "utf8");
+      const splashModifiedAt = fs.statSync(splashFile).mtimeMs;
       const second = await launch([script, "b2b"], {
         cwd: tmp,
         env: { ...process.env, EXPO_PUBLIC_BRANDING_API_URL: "http://127.0.0.1:" + port },
       });
       assert.equal(second.code, 0, second.out);
       assert.equal(fs.statSync(logoFile).mtimeMs, logoModifiedAt);
-      assert.equal(fs.readFileSync(runtimeModule, "utf8"), splashModifiedAt);
+      assert.equal(fs.statSync(splashFile).mtimeMs, splashModifiedAt);
     } else {
       assert.equal(result.code, 0, result.out);
       assert.equal(config.expo.splash.image, undefined);
+      assert.equal(config.expo.ios.splash, undefined, "When removed, do not bundle the previous iOS splash");
       assert.equal(config.expo.splash.backgroundColor, "#101010");
       assert.match(config.expo.icon, /^\.\/assets\/managed-logo-[a-f0-9]{12}\.png$/);
       assert.match(fs.readFileSync(path.join(tmp, "lib", "managed-splash.ts"), "utf8"), /managedSplash: ImageSourcePropType \| null = null/);
@@ -116,7 +119,7 @@ async function runCase(withSplash) {
 async function main() {
   await runCase(true);
   await runCase(false);
-  console.log("B2B splash provided/removed native sync checks passed.");
+  console.log("B2B first-frame native splash / removal regression checks passed.");
 }
 
 main().catch((error) => {

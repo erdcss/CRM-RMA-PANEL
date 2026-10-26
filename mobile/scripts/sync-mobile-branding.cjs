@@ -142,11 +142,18 @@ async function main() {
   }
 
   if (target === "b2b") {
-    // A native OS splash is immutable after installation. Keep it neutral:
-    // admin branding is rendered at runtime and may be changed or removed
-    // without another EAS binary or an OTA JavaScript publish.
-    expo.splash = { backgroundColor: "#101010" };
-    if (expo.ios) delete expo.ios.splash;
+    // Native iOS must render a real splash from the FIRST frame (no empty
+    // launch page before the runtime image fetch). Its image is frozen for
+    // this installed binary; after launch the live Admin splash takes over,
+    // including changes and deletions without a new binary.
+    if (splashPath) {
+      expo.splash = { image: splashPath, resizeMode: "cover", backgroundColor: "#101010" };
+      expo.ios = expo.ios || {};
+      expo.ios.splash = { image: splashPath, resizeMode: "cover", backgroundColor: "#101010" };
+    } else {
+      expo.splash = { backgroundColor: "#101010" };
+      if (expo.ios) delete expo.ios.splash;
+    }
   } else if (splashPath) {
     expo.splash = {
       image: splashPath,
