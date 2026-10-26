@@ -708,7 +708,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     try{return res.json(await readMetaConfig());}catch{return res.json({enabled:false,pixelId:""});}
   });
   app.get("/api/admin/meta-tracking",requireAdmin,async(_req,res)=>{
-    try{return res.json(await readMetaConfig());}
+    try{return res.json({...await readMetaConfig(),capiConfigured:Boolean(process.env.META_CONVERSIONS_ACCESS_TOKEN)});}
     catch{return res.status(503).json({error:"Meta ayarları yüklenemedi"});}
   });
   app.put("/api/admin/meta-tracking",requireAdmin,async(req,res)=>{
