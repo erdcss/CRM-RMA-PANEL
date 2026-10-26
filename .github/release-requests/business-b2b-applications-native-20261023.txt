@@ -1,8 +1,16 @@
-ÇALIŞKAN BUSINESS iOS TESTFLIGHT — FINAL SOURCE RELEASE
-Date: 2026-10-26
-Current main revision: 7e377b90d82931e65e14faac36c7b8a73c40df72
-App: com.caliskangroup.business only
-User requested TestFlight upload after complete AI Product Studio gallery/AI/barcode fixes.
-Changes: 4-image gallery including rendered image, removable originals and generated cover, barcode camera scan, multi-image high-detail visual extraction with manual completion.
-Run Expo access, npm ci, TypeScript check, latest Business branding, signed iOS EAS build, awaited App Store Connect submission. Android AAB is also built by this workflow.
-Never report TestFlight approved/available before confirming successful submit and App Store Connect processing.
+ÇALIŞKAN BUSINESS — AI ÜRÜN STÜDYOSU DÜZELTMESİ / iOS TESTFLIGHT
+Talep: 26 Ekim 2026
+Kod: ab2becf9af59c8151d8e44cb80a60658ef7c27d8
+Hedef iOS uygulaması: com.caliskangroup.business
+Son kaynak: GitHub main; bu release request tüm yeni kodlardan sonra oluşturuldu.
+
+Düzeltilen akış:
+- AI görsel üretiminden sonra galeri düzenlenirken ürün formu korunur.
+- Kullanıcı kaynak fotoğrafı silebilir; AI tarafından doldurulmuş bilgiler, görsel ve manuel düzenlemeler silinmez.
+- Görsel eklendiğinde tamamlanmış ürün kartı sıfırlanmaz; yeniden analiz yalnızca kullanıcı isteğiyle yapılır.
+- Bekleyen eski görüntü analizleri galeri değişikliğinde geçersizleşir.
+- Web masaüstü B2B kategorileri admin kaynaklı görsel kartlarla gösterilir (aynı repoda).
+
+Pipeline: Expo authentication, npm ci, TypeScript validation, synced native branding, signed EAS iOS build, App Store Connect TestFlight submit --wait.
+Android AAB aynı mevcut CI akışında ayrıca çalışabilir.
+TestFlight upload confirmation olmadan yayınlandı denmez.
