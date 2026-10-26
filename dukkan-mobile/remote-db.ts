@@ -26,6 +26,7 @@ export async function login(username:string,password:string):Promise<LoginResult
  return result;
 }
 export async function availableStores(token:string){return request<StoreInfo[]>("/api/dukkan/stores","GET",undefined,token);}
+export async function uploadedLogoUrl(){const v=await request<{dukkan_logo?:string|null}>("/api/public/branding");return v.dukkan_logo&&v.dukkan_logo.startsWith("/api/public/branding-asset/dukkan_logo?")?API+v.dukkan_logo:null;}
 export function setStoreSession(token:string,store?:StoreInfo){bearer=token;currentStore=store;}
 export function clearStoreSession(){bearer="";currentStore=undefined;}
 export function activeStore(){return currentStore;}
