@@ -263,27 +263,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
   </KeyboardAvoidingView>}
  </SafeAreaView>;
 }
-const styles=StyleSheet.create({
- safe:{flex:1,backgroundColor:f.bg},header:{backgroundColor:f.ink,paddingHorizontal:20,paddingTop:Platform.OS==="android"?20:14,paddingBottom:21,flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
- overline:{color:f.amber,fontSize:10,fontWeight:"800",letterSpacing:1.4},brand:{color:"white",fontSize:25,fontWeight:"900",marginTop:8},headerSub:{color:"#9eb0c4",fontSize:11,marginTop:3},
- offline:{backgroundColor:"#244a48",padding:8,borderRadius:13},
- nav:{flexGrow:0,maxHeight:57,backgroundColor:"white",borderBottomWidth:1,borderColor:f.border},
- navInner:{alignItems:"center",paddingHorizontal:10,gap:8},tab:{backgroundColor:"#eef2f7",paddingHorizontal:14,paddingVertical:10,borderRadius:14},selectedTab:{backgroundColor:f.ink},
- tabText:{fontSize:12,fontWeight:"700",color:f.ink},content:{flex:1},contentInner:{padding:18,paddingBottom:85},pageHead:{marginBottom:19},pageTitle:{fontSize:23,fontWeight:"800",color:f.ink},pageNote:{fontSize:12,color:f.muted,marginTop:5},
- cards:{flexDirection:"row",flexWrap:"wrap",gap:10,marginBottom:18},stat:{backgroundColor:"white",borderRadius:14,padding:15,borderWidth:1,borderColor:f.border,width:"48%",minWidth:145},statName:{color:f.muted,fontSize:11,fontWeight:"600"},statValue:{color:f.ink,fontSize:18,fontWeight:"800",marginTop:13},
- groupTitle:{fontSize:16,color:f.ink,fontWeight:"800",marginBottom:12},primary:{backgroundColor:f.ink,borderRadius:12,paddingHorizontal:17,paddingVertical:13,marginRight:9,alignItems:"center",justifyContent:"center"},primaryText:{color:"white",fontWeight:"800",fontSize:13},
- secondary:{backgroundColor:"#eef2f8",borderRadius:12,padding:14,alignItems:"center",borderWidth:1,borderColor:f.border},secondaryText:{fontWeight:"800",fontSize:13,color:f.ink},
- card:{backgroundColor:"white",borderRadius:15,borderWidth:1,borderColor:f.border,padding:18,marginBottom:15},row:{backgroundColor:"white",borderWidth:1,borderColor:f.border,borderRadius:14,padding:16,marginBottom:9,flexDirection:"row",alignItems:"center",gap:14},
- rowTitle:{fontSize:14,fontWeight:"800",color:f.ink},rowNote:{fontSize:11,color:f.muted,marginTop:6},rowAmount:{fontSize:14,fontWeight:"800",color:f.ink},badge:{fontSize:10,color:f.green,marginTop:5,fontWeight:"800"},
- hint:{fontSize:12,color:f.muted,lineHeight:19},empty:{backgroundColor:"white",borderWidth:1,borderColor:f.border,borderRadius:14,padding:25,alignItems:"center",gap:8},emptyTitle:{color:f.ink,fontWeight:"700"},
- overlay:{position:"absolute",top:0,bottom:0,left:0,right:0,backgroundColor:"#0a1c33ab",justifyContent:"flex-end"},modal:{backgroundColor:"white",borderTopLeftRadius:25,borderTopRightRadius:25,maxHeight:"94%",minHeight:"50%"},
- modalHead:{padding:19,paddingHorizontal:21,borderBottomWidth:1,borderColor:f.border,flexDirection:"row",justifyContent:"space-between"},modalTitle:{fontSize:18,color:f.ink,fontWeight:"800"},
- field:{marginBottom:17},label:{fontSize:12,color:"#475971",fontWeight:"800",marginBottom:7},input:{backgroundColor:"white",borderWidth:1,borderColor:"#d6dee9",borderRadius:11,paddingHorizontal:12,paddingVertical:10,fontSize:14,color:f.ink,minHeight:45},
- chip:{borderRadius:11,backgroundColor:"#eef2f6",paddingHorizontal:14,paddingVertical:11,marginRight:8,marginBottom:5},chipActive:{backgroundColor:f.ink},
- line:{padding:14,backgroundColor:"#f5f8fb",borderWidth:1,borderColor:f.border,borderRadius:12,marginBottom:13},lineInputRow:{flexDirection:"row",gap:9,marginTop:12},smallLabel:{fontSize:10,color:f.muted,marginBottom:6},total:{fontSize:15,fontWeight:"800",color:f.ink,textAlign:"right",marginVertical:18},
- error:{color:"#ac3b4b",backgroundColor:"#fff0f0",padding:14,borderRadius:9,marginBottom:12},
- ...DUKKAN_THEME
-});
+const styles=DUKKAN_THEME;
 
 type ActiveSession={token:string;stores:StoreInfo[];store:StoreInfo;user:{id:number;username:string}};
 const SECURE_SESSION_KEY="caliskan_dukkan_account_v2";
