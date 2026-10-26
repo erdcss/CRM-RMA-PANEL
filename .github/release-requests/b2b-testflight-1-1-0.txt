@@ -1,5 +1,5 @@
-Çalışkan B2B iOS 1.1.0 TestFlight — 26 Ekim 2026 / native first-frame splash fix.
-Kod kaynağı: 7278176d856c9c22b4e07078ed4b0ea114ffc270
-İOS ilk açılıştaki boş ekran yerine admin splash resmini native LaunchScreen'a yerleştir.
-Mevcut native splash, güncel runtime splash görüntüsü yüklenene kadar görünmeye devam etsin.
-Yalnızca Çalışkan B2B iOS için TestFlight üret ve App Store Connect'e gönder.
+Çalışkan B2B iOS 1.1.0 - splash tek ekran / route hazır olana kadar görünür.
+Tarih: 2026-10-26 14:37 Europe/Istanbul.
+Uygulama düzeltmesi: ba1e243c879324df24b451832e5281cd07c38170
+Kapsam: extra Giriş Ekranı Görseli kaldırıldı; Splash API image stable revision; oturum yönlendirmesi tamamlanana kadar splash gösterilir; Native başlangıç ekranı devamlılığı korunur.
+Yalnızca Çalışkan B2B iOS paketi TestFlight'a yüklensin.
