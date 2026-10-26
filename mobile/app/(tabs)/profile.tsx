@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BAccount } from '@/lib/api';
+
+type UpdateLinks={appStoreUrl?:string;googlePlayUrl?:string;latestIosVersion?:string;latestAndroidVersion?:string};
+const brandingApi=(process.env.EXPO_PUBLIC_BRANDING_API_URL || 'https://admin.ecalisgan.com').replace(/\/$/,'');
+function isNewer(latest:string,current:string){
+  const a=latest.split('.').map(Number),b=current.split('.').map(Number);
+  if(a.some(n=>!Number.isFinite(n))||b.some(n=>!Number.isFinite(n)))return true;
+  return a.some((n,i)=>n>(b[i]||0)&&a.slice(0,i).every((v,j)=>v===(b[j]||0)));
+}
+
 
 const rows: Array<{ key: string; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { key: 'company', label: 'Profil Bilgileri', subtitle: 'Firma ve iletişim bilgileri', icon: 'person-outline' },
@@ -25,6 +35,20 @@ export default function ProfileScreen() {
   const { session, user, signOut } = useAuth();
   const { palette } = useAppearance();
   const [account, setAccount] = useState<B2BAccount | null>(null);
+  const [storeLinks,setStoreLinks]=useState<UpdateLinks>({});
+  useEffect(()=>{
+    let mounted=true;
+    fetch(brandingApi+'/api/public/b2b-footer',{headers:{Accept:'application/json'}})
+      .then(res=>res.ok?res.json():{})
+      .then(data=>{if(mounted)setStoreLinks(data as UpdateLinks);})
+      .catch(()=>undefined);
+    return ()=>{mounted=false;};
+  },[]);
+  const currentVersion=Constants.expoConfig?.version || '0.0.0';
+  const storeUrl=Platform.OS==='ios'?storeLinks.appStoreUrl:storeLinks.googlePlayUrl;
+  const latestVersion=Platform.OS==='ios'?storeLinks.latestIosVersion:storeLinks.latestAndroidVersion;
+  const showUpdate=Boolean(storeUrl && /^https:\/\//.test(storeUrl) && (!latestVersion||isNewer(latestVersion,currentVersion)));
+
   useEffect(() => {
     let mounted = true;
     if (session) void rmaApi.getB2BAccount().then(a => { if(mounted) setAccount(a); }).catch(() => undefined);
@@ -41,6 +65,13 @@ export default function ProfileScreen() {
   };
   return <Screen style={{ backgroundColor: palette.background }}>
     <ScrollView contentContainerStyle={styles.page}>
+      {showUpdate ? <Pressable style={styles.updateBanner} accessibilityRole="link"
+        onPress={()=>{if(storeUrl)void Linking.openURL(storeUrl).catch(()=>undefined);}}>
+        <View style={styles.updateIcon}><Ionicons name="cloud-download-outline" size={25} color="#151515"/></View>
+        <View style={{flex:1}}><Text style={styles.updateTitle}>Çalışkan B2B uygulamasını güncelle</Text>
+          <Text style={styles.updateText}>En yeni özelliklerden yararlanmak için {Platform.OS==='ios'?'App Store':'Google Play'} üzerinden güncelleyin{latestVersion?' · v'+latestVersion:''}.</Text></View>
+        <Ionicons name="arrow-forward-circle" size={24} color="#FFCD00"/>
+      </Pressable> : null}
       <Text style={[styles.title, { color: palette.text }]}>Hesabım</Text>
       <Text style={[styles.subtitle, { color: palette.textSecondary }]}>Hesap bilgilerinizi yönetin ve işlemlerinizi takip edin.</Text>
       <View style={[styles.identity, { backgroundColor: palette.surface, borderColor: palette.border }]}>
@@ -84,6 +115,10 @@ export default function ProfileScreen() {
 }
 const styles = StyleSheet.create({
   page:{ paddingHorizontal:16,paddingTop:20,paddingBottom:120 },
+  updateBanner:{flexDirection:'row',alignItems:'center',gap:12,backgroundColor:'#111827',borderWidth:1,borderColor:'#FFCD00',borderRadius:18,padding:14,marginBottom:18},
+  updateIcon:{width:46,height:46,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:'#FFCD00'},
+  updateTitle:{color:'#FFFFFF',fontWeight:'900',fontSize:14},
+  updateText:{color:'#D1D5DB',fontSize:11,marginTop:4,lineHeight:16},
   title:{ fontSize:27,fontWeight:'900' },subtitle:{ fontSize:13,marginTop:4,marginBottom:19 },
   identity:{ flexDirection:'row',alignItems:'center',gap:14,borderRadius:18,borderWidth:1,padding:15,minHeight:94 },
   avatar:{ width:55,height:55,borderRadius:28,alignItems:'center',justifyContent:'center' },
