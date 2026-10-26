@@ -39,6 +39,7 @@ import AdminNotifications from "@/pages/admin-notifications";
 import Dukkan from "@/pages/dukkan";
 import DukkanLogin from "@/pages/dukkan-login";
 import B2BStorefront from "@/pages/b2b-storefront";
+import B2BCategoryPage, { B2BCategoriesDirectory } from "@/pages/b2b-categories";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
 import B2BRegister from "@/pages/b2b-register";
@@ -204,6 +205,8 @@ function B2BWebsite() {
       <B2BMetaPixelConsent />
       <Switch>
         <Route path="/" component={B2BStorefront} />
+        <Route path="/kategoriler" component={B2BCategoriesDirectory} />
+        <Route path="/kategori/:category">{(params)=><B2BCategoryPage category={params.category}/>}</Route>
         <Route path="/urun/:id" component={B2BProductPage} />
         <Route path="/magazalar" component={MarketplaceDirectory} />
         <Route path="/reels" component={MarketplaceReels} />
