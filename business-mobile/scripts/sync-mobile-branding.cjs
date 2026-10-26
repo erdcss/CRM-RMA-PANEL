@@ -55,17 +55,31 @@ async function saveAsset(name, value) {
   return `./assets/${filename}`;
 }
 
-async function main() {
-  const response = await fetch(
-    `${api}/api/public/mobile-branding/${target}?t=${Date.now()}`,
-    { headers: { Accept: "application/json", "Cache-Control": "no-cache" } },
-  );
-
-  if (!response.ok) {
-    throw new Error(`branding endpoint HTTP ${response.status}`);
+async function loadBrandingWithRetry() {
+  // Admin may briefly return 502 during Railway rolling deployments.
+  // Retry transient errors, but never replace the configured logo/splash with placeholders.
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const response = await fetch(
+        `${api}/api/public/mobile-branding/${target}?t=${Date.now()}`,
+        { headers: { Accept: "application/json", "Cache-Control": "no-cache" }, signal: AbortSignal.timeout(15000) },
+      );
+      if (response.ok) return await response.json();
+      if (![429, 502, 503, 504].includes(response.status) || attempt === 4)
+        throw new Error(`branding endpoint HTTP ${response.status}`);
+      console.warn(`Branding API geçici HTTP ${response.status}; yeniden deneme ${attempt}/4`);
+    } catch (error) {
+      if (attempt === 4 || error instanceof Error && /^branding endpoint HTTP (?!429|502|503|504)/.test(error.message))
+        throw error;
+      console.warn(`Branding bağlantısı geçici olarak başarısız; yeniden deneme ${attempt}/4`);
+    }
+    await new Promise(resolve => setTimeout(resolve, attempt * 1500));
   }
+  throw new Error("Branding API yanıt vermedi.");
+}
 
-  const branding = await response.json();
+async function main() {
+  const branding = await loadBrandingWithRetry();
   const logoPath = await saveAsset("logo", branding.logo);
   const splashPath = await saveAsset("splash", branding.splash);
 
