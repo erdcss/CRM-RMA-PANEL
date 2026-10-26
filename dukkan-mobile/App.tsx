@@ -244,3 +244,95 @@ const styles=StyleSheet.create({
  line:{padding:14,backgroundColor:"#f5f8fb",borderWidth:1,borderColor:f.border,borderRadius:12,marginBottom:13},lineInputRow:{flexDirection:"row",gap:9,marginTop:12},smallLabel:{fontSize:10,color:f.muted,marginBottom:6},total:{fontSize:15,fontWeight:"800",color:f.ink,textAlign:"right",marginVertical:18},
  error:{color:"#ac3b4b",backgroundColor:"#fff0f0",padding:14,borderRadius:9,marginBottom:12}
 });
+
+type ActiveSession={token:string;stores:StoreInfo[];store:StoreInfo;user:{id:number;username:string}};
+const SECURE_SESSION_KEY="caliskan_dukkan_account_v2";
+
+export default function App(){
+ const [account,setAccount]=useState<ActiveSession|null>(null);
+ const [checking,setChecking]=useState(true);
+ const [username,setUsername]=useState("");
+ const [password,setPassword]=useState("");
+ const [busy,setBusy]=useState(false);
+ const [loginError,setLoginError]=useState("");
+ const [logo,setLogo]=useState<string|null>(null);
+
+ useEffect(()=>{
+  let mounted=true;
+  void (async()=>{
+   try{
+    const {uploadedLogoUrl}=await import("./remote-db");
+    const url=await uploadedLogoUrl();
+    if(mounted)setLogo(url);
+   }catch{/* Logo absent or temporary network failure; native fallback remains */ }
+  })();
+  return ()=>{mounted=false;};
+ },[]);
+ useEffect(()=>{
+  let mounted=true;
+  void (async()=>{
+   try {
+    const stored=await SecureStore.getItemAsync(SECURE_SESSION_KEY);
+    if(!stored)return;
+    const previous=JSON.parse(stored) as ActiveSession;
+    if(!previous?.token||!previous.user?.id)throw Error("Saklanan oturum geçersiz");
+    const validStores=await availableStores(previous.token);
+    const store=validStores.find(x=>x.id===previous.store?.id)||validStores[0];
+    if(!store)throw Error("Hesabınıza atanmış mağaza bulunamadı");
+    if(!mounted)return;
+    setStoreSession(previous.token,store);
+    setAccount({...previous,stores:validStores,store});
+   }catch(e){
+    if(mounted){clearStoreSession();setLoginError((e as Error).message);}
+   }finally{if(mounted)setChecking(false);}
+  })();
+  return ()=>{mounted=false;};
+ },[]);
+
+ const enter=async()=>{
+  if(busy)return;
+  setBusy(true);setLoginError("");
+  try{
+   const result=await login(username,password);
+   const store=result.stores[0];
+   const next={token:result.token,stores:result.stores,store,user:result.user};
+   await SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
+   setStoreSession(result.token,store);
+   setAccount(next);setPassword("");
+  }catch(e){setLoginError((e as Error).message);}
+  finally{setBusy(false);}
+ };
+ const switchStore=(store:StoreInfo)=>{
+  if(!account||!account.stores.some(s=>s.id===store.id))return;
+  const next={...account,store};
+  setStoreSession(account.token,store);setAccount(next);
+  void SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
+ };
+ const leave=()=>{
+  clearStoreSession();setAccount(null);setPassword("");
+  void SecureStore.deleteItemAsync(SECURE_SESSION_KEY).catch(()=>{});
+ };
+ if(checking)return <SafeAreaView style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#f4f6fa"}}>
+  <ActivityIndicator size="large" color="#13283f"/><Text style={{color:"#13283f",marginTop:12}}>Hesap doğrulanıyor...</Text>
+ </SafeAreaView>;
+ if(account)return <StoreApp key={String(account.store.id)} session={account} onLogout={leave} onSwitch={switchStore}/>;
+ return <SafeAreaView style={{flex:1,justifyContent:"center",padding:25,backgroundColor:"#f4f6fa"}}>
+  <View style={{backgroundColor:"white",borderRadius:24,padding:25,borderWidth:1,borderColor:"#e4eaf1"}}>
+   <View style={{alignItems:"center",marginBottom:24}}>
+    {logo?<Image source={{uri:logo}} style={{width:100,height:100,borderRadius:20}} resizeMode="contain"/>:
+      <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"900",fontSize:26}}>ÇD</Text></View>}
+    <Text style={{fontSize:24,fontWeight:"900",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
+    <Text style={{fontSize:12,color:"#64748b",marginTop:4}}>Yetkili mağaza hesabınızla giriş yapın</Text>
+   </View>
+   <Text style={styles.label}>Kullanıcı adı / E-posta</Text>
+   <TextInput style={[styles.input,{marginBottom:16}]} value={username} autoCapitalize="none" autoCorrect={false} autoComplete="username" onChangeText={setUsername} placeholder="Yönetici tarafından atanan kullanıcı"/>
+   <Text style={styles.label}>Şifre</Text>
+   <TextInput style={[styles.input,{marginBottom:18}]} value={password} secureTextEntry autoComplete="current-password" onChangeText={setPassword} placeholder="Şifreniz"/>
+   {loginError?<Text style={styles.error}>{loginError}</Text>:null}
+   <Pressable disabled={busy||!username.trim()||!password} onPress={()=>void enter()} style={[styles.primary,{marginRight:0,opacity:busy?0.5:1}]}>
+    <Text style={styles.primaryText}>{busy?"Giriş yapılıyor...":"Giriş Yap"}</Text>
+   </Pressable>
+   <Text style={[styles.hint,{marginTop:16,textAlign:"center"}]}>Bu hesaba Çalışkan Admin panelinden mağaza yetkisi verilmiş olmalıdır.</Text>
+  </View>
+ </SafeAreaView>;
+}
