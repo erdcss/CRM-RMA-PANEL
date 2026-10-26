@@ -1,0 +1,43 @@
+name: Çalışkan B2B Splash dependency lock sync
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/release-requests/b2b-splash-lock-sync.txt'
+permissions:
+  contents: write
+concurrency:
+  group: b2b-splash-lock-sync
+  cancel-in-progress: false
+jobs:
+  lockfile:
+    name: Expo SDK 54 splash bağımlılığını kilitle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Update splash-screen and lock
+        working-directory: mobile
+        run: |
+          npm install expo-splash-screen@~31.0.13 --save --package-lock-only --ignore-scripts --no-audit --no-fund
+          node -e 'const fs=require("fs");const p=require("./package.json");if(!p.dependencies["expo-splash-screen"]) process.exit(1);const l=require("./package-lock.json");if(!l.packages["node_modules/expo-splash-screen"]) process.exit(1);'
+      - name: Push synchronized dependency lock
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile/package.json mobile/package-lock.json
+          if git diff --cached --quiet; then
+            echo "Already synchronized"
+          else
+            git commit -m "build(b2b): install Expo SDK54 native splash dependency"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
