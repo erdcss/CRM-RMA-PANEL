@@ -36,7 +36,12 @@ async function loadVerifiedStores(): Promise<VerifiedStore[]> {
   return Array.isArray(result) ? result : [];
 }
 
-async function loadHomepage(): Promise<{ categories: string[] }> {
+type HomeCategoryCard = { category: string; label?: string; imageId?: string };
+type HomepageData = { categories: string[]; categoryCards?: HomeCategoryCard[] };
+const categoryArtUrl = (imageId?: string) => imageId && /^[a-f0-9]{32}$/i.test(imageId)
+  ? `https://admin.ecalisgan.com/api/public/homepage/media/${imageId}` : null;
+
+async function loadHomepage(): Promise<HomepageData> {
   const response = await fetch("/api/public/homepage", { credentials: "include" });
   if (!response.ok) return { categories: [] };
   return response.json();
@@ -73,11 +78,15 @@ export default function B2BStorefront() {
   const products = useMemo(() => [...supplierProducts, ...ownProducts], [supplierProducts, ownProducts]);
   const isLoading = loadingOwn || loadingSuppliers;
 
-  const { data: homepage = { categories: [] } } = useQuery({
+  const { data: homepage = { categories: [] } } = useQuery<HomepageData>({
     queryKey: ["/api/public/homepage"],
     queryFn: loadHomepage,
     staleTime: 15_000,
   });
+
+  const categoryCardsByName = useMemo(() => new Map(
+    (homepage.categoryCards || []).map(card => [card.category.toLocaleLowerCase("tr-TR"), card]),
+  ), [homepage.categoryCards]);
 
   useEffect(() => {
     const clean = query.trim();
@@ -179,36 +188,41 @@ export default function B2BStorefront() {
               ) : null}
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
-              <button
-                type="button"
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6" aria-label="Görselli ürün kategorileri">
+              <button type="button" aria-pressed={!selectedCategory}
                 onClick={() => setSelectedCategory("")}
-                className={`flex h-10 min-w-[130px] shrink-0 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition-colors ${
-                  selectedCategory
-                    ? "bg-white text-slate-700 hover:border-slate-400"
-                    : "border-slate-950 bg-slate-950 text-white"
-                }`}
-              >
-                Tümü
+                className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 ${
+                  !selectedCategory ? "border-amber-400 ring-2 ring-amber-300" : "border-slate-200 hover:border-amber-300"
+                }`}>
+                <div className="flex aspect-[5/4] items-center justify-center bg-gradient-to-br from-slate-900 to-slate-700">
+                  <Boxes className="h-12 w-12 text-[#ffcd00]" aria-hidden="true"/>
+                </div>
+                <div className="flex min-h-14 items-center justify-between gap-2 p-3">
+                  <span className="text-sm font-extrabold text-slate-950">Tüm Ürünler</span>
+                  {!selectedCategory ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true" /> : null}
+                </div>
               </button>
 
               {homepage.categories.map((category) => {
-                const active =
-                  selectedCategory.toLocaleLowerCase("tr-TR") ===
-                  category.toLocaleLowerCase("tr-TR");
-
+                const key=category.toLocaleLowerCase("tr-TR");
+                const active=selectedCategory.toLocaleLowerCase("tr-TR")===key;
+                const card=categoryCardsByName.get(key);
+                const imageUrl=categoryArtUrl(card?.imageId);
                 return (
-                  <button
-                    key={category}
-                    type="button"
+                  <button key={category} type="button" aria-pressed={active}
                     onClick={() => setSelectedCategory(category)}
-                    className={`flex h-10 min-w-[145px] shrink-0 items-center justify-center rounded-lg border px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
-                      active
-                        ? "border-slate-950 bg-slate-950 text-white"
-                        : "bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                    }`}
-                  >
-                    {category}
+                    className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 ${
+                      active ? "border-amber-400 ring-2 ring-amber-300" : "border-slate-200 hover:border-amber-300"
+                    }`}>
+                    <div className="flex aspect-[5/4] items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 to-slate-200">
+                      {imageUrl ? <img src={imageUrl} alt={card?.label || category}
+                        className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105" loading="lazy"/>
+                        : <Package className="h-12 w-12 text-slate-400" aria-hidden="true"/>}
+                    </div>
+                    <div className="flex min-h-14 items-center justify-between gap-2 p-3">
+                      <span className="min-w-0 break-words text-sm font-extrabold capitalize text-slate-900">{card?.label || category}</span>
+                      {active ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"/> : null}
+                    </div>
                   </button>
                 );
               })}
