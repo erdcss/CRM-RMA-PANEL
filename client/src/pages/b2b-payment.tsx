@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { metaConsent, trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -255,6 +256,13 @@ export default function B2BPaymentPage() {
   const result = params.get("result");
   const resultOrder = params.get("order") || "";
   const cartMode = params.get("cart") === "1";
+  const checkoutEventSent=useRef(false);
+  const [metaConsentRevision,setMetaConsentRevision]=useState(0);
+  useEffect(()=>{
+    const refresh=()=>setMetaConsentRevision(value=>value+1);
+    window.addEventListener("caliskan-meta-consent-change",refresh);
+    return ()=>window.removeEventListener("caliskan-meta-consent-change",refresh);
+  },[]);
 
   const [method, setMethod] = useState<"card" | "bank_transfer">("card");
   const [addressId, setAddressId] = useState("");
@@ -324,6 +332,46 @@ export default function B2BPaymentPage() {
     enabled: !result && (cartMode || Boolean(productId)),
     retry: false,
   });
+
+  useEffect(()=>{
+    if(result||!preview||checkoutEventSent.current||metaConsent()!=="granted")return;
+    const id=trackMetaEvent("InitiateCheckout",{
+      content_type:"product",
+      content_ids:preview.items.map(item=>String(item.product.sku||item.product.id)),
+      contents:preview.items.map(item=>({id:String(item.product.sku||item.product.id),quantity:item.quantity})),
+      currency:"TRY",
+      value:Number(preview.total)||0,
+      num_items:Number(preview.itemCount)||0
+    });
+    if(id)checkoutEventSent.current=true;
+  },[preview,result,metaConsentRevision]);
+
+  useEffect(()=>{
+    if(result!=="success"||!resultOrder||metaConsent()!=="granted")return;
+    let cancelled=false;
+    // URL parameters alone cannot establish a purchase: verify the real
+    // authenticated, paid order against the server's order history.
+    void (async()=>{
+      try{
+        const response=await fetch("/api/b2b/my-orders",{credentials:"include",cache:"no-store"});
+        if(!response.ok)return;
+        const orders=await response.json() as Array<{order_number:string;status:string;total_amount:number|string;item_count:number}>;
+        const order=orders.find(item=>item.order_number===resultOrder&&
+          (item.status==="paid"||item.status==="paid_stock_review"));
+        if(!order||cancelled)return;
+        const key="caliskan_meta_purchase_"+order.order_number;
+        if(window.localStorage.getItem(key)==="sent")return;
+        const amount=Number(order.total_amount);
+        if(!Number.isFinite(amount)||amount<=0)return;
+        const eventId=trackMetaEvent("Purchase",{
+          currency:"TRY",value:amount,num_items:Number(order.item_count)||1,
+          order_id:order.order_number
+        },"b2b-paid-"+order.order_number);
+        if(eventId)window.localStorage.setItem(key,"sent");
+      }catch{/* Optional Meta measurement never blocks completed orders. */}
+    })();
+    return()=>{cancelled=true;};
+  },[result,resultOrder,metaConsentRevision]);
 
   const cleanCardNumber = cardNumber.replace(/\D/g, "");
   const cardBin = cleanCardNumber.slice(0, 8);
