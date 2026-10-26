@@ -176,20 +176,28 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     }finally{if(requestId===analysisRequest.current)setAnalyzing(false);}
   }
 
-  function restartForGallery(nextImages:string[],keepGenerated=false){
-    // Removing or adding a photo invalidates earlier model output, but
-    // manually entered fields stay intact across multiple scans.
-    const cleaned={...formRef.current};
-    for(const field of required){
-      const oldAi=aiValues.current[field.key];
-      if(oldAi&&!userEdited.current.has(field.key)&&cleaned[field.key]===oldAi)cleaned[field.key]="";
-    }
-    aiValues.current={};
-    formRef.current=cleaned;setForm(cleaned);setAiFilledKeys([]);
-    setPhotos(nextImages);setRenderedImage(keepGenerated?renderedImage:"");setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
+  function updateGalleryKeepingProduct(nextImages:string[]){
+    // Photo changes are not a new product: NEVER clear the AI draft, manual
+    // fields, detected-field badges or generated cover on add/remove.
+    // Invalidate any in-flight scan so a deleted photo cannot write stale data.
     const requestId=++analysisRequest.current;
+    setPhotos(nextImages);
+    setAnalyzing(false);
+    setError("");
+    if(analyzed){
+      setAnalysisInfo("Ürün bilgileri korundu. Görseller değiştiyse isteğe bağlı olarak yeniden analiz edebilirsiniz.");
+      return;
+    }
+    // Initial auto-analysis only. Once details have been obtained, photo
+    // editing is independent of the product form unless the user requests a rescan.
     if(nextImages.length)void analyzeImages(nextImages,requestId);
-    else setAnalyzing(false);
+    else if(renderedImage){
+      setAnalyzed(true);
+      setPhase("editing");
+      setAnalysisInfo("AI görseli ve ürün bilgileri korundu. Eksikleri manuel tamamlayın.");
+    }else{
+      setPhase("image");
+    }
   }
 
   async function pickImage(fromCamera=false){
@@ -229,7 +237,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         }
         next.push(image);
       }
-      if(next.length>photos.length)restartForGallery(next,Boolean(renderedImage));
+      if(next.length>photos.length)updateGalleryKeepingProduct(next);
       if(unsupported>0){
         setError(unsupported+" fotoğraf HEIC/HEIF veya desteklenmeyen biçimde geldi. Galeriden JPG/PNG sürümünü seçin ya da fotoğrafı JPG olarak paylaşın.");
       }
@@ -262,7 +270,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 
   function removePhoto(index:number){
     if(submitting)return;
-    restartForGallery(photos.filter((_,i)=>i!==index),Boolean(renderedImage));
+    updateGalleryKeepingProduct(photos.filter((_,i)=>i!==index));
   }
 
   function retryAnalysis(){
