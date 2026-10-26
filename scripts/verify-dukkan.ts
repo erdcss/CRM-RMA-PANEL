@@ -54,6 +54,14 @@ try {
   const first=await call("POST",base+"/invoices",sale,201);
   assert.match(first.invoice_no,/^[0-9]{14}$/);
   assert.notEqual(first.invoice_no,purchased.invoice_no,"Invoice numbers must be globally unique");
+  const exportable=await call("GET",base+"/invoices/"+first.id+"/pdf-data");
+  assert.equal(exportable.invoice.invoice_no,first.invoice_no,"Sales PDF must contain the posted invoice number");
+  assert.equal(exportable.invoice.party_name,"Test Müşteri");
+  assert.equal(exportable.lines.length,1,"Sales PDF must contain all posted product lines");
+  assert.equal(exportable.officialInvoice,false,"Dahili PDF must never masquerade as an official GİB invoice");
+  assert.match(exportable.disclaimer,/GİB/,"Sales PDF must carry a fiscal disclaimer");
+  await call("GET",base+"/invoices/"+purchased.id+"/pdf-data",undefined,400);
+
   const repeat=await call("POST",base+"/invoices",sale,201);
   assert.equal(first.id,repeat.id,"Request UUID must be idempotent");
   assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),1);
@@ -79,9 +87,10 @@ try {
 
   activeUser=outsider;
   await call("GET",base+"/data/products",undefined,403);
+  await call("GET",base+"/invoices/"+first.id+"/pdf-data",undefined,403);
   await call("POST",base+"/parties",{name:"Cross tenant attempt",type:"customer"},403);
   await call("PATCH",base+"/products/"+product.id,{name:"Unauthorized",sku:"TEST-001",unit:"adet",purchasePrice:0,salePrice:0},403);
-  console.log("PASS: stock rollback, idempotency, return, cari, bank, instruments, tenant isolation");
+  console.log("PASS: stock rollback, idempotency, invoice PDF data and disclaimer, return, cari, bank, instruments, tenant isolation");
 } finally {
   await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));
   await pool.end();

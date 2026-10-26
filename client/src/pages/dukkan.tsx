@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
-import { Building2, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
+import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
+import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
+import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock } from "lucide-react";
 
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
@@ -23,14 +25,16 @@ const api=async(path:string,options?:RequestInit)=>{
   if(!response.ok)throw new Error(value.error||"İşlem tamamlanamadı");
   return value;
 };
-const buttonClass="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-40";
-const inputClass="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-400";
-const softCard="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5";
+const buttonClass="inline-flex items-center justify-center gap-2 rounded-xl bg-[#122a51] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#224d8b] disabled:opacity-40";
+const inputClass="w-full min-w-0 rounded-xl border border-[#dbe5f0] bg-white px-3.5 py-3 text-sm text-[#142b4e] outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+const softCard="rounded-[24px] border border-[#e6edf6] bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.035)] sm:p-6";
 
 export default function Dukkan() {
   const {data:branding}=useBranding();
   const [stores,setStores]=useState<Entry[]>([]);
   const [isAdmin,setIsAdmin]=useState(false);
+  const [isSuperAdmin,setIsSuperAdmin]=useState(false);
+  const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState("");
   const [section,setSection]=useState<Section>("overview");
@@ -65,7 +69,7 @@ export default function Dukkan() {
       setStores(list);setStoreId(previous=>list.some(s=>String(s.id)===previous)?previous:String(list[0]?.id||""));
     }catch(e){setError((e as Error).message);}
   },[]);
-  useEffect(()=>{void loadStores(); void api("/api/auth/me").then(person=>setIsAdmin(["super_admin","admin"].includes(person.role))).catch(()=>{});},[loadStores]);
+  useEffect(()=>{void loadStores(); void api("/api/auth/me").then(person=>{setIsAdmin(["super_admin","admin"].includes(person.role));setIsSuperAdmin(person.role==="super_admin");}).catch(()=>{});},[loadStores]);
   const load=useCallback(async()=>{
     if(!storeId)return;
     try{
@@ -140,6 +144,17 @@ export default function Dukkan() {
       purchasePrice:String(item.purchase_price||0),salePrice:String(item.sale_price||0)});
     setNotice("");setError("");
   };
+  const exportPdf=async(invoice:Entry)=>{
+    if(pdfBusyId)return;
+    setPdfBusyId(String(invoice.id));setError("");
+    try{
+      const detail=await api(base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data");
+      const {exportSalesInvoicePdf}=await import("@/lib/dukkan-invoice-pdf");
+      await exportSalesInvoicePdf(detail);
+      setNotice("Satış belgesi PDF olarak indirildi: "+invoice.invoice_no);
+    }catch(e){setError("PDF hazırlanamadı: "+(e as Error).message);}
+    finally{setPdfBusyId(null);}
+  };
   const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
     try{await api("/api/dukkan/stores",{method:"POST",body:JSON.stringify({name:newStoreName})});setNewStoreName("");setShowNewStore(false);await loadStores();}
@@ -165,42 +180,48 @@ export default function Dukkan() {
   const typeLabel:Record<string,string>={sale:"Satış",purchase:"Alış",sale_return:"Satış İadesi",purchase_return:"Alış İadesi",received:"Alınan",issued:"Verilen",pending:"Bekliyor",settled:"Tahsil/Ödendi",bounced:"Karşılıksız",cancelled:"İptal"};
 
   return (
-    <div className="h-full min-h-screen overflow-y-auto bg-[#f5f7fb] text-slate-900">
-      <div className="mx-auto max-w-[1680px] px-3 py-4 sm:px-6 sm:py-6">
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            {branding?.dukkan_logo?<img src={branding.dukkan_logo} alt="Çalışkan Dükkan" className="h-12 w-12 rounded-xl object-contain"/>:<div className="rounded-xl bg-slate-900 p-3 text-white"><Store size={24}/></div>}
-            <div><h1 className="text-xl font-black tracking-tight sm:text-2xl">Çalışkan Dükkan</h1><p className="text-xs text-slate-500">Ön muhasebe ve mağaza yönetimi · Masaüstü / Mobil</p></div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {stores.length>0&&<select aria-label="Mağaza seç" className={inputClass} value={storeId} onChange={e=>setStoreId(e.target.value)}>{stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>}
-            <button className="rounded-lg border bg-white p-2.5" onClick={()=>setRefresh(n=>n+1)} aria-label="Yenile"><RefreshCw size={17}/></button>
-            {isAdmin&&<button className="rounded-lg border bg-white px-3 py-2.5 text-xs font-semibold" onClick={()=>setShowNewStore(v=>!v)}><Plus size={15} className="inline"/> Mağaza Oluştur</button>}
-          </div>
-        </header>
+    <div className="h-full min-h-screen overflow-y-auto bg-[#f3f7fc] text-[#172945]">
+      <div className="mx-auto max-w-[1700px] px-3 py-5 sm:px-7 sm:py-7">
+        <DukkanWorkspaceHeader logo={branding?.dukkan_logo} stores={stores.map(item=>({id:Number(item.id),name:String(item.name||"Mağaza")}))} storeId={storeId} onStoreChange={setStoreId}
+          onRefresh={()=>setRefresh(n=>n+1)} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} onNewStore={()=>setShowNewStore(v=>!v)}/>
         {error&&<div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {notice&&<div role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
         {showNewStore&&<form onSubmit={createStore} className={softCard+" mb-4 flex flex-wrap gap-2"}><input className={inputClass+" flex-1"} placeholder="Yeni mağaza adı" required value={newStoreName} onChange={e=>setNewStoreName(e.target.value)}/><button className={buttonClass} disabled={busy}>Oluştur</button></form>}
         {!storeId?<div className={softCard+" text-center"}><Building2 className="mx-auto mb-3 text-slate-400" size={34}/><h2 className="font-bold">Henüz erişilebilir mağaza yok</h2><p className="mt-2 text-sm text-slate-500">Çalışkan Admin yöneticisi mağaza oluşturup kullanıcıları mağazaya atayabilir.</p></div>:<>
-          <nav aria-label="Çalışkan Dükkan modülleri" className="mb-5 flex gap-2 overflow-x-auto pb-2">
-            {SECTIONS.filter(t=>!cashier||!["purchases","instruments","banks","reports","stock","products"].includes(t.key)).map(t=><button key={t.key} onClick={()=>setSection(t.key)} className={"shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold "+(section===t.key?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600 hover:bg-slate-50")}>{t.label}</button>)}
-          </nav>
+          <DukkanWorkspaceLayout selected={section} onSelect={setSection} cashier={cashier}>
+          {section==="overview"&&<div className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+             {([{title:"Yeni Satış",subtitle:"Hızlı fatura oluştur",icon:ReceiptText,key:"sales"},{title:"Ürün Yönetimi",subtitle:"Stok kartlarına eriş",icon:Package,key:"products"},
+               {title:"Cari Hesaplar",subtitle:"Tahsilat ve alacaklar",icon:Users,key:"parties"},{title:"Rapor Merkezi",subtitle:"İşletme performansı",icon:BarChart3,key:"reports"}] as const)
+              .filter(item=>!cashier||["sales","parties"].includes(item.key)).map(action=><button key={action.key} onClick={()=>{setSection(action.key);setShowForm(false);}}
+               className="group flex items-center gap-3 rounded-[22px] border border-[#e2eaf5] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-sky-200 hover:shadow-md">
+               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e9f3ff] text-[#145595]"><action.icon size={20}/></span>
+               <span className="min-w-0 flex-1"><strong className="block text-sm font-bold text-[#102a4a]">{action.title}</strong><span className="mt-0.5 block text-[11px] text-slate-500">{action.subtitle}</span></span>
+               <ArrowUpRight size={16} className="text-slate-300 group-hover:text-sky-600"/>
+              </button>)}
+           </div>}
           {canAccount&&(section==="overview"||section==="reports")&&<div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
             {[
               ["Net Satış",currency(report?.sales)],["Net Alış",currency(report?.purchases)],
               ["Stok Maliyeti",currency(report?.stock?.stock_cost)],["Ürün Çeşidi",fmt(report?.stock?.product_count)],
               ["Cari Net Bakiye",currency(report?.netBalance)],["Banka Bakiyesi",currency(report?.bankBalance)]
-            ].map(([title,value])=><div key={title} className={softCard}><p className="text-xs text-slate-500">{title}</p><p className="mt-2 text-lg font-bold tabular-nums">{value}</p></div>)}
+            ].map(([title,value],index)=><div key={title} className="relative overflow-hidden rounded-[22px] border border-[#e2eaf5] bg-white px-4 py-5 shadow-sm transition hover:shadow-md">
+                <div className={"absolute left-0 top-0 h-full w-1 "+(index===0?"bg-sky-500":index===1?"bg-indigo-500":index===2?"bg-emerald-500":"bg-[#bbcdf2]")}/>
+                <div className="flex items-center justify-between gap-1"><p className="text-[11px] font-semibold text-slate-500">{title}</p><span className="h-2 w-2 rounded-full bg-[#d3e6fb]"/></div>
+                <p className="mt-3 truncate text-xl font-black tabular-nums tracking-tight text-[#142b4e]">{value}</p>
+               </div>)}
           </div>}
           {section==="reports"&&<div className={softCard+" mb-4"}><h2 className="font-bold">Vadesi geçmiş çek ve senetler</h2><p className="mt-2 text-sm">Belge: {fmt(report?.overdue?.count)} · Toplam: {currency(report?.overdue?.amount)}</p><p className="mt-2 text-xs text-slate-500">Raporlar kayıtlı işlemlerden üretilir; resmî mali tablo veya GİB e-Fatura yerine geçmez.</p></div>}
           {section==="overview"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
+          {section==="overview"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
+            onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
+            onError={setError}/>}
           <div className={softCard}>
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div><h2 className="text-lg font-black">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="text-xs text-slate-500">{displayed.length} kayıt · Mağaza: {currentStore?.name}</p></div>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{displayed.length} kayıt · {currentStore?.name}</p></div>
               {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setDraft({});}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
-            {showForm&&fields.length>0&&<form onSubmit={onSubmit} className="mb-5 rounded-xl border bg-slate-50 p-4">
-              <h3 className="mb-4 font-bold">{editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}</h3>
+            {showForm&&fields.length>0&&<form onSubmit={onSubmit} className="mb-5 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
+              <h3 className="mb-4 text-base font-black text-[#122b4f]">{editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
                   {f.type==="select"?<select className={inputClass} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
@@ -252,9 +273,9 @@ export default function Dukkan() {
               {draft.paymentMethod==="bank"&&<input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Tutar" value={draft.paymentAmount||""} onChange={e=>put("paymentAmount",e.target.value)}/>}
               <button disabled={busy} className={buttonClass}>İşle</button>
             </form>}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className="w-full min-w-[650px] border-collapse text-left text-sm">
-                <thead className="bg-slate-50 text-xs text-slate-500"><tr>
+                <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış"]:
                     section==="parties"?["Cari Adı","Türü","Telefon","Bakiye"]:
                     section==="stock"?["Tarih","Ürün","Değişim","Neden"]:
@@ -262,10 +283,10 @@ export default function Dukkan() {
                     section==="orders"?["Sipariş No","Cari","Tür","Durum"]:
                     section==="instruments"?["Belge No","Cari","Tür","Tutar","Vade","Durum"]:
                     section==="banks"?["Tarih","Banka","İşlem","Tutar"]:
-                    ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-3 py-3 font-semibold">{h}</th>)}
-                  {(section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
+                    ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-4 py-4 font-semibold">{h}</th>)}
+                  {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
-                <tbody>{displayed.map(r=><tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
+                <tbody>{displayed.map(r=><tr key={r.id} className="border-t border-[#edf1f7] hover:bg-[#f7faff]">
                   {(section==="products"?[r.sku,r.name,r.barcode,r.stock,currency(r.purchase_price),currency(r.sale_price)]:
                     section==="parties"?[r.name,r.type,r.phone,currency(r.balance)]:
                     section==="stock"?[String(r.created_at).slice(0,10),r.product_name,r.delta,r.reason]:
@@ -273,7 +294,14 @@ export default function Dukkan() {
                     section==="orders"?[r.order_no,r.party_name,typeLabel[r.kind]||r.kind,r.status]:
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
-                    [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]).map((v,i)=><td key={i} className="whitespace-nowrap px-3 py-3">{fmt(v)}</td>)}
+                    [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
+                  {section==="sales"&&<td className="px-3 py-3">
+                    <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
+                      title="Dahili satış belgesini PDF indir" aria-label={"PDF indir: "+r.invoice_no}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
+                      <Download size={15}/>{pdfBusyId===String(r.id)?"Hazırlanıyor...":"PDF İndir"}
+                    </button>
+                   </td>}
                   {section==="products"&&canManage&&<td className="px-3 py-3"><button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100" onClick={()=>editProduct(r)}>Düzenle</button></td>}
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
@@ -281,7 +309,8 @@ export default function Dukkan() {
               {displayed.length===0&&<p className="py-10 text-center text-sm text-slate-500">Henüz kayıt bulunmuyor.</p>}
             </div>
           </div>
-          <p className="mt-5 text-center text-xs text-slate-500">Çalışkan Dükkan · Veriler PostgreSQL üzerinde merkezi tutulur. E-Fatura/e-Arşiv gönderimi ayrıca entegrasyon gerektirir.</p>
+          <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
+          </DukkanWorkspaceLayout>
         </>}
       </div>
     </div>

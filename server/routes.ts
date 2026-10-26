@@ -2657,6 +2657,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Granting global super_admin access is intentionally distinct from ordinary
+  // store membership assignment. Only an ACTIVE existing global super_admin can
+  // create another super_admin. Store managers and normal admins cannot call this.
+  app.post("/api/dukkan/admin/super-managers", requireMarketplaceSuperAdmin, async (req,res) => {
+    const input=z.object({
+      storeId:z.coerce.number().int().positive(),
+      username:z.string().trim().min(4).max(64).regex(/^[a-zA-Z0-9._@-]+$/,"Kullanıcı adında geçersiz karakter"),
+      password:z.string().min(12).max(128)
+        .refine(value=>/[a-z]/.test(value)&&/[A-Z]/.test(value)&&/[0-9]/.test(value)&&/[^A-Za-z0-9]/.test(value),
+          "Şifre en az bir büyük, küçük, rakam ve özel karakter içermeli")
+    }).safeParse(req.body);
+    if(!input.success)return res.status(400).json({error:"Kullanıcı adı veya güçlü şifre koşulları sağlanmadı (en az 12 karakter)."});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı kurulamadı"});
+    const creator=sessionUserId(req);
+    if(!creator)return res.status(401).json({error:"Oturum geçersiz"});
+    const {storeId,username,password}=input.data;
+    const client=await pool.connect();
+    try{
+      await client.query("BEGIN");
+      const store=await client.query("SELECT id FROM dukkan_stores WHERE id=$1 FOR UPDATE",[storeId]);
+      if(!store.rowCount){
+        await client.query("ROLLBACK");
+        return res.status(404).json({error:"Mağaza bulunamadı"});
+      }
+      const existing=await client.query("SELECT id FROM users WHERE LOWER(username)=LOWER($1) OR LOWER(COALESCE(email,''))=LOWER($1) LIMIT 1",[username]);
+      if(existing.rowCount){
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"Kullanıcı adı veya e-posta kullanımda"});
+      }
+      const created=await client.query(
+        "INSERT INTO users(username,password,role,app_access,is_active,must_change_password) VALUES($1,$2,'super_admin','business',1,0) RETURNING id,username,role",
+        [username,hashPassword(password)]
+      );
+      const person=created.rows[0];
+      await client.query("INSERT INTO dukkan_members(store_id,user_id,role) VALUES($1,$2,'owner')",[storeId,person.id]);
+      await client.query(`CREATE TABLE IF NOT EXISTS dukkan_privilege_audit (
+        id BIGSERIAL PRIMARY KEY,
+        granted_by INTEGER NOT NULL REFERENCES users(id),
+        granted_to INTEGER NOT NULL REFERENCES users(id),
+        store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),
+        permission TEXT NOT NULL,
+        granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+      await client.query("INSERT INTO dukkan_privilege_audit(granted_by,granted_to,store_id,permission) VALUES($1,$2,$3,'super_admin')",[creator,person.id,storeId]);
+      await client.query("COMMIT");
+      res.setHeader("Cache-Control","no-store");
+      return res.status(201).json({id:person.id,username:person.username,role:person.role,storeId});
+    }catch(error:any){
+      await client.query("ROLLBACK").catch(()=>{});
+      if(error?.code==="23505")return res.status(409).json({error:"Bu kullanıcı adı zaten kayıtlı"});
+      console.error("Privileged Dükkan account creation failed",error?.code||"unknown");
+      return res.status(500).json({error:"Süper yönetici oluşturulamadı"});
+    }finally{client.release();}
+  });
+
   registerDukkanRoutes(app, sessionUserId);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
   registerB2BBankPaymentApproval(app, requireAdmin, sessionUserId);

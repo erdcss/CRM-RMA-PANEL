@@ -23,7 +23,8 @@
     "expo-document-picker": "~14.0.8",
     "expo-sharing": "~14.0.8",
     "expo-secure-store": "~15.0.8",
-    "expo-crypto": "~15.0.8"
+    "expo-crypto": "~15.0.8",
+    "expo-print": "~15.0.8"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
