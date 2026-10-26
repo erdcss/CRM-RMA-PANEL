@@ -1,3 +1,5 @@
+import {trackMetaEvent} from "./meta-pixel";
+
 function getVisitorId(): string {
   const key = "caliskan_b2b_visitor_id";
   let id = window.sessionStorage.getItem(key);
@@ -33,11 +35,20 @@ export function trackSearch(query: string) {
   if (typeof window === "undefined") return;
   const clean = query.trim();
   if (clean.length < 2) return;
+  // Never send possible email addresses or phone numbers to advertising partners.
+  if(!/[@]|[0-9]{8,}/.test(clean))trackMetaEvent("Search",{search_string:clean.slice(0,100)});
   return post("/api/analytics/search", { visitorId: getVisitorId(), query: clean });
 }
 
-export function trackProductView(productId: string | number, name?: string | null) {
+export function trackProductView(productId: string | number, name?: string | null, price?: number | null) {
   if (typeof window === "undefined") return;
+  const value=Number(price);
+  trackMetaEvent("ViewContent",{
+    content_ids:[String(productId)],content_type:"product",
+    content_name:String(name||"").slice(0,120),
+    currency:"TRY",
+    ...(Number.isFinite(value)&&value>0?{value}:{}),
+  });
   return post("/api/analytics/product-view", {
     visitorId: getVisitorId(),
     productId,
