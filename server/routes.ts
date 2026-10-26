@@ -1237,10 +1237,24 @@ async function sendViaGoogleSmtp(input: {
   }
 }
 
+// Railway environment variables should be entered without quotes, but
+// copy-pasting a JSON-style quoted string is a common configuration mistake.
+// Remove exactly one surrounding matching quote pair, never print secrets.
+function cleanGoogleOAuthCredential(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  let value = raw.trim();
+  if (value.length >= 2 &&
+      ((value.startsWith('"') && value.endsWith('"')) ||
+       (value.startsWith("'") && value.endsWith("'")))) {
+    value = value.slice(1, -1).trim();
+  }
+  return value || undefined;
+}
+
 async function getGoogleMailAccessToken(): Promise<string> {
-  const clientId = process.env.GOOGLE_GMAIL_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET?.trim();
-  const refreshToken = process.env.GOOGLE_GMAIL_REFRESH_TOKEN?.trim();
+  const clientId = cleanGoogleOAuthCredential(process.env.GOOGLE_GMAIL_CLIENT_ID);
+  const clientSecret = cleanGoogleOAuthCredential(process.env.GOOGLE_GMAIL_CLIENT_SECRET);
+  const refreshToken = cleanGoogleOAuthCredential(process.env.GOOGLE_GMAIL_REFRESH_TOKEN);
 
   if (!clientId || !clientSecret || !refreshToken) {
     throw new Error("Google Mail OAuth bilgileri eksik");
