@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { trackProductView } from "@/lib/analytics";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, BadgeCheck, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
@@ -57,8 +58,8 @@ export default function B2BProductPage() {
   });
 
   useEffect(() => {
-    if (product?.id) void trackProductView(product.id, product.name);
-  }, [product?.id, product?.name]);
+    if (product?.id) void trackProductView(product.id, product.name, Number(product.price || 0));
+  }, [product?.id, product?.name, product?.price]);
 
   if (isLoading) {
     return <div className="min-h-screen grid place-items-center bg-[#f6f7f9] text-slate-500">Ürün yükleniyor…</div>;
@@ -224,6 +225,11 @@ export default function B2BProductPage() {
                             refreshB2BCart();
                             await queryClient.invalidateQueries({ queryKey: ["/api/marketplace/cart"] });
                             setAdded(true);
+                            trackMetaEvent("AddToCart",{
+                              content_ids:[String(product.id)],content_type:"product",currency:"TRY",
+                              contents:[{id:String(product.id),quantity:effectiveQuantity}],
+                              ...(Number(product.price)>0?{value:Number(product.price)*effectiveQuantity}:{})
+                            });
                             toast({title:"Siparişlere eklendi",description:product.name + " · " + effectiveQuantity + " koli"});
                           } catch (error) {
                             toast({title:"Siparişlere eklenemedi",description:error instanceof Error ? error.message : "Lütfen tekrar deneyin.",variant:"destructive"});
@@ -242,6 +248,11 @@ export default function B2BProductPage() {
                           stock,
                         });
                         setAdded(true);
+                        trackMetaEvent("AddToCart",{
+                          content_ids:[String(product.id)],content_type:"product",currency:"TRY",
+                          contents:[{id:String(product.id),quantity:effectiveQuantity}],
+                          ...(Number(product.price)>0?{value:Number(product.price)*effectiveQuantity}:{})
+                        });
                         toast({
                           title: "Siparişlere eklendi",
                           description: `${product.name || "Ürün"} · ${effectiveQuantity} koli · ${effectiveQuantity * pack} adet`,
