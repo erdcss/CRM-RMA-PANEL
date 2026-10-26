@@ -3,8 +3,19 @@ import { Link } from "wouter";
 import { ChevronDown, Instagram, Facebook, Youtube, Music2, ExternalLink } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-export type StoreLinks = Record<"instagram" | "facebook" | "youtube" | "tiktok" | "appStoreUrl" | "googlePlayUrl" | "appStoreImage" | "googlePlayImage", string>;
-export const emptyStoreLinks: StoreLinks = { instagram:"", facebook:"", youtube:"", tiktok:"", appStoreUrl:"", googlePlayUrl:"", appStoreImage:"", googlePlayImage:"" };
+export type StoreLinks = Record<
+  "instagram" | "facebook" | "youtube" | "tiktok" |
+  "appStoreUrl" | "googlePlayUrl" | "appStoreImage" | "googlePlayImage" |
+  "appStoreBannerTitle" | "appStoreBannerText" | "appStoreBannerImage" | "appStoreBannerButton" |
+  "googlePlayBannerTitle" | "googlePlayBannerText" | "googlePlayBannerImage" | "googlePlayBannerButton" |
+  "downloadHeaderTitle" | "downloadHeaderText" | "latestIosVersion" | "latestAndroidVersion", string>;
+export const emptyStoreLinks: StoreLinks = {
+  instagram:"",facebook:"",youtube:"",tiktok:"",
+  appStoreUrl:"",googlePlayUrl:"",appStoreImage:"",googlePlayImage:"",
+  appStoreBannerTitle:"",appStoreBannerText:"",appStoreBannerImage:"",appStoreBannerButton:"",
+  googlePlayBannerTitle:"",googlePlayBannerText:"",googlePlayBannerImage:"",googlePlayBannerButton:"",
+  downloadHeaderTitle:"",downloadHeaderText:"",latestIosVersion:"",latestAndroidVersion:"",
+};
 export function useStoreLinks() {
   return useQuery<StoreLinks>({ queryKey:["/api/public/b2b-footer"], queryFn:async () => {
     const r = await fetch("/api/public/b2b-footer"); if (!r.ok) return emptyStoreLinks;
@@ -55,4 +66,38 @@ export function B2BFooter() {
     <B2BSocialAndStores/>
     <div className="bg-[#080808] px-4 pb-5 text-center text-xs text-white/50">© {new Date().getFullYear()} Çalışkan B2B · Tüm hakları saklıdır.</div>
   </footer>;
+}
+
+/** Compact mobile-web app download strip under the store header. Hidden if no links configured. */
+export function B2BMobileDownloadHeader() {
+  const { data:links } = useStoreLinks();
+  if (!links?.appStoreUrl && !links?.googlePlayUrl) return null;
+  return <div className="flex items-center gap-2 border-t border-slate-200 bg-[#111827] px-3 py-2 text-white md:hidden">
+    <div className="min-w-0 flex-1">
+      <div className="text-xs font-extrabold">{links.downloadHeaderTitle || "Çalışkan B2B Mobil"}</div>
+      <div className="truncate text-[10px] text-slate-300">{links.downloadHeaderText || "Uygulamayı indir, toptan alışverişe devam et."}</div>
+    </div>
+    {links.appStoreUrl ? <a href={links.appStoreUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg bg-[#ffcd00] px-2.5 py-2 text-[11px] font-black text-slate-950">App Store</a> : null}
+    {links.googlePlayUrl ? <a href={links.googlePlayUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg border border-white/30 px-2.5 py-2 text-[11px] font-black">Google Play</a> : null}
+  </div>;
+}
+
+/** Narrow, fixed right-hand promotions, designed for wide desktop viewports. */
+export function B2BDesktopAppBanners() {
+  const {data:links} = useStoreLinks();
+  if(!links)return null;
+  const items=[
+    {id:"ios",name:"App Store",url:links.appStoreUrl,title:links.appStoreBannerTitle || "iPhone'da B2B",text:links.appStoreBannerText || "Mobil uygulamamızı keşfedin",image:links.appStoreBannerImage || links.appStoreImage,button:links.appStoreBannerButton || "İndir"},
+    {id:"android",name:"Google Play",url:links.googlePlayUrl,title:links.googlePlayBannerTitle || "Android'de B2B",text:links.googlePlayBannerText || "Her yerden alışveriş",image:links.googlePlayBannerImage || links.googlePlayImage,button:links.googlePlayBannerButton || "İndir"},
+  ].filter(item=>Boolean(item.url));
+  if(!items.length)return null;
+  return <aside aria-label="Mobil uygulama indirme bannerları" className="pointer-events-none fixed right-3 top-1/2 z-30 hidden -translate-y-1/2 flex-col gap-3 2xl:flex">
+    {items.map(item=><a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
+      className="pointer-events-auto flex min-h-[212px] w-[116px] flex-col items-center justify-between overflow-hidden rounded-[21px] border border-[#ffcd00]/40 bg-[#111827] px-2 py-3 text-center text-white shadow-2xl transition hover:scale-[1.03] hover:border-[#ffcd00]">
+      <span className="text-[10px] font-black text-[#ffcd00]">{item.name}</span>
+      {item.image ? <img src={item.image} alt={item.name+" görseli"} className="h-[84px] w-[94px] rounded-xl object-contain"/> : <span className="flex h-[84px] w-[94px] items-center justify-center rounded-xl border border-white/20 text-4xl">↧</span>}
+      <div className="w-full"><div className="text-xs font-black leading-4">{item.title}</div><div className="mt-1 text-[10px] leading-3 text-slate-300">{item.text}</div></div>
+      <span className="mt-2 w-full rounded-lg bg-[#ffcd00] px-2 py-1.5 text-[11px] font-black text-slate-950">{item.button}</span>
+    </a>)}
+  </aside>;
 }
