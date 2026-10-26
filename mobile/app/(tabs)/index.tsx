@@ -558,7 +558,7 @@ export default function HomeScreen() {
                       color={palette.muted}
                     />
                   )}
-                </ScrollView>
+                </View>
 
                 <View style={styles.productBody}>
                   <Text style={styles.sku}>{product.sku || 'STOK'}</Text>
@@ -593,7 +593,7 @@ export default function HomeScreen() {
               </Pressable>
             );
           })}
-        </View>
+        </ScrollView>
 
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
