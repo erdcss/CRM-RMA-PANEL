@@ -2650,7 +2650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       (req.session as {userId?:number}).userId=person.id;
       await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
       res.setHeader("Cache-Control","no-store");
-      res.json({ok:true,stores:memberships.rows,user:{id:person.id,username:person.username}});
+      res.json({ok:true,token:issueMobileAuthToken(Number(person.id)),stores:memberships.rows,user:{id:person.id,username:person.username}});
     }catch(error){
       console.error("Dükkan login failed",error instanceof Error?error.message:"unknown");
       res.status(503).json({error:"Giriş hizmeti şu anda kullanılamıyor"});
