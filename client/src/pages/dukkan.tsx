@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
+import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock } from "lucide-react";
 
 type Entry = Record<string, any>;
@@ -23,9 +24,9 @@ const api=async(path:string,options?:RequestInit)=>{
   if(!response.ok)throw new Error(value.error||"İşlem tamamlanamadı");
   return value;
 };
-const buttonClass="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-40";
-const inputClass="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-400";
-const softCard="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5";
+const buttonClass="inline-flex items-center justify-center gap-2 rounded-xl bg-[#122a51] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#224d8b] disabled:opacity-40";
+const inputClass="w-full min-w-0 rounded-xl border border-[#dbe5f0] bg-white px-3.5 py-3 text-sm text-[#142b4e] outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+const softCard="rounded-[24px] border border-[#e6edf6] bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.035)] sm:p-6";
 
 export default function Dukkan() {
   const {data:branding}=useBranding();
@@ -37,7 +38,6 @@ export default function Dukkan() {
   const [showSuperPassword,setShowSuperPassword]=useState(false);
   const [showSuperForm,setShowSuperForm]=useState(false);
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
-  const [navOpen,setNavOpen]=useState(false);
   const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState("");
   const [section,setSection]=useState<Section>("overview");
@@ -197,26 +197,15 @@ export default function Dukkan() {
   const typeLabel:Record<string,string>={sale:"Satış",purchase:"Alış",sale_return:"Satış İadesi",purchase_return:"Alış İadesi",received:"Alınan",issued:"Verilen",pending:"Bekliyor",settled:"Tahsil/Ödendi",bounced:"Karşılıksız",cancelled:"İptal"};
 
   return (
-    <div className="h-full min-h-screen overflow-y-auto bg-[#f5f7fb] text-slate-900">
-      <div className="mx-auto max-w-[1680px] px-3 py-4 sm:px-6 sm:py-6">
-        <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            {branding?.dukkan_logo?<img src={branding.dukkan_logo} alt="Çalışkan Dükkan" className="h-12 w-12 rounded-xl object-contain"/>:<div className="rounded-xl bg-slate-900 p-3 text-white"><Store size={24}/></div>}
-            <div><h1 className="text-xl font-black tracking-tight sm:text-2xl">Çalışkan Dükkan</h1><p className="text-xs text-slate-500">Ön muhasebe ve mağaza yönetimi · Masaüstü / Mobil</p></div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {stores.length>0&&<select aria-label="Mağaza seç" className={inputClass} value={storeId} onChange={e=>setStoreId(e.target.value)}>{stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>}
-            <button className="rounded-lg border bg-white p-2.5" onClick={()=>setRefresh(n=>n+1)} aria-label="Yenile"><RefreshCw size={17}/></button>
-            {isAdmin&&<button className="rounded-lg border bg-white px-3 py-2.5 text-xs font-semibold" onClick={()=>setShowNewStore(v=>!v)}><Plus size={15} className="inline"/> Mağaza Oluştur</button>}
-          </div>
-        </header>
+    <div className="h-full min-h-screen overflow-y-auto bg-[#f3f7fc] text-[#172945]">
+      <div className="mx-auto max-w-[1700px] px-3 py-5 sm:px-7 sm:py-7">
+        <DukkanWorkspaceHeader logo={branding?.dukkan_logo} stores={stores} storeId={storeId} onStoreChange={setStoreId}
+          onRefresh={()=>setRefresh(n=>n+1)} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} onNewStore={()=>setShowNewStore(v=>!v)}/>
         {error&&<div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {notice&&<div role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
         {showNewStore&&<form onSubmit={createStore} className={softCard+" mb-4 flex flex-wrap gap-2"}><input className={inputClass+" flex-1"} placeholder="Yeni mağaza adı" required value={newStoreName} onChange={e=>setNewStoreName(e.target.value)}/><button className={buttonClass} disabled={busy}>Oluştur</button></form>}
         {!storeId?<div className={softCard+" text-center"}><Building2 className="mx-auto mb-3 text-slate-400" size={34}/><h2 className="font-bold">Henüz erişilebilir mağaza yok</h2><p className="mt-2 text-sm text-slate-500">Çalışkan Admin yöneticisi mağaza oluşturup kullanıcıları mağazaya atayabilir.</p></div>:<>
-          <nav aria-label="Çalışkan Dükkan modülleri" className="mb-5 flex gap-2 overflow-x-auto pb-2">
-            {SECTIONS.filter(t=>!cashier||!["purchases","instruments","banks","reports","stock","products"].includes(t.key)).map(t=><button key={t.key} onClick={()=>setSection(t.key)} className={"shrink-0 rounded-xl border px-3 py-2.5 text-sm font-semibold "+(section===t.key?"border-slate-900 bg-slate-900 text-white":"border-slate-200 bg-white text-slate-600 hover:bg-slate-50")}>{t.label}</button>)}
-          </nav>
+          <DukkanWorkspaceLayout selected={section} onSelect={setSection} cashier={cashier}>
           {canAccount&&(section==="overview"||section==="reports")&&<div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
             {[
               ["Net Satış",currency(report?.sales)],["Net Alış",currency(report?.purchases)],
@@ -313,7 +302,8 @@ export default function Dukkan() {
               {displayed.length===0&&<p className="py-10 text-center text-sm text-slate-500">Henüz kayıt bulunmuyor.</p>}
             </div>
           </div>
-          <p className="mt-5 text-center text-xs text-slate-500">Çalışkan Dükkan · Veriler PostgreSQL üzerinde merkezi tutulur. E-Fatura/e-Arşiv gönderimi ayrıca entegrasyon gerektirir.</p>
+          <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
+          </DukkanWorkspaceLayout>
         </>}
       </div>
     </div>
