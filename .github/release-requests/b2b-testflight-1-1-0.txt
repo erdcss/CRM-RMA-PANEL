@@ -1,5 +1,11 @@
-Çalışkan B2B iOS TestFlight first-frame splash — RETRY
-Time: 2026-10-26
-Source: 67191f7f5082888a6a7c3eeaf9e4cb81ed545954
-Includes Expo SDK54 native splash-screen config plugin and direct splash API, 502 retry and safe fail-closed assets.
-Explicitly only iOS TestFlight, not Business or Dükkan.
+Çalışkan B2B — iOS TestFlight 1.1.0 release request
+Date: 2026-10-26
+Trigger: user explicitly requested TestFlight after homepage Reels / categories / new arrivals changes.
+Source main revision at request: 11007efccdbca14c0f77ced07b3a596cea6256b8
+Scope: ONLY com.caliskangroup.rma (B2B). Do not build Business or Dukkan.
+Changes to include:
+- Homepage reels preview is muted video autoplay, no cover image.
+- Admin and supplier Reels forms do not accept cover images.
+- Bottom navigation category entries open category detail, even without products; use configured category images.
+- Homepage new arrivals displays one horizontal auto-scrolling row.
+Safety: GitHub Actions workflow must pass Expo credentials, typecheck, signed EAS iOS build, and awaited TestFlight submission before claiming release success.
