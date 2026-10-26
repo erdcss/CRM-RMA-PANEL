@@ -22,12 +22,13 @@
     "expo-file-system": "~19.0.17",
     "expo-document-picker": "~14.0.8",
     "expo-sharing": "~14.0.8",
-    "react-native-webview": "13.15.0"
+    "expo-secure-store": "~15.0.8",
+    "expo-crypto": "~15.0.8"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2",
     "sharp": "^0.33.5"
   },
-  "description": "Çalışkan Dükkan shared-account connected mobile client (previous offline engine retained for migration)"
+  "description": "Çalışkan Dükkan native iOS Android authenticated shared-store accounting (offline migration preserved)"
 }
