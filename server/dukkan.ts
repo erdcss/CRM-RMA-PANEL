@@ -11,6 +11,7 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_members (store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), user_id INTEGER NOT NULL REFERENCES users(id), role TEXT NOT NULL CHECK(role IN ('owner','manager','accountant','cashier','viewer')), PRIMARY KEY(store_id,user_id))",
   "CREATE TABLE IF NOT EXISTS dukkan_parties (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), type TEXT NOT NULL CHECK(type IN ('customer','supplier','both')), name TEXT NOT NULL, tax_number TEXT, phone TEXT, email TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_products (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), sku TEXT NOT NULL, barcode TEXT, name TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'adet', stock NUMERIC(16,3) NOT NULL DEFAULT 0 CHECK(stock>=0), purchase_price NUMERIC(18,2) NOT NULL DEFAULT 0, sale_price NUMERIC(18,2) NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,sku), UNIQUE(store_id,id))",
+  "CREATE SEQUENCE IF NOT EXISTS dukkan_invoice_number_seq AS BIGINT START WITH 10000000000000 MINVALUE 10000000000000 MAXVALUE 99999999999999 NO CYCLE",
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_products_barcode_unique ON dukkan_products(store_id,barcode) WHERE barcode IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_invoices (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sale','purchase','sale_return','purchase_return')), invoice_no TEXT NOT NULL, issued_at DATE NOT NULL DEFAULT CURRENT_DATE, subtotal NUMERIC(18,2) NOT NULL, tax_total NUMERIC(18,2) NOT NULL, grand_total NUMERIC(18,2) NOT NULL, status TEXT NOT NULL DEFAULT 'posted', request_key UUID NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,invoice_no), UNIQUE(store_id,request_key))",
   "CREATE TABLE IF NOT EXISTS dukkan_invoice_lines (id BIGSERIAL PRIMARY KEY, invoice_id BIGINT NOT NULL REFERENCES dukkan_invoices(id), product_id BIGINT NOT NULL REFERENCES dukkan_products(id), quantity NUMERIC(16,3) NOT NULL CHECK(quantity>0), unit_price NUMERIC(18,2) NOT NULL CHECK(unit_price>=0), tax_rate NUMERIC(5,2) NOT NULL CHECK(tax_rate>=0 AND tax_rate<=100), line_total NUMERIC(18,2) NOT NULL)",
@@ -42,7 +43,7 @@ const qty = z.coerce.number().finite().positive().max(999999999).refine(threeDec
 const string = z.string().trim().min(1).max(200);
 const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const lineSchema = z.object({ productId: id, quantity: qty, unitPrice: z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals), taxRate: z.coerce.number().min(0).max(100).default(20) });
-const docSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase", "sale_return", "purchase_return"]), number: string, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), requestKey: z.string().uuid(), lines: z.array(lineSchema).min(1).max(200) });
+const docSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase", "sale_return", "purchase_return"]), number: z.string().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), requestKey: z.string().uuid(), lines: z.array(lineSchema).min(1).max(200) });
 const orderSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase"]), number: string, lines: z.array(lineSchema).min(1).max(200) });
 
 type SafeHandler = (req: Request, res: Response) => Promise<unknown>;
@@ -179,6 +180,15 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const p=z.object({name:string,sku:string,barcode:z.string().trim().max(64).optional(),unit:z.string().max(20).default("adet"),purchasePrice:z.coerce.number().min(0).default(0),salePrice:z.coerce.number().min(0).default(0)}).parse(req.body);
     const db=await ready();const r=await db.query("INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,purchase_price,sale_price) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",[store(req),p.name,p.sku,p.barcode||null,p.unit,money(p.purchasePrice),money(p.salePrice)]);res.status(201).json(r.rows[0]);
   }));
+  app.patch("/api/dukkan/stores/:storeId/products/:productId",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req),productId=id.parse(req.params.productId);
+    const payload=z.object({name:string,sku:string,barcode:z.string().trim().max(64).optional(),unit:z.string().trim().min(1).max(20),purchasePrice:z.coerce.number().finite().min(0).refine(twoDecimals),salePrice:z.coerce.number().finite().min(0).refine(twoDecimals)}).parse(req.body);
+    const db=await ready();
+    const updated=await db.query("UPDATE dukkan_products SET name=$3,sku=$4,barcode=$5,unit=$6,purchase_price=$7,sale_price=$8 WHERE store_id=$1 AND id=$2 RETURNING *",[sid,productId,payload.name,payload.sku,payload.barcode||null,payload.unit,money(payload.purchasePrice),money(payload.salePrice)]);
+    if(!updated.rowCount)return res.status(404).json({error:"Bu mağazada ürün bulunamadı"});
+    res.json(updated.rows[0]);
+  }));
   app.post("/api/dukkan/stores/:storeId/stock-movements",safe(async(req,res)=>{
     manager(res);
     const p=z.object({productId:id,delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),note:z.string().max(500).optional()}).parse(req.body);
@@ -207,7 +217,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       const subtotal=money(lines.reduce((s,l)=>s+l.net,0));
       const taxTotal=money(lines.reduce((s,l)=>s+l.vat,0));
       const grandTotal=money(subtotal+taxTotal);
-      const inserted=await c.query("INSERT INTO dukkan_invoices(store_id,party_id,kind,invoice_no,issued_at,subtotal,tax_total,grand_total,request_key,created_by) VALUES($1,$2,$3,$4,COALESCE($5::date,CURRENT_DATE),$6,$7,$8,$9,$10) RETURNING *",[sid,p.partyId,p.kind,p.number,p.date||null,subtotal,taxTotal,grandTotal,p.requestKey,user(res)]);
+      const inserted=await c.query("INSERT INTO dukkan_invoices(store_id,party_id,kind,invoice_no,issued_at,subtotal,tax_total,grand_total,request_key,created_by) VALUES($1,$2,$3,nextval('dukkan_invoice_number_seq')::text,COALESCE($4::date,CURRENT_DATE),$5,$6,$7,$8,$9) RETURNING *",[sid,p.partyId,p.kind,p.date||null,subtotal,taxTotal,grandTotal,p.requestKey,user(res)]);
       const doc=inserted.rows[0];
       const sign=(p.kind==="purchase" || p.kind==="sale_return")?1:-1;
       for(const l of lines){
@@ -218,7 +228,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       }
       const debit=p.kind==="sale" || p.kind==="purchase_return" ? grandTotal : 0;
       const credit=p.kind==="purchase" || p.kind==="sale_return" ? grandTotal : 0;
-      await c.query("INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description,invoice_id) VALUES($1,$2,$3,$4,$5,$6)",[sid,p.partyId,debit,credit,p.kind+" "+p.number,doc.id]);
+      await c.query("INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description,invoice_id) VALUES($1,$2,$3,$4,$5,$6)",[sid,p.partyId,debit,credit,p.kind+" "+doc.invoice_no,doc.id]);
       return doc;
     });
     res.status(201).json(invoice);
