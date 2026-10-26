@@ -1,5 +1,7 @@
-Çalışkan B2B iOS 1.1.0 - splash tek ekran / route hazır olana kadar görünür.
-Tarih: 2026-10-26 14:37 Europe/Istanbul.
-Uygulama düzeltmesi: ba1e243c879324df24b451832e5281cd07c38170
-Kapsam: extra Giriş Ekranı Görseli kaldırıldı; Splash API image stable revision; oturum yönlendirmesi tamamlanana kadar splash gösterilir; Native başlangıç ekranı devamlılığı korunur.
-Yalnızca Çalışkan B2B iOS paketi TestFlight'a yüklensin.
+Çalışkan B2B - SDK 54 native splash first-frame correction
+Date: 2026-10-26
+Source commit: ae41c4ece2d69ebbf365e2d9418896ee3e154261
+Use newly installed expo-splash-screen ~31.0.13 and native iOS LaunchScreen configuration plugin.
+Admin-configured full-screen PNG must appear immediately at cold launch before JavaScript.
+Keep navigation startup and the live Admin-managed image while the app loads.
+Only Çalışkan B2B iOS for TestFlight.
