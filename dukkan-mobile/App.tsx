@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useState} from "react";
-import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
+import {ActivityIndicator,Alert,KeyboardAvoidingView,Linking,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
+import {WebView} from "react-native-webview";
 import {StatusBar as ExpoStatusBar} from "expo-status-bar";
 import {add,getDb,list,report,settings,setStatus,summary,today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
 import {exportBackup,importBackup} from "./portable-backup";
@@ -40,7 +41,7 @@ const ACTIONS:Record<Tab,{kind:string;label:string}[]>={
 };
 const LABELS:Record<string,string>={invoices:"Fatura",products:"Ürün",movements:"Stok",parties:"Cari",ledger:"Cari Hareket",orders:"Sipariş",banks:"Banka",cash_movements:"Kasa",payments:"Ödeme",instruments:"Evrak"};
 function moneyStyle(n:number){return n<0?{color:"#bd524e"}:{color:f.green};}
-export default function App(){
+function OfflineArchiveApp(){
  const [tab,setTab]=useState<Tab>("dashboard");
  const [records,setRecords]=useState<RecordRow[]>([]);
  const [parties,setParties]=useState<RecordRow[]>([]);
@@ -241,3 +242,48 @@ const styles=StyleSheet.create({
  line:{padding:14,backgroundColor:"#f5f8fb",borderWidth:1,borderColor:f.border,borderRadius:12,marginBottom:13},lineInputRow:{flexDirection:"row",gap:9,marginTop:12},smallLabel:{fontSize:10,color:f.muted,marginBottom:6},total:{fontSize:15,fontWeight:"800",color:f.ink,textAlign:"right",marginVertical:18},
  error:{color:"#ac3b4b",backgroundColor:"#fff0f0",padding:14,borderRadius:9,marginBottom:12}
 });
+
+/**
+ * Connected Çalışkan Dükkan uses the store-scoped web application and the
+ * existing server-enforced manager/member permissions. It does not mix the old
+ * device-local SQLite ledger with the shared PostgreSQL store ledger.
+ * The previous offline implementation is kept above for a future explicit
+ * owner-approved migration; no silent data upload or replacement occurs.
+ */
+const CONNECTED_URL="https://admin.ecalisgan.com/dukkan";
+const CONNECTED_ORIGIN="https://admin.ecalisgan.com";
+export default function App(){
+ const [pageKey,setPageKey]=useState(0);
+ const [loadError,setLoadError]=useState("");
+ const safeNavigation=(url:string)=>{
+  if(url==="about:blank"||url===CONNECTED_ORIGIN||url.startsWith(CONNECTED_ORIGIN+"/"))return true;
+  if(/^https:\/\//i.test(url))void Linking.openURL(url).catch(()=>{});
+  return false;
+ };
+ return <SafeAreaView style={{flex:1,backgroundColor:"#f4f6fa"}}>
+  <StatusBar barStyle="dark-content" backgroundColor="#f4f6fa"/>
+  {loadError?(
+   <View style={{flex:1,justifyContent:"center",padding:28,alignItems:"center",gap:14}}>
+    <Text style={{fontSize:23,fontWeight:"900",color:"#13283f"}}>Çalışkan Dükkan</Text>
+    <Text style={{fontSize:14,color:"#475569",textAlign:"center"}}>Güvenli mağaza bağlantısı kurulamadı: {loadError}</Text>
+    <Pressable accessibilityRole="button" style={{backgroundColor:"#13283f",padding:14,borderRadius:12}} onPress={()=>{setLoadError("");setPageKey(n=>n+1);}}>
+     <Text style={{fontWeight:"800",color:"white"}}>Yeniden Dene</Text>
+    </Pressable>
+   </View>
+  ):<WebView
+    key={pageKey}
+    source={{uri:CONNECTED_URL}}
+    style={{flex:1,backgroundColor:"#f4f6fa"}}
+    originWhitelist={[CONNECTED_ORIGIN]}
+    onShouldStartLoadWithRequest={event=>safeNavigation(event.url)}
+    javaScriptEnabled
+    domStorageEnabled
+    sharedCookiesEnabled
+    thirdPartyCookiesEnabled={false}
+    setSupportMultipleWindows={false}
+    startInLoadingState
+    renderLoading={()=><View style={{flex:1,justifyContent:"center",alignItems:"center"}}><ActivityIndicator color="#13283f" size="large"/></View>}
+    onError={e=>setLoadError(e.nativeEvent.description||"Ağ hatası")}
+  />}
+ </SafeAreaView>;
+}
