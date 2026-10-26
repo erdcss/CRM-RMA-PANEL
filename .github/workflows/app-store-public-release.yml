@@ -1,0 +1,157 @@
+name: Çalışkan B2B ve Business - App Store İnceleme ve Otomatik Yayın
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "İncelemeye gönderilecek uygulamalar"
+        required: true
+        type: choice
+        options:
+          - both
+          - b2b
+          - business
+        default: both
+      confirm_publication:
+        description: "Apple onayından sonra halka açık otomatik yayınlamayı onaylıyorum"
+        required: true
+        type: boolean
+        default: false
+      b2b_build_number:
+        description: "B2B derleme no (boş = hazır sürümdeki en son işlenmiş TestFlight derlemesi)"
+        type: string
+        required: false
+      business_build_number:
+        description: "Business derleme no (boş = hazır sürümdeki en son işlenmiş TestFlight derlemesi)"
+        type: string
+        required: false
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/app-store-publication-20261026.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-appstore-review
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Kaynak, Apple anahtarı ve yayın yetkisi kontrolü
+    if: ${{ github.event_name == 'push' || inputs.confirm_publication == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fastlane söz dizimi ve uygulama ID doğrulaması
+        run: |
+          ruby -c scripts/appstore/fastlane/Fastfile
+          node - <<'NODE'
+          const cases=[
+            {dir:"mobile",bundle:"com.caliskangroup.rma",asc:"6802286663"},
+            {dir:"business-mobile",bundle:"com.caliskangroup.business",asc:"6818161236"}
+          ];
+          for(const app of cases){
+            const config=require("./"+app.dir+"/app.json").expo;
+            const submit=require("./"+app.dir+"/eas.json").submit.testflight.ios;
+            if(config.ios.bundleIdentifier!==app.bundle||String(submit.ascAppId)!==app.asc)
+              throw Error("Wrong App Store Connect target: "+app.dir);
+            if(!/^\d+\.\d+\.\d+$/.test(config.version))
+              throw Error("Invalid iOS version: "+app.dir);
+            console.log(app.dir+" -> "+app.bundle+" / "+config.version);
+          }
+          NODE
+      - name: GitHub'da App Store Connect API sırlarını doğrula
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for key in APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_PRIVATE_KEY_BASE64; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error title=Eksik App Store Connect sırrı::$key GitHub Actions secrets altında tanımlı değil."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
+          if ! printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY_BASE64" | base64 -d 2>/dev/null | openssl pkey -noout >/dev/null 2>&1; then
+            echo "::error title=Apple özel anahtarı geçersiz::APP_STORE_CONNECT_PRIVATE_KEY_BASE64 base64 kodlu .p8 özel anahtarı olmalı."
+            exit 1
+          fi
+          echo "Apple API anahtarı biçimi ve gerekli sırlar doğrulandı."
+      - name: Yayın koşulları
+        run: |
+          echo "Bu iş akışı SADECE hazır TestFlight derlemesini App Review'a gönderir." >> "$GITHUB_STEP_SUMMARY"
+          echo "Apple onayı sonrasında sürüm otomatik olarak App Store'da yayınlanır." >> "$GITHUB_STEP_SUMMARY"
+          echo "Gerekli ekran görüntüleri, gizlilik alanları ve inceleme hesabı App Store Connect'te önceden tamamlanmalıdır." >> "$GITHUB_STEP_SUMMARY"
+
+  submit_b2b:
+    name: Çalışkan B2B - İncelemeye gönder
+    needs: preflight
+    if: ${{ needs.preflight.result == 'success' && (github.event_name == 'push' || inputs.apps == 'both' || inputs.apps == 'b2b') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: scripts/appstore
+    env:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_DISABLE_COLORS: "1"
+      B2B_BUILD_NUMBER: ${{ inputs.b2b_build_number || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Fastlane kur
+        run: bundle install --jobs 4 --retry 3
+      - name: İşlenmiş B2B derlemesini App Review'a gönder
+        run: |
+          VERSION="$(ruby -rjson -e 'puts JSON.parse(File.read("../../mobile/app.json")).fetch("expo").fetch("version")')"
+          bundle exec fastlane ios submit_review app:b2b version:"$VERSION" build_number:"$B2B_BUILD_NUMBER"
+      - name: Kayıt
+        if: success()
+        run: |
+          echo "B2B App Review gönderimi talep edildi; otomatik yayın Apple'ın inceleme onayından sonradır." >> "$GITHUB_STEP_SUMMARY"
+          echo "https://appstoreconnect.apple.com/apps/6802286663/appstore" >> "$GITHUB_STEP_SUMMARY"
+
+  submit_business:
+    name: Çalışkan Business - İncelemeye gönder
+    needs: preflight
+    if: ${{ needs.preflight.result == 'success' && (github.event_name == 'push' || inputs.apps == 'both' || inputs.apps == 'business') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: scripts/appstore
+    env:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_PRIVATE_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_DISABLE_COLORS: "1"
+      BUSINESS_BUILD_NUMBER: ${{ inputs.business_build_number || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+      - name: Fastlane kur
+        run: bundle install --jobs 4 --retry 3
+      - name: İşlenmiş Business derlemesini App Review'a gönder
+        run: |
+          VERSION="$(ruby -rjson -e 'puts JSON.parse(File.read("../../business-mobile/app.json")).fetch("expo").fetch("version")')"
+          bundle exec fastlane ios submit_review app:business version:"$VERSION" build_number:"$BUSINESS_BUILD_NUMBER"
+      - name: Kayıt
+        if: success()
+        run: |
+          echo "Business App Review gönderimi talep edildi; otomatik yayın Apple'ın inceleme onayından sonradır." >> "$GITHUB_STEP_SUMMARY"
+          echo "https://appstoreconnect.apple.com/apps/6818161236/appstore" >> "$GITHUB_STEP_SUMMARY"
