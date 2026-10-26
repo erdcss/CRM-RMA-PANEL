@@ -53,6 +53,16 @@ async function main(){
   expo.android.adaptiveIcon={
     ...(expo.android.adaptiveIcon||{}),foregroundImage:androidIcon
   };
+  // Native SDK54 plugin builds an actual first-frame iOS LaunchScreen image.
+  // Legacy ios.splash on its own was producing a blank launch screen.
+  expo.plugins=Array.isArray(expo.plugins)?expo.plugins:[];
+  expo.plugins=expo.plugins.filter(p=>!(typeof p==="string"?p==="expo-splash-screen":Array.isArray(p)&&p[0]==="expo-splash-screen"));
+  expo.plugins.push(["expo-splash-screen",{
+    backgroundColor:"#101010",
+    enableFullScreenImage_legacy:true,
+    ios:{backgroundColor:"#101010",...(splash?{image:splash,resizeMode:"cover"}:{})},
+    android:{backgroundColor:"#101010"}
+  }]);
   expo.splash=splash?{image:splash,resizeMode:"cover",backgroundColor:"#101010"}:{backgroundColor:"#101010"};
   // Android 12+ uses a system-controlled icon splash; keep the native icon
   // centered while the full-bleed admin-managed image loads in React.

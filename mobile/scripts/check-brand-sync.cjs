@@ -60,6 +60,11 @@ async function runCase(withSplash) {
       assert.equal(config.expo.ios.splash.image, config.expo.splash.image);
       assert.equal(config.expo.ios.splash.resizeMode, "cover");
       assert.equal(config.expo.splash.backgroundColor, "#101010");
+      const plugin = config.expo.plugins.find(p => Array.isArray(p) && p[0] === "expo-splash-screen");
+      assert.ok(plugin, "Native expo-splash-screen plugin must exist");
+      assert.equal(plugin[1].ios.image, config.expo.splash.image);
+      assert.equal(plugin[1].ios.resizeMode, "cover");
+      assert.equal(plugin[1].enableFullScreenImage_legacy, true);
       const logoFile = path.join(tmp, config.expo.icon);
       const splashFile = path.join(tmp, config.expo.splash.image);
       assert.ok(
@@ -105,6 +110,9 @@ async function runCase(withSplash) {
       assert.equal(config.expo.splash.image, undefined);
       assert.equal(config.expo.ios.splash, undefined, "When removed, do not bundle the previous iOS splash");
       assert.equal(config.expo.splash.backgroundColor, "#101010");
+      const plugin = config.expo.plugins.find(p => Array.isArray(p) && p[0] === "expo-splash-screen");
+      assert.ok(plugin);
+      assert.equal(plugin[1].ios.image, undefined, "Do not embed a previously removed splash");
       assert.match(config.expo.icon, /^\.\/assets\/managed-logo-[a-f0-9]{12}\.png$/);
       assert.match(fs.readFileSync(path.join(tmp, "lib", "managed-splash.ts"), "utf8"), /managedSplash: ImageSourcePropType \| null = null/);
       assert.equal(fs.readdirSync(path.join(tmp, "assets")).some(file => file.startsWith("managed-splash-")), false);
@@ -128,13 +136,55 @@ function checkStartupContract() {
   assert.match(layout, /initialRoutePainted/, "Wait for initial route before hiding splash");
   assert.match(layout, /!initialRoutePainted/, "Keep splash opaque until initial route is painted");
   assert.match(layout, /SplashScreen.preventAutoHideAsync/, "Keep native splash at startup");
+  assert.match(layout, /import \* as SplashScreen from 'expo-splash-screen'/, "Use the official native splash-screen module");
   for (const [name, source] of [["login", login], ["signup", signup], ["branding", branding]]) {
     assert.doesNotMatch(source, /b2b_mobile_login_background|loginBackground/, name + " must not use a second splash-like background");
   }
 }
 
+
+async function checkCloudPreinstall() {
+  const cloudScript = path.resolve(__dirname, "eas-branding-preinstall.cjs");
+  for (const withSplash of [true, false]) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "b2b-eas-firstframe-"));
+    fs.mkdirSync(path.join(tmp, "scripts"));
+    fs.mkdirSync(path.join(tmp, "lib"));
+    fs.writeFileSync(path.join(tmp, "scripts", "eas-branding-preinstall.cjs"), fs.readFileSync(cloudScript));
+    fs.writeFileSync(path.join(tmp, "app.json"), JSON.stringify({expo:{ios:{},android:{},plugins:[]}}));
+    const icon = new PNG({width: 40,height: 40});
+    for (let i=0;i<icon.data.length;i++) icon.data[i]=Math.floor(i*167%256);
+    const png = PNG.sync.write(icon);
+    const server = http.createServer((req,res)=>{
+      if(req.url.startsWith("/api/public/mobile-branding/")){
+        res.setHeader("Content-Type","application/json");
+        return res.end(JSON.stringify({logo:"/icon",splash:withSplash?"/icon":null}));
+      }
+      res.setHeader("Content-Type","image/png");
+      res.end(png);
+    });
+    try {
+      await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
+      const port=server.address().port;
+      const output=await launch([path.join(tmp,"scripts","eas-branding-preinstall.cjs")],{
+        cwd:tmp,env:{...process.env,EXPO_PUBLIC_BRANDING_API_URL:"http://127.0.0.1:"+port}
+      });
+      assert.equal(output.code,0,output.out);
+      const expo=JSON.parse(fs.readFileSync(path.join(tmp,"app.json"),"utf8")).expo;
+      const plugin=expo.plugins.find(p=>Array.isArray(p)&&p[0]==="expo-splash-screen");
+      assert.ok(plugin,"EAS pre-install must configure first frame");
+      assert.equal(plugin[1].enableFullScreenImage_legacy,true);
+      assert.equal(Boolean(plugin[1].ios.image),withSplash);
+      if(withSplash)assert.equal(plugin[1].ios.image,expo.ios.splash.image);
+    } finally {
+      await new Promise(resolve=>server.close(resolve));
+      fs.rmSync(tmp,{recursive:true,force:true});
+    }
+  }
+}
+
 async function main() {
   checkStartupContract();
+  await checkCloudPreinstall();
   await runCase(true);
   await runCase(false);
   console.log("B2B first-frame native splash / removal regression checks passed.");

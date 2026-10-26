@@ -50,6 +50,19 @@
           "cameraPermission": "Koli barkodu ve QR kodu taramak için kamera erişimi gerekir.",
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#101010",
+          "ios": {
+            "backgroundColor": "#101010"
+          },
+          "android": {
+            "backgroundColor": "#101010"
+          },
+          "enableFullScreenImage_legacy": true
+        }
       ]
     ],
     "experiments": {

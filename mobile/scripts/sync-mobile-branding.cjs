@@ -142,6 +142,26 @@ async function main() {
   }
 
   if (target === "b2b") {
+    // EXPO SDK 54: the legacy expo.splash/ios.splash fields alone do not
+    // reliably generate iOS LaunchScreen.storyboard. Explicitly configure
+    // the actual native splash-screen plugin. Full-screen mode preserves the
+    // 1080x1920 admin-uploaded portrait artwork.
+    expo.plugins = Array.isArray(expo.plugins) ? expo.plugins : [];
+    expo.plugins = expo.plugins.filter(plugin =>
+      !(typeof plugin === "string" ? plugin === "expo-splash-screen" :
+        Array.isArray(plugin) && plugin[0] === "expo-splash-screen"));
+    expo.plugins.push(["expo-splash-screen", {
+      backgroundColor: "#101010",
+      enableFullScreenImage_legacy: true,
+      ios: {
+        backgroundColor: "#101010",
+        ...(splashPath ? { image: splashPath, resizeMode: "cover" } : {}),
+      },
+      android: { backgroundColor: "#101010" },
+    }]);
+  }
+
+  if (target === "b2b") {
     // Native iOS must render a real splash from the FIRST frame (no empty
     // launch page before the runtime image fetch). Its image is frozen for
     // this installed binary; after launch the live Admin splash takes over,
