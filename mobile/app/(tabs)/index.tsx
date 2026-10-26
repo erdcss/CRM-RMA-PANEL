@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
@@ -66,7 +67,6 @@ export default function HomeScreen() {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [catalogError, setCatalogError] = useState('');
   const [reels, setReels] = useState<B2BReel[]>([]);
-  const [missingReelCovers, setMissingReelCovers] = useState<string[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
   const [ledgerTileImageId, setLedgerTileImageId] = useState('');
@@ -77,6 +77,9 @@ export default function HomeScreen() {
   const bannerWidth = screenWidth;
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
+  const newProductsScrollRef = useRef<ScrollView>(null);
+  const newProductsIndexRef = useRef(0);
+  const [newProductsWidth, setNewProductsWidth] = useState(0);
   const bannerIndexRef = useRef(0);
   const [scannerOpen, setScannerOpen] = useState(false);
   const scanLockedRef = useRef(false);
@@ -151,7 +154,6 @@ export default function HomeScreen() {
     void load(true);
     void rmaApi.listB2BReels()
       .then(items => {
-        setMissingReelCovers([]);
         setReels(Array.isArray(items) ? items.slice(0, 8) : []);
       })
       .catch(error => console.warn('Reels list fetch failed:', error));
@@ -196,6 +198,18 @@ export default function HomeScreen() {
     }, Math.min(15000, Math.max(2500, sliderIntervalMs)));
     return () => clearInterval(timer);
   }, [bannerWidth, banners.length, query, sliderAutoPlay, sliderIntervalMs]);
+
+  useEffect(() => {
+    if (query.trim() || filtered.length < 2 || !newProductsWidth) return;
+    const cardWidth = Math.min(190, Math.max(145, screenWidth * 0.42)) + spacing.sm;
+    const count = Math.min(filtered.length, 10);
+    const timer = setInterval(() => {
+      const next = (newProductsIndexRef.current + 1) % count;
+      newProductsIndexRef.current = next;
+      newProductsScrollRef.current?.scrollTo({ x: next * cardWidth, animated: next !== 0 });
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [filtered.length, newProductsWidth, query, screenWidth]);
 
   const handleScannedBarcode = async (value: string) => {
     if (scanLockedRef.current) return;
@@ -469,13 +483,16 @@ export default function HomeScreen() {
                 onPress={() => router.push('/(tabs)/discover')}
                 accessibilityLabel={reel.title || 'Reels videosu'}
               >
-                {reel.thumbnail_url && !missingReelCovers.includes(String(reel.id)) ? (
-                  <Image
-                    source={{ uri: absoluteMediaUrl(reel.thumbnail_url) || '' }}
+                {absoluteMediaUrl(reel.video_url) ? (
+                  <Video
+                    source={{ uri: absoluteMediaUrl(reel.video_url)! }}
                     style={styles.reelCoverImage}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                    onError={() => setMissingReelCovers(current => current.includes(String(reel.id)) ? current : [...current, String(reel.id)])}
+                    resizeMode={ResizeMode.COVER}
+                    isMuted
+                    shouldPlay
+                    isLooping
+                    useNativeControls={false}
+                    progressUpdateIntervalMillis={1000}
                   />
                 ) : (
                   <View style={styles.reelFallback} pointerEvents="none">
@@ -501,7 +518,13 @@ export default function HomeScreen() {
           <Text style={styles.productCount}>{filtered.length} ürün</Text>
         </View>
 
-        <View style={styles.productGrid}>
+        <ScrollView
+          ref={newProductsScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onLayout={event => setNewProductsWidth(event.nativeEvent.layout.width)}
+          contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.lg }}
+        >
           {filtered.slice(0, 10).map((product) => {
             const image = productImage(product);
             const priceVisible =
@@ -512,7 +535,7 @@ export default function HomeScreen() {
             return (
               <Pressable
                 key={String(product.id)}
-                style={styles.productCard}
+                style={[styles.productCard, { width: Math.min(190, Math.max(145, screenWidth * 0.42)) }]}
                 onPress={() =>
                   router.push({
                     pathname: '/product/[id]',
@@ -535,7 +558,7 @@ export default function HomeScreen() {
                       color={palette.muted}
                     />
                   )}
-                </View>
+                </ScrollView>
 
                 <View style={styles.productBody}>
                   <Text style={styles.sku}>{product.sku || 'STOK'}</Text>
