@@ -64,7 +64,7 @@ export function B2BFooter() {
       </section>)}
     </div>
     <B2BSocialAndStores/>
-    <div className="bg-[#080808] px-4 pb-5 text-center text-xs text-white/50">© {new Date().getFullYear()} Çalışkan B2B · Tüm hakları saklıdır.</div>
+    <div className="bg-[#080808] px-4 pb-5 text-center text-xs text-white/50">© {new Date().getFullYear()} Çalışkan B2B · Tüm hakları saklıdır. <button type="button" className="ml-3 underline underline-offset-2 hover:text-white" onClick={()=>window.dispatchEvent(new Event("caliskan-meta-open-consent"))}>Reklam ve çerez tercihleri</button></div>
   </footer>;
 }
 
