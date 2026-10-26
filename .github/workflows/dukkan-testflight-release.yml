@@ -1,6 +1,11 @@
 name: Çalışkan Dükkan - iOS TestFlight (ortak Expo hesabı)
 on:
   workflow_dispatch:
+  # Single-use release trigger. A matching main-branch file is created only after CI and server deployment pass.
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/dukkan-testflight-20261026-connected-v1.txt'
 permissions:
   contents: read
 concurrency:
