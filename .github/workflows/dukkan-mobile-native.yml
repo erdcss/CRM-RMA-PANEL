@@ -28,6 +28,8 @@ jobs:
         run: node --test check-schema.cjs
       - name: Native TypeScript check
         run: npm run check
+      - name: Verify admin-saved Dükkan logo before compiling iOS icon
+        run: npm run prepare:branding
       - name: Expo iOS JavaScript bundle check
         run: npx expo export --platform ios --output-dir dist-ios-check
       - name: Expo Android JavaScript bundle check
