@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { radius, spacing, typography } from '@/constants/theme';
 import { rmaApi, absoluteMediaUrl, homepageMediaUrl, type B2BProduct, type HomeCategoryCard } from '@/lib/api';
 import { productMatchesCollection } from '@/lib/category-collections';
+import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 
 function money(price: string | number | null | undefined) {
   const value = Number(price);
@@ -38,11 +39,15 @@ export default function CollectionScreen() {
     if (refresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const [catalog, homepage] = await Promise.all([
+      const [catalogResult, supplierResult, homepageResult] = await Promise.allSettled([
         rmaApi.listB2BProducts(refresh),
+        rmaApi.listMarketplaceProducts(),
         rmaApi.getB2BHomepage(),
       ]);
-      setProducts(Array.isArray(catalog) ? catalog : []);
+      const catalog = catalogResult.status === 'fulfilled' && Array.isArray(catalogResult.value) ? catalogResult.value : [];
+      const suppliers = supplierResult.status === 'fulfilled' && Array.isArray(supplierResult.value) ? supplierResult.value.map(asCatalogProduct) : [];
+      setProducts([...suppliers, ...catalog]);
+      const homepage = homepageResult.status === 'fulfilled' ? homepageResult.value : { categoryCards: [] };
       setCategoryCard((homepage.categoryCards || []).find(item =>
         item.category.toLocaleLowerCase('tr-TR') === category.toLocaleLowerCase('tr-TR')));
       setError('');
@@ -98,7 +103,7 @@ export default function CollectionScreen() {
           const priceVisible = Boolean(session) && item.price !== null && item.price !== undefined;
           return (
             <Pressable style={styles.card}
-              onPress={() => router.push({ pathname: '/product/[id]', params: { id: String(item.id) } } as never)}>
+              onPress={() => router.push({ pathname: '/product/[id]', params: productParams(item) } as never)}>
               <View style={styles.imageBox}>
                 {image ? <Image source={{ uri: image }} contentFit="contain" style={styles.image} cachePolicy="memory-disk" /> :
                   <Ionicons name="cube-outline" size={30} color={palette.muted} />}
