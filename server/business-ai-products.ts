@@ -114,6 +114,9 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
             "Yanıtın yalnızca JSON nesnesi olsun; her alan string:",
             fields.join(", "),
             "tags alanını virgülle ayrılmış string yap.",
+            "Ön/arka/ambalaj/etiket üzerindeki ürün adı, marka, model, varyant, renk, materyal, boyut, kapasite, içerik ve ürün açıklaması gibi GÖRÜNEN bütün bilgileri alanlara aktar.",
+            "Barkod rakamları net okunuyorsa aynen kopyala. Emin değilsen boş bırak; geçersiz barkod uydurma.",
+            "Görünür ölçüleri açıklamada koru, tekrar eden metni çıkar. Kategori ve koleksiyon için açıkça destekleniyorsa kısa bir ad öner.",
             "Yalnızca görselde görünen veya kullanıcının sağladığı kesin bilgileri kullan.",
             "Marka, model, barkod, stok kodu, renk, ölçü veya malzeme bilgisi okunmuyorsa boş string döndür.",
             "Fiyat, stok, koli sayısı, teslimat günü tahmin etme.",
@@ -123,11 +126,11 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
           ...sources.map((src,index)=>({
             type:"input_image" as const,
             image_url:src,
-            detail:(index===0?"low":"high") as "low"|"high"
+            detail:"high" as const
           }))
         ]}],
         text:{format:{type:"json_object"}},
-        max_output_tokens:1100
+        max_output_tokens:2000
       });
       const raw=JSON.parse(reply.output_text||"{}") as Record<string,unknown>;
       const product:Record<string,string>={};
