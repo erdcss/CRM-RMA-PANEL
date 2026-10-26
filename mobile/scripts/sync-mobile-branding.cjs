@@ -10,6 +10,31 @@ const appJsonPath = path.join(root, "app.json");
 const assetsDir = path.join(root, "assets");
 const api = (process.env.EXPO_PUBLIC_BRANDING_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
 
+// Admin can temporarily return 502 during deployments. Retry only transient
+// HTTP and network failures, never substitute a stale splash in a release.
+async function fetchAdminWithRetry(url, options = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: { ...(options.headers || {}), "Cache-Control": "no-cache" },
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (response.ok || ![408, 429, 500, 502, 503, 504].includes(response.status) || attempt === 4)
+        return response;
+      lastError = new Error("Admin geçici HTTP " + response.status);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 4) throw error;
+    }
+    const backoff = Math.min(8_000, 1_200 * 2 ** attempt);
+    console.warn("[brand-sync] Geçici bağlantı hatası, tekrar denenecek:", String(lastError?.message || lastError), "attempt", attempt + 1);
+    await new Promise(resolve => setTimeout(resolve, backoff));
+  }
+  throw lastError || new Error("Admin erişilemiyor");
+}
+
 function extensionFromMime(mime) {
   if (mime === "image/png") return "png";
   if (mime === "image/jpeg") return "jpg";
@@ -31,8 +56,8 @@ async function readAsset(value) {
 
   if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
     const imageUrl = new URL(value, api).toString();
-    const response = await fetch(imageUrl, {
-      headers: { Accept: "image/*", "Cache-Control": "no-cache" },
+    const response = await fetchAdminWithRetry(imageUrl, {
+      headers: { Accept: "image/*" },
       redirect: "follow",
     });
     if (!response.ok) {
@@ -74,9 +99,9 @@ async function saveAsset(name, value, required = true) {
 }
 
 async function main() {
-  const response = await fetch(
+  const response = await fetchAdminWithRetry(
     `${api}/api/public/mobile-branding/${target}?t=${Date.now()}`,
-    { headers: { Accept: "application/json", "Cache-Control": "no-cache" } },
+    { headers: { Accept: "application/json" } },
   );
 
   if (!response.ok) {

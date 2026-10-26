@@ -154,8 +154,14 @@ async function checkCloudPreinstall() {
     const icon = new PNG({width: 40,height: 40});
     for (let i=0;i<icon.data.length;i++) icon.data[i]=Math.floor(i*167%256);
     const png = PNG.sync.write(icon);
+    let firstBrandingRequest = true;
     const server = http.createServer((req,res)=>{
       if(req.url.startsWith("/api/public/mobile-branding/")){
+        if (firstBrandingRequest) {
+          firstBrandingRequest = false;
+          res.statusCode = 502;
+          return res.end("temporary upstream error");
+        }
         res.setHeader("Content-Type","application/json");
         return res.end(JSON.stringify({logo:"/icon",splash:withSplash?"/icon":null}));
       }
@@ -169,6 +175,7 @@ async function checkCloudPreinstall() {
         cwd:tmp,env:{...process.env,EXPO_PUBLIC_BRANDING_API_URL:"http://127.0.0.1:"+port}
       });
       assert.equal(output.code,0,output.out);
+      assert.equal(firstBrandingRequest, false, "Cloud retry must recover from a 502");
       const expo=JSON.parse(fs.readFileSync(path.join(tmp,"app.json"),"utf8")).expo;
       const plugin=expo.plugins.find(p=>Array.isArray(p)&&p[0]==="expo-splash-screen");
       assert.ok(plugin,"EAS pre-install must configure first frame");

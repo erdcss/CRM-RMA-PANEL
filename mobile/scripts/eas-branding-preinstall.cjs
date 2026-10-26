@@ -9,6 +9,22 @@ const root=path.resolve(__dirname,"..");
 const assetsDir=path.join(root,"assets");
 const api=(process.env.EXPO_PUBLIC_BRANDING_API_URL||"https://admin.ecalisgan.com").replace(/\/$/,"");
 
+async function fetchAdminWithRetry(url,options={}){
+  let lastError;
+  for(let attempt=0;attempt<5;attempt++){
+    try{
+      const response=await fetch(url,{...options,headers:{...(options.headers||{}),"Cache-Control":"no-cache"},signal:AbortSignal.timeout(20000)});
+      if(response.ok||![408,429,500,502,503,504].includes(response.status)||attempt===4)return response;
+      lastError=new Error("Admin HTTP "+response.status);
+    }catch(error){
+      lastError=error;
+      if(attempt===4)throw error;
+    }
+    console.warn("[EAS preinstall] Geçici Admin yanıtı, yeniden deneniyor:",String(lastError?.message||lastError));
+    await new Promise(resolve=>setTimeout(resolve,Math.min(8000,1200*2**attempt)));
+  }
+  throw lastError||new Error("Admin bağlantısı kurulamadı");
+}
 async function download(value,name){
   if(!value||typeof value!=="string")throw Error("Admin panelinde "+name+" bulunmuyor.");
   let bytes,mime;
@@ -19,7 +35,7 @@ async function download(value,name){
   }else{
     const url=new URL(value,api);
     if(url.origin!==new URL(api).origin)throw Error("Beklenmeyen görsel kaynağı: "+name);
-    const response=await fetch(url,{headers:{Accept:"image/*","Cache-Control":"no-cache"},signal:AbortSignal.timeout(20000)});
+    const response=await fetchAdminWithRetry(url,{headers:{Accept:"image/*"}});
     if(!response.ok)throw Error(name+" HTTP "+response.status);
     mime=(response.headers.get("content-type")||"").split(";")[0].trim();
     bytes=Buffer.from(await response.arrayBuffer());
@@ -36,8 +52,8 @@ async function download(value,name){
   return "./assets/"+fileName;
 }
 async function main(){
-  const response=await fetch(api+"/api/public/mobile-branding/b2b?t="+Date.now(),{
-    headers:{Accept:"application/json","Cache-Control":"no-cache"},signal:AbortSignal.timeout(20000)
+  const response=await fetchAdminWithRetry(api+"/api/public/mobile-branding/b2b?t="+Date.now(),{
+    headers:{Accept:"application/json"}
   });
   if(!response.ok)throw Error("B2B marka ayarları HTTP "+response.status);
   const branding=await response.json();
