@@ -320,7 +320,7 @@ export default function MarketplaceSeller(){
     setBusy(true);setMessage("");
     try{
       await send(editingReelId?"PATCH":"POST",editingReelId?"/api/marketplace/seller/reels/"+editingReelId:"/api/marketplace/seller/reels",{
-        title:reel.title.trim(),videoUrl:reel.videoUrl,thumbnailUrl:reel.thumbnailUrl||null,productId:reel.productId?Number(reel.productId):null,
+        title:reel.title.trim(),videoUrl:reel.videoUrl,thumbnailUrl:null,productId:reel.productId?Number(reel.productId):null,
       });
       setReel({title:"",videoUrl:"",thumbnailUrl:"",productId:""});
       form.reset();
@@ -581,12 +581,6 @@ export default function MarketplaceSeller(){
               {editingReelId?<button type="button" className="text-xs font-bold text-red-700 underline" onClick={()=>{setEditingReelId(null);setReel({title:"",videoUrl:"",thumbnailUrl:"",productId:""});}}>Düzenlemeyi İptal Et</button>:null}
               <Field label="Video başlığı"><input className={inputStyle} required value={reel.title} onChange={e=>setReel(v=>({...v,title:e.target.value}))}/></Field>
               <Field label="Reels videosu (MP4)"><input type="file" accept="video/mp4" className={inputStyle} onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"videoUrl");}}/><p role="status" className={"text-xs "+(reel.videoUrl?"font-bold text-green-700":"text-slate-500")}>{uploading?"Video yükleniyor: %"+uploadProgress:reel.videoUrl?"Video yüklendi · Onaya gönderilmeye hazır":"En fazla 60 MB, MP4 formatı. Onaya göndermek için yükleme tamamlanmalı."}</p></Field>
-              <Field label="Reels kapak görseli (isteğe bağlı)">
-                <input type="file" accept="image/png,image/jpeg,image/webp" className={inputStyle}
-                  onChange={e=>{if(e.target.files?.[0])void upload(e.target.files[0],"thumbnailUrl");}}/>
-                <p className="text-xs text-slate-500">Kapak eklenmezse mağaza sayfasında video sessiz önizleme olarak gösterilir.</p>
-                {reel.thumbnailUrl?<img src={reel.thumbnailUrl} alt="Reels kapak önizlemesi" className="mt-2 h-28 w-20 rounded object-cover"/>:null}
-              </Field>
               <Field label="Ürün seç"><select className={inputStyle} value={reel.productId} onChange={e=>setReel(v=>({...v,productId:e.target.value}))}>
                 <option value="">Ürün seçilmedi</option>{products.data?.filter(p=>Boolean(p.live)).map(p=><option key={p.id} value={p.id}>{p.live?.name||p.sku}</option>)}
               </select></Field>
