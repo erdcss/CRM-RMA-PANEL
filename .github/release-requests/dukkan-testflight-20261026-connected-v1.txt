@@ -1,0 +1,15 @@
+Çalışkan Dükkan · 26 Ekim 2026 bağlantılı mağaza sürümü
+
+Sürüm içeriği:
+- Çalışkan Admin tarafından atanan mağaza kullanıcılarının giriş yapması
+- Mağaza ürün yönetimi ve mobil merkezi veri bağlantısı
+- Satın alma / satış ürün kalemi kolon başlıkları
+- Sunucu tarafından otomatik 14 haneli dahili fatura numarası
+- Admin tarafından yüklenen logo doğrulaması ve native ikon
+
+GitHub PR #11 merge commit: dfe3acb48c6518db671e5cc351d13cfb0221b947
+CI: web-build, PostgreSQL integration, mobile typecheck, iOS/Android Expo bundle PASS
+Railway: CRM-RMA-PANEL production SUCCESS for merge commit dfe3acb48c6518db671e5cc351d13cfb0221b947
+Target app: com.caliskan.dukkan · ASC 6826848065
+
+Request: trigger dedicated Çalışkan Dükkan TestFlight EAS build and submission.
