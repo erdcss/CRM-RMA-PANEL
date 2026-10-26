@@ -8,7 +8,7 @@ import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
 import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
 import { registerDukkanRoutes } from "./dukkan";
 import {
@@ -4556,6 +4556,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [user.id],
     );
     return res.json(result.rows);
+  });
+
+  // Optional Meta Conversions API; never sends customer information without an
+  // explicit web consent signal and a paid order validated for this account.
+  const recentMetaPurchaseEvents=new Map<string,number>();
+  app.post("/api/b2b/meta/purchase",requireB2B,async(req,res)=>{
+    if(req.body?.consent!==true)return res.status(400).json({error:"Reklam ölçüm izni gerekli"});
+    const orderNumber=String(req.body?.orderNumber||"").trim();
+    if(!/^[A-Za-z0-9_-]{4,75}$/.test(orderNumber))return res.status(400).json({error:"Geçersiz sipariş numarası"});
+    const token=process.env.META_CONVERSIONS_ACCESS_TOKEN||"";
+    if(!token)return res.json({configured:false,sent:false});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    try{
+      const stored=await pool.query("SELECT value FROM platform_settings WHERE key='b2b_meta_tracking' LIMIT 1");
+      const config=JSON.parse(String(stored.rows[0]?.value||"{}"));
+      if(config.enabled===false)return res.json({configured:false,sent:false});
+      const pixelId=typeof config.pixelId==="string"&&/^[0-9]{10,20}$/.test(config.pixelId)?config.pixelId:"949840147857568";
+      const b2bUser=(res.locals as any).b2bUser;
+      const email=String(b2bUser?.email||b2bUser?.username||"").trim().toLowerCase();
+      if(!email.includes("@"))return res.status(403).json({error:"E-posta doğrulanamadı"});
+      const results=await pool.query(
+        `SELECT order_number,total_amount,item_count FROM b2b_orders
+         WHERE order_number=$1 AND LOWER(COALESCE(customer_email,''))=$2
+           AND status IN ('paid','paid_stock_review')
+           AND created_at>=NOW()-INTERVAL '7 days' LIMIT 1`,[orderNumber,email]);
+      const order=results.rows[0];
+      if(!order)return res.status(404).json({error:"Doğrulanmış ödeme bulunamadı"});
+      const amount=Number(order.total_amount);
+      if(!Number.isFinite(amount)||amount<=0)return res.status(422).json({error:"Sipariş tutarı geçersiz"});
+      const uniqueId=pixelId+":"+orderNumber;
+      if(recentMetaPurchaseEvents.get(uniqueId)&&Date.now()-recentMetaPurchaseEvents.get(uniqueId)!<600000)
+        return res.json({configured:true,sent:true,deduplicated:true});
+      const userAgent=String(req.headers["user-agent"]||"").slice(0,500);
+      const event={
+        event_name:"Purchase",event_time:Math.floor(Date.now()/1000),
+        event_id:"b2b-paid-"+orderNumber,action_source:"website",
+        event_source_url:"https://b2b.ecalisgan.com/odeme",
+        user_data:{em:[createHash("sha256").update(email).digest("hex")],
+          ...(userAgent?{client_user_agent:userAgent}:{})},
+        custom_data:{currency:"TRY",value:amount,num_items:Number(order.item_count)||1,
+          order_id:orderNumber}
+      };
+      const testCode=process.env.META_TEST_EVENT_CODE;
+      const response=await fetch(`https://graph.facebook.com/v25.0/${pixelId}/events`,{
+        method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},
+        body:JSON.stringify({data:[event],...(testCode?{test_event_code:testCode}:{})}),
+        signal:AbortSignal.timeout(9000)
+      });
+      if(!response.ok){
+        console.error("Meta CAPI HTTP",response.status);
+        return res.status(502).json({error:"Meta dönüşüm API'si isteği reddetti",configured:true,sent:false});
+      }
+      recentMetaPurchaseEvents.set(uniqueId,Date.now());
+      if(recentMetaPurchaseEvents.size>2000){
+        for(const [k,v] of recentMetaPurchaseEvents)if(Date.now()-v>600000)recentMetaPurchaseEvents.delete(k);
+      }
+      return res.json({configured:true,sent:true});
+    }catch(error){
+      console.error("Meta CAPI bağlantı/validasyon hatası",error instanceof Error?error.message:"bilinmeyen");
+      return res.status(502).json({error:"Meta dönüşüm API'si bağlantısı kurulamadı"});
+    }
   });
 
   app.get("/api/b2b/my-orders", requireB2B, async (_req, res) => {
