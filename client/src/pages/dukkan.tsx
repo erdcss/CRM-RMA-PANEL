@@ -182,7 +182,7 @@ export default function Dukkan() {
   return (
     <div className="h-full min-h-screen overflow-y-auto bg-[#f3f7fc] text-[#172945]">
       <div className="mx-auto max-w-[1700px] px-3 py-5 sm:px-7 sm:py-7">
-        <DukkanWorkspaceHeader logo={branding?.dukkan_logo} stores={stores} storeId={storeId} onStoreChange={setStoreId}
+        <DukkanWorkspaceHeader logo={branding?.dukkan_logo} stores={stores.map(item=>({id:Number(item.id),name:String(item.name||"Mağaza")}))} storeId={storeId} onStoreChange={setStoreId}
           onRefresh={()=>setRefresh(n=>n+1)} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} onNewStore={()=>setShowNewStore(v=>!v)}/>
         {error&&<div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {notice&&<div role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
