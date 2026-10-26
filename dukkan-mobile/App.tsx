@@ -1,7 +1,8 @@
 import React,{useCallback,useEffect,useState} from "react";
 import * as SecureStore from "expo-secure-store";
 import {Image} from "react-native";
-import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,type StoreInfo} from "./remote-db";
+import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,type StoreInfo} from "./remote-db";
+import {shareSalesInvoicePdf} from "./invoice-pdf";
 import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
 import {StatusBar as ExpoStatusBar} from "expo-status-bar";
 import {today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
@@ -19,7 +20,7 @@ const LABEL:Record<string,string>={sale:"Satış",purchase:"Alış",sale_return:
 const money=(c:unknown)=> (Number(c||0)/100).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
 const qty=(v:unknown)=> (Number(v||0)/1000).toLocaleString("tr-TR",{maximumFractionDigits:3});
 const val=(v:unknown)=>v===null||v===undefined||v===""?"—":String(LABEL[String(v)]||v);
-const f={white:"#ffffff",bg:"#f4f6fa",ink:"#13283f",muted:"#8392a8",amber:"#efba63",border:"#e4eaf1",green:"#137f65"};
+const f={white:"#ffffff",bg:"#f1f5fb",ink:"#112444",muted:"#7688a3",amber:"#67d5f5",border:"#e0e9f5",green:"#128a71",blue:"#1b64ca",deep:"#0b1e3c"};
 const FIELDS:Record<string,Field[]>={
  party:[{key:"name",label:"Cari adı",required:true},{key:"kind",label:"Cari türü",kind:"choice",options:["customer","supplier","both"]},{key:"tax",label:"Vergi / TC no"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"},{key:"address",label:"Adres"}],
  productEdit:[{key:"code",label:"Stok kodu",required:true},{key:"barcode",label:"Barkod"},{key:"name",label:"Ürün adı",required:true},{key:"unit",label:"Birim",kind:"choice",options:["Adet","Koli","Paket","Kg","Metre"]},{key:"purchase",label:"Alış fiyatı (TL)",kind:"number",required:true},{key:"sale",label:"Satış fiyatı (TL)",kind:"number",required:true}],
@@ -62,6 +63,18 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const [filter,setFilter]=useState("");
  const [error,setError]=useState("");
  const [refresh,setRefresh]=useState(0);
+ const [pdfBusy,setPdfBusy]=useState<number|null>(null);
+ const openInvoicePdf=async(invoice:RecordRow)=>{
+   const invoiceId=Number(invoice.id);
+   if(!Number.isSafeInteger(invoiceId)||invoiceId<1||pdfBusy!==null)return;
+   setPdfBusy(invoiceId);
+   try{
+     const document=await getSaleDocument(invoiceId);
+     await shareSalesInvoicePdf(document);
+   }catch(e){Alert.alert("PDF hazırlanamadı",(e as Error).message);}
+   finally{setPdfBusy(null);}
+ };
+
  const reload=useCallback(async()=>{
   try{
    const cashier=session.store.role==="cashier";
@@ -181,29 +194,46 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
   </ScrollView>
   {session.stores.length>1&&<ScrollView horizontal contentContainerStyle={{gap:6,padding:8}} style={{flexGrow:0}}>{session.stores.map(store=><Pressable key={String(store.id)} onPress={()=>onSwitch(store)} style={[styles.chip,session.store.id===store.id?styles.chipActive:null]}><Text style={{color:session.store.id===store.id?"white":f.ink}}>{store.name}</Text></Pressable>)}</ScrollView>}
    <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
-   <View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="dashboard"?"İşletmenizin anlık görünümü":tab==="settings"?"Bilgiler bu telefonda saklanır":"Yerel kayıtlarınız"}</Text></View>
+   <View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="dashboard"?"Güncel mağaza bilgileri ve hızlı işlemler":tab==="settings"?"Güvenli hesap ve merkezi veri yönetimi":"Mağazanızın güncel kayıtları"}</Text></View>
    {error!==""&&<Text style={styles.error}>{error}</Text>}
    {!ready?<ActivityIndicator color={f.ink} size="large"/>:null}
-   {tab==="dashboard"&&!cashier&&<View style={styles.cards}>
+   {tab==="dashboard"&&<View style={styles.dashboardBanner}>
+      <View><Text style={styles.welcomeEyebrow}>MERKEZİ İŞLETME PANELİ</Text><Text style={styles.welcomeTitle}>Bugün ne yapalım?</Text>
+      <Text style={styles.welcomeSub}>Satış, stok ve carilerinizi tek yerden yönetin.</Text></View>
+      <View style={styles.quickActions}>
+       {([{label:"Satış",kind:"invoice",color:"#d5f3ff"},{label:"Yeni Ürün",kind:"product",color:"#e3eeff"},{label:"Cari",kind:"party",color:"#e0f8ee"},{label:"Tahsilat",kind:"payment",color:"#f8edda"}] as const)
+         .filter(a=>!cashier||!["product","payment"].includes(a.kind))
+         .filter(a=>a.kind!=="product"||canManage)
+         .map(a=><Pressable key={a.kind} onPress={()=>open(a.kind)} style={[styles.quickButton,{backgroundColor:a.color}]}>
+          <Text style={styles.quickLabel}>＋ {a.label}</Text>
+         </Pressable>)}
+      </View>
+     </View>}
+    {tab==="dashboard"&&!cashier&&<View style={styles.cards}>
      {([["Net Satış",sums.sales],["Net Alış",sums.purchases],["Alacaklar",sums.receivables],["Borçlar",sums.payables],["Kasa",sums.cash],["Banka",sums.bank],["Stok Değeri",sums.stockCost]] as [string,number][]).map(([name,value])=>
-      <View key={name} style={styles.stat}><Text style={styles.statName}>{name}</Text><Text style={styles.statValue}>{money(value)}</Text></View>)}
+      <View key={name} style={[styles.stat,name==="Net Satış"?styles.statFeatured:null]}><Text style={styles.statName}>{name}</Text><Text style={styles.statValue}>{money(value)}</Text></View>)}
      <View style={styles.stat}><Text style={styles.statName}>Ürün Sayısı</Text><Text style={styles.statValue}>{sums.products||0}</Text></View>
     </View>}
    {tab==="report"&&<View><View style={styles.cards}><View style={styles.stat}><Text style={styles.statName}>Faturalar</Text><Text style={styles.statValue}>{sums.documents||0}</Text></View><View style={styles.stat}><Text style={styles.statName}>Geciken Çek / Senet</Text><Text style={styles.statValue}>{sums.overdue||0}</Text></View></View>
      <Text style={styles.groupTitle}>Aylık alış / satış</Text>{monthly.map(r=><View style={styles.row} key={String(r.month)}><Text style={styles.rowTitle}>{r.month}</Text><Text style={styles.rowNote}>Satış {money(r.sales)}   ·   Alış {money(r.purchases)}</Text></View>)}</View>}
    {tab==="settings"&&<View><View style={styles.card}><Text style={styles.groupTitle}>Veriler ve Güvenlik</Text><Text style={styles.hint}>Bu uygulama Çalışkan Admin tarafından atanan mağazanın PostgreSQL veritabanını kullanır. Önceki sürümdeki SQLite verileri otomatik aktarılmaz.</Text>
-    <Pressable disabled={busy} style={[styles.primary,{marginVertical:8}]} onPress={doExport}><Text style={styles.primaryText}>SQLite Yedeğini Paylaş</Text></Pressable>
-    <Pressable disabled={busy} style={[styles.secondary,{marginVertical:8}]} onPress={doImport}><Text style={styles.secondaryText}>Windows / Mobil Yedeği İçe Aktar</Text></Pressable>
-    <Text style={styles.hint}>Önemli: Yedek aktarımı mevcut verileri tamamen değiştirir. Önce mevcut verilerinizi yedekleyin.</Text></View>
+    <Pressable disabled={busy} style={[styles.primary,{marginVertical:8}]} onPress={doExport}><Text style={styles.primaryText}>Yerel / Merkezi Veri Bilgisi</Text></Pressable>
+    <Pressable disabled={busy} style={[styles.secondary,{marginVertical:8}]} onPress={doImport}><Text style={styles.secondaryText}>Eski Yedekler Hakkında</Text></Pressable>
+    <Text style={styles.hint}>Önemli: Eski çevrimdışı SQLite kayıtları sunucuya otomatik aktarılmaz; yerel yedeklerinizi koruyun.</Text></View>
     <View style={styles.card}><Text style={styles.groupTitle}>Dahili Muhasebe Uyarısı</Text><Text style={styles.hint}>e-Fatura/e-Arşiv oluşturma ve GİB'e gönderim yoktur. Resmî muhasebe belgesi olarak kullanmayın.</Text></View></View>}
    {visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
     {visibleActions(tab).map(x=><Pressable key={x.kind} onPress={()=>open(x.kind)} style={styles.primary}><Text style={styles.primaryText}>＋ {x.label}</Text></Pressable>)}
    </ScrollView>}
    {!["settings","report"].includes(tab)&&<View>
     {tab!=="dashboard"&&<TextInput placeholder="Kayıtlarda ara..." placeholderTextColor={f.muted} value={filter} onChangeText={setFilter} style={[styles.input,{marginBottom:14}]}/>}
-    <Text style={styles.groupTitle}>{tab==="dashboard"?"Son Faturalar":"Kayıt Listesi"} ({shown.length})</Text>
+    <Text style={styles.groupTitle}>{tab==="dashboard"?"Son İşlemler":"Kayıtlar"} <Text style={{color:f.blue}}>({shown.length})</Text></Text>
     {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{if(tab==="products"){editProduct(r);return;}if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);}}
-      key={String(r.id||i)} style={styles.row}><View style={{flex:1}}><Text numberOfLines={2} style={styles.rowTitle}>{rowTitle(r)}</Text><Text numberOfLines={2} style={styles.rowNote}>{rowSubtitle(r)}</Text></View><View style={{alignItems:"flex-end",maxWidth:130}}><Text style={styles.rowAmount}>{rowAmount(r)}</Text>{r.status&&<Text style={styles.badge}>{val(r.status)}</Text>}</View></Pressable>)}
+      key={String(r.id||i)} style={styles.row}><View style={{flex:1}}><Text numberOfLines={2} style={styles.rowTitle}>{rowTitle(r)}</Text><Text numberOfLines={2} style={styles.rowNote}>{rowSubtitle(r)}</Text></View><View style={{alignItems:"flex-end",maxWidth:130}}><Text style={styles.rowAmount}>{rowAmount(r)}</Text>
+        {(tab==="invoices"||tab==="dashboard")&&["sale","sale_return"].includes(String(r.kind))&&
+          <Pressable accessibilityRole="button" disabled={pdfBusy!==null} onPress={()=>void openInvoicePdf(r)} style={styles.pdfButton}>
+           <Text style={styles.pdfButtonText}>{pdfBusy===Number(r.id)?"Hazırlanıyor...":"↓ Satış PDF"}</Text>
+          </Pressable>}
+        {r.status&&<Text style={styles.badge}>{val(r.status)}</Text>}</View></Pressable>)}
     {shown.length>250&&<Text style={styles.hint}>İlk 250 kayıt gösteriliyor. Arama ile filtreleyin.</Text>}
    </View>}
   </ScrollView>
