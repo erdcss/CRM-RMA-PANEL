@@ -6,7 +6,7 @@ import { trackSearch } from "@/lib/analytics";
 import { Search, Package, Boxes, Truck, ShieldCheck, BadgeCheck, Store } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
-import { B2BFooter } from "@/components/b2b-footer";
+import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
 import { B2BProductCard } from "@/components/b2b-product-card";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 
@@ -280,6 +280,7 @@ export default function B2BStorefront() {
           </div>
         )}
       </main>
+      <B2BDesktopAppBanners />
       <B2BFooter />
     </div>
   );
