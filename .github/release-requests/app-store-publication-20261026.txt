@@ -1,0 +1,9 @@
+ÇALIŞKAN B2B + ÇALIŞKAN BUSINESS — APP STORE PUBLICATION REQUEST
+Date: 2026-10-26
+Authorized by user: Submit BOTH applications to Apple App Review and release to the public automatically after Apple's approval.
+Reuse ALREADY SUCCESSFULLY UPLOADED iOS TestFlight builds. No iOS rebuild needed.
+Target 1: Çalışkan B2B | com.caliskangroup.rma | App Store Connect 6802286663 | version from mobile/app.json (currently 1.1.0).
+Target 2: Çalışkan Business | com.caliskangroup.business | App Store Connect 6818161236 | version from business-mobile/app.json (currently 0.1.0).
+Fastlane: submit_for_review true, automatic_release true, phased_release false.
+Safety: require Apple API key secrets, verify expected bundle/Apple app/version, never fabricate metadata or credentials, do not cancel active review; report missing prerequisites accurately.
+Workflow: .github/workflows/app-store-public-release.yml
