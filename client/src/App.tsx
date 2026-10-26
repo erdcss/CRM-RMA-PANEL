@@ -37,6 +37,7 @@ import AdminPaymentSettingsPage from "@/pages/admin-payment-settings";
 import AdminReels from "@/pages/admin-reels";
 import AdminNotifications from "@/pages/admin-notifications";
 import Dukkan from "@/pages/dukkan";
+import DukkanLogin from "@/pages/dukkan-login";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
@@ -162,7 +163,7 @@ function AppContent() {
             </div>
           </SidebarProvider>
         ) : (
-          <Login />
+          typeof window !== "undefined" && window.location.pathname.startsWith("/dukkan") ? <DukkanLogin /> : <Login />
         )}
       <Toaster />
     </>

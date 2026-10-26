@@ -10,7 +10,8 @@
     "build:android": "eas build --platform android --profile production",
     "build:ios": "eas build --platform ios --profile production",
     "check": "tsc --noEmit",
-    "submit:ios": "eas submit --platform ios --profile production"
+    "submit:ios": "eas submit --platform ios --profile production",
+    "prepare:branding": "node scripts/prepare-branding.cjs"
   },
   "dependencies": {
     "expo": "~54.0.0",
@@ -20,11 +21,14 @@
     "expo-sqlite": "~16.0.8",
     "expo-file-system": "~19.0.17",
     "expo-document-picker": "~14.0.8",
-    "expo-sharing": "~14.0.8"
+    "expo-sharing": "~14.0.8",
+    "expo-secure-store": "~15.0.8",
+    "expo-crypto": "~15.0.8"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "sharp": "^0.33.5"
   },
-  "description": "Çalışkan Dükkan native offline-first mobile accounting"
+  "description": "Çalışkan Dükkan native iOS Android authenticated shared-store accounting (offline migration preserved)"
 }

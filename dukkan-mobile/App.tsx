@@ -1,8 +1,11 @@
 import React,{useCallback,useEffect,useState} from "react";
+import * as SecureStore from "expo-secure-store";
+import {Image} from "react-native";
+import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,type StoreInfo} from "./remote-db";
 import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
 import {StatusBar as ExpoStatusBar} from "expo-status-bar";
-import {add,getDb,list,report,settings,setStatus,summary,today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
-import {exportBackup,importBackup} from "./portable-backup";
+import {today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
+
 
 type Tab="dashboard"|"invoices"|"products"|"movements"|"parties"|"ledger"|"orders"|"banks"|"cash_movements"|"payments"|"instruments"|"report"|"settings";
 type Field={key:string;label:string;kind?:"text"|"number"|"choice"|"party"|"product"|"bank";options?:string[];required?:boolean};
@@ -19,8 +22,9 @@ const val=(v:unknown)=>v===null||v===undefined||v===""?"—":String(LABEL[String
 const f={white:"#ffffff",bg:"#f4f6fa",ink:"#13283f",muted:"#8392a8",amber:"#efba63",border:"#e4eaf1",green:"#137f65"};
 const FIELDS:Record<string,Field[]>={
  party:[{key:"name",label:"Cari adı",required:true},{key:"kind",label:"Cari türü",kind:"choice",options:["customer","supplier","both"]},{key:"tax",label:"Vergi / TC no"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"},{key:"address",label:"Adres"}],
+ productEdit:[{key:"code",label:"Stok kodu",required:true},{key:"barcode",label:"Barkod"},{key:"name",label:"Ürün adı",required:true},{key:"unit",label:"Birim",kind:"choice",options:["Adet","Koli","Paket","Kg","Metre"]},{key:"purchase",label:"Alış fiyatı (TL)",kind:"number",required:true},{key:"sale",label:"Satış fiyatı (TL)",kind:"number",required:true}],
  product:[{key:"code",label:"Stok kodu",required:true},{key:"barcode",label:"Barkod"},{key:"name",label:"Ürün adı",required:true},{key:"unit",label:"Birim",kind:"choice",options:["Adet","Koli","Paket","Kg","Metre"]},{key:"purchase",label:"Alış fiyatı (TL)",kind:"number",required:true},{key:"sale",label:"Satış fiyatı (TL)",kind:"number",required:true}],
- invoice:[{key:"kind",label:"Fatura türü",kind:"choice",options:["sale","purchase","sale_return","purchase_return"]},{key:"number",label:"Fatura numarası",required:true},{key:"date",label:"Tarih (YYYY-AA-GG)",required:true},{key:"partyId",label:"Cari hesap",kind:"party",required:true},{key:"notes",label:"Açıklama"}],
+ invoice:[{key:"kind",label:"Fatura türü",kind:"choice",options:["sale","purchase","sale_return","purchase_return"]},{key:"date",label:"Tarih (YYYY-AA-GG)",required:true},{key:"partyId",label:"Cari hesap",kind:"party",required:true},{key:"notes",label:"Açıklama"}],
  stock:[{key:"productId",label:"Ürün",kind:"product",required:true},{key:"direction",label:"Hareket",kind:"choice",options:["increase","decrease"]},{key:"qty",label:"Miktar",kind:"number",required:true},{key:"notes",label:"Açıklama"}],
  order:[{key:"kind",label:"Sipariş türü",kind:"choice",options:["sale","purchase"]},{key:"number",label:"Sipariş numarası",required:true},{key:"date",label:"Tarih (YYYY-AA-GG)",required:true},{key:"partyId",label:"Cari hesap",kind:"party",required:true},{key:"notes",label:"Açıklama"}],
  payment:[{key:"kind",label:"İşlem",kind:"choice",options:["collection","payment"]},{key:"partyId",label:"Cari hesap",kind:"party",required:true},{key:"method",label:"Ödeme aracı",kind:"choice",options:["cash","bank"]},{key:"bankId",label:"Banka hesabı",kind:"bank"},{key:"amount",label:"Tutar (TL)",kind:"number",required:true},{key:"date",label:"Tarih (YYYY-AA-GG)",required:true},{key:"notes",label:"Açıklama"}],
@@ -40,7 +44,7 @@ const ACTIONS:Record<Tab,{kind:string;label:string}[]>={
 };
 const LABELS:Record<string,string>={invoices:"Fatura",products:"Ürün",movements:"Stok",parties:"Cari",ledger:"Cari Hareket",orders:"Sipariş",banks:"Banka",cash_movements:"Kasa",payments:"Ödeme",instruments:"Evrak"};
 function moneyStyle(n:number){return n<0?{color:"#bd524e"}:{color:f.green};}
-export default function App(){
+function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()=>void;onSwitch:(store:StoreInfo)=>void}){
  const [tab,setTab]=useState<Tab>("dashboard");
  const [records,setRecords]=useState<RecordRow[]>([]);
  const [parties,setParties]=useState<RecordRow[]>([]);
@@ -60,8 +64,8 @@ export default function App(){
  const [refresh,setRefresh]=useState(0);
  const reload=useCallback(async()=>{
   try{
-   await getDb();
-   const [p,pr,b,s,sets]=await Promise.all([list("parties"),list("products"),list("banks"),summary(),settings()]);
+   const cashier=session.store.role==="cashier";
+   const [p,pr,b,s,sets]=await Promise.all([list("parties"),list("products"),cashier?Promise.resolve([]):list("banks"),cashier?Promise.resolve({}):summary(),settings()]);
    setParties(p);setProducts(pr);setBanks(b);setSums(s);setExistingSettings(sets);setCompany(sets.company||"İşletmem");
    if(tab==="report")setMonthly((await report()).monthly);
    else if(tab==="dashboard")setRecords((await list("invoices")).slice(0,10));
@@ -69,7 +73,7 @@ export default function App(){
    else setRecords(await list(tab as Collection));
    setError("");
   }catch(e){setError((e as Error).message);}finally{setReady(true);}
- },[tab,refresh]);
+ },[tab,refresh,session.store.id]);
  useEffect(()=>{void reload();},[reload]);
  const push=(field:string,value:string)=>setData(old=>({...old,[field]:value}));
  const open=(kind:string)=>{
@@ -95,9 +99,9 @@ export default function App(){
   setBusy(true);
   try{
    const payload={...data,lines};
-   await add(formType,payload);
+   const saved=await add(formType,payload);
    setFormType(null);setRefresh(x=>x+1);
-   Alert.alert("Başarılı","Kayıt yerel veritabanına işlendi.");
+   Alert.alert("Başarılı",formType==="invoice"?"Fatura kaydedildi. Otomatik 14 haneli numara: "+saved.invoice_no:"İşlem ortak mağaza veritabanına kaydedildi.");
   }catch(e){Alert.alert("İşlem kaydedilemedi",(e as Error).message);}
   finally{setBusy(false);}
  };
@@ -108,17 +112,8 @@ export default function App(){
    {text:"İptal",style:"destructive",onPress:async()=>{try{await setStatus(kind,Number(r.id),"cancelled");setRefresh(x=>x+1);}catch(e){Alert.alert("Hata",(e as Error).message);}}}
   ]);
  };
- const doExport=async()=>{try{setBusy(true);await exportBackup();}catch(e){Alert.alert("Yedek alınamadı",(e as Error).message);}finally{setBusy(false);}};
- const doImport=async()=>{
-  Alert.alert("Yedekten geri yükle","Mevcut tüm kayıtlar seçtiğiniz Windows/Çalışkan Dükkan yedeğiyle değiştirilecek. Önce yedek alınız.",[
-   {text:"Vazgeç",style:"cancel"},
-   {text:"Dosya Seç",style:"destructive",onPress:async()=>{
-    try{setBusy(true);const ok=await importBackup();if(ok){setRefresh(n=>n+1);Alert.alert("Başarılı","Veritabanı yedeği geri yüklendi.");}}
-    catch(e){Alert.alert("İçe aktarım başarısız",(e as Error).message);}
-    finally{setBusy(false);}
-   }}
-  ]);
- };
+ const doExport=async()=>Alert.alert("Merkezi kayıtlar","Kayıtlar yetkili mağazanın sunucusunda tutulur. Eski yerel SQLite yedekleri otomatik aktarılmaz.");
+ const doImport=async()=>Alert.alert("Yedek aktarımı","Eski mobil/Windows SQLite yedeğini saklayın. Doğrulanmış aktarım tamamlanmadan kayıtlar merkezi sisteme yüklenmez.");
  const shown=records.filter(r=>!filter||Object.values(r).some(v=>String(v??"").toLocaleLowerCase("tr-TR").includes(filter.toLocaleLowerCase("tr-TR"))));
  const rowTitle=(r:RecordRow)=>{
   if(tab==="dashboard"||tab==="invoices")return String(r.number)+" · "+val(r.kind);
@@ -142,6 +137,12 @@ export default function App(){
   return "";
  };
  const actionStyles=styles.primary;
+ const cashier=session.store.role==="cashier";
+ const canManage=["owner","manager"].includes(session.store.role);
+ const visibleTabs=TABS.filter(t=>t.key!=="cash_movements"&&(cashier?!["products","movements","ledger","banks","payments","instruments","report","settings"].includes(t.key):true));
+ const visibleActions=(selected:Tab)=>ACTIONS[selected].filter(a=>!["settings","cashMovement"].includes(a.kind)&&(!cashier||!["product","stock","bank","bankMovement","instrument"].includes(a.kind))&&(!["product","stock"].includes(a.kind)||canManage));
+ const editProduct=(item:RecordRow)=>{if(!canManage)return;setData({id:item.id,code:item.code,name:item.name,barcode:item.barcode,unit:item.unit,purchase:Number(item.purchase_cents)/100,sale:Number(item.sale_cents)/100});setFormType("productEdit");};
+
  const fieldOptions=(field:Field)=>{
   if(field.kind==="party")return parties.map(x=>({id:String(x.id),name:String(x.name)}));
   if(field.kind==="product")return products.map(x=>({id:String(x.id),name:String(x.name)+" · "+qty(x.stock_milli)}));
@@ -174,43 +175,45 @@ export default function App(){
   {lines.length>1&&<Pressable onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}><Text style={{color:"#b24a53",fontWeight:"700",marginTop:8}}>Satırı Kaldır</Text></Pressable>}
  </View>;
  return <SafeAreaView style={styles.safe}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={f.ink}/>
-  <View style={styles.header}><View><Text style={styles.overline}>ÇALIŞKAN DÜKKAN · MOBİL</Text><Text style={styles.brand}>{company}</Text><Text style={styles.headerSub}>Bağımsız Ön Muhasebe 1.0</Text></View><View style={styles.offline}><Text style={{color:"#89f0c8",fontSize:11,fontWeight:"800"}}>● ÇEVRİMDIŞI</Text></View></View>
+  <View style={styles.header}><View><Text style={styles.overline}>ÇALIŞKAN DÜKKAN · MOBİL</Text><Text style={styles.brand}>{company}</Text><Text style={styles.headerSub}>{session.user.username} · {session.store.role}</Text></View><View style={{alignItems:"flex-end",gap:6}}><View style={styles.offline}><Text style={{color:"#89f0c8",fontSize:11,fontWeight:"800"}}>● BAĞLANTILI</Text></View><Pressable onPress={onLogout}><Text style={{color:"white",fontSize:11}}>Çıkış Yap</Text></Pressable></View></View>
   <ScrollView horizontal style={styles.nav} contentContainerStyle={styles.navInner} showsHorizontalScrollIndicator={false}>
-   {TABS.map(t=><Pressable key={t.key} style={[styles.tab,tab===t.key?styles.selectedTab:null]} onPress={()=>{setTab(t.key);setFilter("");setFormType(null);}}><Text style={[styles.tabText,tab===t.key?{color:"white"}:null]}>{t.title}</Text></Pressable>)}
+   {visibleTabs.map(t=><Pressable key={t.key} style={[styles.tab,tab===t.key?styles.selectedTab:null]} onPress={()=>{setTab(t.key);setFilter("");setFormType(null);}}><Text style={[styles.tabText,tab===t.key?{color:"white"}:null]}>{t.title}</Text></Pressable>)}
   </ScrollView>
-  <ScrollView key={tab} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+  {session.stores.length>1&&<ScrollView horizontal contentContainerStyle={{gap:6,padding:8}} style={{flexGrow:0}}>{session.stores.map(store=><Pressable key={String(store.id)} onPress={()=>onSwitch(store)} style={[styles.chip,session.store.id===store.id?styles.chipActive:null]}><Text style={{color:session.store.id===store.id?"white":f.ink}}>{store.name}</Text></Pressable>)}</ScrollView>}
+   <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
    <View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="dashboard"?"İşletmenizin anlık görünümü":tab==="settings"?"Bilgiler bu telefonda saklanır":"Yerel kayıtlarınız"}</Text></View>
    {error!==""&&<Text style={styles.error}>{error}</Text>}
    {!ready?<ActivityIndicator color={f.ink} size="large"/>:null}
-   {tab==="dashboard"&&<View style={styles.cards}>
+   {tab==="dashboard"&&!cashier&&<View style={styles.cards}>
      {([["Net Satış",sums.sales],["Net Alış",sums.purchases],["Alacaklar",sums.receivables],["Borçlar",sums.payables],["Kasa",sums.cash],["Banka",sums.bank],["Stok Değeri",sums.stockCost]] as [string,number][]).map(([name,value])=>
       <View key={name} style={styles.stat}><Text style={styles.statName}>{name}</Text><Text style={styles.statValue}>{money(value)}</Text></View>)}
      <View style={styles.stat}><Text style={styles.statName}>Ürün Sayısı</Text><Text style={styles.statValue}>{sums.products||0}</Text></View>
     </View>}
    {tab==="report"&&<View><View style={styles.cards}><View style={styles.stat}><Text style={styles.statName}>Faturalar</Text><Text style={styles.statValue}>{sums.documents||0}</Text></View><View style={styles.stat}><Text style={styles.statName}>Geciken Çek / Senet</Text><Text style={styles.statValue}>{sums.overdue||0}</Text></View></View>
      <Text style={styles.groupTitle}>Aylık alış / satış</Text>{monthly.map(r=><View style={styles.row} key={String(r.month)}><Text style={styles.rowTitle}>{r.month}</Text><Text style={styles.rowNote}>Satış {money(r.sales)}   ·   Alış {money(r.purchases)}</Text></View>)}</View>}
-   {tab==="settings"&&<View><View style={styles.card}><Text style={styles.groupTitle}>Veriler ve Güvenlik</Text><Text style={styles.hint}>Bu uygulama Çalışkan Admin web sayfası değildir; kendi SQLite veritabanını kullanır. Windows sürümünden aldığınız SQLite yedeğini buraya aktarabilirsiniz. Bu işlem canlı eşitleme değil, dosya aktarımıdır.</Text>
+   {tab==="settings"&&<View><View style={styles.card}><Text style={styles.groupTitle}>Veriler ve Güvenlik</Text><Text style={styles.hint}>Bu uygulama Çalışkan Admin tarafından atanan mağazanın PostgreSQL veritabanını kullanır. Önceki sürümdeki SQLite verileri otomatik aktarılmaz.</Text>
     <Pressable disabled={busy} style={[styles.primary,{marginVertical:8}]} onPress={doExport}><Text style={styles.primaryText}>SQLite Yedeğini Paylaş</Text></Pressable>
     <Pressable disabled={busy} style={[styles.secondary,{marginVertical:8}]} onPress={doImport}><Text style={styles.secondaryText}>Windows / Mobil Yedeği İçe Aktar</Text></Pressable>
     <Text style={styles.hint}>Önemli: Yedek aktarımı mevcut verileri tamamen değiştirir. Önce mevcut verilerinizi yedekleyin.</Text></View>
     <View style={styles.card}><Text style={styles.groupTitle}>Dahili Muhasebe Uyarısı</Text><Text style={styles.hint}>e-Fatura/e-Arşiv oluşturma ve GİB'e gönderim yoktur. Resmî muhasebe belgesi olarak kullanmayın.</Text></View></View>}
-   {ACTIONS[tab].length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
-    {ACTIONS[tab].map(x=><Pressable key={x.kind} onPress={()=>open(x.kind)} style={styles.primary}><Text style={styles.primaryText}>＋ {x.label}</Text></Pressable>)}
+   {visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
+    {visibleActions(tab).map(x=><Pressable key={x.kind} onPress={()=>open(x.kind)} style={styles.primary}><Text style={styles.primaryText}>＋ {x.label}</Text></Pressable>)}
    </ScrollView>}
    {!["settings","report"].includes(tab)&&<View>
     {tab!=="dashboard"&&<TextInput placeholder="Kayıtlarda ara..." placeholderTextColor={f.muted} value={filter} onChangeText={setFilter} style={[styles.input,{marginBottom:14}]}/>}
     <Text style={styles.groupTitle}>{tab==="dashboard"?"Son Faturalar":"Kayıt Listesi"} ({shown.length})</Text>
-    {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{"status" in r&&["instruments","orders"].includes(tab)&&String(r.status)===(tab==="orders"?"open":"pending")?statusAction(tab==="orders"?"order":"instrument",r):null;}}
+    {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{if(tab==="products"){editProduct(r);return;}if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);}}
       key={String(r.id||i)} style={styles.row}><View style={{flex:1}}><Text numberOfLines={2} style={styles.rowTitle}>{rowTitle(r)}</Text><Text numberOfLines={2} style={styles.rowNote}>{rowSubtitle(r)}</Text></View><View style={{alignItems:"flex-end",maxWidth:130}}><Text style={styles.rowAmount}>{rowAmount(r)}</Text>{r.status&&<Text style={styles.badge}>{val(r.status)}</Text>}</View></Pressable>)}
     {shown.length>250&&<Text style={styles.hint}>İlk 250 kayıt gösteriliyor. Arama ile filtreleyin.</Text>}
    </View>}
   </ScrollView>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
-   <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
+   <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{formType==="productEdit"?"Ürünü Düzenle":ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
     <ScrollView contentContainerStyle={{padding:20,paddingBottom:35}} keyboardShouldPersistTaps="always">
-     {(FIELDS[formType]||[]).filter(field=>!(formType==="payment"&&field.key==="bankId"&&data.method!=="bank")).map(fieldView)}
+     {formType==="invoice"&&<Text style={styles.hint}>Fatura numarası kayıtta otomatik atanacaktır (14 haneli).</Text>}
+      {(FIELDS[formType]||[]).filter(field=>!(formType==="payment"&&field.key==="bankId"&&data.method!=="bank")).map(fieldView)}
      {["invoice","order"].includes(formType)&&<View>
-       <Text style={styles.groupTitle}>Ürün Kalemleri</Text>
+       <Text style={styles.groupTitle}>Ürün Kalemleri</Text><Text style={styles.hint}>Ürün · Miktar · Birim fiyat · KDV · Satır tutarı</Text>
        {lines.map(lineView)}
        <Pressable style={styles.secondary} onPress={()=>setLines(x=>[...x,{productId:"",qty:"1",price:"0",vat:"20"}])}><Text style={styles.secondaryText}>＋ Ürün Satırı Ekle</Text></Pressable>
        <Text style={styles.total}>Genel toplam (KDV dahil): {lineTotal.toLocaleString("tr-TR",{style:"currency",currency:"TRY"})}</Text>
@@ -241,3 +244,95 @@ const styles=StyleSheet.create({
  line:{padding:14,backgroundColor:"#f5f8fb",borderWidth:1,borderColor:f.border,borderRadius:12,marginBottom:13},lineInputRow:{flexDirection:"row",gap:9,marginTop:12},smallLabel:{fontSize:10,color:f.muted,marginBottom:6},total:{fontSize:15,fontWeight:"800",color:f.ink,textAlign:"right",marginVertical:18},
  error:{color:"#ac3b4b",backgroundColor:"#fff0f0",padding:14,borderRadius:9,marginBottom:12}
 });
+
+type ActiveSession={token:string;stores:StoreInfo[];store:StoreInfo;user:{id:number;username:string}};
+const SECURE_SESSION_KEY="caliskan_dukkan_account_v2";
+
+export default function App(){
+ const [account,setAccount]=useState<ActiveSession|null>(null);
+ const [checking,setChecking]=useState(true);
+ const [username,setUsername]=useState("");
+ const [password,setPassword]=useState("");
+ const [busy,setBusy]=useState(false);
+ const [loginError,setLoginError]=useState("");
+ const [logo,setLogo]=useState<string|null>(null);
+
+ useEffect(()=>{
+  let mounted=true;
+  void (async()=>{
+   try{
+    const {uploadedLogoUrl}=await import("./remote-db");
+    const url=await uploadedLogoUrl();
+    if(mounted)setLogo(url);
+   }catch{/* Logo absent or temporary network failure; native fallback remains */ }
+  })();
+  return ()=>{mounted=false;};
+ },[]);
+ useEffect(()=>{
+  let mounted=true;
+  void (async()=>{
+   try {
+    const stored=await SecureStore.getItemAsync(SECURE_SESSION_KEY);
+    if(!stored)return;
+    const previous=JSON.parse(stored) as ActiveSession;
+    if(!previous?.token||!previous.user?.id)throw Error("Saklanan oturum geçersiz");
+    const validStores=await availableStores(previous.token);
+    const store=validStores.find(x=>x.id===previous.store?.id)||validStores[0];
+    if(!store)throw Error("Hesabınıza atanmış mağaza bulunamadı");
+    if(!mounted)return;
+    setStoreSession(previous.token,store);
+    setAccount({...previous,stores:validStores,store});
+   }catch(e){
+    if(mounted){clearStoreSession();setLoginError((e as Error).message);}
+   }finally{if(mounted)setChecking(false);}
+  })();
+  return ()=>{mounted=false;};
+ },[]);
+
+ const enter=async()=>{
+  if(busy)return;
+  setBusy(true);setLoginError("");
+  try{
+   const result=await login(username,password);
+   const store=result.stores[0];
+   const next={token:result.token,stores:result.stores,store,user:result.user};
+   await SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
+   setStoreSession(result.token,store);
+   setAccount(next);setPassword("");
+  }catch(e){setLoginError((e as Error).message);}
+  finally{setBusy(false);}
+ };
+ const switchStore=(store:StoreInfo)=>{
+  if(!account||!account.stores.some(s=>s.id===store.id))return;
+  const next={...account,store};
+  setStoreSession(account.token,store);setAccount(next);
+  void SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
+ };
+ const leave=()=>{
+  clearStoreSession();setAccount(null);setPassword("");
+  void SecureStore.deleteItemAsync(SECURE_SESSION_KEY).catch(()=>{});
+ };
+ if(checking)return <SafeAreaView style={{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:"#f4f6fa"}}>
+  <ActivityIndicator size="large" color="#13283f"/><Text style={{color:"#13283f",marginTop:12}}>Hesap doğrulanıyor...</Text>
+ </SafeAreaView>;
+ if(account)return <StoreApp key={String(account.store.id)} session={account} onLogout={leave} onSwitch={switchStore}/>;
+ return <SafeAreaView style={{flex:1,justifyContent:"center",padding:25,backgroundColor:"#f4f6fa"}}>
+  <View style={{backgroundColor:"white",borderRadius:24,padding:25,borderWidth:1,borderColor:"#e4eaf1"}}>
+   <View style={{alignItems:"center",marginBottom:24}}>
+    {logo?<Image source={{uri:logo}} style={{width:100,height:100,borderRadius:20}} resizeMode="contain"/>:
+      <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"900",fontSize:26}}>ÇD</Text></View>}
+    <Text style={{fontSize:24,fontWeight:"900",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
+    <Text style={{fontSize:12,color:"#64748b",marginTop:4}}>Yetkili mağaza hesabınızla giriş yapın</Text>
+   </View>
+   <Text style={styles.label}>Kullanıcı adı / E-posta</Text>
+   <TextInput style={[styles.input,{marginBottom:16}]} value={username} autoCapitalize="none" autoCorrect={false} autoComplete="username" onChangeText={setUsername} placeholder="Yönetici tarafından atanan kullanıcı"/>
+   <Text style={styles.label}>Şifre</Text>
+   <TextInput style={[styles.input,{marginBottom:18}]} value={password} secureTextEntry autoComplete="current-password" onChangeText={setPassword} placeholder="Şifreniz"/>
+   {loginError?<Text style={styles.error}>{loginError}</Text>:null}
+   <Pressable disabled={busy||!username.trim()||!password} onPress={()=>void enter()} style={[styles.primary,{marginRight:0,opacity:busy?0.5:1}]}>
+    <Text style={styles.primaryText}>{busy?"Giriş yapılıyor...":"Giriş Yap"}</Text>
+   </Pressable>
+   <Text style={[styles.hint,{marginTop:16,textAlign:"center"}]}>Bu hesaba Çalışkan Admin panelinden mağaza yetkisi verilmiş olmalıdır.</Text>
+  </View>
+ </SafeAreaView>;
+}

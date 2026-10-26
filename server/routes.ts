@@ -2629,6 +2629,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
+  // Only active users explicitly assigned to a Dükkan store can sign in here.
+  // This does not grant access to the general Çalışkan Admin panel.
+  app.post("/api/dukkan/login", async (req, res) => {
+    const username=String(req.body?.username||"").trim();
+    const password=String(req.body?.password||"");
+    if(!username||username.length>254||!password||password.length>1024)
+      return res.status(400).json({error:"Kullanıcı adı ve şifre gerekli"});
+    try {
+      const person=(await storage.getUserByUsername(username))||(await storage.getUserByEmail(username));
+      if(!person||person.isActive!==1||person.mustChangePassword===1||!verifyPassword(password,person.password))
+        return res.status(401).json({error:"Giriş bilgileri geçersiz veya hesap etkin değil"});
+      if(!pool)return res.status(503).json({error:"Mağaza veritabanına erişilemiyor"});
+      const memberships=await pool.query(
+        "SELECT s.id,s.name,m.role FROM dukkan_stores s JOIN dukkan_members m ON m.store_id=s.id WHERE m.user_id=$1 ORDER BY s.id",
+        [person.id]
+      );
+      if(!memberships.rowCount)return res.status(403).json({error:"Bu hesaba Çalışkan Dükkan mağazası atanmamış. Yöneticiye başvurun."});
+      await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
+      (req.session as {userId?:number}).userId=person.id;
+      await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
+      res.setHeader("Cache-Control","no-store");
+      res.json({ok:true,token:issueMobileAuthToken(Number(person.id)),stores:memberships.rows,user:{id:person.id,username:person.username}});
+    }catch(error){
+      console.error("Dükkan login failed",error instanceof Error?error.message:"unknown");
+      res.status(503).json({error:"Giriş hizmeti şu anda kullanılamıyor"});
+    }
+  });
+
   registerDukkanRoutes(app, sessionUserId);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
   registerB2BBankPaymentApproval(app, requireAdmin, sessionUserId);
