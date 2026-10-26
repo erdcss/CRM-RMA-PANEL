@@ -1,0 +1,72 @@
+# frozen_string_literal: true
+require "json"
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Submit the already-uploaded TestFlight build for App Review; release automatically after approval"
+  lane :submit_review do |options|
+    app = options[:app].to_s.strip
+    target = {
+      "b2b" => { "directory" => "mobile", "bundle" => "com.caliskangroup.rma", "asc" => "6802286663" },
+      "business" => { "directory" => "business-mobile", "bundle" => "com.caliskangroup.business", "asc" => "6818161236" }
+    }[app]
+    UI.user_error!("Uygulama b2b veya business olmalı") unless target
+
+    root = File.expand_path("../../..", __dir__)
+    app_json = JSON.parse(File.read(File.join(root, target.fetch("directory"), "app.json")))
+    eas_json = JSON.parse(File.read(File.join(root, target.fetch("directory"), "eas.json")))
+    bundle_id = app_json.fetch("expo").fetch("ios").fetch("bundleIdentifier")
+    asc_id = eas_json.fetch("submit").fetch("testflight").fetch("ios").fetch("ascAppId").to_s
+    UI.user_error!("iOS bundle identifier eşleşmiyor") unless bundle_id == target.fetch("bundle")
+    UI.user_error!("App Store Connect uygulama kimliği eşleşmiyor") unless asc_id == target.fetch("asc")
+
+    source_version = app_json.fetch("expo").fetch("version").to_s
+    version = (options[:version] || source_version).to_s.strip
+    UI.user_error!("Sürüm numarası, uygulamanın app.json sürümüyle eşleşmeli (#{source_version})") unless version == source_version
+    build_number = options[:build_number].to_s.strip
+    UI.user_error!("Derleme numarası yalnızca pozitif rakamlardan oluşmalı") unless build_number.empty? || build_number.match?(/\A[0-9]+\z/)
+
+    key_id = ENV.fetch("APP_STORE_CONNECT_KEY_ID", "").strip
+    issuer_id = ENV.fetch("APP_STORE_CONNECT_ISSUER_ID", "").strip
+    private_key = ENV.fetch("APP_STORE_CONNECT_PRIVATE_KEY_BASE64", "").strip
+    UI.user_error!("APP_STORE_CONNECT_KEY_ID GitHub secret eksik") if key_id.empty?
+    UI.user_error!("APP_STORE_CONNECT_ISSUER_ID GitHub secret eksik") if issuer_id.empty?
+    UI.user_error!("APP_STORE_CONNECT_PRIVATE_KEY_BASE64 GitHub secret eksik") if private_key.empty?
+
+    api_key = app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: private_key,
+      is_key_content_base64: true,
+      duration: 1200,
+      in_house: false
+    )
+
+    UI.message("Hedef: #{app} / #{bundle_id} / ASC #{asc_id} / iOS v#{version}")
+    UI.message(build_number.empty? ? "Mevcut sürümün en son işlenmiş TestFlight derlemesi seçilecek." : "Derleme numarası: #{build_number}")
+    UI.important("App Store incelemesine gönderim ve onaydan sonra OTOMATİK HALKA AÇIK YAYIN aktiftir.")
+
+    args = {
+      api_key: api_key,
+      app_identifier: bundle_id,
+      app_version: version,
+      platform: "ios",
+      submit_for_review: true,
+      automatic_release: true,
+      phased_release: false,
+      skip_binary_upload: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      precheck_include_in_app_purchases: false,
+      force: true,
+      reject_if_possible: false,
+      run_precheck_before_submit: true
+    }
+    args[:build_number] = build_number unless build_number.empty?
+    # Never silently create screenshots or invent review-account / privacy metadata.
+    # Apple will reject incomplete submissions; use the existing App Store Connect listing.
+    deliver(**args)
+    UI.success("Apple App Review gönderim talebi tamamlandı: #{app} / #{version}")
+  end
+end
