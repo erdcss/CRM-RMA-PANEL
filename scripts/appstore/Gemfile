@@ -1,0 +1,4 @@
+source "https://rubygems.org"
+
+# Fastlane only talks to App Store Connect; no iOS binary or Mac is required.
+gem "fastlane", "~> 2.228"
