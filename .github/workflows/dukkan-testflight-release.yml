@@ -39,6 +39,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Windows / mobile accounting schema verification
         run: node --test check-schema.cjs
+      - name: Verify administrator logo and prepare native icon
+        run: npm run prepare:branding
       - name: Mobile TypeScript and iOS bundle
         run: |
           npm run check
@@ -72,6 +74,8 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm install --no-audit --no-fund
+      - name: Prepare administrator-approved native icon
+        run: npm run prepare:branding
       - name: Verify linked Dükkan Expo project
         run: eas project:info --non-interactive
       - name: iOS TestFlight build (dedicated bundle)
