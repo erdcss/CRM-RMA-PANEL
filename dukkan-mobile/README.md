@@ -1,8 +1,8 @@
 # Çalışkan Dükkan Mobil — Bağlantılı Mağaza Sürümü
 
-**26 Ekim 2026 geliştirme:** iOS/Android uygulaması artık `https://admin.ecalisgan.com/dukkan` üzerinden yönetilen mağaza hesabını güvenli bir WebView içinde açar. İlk açılışta Çalışkan Dükkan'a özel giriş sayfası sunulur. Kullanıcı adı/şifre, Çalışkan Admin'de tanımlanmış aktif kullanıcıdan doğrulanır; bu kullanıcının `dukkan_members` tablosunda mağazaya atanması şarttır. Oturum HttpOnly sunucu çereziyle korunur. Mobil cihaz işletmenin merkezi PostgreSQL ürün ve fatura kayıtlarına bağlıdır.
+**26 Ekim 2026 geliştirme:** iOS/Android uygulaması artık `https://admin.ecalisgan.com/dukkan` üzerinden yönetilen mağaza hesabını güvenli bir WebView içinde açar. İlk açılışta Çalışkan Dükkan'a özel giriş sayfası sunulur. Kullanıcı adı/şifre, Çalışkan Admin'de tanımlanmış aktif kullanıcıdan doğrulanır; bu kullanıcının `dukkan_members` tablosunda mağazaya atanması şarttır. Web oturumu sunucu çereziyle; mobil oturum ise imzalı yetkilendirme anahtarı ve cihazın güvenli SecureStore alanıyla korunur. Mobil cihaz işletmenin merkezi PostgreSQL ürün ve fatura kayıtlarına bağlıdır.
 
-**Önemli geçiş:** Önceki sürümdeki React Native/SQLite çevrimdışı hesap sistemi uygulamanın kaynak kodunda korunmuştur, ancak bağlantılı sürümün açılış ekranı değildir. Mevcut mobil veya Windows yerel SQLite kayıtları sunucuya otomatik aktarılmaz; iki veri kaynağı karıştırılmaz. Önceki mobil sürümde yerel kayıtlar varsa yeni sürüme geçmeden önce yedeklenmelidir. Çevrimdışı çalışma bu bağlantılı sürümde desteklenmez.
+**Önemli geçiş:** Önceki sürümdeki React Native/SQLite çevrimdışı hesap sistemi `local-db.ts` içinde korunmuştur ancak bağlantılı sürüm merkezi API üzerinden işlem yapar. Mevcut mobil veya Windows yerel SQLite kayıtları sunucuya otomatik aktarılmaz; iki veri kaynağı karıştırılmaz. Önceki mobil sürümde yerel kayıtlar varsa yeni sürüme geçmeden önce yedeklenmelidir. Çevrimdışı çalışma bu bağlantılı sürümde desteklenmez.
 
 ## Tamamlanan özellikler
 
