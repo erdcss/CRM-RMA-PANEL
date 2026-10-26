@@ -193,7 +193,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   }
 
   async function pickImage(fromCamera=false){
-    if(submitting||photos.length>=maxPhotos)return;
+    if(submitting||galleryImages.length>=maxPhotos)return;
     try{
       const permission=fromCamera?await ImagePicker.requestCameraPermissionsAsync():
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -202,7 +202,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
           "Ürün fotoğrafı çekmek için kamera izni verin.":"Ürün görseli seçmek için galeri izni verin.");
         return;
       }
-      const remaining=maxPhotos-photos.length;
+      const remaining=maxPhotos-galleryImages.length;
       const result=fromCamera?
         await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.5}):
         await ImagePicker.launchImageLibraryAsync({
@@ -273,6 +273,9 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 
   async function renderProductPhoto(){
     if(!photos.length||rendering||submitting)return;
+    if(photos.length>=maxPhotos&&!renderedImage){
+      setError('Oluşturulan AI görselini galeriye eklemek için önce kaynak fotoğraflardan birini silin (en fazla 4 görsel).');return;
+    }
     if(includePackaging&&photos.length<2){
       setError("Ambalaj seçildi. İkinci fotoğraf olarak gerçek ürün ambalajını yükleyin.");return;
     }
@@ -381,18 +384,18 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 
       <View style={styles.card}>
         <View style={styles.cardHeading}><Text style={styles.sectionIndex}>01</Text><View style={styles.flex}><Text style={styles.heading}>Ürün görseli</Text><Text style={styles.subheading}>En fazla 4 fotoğraf · Ön, arka, etiket ve barkod</Text></View><Text style={styles.asterisk}>*</Text></View>
-        <TouchableOpacity style={styles.imageDrop} onPress={()=>void pickImage()} activeOpacity={0.83} disabled={photos.length>=maxPhotos||submitting}>
+        <TouchableOpacity style={styles.imageDrop} onPress={()=>void pickImage()} activeOpacity={0.83} disabled={galleryImages.length>=maxPhotos||submitting}>
           {photo?<Image source={{uri:photo}} style={styles.photo} resizeMode="contain"/>:
             <View style={styles.uploadEmpty}><Text style={styles.uploadIcon}>▧</Text><Text style={styles.uploadTitle}>Ürün fotoğrafını seç</Text><Text style={styles.uploadHint}>Net, aydınlık, ürünü önden gösteren fotoğraf</Text></View>}
-          {photo?<View style={styles.replace}><Text style={styles.replaceText}>{photos.length}/{maxPhotos} · Kapak fotoğrafı</Text></View>:null}
+          {photo?<View style={styles.replace}><Text style={styles.replaceText}>{galleryImages.length}/{maxPhotos} · Kapak fotoğrafı</Text></View>:null}
         </TouchableOpacity>
         <View style={styles.photoActions}>
-          <TouchableOpacity style={[styles.photoAction,photos.length>=maxPhotos&&styles.disabled]}
-            disabled={photos.length>=maxPhotos||submitting} onPress={()=>void pickImage(true)}>
+          <TouchableOpacity style={[styles.photoAction,galleryImages.length>=maxPhotos&&styles.disabled]}
+            disabled={galleryImages.length>=maxPhotos||submitting} onPress={()=>void pickImage(true)}>
             <Text style={styles.photoActionText}>◎  Fotoğraf çek</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.photoAction,photos.length>=maxPhotos&&styles.disabled]}
-            disabled={photos.length>=maxPhotos||submitting} onPress={()=>void pickImage(false)}>
+          <TouchableOpacity style={[styles.photoAction,galleryImages.length>=maxPhotos&&styles.disabled]}
+            disabled={galleryImages.length>=maxPhotos||submitting} onPress={()=>void pickImage(false)}>
             <Text style={styles.photoActionText}>▧  Çoklu fotoğraf seç</Text>
           </TouchableOpacity>
         </View>
