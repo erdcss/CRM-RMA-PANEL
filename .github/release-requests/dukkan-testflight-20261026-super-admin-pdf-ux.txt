@@ -1,0 +1,10 @@
+Çalışkan Dükkan — super admin + modern UI + satış faturası PDF TestFlight release
+26 Ekim 2026
+Target merge: 67191f7f5082888a6a7c3eeaf9e4cb81ed545954 (PR #12)
+Verified CI: 40321179787 (web / PostgreSQL), 40321179786 (iOS + Android native bundle)
+Verified Railway production SUCCESS: deployment 2e8913c8-7168-4e25-ad31-94cea7248e59
+Features: native login and new theme, secure PDF share, redesigned native navigation, admin-uploaded verified icon.
+Expo project: 21b3de7c-763f-4c25-87aa-66e818498d6e
+Bundle: com.caliskan.dukkan
+ASC app: 6826848065
+This file requests a single signed iOS TestFlight build and submission using existing credentials.
