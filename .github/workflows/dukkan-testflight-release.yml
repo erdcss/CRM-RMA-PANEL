@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/release-requests/dukkan-testflight-20261026-connected-v1.txt'
+      - '.github/release-requests/dukkan-testflight-20261026-super-admin-pdf-ux.txt'
 permissions:
   contents: read
 concurrency:
