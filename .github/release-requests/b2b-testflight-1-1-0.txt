@@ -1,7 +1,7 @@
-ÇALIŞKAN B2B iOS TESTFLIGHT — FINAL SOURCE RELEASE
-Date: 2026-10-26
-Source prior to final request: aa28ae17e5563bacb6c20dd86ad556a9634a3a71
-App com.caliskangroup.rma · Expo version 1.1.0
-User requested latest B2B mobile TestFlight after: product image swipe gallery/counter; account update banner; website App Store/Google Play promotions configured through Admin. Product gallery uses all approved supplier imageUrls and original B2B images.
-This request is intentionally the last commit on main for release guard; do not append commits while B2B prepare-native-release script verifies HEAD against origin/main.
-Run TypeScript, latest synced splash, native signed iOS build and App Store Connect submission.
+ÇALIŞKAN B2B iOS TESTFLIGHT — FINAL NATIVE PAGER BUILD
+Date 2026-10-26
+Source main commit prior to release 3a81e0d3acb2fc9a369f7652e069f03ec087cb5f
+Build only com.caliskangroup.rma, Expo version 1.1.0. This run follows the confirmed successful GitHub B2B mobile TypeScript check of 3a81e0d3acb2.
+Includes multi-photo swipe paging, bottom-right n/N indicator, explicit native slide dimensions, account new-version update banner and latest web promotional data.
+Business App TestFlight release uses its own independent workflow.
+Do not modify main while preparing this native B2B build. Verify signed EAS iOS build then await TestFlight submission before reporting success.
