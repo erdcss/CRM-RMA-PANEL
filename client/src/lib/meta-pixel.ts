@@ -7,6 +7,7 @@ type PixelWindow=Window & {fbq?:PixelFn;_fbq?:PixelFn};
 const CONSENT_KEY="caliskan_b2b_meta_consent_v1";
 let activePixelId="";
 let scriptAdded=false;
+const pendingEvents:Array<{name:string;data:Record<string,unknown>;eventId:string}>=[];
 const allowedEvents=new Set(["PageView","ViewContent","Search","AddToCart","InitiateCheckout","Purchase","CompleteRegistration"]);
 
 export function metaConsent(): "granted"|"denied"|null {
@@ -19,7 +20,7 @@ export function setMetaConsent(approved:boolean){
   try{window.localStorage.setItem(CONSENT_KEY,approved?"granted":"denied");}catch{}
   const fbq=(window as PixelWindow).fbq;
   // Revoke permission even if the script was already loaded earlier in the tab.
-  if(!approved&&fbq)fbq("consent","revoke");
+  if(!approved){pendingEvents.length=0;if(fbq)fbq("consent","revoke");}
   if(approved&&fbq&&activePixelId)fbq("consent","grant");
   window.dispatchEvent(new Event("caliskan-meta-consent-change"));
 }
@@ -41,6 +42,10 @@ export function initMetaPixel(pixelId:string) {
   w.fbq("consent","grant");
   w.fbq("init",pixelId);
   activePixelId=pixelId;
+  while(pendingEvents.length){
+    const queued=pendingEvents.shift()!;
+    w.fbq?.("trackSingle",pixelId,queued.name,queued.data,{eventID:queued.eventId});
+  }
   if(!scriptAdded){
     scriptAdded=true;
     const script=document.createElement("script");
@@ -52,12 +57,12 @@ export function initMetaPixel(pixelId:string) {
   return true;
 }
 export function trackMetaEvent(name:string,data:Record<string,unknown>={},eventId?:string){
-  if(metaConsent()!=="granted"||!activePixelId||!allowedEvents.has(name))return;
-  const fbq=(window as PixelWindow).fbq;
-  if(!fbq)return;
+  if(metaConsent()!=="granted"||!allowedEvents.has(name))return;
   const clean=Object.fromEntries(Object.entries(data).filter(([,v])=>v!==undefined&&v!==null));
   const id=eventId|| (typeof crypto!=="undefined"&&"randomUUID"in crypto?crypto.randomUUID():`evt-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  fbq("trackSingle",activePixelId,name,clean,{eventID:id});
+  const fbq=(window as PixelWindow).fbq;
+  if(activePixelId&&fbq)fbq("trackSingle",activePixelId,name,clean,{eventID:id});
+  else if(pendingEvents.length<30)pendingEvents.push({name,data:clean,eventId:id});
   return id;
 }
 export function trackMetaPageView(){return trackMetaEvent("PageView");}
