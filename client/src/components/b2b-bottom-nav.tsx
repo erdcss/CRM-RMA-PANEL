@@ -52,7 +52,7 @@ export function B2BBottomNav() {
       <div className="pointer-events-auto grid min-h-[70px] w-full max-w-[660px] grid-cols-4 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/85 md:min-h-[78px] md:p-2">
         {tabs.map(({ key, label, href, icon: Icon }) => {
           const selected = current === key;
-          const destination = (key === "orders" || key === "account") && !isCustomer
+          const destination = (key === "orders" || key === "account") && session !== undefined && !isCustomer
             ? "/uye-girisi"
             : href;
           return (
@@ -61,7 +61,7 @@ export function B2BBottomNav() {
               aria-label={label + (key === "orders" && itemCount > 0 ? `, ${itemCount} ürün` : "")}
               onClick={() => {
                 const scroller = document.querySelector<HTMLElement>(".b2b-site");
-                if (scroller) scroller.scrollTo({ top: 0, behavior: "instant" });
+                if (scroller) scroller.scrollTo({ top: 0, behavior: "auto" });
                 else window.scrollTo({ top: 0, behavior: "instant" });
               }}
               className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[19px] px-0.5 py-2 text-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#eab308] ${selected ? "text-[#191919]" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"}`}>
