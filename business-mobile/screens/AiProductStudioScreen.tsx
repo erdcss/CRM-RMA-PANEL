@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Animated, Image, KeyboardAvoidingView,
+  ActivityIndicator, Alert, Animated, Image, KeyboardAvoidingView, Modal,
   Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { apiFetch } from "../lib/api";
 import { C } from "../ui/theme";
 
@@ -78,7 +79,13 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   const [includePackaging,setIncludePackaging]=useState(false);
   const [renderedImage,setRenderedImage]=useState("");
   const [rendering,setRendering]=useState(false);
-  const photo=renderEnabled&&renderedImage?renderedImage:photos[0]||"";
+  // Generated product art is part of the real product gallery, not a detached preview.
+  // Keep the rendered image first (cover), with a maximum of four saved images.
+  const galleryImages = useMemo(() => [ ...(renderEnabled && renderedImage ? [renderedImage] : []), ...photos ].slice(0,4), [renderEnabled,renderedImage,photos]);
+  const photo=galleryImages[0]||"";
+  const [scannerOpen,setScannerOpen]=useState(false);
+  const [scanLocked,setScanLocked]=useState(false);
+  const [cameraPermission,requestCameraPermission]=useCameraPermissions();
   const maxPhotos=4;
   const maxImageLength=3_500_000;
   const maxGalleryLength=12_000_000;
@@ -229,6 +236,30 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     }catch(e){setError(e instanceof Error?e.message:"Fotoğraf seçilemedi.");}
   }
 
+  async function openBarcodeScanner(){
+    try {
+      let permission=cameraPermission;
+      if(!permission?.granted)permission=await requestCameraPermission();
+      if(!permission?.granted){Alert.alert("Kamera izni gerekli","Barkodu taramak için kamera izni verin.");return;}
+      setScanLocked(false);setScannerOpen(true);
+    }catch(e){setError(e instanceof Error?e.message:"Kamera açılamadı.");}
+  }
+
+  function handleBarcodeScan(value:string){
+    if(scanLocked||!value.trim())return;
+    setScanLocked(true);
+    change("barcode",value.trim());
+    setScannerOpen(false);
+  }
+
+  function removeGalleryImage(index:number){
+    if(submitting||rendering)return;
+    if(renderEnabled&&renderedImage){
+      if(index===0){setRenderedImage("");return;}
+      removePhoto(index-1);
+    }else removePhoto(index);
+  }
+
   function removePhoto(index:number){
     if(submitting)return;
     restartForGallery(photos.filter((_,i)=>i!==index));
@@ -306,7 +337,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         tags:form.tags.split(",").map(tag=>tag.trim()).filter(Boolean),
         price:parseNumber(form.price),stock:parseNumber(form.stock),
         unitsPerBox:parseNumber(form.unitsPerBox),minOrderQty:parseNumber(form.minOrderQty),
-        leadDays:parseNumber(form.leadDays),image:photo,images:renderEnabled&&renderedImage?[renderedImage,...photos.slice(0,3)]:photos,
+        leadDays:parseNumber(form.leadDays),image:photo,images:galleryImages,
       };
       const result=await apiFetch<SubmitResult>("/api/business/ai-products/submit",{
         method:"POST",body:JSON.stringify(data),
@@ -365,14 +396,14 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
             <Text style={styles.photoActionText}>▧  Çoklu fotoğraf seç</Text>
           </TouchableOpacity>
         </View>
-        {photos.length>0?<View style={styles.galleryWrap}>
-          <Text style={styles.galleryTitle}>{photos.length}/{maxPhotos} fotoğraf · AI hepsini tarar</Text>
+        {galleryImages.length>0?<View style={styles.galleryWrap}>
+          <Text style={styles.galleryTitle}>{galleryImages.length}/{maxPhotos} ürün görseli · AI analizinde orijinal fotoğraflar kullanılır</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
-            {photos.map((src,index)=><View key={index} style={styles.galleryItem}>
+            {galleryImages.map((src,index)=><View key={index} style={styles.galleryItem}>
               <Image source={{uri:src}} style={styles.galleryImage} resizeMode="cover"/>
-              <Text style={styles.galleryCaption}>{index===0?"Kapak":index+1+". fotoğraf"}</Text>
+              <Text style={styles.galleryCaption}>{renderEnabled&&renderedImage&&index===0?"AI · Kapak":index===0?"Kapak":index+1+". görsel"}</Text>
               <TouchableOpacity style={styles.galleryRemove} accessibilityLabel={(index+1)+". fotoğrafı kaldır"}
-                disabled={submitting} onPress={()=>removePhoto(index)}>
+                disabled={submitting} onPress={()=>removeGalleryImage(index)}>
                 <Text style={styles.galleryRemoveText}>×</Text>
               </TouchableOpacity>
             </View>)}
@@ -397,7 +428,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
             {rendering?<ActivityIndicator color="#081726"/>:<Text style={styles.primaryText}>✦  Görseli AI ile oluştur</Text>}
           </TouchableOpacity>
           {renderedImage?<View style={styles.previewImageBox}><Image source={{uri:renderedImage}}
-            style={styles.previewImage} resizeMode="contain"/></View>:null}
+            style={styles.previewImage} resizeMode="contain"/><Text style={styles.aiImageAdded}>✓ AI görseli ürün galerisinin ilk sırasına eklendi.</Text></View>:null}
           {renderedImage?<TouchableOpacity style={styles.secondary} onPress={()=>setRenderedImage("")}>
             <Text style={styles.secondaryText}>Orijinal fotoğrafı kullan</Text>
           </TouchableOpacity>:null}
@@ -442,7 +473,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
               <View style={styles.missingCount}><Text style={styles.missingCountText}>{invalid.length} eksik</Text></View>
             </View>
             <Text style={styles.helper}>AI'nin doğrulayamadığı barkod, fiyat, stok veya koli bilgilerini siz girin. Eksikler tamamlandıkça durum güncellenir.</Text>
-            {fieldsToComplete.map(field=>renderField(field,false))}
+            {fieldsToComplete.map(field=>field.key==="barcode"?<View key="barcode-entry">{renderField(field,false)}<TouchableOpacity style={styles.scanButton} onPress={()=>void openBarcodeScanner()}><Text style={styles.scanButtonText}>▥  Barkodu kamerayla tara</Text></TouchableOpacity></View>:renderField(field,false))}
             {fieldsToComplete.length===0?<Text style={styles.notice}>Görsel bilgilerini kontrol edin.</Text>:null}
           </View>
           {detectedFields.length>0 ? <View style={styles.card}>
@@ -452,7 +483,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
                 <Text style={styles.subheading}>{detectedFields.length} alan hazır · Düzenlenebilir</Text>
               </View></View>
             <Text style={styles.helper}>AI'nin önerilerini kontrol edin, yanlış veya eksik olanı doğrudan düzenleyin.</Text>
-            {detectedFields.map(field=>renderField(field,true))}
+            {detectedFields.map(field=>field.key==="barcode"?<View key="barcode-scanned">{renderField(field,true)}<TouchableOpacity style={styles.scanButton} onPress={()=>void openBarcodeScanner()}><Text style={styles.scanButtonText}>▥  Barkodu yeniden tara</Text></TouchableOpacity></View>:renderField(field,true))}
           </View> : null}
           <View style={styles.card}>
             <View style={styles.cardHeading}><Text style={styles.sectionIndex}>04</Text><View style={styles.flex}>
@@ -481,8 +512,8 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
           <Text style={styles.heading}>Ürün önizleme</Text><Text style={styles.subheading}>Göndermeden önce son kontrol</Text>
         </View></View>
         <View style={styles.previewImageBox}><Image source={{uri:photo}} style={styles.previewImage} resizeMode="contain"/></View>
-        {photos.length>1?<View style={styles.previewGallery}>
-          {photos.map((src,index)=><Image key={index} source={{uri:src}} style={styles.previewGalleryImage} resizeMode="cover"/>)}
+        {galleryImages.length>1?<View style={styles.previewGallery}>
+          {galleryImages.map((src,index)=><Image key={index} source={{uri:src}} style={styles.previewGalleryImage} resizeMode="cover"/>)}
         </View>:null}
         <Text style={styles.previewTitle}>{form.name}</Text>
         <Text style={styles.previewSubtitle}>{form.brand} · {form.model} · {form.category}</Text>
@@ -499,10 +530,24 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
       {!!error?<View style={styles.errorBox}><Text style={styles.errorTitle}>Kontrol gerekli</Text><Text style={styles.errorText}>{error}</Text></View>:null}
       <Text style={styles.footer}>ÇALIŞKAN BUSINESS  /  INTELLIGENT PRODUCT STUDIO</Text>
     </ScrollView>
+    <Modal visible={scannerOpen} animationType="slide" onRequestClose={()=>setScannerOpen(false)}>
+      <View style={styles.scannerRoot}>
+        <View style={styles.scannerHeader}><Text style={styles.scannerTitle}>Ürün barkodunu okut</Text><TouchableOpacity onPress={()=>setScannerOpen(false)} accessibilityLabel="Barkod tarayıcıyı kapat"><Text style={styles.scannerClose}>Kapat ✕</Text></TouchableOpacity></View>
+        {scannerOpen?<CameraView style={styles.camera} facing="back" barcodeScannerSettings={{barcodeTypes:["ean13","ean8","upc_a","upc_e","code128","code39","code93","itf14","qr"]}} onBarcodeScanned={({data})=>handleBarcodeScan(data)}/>:null}
+        <Text style={styles.scannerHelp}>Barkodu kameranın ortasına hizalayın. Okununca ürün kartına otomatik eklenir.</Text>
+      </View>
+    </Modal>
   </KeyboardAvoidingView>;
 }
 
 const styles=StyleSheet.create({
+  scannerRoot:{flex:1,backgroundColor:"#070F19",paddingTop:52,paddingHorizontal:16,paddingBottom:32},
+  scannerHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:20},
+  scannerTitle:{color:"#FFFFFF",fontSize:20,fontWeight:"900"},scannerClose:{color:"#98C7FF",fontSize:15,fontWeight:"800"},
+  camera:{flex:1,borderRadius:18,overflow:"hidden"},scannerHelp:{color:"#C6D9F3",fontSize:12,textAlign:"center",marginTop:20,lineHeight:20},
+  scanButton:{backgroundColor:"#132B47",borderRadius:12,padding:13,alignItems:"center",marginBottom:15,borderWidth:1,borderColor:"#3566A4"},
+  scanButtonText:{color:"#B6D9FF",fontWeight:"800",fontSize:12},
+  aiImageAdded:{position:"absolute",bottom:5,left:10,right:10,color:"#143C2F",backgroundColor:"#D1FAE5",textAlign:"center",fontWeight:"700",padding:5,borderRadius:8,fontSize:11},
   galleryWrap:{marginTop:13},
   galleryTitle:{fontSize:12,color:"#C7DCFB",fontWeight:"800",marginBottom:10},
   galleryRow:{gap:10,paddingRight:5},
