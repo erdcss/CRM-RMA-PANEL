@@ -1,3 +1,30 @@
+# Çalışkan Dükkan Mobil — Bağlantılı Mağaza Sürümü
+
+**26 Ekim 2026 geliştirme:** iOS/Android uygulaması artık `https://admin.ecalisgan.com/dukkan` üzerinden yönetilen mağaza hesabını güvenli bir WebView içinde açar. İlk açılışta Çalışkan Dükkan'a özel giriş sayfası sunulur. Kullanıcı adı/şifre, Çalışkan Admin'de tanımlanmış aktif kullanıcıdan doğrulanır; bu kullanıcının `dukkan_members` tablosunda mağazaya atanması şarttır. Oturum HttpOnly sunucu çereziyle korunur. Mobil cihaz işletmenin merkezi PostgreSQL ürün ve fatura kayıtlarına bağlıdır.
+
+**Önemli geçiş:** Önceki sürümdeki React Native/SQLite çevrimdışı hesap sistemi uygulamanın kaynak kodunda korunmuştur, ancak bağlantılı sürümün açılış ekranı değildir. Mevcut mobil veya Windows yerel SQLite kayıtları sunucuya otomatik aktarılmaz; iki veri kaynağı karıştırılmaz. Önceki mobil sürümde yerel kayıtlar varsa yeni sürüme geçmeden önce yedeklenmelidir. Çevrimdışı çalışma bu bağlantılı sürümde desteklenmez.
+
+## Tamamlanan özellikler
+
+- Admin tarafından atanan kullanıcı adı ve şifreyle giriş; mağaza üyeliği kontrolü, rol bazlı veri izinleri
+- Ürün ekleme ve yöneticinin ürün adı/kod/barkod/alış-satış fiyatlarını düzenlemesi
+- Satış/alış ve iadeler için sunucu tarafında eşzamanlı çakışmaya dayanıklı **14 haneli sayısal dahili fatura numarası**
+- Fatura ürün satırlarında Ürün, Miktar, Birim Fiyatı, KDV, Satır Tutarı ve Sil başlıkları
+- Çalışkan Admin'deki `dukkan_logo` yüklemesi web giriş sayfasında ve uygulama üst alanında canlı görünür
+- `npm run prepare:branding` Çalışkan Admin'in açık logo ayarını ve resim içeriğini doğrular; yeni native iOS/Android build için `1024×1024` PNG ikon üretir. Onaylı admin logosu bulunmazsa **ücretli EAS derlemesini başlamadan durdurur**.
+
+## Geliştirme
+
+`npm install` → `npm run check` → `npx expo export --platform ios`.
+
+Yerel native ikon üretimi: `npm run prepare:branding`. Bu komut `https://admin.ecalisgan.com/api/public/branding` sayfasını ve `dukkan_logo` referansını kullanır; admin hesabı ve özel şifreleri dosyaya yazmaz.
+
+App Store sürüm numarası yeni TestFlight derlemelerinde EAS'in uzaktan artan `buildNumber` değeriyle yönetilir; 1.0.0 Build 5 önceki gönderimdir.
+
+**Resmî belge uyarısı:** 14 haneli dahili fatura numarası, GİB e-Fatura/e-Arşiv numarası veya resmî mali belge değildir. Resmî fatura entegrasyonu bulunmaz.
+
+---
+
 # Çalışkan Dükkan Mobil — React Native
 
 Bu uygulama Expo 54 üzerinde iOS/Android için doğrudan React Native ekranları kullanır; WebView veya Çalışkan Admin paneli içermez.
