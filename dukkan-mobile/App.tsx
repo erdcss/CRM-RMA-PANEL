@@ -4,12 +4,13 @@ import {Image} from "react-native";
 import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
 import {DUKKAN_THEME} from "./design-system";
+import {DukkanMobileHeader,DukkanTopNavigation,DukkanBottomNavigation,DukkanDashboardOverview,type DukkanTab} from "./dukkan-home";
 import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
 import {StatusBar as ExpoStatusBar} from "expo-status-bar";
 import {today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
 
 
-type Tab="dashboard"|"invoices"|"products"|"movements"|"parties"|"ledger"|"orders"|"banks"|"cash_movements"|"payments"|"instruments"|"report"|"settings";
+type Tab=DukkanTab;
 type Field={key:string;label:string;kind?:"text"|"number"|"choice"|"party"|"product"|"bank";options?:string[];required?:boolean};
 const TABS:{key:Tab;title:string}[]=[
  {key:"dashboard",title:"Genel Bakış"},{key:"invoices",title:"Faturalar / İadeler"},{key:"products",title:"Ürün ve Stok"},
@@ -156,6 +157,10 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const visibleTabs=TABS.filter(t=>t.key!=="cash_movements"&&(cashier?!["products","movements","ledger","banks","payments","instruments","report","settings"].includes(t.key):true));
  const visibleActions=(selected:Tab)=>ACTIONS[selected].filter(a=>!["settings","cashMovement"].includes(a.kind)&&(!cashier||!["product","stock","bank","bankMovement","instrument"].includes(a.kind))&&(!["product","stock"].includes(a.kind)||canManage));
  const editProduct=(item:RecordRow)=>{if(!canManage)return;setData({id:item.id,code:item.code,name:item.name,barcode:item.barcode,unit:item.unit,purchase:Number(item.purchase_cents)/100,sale:Number(item.sale_cents)/100});setFormType("productEdit");};
+ const navigate=(destination:Tab)=>{if(!visibleTabs.some(item=>item.key===destination))return;setTab(destination);setFilter("");setFormType(null);};
+ const confirmLogout=()=>Alert.alert("Çıkış Yap","Çalışkan Dükkan hesabından çıkış yapmak istiyor musunuz?",[
+   {text:"Vazgeç",style:"cancel"},{text:"Çıkış Yap",style:"destructive",onPress:onLogout}
+ ]);
 
  const fieldOptions=(field:Field)=>{
   if(field.kind==="party")return parties.map(x=>({id:String(x.id),name:String(x.name)}));
@@ -188,33 +193,19 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
   </View>
   {lines.length>1&&<Pressable onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}><Text style={{color:"#b24a53",fontWeight:"700",marginTop:8}}>Satırı Kaldır</Text></Pressable>}
  </View>;
- return <SafeAreaView style={styles.safe}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={f.ink}/>
-  <View style={styles.header}><View><Text style={styles.overline}>ÇALIŞKAN DÜKKAN · MOBİL</Text><Text style={styles.brand}>{company}</Text><Text style={styles.headerSub}>{session.user.username} · {session.store.role}</Text></View><View style={{alignItems:"flex-end",gap:6}}><View style={styles.offline}><Text style={{color:"#89f0c8",fontSize:11,fontWeight:"800"}}>● BAĞLANTILI</Text></View><Pressable onPress={onLogout}><Text style={{color:"white",fontSize:11}}>Çıkış Yap</Text></Pressable></View></View>
-  <ScrollView horizontal style={styles.nav} contentContainerStyle={styles.navInner} showsHorizontalScrollIndicator={false}>
-   {visibleTabs.map(t=><Pressable key={t.key} style={[styles.tab,tab===t.key?styles.selectedTab:null]} onPress={()=>{setTab(t.key);setFilter("");setFormType(null);}}><Text style={[styles.tabText,tab===t.key?{color:"white"}:null]}>{t.title}</Text></Pressable>)}
-  </ScrollView>
-  {session.stores.length>1&&<ScrollView horizontal contentContainerStyle={{gap:6,padding:8}} style={{flexGrow:0}}>{session.stores.map(store=><Pressable key={String(store.id)} onPress={()=>onSwitch(store)} style={[styles.chip,session.store.id===store.id?styles.chipActive:null]}><Text style={{color:session.store.id===store.id?"white":f.ink}}>{store.name}</Text></Pressable>)}</ScrollView>}
-   <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
-   <View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="dashboard"?"Güncel mağaza bilgileri ve hızlı işlemler":tab==="settings"?"Güvenli hesap ve merkezi veri yönetimi":"Mağazanızın güncel kayıtları"}</Text></View>
+ return <SafeAreaView style={[styles.safe,{backgroundColor:"#0b2146"}]}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor="#0b2146"/>
+  <View style={{flex:1,backgroundColor:"#f2f6fc"}}>
+  <DukkanMobileHeader company={company} username={session.user.username} role={session.store.role}
+    online={error===""} stores={session.stores} storeId={session.store.id} onSwitch={onSwitch} onLogout={confirmLogout}/>
+  <DukkanTopNavigation tabs={visibleTabs} selected={tab} onChange={navigate}/>
+  <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+   {tab!=="dashboard"&&<View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="settings"?"Güvenli hesap ve merkezi veri yönetimi":"Mağazanızın güncel kayıtları"}</Text></View>}
    {error!==""&&<Text style={styles.error}>{error}</Text>}
    {!ready?<ActivityIndicator color={f.ink} size="large"/>:null}
-   {tab==="dashboard"&&<View style={styles.dashboardBanner}>
-      <View><Text style={styles.welcomeEyebrow}>MERKEZİ İŞLETME PANELİ</Text><Text style={styles.welcomeTitle}>Bugün ne yapalım?</Text>
-      <Text style={styles.welcomeSub}>Satış, stok ve carilerinizi tek yerden yönetin.</Text></View>
-      <View style={styles.quickActions}>
-       {([{label:"Satış",kind:"invoice",color:"#d5f3ff"},{label:"Yeni Ürün",kind:"product",color:"#e3eeff"},{label:"Cari",kind:"party",color:"#e0f8ee"},{label:"Tahsilat",kind:"payment",color:"#f8edda"}] as const)
-         .filter(a=>!cashier||!["product","payment"].includes(a.kind))
-         .filter(a=>a.kind!=="product"||canManage)
-         .map(a=><Pressable key={a.kind} onPress={()=>open(a.kind)} style={[styles.quickButton,{backgroundColor:a.color}]}>
-          <Text style={styles.quickLabel}>＋ {a.label}</Text>
-         </Pressable>)}
-      </View>
-     </View>}
-    {tab==="dashboard"&&!cashier&&<View style={styles.cards}>
-     {([["Net Satış",sums.sales],["Net Alış",sums.purchases],["Alacaklar",sums.receivables],["Borçlar",sums.payables],["Kasa",sums.cash],["Banka",sums.bank],["Stok Değeri",sums.stockCost]] as [string,number][]).map(([name,value])=>
-      <View key={name} style={[styles.stat,name==="Net Satış"?styles.statFeatured:null]}><Text style={styles.statName}>{name}</Text><Text style={styles.statValue}>{money(value)}</Text></View>)}
-     <View style={styles.stat}><Text style={styles.statName}>Ürün Sayısı</Text><Text style={styles.statValue}>{sums.products||0}</Text></View>
-    </View>}
+   {tab==="dashboard"&&<DukkanDashboardOverview
+     summary={sums} cashier={cashier} canManage={canManage}
+     onQuickAction={open} onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
+   />}
    {tab==="report"&&<View><View style={styles.cards}><View style={styles.stat}><Text style={styles.statName}>Faturalar</Text><Text style={styles.statValue}>{sums.documents||0}</Text></View><View style={styles.stat}><Text style={styles.statName}>Geciken Çek / Senet</Text><Text style={styles.statValue}>{sums.overdue||0}</Text></View></View>
      <Text style={styles.groupTitle}>Aylık alış / satış</Text>{monthly.map(r=><View style={styles.row} key={String(r.month)}><Text style={styles.rowTitle}>{r.month}</Text><Text style={styles.rowNote}>Satış {money(r.sales)}   ·   Alış {money(r.purchases)}</Text></View>)}</View>}
    {tab==="settings"&&<View><View style={styles.card}><Text style={styles.groupTitle}>Veriler ve Güvenlik</Text><Text style={styles.hint}>Bu uygulama Çalışkan Admin tarafından atanan mağazanın PostgreSQL veritabanını kullanır. Önceki sürümdeki SQLite verileri otomatik aktarılmaz.</Text>
@@ -222,7 +213,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     <Pressable disabled={busy} style={[styles.secondary,{marginVertical:8}]} onPress={doImport}><Text style={styles.secondaryText}>Eski Yedekler Hakkında</Text></Pressable>
     <Text style={styles.hint}>Önemli: Eski çevrimdışı SQLite kayıtları sunucuya otomatik aktarılmaz; yerel yedeklerinizi koruyun.</Text></View>
     <View style={styles.card}><Text style={styles.groupTitle}>Dahili Muhasebe Uyarısı</Text><Text style={styles.hint}>e-Fatura/e-Arşiv oluşturma ve GİB'e gönderim yoktur. Resmî muhasebe belgesi olarak kullanmayın.</Text></View></View>}
-   {visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
+   {tab!=="dashboard"&&visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
     {visibleActions(tab).map(x=><Pressable key={x.kind} onPress={()=>open(x.kind)} style={styles.primary}><Text style={styles.primaryText}>＋ {x.label}</Text></Pressable>)}
    </ScrollView>}
    {!["settings","report"].includes(tab)&&<View>
@@ -238,14 +229,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     {shown.length>250&&<Text style={styles.hint}>İlk 250 kayıt gösteriliyor. Arama ile filtreleyin.</Text>}
    </View>}
   </ScrollView>
-  <View style={styles.bottomDock}>
-    {([{key:"dashboard",title:"Özet"},{key:"invoices",title:"Faturalar"},{key:"products",title:"Ürünler"},{key:"parties",title:"Cariler"},{key:"report",title:"Raporlar"}] as {key:Tab;title:string}[])
-      .filter(t=>!cashier||!["products","report"].includes(t.key))
-      .map(t=><Pressable key={t.key} accessibilityRole="button" onPress={()=>{setTab(t.key);setFilter("");setFormType(null);}}
-        style={[styles.dockButton,tab===t.key?styles.dockActive:null]}>
-        <Text style={[styles.dockText,tab===t.key?styles.dockTextActive:null]}>{t.title}</Text>
-      </Pressable>)}
-  </View>
+  <DukkanBottomNavigation selected={tab} cashier={cashier} onChange={navigate}/>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
    <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{formType==="productEdit"?"Ürünü Düzenle":ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
     <ScrollView contentContainerStyle={{padding:20,paddingBottom:35}} keyboardShouldPersistTaps="always">
@@ -261,6 +245,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     </ScrollView>
    </View>
   </KeyboardAvoidingView>}
+  </View>
  </SafeAreaView>;
 }
 const styles=DUKKAN_THEME;
