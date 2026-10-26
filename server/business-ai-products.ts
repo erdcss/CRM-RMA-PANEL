@@ -8,11 +8,28 @@ import { ensureMarketplaceSchema } from "./marketplace";
 const required = (n: number) => z.string().trim().min(1).max(n);
 const picture = z.string().max(5_600_000).regex(/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/);
 const gallerySchema=z.array(picture).min(1).max(4);
+class ProductImageError extends Error {}
+// Some iOS pickers return actual PNG/JPEG data with a stale HEIC/WebP MIME
+// label. Always derive the MIME type from bytes, never from the picker label.
+function detectedImage(data:string):{bytes:Buffer;mime:"image/jpeg"|"image/png"|"image/webp"}{
+  const bytes=Buffer.from(data.slice(data.indexOf(",")+1),"base64");
+  if(!bytes.length||bytes.length>4*1024*1024)
+    throw new ProductImageError("Fotoğraf boş veya 4 MB sınırından büyük. Daha küçük bir fotoğraf seçin.");
+  const png=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+  const webp=bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP";
+  const mime=png?"image/png":jpeg?"image/jpeg":webp?"image/webp":null;
+  if(!mime)throw new ProductImageError("Fotoğraf HEIC/HEIF veya desteklenmeyen biçimde. Galeriden uyumlu JPG/PNG seçin veya fotoğrafı JPG olarak dışa aktarın.");
+  return {bytes,mime};
+}
 function gallery(image:string|undefined,images:string[]|undefined){
   const list=images?.length?images:(image?[image]:[]);
   if(!list.length||list.length>4||list.reduce((total,src)=>total+src.length,0)>12_000_000)
-    throw Error("En fazla 4 görsel, toplam 12 MB seçebilirsiniz.");
-  return list;
+    throw new ProductImageError("En fazla 4 görsel, toplam 12 MB seçebilirsiniz.");
+  return list.map(src=>{
+    const {mime}=detectedImage(src);
+    return "data:"+mime+";base64,"+src.slice(src.indexOf(",")+1);
+  });
 }
 const details = z.object({
   sku:required(90), name:required(220), barcode:required(60), brand:required(120),
@@ -47,14 +64,8 @@ const renderSchema=z.object({images:gallerySchema,includePackaging:z.boolean().d
 const fields=["sku","name","barcode","brand","category","description","model","color","material","size","collectionName","tags"] as const;
 
 function imageBytes(data:string):Buffer {
-  const bytes=Buffer.from(data.slice(data.indexOf(",")+1),"base64");
-  const mime=data.slice(5,data.indexOf(";"));
-  const png=bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
-  const jpeg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
-  const webp=bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP";
-  if(!bytes.length||bytes.length>4*1024*1024||!(mime==="image/png"&&png||mime==="image/jpeg"&&jpeg||mime==="image/webp"&&webp))
-    throw Error("Geçerli bir JPG, PNG veya WebP görseli (en fazla 4 MB) seçin.");
-  return bytes;
+  // Reject unrecognized bytes but allow a normalized picker MIME label.
+  return detectedImage(data).bytes;
 }
 async function actorFor(req:Request,userId:(r:Request)=>number|undefined):Promise<Actor|null>{
   const id=userId(req);
@@ -127,7 +138,14 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
       if(cache.size>100)cache.clear();
       cache.set(hash,{expires:Date.now()+20*60_000,product});
       return res.json({product,cached:false,elapsedMs:Date.now()-start});
-    }catch(e){console.error("Business AI extract",e);return res.status(502).json({error:e instanceof Error&&e.message.includes("görseli")?e.message:"AI analiz edilemedi; fotoğrafı tekrar deneyin."});}
+    }catch(e){
+      if(e instanceof ProductImageError)return res.status(422).json({error:e.message});
+      const status=(e as {status?:number}).status;
+      console.error("Business AI extract",e);
+      if(status===429)return res.status(503).json({error:"AI servisinin kullanım sınırına ulaşıldı. Bir süre sonra tekrar deneyin."});
+      if(status===401||status===403)return res.status(503).json({error:"AI sağlayıcı yetkilendirmesi geçersiz. Yönetici ile iletişime geçin."});
+      return res.status(502).json({error:"AI analiz servisine ulaşılamadı. Fotoğrafı tekrar deneyin."});
+    }
   });
 
   app.post("/api/business/ai-products/render",async(req,res)=>{
@@ -172,6 +190,7 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
       renderCache.set(key,{image,expires:Date.now()+15*60_000});
       return res.json({image,cached:false});
     }catch(err){
+      if(err instanceof ProductImageError)return res.status(422).json({error:err.message});
       console.error("Business AI render",err);
       return res.status(502).json({error:"Görsel düzenlenemedi. Orijinal görsel korunuyor; tekrar deneyin."});
     }
@@ -221,6 +240,7 @@ export function registerBusinessAiProductRoutes(app:Express,userId:(r:Request)=>
         return res.status(201).json({productId:item.rows[0].id,revisionId:version.rows[0].id,status:"pending",isLive:false,message:"Ürün yönetici onayına gönderildi."});
       }catch(e){await client.query("ROLLBACK").catch(()=>{});throw e;}finally{client.release();}
     }catch(e){
+      if(e instanceof ProductImageError)return res.status(422).json({error:e.message});
       console.error("Business AI submit",e);
       if((e as {code?:string}).code==="23505")return res.status(409).json({error:"Bu stok koduyla zaten bir ürün var."});
       return res.status(500).json({error:"Ürün kaydı başarısız. Tekrar deneyin."});
