@@ -1,7 +1,7 @@
-import {Activity, ArrowUpRight, BarChart3, Boxes, Building2, ChevronRight, Clock3, FileText, Landmark, LayoutDashboard, LockKeyhole, Package, Plus, ReceiptText, RefreshCw, ShieldCheck, Store, Users, Wallet} from "lucide-react";
+import {Activity, ArrowUpRight, BarChart3, Boxes, Building2, ChevronRight, Clock3, FileText, Landmark, LayoutDashboard, LockKeyhole, Package, Plus, ReceiptText, RefreshCw, Settings2, ShieldCheck, Store, Users, Wallet} from "lucide-react";
 import type {ReactNode} from "react";
 
-export type DukkanSection="overview"|"sales"|"purchases"|"products"|"stock"|"orders"|"instruments"|"banks"|"parties"|"reports";
+export type DukkanSection="overview"|"sales"|"purchases"|"products"|"stock"|"orders"|"instruments"|"banks"|"parties"|"reports"|"settings";
 const sections:Array<{key:DukkanSection;label:string;icon:typeof Store}>=[
  {key:"overview",label:"Genel Bakış",icon:LayoutDashboard},
  {key:"sales",label:"Satış Faturaları",icon:ReceiptText},
@@ -48,7 +48,7 @@ export function DukkanWorkspaceHeader(props:{
  </header>;
 }
 
-export function DukkanWorkspaceLayout({selected,onSelect,cashier,children}:{selected:DukkanSection;onSelect:(section:DukkanSection)=>void;cashier:boolean;children:ReactNode}){
+export function DukkanWorkspaceLayout({selected,onSelect,cashier,showSettings,children}:{selected:DukkanSection;onSelect:(section:DukkanSection)=>void;cashier:boolean;showSettings:boolean;children:ReactNode}){
  return <div className="grid items-start gap-5 lg:grid-cols-[218px_minmax(0,1fr)]">
   <nav aria-label="Çalışkan Dükkan modülleri" className="flex gap-1.5 overflow-x-auto rounded-[22px] border border-[#e6edf6] bg-white p-2.5 shadow-sm lg:sticky lg:top-4 lg:flex-col lg:overflow-visible lg:p-3">
    <div className="hidden px-3 pb-3 pt-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-400 lg:block">ÇALIŞMA ALANI</div>
@@ -60,7 +60,15 @@ export function DukkanWorkspaceLayout({selected,onSelect,cashier,children}:{sele
      <Icon size={17} className="shrink-0"/><span className="flex-1">{item.label}</span>{selected===item.key&&<ChevronRight size={14} className="hidden text-sky-200 lg:block"/>}
     </button>;
    })}
-   <div className="mt-3 hidden rounded-xl bg-sky-50 p-3 lg:block"><span className="flex items-center gap-2 text-xs font-bold text-[#184b86]"><LockKeyhole size={14}/> Güvenli kayıtlar</span><p className="mt-1 text-[11px] leading-5 text-slate-500">Tüm işlemler mağaza yetkileriyle korunur.</p></div>
+   {showSettings&&<div className="mt-2 border-t border-slate-100 pt-2 lg:mt-4 lg:pt-3">
+     <button onClick={()=>onSelect("settings")} aria-current={selected==="settings"?"page":undefined}
+      className={"flex w-full shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3.5 py-3 text-left text-[13px] font-semibold transition "+
+       (selected==="settings"?"bg-gradient-to-r from-[#123e78] to-[#125a99] text-white shadow-md shadow-blue-900/15":"text-slate-600 hover:bg-slate-100 hover:text-[#123e78]")}>
+      <Settings2 size={17} className="shrink-0"/><span className="flex-1">Ayarlar</span>
+      {selected==="settings"&&<ChevronRight size={14} className="hidden text-sky-200 lg:block"/>}
+     </button>
+    </div>}
+    <div className="mt-3 hidden rounded-xl bg-sky-50 p-3 lg:block"><span className="flex items-center gap-2 text-xs font-bold text-[#184b86]"><LockKeyhole size={14}/> Güvenli kayıtlar</span><p className="mt-1 text-[11px] leading-5 text-slate-500">Tüm işlemler mağaza yetkileriyle korunur.</p></div>
   </nav>
   <main className="min-w-0">{children}</main>
  </div>;

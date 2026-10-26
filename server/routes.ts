@@ -2660,6 +2660,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Granting global super_admin access is intentionally distinct from ordinary
   // store membership assignment. Only an ACTIVE existing global super_admin can
   // create another super_admin. Store managers and normal admins cannot call this.
+  // Check the intended super-manager username before exposing the create action.
+  // Only currently authenticated platform super_admin accounts may enumerate matches.
+  app.get("/api/dukkan/admin/super-managers/username-status", requireMarketplaceSuperAdmin, async (req,res) => {
+    res.setHeader("Cache-Control","no-store");
+    const parsed=z.string().trim().min(4).max(64).regex(/^[a-zA-Z0-9._@-]+$/).safeParse(req.query.username);
+    if(!parsed.success)return res.status(400).json({error:"Kullanıcı adı 4–64 karakter olmalı; harf, rakam, nokta, @, alt çizgi veya tire kullanılabilir."});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı kurulamadı"});
+    try{
+      const found=await pool.query(
+        "SELECT 1 FROM users WHERE LOWER(username)=LOWER($1) OR LOWER(COALESCE(email,''))=LOWER($1) LIMIT 1",
+        [parsed.data]
+      );
+      return res.json({available:found.rowCount===0});
+    }catch(error:any){
+      console.error("Dükkan username availability failed",error?.code||"unknown");
+      return res.status(500).json({error:"Kullanıcı adı şu anda doğrulanamadı"});
+    }
+  });
+
   app.post("/api/dukkan/admin/super-managers", requireMarketplaceSuperAdmin, async (req,res) => {
     const input=z.object({
       storeId:z.coerce.number().int().positive(),
