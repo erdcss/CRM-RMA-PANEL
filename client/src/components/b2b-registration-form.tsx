@@ -1,3 +1,4 @@
+import { trackMetaEvent } from "@/lib/meta-pixel";
 import { FormEvent, useEffect, useState } from "react";
 import {
   Building2,
@@ -180,6 +181,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
       });
       const result = await response.json() as { reapplied?: boolean };
       setReapplied(result.reapplied === true);
+      if(result.reapplied!==true)trackMetaEvent("CompleteRegistration",{status:"pending_approval"});
       setDone(true);
       onCompleted?.();
     } catch (err) {
