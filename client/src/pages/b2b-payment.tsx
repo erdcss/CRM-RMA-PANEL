@@ -367,7 +367,16 @@ export default function B2BPaymentPage() {
           currency:"TRY",value:amount,num_items:Number(order.item_count)||1,
           order_id:order.order_number
         },"b2b-paid-"+order.order_number);
-        if(eventId)window.localStorage.setItem(key,"sent");
+        if(eventId){
+          window.localStorage.setItem(key,"sent");
+          // Meta token stays server-side. The endpoint independently confirms
+          // this authenticated customer's paid order and deduplicates the event.
+          void fetch("/api/b2b/meta/purchase",{
+            method:"POST",credentials:"include",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({orderNumber:order.order_number,consent:true})
+          }).catch(()=>undefined);
+        }
       }catch{/* Optional Meta measurement never blocks completed orders. */}
     })();
     return()=>{cancelled=true;};
