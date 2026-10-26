@@ -168,6 +168,7 @@ export type MarketplaceProduct = {
     description?: string;
     barcode?: string;
     imageUrl?: string;
+    imageUrls?: string[];
     price?: string | number | null;
     category?: string;
     brand?: string;
