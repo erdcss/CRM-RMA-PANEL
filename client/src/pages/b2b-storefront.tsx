@@ -9,6 +9,8 @@ import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
 import { B2BProductCard } from "@/components/b2b-product-card";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
+import { loadB2BHomepageCategories } from "@/lib/b2b-categories";
+import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
 
 type SessionUser = {
   role?: string;
@@ -36,20 +38,8 @@ async function loadVerifiedStores(): Promise<VerifiedStore[]> {
   return Array.isArray(result) ? result : [];
 }
 
-type HomeCategoryCard = { category: string; label?: string; imageId?: string };
-type HomepageData = { categories: string[]; categoryCards?: HomeCategoryCard[] };
-const categoryArtUrl = (imageId?: string) => imageId && /^[a-f0-9]{32}$/i.test(imageId)
-  ? `https://admin.ecalisgan.com/api/public/homepage/media/${imageId}` : null;
-
-async function loadHomepage(): Promise<HomepageData> {
-  const response = await fetch("/api/public/homepage", { credentials: "include" });
-  if (!response.ok) return { categories: [] };
-  return response.json();
-}
-
 export default function B2BStorefront() {
   const [query, setQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
   const { data: session } = useQuery({
     queryKey: ["/api/auth/me"],
     queryFn: loadSession,
@@ -80,13 +70,9 @@ export default function B2BStorefront() {
 
   const { data: homepage = { categories: [] } } = useQuery<HomepageData>({
     queryKey: ["/api/public/homepage"],
-    queryFn: loadHomepage,
+    queryFn: loadB2BHomepageCategories,
     staleTime: 15_000,
   });
-
-  const categoryCardsByName = useMemo(() => new Map(
-    (homepage.categoryCards || []).map(card => [card.category.toLocaleLowerCase("tr-TR"), card]),
-  ), [homepage.categoryCards]);
 
   useEffect(() => {
     const clean = query.trim();
@@ -99,22 +85,17 @@ export default function B2BStorefront() {
 
   const filtered = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("tr-TR");
-    const category = selectedCategory.trim().toLocaleLowerCase("tr-TR");
 
     return products.filter((product) => {
-      const matchesCategory =
-        !category ||
-        String(product.category || "").toLocaleLowerCase("tr-TR") === category;
-
       const matchesSearch =
         !term ||
         [product.name, product.sku, product.category, product.collection_name, product.marketplace ? product.seller_name : "ÇALIŞKAN"]
           .filter(Boolean)
           .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(term));
 
-      return matchesCategory && matchesSearch;
+      return matchesSearch;
     });
-  }, [products, query, selectedCategory]);
+  }, [products, query]);
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -171,66 +152,19 @@ export default function B2BStorefront() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
         {homepage.categories.length > 0 ? (
-          <section className="mb-6">
-            <div className="mb-3 flex items-center justify-between gap-3">
+          <section className="mb-8" aria-labelledby="homepage-categories-title">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-black">Kategoriler</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Ürün grubunu seçerek kataloğu filtreleyin.</p>
+                <h2 id="homepage-categories-title" className="text-lg font-black">Kategoriler</h2>
+                <p className="mt-1 text-xs text-slate-500">Ürün grubuna dokunarak kategori sayfasını açın.</p>
               </div>
-              {selectedCategory ? (
-                <button
-                  type="button"
-                  onClick={() => setSelectedCategory("")}
-                  className="text-xs font-medium text-slate-500 hover:text-slate-950"
-                >
-                  Filtreyi temizle
-                </button>
-              ) : null}
+              <Link href="/kategoriler" className="shrink-0 text-xs font-bold text-amber-800 hover:underline">Tüm kategoriler</Link>
             </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6" aria-label="Görselli ürün kategorileri">
-              <button type="button" aria-pressed={!selectedCategory}
-                onClick={() => setSelectedCategory("")}
-                className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 ${
-                  !selectedCategory ? "border-amber-400 ring-2 ring-amber-300" : "border-slate-200 hover:border-amber-300"
-                }`}>
-                <div className="flex aspect-[5/4] items-center justify-center bg-gradient-to-br from-slate-900 to-slate-700">
-                  <Boxes className="h-12 w-12 text-[#ffcd00]" aria-hidden="true"/>
-                </div>
-                <div className="flex min-h-14 items-center justify-between gap-2 p-3">
-                  <span className="text-sm font-extrabold text-slate-950">Tüm Ürünler</span>
-                  {!selectedCategory ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true" /> : null}
-                </div>
-              </button>
-
-              {homepage.categories.map((category) => {
-                const key=category.toLocaleLowerCase("tr-TR");
-                const active=selectedCategory.toLocaleLowerCase("tr-TR")===key;
-                const card=categoryCardsByName.get(key);
-                const imageUrl=categoryArtUrl(card?.imageId);
-                return (
-                  <button key={category} type="button" aria-pressed={active}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`group overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 ${
-                      active ? "border-amber-400 ring-2 ring-amber-300" : "border-slate-200 hover:border-amber-300"
-                    }`}>
-                    <div className="flex aspect-[5/4] items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 to-slate-200">
-                      {imageUrl ? <img src={imageUrl} alt={card?.label || category}
-                        className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105" loading="lazy"/>
-                        : <Package className="h-12 w-12 text-slate-400" aria-hidden="true"/>}
-                    </div>
-                    <div className="flex min-h-14 items-center justify-between gap-2 p-3">
-                      <span className="min-w-0 break-words text-sm font-extrabold capitalize text-slate-900">{card?.label || category}</span>
-                      {active ? <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" aria-hidden="true"/> : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <B2BCategoryTiles homepage={homepage} />
           </section>
         ) : null}
 
-        <div className="mb-4 md:hidden">
+                <div className="mb-4 md:hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
@@ -248,7 +182,7 @@ export default function B2BStorefront() {
               <div><h2 className="text-xl font-bold">Onaylı Tedarikçi Mağazaları</h2><p className="mt-1 text-sm text-slate-500">Tüm mağazaları Çalışkan B2B üzerinden görüntüleyin.</p></div>
               <Link href="/magazalar" className="text-sm font-bold text-amber-800 hover:underline">Tüm mağazalar →</Link>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {verifiedStores.slice(0, 4).map(shop => (
                 <Link key={shop.id} href={"/magaza/" + encodeURIComponent(shop.slug)} className="group min-w-0 overflow-hidden rounded-2xl border bg-white transition hover:border-amber-300 hover:shadow-md">
                   <div className="relative aspect-[3/1] bg-[#FFCD00]">
@@ -286,7 +220,7 @@ export default function B2BStorefront() {
             <p className="mt-1 text-sm text-slate-500">Yeni ürünler eklendiğinde burada görüntülenecek.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filtered.map((product) => (
               <B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>
             ))}
