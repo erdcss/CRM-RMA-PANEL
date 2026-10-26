@@ -27,7 +27,7 @@
     "expo-print": "~15.0.8",
     "expo-linear-gradient": "~15.0.7",
     "react-native-svg": "15.12.1",
-    "lucide-react-native": "^0.468.0"
+    "lucide-react-native": "^1.48.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
