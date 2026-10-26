@@ -7,6 +7,8 @@ type PixelWindow=Window & {fbq?:PixelFn;_fbq?:PixelFn};
 const CONSENT_KEY="caliskan_b2b_meta_consent_v1";
 let activePixelId="";
 let scriptAdded=false;
+let lastPageViewKey="";
+let lastPageViewAt=0;
 const pendingEvents:Array<{name:string;data:Record<string,unknown>;eventId:string}>=[];
 const allowedEvents=new Set(["PageView","ViewContent","Search","AddToCart","InitiateCheckout","Purchase","CompleteRegistration"]);
 
@@ -40,6 +42,7 @@ export function initMetaPixel(pixelId:string) {
     w.fbq=stub;w._fbq=stub;
   }
   w.fbq("consent","grant");
+  w.fbq("set","autoConfig",false,pixelId);
   w.fbq("init",pixelId);
   activePixelId=pixelId;
   while(pendingEvents.length){
@@ -65,4 +68,12 @@ export function trackMetaEvent(name:string,data:Record<string,unknown>={},eventI
   else if(pendingEvents.length<30)pendingEvents.push({name,data:clean,eventId:id});
   return id;
 }
-export function trackMetaPageView(){return trackMetaEvent("PageView");}
+export function trackMetaPageView(){
+  if(metaConsent()!=="granted")return;
+  const key=window.location.pathname+window.location.search;
+  const now=Date.now();
+  // StrictMode effect replay must never double-count the same navigation.
+  if(key===lastPageViewKey&&now-lastPageViewAt<1500)return;
+  lastPageViewKey=key;lastPageViewAt=now;
+  return trackMetaEvent("PageView");
+}
