@@ -37,6 +37,14 @@ const required: FieldDefinition[] = [
 ];
 const emptyDraft = ():Draft => Object.fromEntries(required.map(field=>[field.key,""])) as Draft;
 const parseNumber = (value:string) => Number(value.trim().replace(",","."));
+// Picker MIME labels can be inaccurate on iOS, especially for HEIC photos.
+// Use actual encoded image bytes so AI never receives mislabeled input.
+function imageMimeFromBase64(value:string):"image/jpeg"|"image/png"|"image/webp"|null {
+  if(value.startsWith("/9j/"))return "image/jpeg";
+  if(value.startsWith("iVBORw0KGgo"))return "image/png";
+  if(value.startsWith("UklGR"))return "image/webp";
+  return null;
+}
 function validate(form:Draft):ProductKey[] {
   return required.filter(field=>{
     const value=form[field.key]?.trim();
@@ -192,14 +200,16 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         await ImagePicker.launchCameraAsync({mediaTypes:["images"],base64:true,quality:0.5}):
         await ImagePicker.launchImageLibraryAsync({
           mediaTypes:["images"],allowsEditing:false,allowsMultipleSelection:true,
-          selectionLimit:remaining,base64:true,quality:0.5
+          selectionLimit:remaining,base64:true,quality:0.5,
+          preferredAssetRepresentationMode:ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
         });
       if(result.canceled||!result.assets.length)return;
       const next=[...photos];
+      let unsupported=0;
       for(const asset of result.assets.slice(0,remaining)){
-        if(!asset.base64)continue;
-        const mime=asset.mimeType==="image/png"?"image/png":
-          asset.mimeType==="image/webp"?"image/webp":"image/jpeg";
+        if(!asset.base64){unsupported++;continue;}
+        const mime=imageMimeFromBase64(asset.base64);
+        if(!mime){unsupported++;continue;}
         const image="data:"+mime+";base64,"+asset.base64;
         if(image.length>maxImageLength){
           Alert.alert("Fotoğraf çok büyük","Her fotoğraf en fazla yaklaşık 2,5 MB olmalıdır.");
@@ -213,6 +223,9 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         next.push(image);
       }
       if(next.length>photos.length)restartForGallery(next);
+      if(unsupported>0){
+        setError(unsupported+" fotoğraf HEIC/HEIF veya desteklenmeyen biçimde geldi. Galeriden JPG/PNG sürümünü seçin ya da fotoğrafı JPG olarak paylaşın.");
+      }
     }catch(e){setError(e instanceof Error?e.message:"Fotoğraf seçilemedi.");}
   }
 
