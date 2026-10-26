@@ -8,7 +8,6 @@ export type BrandingConfig = {
   b2b_mobile_logo?: string | null;
   b2b_mobile_android_icon?: string | null;
   b2b_mobile_splash?: string | null;
-  b2b_mobile_login_background?: string | null;
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
   dukkan_logo?: string | null;

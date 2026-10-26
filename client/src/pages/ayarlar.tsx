@@ -277,7 +277,7 @@ export default function Ayarlar() {
                     <Smartphone className="h-5 w-5" />
                     Çalışkan B2B Mobile
                   </CardTitle>
-                  <CardDescription>Çalışkan B2B mobil uygulamasının logosu, isteğe bağlı açılış görseli ve giriş arka planı. Açılış görseli kaydedildiğinde bir sonraki uygulama açılışında sunucudan alınır; kaldırıldığında eski görsel geri gelmez. İlk sistem açılışında işletim sistemi tarafından gösterilen yerel ekranın nötr hale gelmesi için güncellenmiş iOS/Android sürümü gerekir.</CardDescription>
+                  <CardDescription>Çalışkan B2B mobil uygulamasının logosunu ve tek Splash Ekranı görselini yönetin. Güncel splash her açılışta sunucudan alınır; ilk iOS açılış karesindeki yerel görsel ise yeni TestFlight sürümüyle değişir. Giriş ve kayıt ekranları sabit arka plan kullanır.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <AssetUploader
@@ -300,21 +300,11 @@ export default function Ayarlar() {
                   />
                   <AssetUploader
                     title="Splash Ekranı"
-                    description="İsteğe bağlı: 1080×1920 PNG (9:16). Kaydettiğinizde uygulama sonraki açılışta yeni görseli alır; kaldırırsanız açılışta eski görsel gösterilmez. Native başlangıç ekranı işletim sistemi kontrolündedir ve yalnızca yeni uygulama sürümüyle değişir."
+                    description="1080×1920 PNG (9:16) önerilir. Başlangıçta kesintisiz gösterilir; değişiklikler sonraki uygulama açılışında alınır. iOS ilk açılış görseli için yeni TestFlight derlemesi gerekir."
                     value={values.b2b_mobile_splash}
                     onChange={(value) => setAsset("b2b_mobile_splash", value)}
                     pngOnly
                   />
-                  <div className="sm:col-span-2">
-                    <AssetUploader
-                      title="Giriş Ekranı Görseli"
-                      description="Önerilen 1080×1920 dikey PNG, JPEG veya WebP. Giriş ve İşletmemi Kaydet ekranlarının arka planıdır; splash ekranından bağımsızdır. Form alanlarını görsele eklemeyin."
-                      value={values.b2b_mobile_login_background}
-                      onChange={(value) => setAsset("b2b_mobile_login_background", value)}
-                      cover
-                      portrait
-                    />
-                  </div>
                 </CardContent>
               </Card>
 

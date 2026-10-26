@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,7 +14,6 @@ import { useRouter } from 'expo-router';
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { useMobileBranding } from '@/lib/branding';
 import { appAlert } from '@/lib/appAlert';
 
 const COMPANY_CATEGORIES = [
@@ -48,7 +46,6 @@ function isValidVknChecksum(value: string) {
 
 export default function SignupScreen() {
   const router = useRouter();
-  const branding = useMobileBranding();
   const { registerApplication, verifyTaxNumber } = useAuth();
 
   const [companyName, setCompanyName] = useState('');
@@ -153,9 +150,6 @@ export default function SignupScreen() {
   if (completed) {
     return (
       <View style={styles.screen}>
-        {branding.b2b_mobile_login_background ? (
-          <ImageBackground source={{ uri: branding.b2b_mobile_login_background }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-        ) : null}
         <View style={styles.sceneDim} />
         <View style={styles.completed}>
           <View style={styles.successIcon}>
@@ -176,9 +170,6 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.screen}>
-      {branding.b2b_mobile_login_background ? (
-        <ImageBackground source={{ uri: branding.b2b_mobile_login_background }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-      ) : null}
       <View style={styles.sceneDim} />
       <KeyboardAvoidingView
         style={styles.flex}

@@ -5,7 +5,6 @@ export type MobileBranding = {
   b2b_web_logo?: string | null;
   b2b_mobile_logo?: string | null;
   b2b_mobile_splash?: string | null;
-  b2b_mobile_login_background?: string | null;
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
   loaded?: boolean;
@@ -15,7 +14,6 @@ type MobileBrandingResponse = {
   logo?: string | null;
   webLogo?: string | null;
   splash?: string | null;
-  loginBackground?: string | null;
   updatedAt?: number | null;
 };
 
@@ -66,7 +64,6 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
       b2b_web_logo: logo,
       b2b_mobile_logo: logo,
       b2b_mobile_splash: normalizeBrandAsset(branding.splash),
-      b2b_mobile_login_background: normalizeBrandAsset(branding.loginBackground),
       loaded: true,
     };
   } finally {

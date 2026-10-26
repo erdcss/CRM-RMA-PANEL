@@ -109,7 +109,6 @@ const BRANDING_KEYS = [
   "b2b_mobile_logo",
   "b2b_mobile_android_icon",
   "b2b_mobile_splash",
-  "b2b_mobile_login_background",
   "business_mobile_logo",
   "business_mobile_splash",
   "dukkan_logo",
@@ -403,7 +402,6 @@ async function brandingMap() {
     b2b_mobile_logo: null,
     b2b_mobile_android_icon: null,
     b2b_mobile_splash: null,
-    b2b_mobile_login_background: null,
     business_mobile_logo: null,
     business_mobile_splash: null,
     dukkan_logo: null,
@@ -671,24 +669,6 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   registerHomepageMediaRoutes(app, requireAdmin);
   registerReelMediaRoutes(app, requireAdmin);
 
-  // Large mobile background images are served separately instead of being
-  // repeated as base64 in every public branding JSON response.
-  app.get("/api/public/branding-image/b2b-mobile-login", async (_req, res) => {
-    try {
-      const branding = await brandingMap();
-      const value = branding.b2b_mobile_login_background;
-      if (!value) return res.status(404).end();
-      const match = /^data:(image\/(?:png|jpeg|webp));base64,([a-zA-Z0-9+/=]+)$/s.exec(value);
-      if (!match) return res.status(415).end();
-      res.setHeader("Content-Type", match[1]);
-      res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.send(Buffer.from(match[2], "base64"));
-    } catch (error) {
-      console.error("Mobile login background request failed:", error);
-      return res.status(500).end();
-    }
-  });
-
   app.get("/api/public/branding-asset/:key", async (req, res) => {
     const key = String(req.params.key || "");
     if (!(BRANDING_KEYS as readonly string[]).includes(key)) return res.status(404).end();
@@ -785,7 +765,6 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       "b2b-android-icon": "b2b_mobile_android_icon",
       "b2b-web-logo": "b2b_logo",
       "b2b-splash": "b2b_mobile_splash",
-      "b2b-login": "b2b_mobile_login_background",
     };
     const key = keys[String(req.params.asset || "")];
     if (!key) return res.status(404).end();
@@ -820,32 +799,33 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       if (target === "b2b") {
         const assetKeys = [
           "b2b_logo", "b2b_mobile_logo", "b2b_mobile_android_icon", "b2b_mobile_splash",
-          "b2b_mobile_login_background",
         ];
         const found = pool
           ? await pool.query(
-              "SELECT key FROM platform_settings WHERE key = ANY($1::text[]) AND LENGTH(value) > 0",
+              "SELECT key, updated_at FROM platform_settings WHERE key = ANY($1::text[]) AND LENGTH(value) > 0",
               [assetKeys],
             )
-          : { rows: [] as Array<{ key: string }> };
+          : { rows: [] as Array<{ key: string; updated_at: Date | string }> };
         const available = new Set(found.rows.map((row) => String(row.key)));
         // The B2B mobile app must never fall back to an old web logo.
         const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
         const androidIcon = available.has("b2b_mobile_android_icon") ? "b2b-android-icon" : null;
         const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
         const webLogo = logo;
-        const login = available.has("b2b_mobile_login_background") ? "b2b-login" : null;
-        const version = Date.now();
-        const image = (asset: string | null) =>
-          asset ? `/api/public/mobile-image/${asset}?v=${version}` : null;
+        // Use each asset's actual database update timestamp, not Date.now().
+        // Otherwise the splash URL changes on every request and flickers.
+        const revisions = new Map(
+          found.rows.map((row) => [String(row.key), new Date(row.updated_at).getTime() || 0]),
+        );
+        const image = (asset: string | null, key: string) =>
+          asset ? `/api/public/mobile-image/${asset}?v=${revisions.get(key) || 0}` : null;
 
         return res.json({
-          logo: image(logo),
-          androidIcon: image(androidIcon),
-          webLogo: image(webLogo),
-          splash: image(splash),
-          loginBackground: image(login),
-          updatedAt: version,
+          logo: image(logo, "b2b_mobile_logo"),
+          androidIcon: image(androidIcon, "b2b_mobile_android_icon"),
+          webLogo: image(webLogo, "b2b_mobile_logo"),
+          splash: image(splash, "b2b_mobile_splash"),
+          updatedAt: Math.max(0, ...revisions.values()),
         });
       }
 
@@ -1197,12 +1177,6 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         if (typeof rawValue !== "string") continue;
         if (!rawValue.startsWith("data:image/")) {
           return res.status(400).json({ error: `${key} için yalnızca görsel yüklenebilir` });
-        }
-        if (
-          key === "b2b_mobile_login_background" &&
-          !/^data:image\/(?:png|jpeg|webp);base64,/.test(rawValue)
-        ) {
-          return res.status(400).json({ error: "Giriş ekranı için PNG, JPEG veya WebP görsel yükleyin." });
         }
         if (rawValue.length > 10_000_000) {
           return res.status(413).json({ error: `${key} görseli çok büyük` });

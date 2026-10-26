@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  ImageBackground,
   Keyboard,
   TextInput,
   KeyboardAvoidingView,
@@ -20,11 +19,9 @@ import Constants from 'expo-constants';
 import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
-import { useMobileBranding } from '@/lib/branding';
 import { appAlert } from '@/lib/appAlert';
 
 export default function LoginScreen() {
-  const branding = useMobileBranding();
   const installedRevision = String(Constants.expoConfig?.extra?.sourceRevision || 'eski-build');
   const router = useRouter();
   const { session, signIn, completeInitialPassword, forgotPassword } = useAuth();
@@ -187,7 +184,7 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.heroScreen}>
-      {branding.b2b_mobile_login_background ? <ImageBackground source={{uri:branding.b2b_mobile_login_background}} resizeMode="cover" style={StyleSheet.absoluteFillObject}/> : <View style={[StyleSheet.absoluteFillObject,{backgroundColor:'#171717'}]}/>}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#171717' }]} />
       <View style={styles.heroShade}/>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView

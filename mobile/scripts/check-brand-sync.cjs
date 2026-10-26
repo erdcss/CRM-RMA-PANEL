@@ -116,7 +116,25 @@ async function runCase(withSplash) {
   }
 }
 
+
+// Startup contract: no separate login-background branding or premature
+// splash dismissal while the authentication navigator is still redirecting.
+function checkStartupContract() {
+  const root = path.resolve(__dirname, "..");
+  const layout = fs.readFileSync(path.join(root, "app", "_layout.tsx"), "utf8");
+  const login = fs.readFileSync(path.join(root, "app", "login.tsx"), "utf8");
+  const signup = fs.readFileSync(path.join(root, "app", "signup.tsx"), "utf8");
+  const branding = fs.readFileSync(path.join(root, "lib", "branding.ts"), "utf8");
+  assert.match(layout, /initialRoutePainted/, "Wait for initial route before hiding splash");
+  assert.match(layout, /!initialRoutePainted/, "Keep splash opaque until initial route is painted");
+  assert.match(layout, /SplashScreen.preventAutoHideAsync/, "Keep native splash at startup");
+  for (const [name, source] of [["login", login], ["signup", signup], ["branding", branding]]) {
+    assert.doesNotMatch(source, /b2b_mobile_login_background|loginBackground/, name + " must not use a second splash-like background");
+  }
+}
+
 async function main() {
+  checkStartupContract();
   await runCase(true);
   await runCase(false);
   console.log("B2B first-frame native splash / removal regression checks passed.");

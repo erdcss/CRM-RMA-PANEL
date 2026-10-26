@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SplashScreen } from 'expo-router';
+import { SplashScreen, useSegments } from 'expo-router';
 import { ImageBackground, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -21,10 +21,12 @@ const SPLASH_DURATION_MS = 5_000;
 
 function AppContent() {
   const branding = useMobileBranding();
+  const segments = useSegments();
   const { loading, session } = useAuth();
   const { mode } = useAppearance();
   const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
   const [paintedSplashUrl, setPaintedSplashUrl] = useState<string | null>(null);
+  const [initialRoutePainted, setInitialRoutePainted] = useState(false);
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -40,22 +42,42 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, []);
 
-  // The configurable splash comes only from admin branding. In particular,
-  // removal must never render an old image embedded in the native bundle.
-  // Without a configured image, don't artificially hold a 5-second splash.
+  // The splash is the only startup screen. The auth gate may still be
+  // replacing the initial route after restoring a session; never reveal
+  // the navigator until its correct destination has actually mounted.
+  const firstSegment = segments[0] as string | undefined;
+  const onAuthRoute = firstSegment === 'login' || firstSegment === 'signup' || firstSegment === 'forgot-password';
+  const routeReady = !loading && (session && !session.user.mustChangePassword
+    ? Boolean(firstSegment && !onAuthRoute)
+    : onAuthRoute);
+
+  useEffect(() => {
+    if (!routeReady || initialRoutePainted) return;
+    // Allow navigation and the target screen to paint before removing the
+    // opaque splash overlay. This guard is only for cold startup.
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => setInitialRoutePainted(true));
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) cancelAnimationFrame(secondFrame);
+    };
+  }, [routeReady, initialRoutePainted]);
+
   const liveSplashUrl = branding.b2b_mobile_splash;
   const hasManagedSplash = Boolean(liveSplashUrl);
-  const showSplash = loading || (!minimumSplashFinished && (!branding.loaded || hasManagedSplash));
+  const showSplash = !branding.loaded || !initialRoutePainted || (hasManagedSplash && !minimumSplashFinished);
 
-  // Keep the already-visible native splash in place until either the current
-  // admin image has painted or there is no longer an overlay to show.
-  // This prevents the empty/dark intermediate screen on cold launches.
+  // Until the live image is painted, the iOS native splash stays up.
+  // If no image is configured or download fails, keep the native artwork
+  // until navigation is ready, then go straight to the destination screen.
   const runtimeSplashReady = !liveSplashUrl || paintedSplashUrl === liveSplashUrl;
   useEffect(() => {
-    if (branding.loaded && (runtimeSplashReady || !showSplash)) {
+    if (branding.loaded && ((runtimeSplashReady && initialRoutePainted) || !showSplash)) {
       void SplashScreen.hideAsync();
     }
-  }, [branding.loaded, runtimeSplashReady, showSplash]);
+  }, [branding.loaded, runtimeSplashReady, initialRoutePainted, showSplash]);
 
   return (
     <View style={styles.root}>
@@ -72,7 +94,12 @@ function AppContent() {
               source={{ uri: branding.b2b_mobile_splash }}
               resizeMode="cover"
               style={StyleSheet.absoluteFillObject}
-              onLoad={() => setPaintedSplashUrl(branding.b2b_mobile_splash ?? null)}
+              onLoad={() => {
+                // An image being downloaded is not the same as a painted frame.
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  setPaintedSplashUrl(branding.b2b_mobile_splash ?? null);
+                }));
+              }}
             />
           ) : null}
           <StatusBar hidden={showSplash} style="light" />
