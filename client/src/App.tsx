@@ -57,6 +57,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
 import { trackSession } from "@/lib/analytics";
+import { B2BMetaPixelConsent } from "@/components/meta-pixel-consent";
 
 function isMarketplaceHost() {
   const configuredMode = String((import.meta as any).env?.VITE_APP_MODE || "").toLowerCase();
@@ -200,6 +201,7 @@ function B2BWebsite() {
 
   return (
     <div className="b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain">
+      <B2BMetaPixelConsent />
       <Switch>
         <Route path="/" component={B2BStorefront} />
         <Route path="/urun/:id" component={B2BProductPage} />
