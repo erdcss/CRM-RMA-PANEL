@@ -51,9 +51,10 @@ async function readAsset(value) {
   return null;
 }
 
-async function saveAsset(name, value) {
+async function saveAsset(name, value, required = true) {
   const asset = await readAsset(value);
   if (!asset || !asset.buffer.length) {
+    if (!required) return null;
     throw new Error("Admin panelindeki " + name + " görseli eksik; eski logo kullanılmayacak.");
   }
   fs.mkdirSync(assetsDir, { recursive: true });
@@ -83,13 +84,11 @@ async function main() {
   }
 
   const branding = await response.json();
-  if (target === "b2b" && (!branding.logo || !branding.splash)) {
-    throw new Error(
-      "Çalışkan B2B için admin panelinde Mobil Logo ve Splash Ekranı görsellerinin ikisi de yüklenmeli. Eski görselle build alınmayacak.",
-    );
+  if (target === "b2b" && !branding.logo) {
+    throw new Error("Çalışkan B2B için admin panelinde Mobil Logo gerekli. Splash isteğe bağlıdır.");
   }
   const logoPath = await saveAsset("logo", branding.logo);
-  const splashPath = await saveAsset("splash", branding.splash);
+  const splashPath = await saveAsset("splash", branding.splash, false);
   const androidIconPath = target === "b2b" && branding.androidIcon
     ? await saveAsset("android-icon", branding.androidIcon)
     : logoPath;
@@ -99,9 +98,7 @@ async function main() {
   if (target === "b2b" && !logoPath.endsWith(".png")) {
     throw new Error("iOS uygulama simgesi için admin paneline PNG mobil logo yükleyin.");
   }
-  if (target === "b2b" && !splashPath.endsWith(".png")) {
-    throw new Error("iOS açılış görseli için admin paneline PNG splash yükleyin.");
-  }
+
 
   if (!fs.existsSync(appJsonPath)) {
     throw new Error("app.json bulunamadı");
@@ -124,7 +121,7 @@ async function main() {
     };
   }
 
-  if (target === "b2b" && splashPath) {
+  if (target === "b2b") {
     // Android 12+ enforces a system-controlled centered splash icon.
     // Replace that native graphic with a transparent asset, leaving a matching
     // solid background before the React Native full-bleed branded splash takes over.
@@ -144,14 +141,17 @@ async function main() {
     };
   }
 
-  if (splashPath) {
+  if (target === "b2b") {
+    // A native OS splash is immutable after installation. Keep it neutral:
+    // admin branding is rendered at runtime and may be changed or removed
+    // without another EAS binary or an OTA JavaScript publish.
+    expo.splash = { backgroundColor: "#101010" };
+    if (expo.ios) delete expo.ios.splash;
+  } else if (splashPath) {
     expo.splash = {
-      ...(expo.splash || {}),
       image: splashPath,
       resizeMode: "cover",
-      backgroundColor:
-        expo.splash?.backgroundColor ||
-        (target === "business" ? "#0B0B0B" : "#FFFFFF"),
+      backgroundColor: "#0B0B0B",
     };
   }
 
@@ -186,7 +186,7 @@ async function main() {
 
   // Only files referenced by app.json are bundled. Older unreferenced files
   // may be locked by Windows Photos; cleanup should never block a valid build.
-  const activeFiles = new Set([path.basename(logoPath), path.basename(splashPath), path.basename(androidIconPath), ...(androidForegroundPath ? [path.basename(androidForegroundPath)] : [])]);
+  const activeFiles = new Set([logoPath, splashPath, androidIconPath, androidForegroundPath].filter(Boolean).map(file => path.basename(file)));
   for (const filename of fs.readdirSync(assetsDir)) {
     if (
       /^managed-(?:logo|splash|android-icon|android-foreground|header-logo)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
@@ -201,18 +201,15 @@ async function main() {
     }
   }
 
-  // Bundle the actual splash PNG into the JavaScript render tree too. Native
-  // splash display can finish before remote branding metadata is loaded.
-  // A literal require path is necessary for Metro to include the image.
+  // Do not bundle a fixed image as a fallback. The server is the source of
+  // truth, including when an admin deliberately removes the splash.
   if (target === "b2b") {
     const libDir = path.join(root, "lib");
     fs.mkdirSync(libDir, { recursive: true });
     const runtimePath = path.join(libDir, "managed-splash.ts");
-    const filename = path.basename(splashPath);
-    const source = `import type { ImageSourcePropType } from 'react-native';\nexport const managedSplash: ImageSourcePropType = require('../assets/${filename}');\n`;
-    if (!fs.existsSync(runtimePath) || fs.readFileSync(runtimePath, "utf8") !== source) {
-      fs.writeFileSync(runtimePath, source);
-    }
+    fs.writeFileSync(runtimePath,
+      "import type { ImageSourcePropType } from 'react-native';\n" +
+      "export const managedSplash: ImageSourcePropType | null = null;\n");
   }
 
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");

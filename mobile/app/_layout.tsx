@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ImageBackground, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -9,7 +9,6 @@ import { AlertProvider } from '@/contexts/AlertContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
-import { managedSplash } from '@/lib/managed-splash';
 import { registerB2BPush } from '@/lib/push';
 
 const SPLASH_DURATION_MS = 5_000;
@@ -34,9 +33,11 @@ function AppContent() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Keep Expo Router mounted from the first render. The fully opaque splash
-  // masks it until both the five-second minimum and auth recovery finish.
-  const showSplash = !minimumSplashFinished || loading;
+  // The configurable splash comes only from admin branding. In particular,
+  // removal must never render an old image embedded in the native bundle.
+  // Without a configured image, don't artificially hold a 5-second splash.
+  const hasManagedSplash = Boolean(branding.b2b_mobile_splash);
+  const showSplash = loading || (!minimumSplashFinished && (!branding.loaded || hasManagedSplash));
   return (
     <View style={styles.root}>
       <AppAlertBridge />
@@ -47,15 +48,8 @@ function AppContent() {
       {showSplash ? (
         <View style={styles.splash} pointerEvents="auto">
           {branding.b2b_mobile_splash ? (
-            <ImageBackground source={{ uri: branding.b2b_mobile_splash }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-          ) : managedSplash ? (
-            <ImageBackground source={managedSplash} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
-          ) : (
-            <View style={styles.splashFallback}>
-              <Text style={styles.splashBrand}>ÇALIŞKAN</Text>
-              <Text style={styles.splashSub}>B2B</Text>
-            </View>
-          )}
+            <ImageBackground key={branding.b2b_mobile_splash} source={{ uri: branding.b2b_mobile_splash }} resizeMode="cover" style={StyleSheet.absoluteFillObject} />
+          ) : null}
           <StatusBar hidden={showSplash} style="light" />
         </View>
       ) : null}
@@ -84,7 +78,4 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     backgroundColor: '#101010',
   },
-  splashFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFCD00' },
-  splashBrand: { color: '#101010', fontSize: 35, fontWeight: '900', letterSpacing: 1 },
-  splashSub: { color: '#101010', fontSize: 24, fontWeight: '900', alignSelf: 'center' },
 });

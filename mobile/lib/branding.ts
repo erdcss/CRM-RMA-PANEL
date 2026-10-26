@@ -54,7 +54,7 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
     const response = await fetch(
       `${API_URL}/api/public/mobile-branding/b2b?t=${Date.now()}`,
       {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
         signal: controller.signal,
       },
     );
@@ -117,10 +117,10 @@ export function useMobileBranding() {
 
     if (!appSubscription) {
       appSubscription = AppState.addEventListener('change', (state) => {
-        if (state === 'active') void refreshBranding();
+        if (state === 'active') void refreshBranding(true);
       });
     }
-    void refreshBranding();
+    void refreshBranding(true);
 
     return () => {
       listeners.delete(setBranding);

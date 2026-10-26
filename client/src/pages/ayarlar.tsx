@@ -277,7 +277,7 @@ export default function Ayarlar() {
                     <Smartphone className="h-5 w-5" />
                     Çalışkan B2B Mobile
                   </CardTitle>
-                  <CardDescription>Çalışkan B2B mobil uygulamasının logo, 5 saniyelik splash ve giriş ekranı görsellerini ayrı yönetin.</CardDescription>
+                  <CardDescription>Çalışkan B2B mobil uygulamasının logosu, isteğe bağlı açılış görseli ve giriş arka planı. Açılış görseli kaydedildiğinde bir sonraki uygulama açılışında sunucudan alınır; kaldırıldığında eski görsel geri gelmez. İlk sistem açılışında işletim sistemi tarafından gösterilen yerel ekranın nötr hale gelmesi için güncellenmiş iOS/Android sürümü gerekir.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <AssetUploader
@@ -300,7 +300,7 @@ export default function Ayarlar() {
                   />
                   <AssetUploader
                     title="Splash Ekranı"
-                    description="Önerilen: 1080×1920 piksel dikey PNG (9:16), yüksek çözünürlüklü ve kenarlara kadar uzanan tasarım. Android 12+ ilk sistem açılış ekranı üretici/işletim sistemi tarafından kontrol edilir; ardından görsel tam ekran ve kırpılarak (cover) gösterilir."
+                    description="İsteğe bağlı: 1080×1920 PNG (9:16). Kaydettiğinizde uygulama sonraki açılışta yeni görseli alır; kaldırırsanız açılışta eski görsel gösterilmez. Native başlangıç ekranı işletim sistemi kontrolündedir ve yalnızca yeni uygulama sürümüyle değişir."
                     value={values.b2b_mobile_splash}
                     onChange={(value) => setAsset("b2b_mobile_splash", value)}
                     pngOnly

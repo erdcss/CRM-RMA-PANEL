@@ -1,6 +1,6 @@
-// Runs BEFORE Expo native prebuild. Uses only Node built-ins because npm install
-// has not happened yet; this guarantees that a remote EAS build reads the newest
-// admin-uploaded icon and splash, rather than a stale checked-in asset.
+// Runs BEFORE Expo native prebuild. Uses only Node built-ins before npm install.
+// Embed the current app icon, but keep OS splash neutral: admin-managed splash
+// changes at runtime and is never frozen into the native iOS/Android binary.
 const fs=require("node:fs");
 const path=require("node:path");
 const {createHash}=require("node:crypto");
@@ -40,7 +40,6 @@ async function main(){
   });
   if(!response.ok)throw Error("B2B marka ayarları HTTP "+response.status);
   const branding=await response.json();
-  const splash=await download(branding.splash,"splash");
   const logo=await download(branding.logo,"logo");
   const androidIcon=branding.androidIcon?await download(branding.androidIcon,"android-icon"):logo;
   const configPath=path.join(root,"app.json");
@@ -52,14 +51,13 @@ async function main(){
   expo.android.adaptiveIcon={
     ...(expo.android.adaptiveIcon||{}),foregroundImage:androidIcon
   };
-  expo.splash={
-    ...(expo.splash||{}),image:splash,resizeMode:"cover",backgroundColor:"#101010"
-  };
+  expo.splash={backgroundColor:"#101010"};
+  expo.android.splash={backgroundColor:"#101010"};
+  if(expo.ios)delete expo.ios.splash;
   fs.writeFileSync(configPath,JSON.stringify(content,null,2)+"\n");
   const runtimePath=path.join(root,"lib","managed-splash.ts");
   fs.writeFileSync(runtimePath,"import type { ImageSourcePropType } from 'react-native';\n"+
-    "export const managedSplash: ImageSourcePropType = require('../assets/"+
-    path.basename(splash)+"');\n");
-  console.log("[EAS preinstall] Güncel B2B splash ve logo derleme kaynaklarına işlendi:",path.basename(splash));
+    "export const managedSplash: ImageSourcePropType | null = null;\n");
+  console.log("[EAS preinstall] Güncel B2B uygulama simgesi eklendi; yerel splash nötr:",path.basename(logo));
 }
 main().catch(error=>{console.error("[EAS preinstall] Güncel marka varlıkları alınamadığı için build durduruldu:",error.message);process.exit(1);});

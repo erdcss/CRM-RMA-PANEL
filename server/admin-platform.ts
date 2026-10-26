@@ -803,7 +803,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       if (!match) return res.status(415).end();
 
       res.setHeader("Content-Type", match[1]);
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.setHeader("X-Content-Type-Options", "nosniff");
       return res.send(Buffer.from(match[2], "base64"));
     } catch (error) {
       console.error("Public mobile image load failed:", error);
