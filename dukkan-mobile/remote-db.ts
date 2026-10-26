@@ -77,6 +77,14 @@ export async function report(){
  }
  return {monthly:Array.from(perMonth.values()).sort((a,b)=>b.month.localeCompare(a.month)).slice(0,24)};
 }
+export type SalesDocument={
+ invoice:{id:number;invoice_no:string;kind:"sale"|"sale_return";issued_at:string;party_name:string;party_tax_number?:string|null;party_phone?:string|null;store_name:string;subtotal:string|number;tax_total:string|number;grand_total:string|number};
+ lines:Array<{id:number;quantity:string|number;unit_price:string|number;tax_rate:string|number;line_total:string|number;sku:string;product_name:string;unit:string}>;
+ disclaimer:string;officialInvoice:false;
+};
+export async function getSaleDocument(id:number):Promise<SalesDocument>{
+ return request<SalesDocument>(path()+"/invoices/"+id+"/pdf-data");
+}
 export async function settings(){return {company:currentStore?.name||"Çalışkan Dükkan"};}
 type InputLine={productId:string|number;qty:string|number;price:string|number;vat:string|number};
 const lines=(v:InputLine[],isOrder=false)=>v.map(l=>({
