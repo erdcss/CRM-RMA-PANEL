@@ -1,4 +1,5 @@
-Çalışkan B2B iOS 1.1.0 TestFlight hedefli yeniden gönderim.
-Önceki deneme: https://github.com/erdcss/CRM-RMA-PANEL/actions/runs/39955183772
-Neden: App Store Connect, 1.0.1 versiyonunu yeni gönderimlere kapattı.
-Yalnızca B2B iOS derlenecek; başarılı AAB ve Business sürümleri tekrar derlenmeyecek.
+Çalışkan B2B iOS TestFlight sürüm isteği — 26.10.2026
+Kaynak commit: f18fbe790eb65e6252d50d0033fbbd0294539a7a
+Amaç: Admin panelinde splash değiştirme/kaldırma sonrası eski splash görselinin kalmasını gideren mobil düzeltmeyi iOS TestFlight'a göndermek.
+Yalnızca Çalışkan B2B iOS uygulaması derlensin ve TestFlight'a gönderilsin.
+Yeni native splash nötr; dinamik görsel güncel admin ayarından açılışta alınır.
