@@ -5,7 +5,7 @@ import { ArrowLeft, Boxes, Package, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
-import { B2BProductCard } from "@/components/b2b-product-card";
+import { B2BProductRail } from "@/components/b2b-product-rail";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
 import { loadB2BHomepageCategories, b2bCategoryImage, findB2BCategoryCard, matchesB2BCategory } from "@/lib/b2b-categories";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
@@ -60,7 +60,7 @@ export function B2BCategoriesDirectory(){
       </Link>
       <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Kategoriler</h1>
       <p className="mb-6 mt-2 text-sm text-slate-500">Ürün grubunu seçerek o kategoriye ait ürünleri görüntüleyin.</p>
-      {homepage.categories.length ? <B2BCategoryTiles homepage={homepage} allHref="/#urunler"/>
+      {homepage.categories.length ? <><p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Kategorileri görmek için sağa kaydırın →</p><B2BCategoryTiles homepage={homepage} allHref="/#urunler"/></>
       : <div className="rounded-2xl border bg-white p-8 text-center text-slate-500">Kategoriler hazırlanıyor veya henüz tanımlanmamış.</div>}
     </main>
     <B2BDesktopAppBanners/>
@@ -135,8 +135,9 @@ export default function B2BCategoryPage({category:rawCategory}:{category:string}
         <p className="mt-1 text-sm text-slate-500">Başka bir kategori seçebilir veya aramayı temizleyebilirsiniz.</p>
         <Link href="/kategoriler" className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Diğer Kategoriler</Link>
       </div>
-      :<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" aria-label={label+" kategorisindeki ürünler"}>
-        {filtered.map(product=><B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>)}
+      :<div>
+        <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Ürünleri görmek için sağa kaydırın →</p>
+        <B2BProductRail products={filtered} loggedIn={loggedIn} title={label+" kategorisindeki ürünler"}/>
       </div>}
       <Link href="/kategoriler" className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-amber-900 hover:underline">
         <ArrowLeft className="h-4 w-4"/> Tüm kategorilere dön
