@@ -176,7 +176,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     }finally{if(requestId===analysisRequest.current)setAnalyzing(false);}
   }
 
-  function restartForGallery(nextImages:string[]){
+  function restartForGallery(nextImages:string[],keepGenerated=false){
     // Removing or adding a photo invalidates earlier model output, but
     // manually entered fields stay intact across multiple scans.
     const cleaned={...formRef.current};
@@ -186,7 +186,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
     }
     aiValues.current={};
     formRef.current=cleaned;setForm(cleaned);setAiFilledKeys([]);
-    setPhotos(nextImages);setRenderedImage("");setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
+    setPhotos(nextImages);setRenderedImage(keepGenerated?renderedImage:"");setAnalyzed(false);setPhase("image");setAnalysisInfo("");setError("");
     const requestId=++analysisRequest.current;
     if(nextImages.length)void analyzeImages(nextImages,requestId);
     else setAnalyzing(false);
@@ -229,7 +229,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
         }
         next.push(image);
       }
-      if(next.length>photos.length)restartForGallery(next);
+      if(next.length>photos.length)restartForGallery(next,Boolean(renderedImage));
       if(unsupported>0){
         setError(unsupported+" fotoğraf HEIC/HEIF veya desteklenmeyen biçimde geldi. Galeriden JPG/PNG sürümünü seçin ya da fotoğrafı JPG olarak paylaşın.");
       }
@@ -262,7 +262,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
 
   function removePhoto(index:number){
     if(submitting)return;
-    restartForGallery(photos.filter((_,i)=>i!==index));
+    restartForGallery(photos.filter((_,i)=>i!==index),Boolean(renderedImage));
   }
 
   function retryAnalysis(){
@@ -327,7 +327,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
   }
   async function submit(){
     if(submitting||analyzing||rendering)return;
-    if(!photos.length||!analyzed||invalid.length){review();return;}
+    if(!galleryImages.length||!analyzed||invalid.length){review();return;}
     setSubmitting(true);setError("");
     try{
       const data={
@@ -450,7 +450,7 @@ export function AiProductStudioScreen({mode,onBack,onCreated}:{
           </View>
           <Text style={styles.analysisHint}>Analiz fotoğrafı seçer seçmez otomatik başladı.</Text>
         </View> : null}
-        {photos.length>0&&!analyzing&&!analyzed ? <View style={styles.card}>
+        {galleryImages.length>0&&!analyzing&&!analyzed ? <View style={styles.card}>
           <View style={styles.cardHeading}><Text style={styles.sectionIndex}>02</Text><View style={styles.flex}>
             <Text style={styles.heading}>Görsel analizi</Text>
             <Text style={styles.subheading}>Bağlantı hatası olduysa yeniden deneyin</Text>
