@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
-import { Building2, Plus, RefreshCw, Store, Trash2 } from "lucide-react";
+import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock } from "lucide-react";
 
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
@@ -31,6 +31,13 @@ export default function Dukkan() {
   const {data:branding}=useBranding();
   const [stores,setStores]=useState<Entry[]>([]);
   const [isAdmin,setIsAdmin]=useState(false);
+  const [isSuperAdmin,setIsSuperAdmin]=useState(false);
+  const [superUsername,setSuperUsername]=useState("");
+  const [superPassword,setSuperPassword]=useState("");
+  const [showSuperPassword,setShowSuperPassword]=useState(false);
+  const [showSuperForm,setShowSuperForm]=useState(false);
+  const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
+  const [navOpen,setNavOpen]=useState(false);
   const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState("");
   const [section,setSection]=useState<Section>("overview");
@@ -65,7 +72,7 @@ export default function Dukkan() {
       setStores(list);setStoreId(previous=>list.some(s=>String(s.id)===previous)?previous:String(list[0]?.id||""));
     }catch(e){setError((e as Error).message);}
   },[]);
-  useEffect(()=>{void loadStores(); void api("/api/auth/me").then(person=>setIsAdmin(["super_admin","admin"].includes(person.role))).catch(()=>{});},[loadStores]);
+  useEffect(()=>{void loadStores(); void api("/api/auth/me").then(person=>{setIsAdmin(["super_admin","admin"].includes(person.role));setIsSuperAdmin(person.role==="super_admin");}).catch(()=>{});},[loadStores]);
   const load=useCallback(async()=>{
     if(!storeId)return;
     try{
@@ -139,6 +146,31 @@ export default function Dukkan() {
     setDraft({name:String(item.name||""),sku:String(item.sku||""),barcode:String(item.barcode||""),unit:String(item.unit||"adet"),
       purchasePrice:String(item.purchase_price||0),salePrice:String(item.sale_price||0)});
     setNotice("");setError("");
+  };
+  const createSuperAdmin=async(e:FormEvent)=>{
+    e.preventDefault();
+    if(!isSuperAdmin||!storeId)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const record=await api("/api/dukkan/admin/super-managers",{
+        method:"POST",body:JSON.stringify({storeId:Number(storeId),username:superUsername.trim(),password:superPassword})
+      });
+      setNotice(record.username+" hesabı süper yönetici olarak oluşturuldu. Çalışkan Admin ve bu mağazaya giriş yapabilir.");
+      setSuperPassword("");setSuperUsername("");setShowSuperPassword(false);setShowSuperForm(false);
+      setRefresh(v=>v+1);
+    }catch(e){setError((e as Error).message);}
+    finally{setBusy(false);}
+  };
+  const exportPdf=async(invoice:Entry)=>{
+    if(pdfBusyId)return;
+    setPdfBusyId(String(invoice.id));setError("");
+    try{
+      const detail=await api(base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data");
+      const {exportSalesInvoicePdf}=await import("@/lib/dukkan-invoice-pdf");
+      await exportSalesInvoicePdf(detail);
+      setNotice("Satış belgesi PDF olarak indirildi: "+invoice.invoice_no);
+    }catch(e){setError("PDF hazırlanamadı: "+(e as Error).message);}
+    finally{setPdfBusyId(null);}
   };
   const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
