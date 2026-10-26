@@ -201,6 +201,29 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     });
     res.status(201).json(r);
   }));
+  // Read an immutable posted invoice amount from the user's authorized store.
+  // The PDF renderer receives only the requested invoice and its product lines.
+  // Cashiers may export sales documents only; purchases remain accountant-only.
+  app.get("/api/dukkan/stores/:storeId/invoices/:invoiceId/pdf-data",safe(async(req,res)=>{
+    const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
+    const db=await ready();
+    const invoice=await db.query(
+      "SELECT i.id,i.store_id,i.invoice_no,i.kind,i.issued_at,i.subtotal,i.tax_total,i.grand_total,i.status,p.name AS party_name,p.tax_number AS party_tax_number,p.phone AS party_phone,s.name AS store_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id JOIN dukkan_stores s ON s.id=i.store_id WHERE i.id=$1 AND i.store_id=$2",
+      [invoiceId,sid]
+    );
+    if(!invoice.rowCount)return res.status(404).json({error:"Bu mağazada fatura bulunamadı"});
+    const doc=invoice.rows[0];
+    if(!["sale","sale_return"].includes(doc.kind))
+      return res.status(400).json({error:"PDF dışa aktarımı yalnız satış belgeleri içindir"});
+    const lines=await db.query(
+      "SELECT l.id,l.quantity,l.unit_price,l.tax_rate,l.line_total,p.sku,p.name AS product_name,p.unit FROM dukkan_invoice_lines l JOIN dukkan_products p ON p.id=l.product_id AND p.store_id=$2 WHERE l.invoice_id=$1 ORDER BY l.id",
+      [invoiceId,sid]
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    res.json({invoice:doc,lines:lines.rows,officialInvoice:false,disclaimer:"Dahili satış belgesidir; GİB e-Fatura veya e-Arşiv faturası değildir."});
+  }));
+
   app.post("/api/dukkan/stores/:storeId/invoices",safe(async(req,res)=>{
     const p=docSchema.parse(req.body);
     if(p.kind!=="sale")accountant(res);const sid=store(req);
