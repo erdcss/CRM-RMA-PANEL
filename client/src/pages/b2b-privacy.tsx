@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
-const updatedAt = "20 Ekim 2026";
+const updatedAt = "26 Ekim 2026";
 
 const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] = [
   {
@@ -59,7 +59,9 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
     title: "7. Çerezler, cihaz izinleri ve analiz",
     paragraphs: [
       "Web sitesinde oturumun sürdürülmesi, güvenlik ve temel işlevler için çerezler veya benzer depolama teknikleri kullanılabilir. Mobil uygulama; kullanıcı tarafından izin verilen kamera, bildirim veya benzeri cihaz özelliklerine ilgili işlevlerin sağlanması amacıyla erişebilir. Kullanım ve hata kayıtları hizmet kalitesini iyileştirmek için değerlendirilebilir.",
-      "Zorunlu olmayan ölçüm ve pazarlama teknolojileri kullanılıyorsa, bunların kapsamı ile gerekli tercih ve izin mekanizmaları ayrıca sağlanmalıdır."
+      "B2B web mağazasındaki Meta Pixel yalnızca ziyaretçinin reklam ve ölçüm çerezlerine açıkça izin vermesi üzerine yüklenir. İzin verilirse sayfa görüntüleme, ürün görüntüleme, arama, sepete ekleme, ödeme başlatma, doğrulanmış satın alma ve yeni kayıt başvurusu gibi etkileşimlerin olay bilgileri Meta ile paylaşılabilir.",
+      "Meta Conversions API erişimi sunucuda etkinleştirilmişse ve ziyaretçi ölçüme izin vermişse, doğrulanmış satın alma olayları eşleştirme amacıyla SHA-256 ile özetlenmiş e-posta ve sınırlı teknik bilgilerle Meta tarafına iletilebilir. Meta hizmetleri nedeniyle yurt dışına aktarım söz konusu olabileceğinden, veri sorumlusu gerekli KVKK değerlendirmelerini ayrıca yapmalıdır.",
+      "Bu isteğe bağlı ölçümden vazgeçmek veya yeniden izin vermek için web mağazası altındaki Reklam ve çerez tercihleri bağlantısını kullanabilirsiniz. Ret halinde Meta Pixel yüklenmez; site alışveriş işlevleri devam eder."
     ]
   },
   {
