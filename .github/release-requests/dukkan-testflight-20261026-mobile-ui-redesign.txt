@@ -1,0 +1,18 @@
+Çalışkan Dükkan — Native iOS TestFlight design release request
+Date: 2026-10-26
+Approved user reference: newly generated blue-gradient Çalışkan Dükkan Genel Bakış app redesign.
+Merged change: cdbd03f7565dc440cf87c55d04bbf05f5a5c09b9 (PR #14)
+Verified GitHub CI:
+ - PR native iOS and Android exports passed, run 40368994870
+ - React Native TypeScript passed, run 40368994884
+ - Existing accounting tests and Windows package passed, run 40368994884
+Release features:
+ - Updated logo-colored title, account info and secure store selection
+ - Modern real-time home with quick action cards and all dashboard KPI tiles
+ - Functional native tab navigation icons and bottom menu
+ - Date label derives from device instead of reference mockup date
+ - Existing products, inventory, invoicing, sales PDFs and manager permissions retained
+Expo project 21b3de7c-763f-4c25-87aa-66e818498d6e
+Apple Bundle com.caliskan.dukkan
+ASC app 6826848065
+Use the existing verified EAS credentials; single paid iOS build and submission to TestFlight.
