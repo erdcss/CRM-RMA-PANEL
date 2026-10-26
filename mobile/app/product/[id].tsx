@@ -30,14 +30,12 @@ function money(value: string | number | null | undefined) {
   })} ₺`;
 }
 
-function productImage(product?: B2BProduct | null) {
-  if (!product) return null;
-  const raw =
-    product.image_data ||
-    product.image_url ||
-    (Array.isArray(product.images) ? product.images[0] : null) ||
-    null;
-  return absoluteMediaUrl(raw);
+function productImages(product?: B2BProduct | null): string[] {
+  if (!product) return [];
+  const urls = [ ...(Array.isArray(product.images) ? product.images : []), product.image_data, product.image_url ]
+    .map(value => absoluteMediaUrl(value))
+    .filter((value):value is string => Boolean(value));
+  return [...new Set(urls)];
 }
 
 export default function ProductDetailScreen() {
@@ -48,6 +46,8 @@ export default function ProductDetailScreen() {
   const { session } = useAuth();
 
   const [product, setProduct] = useState<B2BProduct | null>(null);
+  const [galleryWidth,setGalleryWidth]=useState(0);
+  const [galleryIndex,setGalleryIndex]=useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [companyLogo,setCompanyLogo]=useState<string|null>(null);
@@ -86,6 +86,7 @@ export default function ProductDetailScreen() {
     request
       .then((value) => {
         setProduct(value);
+        setGalleryIndex(0);
         setQuantity(Math.max(1, Number(value.min_order_qty || 1)));
       })
       .catch((loadError) => {
@@ -147,7 +148,8 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const image = productImage(product);
+  const images = productImages(product);
+  const image = images[0] || null;
   const isSellerProduct = isMarketplaceProduct(product);
   const loggedIn =
     session?.user?.role === 'b2b_customer' && session?.user?.isActive === true;
@@ -163,16 +165,37 @@ export default function ProductDetailScreen() {
           <Text style={styles.backText}>Ürünlere dön</Text>
         </Pressable>
 
-        <View style={styles.imageCard}>
-          {image ? (
-            <Image
-              source={{ uri: image }}
-              style={styles.productImage}
-              contentFit="contain"
-            />
+        <View style={styles.imageCard} onLayout={(event) => setGalleryWidth(event.nativeEvent.layout.width)}>
+          {images.length ? (
+            <ScrollView
+              horizontal
+              pagingEnabled
+              nestedScrollEnabled
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={(event) => {
+                const width = event.nativeEvent.layoutMeasurement.width || galleryWidth;
+                setGalleryIndex(width ? Math.min(images.length - 1, Math.max(0, Math.round(event.nativeEvent.contentOffset.x / width))) : 0);
+              }}
+            >
+              {images.map((url, index) => (
+                <Image
+                  key={url + index}
+                  source={{ uri: url }}
+                  style={[styles.productImage, { width: galleryWidth || 320 }]}
+                  contentFit="contain"
+                  cachePolicy="memory-disk"
+                />
+              ))}
+            </ScrollView>
           ) : (
             <Ionicons name="cube-outline" size={72} color={colors.border} />
           )}
+          {images.length > 0 ? (
+            <View style={styles.imageCounter} pointerEvents="none">
+              <Text style={styles.imageCounterText}>{Math.min(galleryIndex + 1, images.length)}/{images.length}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.detailCard}>
@@ -605,9 +628,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     overflow: 'hidden',
   },
   productImage: {
-    width: '100%',
     height: '100%',
   },
+  imageCounter:{position:'absolute',right:12,bottom:12,backgroundColor:'rgba(12,20,31,0.8)',borderRadius:13,paddingHorizontal:12,paddingVertical:7},
+  imageCounterText:{color:'#FFFFFF',fontWeight:'800',fontSize:12},
   detailCard: {
     marginTop: spacing.md,
     borderRadius: radius.xl,
