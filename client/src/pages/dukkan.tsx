@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
+import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock } from "lucide-react";
 
 type Entry = Record<string, any>;
@@ -33,10 +34,6 @@ export default function Dukkan() {
   const [stores,setStores]=useState<Entry[]>([]);
   const [isAdmin,setIsAdmin]=useState(false);
   const [isSuperAdmin,setIsSuperAdmin]=useState(false);
-  const [superUsername,setSuperUsername]=useState("");
-  const [superPassword,setSuperPassword]=useState("");
-  const [showSuperPassword,setShowSuperPassword]=useState(false);
-  const [showSuperForm,setShowSuperForm]=useState(false);
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState("");
@@ -147,20 +144,6 @@ export default function Dukkan() {
       purchasePrice:String(item.purchase_price||0),salePrice:String(item.sale_price||0)});
     setNotice("");setError("");
   };
-  const createSuperAdmin=async(e:FormEvent)=>{
-    e.preventDefault();
-    if(!isSuperAdmin||!storeId)return;
-    setBusy(true);setError("");setNotice("");
-    try{
-      const record=await api("/api/dukkan/admin/super-managers",{
-        method:"POST",body:JSON.stringify({storeId:Number(storeId),username:superUsername.trim(),password:superPassword})
-      });
-      setNotice(record.username+" hesabı süper yönetici olarak oluşturuldu. Çalışkan Admin ve bu mağazaya giriş yapabilir.");
-      setSuperPassword("");setSuperUsername("");setShowSuperPassword(false);setShowSuperForm(false);
-      setRefresh(v=>v+1);
-    }catch(e){setError((e as Error).message);}
-    finally{setBusy(false);}
-  };
   const exportPdf=async(invoice:Entry)=>{
     if(pdfBusyId)return;
     setPdfBusyId(String(invoice.id));setError("");
@@ -215,6 +198,9 @@ export default function Dukkan() {
           </div>}
           {section==="reports"&&<div className={softCard+" mb-4"}><h2 className="font-bold">Vadesi geçmiş çek ve senetler</h2><p className="mt-2 text-sm">Belge: {fmt(report?.overdue?.count)} · Toplam: {currency(report?.overdue?.amount)}</p><p className="mt-2 text-xs text-slate-500">Raporlar kayıtlı işlemlerden üretilir; resmî mali tablo veya GİB e-Fatura yerine geçmez.</p></div>}
           {section==="overview"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
+          {section==="overview"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
+            onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
+            onError={setError}/>}
           <div className={softCard}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div><h2 className="text-lg font-black">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="text-xs text-slate-500">{displayed.length} kayıt · Mağaza: {currentStore?.name}</p></div>
@@ -284,7 +270,7 @@ export default function Dukkan() {
                     section==="instruments"?["Belge No","Cari","Tür","Tutar","Vade","Durum"]:
                     section==="banks"?["Tarih","Banka","İşlem","Tutar"]:
                     ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-3 py-3 font-semibold">{h}</th>)}
-                  {(section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
+                  {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
                 <tbody>{displayed.map(r=><tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
                   {(section==="products"?[r.sku,r.name,r.barcode,r.stock,currency(r.purchase_price),currency(r.sale_price)]:
@@ -295,6 +281,13 @@ export default function Dukkan() {
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
                     [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]).map((v,i)=><td key={i} className="whitespace-nowrap px-3 py-3">{fmt(v)}</td>)}
+                  {section==="sales"&&<td className="px-3 py-3">
+                    <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
+                      title="Dahili satış belgesini PDF indir" aria-label={"PDF indir: "+r.invoice_no}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
+                      <Download size={15}/>{pdfBusyId===String(r.id)?"Hazırlanıyor...":"PDF İndir"}
+                    </button>
+                   </td>}
                   {section==="products"&&canManage&&<td className="px-3 py-3"><button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100" onClick={()=>editProduct(r)}>Düzenle</button></td>}
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
