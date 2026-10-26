@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import {Image} from "react-native";
 import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
+import {DUKKAN_THEME} from "./design-system";
 import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
 import {StatusBar as ExpoStatusBar} from "expo-status-bar";
 import {today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
@@ -237,6 +238,14 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     {shown.length>250&&<Text style={styles.hint}>İlk 250 kayıt gösteriliyor. Arama ile filtreleyin.</Text>}
    </View>}
   </ScrollView>
+  <View style={styles.bottomDock}>
+    {([{key:"dashboard",title:"Özet"},{key:"invoices",title:"Faturalar"},{key:"products",title:"Ürünler"},{key:"parties",title:"Cariler"},{key:"report",title:"Raporlar"}] as {key:Tab;title:string}[])
+      .filter(t=>!cashier||!["products","report"].includes(t.key))
+      .map(t=><Pressable key={t.key} accessibilityRole="button" onPress={()=>{setTab(t.key);setFilter("");setFormType(null);}}
+        style={[styles.dockButton,tab===t.key?styles.dockActive:null]}>
+        <Text style={[styles.dockText,tab===t.key?styles.dockTextActive:null]}>{t.title}</Text>
+      </Pressable>)}
+  </View>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
    <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{formType==="productEdit"?"Ürünü Düzenle":ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
     <ScrollView contentContainerStyle={{padding:20,paddingBottom:35}} keyboardShouldPersistTaps="always">
@@ -272,7 +281,8 @@ const styles=StyleSheet.create({
  field:{marginBottom:17},label:{fontSize:12,color:"#475971",fontWeight:"800",marginBottom:7},input:{backgroundColor:"white",borderWidth:1,borderColor:"#d6dee9",borderRadius:11,paddingHorizontal:12,paddingVertical:10,fontSize:14,color:f.ink,minHeight:45},
  chip:{borderRadius:11,backgroundColor:"#eef2f6",paddingHorizontal:14,paddingVertical:11,marginRight:8,marginBottom:5},chipActive:{backgroundColor:f.ink},
  line:{padding:14,backgroundColor:"#f5f8fb",borderWidth:1,borderColor:f.border,borderRadius:12,marginBottom:13},lineInputRow:{flexDirection:"row",gap:9,marginTop:12},smallLabel:{fontSize:10,color:f.muted,marginBottom:6},total:{fontSize:15,fontWeight:"800",color:f.ink,textAlign:"right",marginVertical:18},
- error:{color:"#ac3b4b",backgroundColor:"#fff0f0",padding:14,borderRadius:9,marginBottom:12}
+ error:{color:"#ac3b4b",backgroundColor:"#fff0f0",padding:14,borderRadius:9,marginBottom:12},
+ ...DUKKAN_THEME
 });
 
 type ActiveSession={token:string;stores:StoreInfo[];store:StoreInfo;user:{id:number;username:string}};
@@ -347,7 +357,7 @@ export default function App(){
  </SafeAreaView>;
  if(account)return <StoreApp key={String(account.store.id)} session={account} onLogout={leave} onSwitch={switchStore}/>;
  return <SafeAreaView style={{flex:1,justifyContent:"center",padding:25,backgroundColor:"#f4f6fa"}}>
-  <View style={{backgroundColor:"white",borderRadius:24,padding:25,borderWidth:1,borderColor:"#e4eaf1"}}>
+  <View style={{backgroundColor:"white",borderRadius:28,padding:26,borderWidth:1,borderColor:"#dfebfa",shadowColor:"#0b1e3c",shadowOpacity:0.12,shadowRadius:25,shadowOffset:{width:0,height:13},elevation:5}}>
    <View style={{alignItems:"center",marginBottom:24}}>
     {logo?<Image source={{uri:logo}} style={{width:100,height:100,borderRadius:20}} resizeMode="contain"/>:
       <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"900",fontSize:26}}>ÇD</Text></View>}
