@@ -274,6 +274,7 @@ export default function Dukkan() {
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
                     [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]).map((v,i)=><td key={i} className="whitespace-nowrap px-3 py-3">{fmt(v)}</td>)}
+                  {section==="products"&&canManage&&<td className="px-3 py-3"><button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100" onClick={()=>editProduct(r)}>Düzenle</button></td>}
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
               </table>
