@@ -37,7 +37,7 @@ try {
   const product=await call("POST",base+"/products",{name:"Test Ürünü",sku:"TEST-001",purchasePrice:50,salePrice:100},201);
   const purchase={partyId:supplier.id,kind:"purchase",number:"A-001",requestKey:randomUUID(),lines:[{productId:product.id,quantity:2,unitPrice:50,taxRate:20}]};
   const purchased=await call("POST",base+"/invoices",purchase,201);
-  assert.match(purchased.invoice_no,/^\\d{14}$/,"Invoice number must be generated from 14 digits");
+  assert.match(purchased.invoice_no,/^[0-9]{14}$/,"Invoice number must be generated from 14 digits");
   assert.notEqual(purchased.invoice_no,"A-001","Caller-supplied number must never override generated number");
   const edited=await call("PATCH",base+"/products/"+product.id,{name:"Test Ürünü Düzenlendi",sku:"TEST-001",unit:"adet",purchasePrice:55,salePrice:105});
   assert.equal(edited.name,"Test Ürünü Düzenlendi");
@@ -52,7 +52,7 @@ try {
 
   const sale={...invalidSale,number:"S-001",requestKey:randomUUID(),lines:[{productId:product.id,quantity:1,unitPrice:100,taxRate:20}]};
   const first=await call("POST",base+"/invoices",sale,201);
-  assert.match(first.invoice_no,/^\\d{14}$/);
+  assert.match(first.invoice_no,/^[0-9]{14}$/);
   assert.notEqual(first.invoice_no,purchased.invoice_no,"Invoice numbers must be globally unique");
   const repeat=await call("POST",base+"/invoices",sale,201);
   assert.equal(first.id,repeat.id,"Request UUID must be idempotent");
