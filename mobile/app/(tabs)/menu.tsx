@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -7,7 +8,7 @@ import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
-import { rmaApi } from '@/lib/api';
+import { rmaApi, homepageMediaUrl, type HomeCategoryCard } from '@/lib/api';
 
 export default function MenuScreen() {
   const { palette } = useAppearance();
@@ -16,11 +17,15 @@ export default function MenuScreen() {
   const {user}=useAuth();
   const mayAdd=user?.role==='super_admin'||user?.role==='b2b_seller';
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
 
   useEffect(() => {
     rmaApi
       .getB2BHomepage()
-      .then((data) => setCategories(data.categories || []))
+      .then((data) => {
+        setCategories(Array.from(new Set([...(data.categories || []), ...(data.categoryCards || []).map(card => card.category)])));
+        setCategoryCards(data.categoryCards || []);
+      })
       .catch(() => setCategories([]));
   }, []);
 
@@ -40,7 +45,7 @@ export default function MenuScreen() {
 
   const openCategory = (category: string) => {
     router.push({
-      pathname: '/(tabs)',
+      pathname: '/collection/[category]',
       params: { category },
     } as never);
   };
@@ -76,21 +81,23 @@ export default function MenuScreen() {
         </Pressable>:null}
 
         <View style={styles.list}>
-          {categories.map((category, index) => (
+          {categories.map((category, index) => {
+            const card = categoryCards.find(item => item.category.toLocaleLowerCase('tr-TR') === category.toLocaleLowerCase('tr-TR'));
+            return (
             <Pressable
               key={category}
               style={styles.item}
               onPress={() => openCategory(category)}
             >
               <View style={styles.iconBox}>
-                <Ionicons
+                {card?.imageId ? <Image source={{ uri: homepageMediaUrl(card.imageId) || '' }} style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" /> : <Ionicons
                   name={icons[index % icons.length]}
                   size={22}
                   color={palette.text}
-                />
+                />}
               </View>
               <View style={styles.textGroup}>
-                <Text style={styles.itemTitle}>{category}</Text>
+                <Text style={styles.itemTitle}>{card?.label || category}</Text>
                 <Text style={styles.itemSubtitle}>
                   {category} ürünlerini görüntüle
                 </Text>
@@ -101,7 +108,7 @@ export default function MenuScreen() {
                 color={palette.muted}
               />
             </Pressable>
-          ))}
+          );})}
         </View>
 
         {categories.length === 0 ? (
@@ -190,6 +197,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  categoryImage: { width: 44, height: 44, borderRadius: radius.lg },
   textGroup: {
     flex: 1,
   },
