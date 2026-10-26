@@ -7,7 +7,7 @@ import { Search, Package, Boxes, Truck, ShieldCheck, BadgeCheck, Store } from "l
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
-import { B2BProductCard } from "@/components/b2b-product-card";
+import { B2BProductRail } from "@/components/b2b-product-rail";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
@@ -160,6 +160,7 @@ export default function B2BStorefront() {
               </div>
               <Link href="/kategoriler" className="shrink-0 text-xs font-bold text-amber-800 hover:underline">Tüm kategoriler</Link>
             </div>
+            <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Kategorileri görmek için sağa kaydırın →</p>
             <B2BCategoryTiles homepage={homepage} />
           </section>
         ) : null}
@@ -220,11 +221,9 @@ export default function B2BStorefront() {
             <p className="mt-1 text-sm text-slate-500">Yeni ürünler eklendiğinde burada görüntülenecek.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {filtered.map((product) => (
-              <B2BProductCard key={String(product.id)} product={product} loggedIn={loggedIn}/>
-            ))}
-
+          <div>
+            <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Ürünleri görmek için sağa kaydırın →</p>
+            <B2BProductRail products={filtered} loggedIn={loggedIn} title="Toptan Ürünler" />
           </div>
         )}
       </main>
