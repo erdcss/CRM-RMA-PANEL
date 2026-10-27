@@ -36,7 +36,7 @@ export function SupplierOrdersList({orders,onOpen}:{
     </View>
     {!visible.length?<View style={styles.empty}><Text style={styles.emptyTitle}>Onaylanan sipariş bulunamadı.</Text>
       <Text style={styles.subtitle}>{query?"Arama kriterlerini değiştirebilirsiniz.":"Henüz onaylanan sipariş yok."}</Text>
-    </View>:visible.map(order=><TouchableOpacity key={String(order.id)} onPress={()=>onOpen?.(order.id)}
+    </View>:visible.map(order=><TouchableOpacity key={String(order.id)} onPress={()=>onOpen?.(Number(order.id))}
       activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={"Sipariş "+order.order_id+" detaylarını aç"}
       style={styles.card}>
       <View style={styles.cardTop}>
