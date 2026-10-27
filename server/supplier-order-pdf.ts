@@ -47,7 +47,7 @@ export function generateSupplierOrderPdf(order:SupplierOrderView,variant:Supplie
       pdf.setTextColor(15,23,42);pdf.setFont("helvetica","normal");pdf.setFontSize(8.5);
       pdf.text(lines,42,y);y+=Math.max(1,lines.length)*5+2;
     }
-    body("Durum",left,y);title(order.status==="paid"?"Odendi":"Onay Bekliyor",42,y,9);y+=7;
+    body("Durum",left,y);title(["paid","approved","confirmed","onaylandi"].includes(String(order.status))?"Onaylandi":"Onay Bekliyor",42,y,9);y+=7;
     body("Odeme",left,y);title(order.payment_method==="bank_transfer"?"Havale / EFT":
       order.payment_method==="card"?"Kredi / Banka Karti":"Belirtilmemis",42,y,9);y+=7;
     body("Teslimat turu",left,y);title(order.delivery_mode==="warehouse"?"Depo":
