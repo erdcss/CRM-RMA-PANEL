@@ -12,10 +12,19 @@ test("Tedarikçi sipariş API'si müşteri iletişim bilgilerini asla içermez",
     items:[{productId:12,sku:"TS12",name:"Ürün",boxes:1,unitsPerBox:2,price:100,total:200,
       customer_phone:"0532 123 45 67",shipping_address:{phone:"0532 123 45 67"}}],
   });
+  const safeOrder=supplierOrderView({
+    id:44,order_id:103,status:"paid",subtotal:"1000",customer_company:"Yapı Ticaret 0532 111 22 33",
+    delivery_address:"İstoç 19. Ada, 0532 111 22 33, info@example.com",
+    payment_method:"bank_transfer",items:[],
+  });
+  assert.equal(JSON.stringify(safeOrder).includes("0532 111 22 33"),false);
+  assert.equal(JSON.stringify(safeOrder).includes("info@example.com"),false);
+  assert.equal(safeOrder.payment_method,"bank_transfer");
   assert.equal(order.id,42);
   assert.equal(order.items[0].sku,"TS12");
   assert.deepEqual(Object.keys(order).sort(),[
-    "created_at","currency","delivery_mode","id","items","order_id","status","subtotal",
+    "created_at","currency","customer_company","delivery_address","delivery_mode",
+    "id","items","order_id","payment_method","status","subtotal",
   ].sort());
   assert.deepEqual(Object.keys(order.items[0]).sort(),[
     "boxes","name","price","productId","sku","total","unitsPerBox",
@@ -28,7 +37,7 @@ test("Tedarikçi sipariş API'si müşteri iletişim bilgilerini asla içermez",
 
 test("Müşterinin telefon bilgisi tedarikçi mesajlarından maskelenir", () => {
   for(const phone of ["+90 532 111 22 33","0532 111 22 33","5321112233","0212 555 44 33","0090 212 555 44 33"]){
-    assert.equal(redactCustomerPhones("Telefon: "+phone),"Telefon: [Telefon bilgisi gizlendi]");
+    assert.equal(redactCustomerPhones("Telefon: "+phone),"Telefon: [Telefon gizlendi]");
   }
   assert.equal(redactCustomerPhones("Barkod: 8691234567890, SKU ABC-2026"),"Barkod: 8691234567890, SKU ABC-2026");
 });
