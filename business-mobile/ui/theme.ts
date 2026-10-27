@@ -47,6 +47,14 @@ export function shortDate(value?: string | null) {
   });
 }
 
+// Match the backend dashboard's approved-order statuses exactly.
+// Pending bank transfers, reported-but-unverified payments and failed orders
+// must never appear as approved in Çalışkan Business order listings.
+const BUSINESS_APPROVED_ORDER_STATUSES = new Set(["approved", "confirmed", "paid", "onaylandi"]);
+export function isApprovedBusinessOrder(status?: string | null): boolean {
+  return BUSINESS_APPROVED_ORDER_STATUSES.has(String(status ?? "").trim().toLowerCase());
+}
+
 export function statusMeta(status?: string | null) {
   const key = String(status || "").toLowerCase();
   if (["delivered", "completed", "teslim_edildi"].includes(key)) {
