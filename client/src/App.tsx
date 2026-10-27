@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -192,6 +193,12 @@ function MarketplaceDomainRedirect() {
 }
 
 function B2BWebsite() {
+  const [routePath] = useLocation();
+  const reduceMotion = useReducedMotion();
+  useEffect(() => {
+    const scroller = document.querySelector<HTMLElement>(".b2b-site");
+    if (scroller) scroller.scrollTop = 0;
+  }, [routePath]);
   useEffect(() => {
     document.title = "Çalışkan B2B";
     void trackSession();
@@ -204,7 +211,15 @@ function B2BWebsite() {
   return (
     <div className="b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain pb-[calc(106px+env(safe-area-inset-bottom,0px))] md:pb-[116px]">
       <B2BMetaPixelConsent />
-      <Switch>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={routePath}
+          initial={reduceMotion ? false : { opacity: 0, x: 14 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduceMotion ? undefined : { opacity: 0, x: -10 }}
+          transition={{ duration: reduceMotion ? 0 : 0.20, ease: "easeOut" }}
+        >
+      <Switch location={routePath}>
         <Route path="/" component={B2BStorefront} />
         <Route path="/kategoriler" component={B2BCategoriesDirectory} />
         <Route path="/kategori/:category">{(params)=><B2BCategoryPage category={params.category}/>}</Route>
@@ -234,6 +249,8 @@ function B2BWebsite() {
         <Route path="/kullanim-kosullari" component={B2BTermsPage} />
         <Route component={B2BStorefront} />
       </Switch>
+        </motion.div>
+      </AnimatePresence>
       <B2BBottomNav />
     </div>
   );
