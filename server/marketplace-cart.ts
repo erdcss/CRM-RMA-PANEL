@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
 import { supplierOrderView } from "./supplier-privacy";
+import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
@@ -94,9 +95,8 @@ function lines(rows:any[]){
 const validateCart=z.object({productId:z.number().int().positive(),boxes:z.number().int().min(1).max(10000),
   deliveryMode:z.enum(["direct","warehouse"])}).strict();
 export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHandler,requireSeller:RequestHandler){
- app.get("/api/marketplace/seller/orders",requireSeller,async(_req,res)=>{
-  try{
-   const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
+ async function loadSupplierOrders(uid:number){
+   const db=await ready();
    const result=await db.query(`SELECT d.id,d.order_id,d.status,d.subtotal,d.delivery_mode,
      o.created_at,o.currency,
      COALESCE(json_agg(json_build_object('productId',i.product_id,'sku',p.sku,'name',v.content->>'name',
@@ -135,9 +135,48 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
      ...result.rows.map(supplierOrderView),
    ];
    combined.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
-   res.setHeader("Cache-Control","private, no-store");
-   res.json(combined);
-  }catch(e){console.error("Seller orders:",e);res.status(500).json({error:"Siparişler yüklenemedi"});}
+   return combined;
+ }
+ const pdfTickets=new Map<string,{buffer:Buffer;expiresAt:number;fileName:string}>();
+ app.get("/api/marketplace/seller/orders/pdf/:ticket",(req,res)=>{
+   const ticket=String(req.params.ticket||"");
+   const entry=pdfTickets.get(ticket);
+   pdfTickets.delete(ticket);
+   res.setHeader("Cache-Control","no-store, private");
+   if(!entry||Date.now()>entry.expiresAt)return res.status(404).send("PDF bağlantısı geçersiz veya süresi dolmuş.");
+   res.setHeader("Content-Type","application/pdf");
+   res.setHeader("Content-Disposition",'attachment; filename="'+entry.fileName+'"');
+   res.setHeader("X-Content-Type-Options","nosniff");
+   return res.end(entry.buffer);
+ });
+ app.post("/api/marketplace/seller/orders/:id/pdf-link",requireSeller,async(req,res)=>{
+   res.setHeader("Cache-Control","private,no-store");
+   try{
+     const rawId=Number(req.params.id);
+     const uid=Number((res.locals as any).b2bUser.id);
+     if(!Number.isSafeInteger(rawId)||rawId===0)return res.status(400).json({error:"Geçersiz sipariş kimliği"});
+     const orders=await loadSupplierOrders(uid);
+     const order=orders.find((candidate)=>Number(candidate.id)===rawId);
+     if(!order)return res.status(404).json({error:"Bu siparişin PDF dosyasına erişim yetkiniz yok"});
+     const buffer=generateSupplierOrderPdf(order);
+     const ticket=randomBytes(32).toString("hex");
+     const fileName="Caliskan-B2B-Tedarikci-Siparis-"+Math.abs(rawId)+".pdf";
+     for(const [key,value] of pdfTickets)if(value.expiresAt<Date.now())pdfTickets.delete(key);
+     if(pdfTickets.size>80){const key=pdfTickets.keys().next().value;if(key)pdfTickets.delete(key);}
+     pdfTickets.set(ticket,{buffer,expiresAt:Date.now()+120000,fileName});
+     return res.json({url:"https://admin.ecalisgan.com/api/marketplace/seller/orders/pdf/"+ticket,expiresInSeconds:120});
+   }catch(error){
+     console.error("Supplier order PDF:",error instanceof Error?error.message:"unknown");
+     return res.status(500).json({error:"Sipariş PDF dosyası hazırlanamadı"});
+   }
+ });
+ app.get("/api/marketplace/seller/orders",requireSeller,async(_req,res)=>{
+   try{
+     const uid=Number((res.locals as any).b2bUser.id);
+     const combined=await loadSupplierOrders(uid);
+     res.setHeader("Cache-Control","private, no-store");
+     return res.json(combined);
+   }catch(e){console.error("Seller orders:",e);return res.status(500).json({error:"Siparişler yüklenemedi"});}
  });
  app.get("/api/marketplace/cart",requireB2B,async(_req,res)=>{
   try{const db=await ready();const r=await db.query(listQuery,[Number((res.locals as any).b2bUser.id)]);
