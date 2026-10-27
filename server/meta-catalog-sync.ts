@@ -85,7 +85,7 @@ async function syncNow(manual=false):Promise<{status:string;count:number;message
     await setup();
     await poll(cfg.catalogId);
     const source=await loadMetaCatalogItems();
-    if(source.sourceCount===0)throw new Error("Ürün kaynağı boş; toplu silme güvenlik nedeniyle durduruldu");
+    if(source.sourceCount===0||source.items.length===0)throw new Error("Uygun ürün listesi boş; toplu silme güvenlik nedeniyle durduruldu");
     const r=await pool.query("SELECT product_id,content_hash FROM meta_catalog_sync_items WHERE catalog_id=$1",[cfg.catalogId]);
     const hashes=new Map<string,string>(r.rows.map(row=>[String(row.product_id),String(row.content_hash)]));
     const pending=await pool.query("SELECT items FROM meta_catalog_sync_batches WHERE catalog_id=$1 AND state='pending'",[cfg.catalogId]);
@@ -173,7 +173,7 @@ export function registerMetaCatalogAdmin(app:Express,requireAdmin:RequestHandler
       return res.json({ok:true,id:info.id,name:info.name,product_count:info.product_count});
     }catch(error){return res.status(502).json({error:errorText(error)});}
   });
-  if(!timerStarted&&(process.env.RAILWAY_SERVICE_NAME==="Caliskan-B2B-Web"||process.env.VITE_APP_MODE==="b2b")){
+  if(!timerStarted&&(process.env.RAILWAY_SERVICE_NAME==="CRM-RMA-PANEL"||process.env.VITE_APP_MODE==="admin")){
     timerStarted=true;
     const timer=setInterval(()=>{void syncNow().catch(error=>console.warn("Meta schedule:",errorText(error)));},15_000);
     timer.unref();
