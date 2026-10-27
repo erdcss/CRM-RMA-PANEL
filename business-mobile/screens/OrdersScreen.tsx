@@ -12,14 +12,8 @@ import {
 } from "react-native";
 import { apiFetch } from "../lib/api";
 import type { AdminOrder } from "../types";
-import { C, money, shortDate, statusMeta } from "../ui/theme";
+import { C, money, shortDate, statusMeta, isApprovedBusinessOrder } from "../ui/theme";
 import { Badge, EmptyState, MiniStat, PageHeader } from "./common";
-
-const filters = ["Tümü", "Beklemede", "Onaylandı", "Kargoda", "Teslim Edildi", "İade / İptal"];
-
-function groupStatus(status?: string | null) {
-  return statusMeta(status).label;
-}
 
 export function OrdersScreen({
   onOpenOrder,
@@ -28,7 +22,6 @@ export function OrdersScreen({
 }) {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("Tümü");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +30,9 @@ export function OrdersScreen({
     setError("");
     try {
       const result = await apiFetch<AdminOrder[]>("/api/admin/orders");
-      setOrders(Array.isArray(result) ? result : []);
+      // Only confirmed/approved orders belong on this screen. Never display
+      // pending EFT, unpaid, cancelled or stock-review orders as approved.
+      setOrders(Array.isArray(result) ? result.filter((item) => isApprovedBusinessOrder(item.status)) : []);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Siparişler alınamadı");
     } finally {
@@ -53,8 +48,6 @@ export function OrdersScreen({
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("tr-TR");
     return orders.filter((order) => {
-      const matchesFilter = filter === "Tümü" || groupStatus(order.status) === filter;
-      if (!matchesFilter) return false;
       if (!needle) return true;
       const billing = order.billing_details || {};
       const shipping = order.shipping_address || {};
@@ -70,13 +63,7 @@ export function OrdersScreen({
         .toLocaleLowerCase("tr-TR");
       return haystack.includes(needle);
     });
-  }, [orders, query, filter]);
-
-  const counts = useMemo(() => ({
-    waiting: orders.filter((o) => groupStatus(o.status) === "Beklemede").length,
-    approved: orders.filter((o) => groupStatus(o.status) === "Onaylandı").length,
-    shipped: orders.filter((o) => groupStatus(o.status) === "Kargoda").length,
-  }), [orders]);
+  }, [orders, query]);
 
   return (
     <ScrollView
@@ -95,7 +82,7 @@ export function OrdersScreen({
     >
       <PageHeader
         title="Siparişler"
-        subtitle="Tüm siparişlerinizi yönetin ve takip edin."
+        subtitle="Yalnızca onaylanan siparişler listelenir."
       />
 
       <View style={s.searchRow}>
@@ -109,28 +96,10 @@ export function OrdersScreen({
             onChangeText={setQuery}
           />
         </View>
-        <TouchableOpacity style={s.filterButton}>
-          <Text style={s.filterIcon}>≡</Text>
-        </TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRail}>
-        {filters.map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[s.filterChip, filter === item && s.filterChipActive]}
-            onPress={() => setFilter(item)}
-          >
-            <Text style={[s.filterText, filter === item && s.filterTextActive]}>{item}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
       <View style={s.stats}>
-        <MiniStat icon="▱" title="Toplam Sipariş" value={orders.length} />
-        <MiniStat icon="◷" title="Bekleyen" value={counts.waiting} accent={C.orange} />
-        <MiniStat icon="✓" title="Onaylanan" value={counts.approved} accent={C.green} />
-        <MiniStat icon="▣" title="Kargoda" value={counts.shipped} accent={C.blue} />
+        <MiniStat icon="✓" title="Onaylanan Siparişler" value={orders.length} accent={C.green} />
       </View>
 
       {error ? <Text style={s.error}>{error}</Text> : null}
@@ -138,7 +107,7 @@ export function OrdersScreen({
       {loading ? (
         <ActivityIndicator color={C.blue} size="large" style={s.loader} />
       ) : filtered.length === 0 ? (
-        <EmptyState title="Sipariş bulunamadı" text="Arama veya filtreye uygun sipariş bulunmuyor." />
+        <EmptyState title="Onaylanan sipariş bulunamadı" text={query.trim() ? "Aramanıza uygun onaylanan sipariş yok." : "Henüz onaylanmış bir sipariş bulunmuyor."} />
       ) : (
         <View style={s.list}>
           {filtered.map((order) => {
@@ -221,34 +190,6 @@ const s = StyleSheet.create({
   },
   searchIcon: { color: C.text2, fontSize: 24, marginRight: 10 },
   searchInput: { flex: 1, color: C.text, fontSize: 14, fontWeight: "400" },
-  filterButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.panel,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterIcon: { color: C.text2, fontSize: 22 },
-  filterRail: { gap: 8, paddingBottom: 18 },
-  filterChip: {
-    minHeight: 42,
-    paddingHorizontal: 15,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.panel,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterChipActive: {
-    borderColor: "#8FB7FF",
-    backgroundColor: "rgba(59,130,246,0.14)",
-  },
-  filterText: { color: C.text2, fontSize: 12, fontWeight: "400" },
-  filterTextActive: { color: C.text, fontWeight: "600" },
   stats: { flexDirection: "row", gap: 10, marginBottom: 18 },
   error: { color: C.red, marginBottom: 14 },
   loader: { marginTop: 30 },
