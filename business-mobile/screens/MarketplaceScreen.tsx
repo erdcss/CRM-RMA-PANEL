@@ -8,6 +8,7 @@ import { pickAndUploadSellerImage, pickAndUploadSellerVideo } from "../lib/marke
 import type { AdminOrder } from "../types";
 import { money, shortDate, statusMeta } from "../ui/theme";
 import type { SupplierOrder } from "./SupplierOrderDetailScreen";
+import { SupplierOrdersList } from "./SupplierOrdersList";
 
 type Review={id:string;company_name?:string;title?:string;status:string;review_note?:string;
   contact_name?:string;created_at?:string;content?:{name?:string;title?:string}};
@@ -205,14 +206,8 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSup
       <Text style={s.help}>{(order.items||[]).map(item=>String(item.name||item.productName||item.sku||"Ürün")).slice(0,4).join(", ")}</Text>
       <Text style={[s.help,{color:C.blue}]}>Sipariş içeriği ve durumunu aç →</Text>
     </TouchableOpacity>):<Text style={s.help}>Henüz sipariş bulunmuyor.</Text>
-    :supplierOrders.filter(order=>order.status==="paid").length?supplierOrders.filter(order=>order.status==="paid").map(order=><TouchableOpacity key={String(order.id)} style={s.card} activeOpacity={0.75} onPress={()=>onOpenSupplierOrder?.(order.id)} accessibilityRole="button" accessibilityLabel={"Sipariş "+order.order_id+" detayları"}>
-      <Text style={s.itemTitle}>Sipariş #{order.order_id} · {money(order.subtotal)}</Text>
-      <Text style={s.help}>Durum: {order.status==="paid"?"Ödeme alındı":order.status} · {shortDate(order.created_at)}</Text>
-      {(order.items||[]).map((item,index)=><View key={index} style={s.row}>
-        <Text style={s.text}>{String(item.name||item.sku||"Ürün")} · {item.boxes||0} koli</Text><Text style={s.value}>{money(item.total||0)}</Text>
-      </View>)}
-      <Text style={[s.help,{color:C.blue}]}>Sipariş detayını aç · PDF dışa aktar →</Text>
-    </TouchableOpacity>):<Text style={s.help}>Henüz onaylanan bir tedarikçi siparişi bulunmuyor.</Text>}
+    :<SupplierOrdersList orders={supplierOrders} onOpen={onOpenSupplierOrder}/>}
+
   </View>:null}
   {isSuper && ["suppliers","products","stores","reels"].includes(tab)?<View style={s.panel}>
     <Text style={s.heading}>{names[tab]} — İnceleme</Text>
