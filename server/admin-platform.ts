@@ -1,4 +1,7 @@
 import type { Express, RequestHandler } from "express";
+import { randomBytes } from "node:crypto";
+import { supplierOrderView } from "./supplier-privacy";
+import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import {
@@ -1736,6 +1739,62 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       console.error("Admin order detail load failed:", error);
       return res.status(500).json({ error: "Sipariş detayı alınamadı" });
     }
+  });
+
+  // Admin-authenticated, contact-free order summaries. The one-use bearer URL
+  // is intentionally unguessable and expires quickly for iOS PDF viewing.
+  const adminPdfTickets = new Map<string,{file:Buffer,name:string,expires:number}>();
+  app.post("/api/admin/orders/:id/pdf-link", requireAdmin, async (req,res)=>{
+    res.setHeader("Cache-Control","no-store");
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const variant=req.body?.variant==="simple"?"simple":"standard";
+    if(req.body?.variant&&req.body.variant!=="standard"&&req.body.variant!=="simple")
+      return res.status(400).json({error:"Geçersiz belge biçimi"});
+    try{
+      const found=await pool.query(
+        "SELECT * FROM b2b_orders WHERE id::text=$1 AND COALESCE(status,'')<>'payment_failed' LIMIT 1",
+        [String(req.params.id||"")],
+      );
+      if(!found.rows.length)return res.status(404).json({error:"Sipariş bulunamadı"});
+      const order=await hydrateAdminOrderDetail(found.rows[0]);
+      const billing=order.billing_details||{};
+      const address=order.shipping_address||{};
+      // Explicitly use the supplier-safe mapper even on admin PDFs: no phone
+      // number, email, tax ID, buyer ID or unfiltered shipping/billing object.
+      const safe=supplierOrderView({
+        id:order.id,order_id:order.id,order_number:order.order_number,
+        status:order.status,subtotal:order.total_amount,
+        payment_method:order.payment_method,delivery_mode:order.shipping_method,
+        created_at:order.created_at,
+        customer_company:billing.companyName||null,
+        delivery_address:[address.addressLine,address.district,address.city].filter(Boolean).join(", "),
+        items:Array.isArray(order.items)?order.items.map((item:any)=>({
+          productId:item.productId||item.id,sku:item.sku,name:item.name||item.title,
+          boxes:item.quantity||item.qty||1,unitsPerBox:1,
+          price:item.price,total:item.total||item.totalPrice||item.price,
+        })):[],
+      });
+      const file=generateSupplierOrderPdf(safe,variant);
+      const ticket=randomBytes(32).toString("hex");
+      for(const [key,val] of adminPdfTickets)if(Date.now()>val.expires)adminPdfTickets.delete(key);
+      if(adminPdfTickets.size>80){const first=adminPdfTickets.keys().next().value;if(first)adminPdfTickets.delete(first);}
+      adminPdfTickets.set(ticket,{file,name:"Caliskan-Business-Siparis-"+String(order.id)+"-"+variant+".pdf",expires:Date.now()+120000});
+      return res.json({url:"https://admin.ecalisgan.com/api/admin/orders/pdf/"+ticket,expiresInSeconds:120});
+    }catch(e){
+      console.error("Admin order PDF failed:",e instanceof Error?e.message:"unknown");
+      return res.status(500).json({error:"Sipariş PDF oluşturulamadı"});
+    }
+  });
+  app.get("/api/admin/orders/pdf/:ticket",(req,res)=>{
+    const ticket=String(req.params.ticket||"");
+    const saved=adminPdfTickets.get(ticket);
+    adminPdfTickets.delete(ticket);
+    res.setHeader("Cache-Control","no-store, private");
+    if(!saved||saved.expires<Date.now())return res.status(404).send("PDF bağlantısı geçersiz");
+    res.setHeader("Content-Type","application/pdf");
+    res.setHeader("Content-Disposition",'attachment; filename="'+saved.name+'"');
+    res.setHeader("X-Content-Type-Options","nosniff");
+    return res.end(saved.file);
   });
 
   app.get("/api/admin/b2b-customers", requireAdmin, async (_req, res) => {
