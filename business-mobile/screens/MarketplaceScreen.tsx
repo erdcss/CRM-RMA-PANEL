@@ -7,6 +7,7 @@ import { BackHeader } from "./common";
 import { pickAndUploadSellerImage, pickAndUploadSellerVideo } from "../lib/marketplace-media";
 import type { AdminOrder } from "../types";
 import { money, shortDate, statusMeta } from "../ui/theme";
+import type { SupplierOrder } from "./SupplierOrderDetailScreen";
 
 type Review={id:string;company_name?:string;title?:string;status:string;review_note?:string;
   contact_name?:string;created_at?:string;content?:{name?:string;title?:string}};
@@ -18,7 +19,7 @@ type SupplierStats={supplier:{company_name:string;slug:string};productCount:numb
 type Chat={id:string;latest_message?:string;buyer_user_id:string};
 type Msg={id:string;text:string;created_at:string};
 type SupplierProfile={id:number;company_name:string;is_admin_paused:boolean;is_holiday:boolean;holiday_reactivate_at?:string|null};
-type SellerOrder={id:number;order_id:number;created_at:string;status:string;subtotal:number|string;delivery_mode:string;items:Array<{name?:string;sku?:string;boxes?:number;total?:number|string}>};
+type SellerOrder=SupplierOrder;
 type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages"|"orders"|"returns"|"payments"|"settings";
 const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar",orders:"Siparişler",returns:"İadeler",payments:"Ödemeler",settings:"Ayarlar"};
 const status:Record<string,string>={pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",requested:"Teklif bekleniyor",offered:"Teklif sunuldu",accepted:"Kabul edildi"};
@@ -30,8 +31,8 @@ function Action({title,onPress,disabled=false}:{title:string;onPress:()=>void;di
     <Text style={s.buttonText}>{title}</Text>
   </TouchableOpacity>;
 }
-export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onAiProductAdd,initialTab}:{
-  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void;onAiProductAdd:()=>void;initialTab?:"products"}) {
+export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSupplierOrder,onAiProductAdd,initialTab}:{
+  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void;onOpenSupplierOrder?:(id:number)=>void;onAiProductAdd:()=>void;initialTab?:"products"|"orders"}) {
  const [tab,setTab]=useState<Tab>(initialTab||"overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
  const [queue,setQueue]=useState<Queue|null>(null),[products,setProducts]=useState<any[]>([]);
  const [profile,setProfile]=useState<SupplierProfile|null>(null),[supplierOrders,setSupplierOrders]=useState<SellerOrder[]>([]);
@@ -204,13 +205,14 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onAiProdu
       <Text style={s.help}>{(order.items||[]).map(item=>String(item.name||item.productName||item.sku||"Ürün")).slice(0,4).join(", ")}</Text>
       <Text style={[s.help,{color:C.blue}]}>Sipariş içeriği ve durumunu aç →</Text>
     </TouchableOpacity>):<Text style={s.help}>Henüz sipariş bulunmuyor.</Text>
-    :supplierOrders.length?supplierOrders.map(order=><View key={String(order.id)} style={s.card}>
+    :supplierOrders.filter(order=>order.status==="paid").length?supplierOrders.filter(order=>order.status==="paid").map(order=><TouchableOpacity key={String(order.id)} style={s.card} activeOpacity={0.75} onPress={()=>onOpenSupplierOrder?.(order.id)} accessibilityRole="button" accessibilityLabel={"Sipariş "+order.order_id+" detayları"}>
       <Text style={s.itemTitle}>Sipariş #{order.order_id} · {money(order.subtotal)}</Text>
       <Text style={s.help}>Durum: {order.status==="paid"?"Ödeme alındı":order.status} · {shortDate(order.created_at)}</Text>
       {(order.items||[]).map((item,index)=><View key={index} style={s.row}>
         <Text style={s.text}>{String(item.name||item.sku||"Ürün")} · {item.boxes||0} koli</Text><Text style={s.value}>{money(item.total||0)}</Text>
       </View>)}
-    </View>):<Text style={s.help}>Henüz size ait sipariş bulunmuyor.</Text>}
+      <Text style={[s.help,{color:C.blue}]}>Sipariş detayını aç · PDF dışa aktar →</Text>
+    </TouchableOpacity>):<Text style={s.help}>Henüz onaylanan bir tedarikçi siparişi bulunmuyor.</Text>}
   </View>:null}
   {isSuper && ["suppliers","products","stores","reels"].includes(tab)?<View style={s.panel}>
     <Text style={s.heading}>{names[tab]} — İnceleme</Text>
