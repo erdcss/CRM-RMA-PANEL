@@ -24,7 +24,7 @@ test("Tedarikçi sipariş API'si müşteri iletişim bilgilerini asla içermez",
   assert.equal(order.items[0].sku,"TS12");
   assert.deepEqual(Object.keys(order).sort(),[
     "created_at","currency","customer_company","delivery_address","delivery_mode",
-    "id","items","order_id","payment_method","status","subtotal",
+    "id","items","order_id","order_number","payment_method","status","subtotal",
   ].sort());
   assert.deepEqual(Object.keys(order.items[0]).sort(),[
     "boxes","name","price","productId","sku","total","unitsPerBox",
