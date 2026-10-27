@@ -288,6 +288,15 @@ export default function B2BPaymentPage() {
   const [checkoutFrameRevision, setCheckoutFrameRevision] = useState(0);
 
   const [busy, setBusy] = useState(false);
+  const [bankReference, setBankReference] = useState<{
+    reservationId: string;
+    transferCode: string;
+    transferDescription: string;
+    expiresAt: string;
+  } | null>(null);
+  const [bankReferenceLoading, setBankReferenceLoading] = useState(false);
+  const [bankReferenceError, setBankReferenceError] = useState("");
+  const bankReferenceInFlight = useRef(false);
   const [eftOrder, setEftOrder] = useState<{
     orderNumber: string;
     total: number;
@@ -381,6 +390,39 @@ export default function B2BPaymentPage() {
     })();
     return()=>{cancelled=true;};
   },[result,resultOrder,metaConsentRevision]);
+
+  async function prepareBankReference() {
+    if (bankReferenceInFlight.current || eftOrder) return;
+    bankReferenceInFlight.current = true;
+    setBankReferenceLoading(true);
+    setBankReferenceError("");
+    try {
+      const response = await apiRequest("POST", "/api/b2b/payments/bank-transfer/preview-code");
+      const data = await response.json() as {
+        reservationId: string; transferCode: string; transferDescription: string; expiresAt: string;
+      };
+      if (!/^[a-f0-9]{36}$/.test(String(data.reservationId || "")) ||
+          !/^CLK[0-9]{6}$/.test(String(data.transferCode || "")) ||
+          data.transferCode !== data.transferDescription) {
+        throw new Error("Benzersiz EFT kodu doğrulanamadı.");
+      }
+      setBankReference(data);
+    } catch (err) {
+      setBankReferenceError(err instanceof Error ? err.message : "EFT kodu alınamadı.");
+    } finally {
+      bankReferenceInFlight.current = false;
+      setBankReferenceLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!result && method === "bank_transfer" && settings?.bankTransfer.enabled &&
+        preview && preview.supplierPaymentEnabled !== false &&
+        !eftOrder && !bankReference && !bankReferenceLoading && !bankReferenceError) {
+      void prepareBankReference();
+    }
+  }, [result, method, settings?.bankTransfer.enabled, preview, eftOrder,
+      bankReference, bankReferenceLoading, bankReferenceError]);
 
   const cleanCardNumber = cardNumber.replace(/\D/g, "");
   const cardBin = cleanCardNumber.slice(0, 8);
@@ -691,12 +733,45 @@ export default function B2BPaymentPage() {
   }
 
   async function copy(value: string, label: string) {
+    if (!value.trim()) {
+      toast({ title: "Kopyalanacak bilgi bulunamadı", variant: "destructive" });
+      return;
+    }
     try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API yok");
       await navigator.clipboard.writeText(value);
       toast({ title: "Kopyalandı", description: label });
     } catch {
-      toast({ title: "Kopyalanamadı", variant: "destructive" });
+      // Older iOS browsers can deny the async clipboard even with HTTPS.
+      const input = document.createElement("textarea");
+      input.value = value;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      let copied = false;
+      try { copied = document.execCommand("copy"); } catch {}
+      input.remove();
+      toast(copied ? { title: "Kopyalandı", description: label }
+        : { title: "Kopyalanamadı", description: "Metni seçerek elle kopyalayın.", variant: "destructive" });
     }
+  }
+
+  function copyBankTransferSummary() {
+    const bank = eftOrder?.bankTransfer || settings?.bankTransfer;
+    if (!bank) return;
+    const description = eftOrder?.transferDescription || bankReference?.transferDescription;
+    const lines = [
+      "Çalışkan B2B - Havale / EFT Bilgileri",
+      "Banka: " + bank.bankName,
+      "Hesap Sahibi: " + bank.accountHolder,
+      "IBAN: " + bank.iban.replace(/\s+/g, ""),
+      "Tutar: " + formatMoney(eftOrder?.total ?? preview?.total ?? 0),
+      ...(description ? ["Açıklama (zorunlu): " + description] : []),
+      ...(eftOrder?.orderNumber ? ["Sipariş No: " + eftOrder.orderNumber] : []),
+    ];
+    void copy(lines.join("\n"), "Tüm banka, tutar ve açıklama bilgileri kopyalandı");
   }
 
   async function createBankTransferOrder() {
@@ -710,10 +785,15 @@ export default function B2BPaymentPage() {
     }
     const shipping = shippingPayload();
     if (!shipping) return;
+    if (!bankReference) {
+      toast({ title: "EFT kodu henüz hazır değil", description: "Benzersiz kodu oluşturup tekrar deneyin.", variant: "destructive" });
+      return;
+    }
 
     setBusy(true);
     try {
       const response = await apiRequest("POST", "/api/b2b/payments/bank-transfer", {
+        reservationId: bankReference.reservationId,
         ...orderPayload(),
         addressId: selectedAddressId,
         shipping,
@@ -726,15 +806,24 @@ export default function B2BPaymentPage() {
         },
       });
       const payload = await response.json();
+      if (payload.transferCode !== bankReference.transferCode ||
+          payload.transferDescription !== bankReference.transferDescription) {
+        throw new Error("Sipariş ile EFT referansı eşleşmedi; desteğe başvurun.");
+      }
       setEftOrder(payload);
       toast({
-        title: "Havale/EFT sipariş kodu oluşturuldu",
-        description: "CLK kodunu banka transferi açıklamasına ekleyin.",
+        title: "Havale/EFT siparişi oluşturuldu",
+        description: "Ödeme açıklamasına ekrandaki benzersiz CLK kodunu yazın.",
       });
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Bir hata oluştu";
+      if (/süresi doldu|kodu bulunamadı|geçerli havale açıklama kodu/i.test(message)) {
+        setBankReference(null);
+        setBankReferenceError("EFT kodunuzun süresi dolmuş olabilir. Yeni kod oluşturun.");
+      }
       toast({
         title: "Havale/EFT siparişi oluşturulamadı",
-        description: err instanceof Error ? err.message : "Bir hata oluştu",
+        description: message,
         variant: "destructive",
       });
     } finally {
