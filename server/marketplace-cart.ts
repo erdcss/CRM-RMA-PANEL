@@ -114,6 +114,13 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    const paid=await db.query(`
      SELECT o.id AS order_id,o.created_at,'paid'::text AS status,
        o.shipping_method AS delivery_mode,
+       MAX(o.billing_details->>'companyName') AS customer_company,
+       CONCAT_WS(', ',
+         NULLIF(MAX(o.shipping_address->>'addressLine'),''),
+         NULLIF(MAX(o.shipping_address->>'district'),''),
+         NULLIF(MAX(o.shipping_address->>'city'),'')
+       ) AS delivery_address,
+       MAX(o.payment_method) AS payment_method,
        SUM(COALESCE(NULLIF(line.item->>'total','')::numeric,0))::numeric(14,2) AS subtotal,
        jsonb_agg(jsonb_build_object(
          'productId',regexp_replace(line.item->>'productId','^mp-','')::bigint,
