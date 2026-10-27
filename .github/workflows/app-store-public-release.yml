@@ -28,7 +28,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/release-requests/app-store-publication-20261026.txt'
+      - '.github/release-requests/b2b-appstore-publication.txt'
 
 permissions:
   contents: read
@@ -126,7 +126,7 @@ jobs:
   submit_business:
     name: Çalışkan Business - İncelemeye gönder
     needs: preflight
-    if: ${{ needs.preflight.result == 'success' && (github.event_name == 'push' || inputs.apps == 'both' || inputs.apps == 'business') }}
+    if: ${{ needs.preflight.result == 'success' && github.event_name == 'workflow_dispatch' && (inputs.apps == 'both' || inputs.apps == 'business') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
