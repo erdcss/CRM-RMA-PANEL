@@ -112,7 +112,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    // Verified checkout orders are exposed exclusively to their owning supplier;
    // other sellers' items from a mixed order never leave this endpoint.
    const paid=await db.query(`
-     SELECT o.id AS order_id,o.created_at,'paid'::text AS status,
+     SELECT o.id AS order_id,MAX(o.order_number) AS order_number,o.created_at,'paid'::text AS status,
        o.shipping_method AS delivery_mode,
        MAX(o.billing_details->>'companyName') AS customer_company,
        CONCAT_WS(', ',
