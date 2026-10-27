@@ -23,6 +23,8 @@ on:
       - 'server/marketplace.ts'
       - 'server/marketplace-media.ts'
       - 'server/marketplace-cart.ts'
+      - 'server/supplier-privacy.ts'
+      - 'server/supplier-privacy.test.ts'
       - 'server/marketplace-video-upload.ts'
       - 'server/index.ts'
       - 'client/src/pages/b2b-orders.tsx'
@@ -42,6 +44,8 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
+      - name: Supplier customer-data privacy regression tests
+        run: npx tsx --test server/supplier-privacy.test.ts
       - name: TypeScript check
         run: npm run check
       - name: Admin and API build
