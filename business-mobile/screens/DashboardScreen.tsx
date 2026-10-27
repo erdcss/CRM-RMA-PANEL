@@ -9,12 +9,15 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import type { BusinessAuthUser } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import type { DashboardOverview } from "../types";
 import { C, money, statusMeta } from "../ui/theme";
 import { Badge, EmptyState, SectionTitle } from "./common";
-import { WarehouseBackdrop } from "../components/WarehouseBackdrop";
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid", "onaylandi"]);
 
 export function DashboardScreen({
   user,
@@ -58,6 +61,10 @@ export function DashboardScreen({
     return () => clearInterval(timer);
   }, [load]);
 
+  const approvedOrders = (data?.recentApprovedOrders ?? data?.recentOrders ?? [])
+    .filter((order) => APPROVED_STATUSES.has(String(order.status || "").toLowerCase()))
+    .slice(0, 4);
+
   const name =
     user?.username && user.username !== "admin"
       ? user.username
@@ -79,8 +86,6 @@ export function DashboardScreen({
       }
     >
       <View style={s.hero}>
-        <WarehouseBackdrop dimmed />
-        <View style={s.heroShade} pointerEvents="none" />
         <View style={s.topRow}>
           <View style={s.brandBlock}>
             <Text style={[s.brand, compact && s.brandCompact]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
@@ -105,8 +110,8 @@ export function DashboardScreen({
             <View style={s.heroDot} />
             <Text style={s.heroEyebrowText}>İŞLETME KONTROL PANELİ</Text>
           </View>
-          <Text style={[s.heroTitle, compact && s.heroTitleCompact]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82}>
-            Yönetim{"\n"}merkezi
+          <Text style={[s.heroTitle, compact && s.heroTitleCompact]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            Yönetim merkezi
           </Text>
           <Text style={s.heroSub}>
             Sipariş, stok ve operasyonlarınız tek ekranda.
@@ -122,7 +127,7 @@ export function DashboardScreen({
         <>
           <View style={s.grid}>
             <MetricCard
-              icon="▱"
+              icon="receipt-outline"
               title="Bugünkü Sipariş"
               value={data?.orderCount ?? 0}
               note="Canlı sipariş akışı"
@@ -130,7 +135,7 @@ export function DashboardScreen({
               onPress={onOrders}
             />
             <MetricCard
-              icon="◌"
+              icon="chatbubbles-outline"
               title="Bekleyen Destek"
               value={data?.openSupport ?? 0}
               note="Yanıt bekleyen talepler"
@@ -138,7 +143,7 @@ export function DashboardScreen({
               onPress={onSupport}
             />
             <MetricCard
-              icon="□"
+              icon="alert-circle-outline"
               title="Düşük Stok"
               value={data?.lowStock ?? 0}
               note="Stok kontrolü gerekli"
@@ -146,33 +151,33 @@ export function DashboardScreen({
               onPress={() => onModule("stok-durumu")}
             />
             <MetricCard
-              icon="▥"
+              icon="wallet-outline"
               title="Günlük Ciro"
               value={money(data?.todayRevenue ?? 0)}
-              note="Bugünkü onaylı siparişler"
+              note="Bugünkü sipariş toplamı"
               accent={C.green}
             />
           </View>
 
-          <SectionTitle title="Hızlı İşlemler" />
+          <View style={s.sectionWrap}><SectionTitle title="Hızlı İşlemler" /></View>
           <View style={s.quickGrid}>
-            <QuickCard title="Siparişler" subtitle="Siparişleri yönet" icon="▱" onPress={onOrders} />
-            <QuickCard title="Destek" subtitle="Talep ve mesajlar" icon="◌" onPress={onSupport} />
-            <QuickCard title="Ürünler" subtitle="Ürünleri düzenle" icon="□" onPress={onProducts} />
-            <QuickCard title="Müşteriler" subtitle="Müşteri yönetimi" icon="◎" onPress={onCustomers} />
+            <QuickCard title="Siparişler" subtitle="Siparişleri yönet" icon="receipt-outline" onPress={onOrders} />
+            <QuickCard title="Destek" subtitle="Talep ve mesajlar" icon="headset-outline" onPress={onSupport} />
+            <QuickCard title="Ürünler" subtitle="Ürün ve stok" icon="cube-outline" onPress={onProducts} />
+            <QuickCard title="Müşteriler" subtitle="Müşterileri yönet" icon="people-outline" onPress={onCustomers} />
           </View>
 
-          <SectionTitle title="Son Siparişler" action="Tümünü Gör" onAction={onOrders} />
+          <View style={s.sectionWrap}><SectionTitle title="Son Onaylanan Siparişler" action="Tümünü Gör" onAction={onOrders} /></View>
           <View style={s.ordersPanel}>
-            {(data?.recentOrders || []).length === 0 ? (
-              <EmptyState title="Sipariş yok" text="Henüz görüntülenecek sipariş bulunmuyor." />
+            {approvedOrders.length === 0 ? (
+              <EmptyState title="Onaylanan sipariş yok" text="Henüz onaylanmış bir sipariş bulunmuyor." />
             ) : (
-              data?.recentOrders?.slice(0, 4).map((order) => {
+              approvedOrders.map((order) => {
                 const meta = statusMeta(order.status);
                 return (
                   <TouchableOpacity key={String(order.id)} style={s.orderRow} onPress={()=>onOpenOrder(String(order.id))}>
                     <View style={s.orderThumb}>
-                      <Text style={s.orderThumbText}>B2B</Text>
+                      <Ionicons name="receipt-outline" color={C.blue} size={23} />
                     </View>
                     <View style={s.orderMain}>
                       <Text style={s.orderNo}>{order.order_number || `#${order.id}`}</Text>
@@ -201,7 +206,7 @@ function MetricCard({
   accent,
   onPress,
 }: {
-  icon: string;
+  icon: IconName;
   title: string;
   value: string | number;
   note: string;
@@ -211,8 +216,8 @@ function MetricCard({
   return (
     <TouchableOpacity style={s.metric} activeOpacity={onPress ? 0.75 : 1} onPress={onPress}>
       <View style={s.metricTop}>
-        <View style={s.metricIcon}><Text style={s.metricIconText}>{icon}</Text></View>
-        <Text style={[s.metricTrend, { color: accent }]}>↑</Text>
+        <View style={[s.metricIcon, { borderColor: accent + "55" }]}><Ionicons name={icon} size={23} color={accent} /></View>
+        {onPress ? <Ionicons name="chevron-forward" size={17} color={C.muted} /> : null}
       </View>
       <Text style={s.metricTitle}>{title}</Text>
       <Text style={s.metricValue} numberOfLines={1}>{value}</Text>
@@ -229,15 +234,15 @@ function QuickCard({
 }: {
   title: string;
   subtitle: string;
-  icon: string;
+  icon: IconName;
   onPress: () => void;
 }) {
   return (
     <TouchableOpacity style={s.quick} onPress={onPress} activeOpacity={0.74}>
-      <View style={s.quickIcon}><Text style={s.quickIconText}>{icon}</Text></View>
+      <View style={s.quickIcon}><Ionicons name={icon} size={22} color="#9EC4FF" /></View>
       <Text style={s.quickTitle}>{title}</Text>
       <Text style={s.quickSub}>{subtitle}</Text>
-      <Text style={s.quickArrow}>›</Text>
+      <Ionicons name="chevron-forward" size={17} color={C.muted} style={s.quickArrow} />
     </TouchableOpacity>
   );
 }
@@ -245,11 +250,15 @@ function QuickCard({
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.bg },
   content: { paddingBottom: 118 },
+  sectionWrap: { paddingHorizontal: 18 },
   hero: {
-    minHeight: 355,
+    minHeight: 212,
     paddingHorizontal: 18,
     paddingTop: 16,
-    paddingBottom: 46,
+    paddingBottom: 20,
+    backgroundColor: C.bg2,
+    borderBottomColor: C.lineSoft,
+    borderBottomWidth: 1,
     overflow: "hidden",
     justifyContent: "space-between",
   },
@@ -296,13 +305,8 @@ const s = StyleSheet.create({
   heroCopy: {
     zIndex: 2,
     alignSelf: "stretch",
-    backgroundColor: "rgba(5,10,18,0.88)",
-    borderColor: "rgba(119,160,216,0.20)",
-    borderWidth: 1,
-    borderRadius: 22,
-    paddingHorizontal: 20,
-    paddingVertical: 19,
-    marginTop: 28,
+    paddingTop: 12,
+    paddingBottom: 3,
     minWidth: 0,
   },
   heroEyebrow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 10 },
@@ -310,13 +314,13 @@ const s = StyleSheet.create({
   heroEyebrowText: { fontSize: 10, letterSpacing: 1.05, color: "#A4C4EE", fontWeight: "800" },
   heroTitle: {
     color: C.text,
-    fontSize: 34,
-    lineHeight: 39,
+    fontSize: 29,
+    lineHeight: 36,
     fontWeight: "800",
     letterSpacing: -1,
     flexShrink: 1,
   },
-  heroTitleCompact: { fontSize: 30, lineHeight: 36 },
+  heroTitleCompact: { fontSize: 26, lineHeight: 32 },
   heroSub: {
     color: C.text2,
     fontSize: 13,
@@ -327,15 +331,15 @@ const s = StyleSheet.create({
   error: { color: C.red, marginHorizontal: 18, marginTop: 12 },
   grid: {
     paddingHorizontal: 18,
-    marginTop: -24,
+    marginTop: 14,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
   metric: {
     width: "48%",
-    minHeight: 154,
-    padding: 15,
+    minHeight: 146,
+    padding: 14,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: C.line,
@@ -352,16 +356,15 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  metricIconText: { color: C.text2, fontSize: 20 },
-  metricTrend: { fontSize: 17, fontWeight: "600" },
   metricTitle: { color: C.text2, fontSize: 13, marginTop: 11 },
   metricValue: { color: C.text, fontSize: 25, fontWeight: "600", marginTop: 5, letterSpacing: -0.7 },
   metricNote: { color: C.muted, fontSize: 10, marginTop: 5 },
-  quickGrid: { paddingHorizontal: 18, flexDirection: "row", gap: 9 },
+  quickGrid: { paddingHorizontal: 18, flexDirection: "row", flexWrap: "wrap", gap: 10 },
   quick: {
-    flex: 1,
-    minHeight: 142,
-    padding: 12,
+    width: "47%",
+    flexGrow: 1,
+    minHeight: 112,
+    padding: 13,
     borderRadius: 19,
     borderWidth: 1,
     borderColor: C.line,
@@ -377,10 +380,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  quickIconText: { color: C.text2, fontSize: 19 },
   quickTitle: { color: C.text, fontSize: 13, fontWeight: "600", marginTop: 12 },
   quickSub: { color: C.muted, fontSize: 9, marginTop: 4 },
-  quickArrow: { color: C.text2, fontSize: 22, position: "absolute", right: 10, bottom: 9 },
+  quickArrow: { position: "absolute", right: 11, top: 15 },
   ordersPanel: {
     marginHorizontal: 18,
     borderWidth: 1,
@@ -406,7 +408,6 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  orderThumbText: { color: C.text2, fontSize: 11, fontWeight: "700" },
   orderMain: { flex: 1, paddingHorizontal: 12 },
   orderNo: { color: C.text, fontSize: 13, fontWeight: "600" },
   orderCustomer: { color: C.muted, fontSize: 10, marginTop: 5 },
