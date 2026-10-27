@@ -1,0 +1,68 @@
+name: Çalışkan B2B - Android EAS hata teşhisi
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/b2b-android-diagnose.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Hatalı B2B Android build logunu teşhis et (yeni build başlatma)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: EAS hata detayları ve faz loglarını al
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas build:view b2f78611-ed35-4d58-8211-6b0dfcfce831 --json > "$RUNNER_TEMP/b2b-failed-build.json"
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const obj=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/b2b-failed-build.json","utf8"));
+          const b=obj.build||obj;
+          console.log("Build ID:",b.id);
+          console.log("Build status:",b.status);
+          console.log("Build platform:",b.platform);
+          console.log("Build error code:",b.error?.errorCode||"not supplied");
+          console.log("Build error:",b.error?.message||b.error?.messageFormat||"not supplied");
+          const logs=(b.logFiles||b.logs||[]).map(l=>typeof l==="string"?l:(l?.url||l?.uri)).filter(Boolean);
+          console.log("Remote log files count:",logs.length);
+          (async()=>{
+            for(let i=0;i<logs.length;i++){
+              try{
+                const r=await fetch(logs[i],{signal:AbortSignal.timeout(30000)});
+                console.log("Log phase",i,"HTTP",r.status);
+                if(!r.ok)continue;
+                const body=await r.text();
+                const clean=body.split("\n").map(line=>{
+                  try{const o=JSON.parse(line);return String(o.msg||o.message||o.text||line)}catch{return line}
+                });
+                const matches=clean.map((line,n)=>({line,n})).filter(x=>/error|failed|failure|exception|gradle|problem occurred|could not|build was canceled|unsupported/i.test(x.line));
+                const excerpts=matches.slice(-70);
+                for(const item of excerpts){
+                  const redacted=item.line
+                    .replace(/(EXPO_TOKEN|TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY)\s*[:=]\s*[^\s,]+/ig,"$1=[REDACTED]")
+                    .replace(/https?:\/\/[^\s"']*(?:token|signature|X-Amz-Signature)[^\s"' ]*/gi,"[SIGNED_URL_REDACTED]");
+                  console.log("Log",i,"line",item.n+1,redacted.slice(0,650));
+                }
+              }catch(err){console.log("Failed reading remote log",i,String(err.message||err).slice(0,200));}
+            }
+          })().catch(err=>{console.log("Diagnostic error",String(err));process.exitCode=1});
+          NODE
