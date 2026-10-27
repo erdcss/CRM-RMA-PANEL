@@ -1,0 +1,11 @@
+Çalışkan Business — TestFlight 1.0 dağıtım isteği
+Tarih: 2026-10-27
+Uygulama: Çalışkan Business
+App Store Connect ID: 6818161236
+Bundle ID: com.caliskangroup.business
+Expo project: aa005486-76a0-41cd-92de-33c2070a73f1
+Hedef: Yalnızca business-mobile için yeni iOS EAS build ve TestFlight'a gönderim.
+Dışında tut: Çalışkan B2B iOS, App Store review ve otomatik mağaza yayını.
+Kaynak: main (Dashboard ikonları ve düzen, son onaylanan siparişler,
+ürün düzenleme ve düşük stok kartları).
+Bu dosya yalnızca tek bir scoped push tetikleyicisidir.
