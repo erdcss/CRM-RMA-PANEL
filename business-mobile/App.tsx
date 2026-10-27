@@ -22,6 +22,7 @@ import { BusinessApplicationsScreen } from "./screens/BusinessApplicationsScreen
 import { BusinessCustomerCenterScreen } from "./screens/BusinessCustomerCenterScreen";
 import { MoreScreen } from "./screens/MoreScreen";
 import { OrderDetailScreen } from "./screens/OrderDetailScreen";
+import { SupplierOrderDetailScreen } from "./screens/SupplierOrderDetailScreen";
 import { OrdersScreen } from "./screens/OrdersScreen";
 import { ProductAddScreen } from "./screens/ProductAddScreen";
 import { AiProductStudioScreen } from "./screens/AiProductStudioScreen";
@@ -97,6 +98,7 @@ export default function App() {
               initialTab={screen.tab}
               onAiProductAdd={() => setScreen({ name: "aiProductStudio", mode: user?.role === "super_admin" ? "super_admin" : "supplier" })}
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
+              onOpenSupplierOrder={(id)=>{if(user?.role==="b2b_seller")setScreen({name:"supplierOrderDetail",id});}}
               onBack={() => setScreen({ name: "more" })}
               onLogout={async () => {
                 await unregisterBusinessPush();
@@ -105,6 +107,15 @@ export default function App() {
                 setScreen({ name: "login" });
               }}
             />
+          </SafeAreaView>
+        ) : screen.name === "supplierOrderDetail" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top","left","right","bottom"]}>
+            {user?.role==="b2b_seller" ? (
+              <SupplierOrderDetailScreen
+                id={screen.id}
+                onBack={()=>setScreen({name:"marketplace",tab:"orders"})}
+              />
+            ) : null}
           </SafeAreaView>
         ) : screen.name === "dashboard" ? (
           <AdminShell active="dashboard" onTab={openTab}>
