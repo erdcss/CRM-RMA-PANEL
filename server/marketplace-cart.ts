@@ -97,7 +97,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
   try{
    const db=await ready(),uid=Number((res.locals as any).b2bUser.id);
    const result=await db.query(`SELECT d.id,d.order_id,d.status,d.subtotal,d.delivery_mode,
-     o.created_at,o.currency,o.buyer_user_id,
+     o.created_at,o.currency,
      COALESCE(json_agg(json_build_object('productId',i.product_id,'sku',p.sku,'name',v.content->>'name',
        'boxes',i.boxes,'unitsPerBox',i.units_per_box,'price',i.unit_price,'total',i.line_total))
        FILTER(WHERE i.id IS NOT NULL),'[]'::json) AS items
@@ -111,7 +111,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    // Verified checkout orders are exposed exclusively to their owning supplier;
    // other sellers' items from a mixed order never leave this endpoint.
    const paid=await db.query(`
-     SELECT o.id AS order_id,o.created_at,o.buyer_user_id,'paid'::text AS status,
+     SELECT o.id AS order_id,o.created_at,'paid'::text AS status,
        o.shipping_method AS delivery_mode,
        SUM(COALESCE(NULLIF(line.item->>'total','')::numeric,0))::numeric(14,2) AS subtotal,
        jsonb_agg(jsonb_build_object(
@@ -125,9 +125,20 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
      JOIN mp_suppliers s ON s.id::text=line.item->>'supplierId' AND s.owner_user_id=$1
      WHERE o.payment_status IN ('SUCCESS','bank_confirmed')
        AND line.item->>'productId' LIKE 'mp-%'
-     GROUP BY o.id,o.created_at,o.buyer_user_id,o.shipping_method
+     GROUP BY o.id,o.created_at,o.shipping_method
      ORDER BY o.id DESC LIMIT 100`,[uid]);
-   const combined=[...paid.rows.map((row:any)=>({...row,id:-Number(row.order_id),currency:'TRY'})),...result.rows];
+   // Explicit allowlist for seller-owned order projections. No customer phone,
+   // address phone, e-mail, buyer user ID or billing/shipping JSON may leave this API.
+   const toSupplierOrder=(row:any)=>({
+     id:row.id,order_id:row.order_id,status:row.status,
+     subtotal:row.subtotal,delivery_mode:row.delivery_mode,
+     created_at:row.created_at,currency:row.currency||'TRY',
+     items:Array.isArray(row.items)?row.items:[],
+   });
+   const combined=[
+     ...paid.rows.map((row:any)=>toSupplierOrder({...row,id:-Number(row.order_id),currency:'TRY'})),
+     ...result.rows.map(toSupplierOrder),
+   ];
    combined.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
    res.setHeader("Cache-Control","private, no-store");
    res.json(combined);
