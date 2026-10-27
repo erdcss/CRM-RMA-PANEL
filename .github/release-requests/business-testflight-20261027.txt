@@ -1,11 +1,9 @@
-Çalışkan Business — TestFlight 1.0 dağıtım isteği
+ÇALIŞKAN BUSINESS — YENİ iOS TESTFLIGHT GÖNDERİMİ
 Tarih: 2026-10-27
-Uygulama: Çalışkan Business
-App Store Connect ID: 6818161236
-Bundle ID: com.caliskangroup.business
-Expo project: aa005486-76a0-41cd-92de-33c2070a73f1
-Hedef: Yalnızca business-mobile için yeni iOS EAS build ve TestFlight'a gönderim.
-Dışında tut: Çalışkan B2B iOS, App Store review ve otomatik mağaza yayını.
-Kaynak: main (Dashboard ikonları ve düzen, son onaylanan siparişler,
-ürün düzenleme ve düşük stok kartları).
-Bu dosya yalnızca tek bir scoped push tetikleyicisidir.
+Kaynak main commit: bd0c672cb842e6a9257ae0b21bbaae2b9a866605
+Hedef sadece Çalışkan Business iOS / com.caliskangroup.business.
+Hedef App Store Connect app: 6818161236, EAS project aa005486-76a0-41cd-92de-33c2070a73f1.
+En son uygulanan geliştirme: business-mobile/screens/OrdersScreen.tsx Siparişler ekranı artık yalnızca onaylı/confirmed/paid siparişleri gösterir; bekleyen/iptal/ödenmemiş siparişler gizlenir. Business Dashboard da aynı onay durumu kuralını kullanır.
+Kontrol: GitHub run 40483143038 Business TypeScript + Expo iOS/Android JS exports SUCCESS.
+Sadece Business uygulamasını TestFlight'a gönder. B2B, Dükkan, Android ve App Store halka açık yayın tetiklenmesin.
+İş akışı .github/workflows/testflight-all-apps.yml push route: business job only. iOS TestFlight EAS build + App Store Connect submission --wait.
