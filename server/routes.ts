@@ -30,6 +30,7 @@ import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
+import { registerMetaCatalogFeed } from "./meta-catalog";
 import { expandScanLookupValues } from "@shared/shipment-barcode";
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceVideoUploadRoutes } from "./marketplace-video-upload";
@@ -1685,6 +1686,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(503).json({ error: "Oturum doğrulanamadı. Tekrar deneyin." });
     }
   });
+
+  registerMetaCatalogFeed(app);
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
