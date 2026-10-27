@@ -15,6 +15,7 @@ import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusine
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { LoginScreen } from "./screens/LoginScreen";
+import { LowStockScreen } from "./screens/LowStockScreen";
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
 import { ModuleScreen } from "./screens/ModuleScreen";
 import { BusinessApplicationsScreen } from "./screens/BusinessApplicationsScreen";
@@ -61,8 +62,9 @@ export default function App() {
     return () => subscription.remove();
   }, [user?.role]);
 
-  const openModule = (slug: string) => {
-    if (slug === "basvurular") setScreen({ name: "applications" });
+  const openModule = (slug: string, origin: "dashboard" | "more" = "dashboard") => {
+    if (slug === "stok-durumu") setScreen({ name: "lowStock", backTo: origin });
+    else if (slug === "basvurular") setScreen({ name: "applications" });
     else if (slug === "b2b-musteriler") setScreen({ name: "customers" });
     else setScreen({ name: "module", slug });
   };
@@ -113,7 +115,7 @@ export default function App() {
               onSupport={() => setScreen({ name: "support" })}
               onProducts={() => setScreen({ name: "products" })}
               onCustomers={() => setScreen({ name: "customers" })}
-              onModule={openModule}
+              onModule={(slug) => openModule(slug, "dashboard")}
             />
           </AdminShell>
         ) : screen.name === "orders" ? (
@@ -132,8 +134,25 @@ export default function App() {
         ) : screen.name === "products" ? (
           <AdminShell active="products" onTab={openTab}>
             <ProductsScreen onAdd={() => setScreen({ name: "productAdd" })}
+              onEdit={(id) => setScreen({ name: "productEdit", id, backTo: "products" })}
               onAiAdd={user?.role === "super_admin" ? () => setScreen({ name: "aiProductStudio", mode: "super_admin" }) : undefined} />
           </AdminShell>
+        ) : screen.name === "lowStock" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <LowStockScreen
+              onBack={() => setScreen({ name: screen.backTo })}
+              onProducts={() => setScreen({ name: "products" })}
+              onEdit={(id) => setScreen({ name: "productEdit", id, backTo: "lowStock", stockBackTo: screen.backTo })}
+            />
+          </SafeAreaView>
+        ) : screen.name === "productEdit" ? (
+          <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
+            <ProductAddScreen
+              productId={screen.id}
+              onBack={() => setScreen(screen.backTo === "products" ? { name: "products" } : { name: "lowStock", backTo: screen.stockBackTo || "dashboard" })}
+              onCreated={() => setScreen(screen.backTo === "products" ? { name: "products" } : { name: "lowStock", backTo: screen.stockBackTo || "dashboard" })}
+            />
+          </SafeAreaView>
         ) : screen.name === "productAdd" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <ProductAddScreen
@@ -190,7 +209,7 @@ export default function App() {
               user={user}
               onSupport={() => setScreen({ name: "support" })}
               onMarketplace={() => setScreen({ name: "marketplace" })}
-              onModule={openModule}
+              onModule={(slug) => openModule(slug, "more")}
               onLogout={async () => {
                 await unregisterBusinessPush();
                 await signOut();
