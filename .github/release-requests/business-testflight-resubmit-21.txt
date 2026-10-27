@@ -1,0 +1,8 @@
+ÇALIŞKAN BUSINESS TESTFLIGHT - SADECE MEVCUT BUILD 21 YENIDEN GONDER
+Tarih: 2026-10-27
+Kullanıcı önceki Business TestFlight gönderiminin durumunu kontrol etti; mevcut hazır paketin Apple'a aktarımında hata tespit edildi.
+GitHub run 40511226691: iOS 1.0.0 signed build success, App Store Connect submission failed "Unknown error".
+Build ID: e7dcc555-4426-44bd-8018-be7e9ef5f45a (version 1.0.0 build number 21).
+Failed submission: 9fe8fc2c-7ae3-44a1-a469-a5103ab5121a.
+Kapsam: Sadece Çalışkan Business iOS TestFlight. Yeni iOS build oluşturma. Yalnızca hazır imzalı build 21'i Apple'a tekrar yükle. Diğer uygulamalara dokunma.
+İş akışı: .github/workflows/business-testflight-resubmit.yml
