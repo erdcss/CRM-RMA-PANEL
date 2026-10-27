@@ -13,6 +13,7 @@ import Kayitlar from "@/pages/kayitlar";
 import Istatistikler from "@/pages/istatistikler";
 import Musteriler from "@/pages/musteriler";
 import Ayarlar from "@/pages/ayarlar";
+import AdminMeta from "@/pages/admin-meta";
 import Depolar from "@/pages/depolar";
 import Tedarikciler from "@/pages/tedarikciler";
 import Faturalar from "@/pages/faturalar";
@@ -100,6 +101,7 @@ function Router() {
       <Route path="/tedarikciler" component={Tedarikciler} />
       <Route path="/faturalar" component={Faturalar} />
       <Route path="/ayarlar" component={Ayarlar} />
+      <Route path="/meta" component={AdminMeta} />
       <Route path="/yoneticiler" component={Yoneticiler} />
       <Route path="/yapay-zeka" component={YapayZeka} />
       <Route path="/urunler" component={AdminProducts} />
