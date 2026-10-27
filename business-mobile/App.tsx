@@ -140,7 +140,7 @@ export default function App() {
         ) : screen.name === "lowStock" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <LowStockScreen
-              onBack={() => setScreen({ name: screen.backTo })}
+              onBack={() => setScreen(screen.backTo === "more" ? { name: "more" } : { name: "dashboard" })}
               onProducts={() => setScreen({ name: "products" })}
               onEdit={(id) => setScreen({ name: "productEdit", id, backTo: "lowStock", stockBackTo: screen.backTo })}
             />
