@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,12 +12,14 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../lib/api";
 import type { B2BProduct } from "../types";
-import { C, money } from "../ui/theme";
+import { C } from "../ui/theme";
+import { isLowStock, ProductCard } from "./ProductCard";
 import { EmptyState, MiniStat, PageHeader } from "./common";
 
-export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?: () => void }) {
+export function ProductsScreen({ onAdd, onAiAdd, onEdit }: { onAdd: () => void; onAiAdd?: () => void; onEdit: (id: string) => void }) {
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "low">("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -42,17 +43,17 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("tr-TR");
-    if (!needle) return products;
-    return products.filter((product) =>
-      [product.name, product.brand, product.sku, product.barcode]
+    return products.filter((product) => {
+      if (filter === "low" && (product.is_active === false || !isLowStock(product))) return false;
+      return !needle || [product.name, product.brand, product.sku, product.barcode]
         .filter(Boolean)
         .join(" ")
         .toLocaleLowerCase("tr-TR")
-        .includes(needle),
-    );
-  }, [products, query]);
+        .includes(needle);
+    });
+  }, [products, query, filter]);
 
-  const low = products.filter((product) => Number(product.stock || 0) <= Math.max(5, Number(product.units_per_box || 1))).length;
+  const low = products.filter((product) => product.is_active !== false && isLowStock(product)).length;
   const active = products.filter((product) => product.is_active !== false).length;
 
   return (
@@ -108,7 +109,7 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
       </View>
 
       <View style={s.searchBox}>
-        <Text style={s.searchIcon}>⌕</Text>
+        <Ionicons name="search-outline" size={22} color={C.text2} style={s.searchIcon} />
         <TextInput
           style={s.searchInput}
           placeholder="Ürün, marka, SKU veya barkod ara..."
@@ -119,9 +120,20 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
       </View>
 
       <View style={s.stats}>
-        <MiniStat icon="□" title="Toplam Ürün" value={products.length} />
+        <MiniStat icon="▣" title="Toplam Ürün" value={products.length} />
         <MiniStat icon="✓" title="Aktif" value={active} accent={C.green} />
         <MiniStat icon="!" title="Düşük Stok" value={low} accent={C.orange} />
+      </View>
+
+      <View style={s.filters}>
+        <TouchableOpacity onPress={() => setFilter("all")} style={[s.filterButton, filter === "all" && s.filterActive]} accessibilityRole="button" accessibilityState={{ selected: filter === "all" }}>
+          <Ionicons name="grid-outline" size={16} color={filter === "all" ? C.text : C.muted} />
+          <Text style={[s.filterText, filter === "all" && s.filterTextActive]}>Tüm ürünler</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setFilter("low")} style={[s.filterButton, filter === "low" && s.filterActive]} accessibilityRole="button" accessibilityState={{ selected: filter === "low" }}>
+          <Ionicons name="alert-circle-outline" size={16} color={filter === "low" ? C.orange : C.muted} />
+          <Text style={[s.filterText, filter === "low" && s.filterTextActive]}>Düşük stok ({low})</Text>
+        </TouchableOpacity>
       </View>
 
       {error ? <Text style={s.error}>{error}</Text> : null}
@@ -132,31 +144,9 @@ export function ProductsScreen({ onAdd, onAiAdd }: { onAdd: () => void; onAiAdd?
         <EmptyState title="Ürün bulunamadı" text="Aramaya uygun ürün bulunmuyor." />
       ) : (
         <View style={s.list}>
-          {filtered.map((product) => {
-            const image =
-              product.image_data ||
-              (Array.isArray(product.images) && product.images.length ? product.images[0] : null);
-            const lowStock = Number(product.stock || 0) <= Math.max(5, Number(product.units_per_box || 1));
-            return (
-              <View key={String(product.id)} style={s.card}>
-                {image ? (
-                  <Image source={{ uri: image }} style={s.image as import("react-native").ImageStyle} resizeMode="cover" />
-                ) : (
-                  <View style={s.imageFallback}><Text style={s.imageText}>B2B</Text></View>
-                )}
-                <View style={s.main}>
-                  <Text style={s.name} numberOfLines={2}>{product.name || "Ürün"}</Text>
-                  <Text style={s.meta}>{[product.brand, product.sku].filter(Boolean).join(" · ") || "—"}</Text>
-                  <View style={s.bottomRow}>
-                    <Text style={s.price}>{money(product.price)}</Text>
-                    <Text style={[s.stock, lowStock && { color: C.orange }]}>
-                      Stok: {product.stock ?? 0}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
+          {filtered.map((product) => (
+            <ProductCard key={String(product.id)} product={product} onPress={() => onEdit(String(product.id))} />
+          ))}
         </View>
       )}
     </ScrollView>
@@ -198,36 +188,15 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 14,
   },
-  searchIcon: { color: C.text2, fontSize: 24, marginRight: 10 },
+  searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, color: C.text, fontSize: 14 },
-  stats: { flexDirection: "row", gap: 10, marginBottom: 18 },
+  stats: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 14 },
+  filters: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  filterButton: { flex: 1, minHeight: 42, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderColor: C.line, borderWidth: 1, backgroundColor: C.panel },
+  filterActive: { borderColor: C.blue, backgroundColor: C.blueSoft },
+  filterText: { color: C.muted, fontSize: 12, fontWeight: "600" },
+  filterTextActive: { color: C.text },
   error: { color: C.red, marginBottom: 14 },
   loader: { marginTop: 30 },
   list: { gap: 10 },
-  card: {
-    minHeight: 108,
-    padding: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: C.line,
-    backgroundColor: C.panel,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  image: { width: 82, height: 82, borderRadius: 17, backgroundColor: C.panel2 },
-  imageFallback: {
-    width: 82,
-    height: 82,
-    borderRadius: 17,
-    backgroundColor: C.panel2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  imageText: { color: C.text2, fontSize: 11, fontWeight: "700" },
-  main: { flex: 1, paddingLeft: 13 },
-  name: { color: C.text, fontSize: 14, fontWeight: "600", lineHeight: 19 },
-  meta: { color: C.muted, fontSize: 10, marginTop: 5 },
-  bottomRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 12 },
-  price: { color: C.text, fontSize: 14, fontWeight: "600" },
-  stock: { color: C.green, fontSize: 11, fontWeight: "500" },
 });
