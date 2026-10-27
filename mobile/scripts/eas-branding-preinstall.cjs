@@ -60,6 +60,13 @@ async function main(){
   const logo=await download(branding.logo,"logo");
   const splash=branding.splash?await download(branding.splash,"splash"):null;
   const androidIcon=branding.androidIcon?await download(branding.androidIcon,"android-icon"):logo;
+  // Expo SDK 54's Android splash plugin must receive an actual PNG image.
+  // Background color alone leaves @drawable/splashscreen_logo unresolved at Gradle link time.
+  // Generate a transparent 48x48 PNG BEFORE Android prebuild, without third-party deps.
+  const androidSplashName="android-native-splash-transparent.png";
+  const androidSplashPath="./assets/"+androidSplashName;
+  const transparentSplashPng="iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAAH0lEQVR4nO3BAQEAAACCIP+vbkhAAQAAAAAAAAAALwYkMAAB5ewAXAAAAABJRU5ErkJggg==";
+  fs.writeFileSync(path.join(assetsDir,androidSplashName),Buffer.from(transparentSplashPng,"base64"));
   const configPath=path.join(root,"app.json");
   const content=JSON.parse(fs.readFileSync(configPath,"utf8"));
   const expo=content.expo||(content.expo={});
@@ -77,12 +84,12 @@ async function main(){
     backgroundColor:"#101010",
     enableFullScreenImage_legacy:true,
     ios:{backgroundColor:"#101010",...(splash?{image:splash,resizeMode:"cover"}:{})},
-    android:{backgroundColor:"#101010"}
+    android:{image:androidSplashPath,imageWidth:48,backgroundColor:"#101010"}
   }]);
   expo.splash=splash?{image:splash,resizeMode:"cover",backgroundColor:"#101010"}:{backgroundColor:"#101010"};
   // Android 12+ uses a system-controlled icon splash; keep the native icon
   // centered while the full-bleed admin-managed image loads in React.
-  expo.android.splash={backgroundColor:"#101010"};
+  expo.android.splash={image:androidSplashPath,resizeMode:"contain",backgroundColor:"#101010"};
   if(splash){
     expo.ios.splash={image:splash,resizeMode:"cover",backgroundColor:"#101010"};
   }else{
