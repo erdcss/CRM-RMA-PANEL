@@ -165,9 +165,12 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
      const orders=await loadSupplierOrders(uid);
      const order=orders.find((candidate)=>Number(candidate.id)===rawId);
      if(!order)return res.status(404).json({error:"Bu siparişin PDF dosyasına erişim yetkiniz yok"});
-     const buffer=generateSupplierOrderPdf(order);
+     const variant=req.body?.variant==="simple"?"simple":"standard";
+     if(req.body?.variant&&req.body.variant!=="standard"&&req.body.variant!=="simple")
+       return res.status(400).json({error:"Geçersiz PDF biçimi"});
+     const buffer=generateSupplierOrderPdf(order,variant);
      const ticket=randomBytes(32).toString("hex");
-     const fileName="Caliskan-B2B-Tedarikci-Siparis-"+Math.abs(rawId)+".pdf";
+     const fileName="Caliskan-Business-Siparis-"+Math.abs(rawId)+"-"+variant+".pdf";
      for(const [key,value] of pdfTickets)if(value.expiresAt<Date.now())pdfTickets.delete(key);
      if(pdfTickets.size>80){const key=pdfTickets.keys().next().value;if(key)pdfTickets.delete(key);}
      pdfTickets.set(ticket,{buffer,expiresAt:Date.now()+120000,fileName});
