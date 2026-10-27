@@ -1,9 +1,14 @@
-ÇALIŞKAN BUSINESS — YENİ iOS TESTFLIGHT GÖNDERİMİ
+ÇALIŞKAN BUSINESS — TESTFLIGHT YENİ GÖNDERİM
 Tarih: 2026-10-27
-Kaynak main commit: bd0c672cb842e6a9257ae0b21bbaae2b9a866605
-Hedef sadece Çalışkan Business iOS / com.caliskangroup.business.
-Hedef App Store Connect app: 6818161236, EAS project aa005486-76a0-41cd-92de-33c2070a73f1.
-En son uygulanan geliştirme: business-mobile/screens/OrdersScreen.tsx Siparişler ekranı artık yalnızca onaylı/confirmed/paid siparişleri gösterir; bekleyen/iptal/ödenmemiş siparişler gizlenir. Business Dashboard da aynı onay durumu kuralını kullanır.
-Kontrol: GitHub run 40483143038 Business TypeScript + Expo iOS/Android JS exports SUCCESS.
-Sadece Business uygulamasını TestFlight'a gönder. B2B, Dükkan, Android ve App Store halka açık yayın tetiklenmesin.
-İş akışı .github/workflows/testflight-all-apps.yml push route: business job only. iOS TestFlight EAS build + App Store Connect submission --wait.
+Kullanıcının talebi: En son tedarikçi sipariş verisi gizliliği değişiklikleri sonrası TestFlight oluştur.
+Kaynak main SHA: 59da1dd1f6f3a5cba0430f9082da709a2bf0be8c
+Hedef tek uygulama: Çalışkan Business iOS
+Bundle ID: com.caliskangroup.business
+ASC App ID: 6818161236
+EAS Project ID: aa005486-76a0-41cd-92de-33c2070a73f1
+Sürüm: 1.0.0, EAS remote autoIncrement build number
+İlgili değişiklikler: server/supplier-privacy.ts, server/marketplace-cart.ts, server/marketplace.ts tedarikçi sipariş yanıtı PII filtreleme ve sohbet telefon maskeleme. Bunlar server-side güvenlik kuralı olup yeni iOS derlemesinden bağımsız canlı API tarafından uygulanır.
+Önceki business-mobile onaylı sipariş filtreleme düzeltmeleri kodda korunuyor.
+Son gizlilik testleri ve TS/prod build başarılı: GitHub Actions run 40488497163.
+İş akışı: .github/workflows/testflight-all-apps.yml push -> Business only; iOS build -> EAS submit TestFlight --wait.
+Çalışkan B2B iOS, Android ve halka açık App Store gönderimi bu talebin dışında.
