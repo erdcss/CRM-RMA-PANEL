@@ -1,215 +1,334 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, Linking, RefreshControl, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View,
+  ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Share,
+  Linking, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../lib/api";
-import { C, money, shortDate } from "../ui/theme";
+import { shortDate } from "../ui/theme";
 
-export type SupplierOrder = {
-  id:number;
-  order_id:number;
-  created_at:string;
-  status:string;
-  subtotal:number|string;
-  currency?:string;
-  delivery_mode:string;
+export type SupplierOrder={
+  id:number;order_id:number;created_at:string;status:string;
+  subtotal:number|string;currency?:string;delivery_mode:string;
+  payment_method?:string|null;customer_company?:string|null;delivery_address?:string|null;
   items:Array<{
     productId?:number|string;name?:string;sku?:string;
-    boxes?:number|string;unitsPerBox?:number|string;
-    price?:number|string;total?:number|string;
+    boxes?:number|string;unitsPerBox?:number|string;price?:number|string;total?:number|string;
   }>;
 };
+type PdfFormat="standard"|"simple";
+const BLUE="#1463E8",DARK="#07112C",GRAY="#627086",BG="#F6F8FC",LINE="#E2E7EF",AMBER="#FFCC00";
+const price=(v:unknown)=>{
+  const num=Number(v)||0;
+  return num.toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})+" TL";
+};
+const paid=(status:string)=>status==="paid";
+const orderStatus=(status:string)=>paid(status)?"Onaylandı":"Onay bekliyor";
+const payment=(value?:string|null)=>value==="bank_transfer"?"Havale / EFT":
+  value==="card"?"Kredi / Banka Kartı":"Belirtilmedi";
+const shipping=(value:string)=>value==="warehouse"?"Depo Teslim":
+  value==="pickup"?"Mağazadan Teslim":"Doğrudan Teslimat";
 
-export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void}) {
+function OrderLine({icon,label,value}:{icon:React.ComponentProps<typeof Ionicons>["name"];label:string;value:string}){
+  return <View style={styles.detailLine}>
+    <View style={styles.detailIcon}><Ionicons name={icon} size={22} color={DARK}/></View>
+    <View style={{flex:1,minWidth:0}}>
+      <Text style={styles.mutedLabel}>{label}</Text>
+      <Text style={styles.detailText} selectable>{value}</Text>
+    </View>
+  </View>;
+}
+export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void}){
   const [order,setOrder]=useState<SupplierOrder|null>(null);
-  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
   const [exporting,setExporting]=useState(false);
   const [error,setError]=useState("");
-
+  const [showPdf,setShowPdf]=useState(false);
+  const [pdfType,setPdfType]=useState<PdfFormat>("standard");
   const load=useCallback(async()=>{
     setError("");
     try{
-      // The server only returns the authenticated supplier's own allowlisted orders.
-      // Never fetch /api/admin/orders or render addresses, phones or customer details.
+      // Seller-only API; never fetch administrator order details.
       const own=await apiFetch<SupplierOrder[]>("/api/marketplace/seller/orders");
-      const found=own.find(value=>Number(value.id)===Number(id));
-      if(!found)throw new Error("Bu siparişe erişim yetkiniz yok veya sipariş bulunamadı.");
+      const found=own.find(item=>Number(item.id)===Number(id));
+      if(!found)throw new Error("Bu siparişe erişim izniniz yok.");
       setOrder(found);
-    }catch(e){setOrder(null);setError(e instanceof Error?e.message:"Sipariş alınamadı");}
-    finally{setLoading(false);setRefreshing(false);}
+    }catch(e){setOrder(null);setError(e instanceof Error?e.message:"Sipariş yüklenemedi");}
+    finally{setBusy(false);setRefreshing(false);}
   },[id]);
   useEffect(()=>{void load();},[load]);
+  const orderNo=order?"#CB"+String(order.order_id):"—";
+  const products=useMemo(()=>order?.items||[],[order]);
+  const quantity=products.reduce((total,item)=>total+Number(item.boxes||0)*Number(item.unitsPerBox||1),0);
 
-  const exportPdf=async()=>{
+  async function exportPdf(){
     if(!order||exporting)return;
     setExporting(true);
     try{
-      const result=await apiFetch<{url:string}>("/api/marketplace/seller/orders/"+encodeURIComponent(String(order.id))+"/pdf-link",{
-        method:"POST",body:JSON.stringify({})
+      const r=await apiFetch<{url:string}>("/api/marketplace/seller/orders/"+
+        encodeURIComponent(String(order.id))+"/pdf-link",{
+        method:"POST",body:JSON.stringify({variant:pdfType})
       });
-      if(!result.url.startsWith("https://admin.ecalisgan.com/api/marketplace/seller/orders/pdf/"))
-        throw new Error("PDF bağlantısı doğrulanamadı.");
-      await Linking.openURL(result.url);
-    }catch(e){
-      Alert.alert("PDF dışa aktarılamadı",e instanceof Error?e.message:"Lütfen yeniden deneyin.");
-    }finally{setExporting(false);}
-  };
-
-  return <ScrollView style={s.page} contentContainerStyle={s.content}
-    refreshControl={<RefreshControl refreshing={refreshing} tintColor={C.text}
-      onRefresh={()=>{setRefreshing(true);void load();}} />}>
-    <View style={s.top}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Siparişlere dön"
-        onPress={onBack} style={s.back}>
-        <Ionicons name="arrow-back" size={21} color={C.text}/>
+      const target=new URL(r.url);
+      if(target.protocol!=="https:"||target.hostname!=="admin.ecalisgan.com"||
+         !/^\/api\/marketplace\/seller\/orders\/pdf\/[0-9a-f]{64}$/.test(target.pathname))
+        throw new Error("PDF adresi doğrulanamadı.");
+      await Linking.openURL(r.url);
+      setShowPdf(false);
+    }catch(e){Alert.alert("PDF oluşturulamadı",e instanceof Error?e.message:"Tekrar deneyin.");}
+    finally{setExporting(false);}
+  }
+  async function shareOrder(){
+    if(!order)return;
+    try{await Share.share({message:"Çalışkan Business · Sipariş "+orderNo+
+      "\nTarih: "+shortDate(order.created_at)+"\nToplam: "+price(order.subtotal)});}
+    catch{/* Sharing is optional. */}
+  }
+  return <View style={styles.page}>
+    <View style={styles.topBar}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Siparişlere dön" onPress={onBack}
+        style={styles.back}><Ionicons name="chevron-back" size={25} color={DARK}/></TouchableOpacity>
+      <Text style={styles.topTitle}>Sipariş Detayı</Text>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Sipariş özetini paylaş"
+        style={styles.share} onPress={()=>void shareOrder()}>
+        <Ionicons name="share-social-outline" size={22} color={DARK}/>
       </TouchableOpacity>
-      <View style={s.headingBlock}>
-        <Text style={s.eyebrow}>ÇALIŞKAN BUSINESS</Text>
-        <Text style={s.heading}>Sipariş Detayı</Text>
-      </View>
-      <View style={s.topSymbol}><Ionicons name="receipt-outline" size={23} color={C.text}/></View>
+      <TouchableOpacity accessibilityRole="button" style={styles.topPdf}
+        onPress={()=>setShowPdf(true)} disabled={!order}>
+        <Ionicons name="document-outline" size={18} color="#FFFFFF"/>
+        <Text style={styles.topPdfText}>PDF İndir</Text>
+      </TouchableOpacity>
     </View>
-
-    {loading?<ActivityIndicator style={{marginTop:60}} size="large" color={C.blue}/>:null}
-    {error?<View style={s.empty}><Ionicons name="alert-circle-outline" color={C.red} size={28}/>
-      <Text style={s.error}>{error}</Text>
-      <TouchableOpacity style={s.retry} onPress={()=>void load()}>
-        <Text style={s.retryText}>Tekrar Dene</Text>
-      </TouchableOpacity>
-    </View>:null}
-
-    {order&&!loading?<>
-      <View style={s.hero}>
-        <View style={s.heroTop}>
-          <View style={s.heroIcon}><Ionicons name="bag-check-outline" size={22} color="#FACC15"/></View>
-          <View style={s.status}><View style={s.dot}/><Text style={s.statusText}>
-            {order.status==="paid"?"Ödeme Alındı":order.status==="pending_confirmation"?"Onay Bekliyor":"Sipariş Oluşturuldu"}
-          </Text></View>
-        </View>
-        <Text style={s.heroOverline}>SİPARİŞ TOPLAMI</Text>
-        <Text style={s.heroMoney}>{money(order.subtotal)}</Text>
-        <View style={s.heroDivider}/>
-        <View style={s.heroBottom}>
-          <View><Text style={s.lightLabel}>Sipariş No</Text>
-            <Text selectable style={s.heroNo}>#{order.order_id}</Text></View>
-          <View style={{alignItems:"flex-end",flexShrink:1}}>
-            <Text style={s.lightLabel}>Sipariş Tarihi</Text>
-            <Text style={s.heroDate}>{shortDate(order.created_at)}</Text>
+    <ScrollView contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);void load();}}/>}>
+      {busy?<ActivityIndicator style={{marginTop:70}} size="large" color={BLUE}/>:null}
+      {error?<View style={styles.panel}><Text style={styles.error}>{error}</Text>
+        <TouchableOpacity onPress={()=>void load()}><Text style={styles.link}>Yeniden dene</Text></TouchableOpacity>
+      </View>:null}
+      {order&&!busy?<>
+        <View style={styles.panel}>
+          <View style={styles.headingRow}>
+            <View style={{flex:1}}>
+              <Text style={styles.mutedLabel}>Sipariş Numarası</Text>
+              <View style={styles.rowWrap}><Text selectable style={styles.number}>{orderNo}</Text>
+                <View style={styles.approved}><Text style={styles.approvedText}>{orderStatus(order.status)}</Text></View>
+              </View>
+            </View>
+            <View style={{alignItems:"flex-end"}}>
+              <Text style={styles.mutedLabel}>Sipariş Tarihi</Text>
+              <Text style={styles.boldText}>{shortDate(order.created_at)}</Text>
+            </View>
           </View>
         </View>
-      </View>
-
-      <View style={s.sectionTop}><Text style={s.sectionTitle}>Sipariş Bilgileri</Text>
-        <Ionicons name="information-circle-outline" color={C.muted} size={19}/>
-      </View>
-      <View style={s.panel}>
-        <InfoRow label="Sipariş" value={"#"+order.order_id}/>
-        <InfoRow label="Durum" value={order.status==="paid"?"Ödendi":"Onay Bekliyor"}/>
-        <InfoRow label="Teslimat Türü" value={order.delivery_mode==="warehouse"?"Depo Teslim":"Doğrudan Teslimat"}/>
-        <InfoRow label="Ürün Çeşidi" value={String(order.items?.length||0)} last/>
-      </View>
-
-      <View style={s.sectionTop}><Text style={s.sectionTitle}>Siparişteki Ürünler</Text>
-        <View style={s.countPill}><Text style={s.countText}>{order.items?.length||0} Ürün</Text></View>
-      </View>
-      <View style={s.panel}>
-        {!order.items?.length ? <Text style={s.emptyItems}>Bu siparişte ürün bulunamadı.</Text> :
-        order.items.map((item,index)=><View key={index} style={[s.productRow,index>0&&s.productBorder]}>
-          <View style={s.productGlyph}><Ionicons name="cube-outline" size={23} color="#FACC15"/></View>
-          <View style={s.productMain}>
-            <Text style={s.productTitle}>{item.name||item.sku||"Ürün"}</Text>
-            <Text style={s.productSku}>{item.sku?"Kod: "+item.sku:"Ürün "+(index+1)}</Text>
-            <Text style={s.productQty}>{Number(item.boxes||0)} koli · Koli içi {Number(item.unitsPerBox||1)} adet</Text>
+        {(order.customer_company||order.delivery_address)?<View style={styles.panel}>
+          {order.customer_company?<OrderLine icon="business-outline" label="Müşteri Firma"
+            value={order.customer_company}/>:null}
+          {order.customer_company&&order.delivery_address?<View style={styles.rule}/>:null}
+          {order.delivery_address?<OrderLine icon="location-outline" label="Teslimat Adresi"
+            value={order.delivery_address}/>:null}
+        </View>:null}
+        <View style={styles.infoTiles}>
+          <View style={styles.infoTile}>
+            <Ionicons name="business-outline" size={25} color={BLUE}/>
+            <View style={{flex:1}}>
+              <Text style={styles.blueCaption}>Ödeme Yöntemi</Text>
+              <Text style={styles.boldText}>{payment(order.payment_method)}</Text>
+            </View>
           </View>
-          <View style={s.productPrice}>
-            <Text style={s.productTotal}>{money(item.total)}</Text>
-            <Text style={s.productUnit}>{money(item.price)} / birim</Text>
+          <View style={styles.infoTile}>
+            <Ionicons name="car-outline" size={27} color={BLUE}/>
+            <View style={{flex:1}}>
+              <Text style={styles.blueCaption}>Kargo Türü</Text>
+              <Text style={styles.boldText}>{shipping(order.delivery_mode)}</Text>
+            </View>
           </View>
-        </View>)}
+        </View>
+        <View style={styles.panel}>
+          <View style={styles.productsHeader}>
+            <Text style={styles.sectionTitle}>Sipariş Ürünleri</Text>
+            <Text style={styles.count}>({products.length})</Text>
+          </View>
+          <View style={styles.tableHead}>
+            <Text style={[styles.tableHeading,{flex:1.55}]}>Ürün</Text>
+            <Text style={[styles.tableHeading,{flex:0.6,textAlign:"center"}]}>Adet</Text>
+            <Text style={[styles.tableHeading,{flex:0.9,textAlign:"right"}]}>Toplam</Text>
+          </View>
+          {products.length?products.map((item,index)=><View key={index}
+            style={[styles.productRow,index>0&&{borderTopColor:LINE,borderTopWidth:1}]}>
+            <View style={styles.productIcon}><Ionicons name="cube-outline" size={22} color={DARK}/></View>
+            <View style={{flex:1.55,minWidth:0}}>
+              <Text style={styles.productName}>{item.name||"Ürün"}</Text>
+              <Text style={styles.productSku}>{item.sku||"Ürün kodu yok"}</Text>
+              <Text style={styles.productSku}>{price(item.price)} / birim</Text>
+            </View>
+            <Text style={[styles.productCount,{flex:0.6}]}>{Number(item.boxes||0)*Number(item.unitsPerBox||1)}</Text>
+            <Text style={[styles.productPrice,{flex:0.9}]}>{price(item.total)}</Text>
+          </View>):<Text style={styles.productSku}>Bu siparişte ürün bulunamadı.</Text>}
+          <View style={styles.totalBlock}>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Ürün Çeşidi</Text>
+              <Text style={styles.boldText}>{products.length}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Toplam Adet</Text>
+              <Text style={styles.boldText}>{quantity}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Ara Toplam</Text>
+              <Text style={styles.boldText}>{price(order.subtotal)}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Kargo</Text>
+              <Text style={styles.totalLabel}>Bu belgede ayrıca hesaplanmadı</Text></View>
+            <View style={styles.grandTotal}>
+              <Text style={styles.grandLabel}>Sipariş Toplamı</Text>
+              <Text style={styles.grandValue}>{price(order.subtotal)}</Text>
+            </View>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.exportButton} onPress={()=>setShowPdf(true)}>
+          <Ionicons name="download-outline" size={21} color="#FFFFFF"/>
+          <Text style={styles.exportButtonText}>Siparişi PDF Olarak Dışa Aktar</Text>
+        </TouchableOpacity>
+        <View style={styles.privacy}>
+          <Ionicons name="shield-checkmark" color="#15803D" size={17}/>
+          <Text style={styles.privacyText}>Müşteri telefon numarası ve e-posta bilgileri tedarikçilerle paylaşılmaz.
+            Bu bilgiler yalnızca yetkili yönetici hesaplarında bulunur.</Text>
+        </View>
+      </>:null}
+    </ScrollView>
+    <Modal transparent animationType="slide" visible={showPdf} onRequestClose={()=>setShowPdf(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.sheet}>
+          <View style={styles.sheetHead}>
+            <View style={{flex:1}}><Text style={styles.sheetTitle}>Siparişi PDF Olarak Dışa Aktar</Text>
+              <Text style={styles.sheetDescription}>İstediğiniz belge biçimini seçin.</Text></View>
+            <TouchableOpacity accessibilityLabel="Kapat" onPress={()=>setShowPdf(false)}>
+              <Ionicons name="close" color={DARK} size={25}/>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.formatRow}>
+            {([{id:"standard",label:"Standart Tasarım",description:"Detaylı sipariş belgesi",icon:"document-text-outline"},
+              {id:"simple",label:"Sade Liste",description:"Yalnızca ürün listesi",icon:"receipt-outline"}] as const)
+              .map(value=><TouchableOpacity key={value.id}
+                style={[styles.formatCard,pdfType===value.id&&styles.formatSelected]}
+                onPress={()=>setPdfType(value.id)}>
+                <Ionicons name={value.icon} size={25} color={pdfType===value.id?BLUE:GRAY}/>
+                <Text style={styles.formatTitle}>{value.label}</Text>
+                <Text style={styles.formatCaption}>{value.description}</Text>
+              </TouchableOpacity>)}
+          </View>
+          <View style={styles.preview}>
+            <View style={styles.previewTop}><View style={styles.previewLogo}>
+              <Text style={styles.previewLogoText}>ÇALIŞKAN</Text></View>
+              <Text style={styles.previewTitle}>ÇALIŞKAN BUSINESS</Text>
+              <Text style={styles.previewBadge}>SİPARİŞ DETAYI</Text>
+            </View>
+            <View style={styles.rule}/>
+            <Text style={styles.previewDetail}>{orderNo}     {order?shortDate(order.created_at):""}</Text>
+            {pdfType==="standard"&&order?.customer_company?
+              <Text style={styles.previewDetail}>Firma: {order.customer_company}</Text>:null}
+            <View style={styles.previewColumns}><Text style={styles.previewCol}>ÜRÜN</Text>
+              <Text style={styles.previewCol}>KOLİ</Text><Text style={styles.previewCol}>TUTAR</Text></View>
+            {products.slice(0,4).map((item,index)=><View key={index} style={styles.previewProduct}>
+              <Text style={styles.previewItem} numberOfLines={1}>{item.name||"Ürün"}</Text>
+              <Text style={styles.previewItem}>{item.boxes||0}</Text>
+              <Text style={styles.previewItem}>{price(item.total)}</Text>
+            </View>)}
+            {products.length>4?<Text style={styles.previewDetail}>+{products.length-4} ürün daha</Text>:null}
+            <View style={styles.previewTotal}><Text style={styles.previewTotalText}>
+              Toplam: {price(order?.subtotal)}</Text></View>
+            <Text style={styles.previewFootnote}>Sipariş özetidir, resmi fatura yerine geçmez. Telefon / e-posta içermez.</Text>
+          </View>
+          <TouchableOpacity disabled={!order||exporting}
+            style={[styles.downloadButton,exporting&&{opacity:0.6}]} onPress={()=>void exportPdf()}>
+            {exporting?<ActivityIndicator color="#FFFFFF"/>:<Ionicons name="download-outline" size={20} color="#FFFFFF"/>}
+            <Text style={styles.downloadText}>{exporting?"PDF hazırlanıyor...":"PDF İndir"}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
-      <View style={s.totalPanel}>
-        <View style={s.totalRow}><Text style={s.totalMuted}>Ara Toplam</Text>
-          <Text style={s.totalNormal}>{money(order.subtotal)}</Text></View>
-        <View style={s.totalRule}/>
-        <View style={s.totalRow}><Text style={s.grandText}>Sipariş Toplamı</Text>
-          <Text style={s.grandPrice}>{money(order.subtotal)}</Text></View>
-      </View>
-      <View style={s.privacy}>
-        <Ionicons name="shield-checkmark-outline" size={18} color={C.green}/>
-        <Text style={s.privacyText}>
-          Müşteri iletişim bilgileri yalnızca yetkili yönetici hesabında görüntülenebilir.
-        </Text>
-      </View>
-      <TouchableOpacity disabled={exporting} accessibilityRole="button"
-        onPress={()=>void exportPdf()} style={[s.exportButton,exporting&&{opacity:0.55}]}>
-        {exporting?<ActivityIndicator color="#111827"/>:<Ionicons name="document-text-outline" size={21} color="#111827"/>}
-        <Text style={s.exportText}>{exporting?"PDF Hazırlanıyor…":"PDF Olarak Dışa Aktar"}</Text>
-        <Ionicons name="download-outline" size={20} color="#111827"/>
-      </TouchableOpacity>
-      <Text style={s.pdfNote}>PDF yalnızca sipariş ürünlerini, miktarları, tarih ve toplamı içerir; müşteri telefonu ve iletişim bilgileri paylaşılmaz.</Text>
-    </>:null}
-  </ScrollView>;
-}
-function InfoRow({label,value,last=false}:{label:string;value:string;last?:boolean}){
-  return <View style={[s.infoRow,!last&&s.infoBorder]}>
-    <Text style={s.infoLabel}>{label}</Text>
-    <Text style={s.infoValue}>{value}</Text>
+    </Modal>
   </View>;
 }
-const s=StyleSheet.create({
-  page:{flex:1,backgroundColor:C.bg},
-  content:{paddingHorizontal:18,paddingTop:10,paddingBottom:48},
-  top:{flexDirection:"row",alignItems:"center",gap:12,marginBottom:22},
-  back:{width:44,height:44,borderRadius:14,backgroundColor:C.panel,borderColor:C.line,borderWidth:1,alignItems:"center",justifyContent:"center"},
-  headingBlock:{flex:1},eyebrow:{color:C.muted,fontSize:10,fontWeight:"800",letterSpacing:1.2},
-  heading:{color:C.text,fontSize:23,fontWeight:"800",marginTop:2},
-  topSymbol:{width:44,height:44,borderRadius:14,backgroundColor:C.panel2,alignItems:"center",justifyContent:"center"},
-  hero:{borderRadius:24,backgroundColor:"#111A27",padding:20,borderWidth:1,borderColor:"#2A3D53",marginBottom:24},
-  heroTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:22},
-  heroIcon:{width:46,height:46,borderRadius:15,backgroundColor:"#263241",alignItems:"center",justifyContent:"center"},
-  status:{flexDirection:"row",alignItems:"center",gap:7,paddingHorizontal:11,paddingVertical:8,backgroundColor:"rgba(52,211,153,0.12)",borderRadius:20},
-  dot:{width:6,height:6,borderRadius:3,backgroundColor:C.green},
-  statusText:{color:C.green,fontSize:11,fontWeight:"700"},
-  heroOverline:{color:"#98A7BA",fontSize:11,fontWeight:"700",letterSpacing:1},
-  heroMoney:{color:"#FFFFFF",fontSize:34,fontWeight:"800",marginTop:5},
-  heroDivider:{height:1,backgroundColor:"#334155",marginVertical:19},
-  heroBottom:{flexDirection:"row",justifyContent:"space-between",gap:10},
-  lightLabel:{color:"#9DACBF",fontSize:11,marginBottom:6},
-  heroNo:{color:C.text,fontSize:14,fontWeight:"700"},
-  heroDate:{color:C.text,fontSize:12,fontWeight:"600"},
-  sectionTop:{marginBottom:11,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
-  sectionTitle:{color:C.text,fontSize:17,fontWeight:"800"},
-  countPill:{borderRadius:14,paddingHorizontal:10,paddingVertical:6,backgroundColor:C.panel2},
-  countText:{color:C.text2,fontSize:11,fontWeight:"700"},
-  panel:{borderRadius:20,backgroundColor:C.panel,borderWidth:1,borderColor:C.line,marginBottom:24,paddingHorizontal:16},
-  infoRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",minHeight:53,gap:12},
-  infoBorder:{borderBottomColor:C.line,borderBottomWidth:StyleSheet.hairlineWidth},
-  infoLabel:{color:C.muted,fontSize:12},
-  infoValue:{color:C.text,fontSize:13,fontWeight:"600",textAlign:"right",flexShrink:1},
-  productRow:{flexDirection:"row",paddingVertical:17,gap:12,alignItems:"center"},
-  productBorder:{borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:C.line},
-  productGlyph:{width:46,height:46,borderRadius:13,backgroundColor:"#222C3A",alignItems:"center",justifyContent:"center"},
-  productMain:{flex:1},productTitle:{color:C.text,fontWeight:"700",fontSize:13},
-  productSku:{color:C.muted,marginTop:4,fontSize:10},productQty:{color:C.text2,marginTop:5,fontSize:11},
-  productPrice:{alignItems:"flex-end",flexShrink:1},productTotal:{color:C.text,fontSize:13,fontWeight:"700"},
-  productUnit:{color:C.muted,fontSize:10,marginTop:5},
-  emptyItems:{paddingVertical:20,color:C.muted},
-  totalPanel:{backgroundColor:C.panel2,borderRadius:20,borderWidth:1,borderColor:C.line,padding:18,marginBottom:16},
-  totalRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:12},
-  totalMuted:{color:C.muted,fontSize:13},totalNormal:{color:C.text,fontSize:14,fontWeight:"600"},
-  totalRule:{height:1,backgroundColor:C.line,marginVertical:17},
-  grandText:{color:C.text,fontWeight:"800",fontSize:14},
-  grandPrice:{color:"#FACC15",fontWeight:"800",fontSize:21},
-  privacy:{flexDirection:"row",alignItems:"center",gap:10,marginBottom:18,paddingHorizontal:2},
-  privacyText:{color:C.muted,fontSize:11,lineHeight:17,flex:1},
-  exportButton:{backgroundColor:"#FACC15",borderRadius:17,minHeight:58,flexDirection:"row",alignItems:"center",justifyContent:"center",gap:12,paddingHorizontal:12},
-  exportText:{fontSize:15,color:"#111827",fontWeight:"800",flex:1,textAlign:"center"},
-  pdfNote:{fontSize:10,color:C.muted,textAlign:"center",lineHeight:16,marginTop:12},
-  empty:{marginTop:25,padding:20,borderRadius:18,backgroundColor:C.panel,alignItems:"center",gap:14},
-  error:{color:C.text2,textAlign:"center"},retry:{padding:12,backgroundColor:C.blue,borderRadius:12},
-  retryText:{color:"#FFFFFF",fontWeight:"700"},
+const styles=StyleSheet.create({
+  page:{flex:1,backgroundColor:BG},
+  topBar:{flexDirection:"row",alignItems:"center",gap:8,paddingHorizontal:12,paddingVertical:11,
+    borderBottomColor:LINE,borderBottomWidth:1,backgroundColor:"#FFFFFF"},
+  back:{width:34,height:40,justifyContent:"center",alignItems:"center"},
+  topTitle:{color:DARK,fontSize:17,fontWeight:"800",flex:1,textAlign:"center"},
+  share:{width:32,height:40,justifyContent:"center",alignItems:"center"},
+  topPdf:{backgroundColor:DARK,flexDirection:"row",alignItems:"center",gap:6,
+    borderRadius:11,paddingHorizontal:11,minHeight:39},
+  topPdfText:{color:"#FFFFFF",fontSize:12,fontWeight:"800"},
+  content:{padding:14,paddingBottom:48,gap:12},
+  panel:{backgroundColor:"#FFFFFF",borderRadius:17,borderColor:LINE,borderWidth:1,
+    paddingHorizontal:15,paddingVertical:16},
+  headingRow:{flexDirection:"row",gap:10,alignItems:"center"},
+  mutedLabel:{color:GRAY,fontSize:11,marginBottom:5},
+  number:{color:DARK,fontWeight:"900",fontSize:17},
+  boldText:{color:DARK,fontWeight:"700",fontSize:13},
+  rowWrap:{flexDirection:"row",flexWrap:"wrap",alignItems:"center",gap:8},
+  approved:{backgroundColor:"#BDF4D7",paddingVertical:4,paddingHorizontal:9,borderRadius:30},
+  approvedText:{color:"#067441",fontWeight:"700",fontSize:11},
+  rule:{height:1,backgroundColor:LINE,marginVertical:13},
+  detailLine:{flexDirection:"row",gap:12,alignItems:"center"},
+  detailIcon:{height:43,width:43,borderRadius:12,backgroundColor:"#F1F4F8",
+    justifyContent:"center",alignItems:"center"},
+  detailText:{color:DARK,fontSize:14,fontWeight:"700",lineHeight:21},
+  infoTiles:{flexDirection:"row",gap:9},
+  infoTile:{flex:1,minWidth:0,backgroundColor:"#EDF7FF",borderRadius:14,
+    paddingVertical:14,paddingHorizontal:9,flexDirection:"row",alignItems:"center",gap:8},
+  blueCaption:{color:BLUE,fontSize:10,fontWeight:"700",marginBottom:5},
+  productsHeader:{flexDirection:"row",alignItems:"center",marginBottom:13,gap:6},
+  sectionTitle:{color:DARK,fontSize:16,fontWeight:"800"},
+  count:{color:GRAY,fontSize:12},
+  tableHead:{backgroundColor:"#F1F4F8",borderRadius:9,padding:10,flexDirection:"row"},
+  tableHeading:{color:"#5E6C7D",fontSize:11,fontWeight:"700"},
+  productRow:{minHeight:74,flexDirection:"row",alignItems:"center",gap:9,paddingVertical:11},
+  productIcon:{height:39,width:39,borderRadius:10,backgroundColor:"#F1F4F8",
+    alignItems:"center",justifyContent:"center"},
+  productName:{color:DARK,fontWeight:"700",fontSize:12},
+  productSku:{color:GRAY,fontSize:10,marginTop:4},
+  productCount:{color:DARK,textAlign:"center",fontSize:12},
+  productPrice:{color:DARK,textAlign:"right",fontWeight:"700",fontSize:11},
+  totalBlock:{paddingTop:14,borderTopColor:LINE,borderTopWidth:1,gap:10},
+  totalRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:10},
+  totalLabel:{color:GRAY,fontSize:11},
+  grandTotal:{backgroundColor:"#ECF5FF",borderRadius:10,padding:12,
+    flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
+  grandLabel:{fontSize:15,fontWeight:"800",color:DARK},
+  grandValue:{fontSize:15,fontWeight:"900",color:DARK},
+  exportButton:{height:54,borderRadius:14,backgroundColor:DARK,
+    flexDirection:"row",alignItems:"center",justifyContent:"center",gap:8},
+  exportButtonText:{color:"#FFFFFF",fontWeight:"800",fontSize:13},
+  privacy:{flexDirection:"row",alignItems:"flex-start",gap:8,paddingHorizontal:4,paddingTop:2},
+  privacyText:{flex:1,color:GRAY,fontSize:11,lineHeight:17},
+  error:{color:"#B91C1C",fontSize:13,marginBottom:15},
+  link:{color:BLUE,fontWeight:"700",fontSize:14},
+  modalOverlay:{flex:1,backgroundColor:"rgba(5,14,31,.50)",justifyContent:"flex-end"},
+  sheet:{backgroundColor:"#FFFFFF",borderTopLeftRadius:25,borderTopRightRadius:25,padding:16,
+    maxHeight:"95%"},
+  sheetHead:{flexDirection:"row",alignItems:"flex-start",gap:12,marginBottom:18},
+  sheetTitle:{color:DARK,fontSize:17,fontWeight:"800"},
+  sheetDescription:{color:GRAY,fontSize:12,marginTop:5},
+  formatRow:{flexDirection:"row",gap:10,marginBottom:14},
+  formatCard:{flex:1,borderRadius:13,borderColor:LINE,borderWidth:1,padding:10,gap:5,minWidth:0},
+  formatSelected:{borderColor:BLUE,backgroundColor:"#EEF6FF"},
+  formatTitle:{color:DARK,fontSize:12,fontWeight:"800"},
+  formatCaption:{color:GRAY,fontSize:10,lineHeight:15},
+  preview:{minHeight:210,borderColor:LINE,borderWidth:1,borderRadius:14,
+    padding:15,marginBottom:14,backgroundColor:"#FFFFFF"},
+  previewTop:{flexDirection:"row",alignItems:"center",gap:7},
+  previewLogo:{backgroundColor:AMBER,borderRadius:7,padding:6},
+  previewLogoText:{color:DARK,fontSize:9,fontWeight:"900"},
+  previewTitle:{color:DARK,fontWeight:"900",fontSize:11,flex:1},
+  previewBadge:{color:DARK,fontSize:8,fontWeight:"800"},
+  previewDetail:{color:GRAY,fontSize:10,marginTop:9},
+  previewColumns:{marginTop:13,flexDirection:"row",justifyContent:"space-between",
+    backgroundColor:"#F1F4F8",padding:8,borderRadius:5},
+  previewCol:{color:GRAY,fontSize:9,fontWeight:"800"},
+  previewProduct:{flexDirection:"row",justifyContent:"space-between",paddingVertical:7,
+    borderBottomWidth:1,borderBottomColor:LINE},
+  previewItem:{fontSize:9,color:DARK,maxWidth:"55%"},
+  previewTotal:{marginTop:12,backgroundColor:"#EDF7FF",alignItems:"flex-end",
+    padding:9,borderRadius:7},
+  previewTotalText:{fontWeight:"800",fontSize:11,color:BLUE},
+  previewFootnote:{fontSize:9,color:GRAY,marginTop:9},
+  downloadButton:{height:55,borderRadius:13,backgroundColor:DARK,flexDirection:"row",
+    alignItems:"center",justifyContent:"center",gap:10},
+  downloadText:{color:"#FFFFFF",fontSize:15,fontWeight:"800"},
 });
