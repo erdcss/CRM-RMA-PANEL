@@ -35,7 +35,7 @@ export function generateSupplierOrderPdf(order:SupplierOrderView,variant:Supplie
   pdf.setFontSize(8);pdf.text("SIPARIS OZETI - FATURA DEGILDIR",41,25);
   y=45;
   title(variant==="simple"?"SADE URUN LISTESI":"STANDART SIPARIS DETAYI",left,y,14);y+=10;
-  body("Siparis No: #"+String(order.order_id||order.id),left,y);
+  body("Siparis No: #"+String(order.order_number||order.order_id||order.id),left,y);
   body("Tarih: "+(order.created_at?new Date(order.created_at).toLocaleString("tr-TR"):"-"),right,y,9);
   y+=7;
   if(variant==="standard"){
