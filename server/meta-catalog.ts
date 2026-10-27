@@ -111,6 +111,21 @@ const SUPPLIER_PRODUCTS = [
   "WHERE p.is_enabled=TRUE ORDER BY p.id",
 ].join(" ");
 
+/** Single source of truth for feed exports and fast Graph API updates. */
+export type MetaCatalogItem = Record<(typeof HEADERS)[number], string>;
+export async function loadMetaCatalogItems(): Promise<{items: MetaCatalogItem[]; sourceCount: number; skipped: number}> {
+  if (!pool) throw new Error("Veritabanı bağlantısı yok");
+  await ensureMarketplaceSchema();
+  const [own, suppliers] = await Promise.all([pool.query(OWN_PRODUCTS), pool.query(SUPPLIER_PRODUCTS)]);
+  const records: CatalogRow[] = [...own.rows, ...suppliers.rows];
+  const items: MetaCatalogItem[] = [];
+  for (const record of records) {
+    const fields = productLine(record);
+    if (fields) items.push(Object.fromEntries(HEADERS.map((key, i) => [key, fields[i]])) as MetaCatalogItem);
+  }
+  return {items, sourceCount: records.length, skipped: records.length - items.length};
+}
+
 /** A complete, credential-protected replacement feed; Meta fetches it on its own schedule. */
 export function registerMetaCatalogFeed(app: Express): void {
   app.get("/api/meta/catalog.csv", async (req, res) => {
@@ -126,15 +141,9 @@ export function registerMetaCatalogFeed(app: Express): void {
     if (!pool) return res.status(503).send("Veritabanı bağlantısı yok.");
     try {
       // An invalid/missing supplier schema must not result in an empty successful feed.
-      await ensureMarketplaceSchema();
-      const [own, suppliers] = await Promise.all([
-        pool.query(OWN_PRODUCTS), pool.query(SUPPLIER_PRODUCTS),
-      ]);
+      const {items} = await loadMetaCatalogItems();
       const lines: string[] = [HEADERS.join(",")];
-      for (const record of [...own.rows, ...suppliers.rows]) {
-        const fields = productLine(record);
-        if (fields) lines.push(fields.map(csvCell).join(","));
-      }
+      for (const item of items) lines.push(HEADERS.map(key=>csvCell(item[key])).join(","));
       if (lines.length === 1) {
         console.warn("Meta catalog feed: no eligible products; refusing to replace existing catalog.");
         return res.status(503).send("Aktarılabilecek uygun ürün bulunamadı.");
