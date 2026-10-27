@@ -1,0 +1,114 @@
+name: Çalışkan B2B - Google Play Android AAB paketi
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/b2b-google-play-android.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-b2b-google-play-aab
+  cancel-in-progress: false
+
+jobs:
+  android-aab:
+    name: B2B Android AAB üret ve Google Play için indirilebilir dosya hazırla
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Expo token doğrula
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=Expo erişimi eksik::GitHub secret EXPO_TOKEN tanımlanmalı"
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Node bağımlılıklarını kur
+        run: npm ci
+      - name: B2B Android mağaza kimliğini kontrol et ve splash senkronize et
+        run: |
+          node - <<'NODE'
+          const config=require("./app.json").expo;
+          const eas=require("./eas.json");
+          if(config.android.package!=="com.caliskangroup.rma")
+            throw Error("Yanlış Android uygulaması: "+config.android.package);
+          if(config.version!=="1.1.0")
+            throw Error("Beklenmedik sürüm: "+config.version);
+          if(eas.build["android-aab"]?.android?.buildType!=="app-bundle"||
+             eas.build["android-aab"]?.distribution!=="store")
+            throw Error("Google Play için store AAB profilini kullanın");
+          console.log("Çalışkan B2B Android / com.caliskangroup.rma / v"+config.version);
+          NODE
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          npm run typecheck
+          eas whoami
+      - name: İmzalı Google Play AAB derle
+        run: |
+          eas build --platform android --profile android-aab --non-interactive --clear-cache --wait --json > build-result.json
+      - name: AAB paketi indir ve doğrula
+        id: download
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const buildJson=JSON.parse(fs.readFileSync("build-result.json","utf8"));
+          const build=Array.isArray(buildJson)?buildJson[0]:(buildJson.build||buildJson);
+          const url=build?.artifacts?.buildUrl||build?.artifacts?.applicationArchiveUrl;
+          if(!url||!/^https:\/\//.test(url)||!build.id)
+            throw Error("EAS imzalı AAB URL veya derleme kimliği bulunamadı");
+          fs.writeFileSync(process.env.RUNNER_TEMP+"/b2b-aab-url.txt",url);
+          fs.writeFileSync(process.env.RUNNER_TEMP+"/b2b-build-id.txt",String(build.id));
+          console.log("EAS build ID:",build.id);
+          NODE
+          curl -fSL --retry 4 --retry-all-errors --retry-delay 3 \
+            --output "$RUNNER_TEMP/caliskan-b2b-google-play.aab" \
+            "$(cat "$RUNNER_TEMP/b2b-aab-url.txt")"
+          test -s "$RUNNER_TEMP/caliskan-b2b-google-play.aab"
+          unzip -t "$RUNNER_TEMP/caliskan-b2b-google-play.aab" > /dev/null
+          unzip -Z1 "$RUNNER_TEMP/caliskan-b2b-google-play.aab" | grep -Fxq 'base/manifest/AndroidManifest.xml'
+          echo "AAB_READY=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Çalışkan B2B Android Google Play"
+            echo "- Paket: \`com.caliskangroup.rma\`"
+            echo "- Sürüm: \`1.1.0\`"
+            echo "- EAS derleme ID: \`$(cat "$RUNNER_TEMP/b2b-build-id.txt")\`"
+            echo "- Paket adı: \`caliskan-b2b-google-play.aab\`"
+            echo "- **Actions → Artifacts → Caliskan-B2B-Google-Play-AAB** dosyasından indirin."
+            echo "- Google Play Console → Dahili test → Sürüm oluştur → Uygulama paketleri → Yükle."
+            echo "- Google Play'e yükleme veya dağıtım, ayrı Play Console yetkisi olmadan otomatik yapılmaz."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Google Play dosyasını GitHub'a indirilebilir ek olarak koy
+        if: ${{ steps.download.outputs.AAB_READY == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caliskan-B2B-Google-Play-AAB
+          path: ${{ runner.temp }}/caliskan-b2b-google-play.aab
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
