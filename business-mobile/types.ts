@@ -7,6 +7,8 @@ export type Screen =
   | { name: "orders" }
   | { name: "orderDetail"; id: string }
   | { name: "products" }
+  | { name: "lowStock"; backTo: "dashboard" | "more" }
+  | { name: "productEdit"; id: string; backTo: "products" | "lowStock"; stockBackTo?: "dashboard" | "more" }
   | { name: "productAdd" }
   | { name: "aiProductStudio"; mode: "super_admin" | "supplier" }
   | { name: "customers" }
@@ -51,6 +53,7 @@ export type DashboardOverview = {
   lowStock?: number;
   todayRevenue?: number;
   recentOrders?: AdminOrder[];
+  recentApprovedOrders?: AdminOrder[];
   recentReturns?: Array<{
     id: string | number;
     name?: string | null;
@@ -98,7 +101,11 @@ export type B2BProduct = {
   units_per_box?: number | null;
   min_order_qty?: number | null;
   image_data?: string | null;
-  images?: string[];
+  images?: string[] | string;
+  description?: string | null;
+  collection_name?: string | null;
+  tags?: string[] | null;
+  variants?: unknown[] | string;
   barcode?: string | null;
   is_active?: boolean | null;
 };
