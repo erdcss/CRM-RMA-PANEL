@@ -132,6 +132,7 @@ async function main() {
   const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
   const expo = config.expo || (config.expo = {});
 
+  const androidNativeSplashImage="./assets/android-native-splash-transparent.png";
   let androidForegroundPath = null;
   if (logoPath) {
     expo.icon = logoPath;
@@ -160,7 +161,7 @@ async function main() {
     }
     expo.android = expo.android || {};
     expo.android.splash = {
-      image: "./assets/android-native-splash-transparent.png",
+      image: androidNativeSplashImage,
       resizeMode: "contain",
       backgroundColor: expo.android.splash?.backgroundColor || "#101010",
     };
@@ -182,7 +183,8 @@ async function main() {
         backgroundColor: "#101010",
         ...(splashPath ? { image: splashPath, resizeMode: "cover" } : {}),
       },
-      android: { backgroundColor: "#101010" },
+      // Android resources must include a valid drawable or AAPT fails to link splashscreen_logo.
+      android: { image: androidNativeSplashImage, imageWidth: 48, backgroundColor: "#101010" },
     }]);
   }
 
