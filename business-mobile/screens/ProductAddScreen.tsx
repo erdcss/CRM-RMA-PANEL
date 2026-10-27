@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import { apiFetch } from "../lib/api";
 import { C } from "../ui/theme";
+import type { B2BProduct } from "../types";
 import { BackHeader, SectionTitle } from "./common";
 
 type ProductForm = {
@@ -52,15 +53,66 @@ const initialForm: ProductForm = {
 export function ProductAddScreen({
   onBack,
   onCreated,
+  productId,
 }: {
   onBack: () => void;
   onCreated: () => void;
+  productId?: string;
 }) {
   const [form, setForm] = useState<ProductForm>(initialForm);
   const [busy, setBusy] = useState(false);
+  const [loadingProduct, setLoadingProduct] = useState(Boolean(productId));
+  const [loadError, setLoadError] = useState("");
+  const [variants, setVariants] = useState<unknown[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanLocked, setScanLocked] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  useEffect(() => {
+    if (!productId) return;
+    let active = true;
+    setLoadingProduct(true);
+    setLoadError("");
+    apiFetch<B2BProduct>("/api/admin/b2b-products/" + encodeURIComponent(productId))
+      .then((product) => {
+        if (!active) return;
+        let images: string[] = [];
+        if (Array.isArray(product.images)) {
+          images = product.images.filter((value): value is string => typeof value === "string" && !!value.trim());
+        } else if (typeof product.images === "string") {
+          try {
+            const parsed: unknown = JSON.parse(product.images);
+            if (Array.isArray(parsed)) images = parsed.filter((value): value is string => typeof value === "string");
+          } catch { /* Older rows may not contain JSON images */ }
+        }
+        if (!images.length && product.image_data) images = [product.image_data];
+        let existingVariants: unknown = product.variants;
+        if (typeof existingVariants === "string") {
+          try { existingVariants = JSON.parse(existingVariants); } catch { existingVariants = []; }
+        }
+        setVariants(Array.isArray(existingVariants) ? existingVariants : []);
+        setForm({
+          sku: product.sku || "",
+          name: product.name || "",
+          barcode: product.barcode || "",
+          brand: product.brand || "",
+          category: product.category || "",
+          collectionName: product.collection_name || "",
+          tags: Array.isArray(product.tags) ? product.tags.join(", ") : "",
+          price: String(product.price ?? 0),
+          stock: String(product.stock ?? 0),
+          minOrderQty: String(product.min_order_qty ?? 1),
+          unitsPerBox: String(product.units_per_box ?? 1),
+          description: product.description || "",
+          images,
+        });
+      })
+      .catch((error) => {
+        if (active) setLoadError(error instanceof Error ? error.message : "Ürün bilgileri alınamadı");
+      })
+      .finally(() => { if (active) setLoadingProduct(false); });
+    return () => { active = false; };
+  }, [productId]);
 
   function set<K extends keyof ProductForm>(key: K, value: ProductForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -138,6 +190,7 @@ export function ProductAddScreen({
   }
 
   async function submit() {
+    if (busy || loadingProduct || loadError) return;
     if (!form.sku.trim() || !form.name.trim()) {
       Alert.alert("Eksik bilgi", "Stok kodu ve ürün adı zorunludur.");
       return;
@@ -149,6 +202,13 @@ export function ProductAddScreen({
       return;
     }
 
+    if (!Number.isInteger(Number(form.stock)) || Number(form.stock) < 0 ||
+        !Number.isInteger(Number(form.minOrderQty)) || Number(form.minOrderQty) < 1 ||
+        !Number.isInteger(Number(form.unitsPerBox)) || Number(form.unitsPerBox) < 1) {
+      Alert.alert("Stok bilgisi hatası", "Stok sıfır veya pozitif; minimum sipariş ve koli adedi en az 1 olmalıdır.");
+      return;
+    }
+
     if (form.images.length === 0) {
       Alert.alert("Ürün görseli gerekli", "Ürünü kaydetmek için en az bir görsel ekleyin.");
       return;
@@ -156,8 +216,8 @@ export function ProductAddScreen({
 
     setBusy(true);
     try {
-      await apiFetch("/api/admin/b2b-products", {
-        method: "POST",
+      await apiFetch(productId ? "/api/admin/b2b-products/" + encodeURIComponent(productId) : "/api/admin/b2b-products", {
+        method: productId ? "PATCH" : "POST",
         body: JSON.stringify({
           sku: form.sku.trim(),
           name: form.name.trim(),
@@ -175,16 +235,16 @@ export function ProductAddScreen({
           unitsPerBox: Math.max(1, Number(form.unitsPerBox || 1)),
           description: form.description.trim(),
           images: form.images,
-          variants: [],
+          variants,
         }),
       });
 
-      Alert.alert("Ürün eklendi", "Ürün Çalışkan B2B kataloğuna kaydedildi.", [
+      Alert.alert(productId ? "Ürün güncellendi" : "Ürün eklendi", productId ? "Ürün bilgileri ve görselleri kaydedildi." : "Ürün Çalışkan B2B kataloğuna kaydedildi.", [
         { text: "Tamam", onPress: onCreated },
       ]);
     } catch (error) {
       Alert.alert(
-        "Ürün eklenemedi",
+        productId ? "Ürün güncellenemedi" : "Ürün eklenemedi",
         error instanceof Error ? error.message : "Bilinmeyen hata",
       );
     } finally {
@@ -192,12 +252,24 @@ export function ProductAddScreen({
     }
   }
 
+  if (loadingProduct || loadError) {
+    return (
+      <View style={s.root}>
+        <View style={s.loadWrap}>
+          <BackHeader title="Ürün Düzenle" subtitle="Ürün bilgileri yükleniyor" onBack={onBack} />
+          {loadingProduct ? <ActivityIndicator color={C.blue} size="large" /> : <Text style={s.error}>{loadError}</Text>}
+          {loadError ? <TouchableOpacity onPress={onBack} style={s.backButton}><Text style={s.backButtonText}>Ürünlere dön</Text></TouchableOpacity> : null}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={s.root}>
       <ScrollView style={s.page} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
         <BackHeader
-          title="Ürün Ekle"
-          subtitle="B2B kataloğuna yeni ürün oluşturun."
+          title={productId ? "Ürün Düzenle" : "Ürün Ekle"}
+          subtitle={productId ? "Kayıtlı ürünü, stok bilgilerini ve görsellerini güncelleyin." : "B2B kataloğuna yeni ürün oluşturun."}
           onBack={onBack}
         />
 
@@ -266,8 +338,8 @@ export function ProductAddScreen({
         <View style={s.imagesCard}>
           <View style={s.imageHeader}>
             <View style={s.imageHeaderText}>
-              <Text style={s.imageTitle}>En az 1 görsel zorunlu</Text>
-              <Text style={s.imageSub}>İlk görsel ana ürün görselidir. En fazla 4 görsel.</Text>
+              <Text style={s.imageTitle}>Ürün görselleri</Text>
+              <Text style={s.imageSub}>İlk görsel ana üründür. Güncellemek için görsel ekleyin veya kaldırın.</Text>
             </View>
             <TouchableOpacity style={s.addImageButton} onPress={() => void pickImages()}>
               <Text style={s.addImageButtonText}>+ Görsel Ekle</Text>
@@ -323,7 +395,7 @@ export function ProductAddScreen({
             <ActivityIndicator color="#071019" />
           ) : (
             <>
-              <Text style={s.saveText}>Ürünü Kaydet</Text>
+              <Text style={s.saveText}>{productId ? "Değişiklikleri Kaydet" : "Ürünü Kaydet"}</Text>
               <Text style={s.saveArrow}>→</Text>
             </>
           )}
@@ -430,6 +502,10 @@ function SmallField({
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
+  loadWrap: { padding: 18, flex: 1 },
+  error: { color: C.red, fontSize: 13, lineHeight: 19 },
+  backButton: { padding: 12, marginTop: 15, borderRadius: 12, backgroundColor: C.panel2 },
+  backButtonText: { color: C.text, textAlign: "center" },
   page: { flex: 1, backgroundColor: C.bg },
   content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 40 },
   card: {
