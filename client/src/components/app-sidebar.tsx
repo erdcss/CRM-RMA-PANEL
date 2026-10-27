@@ -20,6 +20,7 @@ import {
   WalletCards,
   Film,
   Bell,
+  Network,
   Store,
 } from "lucide-react";
 import {
@@ -177,6 +178,14 @@ export function AppSidebar({ username, role }: { username: string; role: string 
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={location === "/meta"}>
+              <Link href="/meta" onClick={()=>setOpenMobile(false)}>
+                <Network className="h-4 w-4" />
+                <span>Meta</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </div>
 
