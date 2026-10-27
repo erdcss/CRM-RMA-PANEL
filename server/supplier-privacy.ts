@@ -22,6 +22,7 @@ export function supplierOrderView(row: Record<string, any>) {
   return {
     id:row.id,
     order_id:row.order_id,
+    order_number:safeVisibleText(row.order_number,100)||null,
     status:row.status,
     subtotal:row.subtotal,
     delivery_mode:row.delivery_mode,
