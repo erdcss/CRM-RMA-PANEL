@@ -215,7 +215,7 @@ function B2BWebsite() {
         <motion.div
           key={routePath}
           initial={reduceMotion ? false : { opacity: 0, x: 14 }}
-          animate={{ opacity: 1, x: 0 }}
+          animate={{ opacity: 1, x: 0, transitionEnd: { transform: "none" } }}
           exit={reduceMotion ? undefined : { opacity: 0, x: -10 }}
           transition={{ duration: reduceMotion ? 0 : 0.20, ease: "easeOut" }}
         >
