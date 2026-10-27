@@ -144,6 +144,17 @@ async function readStatus(){
     batches:stats[1]?.rows||[],history:stats[2]?.rows||[],
     feedUrl:"https://b2b.ecalisgan.com/api/meta/catalog.csv"};
 }
+let scheduled:ReturnType<typeof setTimeout>|undefined;
+/** Fire after a successful product mutation. Periodic scan remains the fail-safe. */
+export function notifyMetaCatalogChange(){
+  if(process.env.RAILWAY_SERVICE_NAME!=="CRM-RMA-PANEL"&&process.env.VITE_APP_MODE!=="admin")return;
+  if(scheduled)clearTimeout(scheduled);
+  scheduled=setTimeout(()=>{
+    scheduled=undefined;
+    void syncNow().catch(error=>console.warn("Meta catalog change:",errorText(error)));
+  },1800);
+  scheduled.unref();
+}
 export function registerMetaCatalogAdmin(app:Express,requireAdmin:RequestHandler){
   app.get("/api/admin/meta/catalog-status",requireAdmin,async(_req,res)=>{
     try{res.setHeader("Cache-Control","no-store");return res.json(await readStatus());}
