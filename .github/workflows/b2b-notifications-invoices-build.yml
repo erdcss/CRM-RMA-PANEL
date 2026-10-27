@@ -24,6 +24,7 @@ on:
       - 'server/marketplace-media.ts'
       - 'server/marketplace-cart.ts'
       - 'server/supplier-privacy.ts'
+      - 'server/supplier-order-pdf.ts'
       - 'server/supplier-privacy.test.ts'
       - 'server/marketplace-video-upload.ts'
       - 'server/index.ts'
