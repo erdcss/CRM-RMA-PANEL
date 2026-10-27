@@ -1,0 +1,81 @@
+name: Çalışkan Business - TestFlight yalnız mevcut build 21 yeniden gönder
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/business-testflight-resubmit-21.txt'
+permissions:
+  contents: read
+concurrency:
+  group: caliskan-business-ios-submit-existing-build-21
+  cancel-in-progress: false
+jobs:
+  submit-existing-business-build:
+    name: Business 1.0.0 build 21 - Apple TestFlight yüklemesini yeniden dene
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expo token doğrula
+        run: |
+          test -n "$EXPO_TOKEN" || { echo "::error title=Expo token eksik::EXPO_TOKEN gerekli"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Business bağımlılıklarını kur
+        run: npm ci --ignore-scripts
+      - name: Yalnızca doğru projeye erişimi ve mevcut build'in bitmiş olduğunu doğrula
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const app=require('./app.json').expo;
+          const eas=require('./eas.json');
+          if(app.ios.bundleIdentifier!=='com.caliskangroup.business')throw Error("Business bundle ID yanlış");
+          if(String(eas.submit.testflight.ios.ascAppId)!=='6818161236')throw Error("ASC app ID yanlış");
+          console.log("Business app/ASC ID doğrulandı.");
+          NODE
+          eas whoami
+          eas build:view e7dcc555-4426-44bd-8018-be7e9ef5f45a --json > "$RUNNER_TEMP/build-21.json"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const j=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/build-21.json','utf8'));
+          const b=j.build||j;
+          if(b.id!=='e7dcc555-4426-44bd-8018-be7e9ef5f45a')throw Error("Yanlış build ID");
+          if(String(b.status).toLowerCase()!=='finished')throw Error("Build hazır değil: "+b.status);
+          if(b.platform&&String(b.platform).toLowerCase()!=='ios')throw Error("Build iOS değil");
+          console.log('Exact EAS Business build verified:',b.id,b.status);
+          NODE
+      - name: Önceki başarısız gönderimin ayrıntılarını göster
+        continue-on-error: true
+        run: |
+          eas submit:view 9fe8fc2c-7ae3-44a1-a469-a5103ab5121a --json
+      - name: Yalnızca hazır imzalı build 21'i Apple TestFlight'a yeniden gönder
+        run: |
+          eas submit --platform ios --profile testflight \
+            --id e7dcc555-4426-44bd-8018-be7e9ef5f45a \
+            --non-interactive --wait --verbose
+      - name: Gönderim sonucu
+        if: success()
+        run: |
+          {
+            echo "### Business TestFlight"
+            echo "- iOS sürümü: 1.0.0"
+            echo "- Build: 21"
+            echo "- EAS build: e7dcc555-4426-44bd-8018-be7e9ef5f45a"
+            echo "- Apple'a EAS Submit yüklemesi başarılı. TestFlight'ta Apple işlem süreci ayrıca devam edebilir."
+          } >> "$GITHUB_STEP_SUMMARY"
