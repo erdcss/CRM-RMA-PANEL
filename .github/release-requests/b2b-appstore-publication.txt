@@ -1,0 +1,12 @@
+ÇALIŞKAN B2B — APP STORE YENİ SÜRÜM İNCELEME TALEBİ
+Tarih: 2026-10-27
+Kullanıcı doğrudan güncel Çalışkan B2B sürümünün App Store'da yayımlanmasını istedi.
+Şu an görünen App Store sürümü: 1.0.2, Ready for Distribution.
+Hedef sürüm: 1.1.0 (mobile/app.json)
+Bundle ID: com.caliskangroup.rma
+ASC App ID: 6802286663
+Doğrulanan TestFlight yüklemesi: GitHub Actions run #40336654003, 2026-10-26, iOS 1.1.0, submit SUCCESS.
+Yalnızca B2B'yi incelemeye gönder; Business App'e dokunma.
+App Store Connect yetkilendirme anahtarlarını doğrula; varsa yeni derleme oluşturmadan 1.1.0 build'ini seçip incelemeye gönder.
+Apple onayından sonra automatic_release=true; mevcut sürüm 1.0.2 inceleme öncesi korunur.
+Uygulama API anahtarları yoksa dur ve eksik anahtarları iş raporunda belirt; gerçekte incelemeye gönderilmiş gibi rapor verme.
