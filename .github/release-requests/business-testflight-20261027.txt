@@ -1,17 +1,16 @@
-ÇALIŞKAN BUSINESS — REFERANS TASARIMLI SİPARİŞ SAYFASI VE TESTFLIGHT TALEBİ
+ÇALIŞKAN BUSINESS — TESTFLIGHT: REFERANS GÖRSELİNE UYGUN YENİ SİPARİŞ DETAYI
 Tarih: 2026-10-27
-Kaynak main SHA: 24ea6d66839f8f086bbe56b2be728c865a26b8e6
-Hedef yalnızca Çalışkan Business iOS — com.caliskangroup.business
-App Store Connect 6818161236 · EAS project aa005486-76a0-41cd-92de-33c2070a73f1
-Sürüm 1.0.0, EAS remote auto-increment build number.
-Kullanıcının gönderdiği 3-panelli tasarım esas alınarak:
-- Tedarikçi sipariş listesi: açık renk tasarım, arama, yalnızca onaylı/ödenmiş siparişler, sipariş kartları.
-- Tedarikçi sipariş detayları: sipariş numarası/tarihi, firma ve teslimat (yalnızca kayıtlı ve güvenli veri varsa), ödeme ve kargo, ürün tablosu, toplamlar.
-- PDF seçimi: Standart Tasarım veya Sade Liste, önizleme, tek kullanımlık indirme bağlantısı.
-- Müşteriyle iletişime geç veya sipariş düzenle seçenekleri YOK.
-- Müşteri telefon/e-posta/API kullanıcı ID gizliliği yalnız admin hesabında; seller API whitelist + metin redaksiyonu + PDF.
-- Asla gerçek veri yerine görseldeki sahte siparişleri veritabanına kaydetme.
-Başarılı mobil iOS/Android kontrolü: GitHub Actions 40537890455.
-Başarılı backend ve gizlilik testi: GitHub Actions 40537346018.
-Business TestFlight iş akışı iOS build ve Apple EAS Submit, tek olası geçici hatada aynı build'i yeniden dener.
-Sadece Business iOS; Çalışkan B2B, Android ve herkese açık App Store incelemesini tetikleme.
+Kaynak branch: main
+Kaynak commit: a1fef983633126686927412a239bb892b8825fb8
+Hedef yalnızca Çalışkan Business iOS, com.caliskangroup.business, App Store Connect 6818161236.
+Sürüm 1.0.0, EAS testflight profile autoIncrement:true; her seferinde benzersiz build number.
+Kapsam:
+- business-mobile/screens/SupplierOrderDetailScreen.tsx: referans iki ekranlı açık tema sipariş detayı ve PDF önizleme, Standart / Sade Liste, paylaşım, gerçek sipariş numarası, ayrıntılar.
+- business-mobile/screens/OrderDetailScreen.tsx: eski koyu admin sipariş detayı aynı yeni tasarıma bağlandı; admin-only müşteri telefonu/e-posta ayrı kapalı bölüm, havale onay fonksiyonu korundu.
+- server/admin-platform.ts: admin-only PDF link endpoint; PDF her durumda yalnız özel verisiz güvenli sipariş projeksiyonundan üretilir.
+- server/marketplace-cart.ts, server/supplier-privacy.ts: sadece ilgili tedarikçinin siparişi, gerçek sipariş numarası, customer phone/e-mail filtering. Telefon asla supplier response'ta veya PDF'de yok.
+- server/supplier-order-pdf.ts: iki farklı PDF belge şekli, resmi fatura değil.
+- Siparişi düzenle ve müşteriyle iletişime geç seçenekleri tedarikçi için YOK.
+Mobil TypeScript + iOS/Android bundles: GitHub Actions run 40557409500 SUCCESS.
+Sunucu privacy tests + typecheck + build: GitHub Actions run 40557694419.
+Yalnız Business iOS build + EAS TestFlight submit (wait, auto retry), Çalışkan B2B'ye dokunulmaz.
