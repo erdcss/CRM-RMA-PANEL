@@ -280,6 +280,18 @@ const decisionSchema=z.object({
   decision:z.enum(["approved","rejected"]),
   note:z.string().trim().max(1000).default("")
 }).strict();
+// Seller-visible chat previews and messages must not reveal customer telephone
+// numbers, including numbers a buyer might write inside free-form chat text.
+// Admin-only message archives preserve the original for authorized staff.
+function hideCustomerPhones(value: string): string {
+  return value.replace(
+    /(?<![0-9])(?:(?:\\+90|0090|0)[\\s().-]*)?(?:5[0-9]{2}|[2-4][0-9]{2})[\\s().-]*[0-9]{3}[\\s().-]*[0-9]{2}[\\s().-]*[0-9]{2}(?![0-9])/g,
+    "[Telefon bilgisi gizlendi]",
+  );
+}
+function sellerIsViewer(res: Response): boolean {
+  return (res.locals as any).b2bUser?.role === "b2b_seller";
+}
 function userId(res:Response){return Number((res.locals as any).b2bUser.id);}
 async function supplierFor(res:Response) {
   const db=await ready();
@@ -819,13 +831,17 @@ export function registerMarketplaceRoutes(
       (SELECT text FROM mp_messages m WHERE m.conversation_id=c.id ORDER BY id DESC LIMIT 1) AS latest_message
       FROM mp_conversations c JOIN mp_suppliers s ON s.id=c.supplier_id
       WHERE (c.buyer_user_id=$1 OR s.owner_user_id=$1) AND c.closed_at IS NULL ORDER BY c.id DESC LIMIT 100`,[uid]);
-    res.json(r.rows);
+    res.json(sellerIsViewer(res)
+      ? r.rows.map((row:any)=>({...row,latest_message:hideCustomerPhones(String(row.latest_message||""))}))
+      : r.rows);
   }));
   app.get("/api/marketplace/conversations/:id/messages",requireParticipant,handle(async(req,res)=>{
     const db=await ready(),cid=id(req.params.id),uid=userId(res);
-    await ownConversation(db,cid,uid);
+    const conversation=await ownConversation(db,cid,uid);
     const q=await db.query("SELECT id,author_user_id,text,created_at FROM mp_messages WHERE conversation_id=$1 ORDER BY id ASC LIMIT 200",[cid]);
-    res.json(q.rows);
+    res.json(Number(conversation.owner_user_id)===uid
+      ? q.rows.map((row:any)=>({...row,text:hideCustomerPhones(String(row.text||""))}))
+      : q.rows);
   }));
   app.post("/api/marketplace/conversations/:id/messages",requireParticipant,handle(async(req,res)=>{
     const db=await ready(),cid=id(req.params.id),uid=userId(res);
