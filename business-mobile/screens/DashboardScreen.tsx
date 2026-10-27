@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -15,7 +15,7 @@ import { apiFetch } from "../lib/api";
 import type { DashboardOverview } from "../types";
 import { C, money, statusMeta } from "../ui/theme";
 import { Badge, EmptyState, SectionTitle } from "./common";
-type IconName = React.ComponentProps<typeof Ionicons>["name"];
+type IconName = ComponentProps<typeof Ionicons>["name"];
 
 const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid", "onaylandi"]);
 
