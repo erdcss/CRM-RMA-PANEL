@@ -14,6 +14,7 @@ type CatalogStatus={
   feedUrl:string;
 };
 type Pixel={enabled:boolean;pixelId:string;capiConfigured:boolean};
+const TURMARKT_BUSINESS_ID="4014519022181059";
 const jsonFetch=async<T,>(url:string,options?:RequestInit):Promise<T>=>{
   const response=await fetch(url,{credentials:"include",cache:"no-store",...options});
   const payload=await response.json().catch(()=>({}));
@@ -97,10 +98,14 @@ export default function AdminMeta(){
             <Input placeholder="Meta Commerce Manager'daki katalog kimliği" inputMode="numeric" value={catalogId}
               onChange={e=>{setCatalogId(e.target.value.replace(/\D/g,""));setDirty(true);}}/>
           </label>
+          {catalogId===TURMARKT_BUSINESS_ID ? <div role="alert" className="mt-3 rounded-lg border border-rose-300 bg-rose-50 p-3 text-sm font-semibold text-rose-900">
+            Bu numara Turmarkt işletme kimliğidir, katalog kimliği değildir. Meta'da “Kataloğa erişim iste” penceresini kapatın; Commerce Manager'da sahip olduğunuz kataloğu seçin veya “Yeni katalog oluştur” ile katalog açın. Oluşturduğunuz kataloğun ID'sini buraya girin.
+          </div> : <p className="mt-2 text-xs leading-5 text-slate-500">İşletme portföyü ID'si değil, Commerce Manager → Katalog → Ayarlar bölümündeki Katalog ID'yi girin.</p>}
+          <a className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 underline underline-offset-4" href="https://business.facebook.com/commerce/" target="_blank" rel="noopener noreferrer">Katalog oluştur veya mevcut kataloğu aç <ExternalLink className="h-3.5 w-3.5"/></a>
           <div className="mt-4 flex items-center gap-3"><Switch checked={enabled} onCheckedChange={v=>{setEnabled(v);setDirty(true);}} aria-label="Otomatik Meta senkronizasyonu"/><div><p className="text-sm font-bold">Otomatik senkronizasyon</p><p className="text-xs text-slate-500">Yeni ürün, fiyat ve stok değişikliklerini yaklaşık 15 saniyede tarar.</p></div></div>
           <div className="mt-4 flex items-center gap-2 text-sm"><ShieldCheck className="h-4 w-4 text-slate-500"/>Erişim anahtarı: <strong>{data?.tokenConfigured?"Railway'de tanımlı":"Railway'de henüz tanımlı değil"}</strong></div>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button onClick={()=>void action("save")} disabled={!!busy}><Save className="mr-2 h-4 w-4"/>{busy==="save"?"Kaydediliyor…":"Kaydet"}</Button>
+            <Button onClick={()=>void action("save")} disabled={!!busy||catalogId===TURMARKT_BUSINESS_ID}><Save className="mr-2 h-4 w-4"/>{busy==="save"?"Kaydediliyor…":"Kaydet"}</Button>
             <Button variant="outline" onClick={()=>void action("check")} disabled={!!busy||!data?.canSync}><Link2 className="mr-2 h-4 w-4"/>Bağlantıyı test et</Button>
             <Button variant="outline" onClick={()=>void action("sync")} disabled={!!busy||!data?.canSync}><RefreshCw className="mr-2 h-4 w-4"/>Şimdi senkronize et</Button>
           </div>
@@ -121,8 +126,8 @@ export default function AdminMeta(){
       <Panel>
         <h2 className="flex items-center gap-2 text-lg font-black"><Settings2 className="h-5 w-5"/>Meta kurulum adımları</h2>
         <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700">
-          <li>Meta Commerce Manager'da Çalışkan B2B adına bir e-ticaret kataloğu oluştur veya sahibi olduğun mevcut kataloğu seç. “Kataloğa erişim iste” yalnızca başka bir işletmenin kataloğu içindir.</li>
-          <li>Katalog ID'yi yukarıya yaz. Meta sistem kullanıcısına katalog yönetim izni ver ve erişim anahtarını Railway üzerindeki B2B web servisine <code className="rounded bg-slate-100 px-1 font-mono">META_CATALOG_ACCESS_TOKEN</code> adıyla güvenli değişken olarak ekle.</li>
+          <li>Meta Commerce Manager'da Çalışkan B2B adına bir e-ticaret kataloğu oluştur veya sahibi olduğun mevcut kataloğu seç. “Kataloğa erişim iste” yalnızca başka bir işletmenin kataloğu içindir. Turmarkt işletme kimliği 4014519022181059 katalog kimliği olarak kullanılamaz.</li>
+          <li>Katalog ID'yi yukarıya yaz. Meta sistem kullanıcısına katalog yönetim izni ver ve erişim anahtarını Railway üzerindeki CRM-RMA-PANEL (admin) servisine <code className="rounded bg-slate-100 px-1 font-mono">META_CATALOG_ACCESS_TOKEN</code> adıyla güvenli değişken olarak ekle.</li>
           <li>Bağlantıyı test et, otomatik senkronizasyonu aç ve bir ürünle sonucu kontrol et. Ürünler Meta incelemesinde bekleyebilir.</li>
           <li>Aynı kataloğa paralel tam-yerine-koyma CSV akışı bağlama; API ve farklı veri kaynakları aynı ürün ID'leri üzerinde çakışabilir.</li>
         </ol>
