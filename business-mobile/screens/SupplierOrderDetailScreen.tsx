@@ -5,10 +5,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiFetch } from "../lib/api";
+import type { AdminOrder } from "../types";
+import { statusMeta } from "../ui/theme";
 import { shortDate } from "../ui/theme";
 
 export type SupplierOrder={
-  id:number;order_id:number;created_at:string;status:string;
+  id:number|string;order_id:number|string;order_number?:string|null;created_at:string;status:string;
+  cancel_requested_at?:string|null;
   subtotal:number|string;currency?:string;delivery_mode:string;
   payment_method?:string|null;customer_company?:string|null;delivery_address?:string|null;
   items:Array<{
@@ -22,7 +25,7 @@ const price=(v:unknown)=>{
   const num=Number(v)||0;
   return num.toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})+" TL";
 };
-const paid=(status:string)=>status==="paid";
+const paid=(status:string)=>["paid","approved","confirmed","onaylandi"].includes(status);
 const orderStatus=(status:string)=>paid(status)?"Onaylandı":"Onay bekliyor";
 const payment=(value?:string|null)=>value==="bank_transfer"?"Havale / EFT":
   value==="card"?"Kredi / Banka Kartı":"Belirtilmedi";
@@ -38,7 +41,12 @@ function OrderLine({icon,label,value}:{icon:React.ComponentProps<typeof Ionicons
     </View>
   </View>;
 }
-export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void}){
+export function SupplierOrderDetailScreen({id,onBack,adminMode=false}:{id:number|string;onBack:()=>void;adminMode?:boolean}){
+  const [adminDetails,setAdminDetails]=useState<AdminOrder|null>(null);
+  const [adminPrivateOpen,setAdminPrivateOpen]=useState(false);
+  const [bankChecked,setBankChecked]=useState(false);
+  const [bankBusy,setBankBusy]=useState(false);
+  const [bankNotice,setBankNotice]=useState("");
   const [order,setOrder]=useState<SupplierOrder|null>(null);
   const [busy,setBusy]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
@@ -49,16 +57,39 @@ export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void
   const load=useCallback(async()=>{
     setError("");
     try{
-      // Seller-only API; never fetch administrator order details.
-      const own=await apiFetch<SupplierOrder[]>("/api/marketplace/seller/orders");
-      const found=own.find(item=>Number(item.id)===Number(id));
-      if(!found)throw new Error("Bu siparişe erişim izniniz yok.");
-      setOrder(found);
+      if(adminMode){
+        // Server-side admin-only API. A supplier never requests this endpoint.
+        const data=await apiFetch<AdminOrder>("/api/admin/orders/"+encodeURIComponent(String(id)));
+        const billing=data.billing_details||{};
+        const address=data.shipping_address||{};
+        setAdminDetails(data);
+        setOrder({
+          id:data.id,order_id:data.id,order_number:data.order_number||null,
+          created_at:data.created_at||"",status:data.status||"pending",
+          subtotal:data.total_amount||0,payment_method:data.payment_method,
+          delivery_mode:data.shipping_method||"",
+          customer_company:billing.companyName||data.customer_name||null,
+          delivery_address:[address.addressLine,address.district,address.city].filter(Boolean).join(", "),
+          cancel_requested_at:data.cancel_requested_at,
+          items:(data.items||[]).map(item=>({
+            productId:item.productId||item.id,name:item.name||item.title,sku:item.sku,
+            boxes:item.quantity||item.qty||1,unitsPerBox:1,
+            price:item.price,total:item.total||item.totalPrice||item.price,
+          })),
+        });
+      }else{
+        // Supplier sees only the server-approved safe order projection.
+        const own=await apiFetch<SupplierOrder[]>("/api/marketplace/seller/orders");
+        const found=own.find(item=>Number(item.id)===Number(id));
+        if(!found)throw new Error("Bu siparişe erişim izniniz yok.");
+        setAdminDetails(null);
+        setOrder(found);
+      }
     }catch(e){setOrder(null);setError(e instanceof Error?e.message:"Sipariş yüklenemedi");}
     finally{setBusy(false);setRefreshing(false);}
-  },[id]);
+  },[id,adminMode]);
   useEffect(()=>{void load();},[load]);
-  const orderNo=order?"#CB"+String(order.order_id):"—";
+  const orderNo=order?(order.order_number||"#CB"+String(order.order_id)):"—";
   const products=useMemo(()=>order?.items||[],[order]);
   const quantity=products.reduce((total,item)=>total+Number(item.boxes||0)*Number(item.unitsPerBox||1),0);
 
@@ -66,18 +97,36 @@ export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void
     if(!order||exporting)return;
     setExporting(true);
     try{
-      const r=await apiFetch<{url:string}>("/api/marketplace/seller/orders/"+
-        encodeURIComponent(String(order.id))+"/pdf-link",{
-        method:"POST",body:JSON.stringify({variant:pdfType})
+      const path=adminMode
+        ? "/api/admin/orders/"+encodeURIComponent(String(order.id))+"/pdf-link"
+        : "/api/marketplace/seller/orders/"+encodeURIComponent(String(order.id))+"/pdf-link";
+      const r=await apiFetch<{url:string}>(path,{
+        method:"POST",body:JSON.stringify({variant:pdfType}),
       });
       const target=new URL(r.url);
       if(target.protocol!=="https:"||target.hostname!=="admin.ecalisgan.com"||
-         !/^\/api\/marketplace\/seller\/orders\/pdf\/[0-9a-f]{64}$/.test(target.pathname))
+         !/^\/api\/(?:marketplace\/seller|admin)\/orders\/pdf\/[0-9a-f]{64}$/.test(target.pathname))
         throw new Error("PDF adresi doğrulanamadı.");
       await Linking.openURL(r.url);
       setShowPdf(false);
     }catch(e){Alert.alert("PDF oluşturulamadı",e instanceof Error?e.message:"Tekrar deneyin.");}
     finally{setExporting(false);}
+  }
+  async function approveBankPayment(){
+    if(!adminMode||!adminDetails||!bankChecked||bankBusy)return;
+    setBankBusy(true);setBankNotice("");
+    try{
+      const result=await apiFetch<{ok:boolean;notificationRecorded:boolean}>(
+        "/api/admin/orders/"+encodeURIComponent(String(id))+"/approve-bank-payment",
+        {method:"POST",body:JSON.stringify({bankStatementChecked:true})},
+      );
+      setBankChecked(false);
+      setBankNotice(result.notificationRecorded
+        ? "Havale onaylandı. Müşteriye bildirim gönderildi."
+        : "Havale onaylandı. Bildirim merkezini kontrol edin.");
+      await load();
+    }catch(e){setBankNotice(e instanceof Error?e.message:"Ödeme onaylanamadı.");}
+    finally{setBankBusy(false);}
   }
   async function shareOrder(){
     if(!order)return;
@@ -112,7 +161,7 @@ export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void
             <View style={{flex:1}}>
               <Text style={styles.mutedLabel}>Sipariş Numarası</Text>
               <View style={styles.rowWrap}><Text selectable style={styles.number}>{orderNo}</Text>
-                <View style={styles.approved}><Text style={styles.approvedText}>{orderStatus(order.status)}</Text></View>
+                <View style={styles.approved}><Text style={styles.approvedText}>{adminMode?statusMeta(order.status).label:orderStatus(order.status)}</Text></View>
               </View>
             </View>
             <View style={{alignItems:"flex-end"}}>
@@ -180,6 +229,71 @@ export function SupplierOrderDetailScreen({id,onBack}:{id:number;onBack:()=>void
             </View>
           </View>
         </View>
+        <View style={styles.panel}>
+          <View style={styles.productsHeader}>
+            <Ionicons name="information-circle-outline" size={19} color={BLUE}/>
+            <Text style={styles.sectionTitle}>Diğer Bilgiler</Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Durum</Text>
+            <Text style={styles.boldText}>{adminMode?statusMeta(order.status).label:orderStatus(order.status)}</Text>
+          </View>
+          <View style={[styles.totalRow,{marginTop:12}]}>
+            <Text style={styles.totalLabel}>Ürün Adedi</Text>
+            <Text style={styles.boldText}>{quantity}</Text>
+          </View>
+          <View style={[styles.totalRow,{marginTop:12}]}>
+            <Text style={styles.totalLabel}>Sipariş Tarihi</Text>
+            <Text style={styles.boldText}>{shortDate(order.created_at)}</Text>
+          </View>
+          {adminMode?<View style={[styles.totalRow,{marginTop:12}]}>
+            <Text style={styles.totalLabel}>İptal Talebi</Text>
+            <Text style={styles.boldText}>{order.cancel_requested_at?shortDate(order.cancel_requested_at):"Yok"}</Text>
+          </View>:null}
+          <View style={[styles.privacy,{marginTop:16,backgroundColor:"#F4F7FB",borderRadius:12,padding:12}]}>
+            <Ionicons name="document-text-outline" color={BLUE} size={20}/>
+            <Text style={styles.privacyText}>Tedarikçiye müşteri iletişim bilgileri gösterilmez ve PDF'ye eklenmez.</Text>
+          </View>
+        </View>
+        {adminMode&&adminDetails?<View style={styles.panel}>
+          <TouchableOpacity onPress={()=>setAdminPrivateOpen(v=>!v)} accessibilityRole="button">
+            <View style={styles.totalRow}>
+              <Text style={styles.sectionTitle}>Yöneticiye Özel Bilgiler</Text>
+              <Ionicons name={adminPrivateOpen?"chevron-up":"chevron-down"} size={20} color={GRAY}/>
+            </View>
+            <Text style={styles.previewDetail}>Yalnızca yetkili yönetici hesabında görüntülenir.</Text>
+          </TouchableOpacity>
+          {adminPrivateOpen?<View style={{marginTop:14,gap:12}}>
+            {[
+              ["Müşteri e-postası",adminDetails.customer_email],
+              ["Telefon",adminDetails.billing_details?.phone||adminDetails.shipping_address?.phone],
+              ["Yetkili",adminDetails.billing_details?.recipient||adminDetails.shipping_address?.recipient],
+              ["Vergi numarası",adminDetails.billing_details?.taxNumber],
+              ["Vergi dairesi",adminDetails.billing_details?.taxOffice],
+              ["Havale kodu",adminDetails.transfer_code],
+            ].filter((entry)=>Boolean(entry[1])).map(([label,value])=><View key={label} style={styles.totalRow}>
+              <Text style={styles.totalLabel}>{label}</Text>
+              <Text selectable style={styles.boldText}>{String(value)}</Text>
+            </View>)}
+          </View>:null}
+        </View>:null}
+        {adminMode&&adminDetails?.payment_method==="bank_transfer"&&
+          adminDetails.status==="awaiting_bank_confirmation"&&
+          adminDetails.payment_status==="customer_reported_paid"?
+          <View style={styles.panel}>
+            <Text style={styles.sectionTitle}>Banka Havalesini Onayla</Text>
+            <Text style={[styles.previewDetail,{marginBottom:10}]}>Banka hareketini ve havale kodunu doğrulayın.</Text>
+            <TouchableOpacity onPress={()=>setBankChecked(v=>!v)} accessibilityRole="checkbox"
+              accessibilityState={{checked:bankChecked}} style={styles.totalRow}>
+              <Ionicons name={bankChecked?"checkbox":"square-outline"} size={23} color={BLUE}/>
+              <Text style={[styles.totalLabel,{flex:1,marginLeft:10}]}>Banka hareketindeki tutarı ve kodu doğruladım.</Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={!bankChecked||bankBusy} onPress={()=>void approveBankPayment()}
+              style={[styles.exportButton,{marginTop:14},(!bankChecked||bankBusy)&&{opacity:0.45}]}>
+              <Text style={styles.exportButtonText}>{bankBusy?"Onaylanıyor...":"Havale Ödemesini Onayla"}</Text>
+            </TouchableOpacity>
+          </View>:null}
+        {bankNotice?<Text style={styles.previewDetail}>{bankNotice}</Text>:null}
         <TouchableOpacity style={styles.exportButton} onPress={()=>setShowPdf(true)}>
           <Ionicons name="download-outline" size={21} color="#FFFFFF"/>
           <Text style={styles.exportButtonText}>Siparişi PDF Olarak Dışa Aktar</Text>
