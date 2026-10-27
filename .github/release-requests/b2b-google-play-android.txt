@@ -8,3 +8,11 @@ EAS profile: android-aab, store distribution, app-bundle
 Güncel logo/splash admin panelinden senkronize edilmeli.
 Main branch en güncel kaynak ile TypeScript kontrolü başarılıysa imzalı .aab derle, EAS build sonucundaki gerçek .aab dosyasını GitHub Actions Artifacts olarak kaydet.
 Google Play Console service account mevcut değilse mağazaya yüklenmiş olarak raporlama; kullanıcı dahili test yükleme ekranında artifact dosyasını yükler.
+
+
+DÜZELTME + YENİ AAB DERLEMESİ — 2026-10-27
+Hatalı build: b2f78611-ed35-4d58-8211-6b0dfcfce831
+Kök neden: Gradle :app:processReleaseResources -> drawable/splashscreen_logo bulunamadı.
+Kök düzeltme: mobile/scripts/eas-branding-preinstall.cjs ve sync-mobile-branding.cjs içinde Android Expo splash plugin image açıkça tanımlandı ve 48x48 şeffaf PNG EAS öncesinde üretildi.
+Koruma: Expo prebuild aşamasında native splashscreen_logo kaynağı test edilmeden yeni ücretli EAS build başlatılmaz.
+Hedef: Google Play internal test için imzalı com.caliskangroup.rma v1.1.0 AAB; başarılı build arşivi Actions Artifact'a yüklenmeli.
