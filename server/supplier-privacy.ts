@@ -25,6 +25,8 @@ export function supplierOrderView(row: Record<string, any>) {
   };
 }
 
+export type SupplierOrderView = ReturnType<typeof supplierOrderView>;
+
 /** Redact Turkish phone numbers in buyer-authored chat shown to suppliers. */
 export function redactCustomerPhones(text: string): string {
   return text.replace(
