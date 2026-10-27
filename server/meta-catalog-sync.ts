@@ -29,7 +29,12 @@ async function settings():Promise<Settings>{
   const r=await pool.query("SELECT value FROM platform_settings WHERE key=$1",[KEY]);
   try{
     const v=JSON.parse(String(r.rows[0]?.value||"{}"));
-    const id=String(v.catalogId||"");
+    const storedId=String(v.catalogId||"");
+    const configuredId=String(process.env.META_CATALOG_ID||"");
+    // Repair the previously saved business-portfolio ID without touching protected database credentials.
+    // A deliberately chosen valid catalog ID in the admin panel always wins.
+    const id=storedId===KNOWN_BUSINESS_PORTFOLIO_ID && /^[0-9]{5,30}$/.test(configuredId)
+      ? configuredId : storedId;
     return {enabled:v.enabled===true && id!==KNOWN_BUSINESS_PORTFOLIO_ID,catalogId:/^[0-9]{5,30}$/.test(id)?id:""};
   }catch{return {enabled:false,catalogId:""};}
 }
