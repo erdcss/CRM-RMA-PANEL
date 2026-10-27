@@ -880,6 +880,8 @@ export default function B2BPaymentPage() {
   }
 
   const backHref = cartMode ? "/siparislerim" : productId ? `/urun/${productId}` : "/";
+  const bankDetails = eftOrder?.bankTransfer || settings?.bankTransfer;
+  const eftDescription = eftOrder?.transferDescription || bankReference?.transferDescription || "";
 
   return (
     <main className="min-h-screen bg-[#f6f7f9] px-4 py-5 text-slate-950 sm:py-7">
@@ -1175,37 +1177,102 @@ export default function B2BPaymentPage() {
               ) : (
                 <div className="rounded-2xl border bg-white p-5">
                   <h3 className="font-bold">Havale / EFT Bilgileri</h3>
-                  {settings?.bankTransfer.enabled ? (
+                  {bankDetails?.enabled ? (
                     <>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <BankLine label="Banka" value={settings.bankTransfer.bankName} />
-                        <BankLine label="Hesap Sahibi" value={settings.bankTransfer.accountHolder} />
+                        <BankLine label="Banka" value={bankDetails.bankName}
+                          onCopy={() => void copy(bankDetails.bankName, "Banka adı kopyalandı")} />
+                        <BankLine label="Hesap Sahibi" value={bankDetails.accountHolder}
+                          onCopy={() => void copy(bankDetails.accountHolder, "Hesap sahibi kopyalandı")} />
                       </div>
                       <div className="mt-3 rounded-xl border bg-slate-50 p-4">
                         <div className="text-xs text-slate-500">IBAN</div>
                         <div className="mt-1 flex items-center justify-between gap-3">
-                          <code className="break-all text-sm font-bold">{formatIban(settings.bankTransfer.iban)}</code>
-                          <Button type="button" variant="outline" size="sm" onClick={() => copy(settings.bankTransfer.iban, "IBAN kopyalandı")}><Copy className="h-4 w-4" /></Button>
+                          <code className="min-w-0 break-all text-sm font-bold">{formatIban(bankDetails.iban)}</code>
+                          <Button type="button" variant="outline" size="sm"
+                            aria-label="IBAN kopyala" onClick={() => void copy(bankDetails.iban.replace(/\\s+/g, ""), "IBAN kopyalandı")}>
+                            <Copy className="mr-1.5 h-4 w-4" /> Kopyala
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-3 rounded-xl border bg-white p-4">
+                        <div className="text-xs text-slate-500">Ödenecek Tutar</div>
+                        <div className="mt-1 flex items-center justify-between gap-3">
+                          <strong className="text-base">{formatMoney(eftOrder?.total ?? preview.total)}</strong>
+                          <Button type="button" variant="outline" size="sm"
+                            aria-label="Ödeme tutarını kopyala"
+                            onClick={() => void copy((eftOrder?.total ?? preview.total).toFixed(2), "Ödeme tutarı kopyalandı")}>
+                            <Copy className="mr-1.5 h-4 w-4" /> Kopyala
+                          </Button>
                         </div>
                       </div>
 
+                      <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                        <div className="text-sm font-extrabold text-amber-950">Benzersiz EFT Kodu · Banka Açıklaması</div>
+                        {eftDescription ? (
+                          <>
+                            <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white p-3">
+                              <div className="min-w-0">
+                                <div className="text-xs text-slate-500">Açıklama (zorunlu)</div>
+                                <code className="mt-1 block break-all text-lg font-black tracking-wide text-slate-950">{eftDescription}</code>
+                              </div>
+                              <Button type="button" size="sm" variant="outline"
+                                aria-label="Benzersiz EFT açıklamasını kopyala"
+                                onClick={() => void copy(eftDescription, "EFT açıklama kodu kopyalandı")}>
+                                <Copy className="mr-1.5 h-4 w-4" /> Kopyala
+                              </Button>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-amber-950">
+                              Havale/EFT gönderirken bankanızın <b>Açıklama</b> alanına yalnızca bu kodu yazın.
+                              Bu kod siparişinizle eşleştirilir.
+                            </p>
+                            {!eftOrder ? (
+                              <p className="mt-2 text-xs font-semibold text-amber-900">
+                                Ödeme yapmadan önce aşağıdan siparişi oluşturun. Kod, oluşturulan siparişin kaydına bağlanacaktır.
+                              </p>
+                            ) : (
+                              <p className="mt-2 text-xs font-semibold text-emerald-800">
+                                Sipariş kaydedildi · {eftOrder.orderNumber}
+                              </p>
+                            )}
+                          </>
+                        ) : bankReferenceLoading ? (
+                          <p role="status" className="mt-2 text-sm text-amber-900">Siparişinize özel EFT açıklama kodu hazırlanıyor…</p>
+                        ) : (
+                          <div className="mt-2 space-y-2">
+                            <p role="alert" className="text-sm text-amber-950">
+                              {bankReferenceError || "Kod henüz hazırlanamadı."}
+                            </p>
+                            <Button type="button" size="sm" variant="outline" disabled={bankReferenceLoading}
+                              onClick={() => { setBankReferenceError(""); void prepareBankReference(); }}>
+                              Benzersiz kodu tekrar oluştur
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      <Button type="button" variant="outline"
+                        className="mt-3 w-full border-slate-300 bg-white"
+                        onClick={copyBankTransferSummary}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Tüm EFT Bilgilerini Kopyala
+                      </Button>
                       {eftOrder ? (
                         <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                          <div className="text-sm font-bold text-emerald-950">Siparişe özel ödeme kodunuz</div>
-                          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg bg-white p-3">
-                            <code className="text-base font-black">{eftOrder.transferDescription}</code>
-                            <Button type="button" variant="outline" size="sm" onClick={() => copy(eftOrder.transferDescription, "CLK sipariş kodu kopyalandı")}><Copy className="h-4 w-4" /></Button>
-                          </div>
-                          <p className="mt-2 text-xs leading-5 text-emerald-900">Banka transferi açıklamasına bu CLK kodunu eksiksiz yazın.</p>
+                          <p className="text-sm font-bold text-emerald-950">
+                            Siparişiniz oluşturuldu. Ödeme sonrası bildirimi tamamlayın.
+                          </p>
                           <Button className="mt-4 w-full" onClick={confirmBankTransfer} disabled={busy}>
                             <CheckCircle2 className="mr-2 h-4 w-4" />
                             {busy ? "Sipariş tamamlanıyor…" : "Ödemeyi Tamamladım · Siparişi Tamamla"}
                           </Button>
                         </div>
                       ) : (
-                        <Button className="mt-5" onClick={createBankTransferOrder} disabled={busy || !selectedAddressId}>
+                        <Button className="mt-4 w-full bg-[#FFCD00] font-extrabold text-slate-950 hover:bg-amber-300"
+                          onClick={createBankTransferOrder}
+                          disabled={busy || bankReferenceLoading || !bankReference || !selectedAddressId}>
                           <Landmark className="mr-2 h-4 w-4" />
-                          {busy ? "Kod oluşturuluyor…" : "Havale/EFT Sipariş Kodunu Oluştur"}
+                          {busy ? "Sipariş oluşturuluyor…" : "Havale/EFT Siparişini Oluştur"}
                         </Button>
                       )}
                     </>
@@ -1265,11 +1332,17 @@ function DeliveryChoice({
   );
 }
 
-function BankLine({ label, value }: { label: string; value: string }) {
+function BankLine({label,value,onCopy}:{label:string;value:string;onCopy:()=>void}) {
   return (
     <div className="rounded-xl border p-4">
       <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 font-semibold">{value}</div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="min-w-0 break-words font-semibold">{value}</span>
+        <Button type="button" size="sm" variant="outline" aria-label={label+" kopyala"}
+          onClick={onCopy} disabled={!value}>
+          <Copy className="mr-1.5 h-4 w-4" /> Kopyala
+        </Button>
+      </div>
     </div>
   );
 }
