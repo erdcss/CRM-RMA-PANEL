@@ -285,7 +285,7 @@ const decisionSchema=z.object({
 // Admin-only message archives preserve the original for authorized staff.
 function hideCustomerPhones(value: string): string {
   return value.replace(
-    /(?<![0-9])(?:(?:\\+90|0090|0)[\\s().-]*)?(?:5[0-9]{2}|[2-4][0-9]{2})[\\s().-]*[0-9]{3}[\\s().-]*[0-9]{2}[\\s().-]*[0-9]{2}(?![0-9])/g,
+    /(?<![0-9])(?:(?:\+90|0090|0)[\s().-]*)?(?:5[0-9]{2}|[2-4][0-9]{2})[\s().-]*[0-9]{3}[\s().-]*[0-9]{2}[\s().-]*[0-9]{2}(?![0-9])/g,
     "[Telefon bilgisi gizlendi]",
   );
 }
