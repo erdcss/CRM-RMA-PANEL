@@ -1,0 +1,10 @@
+Çalışkan B2B Android Google Play Dahili Test AAB sürüm talebi
+Tarih: 2026-10-27
+Kullanıcı Google Play Console → Dahili test sürümü oluşturma ekranında mağaza yüklemesini istedi.
+Sadece Çalışkan B2B Android paketini oluştur; Çalışkan Business, Dükkan, iOS/TestFlight sürümlerine dokunma.
+App ID: com.caliskangroup.rma
+Sürüm: 1.1.0 (mobile/app.json)
+EAS profile: android-aab, store distribution, app-bundle
+Güncel logo/splash admin panelinden senkronize edilmeli.
+Main branch en güncel kaynak ile TypeScript kontrolü başarılıysa imzalı .aab derle, EAS build sonucundaki gerçek .aab dosyasını GitHub Actions Artifacts olarak kaydet.
+Google Play Console service account mevcut değilse mağazaya yüklenmiş olarak raporlama; kullanıcı dahili test yükleme ekranında artifact dosyasını yükler.
