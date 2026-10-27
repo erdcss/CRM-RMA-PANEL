@@ -7,6 +7,8 @@ on:
       - 'business-mobile/tsconfig.json'
       - 'business-mobile/screens/MoreScreen.tsx'
       - 'business-mobile/screens/OrdersScreen.tsx'
+      - 'business-mobile/screens/MarketplaceScreen.tsx'
+      - 'business-mobile/screens/SupplierOrderDetailScreen.tsx'
       - 'business-mobile/screens/DashboardScreen.tsx'
       - 'business-mobile/ui/theme.ts'
       - 'business-mobile/screens/CustomersScreen.tsx'
