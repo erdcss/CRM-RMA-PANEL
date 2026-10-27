@@ -13,11 +13,10 @@ import { Ionicons } from "@expo/vector-icons";
 import type { BusinessAuthUser } from "../lib/auth";
 import { apiFetch } from "../lib/api";
 import type { DashboardOverview } from "../types";
-import { C, money, statusMeta } from "../ui/theme";
+import { C, money, statusMeta, isApprovedBusinessOrder } from "../ui/theme";
 import { Badge, EmptyState, SectionTitle } from "./common";
 type IconName = ComponentProps<typeof Ionicons>["name"];
 
-const APPROVED_STATUSES = new Set(["approved", "confirmed", "paid", "onaylandi"]);
 
 export function DashboardScreen({
   user,
@@ -62,7 +61,7 @@ export function DashboardScreen({
   }, [load]);
 
   const approvedOrders = (data?.recentApprovedOrders ?? data?.recentOrders ?? [])
-    .filter((order) => APPROVED_STATUSES.has(String(order.status || "").toLowerCase()))
+    .filter((order) => isApprovedBusinessOrder(order.status))
     .slice(0, 4);
 
   const name =
