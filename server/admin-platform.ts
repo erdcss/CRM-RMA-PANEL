@@ -1933,6 +1933,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         orderCount: 0,
         activeReturns: 0,
         recentOrders: [],
+        recentApprovedOrders: [],
         recentReturns: [],
         topSearches: [],
         topViewedProducts: [],
@@ -1947,6 +1948,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         liveUsers,
         orders,
         recentOrders,
+        recentApprovedOrders,
         returns,
         recentReturns,
         support,
@@ -1983,6 +1985,16 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           FROM b2b_orders
           WHERE COALESCE(status, '') <> 'payment_failed'
             AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
+            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+          ORDER BY created_at DESC
+          LIMIT 6
+        `),
+        pool.query(`
+          SELECT id, order_number, customer_email, status, item_count, total_amount,
+                 payment_method, payment_provider, payment_status, created_at
+          FROM b2b_orders
+          WHERE LOWER(COALESCE(status, '')) IN ('approved', 'confirmed', 'paid', 'onaylandi')
+            AND COALESCE(payment_status, '') NOT IN ('FAILURE', 'initialize_failed')
             AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
           ORDER BY created_at DESC
           LIMIT 6
@@ -2057,6 +2069,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         lowStock: Number(lowStock.rows[0]?.count || 0),
         todayRevenue: Number(todayRevenue.rows[0]?.amount || 0),
         recentOrders: recentOrders.rows,
+        recentApprovedOrders: recentApprovedOrders.rows,
         recentReturns: recentReturns.rows,
         topSearches: topSearches.rows,
         topViewedProducts: topViewedProducts.rows,
