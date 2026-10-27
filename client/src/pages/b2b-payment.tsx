@@ -1190,7 +1190,7 @@ export default function B2BPaymentPage() {
                         <div className="mt-1 flex items-center justify-between gap-3">
                           <code className="min-w-0 break-all text-sm font-bold">{formatIban(bankDetails.iban)}</code>
                           <Button type="button" variant="outline" size="sm"
-                            aria-label="IBAN kopyala" onClick={() => void copy(bankDetails.iban.replace(/\\s+/g, ""), "IBAN kopyalandı")}>
+                            aria-label="IBAN kopyala" onClick={() => void copy(bankDetails.iban.replace(/\s+/g, ""), "IBAN kopyalandı")}>
                             <Copy className="mr-1.5 h-4 w-4" /> Kopyala
                           </Button>
                         </div>
@@ -1253,7 +1253,8 @@ export default function B2BPaymentPage() {
 
                       <Button type="button" variant="outline"
                         className="mt-3 w-full border-slate-300 bg-white"
-                        onClick={copyBankTransferSummary}>
+                        onClick={copyBankTransferSummary} disabled={!eftDescription}
+                        title={!eftDescription ? "Önce benzersiz EFT kodunu oluşturun" : undefined}>
                         <Copy className="mr-2 h-4 w-4" />
                         Tüm EFT Bilgilerini Kopyala
                       </Button>
