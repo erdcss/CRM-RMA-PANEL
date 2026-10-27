@@ -1,1 +1,2 @@
 Çalışkan B2B Android AAB başarısız EAS derlemesi b2f78611-ed35-4d58-8211-6b0dfcfce831. Kullanıcının 27 Ekim 2026 hata raporu üzerine uzaktaki gerçek EAS build fazı ve hata satırlarını incele. Yeni ücretli build başlatma. 2026-10-27.
+EAS CLI build:view teşhis tekrar denemesi: proje node_modules kurulu; 2026-10-27.
