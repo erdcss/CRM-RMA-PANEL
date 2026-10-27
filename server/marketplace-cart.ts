@@ -3,6 +3,7 @@ import type { Express, RequestHandler } from "express";
 import type { PoolClient } from "pg";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
+import { supplierOrderView } from "./supplier-privacy";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 
@@ -127,17 +128,11 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
        AND line.item->>'productId' LIKE 'mp-%'
      GROUP BY o.id,o.created_at,o.shipping_method
      ORDER BY o.id DESC LIMIT 100`,[uid]);
-   // Explicit allowlist for seller-owned order projections. No customer phone,
-   // address phone, e-mail, buyer user ID or billing/shipping JSON may leave this API.
-   const toSupplierOrder=(row:any)=>({
-     id:row.id,order_id:row.order_id,status:row.status,
-     subtotal:row.subtotal,delivery_mode:row.delivery_mode,
-     created_at:row.created_at,currency:row.currency||'TRY',
-     items:Array.isArray(row.items)?row.items:[],
-   });
+   // Explicit allowlist: never expose customer contacts, addresses, e-mail
+   // or buyer identifiers to any seller, including through nested item JSON.
    const combined=[
-     ...paid.rows.map((row:any)=>toSupplierOrder({...row,id:-Number(row.order_id),currency:'TRY'})),
-     ...result.rows.map(toSupplierOrder),
+     ...paid.rows.map((row:any)=>supplierOrderView({...row,id:-Number(row.order_id),currency:'TRY'})),
+     ...result.rows.map(supplierOrderView),
    ];
    combined.sort((a:any,b:any)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime());
    res.setHeader("Cache-Control","private, no-store");
