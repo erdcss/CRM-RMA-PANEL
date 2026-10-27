@@ -31,6 +31,7 @@ import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
 import { registerMetaCatalogFeed } from "./meta-catalog";
+import { registerMetaCatalogAdmin } from "./meta-catalog-sync";
 import { expandScanLookupValues } from "@shared/shipment-barcode";
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceVideoUploadRoutes } from "./marketplace-video-upload";
@@ -1688,6 +1689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerMetaCatalogFeed(app);
+  registerMetaCatalogAdmin(app, requireAdmin);
 
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ status: "ok", database: dbReady ? "ready" : "starting" });
