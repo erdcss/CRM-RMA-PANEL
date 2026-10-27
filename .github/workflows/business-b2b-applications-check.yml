@@ -9,6 +9,8 @@ on:
       - 'business-mobile/screens/OrdersScreen.tsx'
       - 'business-mobile/screens/MarketplaceScreen.tsx'
       - 'business-mobile/screens/SupplierOrderDetailScreen.tsx'
+      - 'business-mobile/screens/SupplierOrdersList.tsx'
+      - 'business-mobile/screens/OrderDetailScreen.tsx'
       - 'business-mobile/screens/DashboardScreen.tsx'
       - 'business-mobile/ui/theme.ts'
       - 'business-mobile/screens/CustomersScreen.tsx'
