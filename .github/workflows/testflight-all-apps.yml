@@ -122,5 +122,20 @@ jobs:
         run: eas whoami
       - name: Build signed iOS application
         run: eas build --platform ios --profile testflight --non-interactive
-      - name: Submit iOS build to TestFlight and wait for result
-        run: eas submit --platform ios --profile testflight --latest --non-interactive --wait
+      - name: Submit iOS build to TestFlight (up to 2 attempts; no new build)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            echo "TestFlight submission attempt $attempt / 2"
+            if eas submit --platform ios --profile testflight --latest --non-interactive --wait; then
+              echo "Business iOS TestFlight submission succeeded."
+              exit 0
+            fi
+            if [ "$attempt" -eq 1 ]; then
+              echo "::warning title=Apple submit temporary failure::Retrying existing signed Business build; no new EAS build."
+              sleep 30
+            fi
+          done
+          echo "::error title=Apple TestFlight submit failed::iOS build exists, but Apple has not confirmed upload; inspect Expo submission logs."
+          exit 1
