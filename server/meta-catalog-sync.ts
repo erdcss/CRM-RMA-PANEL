@@ -5,6 +5,8 @@ import { loadMetaCatalogItems, type MetaCatalogItem } from "./meta-catalog";
 
 const GRAPH = "https://graph.facebook.com/v24.0";
 const KEY = "b2b_meta_catalog_config";
+// This number is the Turmarkt Business Portfolio ID displayed by Meta, not a product catalog.
+const KNOWN_BUSINESS_PORTFOLIO_ID = "4014519022181059";
 type Settings = {enabled:boolean;catalogId:string};
 type Change = {id:string;hash:string|null;method:"UPDATE"|"DELETE"; data?:MetaCatalogItem};
 let schemaPromise:Promise<void>|undefined;
@@ -27,7 +29,8 @@ async function settings():Promise<Settings>{
   const r=await pool.query("SELECT value FROM platform_settings WHERE key=$1",[KEY]);
   try{
     const v=JSON.parse(String(r.rows[0]?.value||"{}"));
-    return {enabled:v.enabled===true,catalogId:/^[0-9]{5,30}$/.test(String(v.catalogId||""))?String(v.catalogId):""};
+    const id=String(v.catalogId||"");
+    return {enabled:v.enabled===true && id!==KNOWN_BUSINESS_PORTFOLIO_ID,catalogId:/^[0-9]{5,30}$/.test(id)?id:""};
   }catch{return {enabled:false,catalogId:""};}
 }
 const isReady=(s:Settings)=>Boolean(s.enabled && s.catalogId && (process.env.META_CATALOG_ACCESS_TOKEN||"").length>=40);
@@ -165,6 +168,7 @@ export function registerMetaCatalogAdmin(app:Express,requireAdmin:RequestHandler
     const enabled=req.body?.enabled;
     if(typeof enabled!=="boolean"||(catalogId&&!/^[0-9]{5,30}$/.test(catalogId)))
       return res.status(400).json({error:"Geçerli katalog kimliği gerekli"});
+    if(catalogId===KNOWN_BUSINESS_PORTFOLIO_ID)return res.status(400).json({error:"4014519022181059 Turmarkt işletme kimliğidir, Meta katalog kimliği değildir. Commerce Manager içinden gerçek katalog ID alın."});
     if(enabled&&!catalogId)return res.status(400).json({error:"Önce katalog kimliğini girin"});
     if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
     try{
