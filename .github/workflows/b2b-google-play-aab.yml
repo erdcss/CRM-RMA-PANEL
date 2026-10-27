@@ -68,6 +68,17 @@ jobs:
           npm run sync:branding
           npm run typecheck
           eas whoami
+      - name: Android splash kaynak dosyasını yerel native prebuild ile doğrula
+        run: |
+          node scripts/eas-branding-preinstall.cjs
+          npx expo prebuild --platform android --no-install --clean
+          test -d android/app/src/main/res
+          if ! find android/app/src/main/res -type f -name 'splashscreen_logo*' | grep -q .; then
+            echo "::error title=Android splash eksik::Expo prebuild splashscreen_logo kaynağı üretemedi. EAS build başlatılmadı."
+            exit 1
+          fi
+          echo "Android splashscreen_logo native drawable hazır."
+          rm -rf android
       - name: İmzalı Google Play AAB derle
         run: |
           eas build --platform android --profile android-aab --non-interactive --clear-cache --wait --json > build-result.json
