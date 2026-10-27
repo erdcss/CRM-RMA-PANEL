@@ -27,11 +27,15 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      - name: Proje bağımlılıklarını yükle (EAS proje kimliği için)
+        working-directory: mobile
+        run: npm ci
       - name: EAS hata detayları ve faz loglarını al
         working-directory: mobile
         shell: bash
         run: |
           set -euo pipefail
+          eas whoami
           eas build:view b2f78611-ed35-4d58-8211-6b0dfcfce831 --json > "$RUNNER_TEMP/b2b-failed-build.json"
           node - <<'NODE'
           const fs=require("node:fs");
