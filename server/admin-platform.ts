@@ -1,5 +1,6 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
+import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import {
   getAdminPaymentSettings,
   getPublicPaymentSettings,
@@ -1420,6 +1421,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           JSON.stringify(product.variants),
         ],
       );
+      notifyMetaCatalogChange();
       return res.status(201).json(result.rows[0]);
     } catch (error: any) {
       if (error?.code === "23505") {
@@ -1529,6 +1531,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       }
 
       await client.query("COMMIT");
+      notifyMetaCatalogChange();
       return res.status(201).json({
         count: created.length,
         inputCount: rawProducts.length,
@@ -1573,6 +1576,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         [ids],
       );
 
+      notifyMetaCatalogChange();
       return res.json({
         count: result.rowCount || 0,
         deletedIds: result.rows.map((row) => String(row.id)),
@@ -1602,6 +1606,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         return res.status(404).json({ error: "Ürün bulunamadı" });
       }
 
+      notifyMetaCatalogChange();
       return res.json({
         deleted: true,
         product: result.rows[0],
@@ -1672,6 +1677,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       );
 
       if (!result.rows[0]) return res.status(404).json({ error: "Ürün bulunamadı" });
+      notifyMetaCatalogChange();
       return res.json(result.rows[0]);
     } catch (error: any) {
       if (error?.code === "23505") {
