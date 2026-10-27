@@ -1,14 +1,19 @@
-ÇALIŞKAN BUSINESS — TESTFLIGHT YENİ GÖNDERİM
+ÇALIŞKAN BUSINESS — TESTFLIGHT SİPARİŞ DETAYI / TEDARİKÇİ PDF YAYINI
 Tarih: 2026-10-27
-Kullanıcının talebi: En son tedarikçi sipariş verisi gizliliği değişiklikleri sonrası TestFlight oluştur.
-Kaynak main SHA: 59da1dd1f6f3a5cba0430f9082da709a2bf0be8c
-Hedef tek uygulama: Çalışkan Business iOS
-Bundle ID: com.caliskangroup.business
+Kaynak main: f740a3dd1fa14a5807353c981711526ca5fe7671
+Uygulama: yalnız Çalışkan Business iOS
+Bundle: com.caliskangroup.business
 ASC App ID: 6818161236
-EAS Project ID: aa005486-76a0-41cd-92de-33c2070a73f1
-Sürüm: 1.0.0, EAS remote autoIncrement build number
-İlgili değişiklikler: server/supplier-privacy.ts, server/marketplace-cart.ts, server/marketplace.ts tedarikçi sipariş yanıtı PII filtreleme ve sohbet telefon maskeleme. Bunlar server-side güvenlik kuralı olup yeni iOS derlemesinden bağımsız canlı API tarafından uygulanır.
-Önceki business-mobile onaylı sipariş filtreleme düzeltmeleri kodda korunuyor.
-Son gizlilik testleri ve TS/prod build başarılı: GitHub Actions run 40488497163.
-İş akışı: .github/workflows/testflight-all-apps.yml push -> Business only; iOS build -> EAS submit TestFlight --wait.
-Çalışkan B2B iOS, Android ve halka açık App Store gönderimi bu talebin dışında.
+EAS Project: aa005486-76a0-41cd-92de-33c2070a73f1
+iOS sürümü: 1.0.0; yeni build number EAS autoIncrement.
+Değişiklikler:
+- business-mobile/screens/SupplierOrderDetailScreen.tsx yeni tedarikçi sipariş detay tasarımı.
+- business-mobile/screens/MarketplaceScreen.tsx yalnız ödenmiş tedarikçi siparişleri; detay sayfası açılır.
+- business-mobile/App.tsx & types.ts supplierOrderDetail navigasyonu.
+- server/supplier-order-pdf.ts, server/marketplace-cart.ts: yalnız o tedarikçiye ait sipariş için tek kullanımlık süreli PDF indirme.
+- Müşteri telefon, e-posta, müşteri kimliği, özel teslimat/fatura adresleri tedarikçi API ve PDF dışında.
+- Tedarikçide sipariş düzenleme ve müşteri iletişime geç butonu yok.
+Sunucu TypeScript ve build: GitHub run 40510400937 SUCCESS.
+Business Mobil TypeScript ve iOS/Android bundle: GitHub run 40510928817 SUCCESS.
+Server Railway API PDF altyapısı başarıyla deploy edildi (4b7755ce0c3).
+Yalnız Business iOS build + EAS TestFlight submit --wait. B2B iOS ve halka açık App Store incelemesi tetiklenmesin.
