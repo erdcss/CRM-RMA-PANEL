@@ -25,11 +25,14 @@ async function ensure(){
   consented BOOLEAN NOT NULL DEFAULT FALSE,
   background_permission BOOLEAN NOT NULL DEFAULT FALSE,
   notifications_permission BOOLEAN NOT NULL DEFAULT FALSE,
+  admin_paused BOOLEAN NOT NULL DEFAULT FALSE,
   platform TEXT,
   last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   revoked_at TIMESTAMPTZ,
   PRIMARY KEY(user_id,device_id)
  );
+ ALTER TABLE b2b_location_opted_devices
+ ADD COLUMN IF NOT EXISTS admin_paused BOOLEAN NOT NULL DEFAULT FALSE;
  CREATE INDEX IF NOT EXISTS b2b_location_opted_devices_consent_idx
  ON b2b_location_opted_devices(consented,last_seen_at DESC);
  CREATE TABLE IF NOT EXISTS b2b_location_notification_events(
@@ -76,6 +79,7 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
     pool!.query(`SELECT d.user_id,u.company_name,u.email,
       COUNT(*)::int AS devices,BOOL_OR(d.background_permission) AS background_permission,
       BOOL_OR(d.notifications_permission) AS notifications_permission,
+      BOOL_AND(d.admin_paused) AS admin_paused,
       MAX(d.last_seen_at) AS last_seen_at
       FROM b2b_location_opted_devices d JOIN users u ON u.id=d.user_id
       WHERE d.consented=TRUE AND u.is_active=1 AND u.role='b2b_customer'
@@ -108,6 +112,22 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
      [enabled,verified,v.latitude,v.longitude,v.radius,v.start,v.end,v.title,v.message]);
    return res.json(q.rows[0]);
   }catch(e){console.error('Admin location save',e);return res.status(500).json({error:'Konum ayarları kaydedilemedi'});}
+ });
+ // Administrator can pause a customer's marketing geofence without altering
+ // the customer's operating-system permission or consent decision.
+ app.post('/api/admin/b2b/location/users/:id/pause',requireAdmin,async(req,res)=>{
+  const id=Number(req.params.id);
+  if(!Number.isSafeInteger(id)||id<1||typeof req.body?.paused!=='boolean')
+    return res.status(400).json({error:'Geçersiz müşteri veya durum'});
+  try{
+   await ensure();
+   const updated=await pool!.query(`UPDATE b2b_location_opted_devices
+     SET admin_paused=$2 WHERE user_id=$1 AND consented=TRUE RETURNING user_id`,
+     [id,req.body.paused]);
+   return updated.rowCount?res.json({ok:true,updated:updated.rowCount}):
+     res.status(404).json({error:'Konum izni olan müşteri bulunamadı'});
+  }catch(error){console.error('Location admin pause',error);
+   return res.status(500).json({error:'Müşteri bildirimi durdurulamadı'});}
  });
  // Do not expose user list or history through this config endpoint.
  app.get('/api/b2b/location/config',requireB2B,async(_req,res)=>{
@@ -152,7 +172,7 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
      SELECT $1,$2::date,$3 WHERE EXISTS(
        SELECT 1 FROM b2b_location_opted_devices
        WHERE user_id=$1 AND device_id=$3 AND consented=TRUE
-         AND background_permission=TRUE AND notifications_permission=TRUE)
+         AND admin_paused=FALSE AND background_permission=TRUE AND notifications_permission=TRUE)
      ON CONFLICT(user_id,local_date) DO NOTHING
      RETURNING user_id`,[id,isoDate(),device]);
    return res.json({allowed:Boolean(row.rowCount),title:settings.title,message:settings.message});
