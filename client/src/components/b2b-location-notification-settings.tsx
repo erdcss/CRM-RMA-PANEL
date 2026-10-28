@@ -12,7 +12,7 @@ type Settings={
  start_hour:number;end_hour:number;title:string;message:string;updated_at:string;
 };
 type Member={user_id:number;company_name:string|null;email:string;devices:number;
- background_permission:boolean;notifications_permission:boolean;last_seen_at:string};
+ background_permission:boolean;notifications_permission:boolean;admin_paused:boolean;last_seen_at:string};
 type Event={user_id:number;company_name:string|null;local_date:string;status:string;claimed_at:string;reported_at:string|null};
 type Dashboard={settings:Settings;users:Member[];events:Event[];
  today:{scheduled:number;pending:number;failed:number}};
@@ -27,10 +27,30 @@ export default function LocationNotificationSettings(){
    return res.json();
   },refetchInterval:30000});
  const [draft,setDraft]=useState<Settings|null>(null),[saving,setSaving]=useState(false);
+ const [mutatingUser,setMutatingUser]=useState<number|null>(null);
  useEffect(()=>{if(data?.settings&&!draft)setDraft(data.settings)},[data?.settings,draft]);
  const current=draft||data?.settings;
  const update=<K extends keyof Settings>(key:K,value:Settings[K])=>
-   setDraft(previous=>previous?{...previous,[key]:value}:null);
+   setDraft(previous=>{
+    if(!previous)return null;
+    if((key==='latitude'||key==='longitude')&&previous[key]!==value){
+      return {...previous,[key]:value,coordinates_verified:false,enabled:false};
+    }
+    return {...previous,[key]:value};
+   });
+ const pauseUser=async(user:Member)=>{
+  setMutatingUser(user.user_id);
+  try{
+   const response=await fetch('/api/admin/b2b/location/users/'+user.user_id+'/pause',{
+    method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({paused:!user.admin_paused})});
+   const result=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(result.error||'İşlem başarısız');
+   await client.invalidateQueries({queryKey:['/api/admin/b2b/location']});
+   toast({title:!user.admin_paused?'Bu müşteriye yakınlık bildirimi durduruldu':'Bu müşteriye yakınlık bildirimi tekrar açıldı'});
+  }catch(error){toast({title:'İşlem başarısız',description:error instanceof Error?error.message:'Tekrar deneyin',variant:'destructive'});}
+  finally{setMutatingUser(null);}
+ };
  const save=async()=>{
    if(!current)return;
    setSaving(true);
@@ -113,13 +133,17 @@ export default function LocationNotificationSettings(){
     <RefreshCw className="mr-2 h-4 w-4"/> Yenile</Button>
    {!data?.users?.length?<p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Henüz bu servise izin veren kayıtlı cihaz görünmüyor.</p>:
     <div className="max-h-80 overflow-auto rounded-xl border"><table className="w-full text-sm">
-     <thead className="sticky top-0 bg-muted"><tr>{['Müşteri','Cihaz','Konum izni','Bildirim izni','Son eşitleme'].map(x=><th key={x} className="p-3 text-left">{x}</th>)}</tr></thead>
+     <thead className="sticky top-0 bg-muted"><tr>{['Müşteri','Cihaz','Konum izni','Bildirim izni','Son eşitleme','Yönetim'].map(x=><th key={x} className="p-3 text-left">{x}</th>)}</tr></thead>
      <tbody>{data.users.map(u=><tr key={u.user_id} className="border-t">
       <td className="p-3 font-semibold">{u.company_name||'B2B Müşterisi'}<p className="text-xs font-normal text-muted-foreground">{u.email}</p></td>
       <td className="p-3">{u.devices}</td>
       <td className="p-3">{u.background_permission?'İzinli':'Kontrol gerekli'}</td>
       <td className="p-3">{u.notifications_permission?'İzinli':'Kontrol gerekli'}</td>
       <td className="p-3">{formatDate(u.last_seen_at)}</td>
+      <td className="p-3"><Button size="sm" variant={u.admin_paused?'outline':'destructive'}
+       disabled={mutatingUser===u.user_id} onClick={()=>void pauseUser(u)}>
+       {mutatingUser===u.user_id?'Kaydediliyor…':u.admin_paused?'Yeniden Aç':'Durdur'}
+      </Button></td>
      </tr>)}</tbody></table></div>}
   </CardContent>
  </Card>
