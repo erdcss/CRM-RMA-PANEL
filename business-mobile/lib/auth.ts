@@ -36,8 +36,27 @@ export async function signIn(email: string, password: string): Promise<BusinessS
     throw new Error("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
   }
 
-  // Super admins use the admin endpoint. Supplier accounts use the existing
-  // B2B identity provider, not duplicate credentials or a second user store.
+  // Dedicated Business App Review login has no admin or supplier permissions.
+  // Only failed admin attempts may try this identity provider.
+  let reviewLogin = false;
+  if (response.status === 401) {
+    try {
+      const reviewResponse = await fetch(`${API}/api/business-review/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+      });
+      if (reviewResponse.ok) {
+        response = reviewResponse;
+        reviewLogin = true;
+      }
+    } catch {
+      // Preserve the existing seller login fallback when reviewer login is unavailable.
+    }
+  }
+
+  // Super admins use the admin endpoint. Suppliers use the existing
+  // B2B identity provider. The reviewer route is isolated from both.
   if (response.status === 401) {
     try {
       response = await fetch(`${API}/api/seller/login`, {
@@ -62,7 +81,11 @@ export async function signIn(email: string, password: string): Promise<BusinessS
     throw new Error("Mobil oturum oluşturulamadı. Lütfen tekrar deneyin.");
   }
 
-  if (supplierLogin) {
+  if (reviewLogin) {
+    if (user.role !== "business_reviewer" || user.appAccess !== "business" || !user.isActive) {
+      throw new Error("Geçersiz Business inceleme hesabı.");
+    }
+  } else if (supplierLogin) {
     if (user.role !== "b2b_seller") throw new Error("Çalışkan Business için tedarikçi hesabı gerekiyor");
     if (payload.mustChangePassword) throw new Error("Önce Çalışkan B2B web hesabınızda ilk şifrenizi belirleyin.");
     const supplierCheck = await fetch(`${API}/api/marketplace/me`, {
