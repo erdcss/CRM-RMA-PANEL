@@ -190,7 +190,7 @@ export async function sendPushToUsers(userIds: number[], payload: PushPayload, o
   const result = await pool.query(
     `SELECT expo_token FROM mobile_push_tokens
      WHERE app='b2b' AND active=TRUE AND user_id=ANY($1::int[])
-       AND ($2::boolean OR session_active IS DISTINCT FROM FALSE)`,
+       AND ($2::boolean OR session_active = TRUE)`,
     [ids, options.includeLoggedOut === true],
   );
   const tokens = result.rows.map(row => String(row.expo_token || "")).filter(Boolean);
