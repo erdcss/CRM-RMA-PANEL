@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { localAuth } from '@/lib/supabase';
 
@@ -41,9 +42,27 @@ export async function registerB2BPush():Promise<boolean> {
       headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
       body:JSON.stringify({app:'b2b',expoToken:token,platform:Platform.OS}),
     });
+    if(r.ok)await AsyncStorage.setItem('b2b-last-registered-push-token',token);
     return r.ok;
   }catch(error) {
     console.warn('[push] B2B device registration unavailable:',error);
     return false;
   }
+}
+
+/** Register the device as signed out without revoking notification permission.
+ * Only this previously authenticated device can be updated. */
+export async function markB2BPushSignedOut(accessToken:string):Promise<void>{
+  if(Platform.OS==='web'||!accessToken)return;
+  const expoToken=await AsyncStorage.getItem('b2b-last-registered-push-token');
+  if(!expoToken)return;
+  const api=(process.env.EXPO_PUBLIC_API_URL||'https://b2b.ecalisgan.com').replace(/\\/$/,'');
+  try{
+    const response=await fetch(api+'/api/push/session',{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+accessToken},
+      body:JSON.stringify({expoToken,sessionActive:false}),
+      signal:AbortSignal.timeout(4000),
+    });
+    if(!response.ok)console.warn('[push] signed-out device state not acknowledged',response.status);
+  }catch(error){console.warn('[push] signed-out status unavailable',error);}
 }
