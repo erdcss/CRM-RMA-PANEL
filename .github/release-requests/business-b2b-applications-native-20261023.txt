@@ -14,3 +14,10 @@ Düzeltilen akış:
 Pipeline: Expo authentication, npm ci, TypeScript validation, synced native branding, signed EAS iOS build, App Store Connect TestFlight submit --wait.
 Android AAB aynı mevcut CI akışında ayrıca çalışabilir.
 TestFlight upload confirmation olmadan yayınlandı denmez.
+
+ÇALIŞKAN BUSINESS APP REVIEW HESABI — 2026-10-28
+Kaynak: main, admin-panel Apple İnceleme Hesabı altında Çalışkan Business'a ait ayrı hesap yönetimi.
+Business iOS/Android istemcisi: business_reviewer rolüyle yetkisiz salt-okunur örnek inceleme alanına giriş.
+Backend: /api/admin/business-review-account ve /api/business-review/login, admin erişimi verilmez, canlı veri çağrıları reddedilir.
+Doğrulama: 2026-10-28 Business Mobil TypeScript + iOS/Android export GitHub Actions başarılı.
+Amaç: güncel Business kodundan TestFlight ve Android AAB derlemek; App Store App Review'a otomatik gönderim yapma.
