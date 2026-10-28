@@ -1675,6 +1675,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (allowed.has(req.path) || (req.method === "GET" && req.path.startsWith("/public/"))) return next();
     try {
       const user = await storage.getUser(id);
+      // The Business App Review identity may view only the isolated, bundled
+      // preview UI. Never expose live customer, sales or admin APIs to it.
+      if (user?.role === "business_reviewer") {
+        return res.status(403).json({ error: "İnceleme hesabıyla gerçek işletme verilerine erişilemez." });
+      }
       if (user?.role === "b2b_customer" && user.mustChangePassword === 1) {
         return res.status(403).json({
           error: "Hesabınızı kullanmak için önce yeni şifrenizi oluşturun.",
@@ -2239,6 +2244,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("B2B registration failed:", error);
       return res.status(500).json({ error: "Başvuru oluşturulamadı" });
+    }
+  });
+
+  const businessReviewCompany = "Çalışkan Business - Apple İnceleme";
+  const businessReviewEmail = (value: unknown) =>
+    typeof value === "string" && value.trim().length <= 254 &&
+    /^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value.trim().toLowerCase())
+      ? value.trim().toLowerCase() : null;
+
+  // A password is shown only in the one-time authenticated admin response.
+  // The reviewer is intentionally NOT a real administrator or a B2B customer.
+  app.get("/api/admin/apple-review-accounts", requireAdmin, async (_req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    try {
+      const users = await storage.listUsers();
+      const b2b = users.find(u => u.role === "b2b_customer" && u.companyName === "Çalışkan B2B - Apple İnceleme");
+      const business = users.find(u => u.role === "business_reviewer" && u.appAccess === "business" && u.companyName === businessReviewCompany);
+      const safe = (u: typeof users[number] | undefined) => u
+        ? { exists: true, email: u.email || u.username, active: u.isActive === 1 }
+        : { exists: false, email: null, active: false };
+      return res.json({ b2b: safe(b2b), business: safe(business) });
+    } catch (error) {
+      console.error("Apple review account status failed:", error);
+      return res.status(503).json({ error: "İnceleme hesapları kontrol edilemedi." });
+    }
+  });
+
+  app.post("/api/admin/business-review-account", requireAdmin, async (req, res) => {
+    const email = businessReviewEmail(req.body?.email);
+    if (!email) return res.status(400).json({ error: "Geçerli bir inceleme e-posta adresi girin." });
+    try {
+      const existing = (await storage.getUserByUsername(email)) || (await storage.getUserByEmail(email));
+      if (existing) return res.status(409).json({ error: "Bu e-posta zaten kullanılıyor. Mevcut kullanıcı hesabı değiştirilmedi." });
+      const password = randomBytes(24).toString("base64url");
+      const reviewer = await storage.createUser({
+        username: email, password: hashPassword(password),
+        role: "business_reviewer", appAccess: "business", isActive: 1,
+        companyName: businessReviewCompany, firstName: "Apple", lastName: "Review",
+        email, companyCategory: "Diğer", taxNumber: null, taxOffice: null,
+        taxVerified: 0, applicationStatus: "approved", mustChangePassword: 0,
+        approvedAt: new Date(), credentialsSentAt: null,
+      });
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.status(201).json({ id: reviewer.id, email, password,
+        message: "Business inceleme hesabı oluşturuldu. Şifre yalnızca bir kez görüntülenir." });
+    } catch (error) {
+      console.error("Business reviewer account creation failed:", error);
+      return res.status(500).json({ error: "Business inceleme hesabı oluşturulamadı." });
+    }
+  });
+
+  app.post("/api/admin/business-review-account/reset-password", requireAdmin, async (req, res) => {
+    const email = businessReviewEmail(req.body?.email);
+    if (!email) return res.status(400).json({ error: "Geçerli bir hesap e-postası girin." });
+    try {
+      const user = (await storage.getUserByEmail(email)) || (await storage.getUserByUsername(email));
+      if (!user || user.role !== "business_reviewer" || user.appAccess !== "business" ||
+          user.companyName !== businessReviewCompany) {
+        return res.status(404).json({ error: "Bu adreste Business inceleme hesabı bulunamadı." });
+      }
+      const password = randomBytes(24).toString("base64url");
+      await storage.updateUser(user.id, {
+        password: hashPassword(password), mustChangePassword: 0,
+        isActive: 1, applicationStatus: "approved",
+      });
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json({ email, password, message: "Business inceleme şifresi yenilendi." });
+    } catch (error) {
+      console.error("Business reviewer password reset failed:", error);
+      return res.status(500).json({ error: "Business inceleme şifresi yenilenemedi." });
+    }
+  });
+
+  // Dedicated identity provider for the Business mobile reviewer.
+  // Deliberately does NOT create an admin web session.
+  app.post("/api/business-review/login", async (req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    const email = businessReviewEmail(req.body?.email);
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!email || !password || password.length > 1024)
+      return res.status(401).json({ error: "E-posta veya şifre hatalı." });
+    try {
+      const user = (await storage.getUserByUsername(email)) || (await storage.getUserByEmail(email));
+      if (!user || user.role !== "business_reviewer" || user.appAccess !== "business" ||
+          user.companyName !== businessReviewCompany || user.isActive !== 1 ||
+          user.mustChangePassword === 1 || !verifyPassword(password, user.password)) {
+        return res.status(401).json({ error: "E-posta veya şifre hatalı." });
+      }
+      return res.json(authResponse(user));
+    } catch (error) {
+      console.error("Business reviewer sign-in failed:", error);
+      return res.status(503).json({ error: "İnceleme girişi geçici olarak kullanılamıyor." });
     }
   });
 
