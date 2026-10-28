@@ -19,9 +19,12 @@ export async function ensureMobilePushTable() {
       expo_token TEXT NOT NULL UNIQUE,
       platform TEXT,
       active BOOLEAN NOT NULL DEFAULT TRUE,
+      session_active BOOLEAN,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE mobile_push_tokens
+      ADD COLUMN IF NOT EXISTS session_active BOOLEAN;
     CREATE INDEX IF NOT EXISTS mobile_push_tokens_app_idx
       ON mobile_push_tokens(app, active);
     CREATE INDEX IF NOT EXISTS mobile_push_tokens_user_idx
@@ -42,19 +45,33 @@ export async function registerMobilePushToken(input: {
   }
 
   await pool.query(
-    `INSERT INTO mobile_push_tokens (user_id, app, expo_token, platform, active, updated_at)
-     VALUES ($1,$2,$3,$4,TRUE,NOW())
+    `INSERT INTO mobile_push_tokens (user_id, app, expo_token, platform, active, session_active, updated_at)
+     VALUES ($1,$2,$3,$4,TRUE,TRUE,NOW())
      ON CONFLICT (expo_token)
      DO UPDATE SET
        user_id = EXCLUDED.user_id,
        app = EXCLUDED.app,
        platform = EXCLUDED.platform,
        active = TRUE,
+       session_active = TRUE,
        updated_at = NOW()`,
     [input.userId, input.app, token, input.platform || null],
   );
 
   return { ok: true };
+}
+
+/** Logging out preserves the device's permission and account association for
+ * optional promotional campaigns, but blocks ordinary private/account pushes. */
+export async function markB2BPushSession(userId:number,expoToken:string,sessionActive:boolean){
+  if(!pool)return false;
+  const token=String(expoToken||'').trim();
+  if(!/^(?:ExponentPushToken|ExpoPushToken)\\[[^\\]]+\\]$/.test(token))return false;
+  const result=await pool.query(`UPDATE mobile_push_tokens
+    SET session_active=$3,updated_at=NOW()
+    WHERE app='b2b' AND user_id=$1 AND expo_token=$2 AND active=TRUE`,
+    [userId,token,sessionActive]);
+  return (result.rowCount||0)>0;
 }
 
 export async function disableMobilePushToken(expoToken: string) {
@@ -165,14 +182,15 @@ export async function sendBusinessPushToSuperAdmins(payload:PushPayload){
 /** Only deliver customer messages to the explicitly selected account(s).
  * Expo acceptance is not the same as a device delivery receipt.
  */
-export async function sendPushToUsers(userIds: number[], payload: PushPayload) {
+export async function sendPushToUsers(userIds: number[], payload: PushPayload, options: { includeLoggedOut?: boolean } = {}) {
   if (!pool || !userIds.length) return { sent: 0, tokenCount: 0 };
   const ids = [...new Set(userIds.filter(id => Number.isSafeInteger(id) && id > 0))];
   if (!ids.length) return { sent: 0, tokenCount: 0 };
   const result = await pool.query(
     `SELECT expo_token FROM mobile_push_tokens
-     WHERE app='b2b' AND active=TRUE AND user_id=ANY($1::int[])`,
-    [ids],
+     WHERE app='b2b' AND active=TRUE AND user_id=ANY($1::int[])
+       AND ($2::boolean OR session_active IS DISTINCT FROM FALSE)`,
+    [ids, options.includeLoggedOut === true],
   );
   const tokens = result.rows.map(row => String(row.expo_token || "")).filter(Boolean);
   const outcome = await sendExpoMessages(tokens, payload);
