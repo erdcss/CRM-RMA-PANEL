@@ -1,0 +1,15 @@
+ÇALIŞKAN B2B 1.3.2 — PREMIUM ÜRÜN PAYLAŞIMI VE KONUM BİLDİRİMLERİ
+28 Ekim 2026
+
+- Ürün paylaşımını profesyonel 1080x1920 fiyat içermeyen poster olarak düzenle;
+  ÜRÜN TANITIMI ibaresini kaldır; güncel logo, büyük ürün fotoğrafı,
+  bilgilendirme kartı, güvenli kenar boşlukları ve uygulamayı indir alanı.
+- Alttan açılan modalda gerçek HD PNG önizlemesini göster.
+- Admin > Ayarlar > Konum ve Bildirimler: yarıçap, doğrulanmış mağaza
+  koordinatları, saatler, başlık, mesaj, kullanıcı onay listesi, geçmiş,
+  müşteri bazlı kapatma ve açma.
+- Konum kullanıcılarının ham koordinatlarını kaydetme.
+- iOS bildirim sesini ve önceki özellikleri koru.
+- Sadece yeni iOS TestFlight v1.3.2, önceki başarılı build 106'dan
+  yüksek benzersiz build numarası.
+- Genel App Store yayını yapma.
