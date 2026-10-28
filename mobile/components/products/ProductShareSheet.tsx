@@ -6,7 +6,7 @@ import {WebView} from 'react-native-webview';
 import * as FS from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {appAlert} from '@/lib/appAlert';
-import {absoluteMediaUrl,type B2BProduct} from '@/lib/api';
+import {absoluteMediaUrl,API_BASE_URL,type B2BProduct} from '@/lib/api';
 
 // Explicit whitelist: NEVER export prices, inventory, margin or supplier details.
 export function shareFacts(p:B2BProduct):Array<[string,string]>{
@@ -33,78 +33,133 @@ async function dataImage(src?:string|null):Promise<string>{
     return 'data:image/'+mime+';base64,'+b64;
   }catch{return '';}finally{await FS.deleteAsync(path,{idempotent:true}).catch(()=>{});}
 }
-function makePoster(p:B2BProduct,photo:string,logo:string){
+function makePoster(p:B2BProduct,photo:string,appIcon:string,appStoreBadge:string,playBadge:string){
  const payload=JSON.stringify({
-   name:String(p.name||'Ürün').replace(/\s+/g,' ').slice(0,100),
-   facts:shareFacts(p),photo,logo,
- }).replace(/</g,'\\u003c');
- return `<!doctype html><html><head><meta name="viewport" content="width=device-width"></head>
- <body style="margin:0;background:#fff"><canvas id="c" width="1080" height="1920" style="width:1px;height:1px"></canvas>
+  name:String(p.name||'Ürün').replace(/\s+/g,' ').slice(0,105),
+  brand:String(p.brand||'').trim().slice(0,48),
+  facts:shareFacts(p).filter(([label])=>label!=='Marka').slice(0,6),
+  photo,appIcon,appStoreBadge,playBadge,
+ }).replace(/</g,'\\u003c').replace(/\u2028|\u2029/g,' ');
+ return `<!doctype html><html lang="tr"><head><meta name="viewport" content="width=device-width"></head>
+ <body style="margin:0;background:white"><canvas id="poster" width="1080" height="1920" style="width:1px;height:1px"></canvas>
  <script>
- const data=${payload},c=document.getElementById('c'),g=c.getContext('2d');
+ (async function(){
+ const data=${payload},c=document.getElementById('poster'),g=c.getContext('2d');
+ const Y='#FFCB05',BLACK='#181818',MUTED='#636363';
  function box(x,y,w,h,r,color){g.fillStyle=color;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();}
- function txt(t,x,y,size,color='#181818',bold=true,max=850){
-   g.fillStyle=color;g.font=(bold?'700 ':'400 ')+size+'px Arial,sans-serif';
-   g.textBaseline='top';g.fillText(String(t),x,y,max);
+ function type(t,x,y,size,color=BLACK,weight='700',max=900){
+  g.fillStyle=color;g.font=weight+' '+size+'px Arial,sans-serif';g.textBaseline='top';
+  g.fillText(String(t),x,y,max);
  }
- function image(src){return new Promise(resolve=>{
-   if(!src)return resolve(null);const img=new Image();
-   img.onload=()=>resolve(img);img.onerror=()=>resolve(null);img.src=src;
+ function wrap(value,maxWidth,size,maxLines){
+  g.font='800 '+size+'px Arial,sans-serif';
+  const out=[];let line='';
+  for(const word of String(value).split(/\s+/)){
+   const candidate=line?line+' '+word:word;
+   if(line&&g.measureText(candidate).width>maxWidth){out.push(line);line=word;}else line=candidate;
+  }
+  if(line)out.push(line);
+  return out.slice(0,maxLines);
+ }
+ function openImage(src){return new Promise(ok=>{
+  if(!src)return ok(null);
+  const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ok(null);i.src=src;
  });}
- function lines(text,maxWidth,maxLines,size){
-   g.font='700 '+size+'px Arial,sans-serif';
-   const words=text.split(' '),out=[];let line='';
-   for(const word of words){
-     const next=line?line+' '+word:word;
-     if(line&&g.measureText(next).width>maxWidth){out.push(line);line=word;}
-     else line=next;
-   }
-   if(line)out.push(line);
-   return out.slice(0,maxLines);
+ function contain(im,x,y,w,h){
+  const s=Math.min(w/im.width,h/im.height);
+  const ww=im.width*s,hh=im.height*s;
+  g.drawImage(im,x+(w-ww)/2,y+(h-hh)/2,ww,hh);
  }
- Promise.all([image(data.photo),image(data.logo)]).then(([photo,logo])=>{
-   // Reels-safe editorial card: 105px sides, 100px top, 120px bottom.
-   g.fillStyle='#F9F9F7';g.fillRect(0,0,1080,1920);
-   box(0,0,1080,18,0,'#FFCC05');
-   box(100,96,880,134,26,'#171717');
-   box(125,114,120,98,18,'#FFCC05');
-   if(logo){
-     const scale=Math.min(106/logo.width,86/logo.height);
-     g.drawImage(logo,185-logo.width*scale/2,163-logo.height*scale/2,logo.width*scale,logo.height*scale);
-   }else txt('Ç',164,135,62,'#111');
-   txt('ÇALIŞKAN B2B',276,145,48,'#FFFFFF',true,645);
-   box(100,262,880,884,34,'#FFFFFF');
-   if(photo){
-     const scale=Math.min(780/photo.width,780/photo.height);
-     g.drawImage(photo,540-photo.width*scale/2,704-photo.height*scale/2,
-       photo.width*scale,photo.height*scale);
-   }else txt('ÜRÜN GÖRSELİ',330,665,45,'#888');
-   box(100,1175,880,472,32,'#FFFFFF');
-   box(140,1211,8,84,4,'#FFCC05');
-   const nameLines=lines(data.name,770,2,49);
-   nameLines.forEach((line,index)=>txt(line,173,1210+index*60,49,'#151515'));
-   g.fillStyle='#E9E9E7';g.fillRect(140,1343,800,2);
-   const facts=data.facts.slice(0,8);
-   facts.forEach((fact,index)=>{
-     const col=index%2,row=Math.floor(index/2);
-     const x=144+col*405,y=1374+row*62;
-     txt(fact[0].toLocaleUpperCase('tr-TR'),x,y,17,'#727272',true,360);
-     txt(fact[1],x,y+24,26,'#151515',true,360);
-   });
-   box(100,1678,880,121,28,'#FFCC05');
-   txt('ÇALIŞKAN B2B UYGULAMASINI İNDİR',143,1718,34,'#161616',true,786);
-   txt('b2b.ecalisgan.com',376,1831,26,'#727272',false,350);
-   window.ReactNativeWebView.postMessage(JSON.stringify({
-     kind:'done',png:c.toDataURL('image/png').split(',')[1]
-   }));
- }).catch(()=>window.ReactNativeWebView.postMessage(JSON.stringify({kind:'error'})));
+ function icon(label,x,y){
+  box(x,y,72,72,19,Y);g.strokeStyle=BLACK;g.lineWidth=4.5;
+  g.lineCap='round';g.lineJoin='round';g.beginPath();
+  if(label==='Model / Kod'){
+   g.moveTo(x+16,y+25);g.lineTo(x+34,y+13);g.lineTo(x+56,y+25);
+   g.lineTo(x+56,y+48);g.lineTo(x+34,y+60);g.lineTo(x+16,y+48);g.closePath();
+  }else if(label==='Koli İçi'||label==='Minimum Alım'){
+   g.rect(x+17,y+21,38,34);g.moveTo(x+17,y+32);g.lineTo(x+55,y+32);
+  }else{
+   g.arc(x+36,y+36,17,0,Math.PI*2);
+  }
+  g.stroke();
+ }
+ // Brand signature and sweeping golden ribbon. Safe margins >=80px.
+ const imgs=await Promise.all([openImage(data.photo),openImage(data.appIcon),
+   openImage(data.appStoreBadge),openImage(data.playBadge)]);
+ const [product,app,appStore,google]=imgs;
+ if(!product){window.ReactNativeWebView.postMessage(JSON.stringify({kind:'error',message:'Ürün görseli alınamadı'}));return;}
+ g.fillStyle='#FEFEFD';g.fillRect(0,0,1080,1920);
+ g.fillStyle='#1B1B1B';g.beginPath();g.moveTo(0,0);g.lineTo(494,0);
+ g.quadraticCurveTo(459,83,394,159);g.quadraticCurveTo(338,235,0,269);g.closePath();g.fill();
+ g.strokeStyle=Y;g.lineWidth=6;g.beginPath();g.moveTo(510,0);
+ g.bezierCurveTo(392,197,383,201,0,278);g.stroke();
+ box(75,53,350,113,32,Y);
+ type('ÇALIŞKAN',107,75,53,'#0C0C0C','900',290);
+ type('B2B',303,121,27,'#0C0C0C','900',72);
+ // A layered, restrained halo behind the original photograph.
+ g.fillStyle='#FFCB0524';g.beginPath();g.ellipse(570,678,477,474,0,0,Math.PI*2);g.fill();
+ g.strokeStyle='#FFCB05';g.lineWidth=35;g.globalAlpha=.55;
+ g.beginPath();g.ellipse(550,692,469,431,-.16,0,Math.PI*2);g.stroke();g.globalAlpha=1;
+ g.save();g.shadowColor='rgba(0,0,0,.10)';g.shadowBlur=33;g.shadowOffsetY=12;
+ box(86,307,908,805,35,'#FFFFFF');g.restore();
+ contain(product,118,328,844,760);
+ // Product's brand wordmark comes from the real catalog, not an invented mark.
+ g.save();g.shadowColor='rgba(0,0,0,.10)';g.shadowBlur=24;g.shadowOffsetY=6;
+ box(75,1140,930,494,35,'#FFFFFF');g.restore();
+ if(data.brand){
+  g.font='900 44px Arial,sans-serif';
+  const badgeW=Math.min(340,Math.max(145,g.measureText(data.brand).width+64));
+  box(112,1181,badgeW,75,15,'#1B1B1B');
+  type(data.brand,142,1192,42,'#FFFFFF','900',badgeW-45);
+ }
+ const nameStart=data.brand?1289:1195;
+ wrap(data.name,855,53,2).forEach((line,j)=>type(line,115,nameStart+j*63,53,BLACK,'900',855));
+ const sepY=data.brand?1429:1343;
+ g.fillStyle='#E9E9E9';g.fillRect(115,sepY,850,2);
+ const facts=data.facts.slice(0,6),factsY=sepY+25;
+ facts.forEach(([label,value],i)=>{
+  const col=i%2,row=Math.floor(i/2);
+  const x=115+col*429,y=factsY+row*67;
+  icon(label,x,y);
+  type(label.toLocaleUpperCase('tr-TR'),x+90,y+6,18,'#686868','700',320);
+  type(value,x+90,y+31,26,BLACK,'800',320);
+ });
+ // Bottom call-to-action with centrally uploaded app icon.
+ box(75,1660,930,139,31,Y);
+ if(app){
+  box(110,1679,101,101,23,'#181818');
+  contain(app,115,1684,91,91);
+ }else{box(110,1679,101,101,23,'#181818');type('Ç',141,1700,59,Y);}
+ type('ÇALIŞKAN B2B',238,1688,35,BLACK,'900',655);
+ type('UYGULAMASINI İNDİR',238,1734,41,BLACK,'900',690);
+ // Use ONLY actual admin-uploaded App Store and Google Play badge artwork.
+ if(appStore||google){
+  if(appStore&&google){contain(appStore,272,1812,258,61);contain(google,543,1812,258,61);}
+  else if(appStore)contain(appStore,420,1812,255,61);
+  else contain(google,420,1812,255,61);
+ }
+ type('b2b.ecalisgan.com',384,1876,23,'#777777','600',335);
+ window.ReactNativeWebView.postMessage(JSON.stringify({kind:'done',
+   png:c.toDataURL('image/png').split(',')[1]}));
+ })().catch(e=>window.ReactNativeWebView.postMessage(JSON.stringify({kind:'error',message:String(e)})));
  </script></body></html>`;
 }
 export function ProductShareSheet({product,imageUri,logoUri,visible,onClose}:{product:B2BProduct;imageUri?:string|null;logoUri?:string|null;visible:boolean;onClose:()=>void}){
  const [html,setHtml]=useState(''),[file,setFile]=useState(''),[busy,setBusy]=useState(false);
  const facts=useMemo(()=>shareFacts(product),[product]);
  useEffect(()=>{if(!visible)return;let active=true;setFile('');setHtml('');setBusy(true);
- Promise.all([dataImage(imageUri),dataImage(logoUri)]).then(([photo,logo])=>{if(active)setHtml(makePoster(product,photo,logo));}).catch(()=>{if(active){setBusy(false);appAlert('Görsel hazırlanamadı','Ürün fotoğrafı alınamadı.');}});
+ Promise.all([
+  dataImage(imageUri),
+  dataImage(logoUri),
+  fetch(API_BASE_URL+'/api/public/b2b-footer',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(7000)})
+    .then(r=>r.ok?r.json():{}).catch(()=>({}))
+ ]).then(async ([photo,appIcon,links])=>{
+  const badges=links as {appStoreImage?:string;googlePlayImage?:string};
+  const [appStore,googlePlay]=await Promise.all([dataImage(badges.appStoreImage),dataImage(badges.googlePlayImage)]);
+  if(!active)return;
+  if(!photo)throw Error('Ürün fotoğrafı yüklenemedi; eksik görselle paylaşım yapılamaz');
+  setHtml(makePoster(product,photo,appIcon,appStore,googlePlay));
+ }).catch(error=>{if(active){setBusy(false);appAlert('Görsel hazırlanamadı',error instanceof Error?error.message:'Görsel hazırlanamadı.');}});
  return ()=>{active=false;};},[visible,product,imageUri,logoUri]);
  async function share(){if(!file)return;try{if(!await Sharing.isAvailableAsync())throw Error('Paylaşım kullanılamıyor.');
  await Sharing.shareAsync(file,{mimeType:'image/png',UTI:'public.png',dialogTitle:'Çalışkan B2B ürününü paylaş'});}
@@ -128,7 +183,7 @@ export function ProductShareSheet({product,imageUri,logoUri,visible,onClose}:{pr
  <Text style={{fontWeight:'900',fontSize:15,color:'#171717'}}>{busy?'HD tasarım hazırlanıyor…':'Paylaş / Görseli Kaydet'}</Text></Pressable>
  <Text style={st.help}>Instagram, WhatsApp veya galeriyi iOS paylaşım menüsünden seçebilirsiniz.</Text></ScrollView>
  {!!html&&busy&&<WebView originWhitelist={['*']} source={{html,baseUrl:'https://b2b.ecalisgan.com'}} style={{position:'absolute',width:1,height:1,opacity:0}} javaScriptEnabled onMessage={async e=>{
- try{const v=JSON.parse(e.nativeEvent.data);if(v.kind!=='done'||!v.png)throw Error('PNG oluşturulamadı');
+ try{const v=JSON.parse(e.nativeEvent.data);if(v.kind!=='done'||!v.png)throw Error(v.message||'PNG oluşturulamadı');
  const path=FS.cacheDirectory+'caliskan-b2b-share-'+Date.now()+'.png';await FS.writeAsStringAsync(path,v.png,{encoding:FS.EncodingType.Base64});setFile(path);
  }catch(error){appAlert('Görsel üretilemedi',error instanceof Error?error.message:'Lütfen tekrar deneyin.');}
  finally{setBusy(false);}
