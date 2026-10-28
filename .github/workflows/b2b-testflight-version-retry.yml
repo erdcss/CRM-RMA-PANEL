@@ -23,6 +23,7 @@ jobs:
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_NO_VCS: "1"
+      REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +51,8 @@ jobs:
           node scripts/create-scan-beep.cjs
           node scripts/prepare-native-release.cjs
           npm run sync:branding
+          node --test scripts/b2b-custom-notification-sound.test.cjs
+          node -e 'const x=require("./app.json").expo.plugins||[];if(!x.some(p=>Array.isArray(p)&&p[0]==="expo-notifications"&&p[1]?.sounds?.includes("./assets/b2b-custom.wav")))throw Error("Native bildirim sesi pakete eklenmedi")'
           npm run typecheck
       - name: B2B iOS 1.1.0 derle
         run: eas build --platform ios --profile testflight --non-interactive --clear-cache --wait
