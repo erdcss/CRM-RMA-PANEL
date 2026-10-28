@@ -110,11 +110,9 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
    await ensure();
    // Address changes invalidate prior coordinate verification; typed address is
    // descriptive only, never silently geocoded into a different geofence.
-   const previous=(await pool!.query('SELECT store_address FROM b2b_location_campaign_settings WHERE id=1')).rows[0];
-   const addressChanged=(String(previous?.store_address||'').trim()!==v.address);
-   // The admin form clears the verified flag when editing the address;
-   // permit one-save re-verification if explicitly checked afterwards.
-   // Do not infer or change coordinates from the free-text address.
+   // The admin form clears the verified flag when editing the address.
+   // Allow explicit re-verification in the same save; never infer or
+   // silently change coordinates from free-text address.
    const q=await pool!.query(`UPDATE b2b_location_campaign_settings SET
      enabled=$1,coordinates_verified=$2,latitude=$3,longitude=$4,radius_m=$5,
      start_hour=$6,end_hour=$7,title=$8,message=$9,store_address=$10,updated_at=NOW()
