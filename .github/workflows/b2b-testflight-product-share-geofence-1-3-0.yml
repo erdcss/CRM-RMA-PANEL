@@ -1,0 +1,119 @@
+name: Çalışkan B2B - Ürün paylaşım ve yakınlık bildirimi - iOS 1.3.0 TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/b2b-testflight-1-3-0.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-b2b-ios-testflight-1-3-0
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: Çalışkan B2B 1.3.0 iOS build ve TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+      REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Expo erişimi ve bağımlılıklar
+        run: |
+          test -n "$EXPO_TOKEN" || { echo "::error::EXPO_TOKEN bulunamadı"; exit 1; }
+          npm ci
+          eas whoami
+      - name: Sürüm, iOS kimliği ve TestFlight hedefi
+        run: |
+          node - <<'NODE'
+          const app = require('./app.json').expo;
+          const eas = require('./eas.json');
+          if (app.version !== '1.3.0' ||
+              app.ios.bundleIdentifier !== 'com.caliskangroup.rma' ||
+              String(eas.submit.testflight.ios.ascAppId) !== '6802286663' ||
+              eas.build.testflight.autoIncrement !== true)
+            throw Error('B2B iOS sürümü veya Apple hedefi yanlış');
+          console.log('Çalışkan B2B / iOS v1.3.0 / App Store Connect 6802286663');
+          NODE
+      - name: Güncel native varlık, özel bildirim sesi ve yeni özellikleri doğrula
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          node --test scripts/b2b-custom-notification-sound.test.cjs
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const expo = require('./app.json').expo;
+          const plugin = expo.plugins.find(p => Array.isArray(p) && p[0] === 'expo-notifications');
+          const file = './assets/b2b-custom.wav';
+          if (!plugin || !plugin[1]?.sounds?.includes(file) || !fs.existsSync(file))
+            throw Error('Özel bildirim WAV sesi iOS native paketinde bulunamadı');
+          console.log('B2B özel bildirim sesi dahil:', fs.statSync(file).size, 'bayt');
+          NODE
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const app=require('./app.json').expo;
+          const pk=require('./package.json');
+          if(!pk.dependencies['expo-location']||!pk.dependencies['expo-task-manager'])throw Error('Konum bağımlılıkları eksik');
+          if(!app.plugins.some(p=>Array.isArray(p)&&p[0]==='expo-location'&&p[1]?.isIosBackgroundLocationEnabled))throw Error('iOS arka plan konum izinleri eksik');
+          for(const file of ['lib/store-geofence.ts','components/products/ProductShareSheet.tsx'])if(!fs.existsSync(file))throw Error('Eksik özellik: '+file);
+          const share=fs.readFileSync('components/products/ProductShareSheet.tsx','utf8');
+          if(!share.includes('1080')||!share.includes('1920')||!share.includes('ÇALIŞKAN B2B UYGULAMASINI İNDİR'))throw Error('Fiyatsız ürün paylaşım şablonu eksik');
+          console.log('Paylaşım, konum ve iOS izinleri yerinde.');
+          NODE
+          npm run typecheck
+      - name: İmzalı iOS 1.3.0 paketi oluştur
+        run: |
+          eas build --platform ios --profile testflight --non-interactive --clear-cache --wait --json > "$RUNNER_TEMP/b2b-ios-1-3-0.json"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const raw = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/b2b-ios-1-3-0.json', 'utf8'));
+          const list = Array.isArray(raw) ? raw : [raw.build || raw];
+          const b = list.find(x => String(x.platform || '').toLowerCase() === 'ios');
+          if (!b?.id || String(b.status).toLowerCase() !== 'finished' ||
+              (b.appIdentifier && b.appIdentifier !== 'com.caliskangroup.rma') ||
+              String(b.appVersion) !== '1.3.0' ||
+              Number(b.appBuildVersion) <= 103)
+            throw Error('Yeni B2B 1.3.0 iOS paketi veya benzersiz build numarası doğrulanamadı');
+          fs.appendFileSync(process.env.GITHUB_ENV, 'B2B_BUILD_ID=' + b.id + '\n');
+          fs.appendFileSync(process.env.GITHUB_ENV, 'B2B_BUILD_NUMBER=' + b.appBuildVersion + '\n');
+          console.log('B2B TestFlight iOS paketi:', b.id, '1.3.0 (' + b.appBuildVersion + ')');
+          NODE
+      - name: Yalnızca doğrulanan iOS build'i TestFlight'a gönder
+        run: eas submit --platform ios --profile testflight --id "$B2B_BUILD_ID" --non-interactive --wait --verbose
+      - name: Başarı kaydı
+        if: success()
+        run: |
+          {
+            echo '### Çalışkan B2B — iOS 1.3.0 TestFlight'
+            echo '- Bundle ID: com.caliskangroup.rma'
+            echo '- Sürüm: 1.3.0'
+            echo "- Build numarası: ${B2B_BUILD_NUMBER}"
+            echo "- EAS build ID: ${B2B_BUILD_ID}"
+            echo '- Özel bildirim sesi: b2b-custom.wav native pakette'
+            echo '- EAS Apple App Store Connect yüklemesi başarılı'
+            echo '- Sadece TestFlight; herkese açık App Store yayını yapılmadı'
+          } >> "$GITHUB_STEP_SUMMARY"
