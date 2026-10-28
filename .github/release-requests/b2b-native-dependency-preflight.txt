@@ -1,0 +1,1 @@
+2026-10-28 native iOS build prerequisites verification only, do not create paid EAS build. Check expo-doctor for expo-modules-core and UMAppLoader modules before resubmission.
