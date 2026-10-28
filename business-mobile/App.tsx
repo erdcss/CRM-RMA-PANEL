@@ -15,6 +15,7 @@ import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusine
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { LoginScreen } from "./screens/LoginScreen";
+import { BusinessReviewScreen } from "./screens/BusinessReviewScreen";
 import { LowStockScreen } from "./screens/LowStockScreen";
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
 import { ModuleScreen } from "./screens/ModuleScreen";
@@ -44,7 +45,7 @@ export default function App() {
   }, [branding.loaded]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.role === "business_reviewer") return;
     void registerBusinessPush().catch((error) => {
       console.warn("Business push registration failed:", error);
     });
@@ -91,6 +92,14 @@ export default function App() {
               setScreen(nextUser.role === "b2b_seller" || nextUser.role === "b2b_customer" ? { name: "marketplace" } : { name: "dashboard" });
             }}
           />
+        ) : user?.role === "business_reviewer" ? (
+          <BusinessReviewScreen onLogout={() => {
+            void (async () => {
+              await signOut();
+              setUser(null);
+              setScreen({ name: "login" });
+            })();
+          }} />
         ) : screen.name === "marketplace" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <MarketplaceScreen
