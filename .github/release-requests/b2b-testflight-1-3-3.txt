@@ -15,3 +15,5 @@ Kapsam:
 - Sadece iOS TestFlight, App Store açık yayın yok.
 - Bundle: com.caliskangroup.rma / ASC 6802286663.
 - Sürüm: 1.3.3; önceki başarılı build 107'den yüksek sayı.
+
+Yeniden çalıştırma: İlk GitHub run 40724589426, repository main ilerlediğinden prepare-native-release preflight tarafından kesildi; hiçbir yeni EAS build yapılmadı. Final paylaşım düzeni, satır kaydırma ve Reels alt güvenli alan düzeltmeleri main üzerinde. 1.3.3 sürümünü güncel main üzerinden tek kez derle ve gönder.
