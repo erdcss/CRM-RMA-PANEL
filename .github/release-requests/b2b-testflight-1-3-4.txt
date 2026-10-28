@@ -1,0 +1,17 @@
+ÇALIŞKAN B2B — iOS 1.3.4 — ÜRÜN PAYLAŞIMI ÇÖKME DÜZELTMESİ
+Tarih: 28 Ekim 2026
+App: com.caliskangroup.rma / App Store Connect: 6802286663
+Önceki başarılı iOS: 1.3.3 (108).
+
+Kullanıcı hatası: Ürün sayfasında Paylaş butonuna basılınca iOS uygulama kapanıyor.
+Düzeltme:
+- Büyük Base64 indirimi / HTML WebView / canvas.toDataURL / JS bridge kaldırıldı.
+- Yarım pencere hafif, native önizlemeyle açılır.
+- Kullanıcı Paylaş seçince React Native view-shot ile doğrudan dosya
+  olarak 1080x1920 PNG oluşturulur; iOS paylaşım menüsü açılır.
+- İndirilmemiş ürün görselinde buton pasif; hata temiz bildirimle gösterilir.
+- Fiyat yok, marka ve mağaza ikonları korunur.
+- Native SDK54 react-native-view-shot 4.0.3 paketini içerir.
+- b2b-share-crash regresyon testi + TypeScript kontrolü zorunlu.
+- iOS 1.3.4 build 108'den yüksek benzersiz numaralı, yalnız TestFlight.
+- Genel App Store yayını yapılmayacak.
