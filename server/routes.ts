@@ -20,7 +20,7 @@ import {
   retrieveIyzicoCheckout,
 } from "./iyzico";
 import { getPaymentConfig } from "./payment-config";
-import { ensureMobilePushTable, registerMobilePushToken, sendBusinessPushToSuperAdmins } from "./push-notifications";
+import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BBankPaymentApproval } from "./b2b-bank-payment-approval";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
@@ -1732,6 +1732,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : "Push token kaydedilemedi",
       });
     }
+  });
+
+  app.post("/api/push/session",requireAuth,async(req,res)=>{
+    const userId=sessionUserId(req);
+    if(!userId)return res.status(401).json({error:"Oturum bulunamadı"});
+    const user=await storage.getUser(userId);
+    if(!user||user.isActive!==1||user.role!=='b2b_customer')return res.status(403).json({error:"Yalnızca B2B müşterileri"});
+    const token=typeof req.body?.expoToken==='string'?req.body.expoToken:'';
+    if(req.body?.sessionActive!==false)return res.status(400).json({error:"Geçersiz oturum işlemi"});
+    try{
+      const updated=await markB2BPushSession(userId,token,false);
+      return res.json({ok:true,updated});
+    }catch(error){console.error("Push session",error);return res.status(500).json({error:"Bildirim oturumu güncellenemedi"});}
   });
 
   app.post("/api/push/unregister",requireAuth,async(req,res)=>{
