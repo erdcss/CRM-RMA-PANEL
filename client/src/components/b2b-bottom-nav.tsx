@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
@@ -37,7 +38,59 @@ function activeTab(path: string): TabKey | null {
 export function B2BBottomNav() {
   const [location] = useLocation();
   const reduceMotion = useReducedMotion();
+  const [isCompact, setIsCompact] = useState(false);
   const current = activeTab(location);
+
+  useEffect(() => {
+    // On the B2B website, the viewport is a dedicated scrolling container.
+    const scroller = document.querySelector<HTMLElement>(".b2b-site");
+    const scrollTarget = scroller ?? window;
+    let previousY = Math.max(0, scroller?.scrollTop ?? window.scrollY);
+    let distanceInDirection = 0;
+    let previousDirection = 0;
+    let animationFrame: number | null = null;
+
+    setIsCompact(false);
+
+    const updateScrollDirection = () => {
+      animationFrame = null;
+      const y = Math.max(0, scroller?.scrollTop ?? window.scrollY);
+      const delta = y - previousY;
+      previousY = y;
+
+      // Keep the full-size navigation at the top of every page.
+      if (y <= 72) {
+        distanceInDirection = 0;
+        previousDirection = 0;
+        setIsCompact(false);
+        return;
+      }
+
+      if (Math.abs(delta) < 1.5) return;
+      const direction = delta > 0 ? 1 : -1;
+      if (direction !== previousDirection) {
+        distanceInDirection = 0;
+        previousDirection = direction;
+      }
+      distanceInDirection += Math.abs(delta);
+
+      // Small scroll jitters should not repeatedly toggle the bar.
+      if (distanceInDirection < 16) return;
+      setIsCompact(direction > 0);
+      distanceInDirection = 0;
+    };
+
+    const onScroll = () => {
+      if (animationFrame !== null) return;
+      animationFrame = window.requestAnimationFrame(updateScrollDirection);
+    };
+
+    scrollTarget.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scrollTarget.removeEventListener("scroll", onScroll);
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [location]);
   const { itemCount } = useB2BCart();
   const { data: session } = useQuery<SessionUser>({
     queryKey: ["/api/auth/me"],
@@ -52,7 +105,14 @@ export function B2BBottomNav() {
       className="pointer-events-none fixed inset-x-0 z-[65] flex justify-center px-3 md:px-6"
       style={{ bottom: "max(10px, env(safe-area-inset-bottom, 0px))" }}>
       <LayoutGroup id="caliskan-b2b-nav">
-      <div className="pointer-events-auto grid min-h-[70px] w-full max-w-[660px] grid-cols-4 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/85 md:min-h-[78px] md:p-2">
+      <motion.div
+        initial={false}
+        animate={reduceMotion ? { scale: 1, y: 0, opacity: 1 } : isCompact
+          ? { scale: 0.88, y: 7, opacity: 0.72 }
+          : { scale: 1, y: 0, opacity: 1 }}
+        transition={reduceMotion ? { duration: 0 } : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+        style={{ transformOrigin: "center bottom" }}
+        className="pointer-events-auto grid min-h-[70px] w-full max-w-[660px] grid-cols-4 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/85 md:min-h-[78px] md:p-2">
         {tabs.map(({ key, label, href, icon: Icon }) => {
           const selected = current === key;
           const destination = (key === "orders" || key === "account") && session !== undefined && !isCustomer
@@ -63,6 +123,7 @@ export function B2BBottomNav() {
               aria-current={selected ? "page" : undefined}
               aria-label={label + (key === "orders" && itemCount > 0 ? `, ${itemCount} ürün` : "")}
               onClick={() => {
+                setIsCompact(false);
                 const scroller = document.querySelector<HTMLElement>(".b2b-site");
                 if (scroller) scroller.scrollTo({ top: 0, behavior: "auto" });
                 else window.scrollTo({ top: 0, behavior: "instant" });
@@ -89,8 +150,8 @@ export function B2BBottomNav() {
                     animate={{ scale: 1 }}
                     transition={{ type: "spring", stiffness: 450, damping: 24 }}
                     aria-hidden="true"
-                    className="absolute -right-2 -top-1.5 z-[2] flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-white bg-[#E11D48] px-1 text-[10px] font-black leading-none text-white">
-                    {itemCount > 9 ? "9+" : itemCount}
+                    className="absolute -right-3 -top-2 z-[2] flex h-[24px] min-w-[24px] items-center justify-center rounded-full border-2 border-white bg-[#E11D48] px-1.5 text-[12px] font-black leading-none text-white shadow-[0_2px_5px_rgba(225,29,72,0.2)]">
+                    {itemCount > 99 ? "99+" : itemCount}
                   </motion.span>
                 ) : null}
               </motion.span>
@@ -103,7 +164,7 @@ export function B2BBottomNav() {
             </Link>
           );
         })}
-      </div>
+      </motion.div>
       </LayoutGroup>
     </nav>
   );
