@@ -150,10 +150,20 @@ async function checkCloudPreinstall() {
     fs.mkdirSync(path.join(tmp, "scripts"));
     fs.mkdirSync(path.join(tmp, "lib"));
     fs.writeFileSync(path.join(tmp, "scripts", "eas-branding-preinstall.cjs"), fs.readFileSync(cloudScript));
+    fs.copyFileSync(path.resolve(__dirname, "b2b-custom-notification-sound.cjs"), path.join(tmp, "scripts", "b2b-custom-notification-sound.cjs"));
     fs.writeFileSync(path.join(tmp, "app.json"), JSON.stringify({expo:{ios:{},android:{},plugins:[]}}));
     const icon = new PNG({width: 40,height: 40});
     for (let i=0;i<icon.data.length;i++) icon.data[i]=Math.floor(i*167%256);
     const png = PNG.sync.write(icon);
+    // Sample 16-bit mono PCM WAV to verify the EAS native bundle path.
+    const sound = Buffer.alloc(44 + 256);
+    sound.write("RIFF", 0, "ascii"); sound.writeUInt32LE(sound.length - 8, 4);
+    sound.write("WAVEfmt ", 8, "ascii"); sound.writeUInt32LE(16, 16);
+    sound.writeUInt16LE(1, 20); sound.writeUInt16LE(1, 22);
+    sound.writeUInt32LE(44100, 24); sound.writeUInt32LE(88200, 28);
+    sound.writeUInt16LE(2, 32); sound.writeUInt16LE(16, 34);
+    sound.write("data", 36, "ascii"); sound.writeUInt32LE(256, 40);
+
     let firstBrandingRequest = true;
     const server = http.createServer((req,res)=>{
       if(req.url.startsWith("/api/public/mobile-branding/")){
@@ -164,6 +174,10 @@ async function checkCloudPreinstall() {
         }
         res.setHeader("Content-Type","application/json");
         return res.end(JSON.stringify({logo:"/icon",splash:withSplash?"/icon":null}));
+      }
+      if (req.url.startsWith("/api/public/b2b-notification-sound")) {
+        res.setHeader("Content-Type", "audio/wav");
+        return res.end(sound);
       }
       res.setHeader("Content-Type","image/png");
       res.end(png);
@@ -182,6 +196,10 @@ async function checkCloudPreinstall() {
       assert.equal(plugin[1].enableFullScreenImage_legacy,true);
       assert.equal(Boolean(plugin[1].ios.image),withSplash);
       if(withSplash)assert.equal(plugin[1].ios.image,expo.ios.splash.image);
+      const soundPlugin = expo.plugins.find(p => Array.isArray(p) && p[0] === "expo-notifications");
+      assert.deepEqual(soundPlugin?.[1]?.sounds, ["./assets/b2b-custom.wav"], "Remote EAS build must install the custom notification sound");
+      assert.deepEqual(fs.readFileSync(path.join(tmp, "assets", "b2b-custom.wav")), sound);
+
     } finally {
       await new Promise(resolve=>server.close(resolve));
       fs.rmSync(tmp,{recursive:true,force:true});
