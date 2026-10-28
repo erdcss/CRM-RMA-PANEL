@@ -5,6 +5,7 @@
 const fs=require("node:fs");
 const path=require("node:path");
 const {createHash}=require("node:crypto");
+const { syncB2BCustomSound } = require("./b2b-custom-notification-sound.cjs");
 const root=path.resolve(__dirname,"..");
 const assetsDir=path.join(root,"assets");
 const api=(process.env.EXPO_PUBLIC_BRANDING_API_URL||"https://admin.ecalisgan.com").replace(/\/$/,"");
@@ -95,6 +96,11 @@ async function main(){
   }else{
     delete expo.ios.splash;
   }
+  // The EAS remote build must bundle this file even if no local pre-build script ran.
+  await syncB2BCustomSound({
+    api, assetsDir, expo, fetchWithRetry: fetchAdminWithRetry,
+    required: process.env.REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND === "1",
+  });
   fs.writeFileSync(configPath,JSON.stringify(content,null,2)+"\n");
   const runtimePath=path.join(root,"lib","managed-splash.ts");
   fs.writeFileSync(runtimePath,"import type { ImageSourcePropType } from 'react-native';\n"+
