@@ -66,7 +66,7 @@ export async function registerMobilePushToken(input: {
 export async function markB2BPushSession(userId:number,expoToken:string,sessionActive:boolean){
   if(!pool)return false;
   const token=String(expoToken||'').trim();
-  if(!/^(?:ExponentPushToken|ExpoPushToken)\\[[^\\]]+\\]$/.test(token))return false;
+  if(!/^(?:ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(token))return false;
   const result=await pool.query(`UPDATE mobile_push_tokens
     SET session_active=$3,updated_at=NOW()
     WHERE app='b2b' AND user_id=$1 AND expo_token=$2 AND active=TRUE`,
