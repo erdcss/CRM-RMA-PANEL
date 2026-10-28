@@ -16,6 +16,7 @@ import {
   type TaxVerification,
 } from '@/lib/supabase';
 import { rmaApi } from '@/lib/api';
+import { markB2BPushSignedOut } from '@/lib/push';
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -80,6 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verifyTaxNumber: (taxNumber) => localAuth.verifyTaxNumber(taxNumber),
       forgotPassword: (email) => localAuth.forgotPassword(email),
       async signOut() {
+        // Keep the push-token association only for explicit admin campaigns.
+        // Normal account notifications must not expose sensitive details
+        // when this device has been signed out.
+        if(session?.access_token)await markB2BPushSignedOut(session.access_token);
         await localAuth.signOut();
         setSession(null);
       },
