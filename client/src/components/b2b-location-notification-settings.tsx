@@ -9,7 +9,7 @@ import {useToast} from '@/hooks/use-toast';
 
 type Settings={
  enabled:boolean;coordinates_verified:boolean;latitude:number;longitude:number;radius_m:number;
- start_hour:number;end_hour:number;title:string;message:string;updated_at:string;
+ start_hour:number;end_hour:number;title:string;message:string;store_address:string;updated_at:string;
 };
 type Member={user_id:number;company_name:string|null;email:string;devices:number;
  background_permission:boolean;notifications_permission:boolean;admin_paused:boolean;last_seen_at:string};
@@ -93,6 +93,17 @@ export default function LocationNotificationSettings(){
     <Switch aria-label="Konum bildirimleri" checked={current.enabled}
      onCheckedChange={enabled=>update('enabled',enabled)}/>
    </div>
+   <label className="block space-y-2 rounded-xl border p-4">
+    <span className="text-sm font-semibold">Çalışkan firma / mağaza adresi</span>
+    <textarea className="flex min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      value={current.store_address||''} maxLength={400} rows={2}
+      placeholder="Mahalle, cadde/sokak, bina numarası, ilçe ve il"
+      onChange={event=>{
+       const address=event.target.value;
+       setDraft(previous=>previous?{...previous,store_address:address,coordinates_verified:false,enabled:false}:null);
+      }}/>
+    <p className="text-xs text-muted-foreground">Adres bilgilendirme içindir; koordinatları otomatik değiştirmez. Adres düzenlendiğinde kesin konumun yeniden doğrulanması gerekir.</p>
+   </label>
    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
     {([
       ['latitude','Mağaza enlemi',-90,90,0.00001],
