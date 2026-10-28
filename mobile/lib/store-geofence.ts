@@ -145,8 +145,11 @@ async function startForUser(user:string){
   const foreground=await Location.getForegroundPermissionsAsync();
   const background=await Location.getBackgroundPermissionsAsync();
   const notice=await Notifications.getPermissionsAsync();
-  if(!foreground.granted||!background.granted||!notice.granted)return;
   await reportPermission(user,true);
+  if(!foreground.granted||!background.granted||!notice.granted){
+    if(await Location.hasStartedGeofencingAsync(TASK))await Location.stopGeofencingAsync(TASK);
+    return;
+  }
   const cfg=await refreshConfig();
   if(!cfg?.enabled||!cfg.coordinates_verified){
     if(await Location.hasStartedGeofencingAsync(TASK))await Location.stopGeofencingAsync(TASK);
