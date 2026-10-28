@@ -54,7 +54,7 @@ function makePoster(p:B2BProduct,photo:string,appIcon:string,appStoreBadge:strin
  function wrap(value,maxWidth,size,maxLines){
   g.font='800 '+size+'px Arial,sans-serif';
   const out=[];let line='';
-  for(const word of String(value).split(/\s+/)){
+  for(const word of String(value).split(/\\s+/)){
    const candidate=line?line+' '+word:word;
    if(line&&g.measureText(candidate).width>maxWidth){out.push(line);line=word;}else line=candidate;
   }
