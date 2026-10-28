@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import { FormField } from '@/components/forms/FormField';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { appAlert } from '@/lib/appAlert';
+import { enrollPendingB2BPush } from '@/lib/push';
 
 const COMPANY_CATEGORIES = [
   'Elektrik & Elektronik',
@@ -128,7 +130,7 @@ export default function SignupScreen() {
 
     setSubmitting(true);
     try {
-      await registerApplication({
+      const registration=await registerApplication({
         companyName: companyName.trim(),
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -137,6 +139,16 @@ export default function SignupScreen() {
         taxNumber,
       });
       setCompleted(true);
+      if(registration.enrollmentToken){
+        Alert.alert('Çalışkan B2B bildirimleri',
+          'Hesabınıza henüz giriş yapmasanız da yeni ürün ve kampanya duyurularını bu telefonda almak ister misiniz? Tamamen isteğe bağlıdır.',
+          [
+            {text:'Hayır, teşekkürler',style:'cancel'},
+            {text:'Bildirimleri aç',onPress:()=>{void enrollPendingB2BPush(registration.enrollmentToken!).then(ok=>{
+              if(!ok)appAlert('Bildirim izni','Cihaz kaydedilemedi. Daha sonra giriş yaptığınızda bildirimleri etkinleştirebilirsiniz.');
+            });}},
+          ]);
+      }
     } catch (error) {
       appAlert(
         'Başvuru oluşturulamadı',
