@@ -1,0 +1,156 @@
+name: Caliskan B2B + Business - Google Play AAB
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/caliskan-b2b-business-android-aab.txt"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-b2b-business-android-aab
+  cancel-in-progress: false
+
+jobs:
+  android-aab:
+    name: ${{ matrix.app_name }} - Android AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app_name: Caliskan B2B
+            app_dir: mobile
+            android_package: com.caliskangroup.rma
+            aab_file: caliskan-b2b-google-play.aab
+            artifact_name: Caliskan-B2B-Google-Play-AAB
+          - app_name: Caliskan Business
+            app_dir: business-mobile
+            android_package: com.caliskangroup.business
+            aab_file: caliskan-business-google-play.aab
+            artifact_name: Caliskan-Business-Google-Play-AAB
+    defaults:
+      run:
+        working-directory: ${{ matrix.app_dir }}
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check Expo access token
+        shell: bash
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=Expo token missing::Add EXPO_TOKEN to GitHub Actions secrets."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ matrix.app_dir }}/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Android application and signed AAB profile
+        env:
+          EXPECTED_PACKAGE: ${{ matrix.android_package }}
+        run: |
+          node - <<'NODE'
+          const config=require("./app.json").expo;
+          const eas=require("./eas.json");
+          if(config.android?.package !== process.env.EXPECTED_PACKAGE)
+            throw new Error("Unexpected Android package: "+config.android?.package);
+          const profile=eas.build?.["android-aab"];
+          if(profile?.distribution !== "store" || profile?.android?.buildType !== "app-bundle")
+            throw new Error("Missing Google Play store AAB build profile");
+          console.log("Package:",config.android.package,"version:",config.version);
+          NODE
+          eas whoami
+
+      - name: Prepare B2B release assets and check native Android splash
+        if: matrix.app_dir == 'mobile'
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          npm run typecheck
+          node scripts/eas-branding-preinstall.cjs
+          npx expo prebuild --platform android --no-install --clean
+          test -d android/app/src/main/res
+          if ! find android/app/src/main/res -type f -name 'splashscreen_logo*' | grep -q .; then
+            echo "::error title=B2B splash asset missing::Native splashscreen_logo is absent; stopping before EAS build."
+            exit 1
+          fi
+          echo "B2B native Android splash assets verified."
+          rm -rf android
+
+      - name: Prepare Business release assets and type-check
+        if: matrix.app_dir == 'business-mobile'
+        run: |
+          npm run sync:branding
+          npx tsc --noEmit --project tsconfig.json
+
+      - name: Create signed Android App Bundle through EAS
+        run: |
+          eas build --platform android --profile android-aab --non-interactive --clear-cache --wait --json > "$RUNNER_TEMP/eas-aab-result.json"
+
+      - name: Download and verify AAB
+        shell: bash
+        env:
+          AAB_FILE: ${{ matrix.aab_file }}
+          APP_NAME: ${{ matrix.app_name }}
+          PACKAGE_NAME: ${{ matrix.android_package }}
+          ARTIFACT_NAME: ${{ matrix.artifact_name }}
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const result=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/eas-aab-result.json","utf8"));
+          const build=Array.isArray(result)?result[0]:(result.build||result);
+          const url=build?.artifacts?.buildUrl||build?.artifacts?.applicationArchiveUrl;
+          if(!build?.id || !url || !/^https:\/\//.test(url))
+            throw new Error("A completed EAS build with a signed AAB download URL is required");
+          fs.writeFileSync(process.env.RUNNER_TEMP+"/signed-aab-url.txt",url);
+          fs.writeFileSync(process.env.RUNNER_TEMP+"/signed-aab-id.txt",String(build.id));
+          console.log("EAS build ID:",build.id);
+          NODE
+          curl -fSL --retry 4 --retry-all-errors --retry-delay 3 \
+            --output "$RUNNER_TEMP/$AAB_FILE" \
+            "$(cat "$RUNNER_TEMP/signed-aab-url.txt")"
+          test -s "$RUNNER_TEMP/$AAB_FILE"
+          unzip -t "$RUNNER_TEMP/$AAB_FILE" >/dev/null
+          unzip -Z1 "$RUNNER_TEMP/$AAB_FILE" | grep -Fxq 'base/manifest/AndroidManifest.xml'
+          {
+            echo "### $APP_NAME - Google Play AAB"
+            echo "- Android package: \`$PACKAGE_NAME\`"
+            echo "- Signed file: \`$AAB_FILE\`"
+            echo "- EAS build ID: \`$(cat "$RUNNER_TEMP/signed-aab-id.txt")\`"
+            echo "- GitHub Actions > Artifacts > \`$ARTIFACT_NAME\`"
+            echo "- Upload to Google Play Console manually (no automatic store submission)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish downloadable AAB to GitHub Actions artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ runner.temp }}/${{ matrix.aab_file }}
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
