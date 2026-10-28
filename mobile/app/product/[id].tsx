@@ -482,7 +482,7 @@ export default function ProductDetailScreen() {
           </Pressable>
         </View>
       </View>
-      <ProductShareSheet product={product} imageUri={image} logoUri={isSellerProduct ? absoluteMediaUrl(product.seller_logo_url) : companyLogo}
+      <ProductShareSheet product={product} imageUri={image} logoUri={companyLogo}
         visible={shareOpen} onClose={()=>setShareOpen(false)}/>
     </Screen>
   );
