@@ -22,6 +22,7 @@ import {
 import { getPaymentConfig } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
+import { createMobileSignupEnrollment, claimMobileSignupEnrollment } from "./b2b-push-enrollment";
 import { registerB2BBankPaymentApproval } from "./b2b-bank-payment-approval";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
@@ -1734,6 +1735,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // A registered mobile applicant can opt in to generic marketing pushes
+  // without signing in yet. A 256-bit secret from THEIR registration response
+  // is required; caller-supplied user ID/email is never trusted.
+  app.post("/api/push/b2b-enroll",async(req,res)=>{
+    if(req.body?.marketingConsent!==true)return res.status(400).json({error:"Bildirim izni gerekli"});
+    try{
+      const secret=typeof req.body?.enrollmentToken==="string"?req.body.enrollmentToken:"";
+      const userId=await claimMobileSignupEnrollment(secret);
+      if(!userId)return res.status(401).json({error:"Başvuru cihaz eşleştirme süresi dolmuş veya zaten kullanılmış"});
+      await registerMobilePushToken({userId,app:"b2b",
+        expoToken:String(req.body?.expoToken||""),
+        platform:typeof req.body?.platform==="string"?req.body.platform.slice(0,30):undefined,
+        sessionActive:false});
+      return res.json({ok:true});
+    }catch(error){console.error("Registration push opt-in",error);
+      return res.status(500).json({error:"Cihaz bildirim kaydı tamamlanamadı"});}
+  });
+
   app.post("/api/push/session",requireAuth,async(req,res)=>{
     const userId=sessionUserId(req);
     if(!userId)return res.status(401).json({error:"Oturum bulunamadı"});
@@ -2224,6 +2243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!user) return res.status(404).json({ error: "Önceki başvuru bulunamadı." });
         return res.status(201).json({
           id: user.id, username: user.username, status: "pending", reapplied: true,
+          enrollmentToken: await createMobileSignupEnrollment(user.id).catch(error=>{console.error("Mobile signup push enrollment",error);return null;}),
           taxVerified: user.taxVerified === 1, taxOffice: user.taxOffice,
           message: "Yeniden başvurunuz alındı. Yönetici onayından sonra tek kullanımlık şifreniz e-posta ile gönderilecektir.",
         });
@@ -2250,6 +2270,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: user.id,
         username: user.username,
         status: "pending",
+        enrollmentToken: await createMobileSignupEnrollment(user.id).catch(error=>{console.error("Mobile signup push enrollment",error);return null;}),
         taxVerified: user.taxVerified === 1,
         taxOffice: user.taxOffice,
         message: "Başvurunuz alındı. Yönetici onayından sonra tek kullanımlık şifreniz e-posta adresinize gönderilecektir.",
