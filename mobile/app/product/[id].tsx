@@ -100,11 +100,11 @@ export default function ProductDetailScreen() {
   }, [id, sellerSlug, session?.access_token]);
 
   useEffect(() => {
-    if (!product || isMarketplaceProduct(product)) return;
+    if (!product) return;
     let active=true;
     void rmaApi.getPublicBranding()
       .then(branding=>{
-        if (active) setCompanyLogo(absoluteMediaUrl(branding.b2b_mobile_logo || branding.b2b_logo));
+        if (active) setCompanyLogo(absoluteMediaUrl(branding.b2b_mobile_logo));
       })
       .catch(()=>{ /* Use the store icon if the branding service is unavailable. */ });
     return () => { active=false; };
