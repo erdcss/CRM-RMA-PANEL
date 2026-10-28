@@ -19,4 +19,5 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci --ignore-scripts
+      - run: node --test scripts/b2b-share-crash.test.cjs
       - run: npm run typecheck
