@@ -1,0 +1,17 @@
+ÇALIŞKAN B2B — iOS 1.3.3 TESTFLIGHT — STANDART PAYLAŞIM TASARIMI
+28 Ekim 2026
+
+Kapsam:
+- Standart 1080x1920 HD PNG ürün paylaşım posteri: premium siyah/sarı
+  stil, orijinal fotoğraftaki marka korunur, katalog marka/model/koli
+  bilgisi gösterilir, hiç fiyat gösterilmez.
+- Uygulama ikonunu admin Marka & Görseller > B2B Mobile
+  b2b_mobile_logo ayarından, App Store/Google Play badge img dosyalarını
+  admin b2b-footer appStoreImage/googlePlayImage alanından al.
+- Yalnızca gerçekten admin tarafından yüklenmiş mağaza rozetleri gösterilir.
+- Yönetici Ayarlar > Konum ve Bildirimler: firma adresi input'u,
+  adres değiştirilince koordinatların yeniden doğrulanması.
+- Özel native bildirim sesi ve eski özellikler korunacak.
+- Sadece iOS TestFlight, App Store açık yayın yok.
+- Bundle: com.caliskangroup.rma / ASC 6802286663.
+- Sürüm: 1.3.3; önceki başarılı build 107'den yüksek sayı.
