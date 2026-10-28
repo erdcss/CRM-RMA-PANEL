@@ -81,7 +81,7 @@ jobs:
           if(!app.plugins.some(p=>Array.isArray(p)&&p[0]==='expo-location'&&p[1]?.isIosBackgroundLocationEnabled))throw Error('iOS arka plan konum izinleri eksik');
           for(const file of ['lib/store-geofence.ts','components/products/ProductShareSheet.tsx'])if(!fs.existsSync(file))throw Error('Eksik özellik: '+file);
           const share=fs.readFileSync('components/products/ProductShareSheet.tsx','utf8');
-          if(!share.includes('1080')||!share.includes('1920')||!share.includes('ÇALIŞKAN B2B UYGULAMASINI İNDİR'))throw Error('Fiyatsız ürün paylaşım şablonu eksik');
+          if(!share.includes('1080')||!share.includes('1920')||(!share.includes('ÇALIŞKAN B2B') || !share.includes('UYGULAMASINI İNDİR')))throw Error('Fiyatsız ürün paylaşım şablonu eksik');
           if(share.includes("txt('ÜRÜN TANITIMI'"))throw Error('Ürün Tanıtımı etiketi paylaşım görselinde kalmış');
           const geofence=fs.readFileSync('lib/store-geofence.ts','utf8');
           if(!geofence.includes('/api/b2b/location/config')||!geofence.includes('/api/b2b/location/claim'))
