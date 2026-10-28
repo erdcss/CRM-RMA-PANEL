@@ -56,7 +56,7 @@ export async function markB2BPushSignedOut(accessToken:string):Promise<void>{
   if(Platform.OS==='web'||!accessToken)return;
   const expoToken=await AsyncStorage.getItem('b2b-last-registered-push-token');
   if(!expoToken)return;
-  const api=(process.env.EXPO_PUBLIC_API_URL||'https://b2b.ecalisgan.com').replace(/\\/$/,'');
+  const api=(process.env.EXPO_PUBLIC_API_URL||'https://b2b.ecalisgan.com').replace(/\/$/,'');
   try{
     const response=await fetch(api+'/api/push/session',{
       method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+accessToken},
