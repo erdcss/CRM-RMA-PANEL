@@ -111,7 +111,7 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
    // Address changes invalidate prior coordinate verification; typed address is
    // descriptive only, never silently geocoded into a different geofence.
    const previous=(await pool!.query('SELECT store_address FROM b2b_location_campaign_settings WHERE id=1')).rows[0];
-   const addressChanged=Boolean(previous?.store_address?.trim()&&previous.store_address.trim()!==v.address);
+   const addressChanged=(String(previous?.store_address||'').trim()!==v.address);
    if(enabled&&addressChanged)return res.status(400).json({error:'Adres değiştirildi; önce bildirimleri kapatıp koordinatları yeniden doğrulayın'});
    const q=await pool!.query(`UPDATE b2b_location_campaign_settings SET
      enabled=$1,coordinates_verified=$2,latitude=$3,longitude=$4,radius_m=$5,
