@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -21,6 +22,75 @@ async function fetchDashboard():Promise<Dashboard>{
   if(!r.ok)throw new Error("Bildirim ayarları alınamadı");
   return r.json();
 }
+
+const EMOJI_GROUPS = [
+  { title: "Duyurular", emojis: [
+    ["📣", "Duyuru"], ["🔔", "Bildirim"], ["🎉", "Kutlama"],
+    ["✨", "Yeni"], ["🚀", "Lansman"], ["⭐", "Yıldız"],
+    ["✅", "Onay"], ["📢", "Anons"], ["🎁", "Hediye"],
+  ] },
+  { title: "Kampanya ve mevsim", emojis: [
+    ["❄️", "Kış"], ["☃️", "Kardan adam"], ["🔥", "Fırsat"],
+    ["🛍️", "Alışveriş"], ["💥", "Süper fiyat"], ["🏷️", "Etiket"],
+    ["⚡", "Hızlı"], ["💯", "Yüz"], ["🌟", "Parlayan yıldız"],
+  ] },
+  { title: "Sipariş ve teslimat", emojis: [
+    ["📦", "Paket"], ["🚚", "Kargo"], ["🛒", "Sepet"],
+    ["📋", "Sipariş"], ["📍", "Konum"], ["📬", "Teslimat"],
+    ["🕒", "Saat"], ["🆕", "Yeni ürün"], ["🏬", "Mağaza"],
+  ] },
+  { title: "Finans ve iletişim", emojis: [
+    ["💰", "Para"], ["💳", "Kart"], ["💸", "Ödeme"],
+    ["📈", "Yükseliş"], ["📊", "Rapor"], ["🤝", "Anlaşma"],
+    ["👏", "Tebrik"], ["😊", "Gülümseme"], ["🙏", "Teşekkür"],
+  ] },
+] as const;
+
+function NotificationEmojiPicker({ onPick }: { onPick: (emoji: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const groups = EMOJI_GROUPS.map(group => ({
+    ...group,
+    emojis: group.emojis.filter(([emoji, name]) =>
+      !query.trim() || name.toLocaleLowerCase("tr-TR").includes(query.trim().toLocaleLowerCase("tr-TR")) || emoji.includes(query.trim())
+    ),
+  })).filter(group => group.emojis.length > 0);
+
+  return (
+    <Popover open={open} onOpenChange={value => { setOpen(value); if (value) setQuery(""); }}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" aria-label="Emoji seçiciyi aç">
+          <SmilePlus className="h-4 w-4" /> Emoji ekle
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-3" align="end" sideOffset={6}>
+        <p className="mb-2 text-sm font-semibold">Bildirim emojileri</p>
+        <Input className="h-9" value={query} onChange={event => setQuery(event.target.value)}
+          placeholder="Emoji ara (kış, kargo, fırsat...)" aria-label="Emoji ara" />
+        <div className="mt-2 max-h-64 space-y-3 overflow-y-auto pr-1">
+          {groups.length === 0 ? <p className="py-4 text-center text-xs text-muted-foreground">Emoji bulunamadı</p> :
+            groups.map(group => (
+              <div key={group.title}>
+                <p className="mb-1.5 text-xs font-semibold text-muted-foreground">{group.title}</p>
+                <div className="grid grid-cols-6 gap-1">
+                  {group.emojis.map(([emoji, name]) => (
+                    <button key={name} type="button" title={name} aria-label={name}
+                      className="flex h-10 items-center justify-center rounded-md text-2xl hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                      onClick={() => { onPick(emoji); setOpen(false); }}>
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">Emoji seçtiğiniz alanda imlecin olduğu yere eklenir.</p>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function AdminNotifications(){
   const {toast}=useToast();
   const {data,isLoading}=useQuery({queryKey:["/api/admin/b2b-notifications"],queryFn:fetchDashboard});
@@ -29,6 +99,8 @@ export default function AdminNotifications(){
   const [search,setSearch]=useState("");
   const [title,setTitle]=useState("");
   const [message,setMessage]=useState("");
+  const titleInputRef=useRef<HTMLInputElement>(null);
+  const messageInputRef=useRef<HTMLTextAreaElement>(null);
   const [customSound,setCustomSound]=useState(false);
   const [sending,setSending]=useState(false);
   const [uploadingSound,setUploadingSound]=useState(false);
@@ -38,6 +110,26 @@ export default function AdminNotifications(){
   const customers=(data?.customers||[]).filter(x=>
     (x.company_name||"").toLocaleLowerCase("tr-TR").includes(search.toLocaleLowerCase("tr-TR")) ||
     x.email.toLowerCase().includes(search.toLowerCase()));
+
+  function insertEmoji(field: "title" | "message", emoji: string) {
+    const element = field === "title" ? titleInputRef.current : messageInputRef.current;
+    const value = field === "title" ? title : message;
+    const maxLength = field === "title" ? 180 : 800;
+    const start = element?.selectionStart ?? value.length;
+    const end = element?.selectionEnd ?? start;
+    const updated = value.slice(0, start) + emoji + value.slice(end);
+    if (updated.length > maxLength) {
+      toast({ title: "Karakter sınırına ulaşıldı", description: field === "title" ? "Başlık en fazla 180 karakter olabilir." : "Mesaj en fazla 800 karakter olabilir.", variant: "destructive" });
+      return;
+    }
+    if (field === "title") setTitle(updated);
+    else setMessage(updated);
+    requestAnimationFrame(() => {
+      const input = field === "title" ? titleInputRef.current : messageInputRef.current;
+      input?.focus();
+      input?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  }
   async function send(){
     if(!title.trim()||!message.trim()){toast({title:"Başlık ve mesaj gerekli",variant:"destructive"});return;}
     if(!all&&!selected.length){toast({title:"En az bir müşteri seçin",variant:"destructive"});return;}
@@ -112,14 +204,24 @@ export default function AdminNotifications(){
             </div>:null}
           </div>
           <div className="space-y-3">
-            <label className="block text-sm font-semibold">Bildirim başlığı
-              <Input className="mt-1" value={title} maxLength={180} onChange={e=>setTitle(e.target.value)} placeholder="Örneğin: Yeni kampanyamız başladı"/>
-            </label>
-            <label className="block text-sm font-semibold">Bildirim mesajı
-              <textarea className="mt-1 min-h-28 w-full rounded-lg border bg-background p-3 text-sm"
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="manual-notification-title" className="block text-sm font-semibold">Bildirim başlığı</label>
+                <NotificationEmojiPicker onPick={emoji => insertEmoji("title", emoji)} />
+              </div>
+              <Input id="manual-notification-title" ref={titleInputRef} value={title} maxLength={180}
+                onChange={e=>setTitle(e.target.value)} placeholder="Örneğin: Yeni kampanyamız başladı"/>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="manual-notification-message" className="block text-sm font-semibold">Bildirim mesajı</label>
+                <NotificationEmojiPicker onPick={emoji => insertEmoji("message", emoji)} />
+              </div>
+              <textarea id="manual-notification-message" ref={messageInputRef}
+                className="min-h-28 w-full rounded-lg border bg-background p-3 text-sm"
                 value={message} maxLength={800} onChange={e=>setMessage(e.target.value)}
                 placeholder="Kullanıcının telefonunda ve uygulama bildirim kutusunda görünecek mesaj"/>
-            </label>
+            </div>
             <div className="rounded-xl border bg-muted/20 p-3">
               <div className="flex items-center gap-2 font-semibold"><Volume2 className="h-4 w-4"/> Bildirim sesi</div>
               <label className="mt-2 flex items-center gap-2 text-sm">
