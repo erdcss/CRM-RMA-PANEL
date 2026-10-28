@@ -42,7 +42,7 @@ function validateWav(bytes) {
 }
 
 async function syncB2BCustomSound({ api, assetsDir, expo, fetchWithRetry, required = false }) {
-  const url = api.replace(/\\/$/, "") + "/api/public/b2b-notification-sound?t=" + Date.now();
+  const url = (api.endsWith("/") ? api.slice(0, -1) : api) + "/api/public/b2b-notification-sound?t=" + Date.now();
   const response = await fetchWithRetry(url, { headers: { Accept: "audio/wav" } });
   if (response.status === 404) {
     if (required) throw new Error("TestFlight build durduruldu: Admin panelinde özel bildirim sesi kayıtlı değil");
