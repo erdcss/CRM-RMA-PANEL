@@ -11,3 +11,5 @@ Sürüm/build: 1.0.0 (24)
 Yeni EAS build üretme, halka açık App Store yayını yapma.
 
 Tekrar deneme 2: Expo build:view API erişimi engelleyici kontrol olmaktan çıkarıldı. Mevcut paket ID geçmiş başarılı build günlüğünden doğrulandı.
+
+Tekrar deneme 3: GitHub Actions CI ortamında expo-notifications plugin dahil tüm business-mobile bağımlılıkları npm ci ile kurulacak.
