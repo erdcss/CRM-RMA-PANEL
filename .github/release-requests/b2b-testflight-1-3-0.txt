@@ -14,3 +14,5 @@ Uygulama içi ayrı aç/kapat ayarı yerine Bildirimler ekranında onay iptali.
 iOS v1.3.0 imzalı build oluştur, özel ses dosyasını native pakette doğrula,
 yalnızca TestFlight'a gönder ve sonucu kontrol et.
 Herkese açık App Store yayını başlatma.
+
+Yeniden gönderim 2: UMAppLoader CocoaPods ve niimbot-printer peer metadata düzeltildi. Expo Doctor tüm 18 kontrol başarılı. Önceki EAS build 104 pod kurulumu sırasında başarısız oldu. Yeni build 105+ beklenir.
