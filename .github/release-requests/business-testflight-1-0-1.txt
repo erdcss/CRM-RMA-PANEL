@@ -1,0 +1,9 @@
+Çalışkan Business iOS TestFlight — 1.0.1 yeni sürüm — 2026-10-28
+
+Hedef: com.caliskangroup.business / App Store Connect 6818161236.
+Apple, eski 1.0.0 (24) build numarasını kullanılmış olduğu için yeniden gönderimi reddetti.
+Çözüm: App sürümünü 1.0.1 yap, EAS remote iOS build numarasını 25+ üret,
+aynı yeni signed build ID'sini TestFlight'a gönder.
+
+Sadece Çalışkan Business iOS TestFlight; Android ve Çalışkan B2B build yok.
+Herkese açık App Store yayını başlatma.
