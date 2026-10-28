@@ -63,7 +63,7 @@ function NotificationEmojiPicker({ onPick }: { onPick: (emoji: string) => void }
           <SmilePlus className="h-4 w-4" /> Emoji ekle
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-3" align="end" sideOffset={6}>
+      <PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-3" align="end" sideOffset={6} onCloseAutoFocus={event => event.preventDefault()}>
         <p className="mb-2 text-sm font-semibold">Bildirim emojileri</p>
         <Input className="h-9" value={query} onChange={event => setQuery(event.target.value)}
           placeholder="Emoji ara (kış, kargo, fırsat...)" aria-label="Emoji ara" />
