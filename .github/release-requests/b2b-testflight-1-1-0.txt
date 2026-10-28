@@ -1,7 +1,15 @@
-ÇALIŞKAN B2B iOS TESTFLIGHT — FINAL NATIVE PAGER BUILD
-Date 2026-10-26
-Source main commit prior to release 3a81e0d3acb2fc9a369f7652e069f03ec087cb5f
-Build only com.caliskangroup.rma, Expo version 1.1.0. This run follows the confirmed successful GitHub B2B mobile TypeScript check of 3a81e0d3acb2.
-Includes multi-photo swipe paging, bottom-right n/N indicator, explicit native slide dimensions, account new-version update banner and latest web promotional data.
-Business App TestFlight release uses its own independent workflow.
-Do not modify main while preparing this native B2B build. Verify signed EAS iOS build then await TestFlight submission before reporting success.
+ÇALIŞKAN B2B — ÖZEL BİLDİRİM SESİ — TESTFLIGHT KONTROL DERLEMESİ
+Tarih: 2026-10-28
+Uygulama: Çalışkan B2B
+iOS Bundle ID: com.caliskangroup.rma
+Expo sürümü: 1.1.0
+Kod dayanağı: 09747dd27cc1962779f51d2525eb65bf8e8d5ef0
+
+Bu tetikleme yeni iOS native pakete b2b-custom.wav bildirim sesini dahil ederek
+TestFlight'ta tek cihazla doğrulama yapmak içindir.
+- Native Expo bildirim sesi plugin'i yerel ve EAS remote preinstall aşamalarında çalışmalı.
+- Bildirim sesi mevcut değilse veya 16-bit mono PCM WAV değilse build başarısız olmalı.
+- GitHub CI native branding ve bildirim sesi paketleme testleri başarılı.
+- Sadece TestFlight'a yükle; herkese açık App Store yayını başlatma.
+- TestFlight üzerinden iPhone'a kurulduktan sonra yönetici panelinde
+  "Özel ses kullan" seçilerek manuel bildirim gönderilmeli.
