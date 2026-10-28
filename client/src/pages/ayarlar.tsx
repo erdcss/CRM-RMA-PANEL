@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import LocationNotificationSettings from "@/components/b2b-location-notification-settings";
 import type { BrandingConfig } from "@/hooks/use-branding";
 import { emptyStoreLinks, type StoreLinks } from "@/components/b2b-footer";
 
@@ -221,11 +222,14 @@ export default function Ayarlar() {
             <TabsTrigger value="mobile-download">Uygulama İndirme Bannerları</TabsTrigger>
             <TabsTrigger value="meta">Meta Pixel</TabsTrigger>
             <TabsTrigger value="payments">Ödeme</TabsTrigger>
+            <TabsTrigger value="location-notifications">Konum ve Bildirimler</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
             <TabsTrigger value="apple-review">Apple İnceleme Hesabı</TabsTrigger>
             <TabsTrigger value="email">E-posta Servisi</TabsTrigger>
           </TabsList>
 
+
+          <TabsContent value="location-notifications"><LocationNotificationSettings/></TabsContent>
 
           <TabsContent value="meta" className="space-y-5">
             <Card>
