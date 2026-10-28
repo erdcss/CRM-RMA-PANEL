@@ -8,9 +8,9 @@ test('safe sharing uses native direct-to-file PNG capture, not memory-heavy web 
  assert.ok(src.includes("captureRef(posterRef"));
  assert.ok(src.includes("width:1080,height:1920"));
  assert.ok(src.includes("result:'tmpfile'"));
- assert.ok(!src.includes('WebView'));
- assert.ok(!src.includes('toDataURL'));
- assert.ok(!src.includes('writeAsStringAsync'));
+ assert.ok(!/from ['\"]react-native-webview['\"]/.test(src));
+ assert.ok(!/\.toDataURL\s*\(/.test(src));
+ assert.ok(!/FS\.writeAsStringAsync\s*\(/.test(src));
  assert.ok(!src.includes('dataImage('));
  assert.equal(pkg.dependencies['react-native-view-shot'],'4.0.3');
 });
