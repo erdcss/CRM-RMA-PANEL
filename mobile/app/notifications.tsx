@@ -6,10 +6,15 @@ import { Screen } from '@/components/ui/Screen';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BNotification } from '@/lib/api';
 import { registerB2BPush } from '@/lib/push';
+import { isStoreNearbyEnabled,revokeStoreNearby } from '@/lib/store-geofence';
+import {useAuth} from '@/contexts/AuthContext';
 import { appAlert } from '@/lib/appAlert';
 
 export default function NotificationsScreen() {
   const router=useRouter();
+  const {user}=useAuth();
+  const [storeNearby,setStoreNearby]=useState(false);
+  useFocusEffect(useCallback(()=>{if(user?.id)void isStoreNearbyEnabled(String(user.id)).then(setStoreNearby);},[user?.id]));
   const {palette}=useAppearance();
   const [items,setItems]=useState<B2BNotification[]>([]);
   const [loading,setLoading]=useState(true);
@@ -52,6 +57,12 @@ export default function NotificationsScreen() {
         <Ionicons name="notifications-outline" size={24} color={palette.accent}/>
       </Pressable>
     </View>
+    {storeNearby && user?.id ? <Pressable accessibilityRole="button"
+      onPress={()=>{void revokeStoreNearby(String(user.id)).then(()=>{setStoreNearby(false);appAlert('Hatırlatmalar durduruldu','Konumunuz artık yakınlık bildirimi için takip edilmeyecek.');});}}
+      style={{marginHorizontal:18,marginTop:8,marginBottom:3,padding:13,borderRadius:12,borderWidth:1,borderColor:palette.border}}>
+      <Text style={{color:palette.text,fontWeight:'700'}}>Yakınlık bildirimlerini durdur</Text>
+      <Text style={{color:palette.textSecondary,fontSize:12,marginTop:4}}>Mağaza yakınlığı bildirimine verdiğiniz onayı geri çekebilirsiniz.</Text>
+    </Pressable> : null}
     <ScrollView contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>void refresh()} tintColor={palette.accent}/>}>
       {loading ? <ActivityIndicator color={palette.accent} style={{marginTop:50}}/> :
