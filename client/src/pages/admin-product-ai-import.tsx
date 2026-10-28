@@ -124,6 +124,61 @@ function variantsFromAi(product: any): ImportVariant[] {
   return variants;
 }
 
+
+type ExistingCatalogProduct = {
+  sku?: string | null;
+  barcode?: string | null;
+  name?: string | null;
+  brand?: string | null;
+  images?: string[] | string | null;
+  image_data?: string | null;
+};
+
+function normalizeIdentifier(value: unknown) {
+  return String(value ?? "").trim().toLocaleLowerCase("tr-TR");
+}
+
+function firstCatalogImage(item: ExistingCatalogProduct): string | null {
+  let images: unknown = item.images;
+  if (typeof images === "string") {
+    try { images = JSON.parse(images); } catch { images = []; }
+  }
+  const candidates = [...(Array.isArray(images) ? images : []), item.image_data];
+  const result = candidates.find((value) => {
+    if (typeof value !== "string") return false;
+    const url = value.toLowerCase();
+    return url.startsWith("data:image/png;base64,") ||
+      url.startsWith("data:image/jpeg;base64,") ||
+      url.startsWith("data:image/webp;base64,") ||
+      url.startsWith("https://") || url.startsWith("http://") ||
+      (url.startsWith("/") && !url.startsWith("//"));
+  });
+  return typeof result === "string" ? result : null;
+}
+
+// Reuse only an unambiguous product photo; a guessed match is worse than no photo.
+function matchCatalogImage(row: ImportRow, catalog: ExistingCatalogProduct[]) {
+  const barcode = normalizeIdentifier(row.barcode);
+  const sku = normalizeIdentifier(row.sku);
+  const name = normalizeIdentifier(row.name);
+  const brand = normalizeIdentifier(row.brand);
+  const barcodeMatches = barcode.length >= 8
+    ? catalog.filter((item) => normalizeIdentifier(item.barcode) === barcode) : [];
+  const skuMatches = sku
+    ? catalog.filter((item) => normalizeIdentifier(item.sku) === sku) : [];
+  const nameMatches = name && brand
+    ? catalog.filter((item) =>
+        normalizeIdentifier(item.name) === name &&
+        normalizeIdentifier(item.brand) === brand) : [];
+  const matches = barcodeMatches.length ? barcodeMatches
+    : skuMatches.length ? skuMatches : nameMatches;
+  if (matches.length !== 1) return null;
+  const matched = matches[0];
+  if (brand && matched.brand && normalizeIdentifier(matched.brand) !== brand) return null;
+  if (barcode && matched.barcode && normalizeIdentifier(matched.barcode) !== barcode) return null;
+  return firstCatalogImage(matched);
+}
+
 export default function AdminProductAiImport() {
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
@@ -315,7 +370,7 @@ export default function AdminProductAiImport() {
 
       setRows((current) =>
         current.map((row) => {
-          if (!missingKeys.has(row.key)) return row;
+          if (!missingKeys.has(row.key) || row.images.length > 0) return row;
           const image = imagesByKey[row.key];
           if (image) {
             const status = statusByKey.get(row.key);
@@ -528,15 +583,46 @@ export default function AdminProductAiImport() {
         );
       }
 
-      setRows(extracted);
 
+      // Reuse catalog photos for the same exact product before searching online.
+      let prepared = extracted;
+      try {
+        const response = await fetch("/api/admin/b2b-products", {
+          credentials: "include",
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const catalog: unknown = await response.json();
+          if (Array.isArray(catalog)) {
+            prepared = extracted.map((row) => {
+              if (row.images.length) return row;
+              const image = matchCatalogImage(row, catalog as ExistingCatalogProduct[]);
+              return image ? {
+                ...row,
+                images: [image],
+                imageStatus: "verified" as const,
+                imageConfidence: 1,
+                imageSourceUrl: null,
+                imageReason: "Mevcut ürün listesindeki eşleşen ürün görseli alındı.",
+              } : row;
+            });
+          }
+        }
+      } catch {
+        // A catalog read failure must not block AI extraction.
+      }
+
+      setRows(prepared);
+      const withoutImages = prepared.filter((row) => row.images.length === 0).length;
       toast({
         title: "AI analizi tamamlandı",
-        description:
-          failedFiles.length > 0
-            ? `${extracted.length} ürün bulundu. ${failedFiles.length} dosya analiz edilemedi. Görsel çekmek için “Görselleri Çek” butonunu kullanın.`
-            : `${extracted.length} ürün bulundu. Görsel çekmek için “Görselleri Çek” butonunu kullanın.`,
+        description: prepared.length + " ürün listelendi." +
+          (failedFiles.length ? " " + failedFiles.length + " dosya analiz edilemedi." : "") +
+          (withoutImages ? " " + withoutImages + " ürünün görseli otomatik aranıyor." : " Tüm ürün görselleri hazır."),
       });
+
+      // Missing images are fetched automatically; manual retry remains available.
+      if (withoutImages > 0) void findWebImages(prepared);
 
       if (failedFiles.length > 0) {
         toast({
@@ -580,11 +666,21 @@ export default function AdminProductAiImport() {
       return;
     }
 
+    const withoutImages = selectedRows.filter((row) => row.images.length === 0);
+    if (withoutImages.length > 0) {
+      toast({
+        title: "Ürün görselleri eksik",
+        description: withoutImages.length + " ürün için görsel bulunamadı. Görselleri Çek ile tekrar deneyin veya görselleri elle ekleyin.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
 
     try {
       const response = await apiRequest("POST", "/api/admin/b2b-products/bulk", {
-        allowMissingImages: true,
+        allowMissingImages: false,
         products: selectedRows.map((row) => ({
           sku: row.sku.trim(),
           barcode: row.barcode.trim(),
@@ -778,7 +874,7 @@ export default function AdminProductAiImport() {
               <div>
                 <div className="font-bold">AI tarafından bulunan ürünler</div>
                 <div className="text-sm text-muted-foreground">
-                  AI ürünleri listeler. Web görselleri yalnızca “Görselleri Çek” butonuna bastığınızda aranır ve bulunan görseller ürünlere eklenir.
+                  AI ürünleri listeler, mevcut ürün fotoğraflarını eşleştirir ve eksikleri otomatik arar. Bulunamayan görseller için “Görselleri Çek” ile yeniden deneyebilirsiniz.
                 </div>
               </div>
 
