@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus } from "lucide-react";
+import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus, CalendarClock, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +11,25 @@ type Customer={id:number;email:string;company_name?:string|null};
 type Rule={event_key:string;enabled:boolean;title_template:string;body_template:string};
 type Message={id:number;title:string;body:string;source:string;event_key:string|null;email:string;created_at:string};
 type Dashboard={customers:Customer[];rules:Rule[];recent:Message[];soundConfigured:boolean};
+type ScheduledMessage={
+  id:string;title:string;body:string;recipient_count:number;audience_all:boolean;
+  scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
+  saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
+};
+const scheduledStatus:Record<ScheduledMessage["status"],string>={
+  pending:"Planlandı",processing:"Gönderiliyor",sent:"Gönderildi",failed:"Hata",cancelled:"İptal edildi",
+};
+function formatTurkeyDate(date: string) {
+  return new Date(date).toLocaleString("tr-TR",{timeZone:"Europe/Istanbul",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+function turkeyNowInput() {
+  const formatter=new Intl.DateTimeFormat("en-CA",{
+    timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",hour12:false,
+  });
+  const parts=Object.fromEntries(formatter.formatToParts(new Date()).map(part=>[part.type,part.value]));
+  return parts.year+"-"+parts.month+"-"+parts.day+"T"+parts.hour+":"+parts.minute;
+}
 const titles:Record<string,string>={
   membership_approved:"Üyelik onayı",
   order_created:"Sipariş oluşturuldu",
@@ -94,6 +113,15 @@ function NotificationEmojiPicker({ onPick }: { onPick: (emoji: string) => void }
 export default function AdminNotifications(){
   const {toast}=useToast();
   const {data,isLoading}=useQuery({queryKey:["/api/admin/b2b-notifications"],queryFn:fetchDashboard});
+  const {data:scheduled=[],isLoading:loadingSchedules}=useQuery<ScheduledMessage[]>({
+    queryKey:["/api/admin/b2b-notifications/scheduled"],
+    queryFn:async()=>{
+      const response=await fetch("/api/admin/b2b-notifications/scheduled",{credentials:"include",cache:"no-store"});
+      if(!response.ok) throw new Error("Planlı bildirimler alınamadı");
+      return response.json();
+    },
+    refetchInterval:30000,
+  });
   const [all,setAll]=useState(false);
   const [selected,setSelected]=useState<number[]>([]);
   const [search,setSearch]=useState("");
@@ -103,6 +131,9 @@ export default function AdminNotifications(){
   const messageInputRef=useRef<HTMLTextAreaElement>(null);
   const [customSound,setCustomSound]=useState(false);
   const [sending,setSending]=useState(false);
+  const [deliveryMode,setDeliveryMode]=useState<"now"|"scheduled">("now");
+  const [scheduledDate,setScheduledDate]=useState("");
+  const [cancelling,setCancelling]=useState<string|null>(null);
   const [uploadingSound,setUploadingSound]=useState(false);
   const [rules,setRules]=useState<Rule[]>([]);
   const [savingRule,setSavingRule]=useState<string|null>(null);
@@ -133,18 +164,54 @@ export default function AdminNotifications(){
   async function send(){
     if(!title.trim()||!message.trim()){toast({title:"Başlık ve mesaj gerekli",variant:"destructive"});return;}
     if(!all&&!selected.length){toast({title:"En az bir müşteri seçin",variant:"destructive"});return;}
+    let scheduledAt: string | undefined;
+    if(deliveryMode==="scheduled") {
+      if(!scheduledDate) {
+        toast({title:"Gönderim tarihi ve saati seçin",variant:"destructive"});
+        return;
+      }
+      // Datetime-local is interpreted as Turkey time regardless of browser locale.
+      const date=new Date(scheduledDate+":00+03:00");
+      if(!Number.isFinite(date.getTime())||date.getTime()<Date.now()+30_000) {
+        toast({title:"Gelecekte bir tarih ve saat seçin",variant:"destructive"});
+        return;
+      }
+      scheduledAt=date.toISOString();
+    }
     setSending(true);
     try{
-      const r=await apiRequest("POST","/api/admin/b2b-notifications/send",{
+      const planning=deliveryMode==="scheduled";
+      const r=await apiRequest("POST",planning?"/api/admin/b2b-notifications/scheduled":"/api/admin/b2b-notifications/send",{
         title:title.trim(),body:message.trim(),all,userIds:selected,customSound,
+        ...(planning?{scheduledAt}:{}),
       });
       const result=await r.json();
-      if(!r.ok)throw new Error(result.error||"Bildirim gönderilemedi");
-      toast({title:"Bildirim kaydedildi",description:`${result.saved} müşteri · ${result.tokens} kayıtlı cihaz · Expo kabul: ${result.accepted}`});
-      setTitle("");setMessage("");
-      await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]});
-    }catch(e){toast({title:"Bildirim gönderilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
+      if(!r.ok)throw new Error(result.error||(planning?"Bildirim planlanamadı":"Bildirim gönderilemedi"));
+      toast(planning
+        ? {title:"Bildirim planlandı",description:formatTurkeyDate(result.scheduled_at)+" · "+result.recipient_count+" müşteri"}
+        : {title:"Bildirim kaydedildi",description:`${result.saved} müşteri · ${result.tokens} kayıtlı cihaz · Expo kabul: ${result.accepted}`});
+      setTitle("");setMessage("");setScheduledDate("");
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]}),
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]}),
+      ]);
+    }catch(e){toast({title:deliveryMode==="scheduled"?"Bildirim planlanamadı":"Bildirim gönderilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
     finally{setSending(false);}
+  }
+  async function cancelScheduled(id:string){
+    if(!window.confirm("Planlanan bildirim iptal edilsin mi?")) return;
+    setCancelling(id);
+    try{
+      const response=await fetch("/api/admin/b2b-notifications/scheduled/"+encodeURIComponent(id),{
+        method:"DELETE",credentials:"include",
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"Bildirim iptal edilemedi");
+      toast({title:"Planlı bildirim iptal edildi"});
+      await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]});
+    }catch(e){
+      toast({title:"İptal başarısız",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});
+    }finally{setCancelling(null);}
   }
   async function saveRule(rule:Rule){
     setSavingRule(rule.event_key);
@@ -176,13 +243,13 @@ export default function AdminNotifications(){
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div><h1 className="flex items-center gap-2 text-2xl font-black"><Bell className="h-6 w-6"/> Bildirimler</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Müşterilerinize anlık bildirim gönderin ve otomatik olay mesajlarını yönetin.</p></div>
-        <Button variant="outline" onClick={()=>void queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]})}>
+          <p className="mt-1 text-sm text-muted-foreground">Müşterilerinize anında veya zamanlayarak bildirim gönderin ve otomatik mesajları yönetin.</p></div>
+        <Button variant="outline" onClick={()=>{void queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]});void queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]});}}>
           <RefreshCw className="mr-2 h-4 w-4"/> Yenile
         </Button>
       </div>
       <section className="rounded-2xl border bg-background p-5">
-        <h2 className="text-lg font-bold">Manuel Bildirimler</h2>
+        <h2 className="text-lg font-bold">Yeni Bildirim</h2>
         <p className="mt-1 text-sm text-muted-foreground">Tek müşteri, birden çok müşteri veya tüm aktif B2B müşterileri.</p>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
@@ -238,8 +305,71 @@ export default function AdminNotifications(){
               </div>:null}
               <p className="mt-2 text-xs text-amber-700">Özel sesin iOS ve Android'de çalması için ses dosyası yeni native build içine paketlenmelidir. Önceki build'lerde standart ses kullanılır.</p>
             </div>
-            <Button disabled={sending} className="w-full" onClick={()=>void send()}><Send className="mr-2 h-4 w-4"/>{sending?"Gönderiliyor…":"Bildirimi Gönder"}</Button>
+            <div className="rounded-xl border p-3 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="h-4 w-4"/> Gönderim zamanı</div>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input type="radio" name="notification-delivery" checked={deliveryMode==="now"}
+                    onChange={()=>setDeliveryMode("now")}/> Hemen gönder
+                </label>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input type="radio" name="notification-delivery" checked={deliveryMode==="scheduled"}
+                    onChange={()=>setDeliveryMode("scheduled")}/> Tarih ve saat seç
+                </label>
+              </div>
+              {deliveryMode==="scheduled" && <div className="space-y-2">
+                <label htmlFor="notification-scheduled-date" className="block text-xs font-semibold">
+                  Gönderim tarihi ve saati (Türkiye saati)
+                </label>
+                <Input id="notification-scheduled-date" type="datetime-local"
+                  min={turkeyNowInput()} value={scheduledDate}
+                  onChange={event=>setScheduledDate(event.target.value)}/>
+                <p className="text-xs text-muted-foreground">Belirttiğiniz saatte otomatik gönderilir. Seçilen mevcut müşteriler planlama sırasında kaydedilir.</p>
+              </div>}
+            </div>
+            <Button disabled={sending || (deliveryMode==="scheduled"&&!scheduledDate)}
+              className="w-full" onClick={()=>void send()}>
+              {deliveryMode==="scheduled"?<CalendarClock className="mr-2 h-4 w-4"/>:<Send className="mr-2 h-4 w-4"/>}
+              {sending?(deliveryMode==="scheduled"?"Planlanıyor…":"Gönderiliyor…"):
+                deliveryMode==="scheduled"?"Bildirimi Planla":"Bildirimi Gönder"}
+            </Button>
           </div>
+        </div>
+      </section>
+      <section className="rounded-2xl border bg-background p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-lg font-bold"><CalendarClock className="h-5 w-5"/> Zamanlı Bildirimler</h2>
+          <span className="text-xs text-muted-foreground">Türkiye saatine göre gösterilir</span>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">Planlanan bildirimleri takip edin; henüz gönderilmemiş olanları iptal edebilirsiniz.</p>
+        <div className="mt-4 space-y-2">
+          {loadingSchedules?<p className="text-sm text-muted-foreground">Planlı bildirimler yükleniyor…</p>:
+            scheduled.length===0?<p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Henüz planlanmış bir bildirim bulunmuyor.</p>:
+            scheduled.map(item=><div key={item.id} className="rounded-xl border p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-sm">{item.title}</span>
+                    <span className={"rounded-full px-2 py-0.5 text-xs font-semibold "+
+                      (item.status==="sent"?"bg-emerald-100 text-emerald-800":
+                       item.status==="pending"?"bg-blue-100 text-blue-800":
+                       item.status==="failed"?"bg-red-100 text-red-800":
+                       "bg-muted text-muted-foreground")}>{scheduledStatus[item.status]}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground break-words">{item.body}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatTurkeyDate(item.scheduled_at)} · {item.recipient_count} müşteri
+                    {item.status==="sent"?" · "+item.accepted_count+" Expo kabul":""}
+                  </p>
+                  {item.last_error?<p className="text-xs text-destructive">{item.last_error}</p>:null}
+                </div>
+                {item.status==="pending"?
+                  <Button size="sm" variant="outline" disabled={cancelling===item.id}
+                    onClick={()=>void cancelScheduled(item.id)}>
+                    <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
+                  </Button>:null}
+              </div>
+            </div>)}
         </div>
       </section>
       <section className="rounded-2xl border bg-background p-5">
@@ -272,7 +402,7 @@ export default function AdminNotifications(){
               <span>{item.title}</span><span className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleString("tr-TR")}</span>
             </div>
             <div className="text-sm text-muted-foreground">{item.body}</div>
-            <div className="mt-1 text-xs text-muted-foreground">{item.email} · {item.source==="manual"?"Manuel":"Otomatik"}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{item.email} · {item.source==="manual"?"Manuel":item.source==="scheduled"?"Zamanlı":"Otomatik"}</div>
           </div>)}
         </div>
       </section>
