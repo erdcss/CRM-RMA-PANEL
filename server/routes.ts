@@ -2250,7 +2250,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const businessReviewCompany = "Çalışkan Business - Apple İnceleme";
   const businessReviewEmail = (value: unknown) =>
     typeof value === "string" && value.trim().length <= 254 &&
-    /^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value.trim().toLowerCase())
+    /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value.trim().toLowerCase())
       ? value.trim().toLowerCase() : null;
 
   // A password is shown only in the one-time authenticated admin response.
