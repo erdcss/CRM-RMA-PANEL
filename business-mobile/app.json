@@ -2,14 +2,13 @@
   "expo": {
     "name": "Çalışkan Business",
     "slug": "caliskan-business",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "caliskanbusiness",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.caliskangroup.business",
-      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
