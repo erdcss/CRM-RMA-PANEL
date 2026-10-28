@@ -1,2 +1,4 @@
 2026-10-28 native iOS build prerequisites verification only, do not create paid EAS build. Check expo-doctor for expo-modules-core and UMAppLoader modules before resubmission.
 Tekrar: Expo core transitive, UMAppLoader direct dependency retained; run expo-doctor 18/18.
+
+Peer metadata revised for local NIIMBOT Expo module; expo-modules-core remains transitive per Expo Doctor policy. Verify 18/18 checks.
