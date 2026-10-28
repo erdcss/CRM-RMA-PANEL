@@ -1,0 +1,16 @@
+ÇALIŞKAN B2B — iOS 1.3.0 TESTFLIGHT ÜRÜN PAYLAŞIM + YAKINLIK HATIRLATMASI
+Tarih: 2026-10-28
+Uygulama: com.caliskangroup.rma
+Hedef: App Store Connect 6802286663.
+
+Ürün detayında sağ üstte Paylaş ikonuyla alttan açılan modal, fiyatsız
+1080×1920 PNG şablonu, marka/model/koli bilgileri ve Çalışkan B2B indir çağrısı.
+iOS paylaşım menüsü üzerinden Instagram, WhatsApp ve görsel kaydetme.
+
+İSTOÇ mağaza geofence: 3 km, İstanbul takvim gününde kişi başına en fazla
+bir kez, açık ve isteğe bağlı konum/pazarlama izniyle yerel bildirim.
+Uygulama içi ayrı aç/kapat ayarı yerine Bildirimler ekranında onay iptali.
+
+iOS v1.3.0 imzalı build oluştur, özel ses dosyasını native pakette doğrula,
+yalnızca TestFlight'a gönder ve sonucu kontrol et.
+Herkese açık App Store yayını başlatma.
