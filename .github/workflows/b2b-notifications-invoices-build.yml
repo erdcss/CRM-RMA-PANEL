@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - 'server/b2b-notification-center.ts'
+      - 'server/b2b-location-admin.ts'
+      - 'client/src/components/b2b-location-notification-settings.tsx'
+      - 'client/src/pages/ayarlar.tsx'
       - 'server/b2b-scheduled-notifications.ts'
       - 'server/b2b-scheduled-time.ts'
       - 'server/b2b-scheduled-time.test.ts'
