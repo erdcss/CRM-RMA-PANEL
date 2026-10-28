@@ -1,0 +1,81 @@
+name: Çalışkan Business - iOS build 24 yeniden TestFlight'a gönder
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/business-testflight-resubmit-24.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-business-ios-resubmit-build-24
+  cancel-in-progress: false
+
+jobs:
+  submit-existing-business-build:
+    name: Yalnızca mevcut Business iOS 1.0.0 build 24 yeniden gönder
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+      CI: '1'
+      BUILD_ID: '765a579c-d4ab-4d4b-9796-28c546060e3b'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Expo hesabını ve uygulama kimliğini doğrula
+        run: |
+          test -n "$EXPO_TOKEN" || { echo "::error::EXPO_TOKEN tanımlı değil"; exit 1; }
+          node - <<'NODE'
+          const app=require('./app.json').expo;
+          const submit=require('./eas.json').submit.testflight.ios;
+          if (app.ios.bundleIdentifier!=='com.caliskangroup.business'||String(submit.ascAppId)!=='6818161236')
+            throw new Error('Yanlış Business Bundle ID veya App Store Connect uygulama kimliği');
+          console.log('Çalışkan Business hedef uygulama doğrulandı.');
+          NODE
+          eas whoami
+      - name: Mevcut imzalı build 24 hazır mı kontrol et
+        run: |
+          eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/business-build-24.json"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const raw=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/business-build-24.json','utf8'));
+          const build=raw.build||raw;
+          if(build.id!==process.env.BUILD_ID||String(build.status).toLowerCase()!=='finished'||
+             String(build.platform).toLowerCase()!=='ios'||
+             build.appIdentifier!=='com.caliskangroup.business')
+             throw new Error('Seçilen EAS build 24 tamamlanmamış veya yanlış uygulamaya ait');
+          if(String(build.appVersion)!=='1.0.0'||String(build.appBuildVersion)!=='24')
+             throw new Error('Beklenen sürüm ve build numarasıyla eşleşmiyor');
+          console.log('Mevcut iOS build doğrulandı:',build.id,'v'+build.appVersion,'('+build.appBuildVersion+')');
+          NODE
+      - name: Önceki EAS gönderim hatasını göster
+        continue-on-error: true
+        run: eas submit:view 33752fdb-29d8-4975-bb8d-5294be77bf46 --json
+      - name: Yalnızca build 24'ü TestFlight'a tekrar gönder
+        run: eas submit --platform ios --profile testflight --id "$BUILD_ID" --non-interactive --wait --verbose
+      - name: TestFlight sonucu
+        if: success()
+        run: |
+          {
+            echo '### Çalışkan Business - TestFlight'
+            echo '- Mevcut build: **1.0.0 (24)**'
+            echo '- Yeni EAS build üretilmedi.'
+            echo '- Apple App Store Connect yüklemesi başarıyla tamamlandı.'
+            echo '- TestFlight test kullanıcıları ve Apple işleme durumu ayrıca kontrol edilmelidir.'
+          } >> "$GITHUB_STEP_SUMMARY"
