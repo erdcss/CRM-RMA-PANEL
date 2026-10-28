@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
 import { registerB2BPush } from '@/lib/push';
+import { configureStoreNearby, stopStoreNearby } from '@/lib/store-geofence';
 
 // Prevent the native iOS launch artwork from being dismissed before the
 // admin-managed runtime splash has finished downloading and rendering.
@@ -28,6 +29,14 @@ function AppContent() {
   const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
   const [paintedSplashUrl, setPaintedSplashUrl] = useState<string | null>(null);
   const [initialRoutePainted, setInitialRoutePainted] = useState(false);
+
+  useEffect(()=>{
+    // Isolated per user; never retain another account's active geofence.
+    if(!session?.user?.id){void stopStoreNearby();return;}
+    const user=String(session.user.id);
+    const t=setTimeout(()=>{void configureStoreNearby(user);},11_000);
+    return ()=>clearTimeout(t);
+  },[session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
