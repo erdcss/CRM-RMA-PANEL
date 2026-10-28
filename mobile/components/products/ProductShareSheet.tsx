@@ -6,7 +6,7 @@ import {WebView} from 'react-native-webview';
 import * as FS from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import {appAlert} from '@/lib/appAlert';
-import {absoluteMediaUrl,API_BASE_URL,type B2BProduct} from '@/lib/api';
+import {absoluteMediaUrl,type B2BProduct} from '@/lib/api';
 
 // Explicit whitelist: NEVER export prices, inventory, margin or supplier details.
 export function shareFacts(p:B2BProduct):Array<[string,string]>{
@@ -151,7 +151,7 @@ export function ProductShareSheet({product,imageUri,logoUri,visible,onClose}:{pr
  Promise.all([
   dataImage(imageUri),
   dataImage(logoUri),
-  fetch(API_BASE_URL+'/api/public/b2b-footer',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(7000)})
+  fetch((process.env.EXPO_PUBLIC_BRANDING_API_URL||'https://admin.ecalisgan.com').replace(/\/$/,'')+'/api/public/b2b-footer',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(7000)})
     .then(r=>r.ok?r.json():{}).catch(()=>({}))
  ]).then(async ([photo,appIcon,links])=>{
   const badges=links as {appStoreImage?:string;googlePlayImage?:string};
