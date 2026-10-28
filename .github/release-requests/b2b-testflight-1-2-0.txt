@@ -1,0 +1,18 @@
+ÇALIŞKAN B2B TESTFLIGHT — iOS 1.2.0 APPLE SÜRÜM TRENİ DÜZELTMESİ
+Tarih: 2026-10-28
+Uygulama: Çalışkan B2B, com.caliskangroup.rma, ASC 6802286663.
+
+Önceki durum:
+- iOS v1.1.0 build 102 Expo EAS tarafından başarıyla üretildi.
+- Apple App Store Connect, 1.1.0 sürümüne artık yeni derleme kabul etmedi.
+- Hata: version train closed or lower than previously approved version.
+
+Yeni gönderim:
+- expo.version = 1.2.0
+- EAS remote autoIncrement ile yeni benzersiz iOS build numarası.
+- Güncel logo ve splash dosyalarını senkronize et.
+- Admin panelinden b2b-custom.wav dosyasını indir, native uygulama içinde paketle.
+- Ses bulunamazsa build durmalı.
+- Yeni build'i tam EAS build ID ile TestFlight'a gönder.
+- Başarılı Apple yüklemesi ve gerçek iPhone'da ses testi ayrı doğrulanacak.
+- Herkese açık App Store yayını başlatılmayacak.
