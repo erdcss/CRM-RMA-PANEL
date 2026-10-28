@@ -1,0 +1,11 @@
+Çalışkan Business TestFlight gönderim tekrar denemesi — 2026-10-28
+
+Uygulama: @erdcls/caliskan-business
+Bundle ID: com.caliskangroup.business
+App Store Connect: 6818161236
+Mevcut imzalı iOS EAS build: 765a579c-d4ab-4d4b-9796-28c546060e3b
+Sürüm/build: 1.0.0 (24)
+Önceki başarısız EAS Submit: 33752fdb-29d8-4975-bb8d-5294be77bf46
+
+İstek: yalnızca mevcut IPA'yı App Store Connect TestFlight'a tekrar gönder.
+Yeni EAS build üretme, halka açık App Store yayını yapma.
