@@ -12,7 +12,7 @@ type Rule={event_key:string;enabled:boolean;title_template:string;body_template:
 type Message={id:number;title:string;body:string;source:string;event_key:string|null;email:string;created_at:string};
 type Dashboard={customers:Customer[];rules:Rule[];recent:Message[];soundConfigured:boolean};
 type ScheduledMessage={
-  id:string;title:string;body:string;recipient_count:number;audience_all:boolean;
+  id:string;title:string;body:string;recipient_count:number;audience_all:boolean;include_logged_out:boolean;
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
 };
@@ -123,6 +123,7 @@ export default function AdminNotifications(){
     refetchInterval:30000,
   });
   const [all,setAll]=useState(false);
+  const [includeLoggedOut,setIncludeLoggedOut]=useState(false);
   const [selected,setSelected]=useState<number[]>([]);
   const [search,setSearch]=useState("");
   const [title,setTitle]=useState("");
@@ -171,7 +172,12 @@ export default function AdminNotifications(){
         return;
       }
       // Datetime-local is interpreted as Turkey time regardless of browser locale.
-      const date=new Date(scheduledDate+":00+03:00");
+      const value=scheduledDate.trim();
+      if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value)){
+        toast({title:"Geçerli tarih ve saat seçin",variant:"destructive"});
+        return;
+      }
+      const date=new Date((value.length===16?value+":00":value)+"+03:00");
       if(!Number.isFinite(date.getTime())||date.getTime()<Date.now()+30_000) {
         toast({title:"Gelecekte bir tarih ve saat seçin",variant:"destructive"});
         return;
@@ -182,7 +188,7 @@ export default function AdminNotifications(){
     try{
       const planning=deliveryMode==="scheduled";
       const r=await apiRequest("POST",planning?"/api/admin/b2b-notifications/scheduled":"/api/admin/b2b-notifications/send",{
-        title:title.trim(),body:message.trim(),all,userIds:selected,customSound,
+        title:title.trim(),body:message.trim(),all,userIds:selected,customSound,includeLoggedOut,
         ...(planning?{scheduledAt}:{}),
       });
       const result=await r.json();
@@ -255,6 +261,13 @@ export default function AdminNotifications(){
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold">
               <input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)} /> Tüm aktif B2B müşterileri
+            </label>
+            <label className="flex cursor-pointer items-start gap-2 rounded-xl border px-3 py-3 text-sm">
+              <input type="checkbox" className="mt-1" checked={includeLoggedOut}
+                onChange={event=>setIncludeLoggedOut(event.target.checked)}/>
+              <span><strong>Oturumu kapalı kayıtlı müşterilere de gönder</strong>
+                <span className="mt-1 block text-xs text-muted-foreground">Yalnızca daha önce bu hesaba bağlanmış, bildirim izni açık ve geçerli cihaz kaydı olan müşterilere iletilebilir. Hiç uygulamayı açmamış kişilere push gönderilemez.</span>
+              </span>
             </label>
             {!all?<div className="rounded-xl border p-3">
               <Input placeholder="Firma veya e-posta ara" value={search} onChange={e=>setSearch(e.target.value)}/>
