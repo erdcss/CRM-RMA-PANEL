@@ -16,7 +16,7 @@ export function shareFacts(p:B2BProduct):Array<[string,string]>{
     ['Minimum Alım',p.min_order_qty?Math.max(1,Number(p.min_order_qty))+' koli':''],
     ...(p.features||[]).filter((s):s is string=>typeof s==='string').slice(0,3).map(s=>['Özellik',s] as [string,string]),
   ];
-  return raw.filter(x=>!!x[1]).map(([a,b])=>[a,b.replace(/\s+/g,' ').slice(0,78)]).slice(0,8);
+  return raw.filter(x=>!!x[1]).map(([a,b]):[string,string]=>[a,b.replace(/\s+/g,' ').slice(0,78)]).slice(0,8);
 }
 async function dataImage(src?:string|null):Promise<string>{
   const url=absoluteMediaUrl(src);
