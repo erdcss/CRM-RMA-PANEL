@@ -22,6 +22,7 @@ import {
 import { getPaymentConfig } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
+import { registerB2BLocationAdmin } from "./b2b-location-admin";
 import { createMobileSignupEnrollment, claimMobileSignupEnrollment } from "./b2b-push-enrollment";
 import { registerB2BBankPaymentApproval } from "./b2b-bank-payment-approval";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
@@ -2869,6 +2870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerDukkanRoutes(app, sessionUserId);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
+  registerB2BLocationAdmin(app, requireAdmin, requireB2B);
   registerB2BBankPaymentApproval(app, requireAdmin, sessionUserId);
   registerB2BShortageRoutes(app, requireB2B, sessionUserId, requireAdmin);
   registerB2BLedgerRoutes(app, requireB2B);
