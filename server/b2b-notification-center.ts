@@ -196,6 +196,7 @@ export function registerB2BNotificationCenter(
       return res.status(400).json({error:"Başlık ve mesaj zorunlu (en fazla 180/800 karakter)."});
     }
     const custom=Boolean(req.body?.customSound);
+    const includeLoggedOut=req.body?.includeLoggedOut===true;
     try {
       await ensureB2BNotificationTables();
       const supplied=Array.isArray(req.body?.userIds)?req.body.userIds:[];
@@ -217,7 +218,7 @@ export function registerB2BNotificationCenter(
       const sent=await sendPushToUsers(valid,{
         title,body,sound:custom&&soundExists?"b2b-custom.wav":"default",
         data:{type:"manual"},
-      }).catch(error=>{console.error("Manual push failure",error);return {sent:0,tokenCount:0};});
+      },{includeLoggedOut}).catch(error=>{console.error("Manual push failure",error);return {sent:0,tokenCount:0};});
       return res.json({saved:saved.rowCount||0,accepted:sent.sent,tokens:sent.tokenCount,
         note:"Expo kabulü cihazda teslim edildiğinin kesin kanıtı değildir."});
     } catch(error){console.error("Manual B2B push",error);return res.status(500).json({error:"Bildirim kaydedilemedi"});}
