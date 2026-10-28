@@ -3,6 +3,10 @@ on:
   push:
     paths:
       - 'server/b2b-notification-center.ts'
+      - 'server/b2b-scheduled-notifications.ts'
+      - 'server/b2b-scheduled-time.ts'
+      - 'server/b2b-scheduled-time.test.ts'
+      - 'server/b2b-push-enrollment.ts'
       - 'server/b2b-invoice-documents.ts'
       - 'server/push-notifications.ts'
       - 'server/routes.ts'
@@ -47,6 +51,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Supplier customer-data privacy regression tests
         run: npx tsx --test server/supplier-privacy.test.ts
+      - name: Scheduled notification time and timezone regression
+        run: npx tsx --test server/b2b-scheduled-time.test.ts
       - name: TypeScript check
         run: npm run check
       - name: Admin and API build
