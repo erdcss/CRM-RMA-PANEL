@@ -1,0 +1,28 @@
+name: B2B iOS native dependency preflight
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/b2b-native-dependency-preflight.txt'
+permissions:
+  contents: read
+jobs:
+  native-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Expo Doctor required native peer modules
+        run: |
+          npx -y expo-doctor
+          npm ls expo-modules-core unimodules-app-loader expo-task-manager expo-location
+          npm run typecheck
