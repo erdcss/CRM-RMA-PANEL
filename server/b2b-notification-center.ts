@@ -1,6 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { sendPushToUsers } from "./push-notifications";
+import { registerB2BScheduledNotifications } from "./b2b-scheduled-notifications";
 
 const EVENT_KEYS = ["membership_approved","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid"] as const;
 export type NotificationEvent = typeof EVENT_KEYS[number];
@@ -122,6 +123,8 @@ export async function notifyB2BEvent(
 export function registerB2BNotificationCenter(
   app:Express, requireAdmin:RequestHandler, requireB2B:RequestHandler,
 ) {
+  registerB2BScheduledNotifications(app, requireAdmin, ensureB2BNotificationTables);
+
   // B2B return approvals feed the automatic return notification rule.
   app.get("/api/admin/b2b-returns",requireAdmin,async(_req,res)=>{
     try {
