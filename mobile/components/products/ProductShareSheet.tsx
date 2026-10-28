@@ -14,7 +14,7 @@ export function shareFacts(p:B2BProduct):Array<[string,string]>{
     ['Marka',p.brand||''],['Model / Kod',p.sku||''],['Kategori',p.category||''],
     ['Koli İçi',p.units_per_box?Math.max(1,Number(p.units_per_box))+' adet':''],
     ['Minimum Alım',p.min_order_qty?Math.max(1,Number(p.min_order_qty))+' koli':''],
-    ...(p.features||[]).filter((s):s is string=>typeof s==='string').slice(0,3).map(s=>['Özellik',s] as [string,string]),
+    ...(p.features||[]).filter((s):s is string=>typeof s==='string'&&!/(?:₺|\bTL\b|\bfiyat\b|\bprice\b|\bkâr\b|\bmaliyet\b|\bindirim\b)/i.test(s)).slice(0,3).map(s=>['Özellik',s] as [string,string]),
   ];
   return raw.filter(x=>!!x[1]).map(([a,b]):[string,string]=>[a,b.replace(/\s+/g,' ').slice(0,78)]).slice(0,8);
 }
