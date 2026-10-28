@@ -93,52 +93,52 @@ function makePoster(p:B2BProduct,photo:string,appIcon:string,appStoreBadge:strin
  g.quadraticCurveTo(459,83,394,159);g.quadraticCurveTo(338,235,0,269);g.closePath();g.fill();
  g.strokeStyle=Y;g.lineWidth=6;g.beginPath();g.moveTo(510,0);
  g.bezierCurveTo(392,197,383,201,0,278);g.stroke();
- box(75,53,350,113,32,Y);
- type('ÇALIŞKAN',107,75,53,'#0C0C0C','900',290);
- type('B2B',303,121,27,'#0C0C0C','900',72);
+ box(75,88,350,113,32,Y);
+ type('ÇALIŞKAN',107,110,53,'#0C0C0C','900',290);
+ type('B2B',303,156,27,'#0C0C0C','900',72);
  // A layered, restrained halo behind the original photograph.
  g.fillStyle='#FFCB0524';g.beginPath();g.ellipse(570,678,477,474,0,0,Math.PI*2);g.fill();
  g.strokeStyle='#FFCB05';g.lineWidth=35;g.globalAlpha=.55;
  g.beginPath();g.ellipse(550,692,469,431,-.16,0,Math.PI*2);g.stroke();g.globalAlpha=1;
  g.save();g.shadowColor='rgba(0,0,0,.10)';g.shadowBlur=33;g.shadowOffsetY=12;
- box(86,307,908,805,35,'#FFFFFF');g.restore();
- contain(product,118,328,844,760);
+ box(86,247,908,763,35,'#FFFFFF');g.restore();
+ contain(product,118,269,844,718);
  // Product's brand wordmark comes from the real catalog, not an invented mark.
  g.save();g.shadowColor='rgba(0,0,0,.10)';g.shadowBlur=24;g.shadowOffsetY=6;
- box(75,1140,930,494,35,'#FFFFFF');g.restore();
+ box(75,1037,930,483,35,'#FFFFFF');g.restore();
  if(data.brand){
   g.font='900 44px Arial,sans-serif';
   const badgeW=Math.min(340,Math.max(145,g.measureText(data.brand).width+64));
-  box(112,1181,badgeW,75,15,'#1B1B1B');
-  type(data.brand,142,1192,42,'#FFFFFF','900',badgeW-45);
+  box(112,1072,badgeW,69,15,'#1B1B1B');
+  type(data.brand,142,1084,39,'#FFFFFF','900',badgeW-45);
  }
- const nameStart=data.brand?1289:1195;
+ const nameStart=data.brand?1163:1089;
  wrap(data.name,855,53,2).forEach((line,j)=>type(line,115,nameStart+j*63,53,BLACK,'900',855));
- const sepY=data.brand?1429:1343;
+ const sepY=data.brand?1289:1250;
  g.fillStyle='#E9E9E9';g.fillRect(115,sepY,850,2);
  const facts=data.facts.slice(0,6),factsY=sepY+25;
  facts.forEach(([label,value],i)=>{
   const col=i%2,row=Math.floor(i/2);
-  const x=115+col*429,y=factsY+row*67;
+  const x=115+col*429,y=factsY+row*63;
   icon(label,x,y);
   type(label.toLocaleUpperCase('tr-TR'),x+90,y+6,18,'#686868','700',320);
   type(value,x+90,y+31,26,BLACK,'800',320);
  });
  // Bottom call-to-action with centrally uploaded app icon.
- box(75,1660,930,139,31,Y);
+ box(75,1541,930,120,31,Y);
  if(app){
-  box(110,1679,101,101,23,'#181818');
-  contain(app,115,1684,91,91);
- }else{box(110,1679,101,101,23,'#181818');type('Ç',141,1700,59,Y);}
- type('ÇALIŞKAN B2B',238,1688,35,BLACK,'900',655);
- type('UYGULAMASINI İNDİR',238,1734,41,BLACK,'900',690);
+  box(110,1554,95,94,23,'#181818');
+  contain(app,115,1559,85,84);
+ }else{box(110,1554,95,94,23,'#181818');type('Ç',140,1573,57,Y);}
+ type('ÇALIŞKAN B2B',238,1558,35,BLACK,'900',655);
+ type('UYGULAMASINI İNDİR',238,1605,39,BLACK,'900',690);
  // Use ONLY actual admin-uploaded App Store and Google Play badge artwork.
  if(appStore||google){
-  if(appStore&&google){contain(appStore,272,1812,258,61);contain(google,543,1812,258,61);}
-  else if(appStore)contain(appStore,420,1812,255,61);
-  else contain(google,420,1812,255,61);
+  if(appStore&&google){contain(appStore,272,1681,258,61);contain(google,543,1681,258,61);}
+  else if(appStore)contain(appStore,420,1681,255,61);
+  else contain(google,420,1681,255,61);
  }
- type('b2b.ecalisgan.com',384,1876,23,'#777777','600',335);
+ type('b2b.ecalisgan.com',384,1760,23,'#777777','600',335);
  window.ReactNativeWebView.postMessage(JSON.stringify({kind:'done',
    png:c.toDataURL('image/png').split(',')[1]}));
  })().catch(e=>window.ReactNativeWebView.postMessage(JSON.stringify({kind:'error',message:String(e)})));
