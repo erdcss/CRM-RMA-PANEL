@@ -1,0 +1,97 @@
+name: Çalışkan Business - iOS 1.0.1 TestFlight sürüm düzeltme
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/business-testflight-1-0-1.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-business-ios-testflight-1-0-1
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: Business 1.0.1 yeni iOS build ve TestFlight gönderimi
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: business-mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Bağımlılıkları kur ve TypeScript kontrol et
+        run: |
+          test -n "$EXPO_TOKEN" || { echo "::error::EXPO_TOKEN eksik"; exit 1; }
+          npm ci
+          npx tsc --noEmit --project tsconfig.json
+      - name: iOS uygulama kimliği ve yeni sürümü doğrula
+        run: |
+          node - <<'NODE'
+          const app=require('./app.json').expo;
+          const eas=require('./eas.json');
+          if(app.version!=='1.0.1'||app.ios.bundleIdentifier!=='com.caliskangroup.business')
+            throw new Error('Business iOS 1.0.1 veya bundle ID yanlış');
+          if(String(eas.submit.testflight.ios.ascAppId)!=='6818161236')
+            throw new Error('App Store Connect kimliği yanlış');
+          if(eas.build.testflight?.autoIncrement!==true)
+            throw new Error('EAS autoIncrement açık olmalı');
+          console.log('Çalışkan Business 1.0.1 TestFlight ayarları doğru.');
+          NODE
+          eas whoami
+      - name: Güncel Business logo ve splash dosyalarını ekle
+        run: npm run sync:branding
+      - name: İmzalı iOS build oluştur ve tam build ID kaydet
+        run: |
+          eas build --platform ios --profile testflight --non-interactive --clear-cache --wait --json > "$RUNNER_TEMP/business-ios-build.json"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const raw=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/business-ios-build.json','utf8'));
+          const candidates=Array.isArray(raw)?raw:[raw.build||raw];
+          const b=candidates.find(x=>String(x.platform||'').toLowerCase()==='ios');
+          if(!b?.id||String(b.status).toLowerCase()!=='finished')
+            throw Error('EAS iOS build tamamlanmadı');
+          if(b.appIdentifier&&b.appIdentifier!=='com.caliskangroup.business')
+            throw Error('Yanlış uygulamanın iOS paketi');
+          if(b.appVersion&&String(b.appVersion)!=='1.0.1')
+            throw Error('Yeni iOS sürümü build içinde 1.0.1 değil');
+          if(Number(b.appBuildVersion||0)<=24)
+            throw Error('Apple tarafından kullanılan build 24 veya daha eski numara üretildi');
+          fs.appendFileSync(process.env.GITHUB_ENV,'BUSINESS_BUILD_ID='+b.id+'\n');
+          fs.appendFileSync(process.env.GITHUB_ENV,'BUSINESS_BUILD_NUMBER='+b.appBuildVersion+'\n');
+          console.log('Çalışkan Business iOS yeni imzalı build:',b.id,'sürüm',b.appVersion,'build',b.appBuildVersion);
+          NODE
+      - name: Yalnızca yeni Business iOS build'ini TestFlight'a gönder
+        run: eas submit --platform ios --profile testflight --id "$BUSINESS_BUILD_ID" --non-interactive --wait --verbose
+      - name: Sonucu kaydet
+        if: success()
+        run: |
+          {
+            echo '### Çalışkan Business iOS TestFlight'
+            echo '- Uygulama: com.caliskangroup.business'
+            echo '- Sürüm: **1.0.1**'
+            echo "- Build numarası: ${BUSINESS_BUILD_NUMBER}"
+            echo "- EAS build ID: ${BUSINESS_BUILD_ID}"
+            echo '- Apple App Store Connect yüklemesi başarılı.'
+            echo '- Yalnızca TestFlight gönderildi; herkese açık App Store yayını yapılmadı.'
+          } >> "$GITHUB_STEP_SUMMARY"
