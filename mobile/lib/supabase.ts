@@ -56,6 +56,7 @@ export type RegistrationResult = {
   id: string | number;
   username: string;
   status: 'pending' | string;
+  enrollmentToken?: string | null;
   taxVerified?: boolean;
   taxOffice?: string | null;
   message?: string;
