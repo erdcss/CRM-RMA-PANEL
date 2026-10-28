@@ -11,6 +11,7 @@ async function ensure(){
   coordinates_verified BOOLEAN NOT NULL DEFAULT FALSE,
   latitude DOUBLE PRECISION NOT NULL DEFAULT 41.06383,
   longitude DOUBLE PRECISION NOT NULL DEFAULT 28.82002,
+  store_address TEXT NOT NULL DEFAULT '',
   radius_m INTEGER NOT NULL DEFAULT 3000,
   start_hour INTEGER NOT NULL DEFAULT 9,
   end_hour INTEGER NOT NULL DEFAULT 20,
@@ -18,6 +19,7 @@ async function ensure(){
   message TEXT NOT NULL DEFAULT 'Çalışkan’a uğramayı unutmayın! Yakınınızdayız.',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
  );
+ ALTER TABLE b2b_location_campaign_settings ADD COLUMN IF NOT EXISTS store_address TEXT NOT NULL DEFAULT '';
  INSERT INTO b2b_location_campaign_settings(id) VALUES(1) ON CONFLICT DO NOTHING;
  CREATE TABLE IF NOT EXISTS b2b_location_opted_devices(
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -53,13 +55,14 @@ function validSettings(body:any){
  const latitude=Number(body?.latitude),longitude=Number(body?.longitude);
  const radius=Number(body?.radius_m),start=Number(body?.start_hour),end=Number(body?.end_hour);
  const title=String(body?.title||'').trim(),message=String(body?.message||'').trim();
+ const address=typeof body?.store_address==='string'?body.store_address.trim():'';
  if(!Number.isFinite(latitude)||latitude< -90||latitude>90||
    !Number.isFinite(longitude)||longitude< -180||longitude>180||
    !Number.isInteger(radius)||radius<100||radius>10000||
    !Number.isInteger(start)||start<0||start>23||
    !Number.isInteger(end)||end<=start||end>24||
-   !title||title.length>100||!message||message.length>240) return null;
- return {latitude,longitude,radius,start,end,title,message};
+   !title||title.length>100||!message||message.length>240||address.length>400) return null;
+ return {latitude,longitude,radius,start,end,title,message,address};
 }
 const isoDate=()=>new Intl.DateTimeFormat('en-CA',{
  timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'
@@ -105,11 +108,16 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
   if(enabled&&!verified)return res.status(400).json({error:'Önce mağazanın kesin konumunu doğrulayın'});
   try{
    await ensure();
+   // Address changes invalidate prior coordinate verification; typed address is
+   // descriptive only, never silently geocoded into a different geofence.
+   const previous=(await pool!.query('SELECT store_address FROM b2b_location_campaign_settings WHERE id=1')).rows[0];
+   const addressChanged=Boolean(previous?.store_address?.trim()&&previous.store_address.trim()!==v.address);
+   if(enabled&&addressChanged)return res.status(400).json({error:'Adres değiştirildi; önce bildirimleri kapatıp koordinatları yeniden doğrulayın'});
    const q=await pool!.query(`UPDATE b2b_location_campaign_settings SET
      enabled=$1,coordinates_verified=$2,latitude=$3,longitude=$4,radius_m=$5,
-     start_hour=$6,end_hour=$7,title=$8,message=$9,updated_at=NOW()
+     start_hour=$6,end_hour=$7,title=$8,message=$9,store_address=$10,updated_at=NOW()
      WHERE id=1 RETURNING *`,
-     [enabled,verified,v.latitude,v.longitude,v.radius,v.start,v.end,v.title,v.message]);
+     [enabled,verified&&!addressChanged,v.latitude,v.longitude,v.radius,v.start,v.end,v.title,v.message,v.address]);
    return res.json(q.rows[0]);
   }catch(e){console.error('Admin location save',e);return res.status(500).json({error:'Konum ayarları kaydedilemedi'});}
  });
@@ -132,7 +140,7 @@ export function registerB2BLocationAdmin(app:Express,requireAdmin:RequestHandler
  // Do not expose user list or history through this config endpoint.
  app.get('/api/b2b/location/config',requireB2B,async(_req,res)=>{
   try{await ensure();const q=await pool!.query(`SELECT enabled,coordinates_verified,latitude,longitude,
-    radius_m,start_hour,end_hour,title,message,updated_at FROM b2b_location_campaign_settings WHERE id=1`);
+    radius_m,start_hour,end_hour,title,message,store_address,updated_at FROM b2b_location_campaign_settings WHERE id=1`);
     res.setHeader('Cache-Control','private,no-store');return res.json(q.rows[0]);
   }catch{return res.status(500).json({error:'Konum bilgisi alınamadı'});}
  });
