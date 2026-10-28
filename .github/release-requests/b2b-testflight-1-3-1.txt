@@ -1,0 +1,18 @@
+ÇALIŞKAN B2B — iOS 1.3.1 TestFlight — 28 Ekim 2026
+
+Kapsam:
+- Mobil kayıt başvurusundan sonra oturum açmadan bildirim almak isteyen
+  müşterilere açık izinle cihaz token'ı tanımlama.
+- Güvenli tek kullanımlık kısa süreli kayıt eşleştirme anahtarı.
+- Oturum kapatıldığında kayıtlı B2B cihaz token'ı bozulmadan
+  oturum kapalı işaretlenir; gizli sipariş bildirimleri kapalı cihaza gitmez.
+- Yönetici bildirimlerinde oturumu kapalı kayıtlı müşterileri ayrıca
+  dahil etme seçeneği; anlık ve planlı bildirimlerle aynı mantık.
+- Planlı gönderimde ISO tarih milisaniye/saat dilimi hatası sunucuda giderildi.
+
+Sadece iOS Çalışkan B2B native TestFlight; genel App Store yayını yapma.
+Uygulama: com.caliskangroup.rma
+Sürüm: 1.3.1
+Önceki başarılı Build: 1.3.0 (105)
+Yeni benzersiz build numarası 105 üzerinde olsun.
+Özel b2b-custom.wav native sesini koru.
