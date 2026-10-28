@@ -9,3 +9,5 @@ Sürüm/build: 1.0.0 (24)
 
 İstek: yalnızca mevcut IPA'yı App Store Connect TestFlight'a tekrar gönder.
 Yeni EAS build üretme, halka açık App Store yayını yapma.
+
+Tekrar deneme 2: Expo build:view API erişimi engelleyici kontrol olmaktan çıkarıldı. Mevcut paket ID geçmiş başarılı build günlüğünden doğrulandı.
