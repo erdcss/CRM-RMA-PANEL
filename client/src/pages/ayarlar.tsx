@@ -813,93 +813,217 @@ function B2BMailSettings() {
   </Card>;
 }
 
+type ReviewAccountStatus = {
+  exists: boolean;
+  email: string | null;
+  active: boolean;
+};
+
+type ReviewAccountsStatus = {
+  b2b: ReviewAccountStatus;
+  business: ReviewAccountStatus;
+};
+
+type ReviewerApp = "b2b" | "business";
+
+const reviewConfig: Record<ReviewerApp, {
+  title: string;
+  description: string;
+  defaultEmail: string;
+  endpoint: string;
+}> = {
+  b2b: {
+    title: "Çalışkan B2B",
+    description: "Apple incelemesi için yetkisiz, firma onayı gerektirmeyen B2B müşteri hesabı.",
+    defaultEmail: "caliskanb2b.review@gmail.com",
+    endpoint: "/api/admin/b2b-review-account",
+  },
+  business: {
+    title: "Çalışkan Business",
+    description: "Business uygulaması için ayrı, gerçek işletme verilerine erişmeyen sınırlı inceleme hesabı.",
+    defaultEmail: "caliskanbusiness.review@gmail.com",
+    endpoint: "/api/admin/business-review-account",
+  },
+};
+
 function AppleReviewAccountSettings() {
   const { toast } = useToast();
-  const [email, setEmail] = useState("caliskanb2b.review@gmail.com");
-  const [busy, setBusy] = useState(false);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [credentials, setCredentials] = useState<{ email: string; password: string } | null>(null);
+  const queryClient = useQueryClient();
+  const [busyApp, setBusyApp] = useState<ReviewerApp | null>(null);
+  const [createApp, setCreateApp] = useState<ReviewerApp | null>(null);
+  const [emails, setEmails] = useState<Record<ReviewerApp, string>>({
+    b2b: reviewConfig.b2b.defaultEmail,
+    business: reviewConfig.business.defaultEmail,
+  });
+  const [credentials, setCredentials] = useState<{
+    app: ReviewerApp;
+    email: string;
+    password: string;
+  } | null>(null);
 
-  async function reviewAction(mode: "create" | "reset") {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+  const { data: accounts, isLoading, error } = useQuery<ReviewAccountsStatus>({
+    queryKey: ["/api/admin/apple-review-accounts"],
+    retry: false,
+    queryFn: async () => {
+      const response = await fetch("/api/admin/apple-review-accounts", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "İnceleme hesapları alınamadı.");
+      return payload as ReviewAccountsStatus;
+    },
+  });
+
+  async function reviewAction(app: ReviewerApp, mode: "create" | "reset") {
+    const status = accounts?.[app];
+    const email = mode === "reset"
+      ? status?.email?.trim().toLowerCase() || ""
+      : emails[app].trim().toLowerCase();
+    if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email) || email.length > 254) {
       toast({ title: "Geçerli bir e-posta girin", variant: "destructive" });
       return;
     }
-    if (mode === "reset" && !window.confirm("Mevcut Apple inceleme şifresi geçersiz olacak. Devam edilsin mi?")) return;
+    if (mode === "create" && (status?.exists || !accounts)) {
+      toast({ title: "Önce hesap durumunu kontrol edin", variant: "destructive" });
+      return;
+    }
+    if (mode === "reset" && (!status?.exists ||
+      !window.confirm(reviewConfig[app].title + " inceleme hesabının eski şifresi geçersiz olacak. Devam edilsin mi?"))) return;
 
-    setBusy(true);
+    setBusyApp(app);
     try {
-      const response = await fetch(mode === "create"
-        ? "/api/admin/b2b-review-account"
-        : "/api/admin/b2b-review-account/reset-password", {
-        method: "POST", credentials: "include",
+      const response = await fetch(reviewConfig[app].endpoint + (mode === "reset" ? "/reset-password" : ""), {
+        method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: normalizedEmail }),
+        body: JSON.stringify({ email }),
+        cache: "no-store",
       });
-      const result = await response.json().catch(() => ({})) as { email?: string; password?: string; error?: string };
+      const result = await response.json().catch(() => ({})) as {
+        email?: string; password?: string; error?: string;
+      };
       if (!response.ok || !result.email || !result.password) {
-        throw new Error(result.error || "Apple inceleme hesabı işlemi tamamlanamadı");
+        throw new Error(result.error || "İnceleme hesabı işlemi tamamlanamadı.");
       }
-      setCredentials({ email: result.email, password: result.password });
-      setCreateDialogOpen(false);
-      toast({ title: mode === "create" ? "İnceleme hesabı oluşturuldu" : "İnceleme şifresi yenilendi",
-        description: "Giriş bilgileri yalnızca bu kez görüntülenir. App Store Connect'e kaydedin." });
+      setCredentials({ app, email: result.email, password: result.password });
+      setCreateApp(null);
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/apple-review-accounts"] });
+      toast({
+        title: mode === "create" ? "İnceleme hesabı oluşturuldu" : "İnceleme şifresi yenilendi",
+        description: "Şifre yalnızca bu pencerede görünür. App Store Connect'e kaydedin.",
+      });
     } catch (error) {
-      toast({ title: "İşlem başarısız",
-        description: error instanceof Error ? error.message : "Lütfen tekrar deneyin",
-        variant: "destructive" });
-    } finally { setBusy(false); }
+      toast({
+        title: "İşlem başarısız",
+        description: error instanceof Error ? error.message : "Lütfen tekrar deneyin.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyApp(null);
+    }
   }
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />Apple App Store İnceleme Hesabı</CardTitle>
-          <CardDescription>
-            Apple inceleme ekibi için ayrı, yetkisiz B2B müşteri hesabı yönetin. Bu hesap firma üyelik başvurusu gerektirmez ve yönetici erişimi vermez.
-            Gerçek müşteri hesaplarının e-posta ile ilk şifre oluşturma sürecini etkilemez.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Button disabled={busy} variant="outline" onClick={() => void reviewAction("reset")}>Mevcut Hesabın Şifresini Yenile</Button>
-          <Button disabled={busy} onClick={() => setCreateDialogOpen(true)}>İnceleme Hesabı Oluştur</Button>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {(["b2b", "business"] as const).map((app) => {
+          const config = reviewConfig[app];
+          const status = accounts?.[app];
+          return (
+            <Card key={app} className="h-full">
+              <CardHeader className="space-y-2">
+                <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  {config.title} – Apple İnceleme Hesabı
+                </CardTitle>
+                <CardDescription>{config.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                  <div className="mb-1 text-xs text-muted-foreground">Hesap durumu</div>
+                  <div className="font-medium">
+                    {isLoading ? "Kontrol ediliyor…" : error ? "Durum alınamadı" :
+                      status?.exists ? (status.active ? "Etkin" : "Pasif") : "Henüz oluşturulmadı"}
+                  </div>
+                  {status?.email ? <div className="mt-1 break-all text-muted-foreground">{status.email}</div> : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline"
+                    disabled={!status?.exists || !!busyApp || !!error}
+                    onClick={() => void reviewAction(app, "reset")}>
+                    {busyApp === app ? "İşleniyor…" : "Şifreyi Yenile"}
+                  </Button>
+                  <Button disabled={!!busyApp || !!error || !accounts || !!status?.exists}
+                    onClick={() => setCreateApp(app)}>
+                    İnceleme Hesabı Oluştur
+                  </Button>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {app === "business"
+                    ? "Bu hesap yalnızca Çalışkan Business uygulamasındaki örnek verili, salt-okunur inceleme ekranını açar. Yönetici yetkisi veya canlı müşteri verisi verilmez."
+                    : "Bu hesap yalnızca B2B müşteri erişimi sağlar; yönetici yetkisi verilmez."}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      <Dialog open={createApp !== null} onOpenChange={(open) => { if (!open) setCreateApp(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Apple inceleme hesabı oluştur</DialogTitle>
-            <DialogDescription>İnceleme için ayrı bir e-posta girin. Başka bir kullanıcının hesabı etkilenmez.</DialogDescription>
+            <DialogTitle>{createApp ? reviewConfig[createApp].title : ""} inceleme hesabı oluştur</DialogTitle>
+            <DialogDescription>Apple için ayrı bir e-posta kullanın. Mevcut müşteri veya yönetici hesapları değiştirilmez.</DialogDescription>
           </DialogHeader>
-          <label className="space-y-2 text-sm font-medium">
-            <span>İnceleme hesabı e-posta adresi</span>
-            <Input type="email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} />
-          </label>
-          <Button disabled={busy || !email.includes("@")} onClick={() => void reviewAction("create")}>
-            {busy ? "Oluşturuluyor…" : "Hesabı Oluştur"}
-          </Button>
+          {createApp ? (
+            <>
+              <label className="space-y-2 text-sm font-medium">
+                <span>İnceleme hesabı e-posta adresi</span>
+                <Input type="email" autoComplete="off"
+                  value={emails[createApp]}
+                  onChange={(event) => setEmails((prev) => ({ ...prev, [createApp]: event.target.value }))}
+                />
+              </label>
+              <Button disabled={!!busyApp || !emails[createApp].includes("@")}
+                onClick={() => void reviewAction(createApp, "create")}>
+                {busyApp ? "Oluşturuluyor…" : "Hesabı Oluştur"}
+              </Button>
+            </>
+          ) : null}
         </DialogContent>
       </Dialog>
 
       <Dialog open={Boolean(credentials)} onOpenChange={(open) => { if (!open) setCredentials(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Apple inceleme hesabı hazır</DialogTitle>
-            <DialogDescription>Giriş bilgilerini App Store Connect → App Review Information bölümüne kaydedin. Şifre pencere kapatıldıktan sonra gösterilmez.</DialogDescription>
+            <DialogTitle>{credentials ? reviewConfig[credentials.app].title : ""} – İnceleme hesabı hazır</DialogTitle>
+            <DialogDescription>
+              App Store Connect → App Review Information bölümüne kaydedin. Şifre bu pencere kapatıldıktan sonra tekrar gösterilemez.
+            </DialogDescription>
           </DialogHeader>
-          {credentials ? <div className="space-y-3">
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">E-posta</div><code className="break-all">{credentials.email}</code></div>
-            <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">Şifre</div><code className="break-all">{credentials.password}</code></div>
-            <Button onClick={() => {
-              void navigator.clipboard.writeText(`Username: ${credentials.email}\nPassword: ${credentials.password}`)
-                .then(() => toast({ title: "Giriş bilgileri kopyalandı" }))
-                .catch(() => toast({ title: "Kopyalama başarısız", variant: "destructive" }));
-            }}><Copy className="mr-2 h-4 w-4" />Giriş Bilgilerini Kopyala</Button>
-            <p className="text-xs text-muted-foreground">Bu şifreyi yalnızca Apple inceleme ekibiyle paylaşın.</p>
-          </div> : null}
+          {credentials ? (
+            <div className="space-y-3">
+              <div className="rounded-lg border p-3">
+                <div className="text-xs text-muted-foreground">E-posta</div>
+                <code className="break-all">{credentials.email}</code>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-xs text-muted-foreground">Şifre</div>
+                <code className="break-all">{credentials.password}</code>
+              </div>
+              <Button onClick={() => {
+                void navigator.clipboard.writeText("Username: " + credentials.email + "\nPassword: " + credentials.password)
+                  .then(() => toast({ title: "Giriş bilgileri kopyalandı" }))
+                  .catch(() => toast({ title: "Kopyalama başarısız", variant: "destructive" }));
+              }}>
+                <Copy className="mr-2 h-4 w-4" /> Apple Giriş Bilgilerini Kopyala
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Bu bilgileri yalnızca Apple inceleme ekibiyle App Store Connect üzerinden paylaşın.
+              </p>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </>
