@@ -1,209 +1,235 @@
-import {useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Dimensions,Modal,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {
+  ActivityIndicator,Dimensions,Image as NativeImage,Modal,Pressable,
+  ScrollView,StyleSheet,Text,View,
+} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
-import {Image} from 'expo-image';
-import {WebView} from 'react-native-webview';
-import * as FS from 'expo-file-system/legacy';
+import {captureRef} from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import {appAlert} from '@/lib/appAlert';
 import {absoluteMediaUrl,type B2BProduct} from '@/lib/api';
 
-// Explicit whitelist: NEVER export prices, inventory, margin or supplier details.
-export function shareFacts(p:B2BProduct):Array<[string,string]>{
+// The publicly shared poster must never include pricing, discounts, margins,
+// private supplier information or inventory movement history.
+export function shareFacts(product:B2BProduct):Array<[string,string]> {
+  const rawFeatures=Array.isArray(product.features)?product.features:[];
+  const publicFeatures=rawFeatures.filter(
+    (value):value is string=>
+      typeof value==='string'&&
+      !/(?:₺|€|\$|\bTL\b|\bfiyat\b|\bprice\b|\bkâr\b|\bmaliyet\b|\bindirim\b|\bstok\b|\btedarikçi\b)/i.test(value)
+  ).slice(0,2);
   const raw:Array<[string,string]>=[
-    ['Marka',p.brand||''],['Model / Kod',p.sku||''],['Kategori',p.category||''],
-    ['Koli İçi',p.units_per_box?Math.max(1,Number(p.units_per_box))+' adet':''],
-    ['Minimum Alım',p.min_order_qty?Math.max(1,Number(p.min_order_qty))+' koli':''],
-    ...(p.features||[]).filter((s):s is string=>typeof s==='string'&&!/(?:₺|\bTL\b|\bfiyat\b|\bprice\b|\bkâr\b|\bmaliyet\b|\bindirim\b)/i.test(s)).slice(0,3).map(s=>['Özellik',s] as [string,string]),
+    ['Model / Kod',String(product.sku||'')],
+    ['Kategori',String(product.category||'')],
+    ['Koli İçi',product.units_per_box?Math.max(1,Number(product.units_per_box))+' adet':''],
+    ['Minimum Alım',product.min_order_qty?Math.max(1,Number(product.min_order_qty))+' koli':''],
+    ...publicFeatures.map((feature):[string,string]=>['Özellik',feature]),
   ];
-  return raw.filter(x=>!!x[1]).map(([a,b]):[string,string]=>[a,b.replace(/\s+/g,' ').slice(0,78)]).slice(0,8);
+  return raw
+    .filter((entry)=>entry[1]&&entry[1]!=='NaN adet'&&entry[1]!=='NaN koli')
+    .map(([name,value]):[string,string]=>[name,value.replace(/\s+/g,' ').slice(0,55)])
+    .slice(0,4);
 }
-async function dataImage(src?:string|null):Promise<string>{
-  const url=absoluteMediaUrl(src);
-  if(!url)return '';
-  if(/^data:image\/(?:png|jpeg|webp);base64,/i.test(url))return url;
-  if(!url.startsWith('https://'))return '';
-  const path=FS.cacheDirectory+'b2b-share-'+Date.now()+'-'+Math.random().toString(36).slice(2);
-  try{
-    const result=await FS.downloadAsync(url,path);
-    if(result.status!==200)return '';
-    const b64=await FS.readAsStringAsync(path,{encoding:FS.EncodingType.Base64});
-    if(b64.length>12_000_000)return '';
-    const mime=url.toLowerCase().includes('.png')?'png':url.toLowerCase().includes('.webp')?'webp':'jpeg';
-    return 'data:image/'+mime+';base64,'+b64;
-  }catch{return '';}finally{await FS.deleteAsync(path,{idempotent:true}).catch(()=>{});}
+
+const BRANDING_API=(process.env.EXPO_PUBLIC_BRANDING_API_URL||'https://admin.ecalisgan.com').replace(/\/$/,'');
+const POSTER_WIDTH=270;
+const POSTER_HEIGHT=480;
+type StoreBadges={appStoreImage?:string;googlePlayImage?:string};
+function verifiedBadge(value:unknown):string|null {
+  const url=absoluteMediaUrl(typeof value==='string'?value:null);
+  return url&&/^https:\/\//i.test(url)?url:null;
 }
-function makePoster(p:B2BProduct,photo:string,appIcon:string,appStoreBadge:string,playBadge:string){
- const payload=JSON.stringify({
-  name:String(p.name||'Ürün').replace(/\s+/g,' ').slice(0,105),
-  brand:String(p.brand||'').trim().slice(0,48),
-  facts:shareFacts(p).filter(([label])=>label!=='Marka').slice(0,6),
-  photo,appIcon,appStoreBadge,playBadge,
- }).replace(/</g,'\\u003c').replace(/\u2028|\u2029/g,' ');
- return `<!doctype html><html lang="tr"><head><meta name="viewport" content="width=device-width"></head>
- <body style="margin:0;background:white"><canvas id="poster" width="1080" height="1920" style="width:1px;height:1px"></canvas>
- <script>
- (async function(){
- const data=${payload},c=document.getElementById('poster'),g=c.getContext('2d');
- const Y='#FFCB05',BLACK='#181818',MUTED='#636363';
- function box(x,y,w,h,r,color){g.fillStyle=color;g.beginPath();g.roundRect(x,y,w,h,r);g.fill();}
- function type(t,x,y,size,color=BLACK,weight='700',max=900){
-  g.fillStyle=color;g.font=weight+' '+size+'px Arial,sans-serif';g.textBaseline='top';
-  g.fillText(String(t),x,y,max);
- }
- function wrap(value,maxWidth,size,maxLines){
-  g.font='800 '+size+'px Arial,sans-serif';
-  const out=[];let line='';
-  for(const word of String(value).split(/\\s+/)){
-   const candidate=line?line+' '+word:word;
-   if(line&&g.measureText(candidate).width>maxWidth){out.push(line);line=word;}else line=candidate;
+
+export function ProductShareSheet({
+  product,imageUri,logoUri,visible,onClose,
+}:{
+  product:B2BProduct;imageUri?:string|null;logoUri?:string|null;
+  visible:boolean;onClose:()=>void;
+}){
+  const posterRef=useRef<View>(null);
+  const [saving,setSaving]=useState(false);
+  const [posterReady,setPosterReady]=useState(false);
+  const [imageLoaded,setImageLoaded]=useState(false);
+  const [imageFailed,setImageFailed]=useState(false);
+  const [badges,setBadges]=useState<StoreBadges>({});
+  const facts=useMemo(()=>shareFacts(product),[product]);
+  const photo=absoluteMediaUrl(imageUri);
+  const appIcon=absoluteMediaUrl(logoUri);
+  const posterWidth=Math.min(POSTER_WIDTH,Dimensions.get('window').width-64);
+
+  useEffect(()=>{
+    if(!visible)return;
+    setSaving(false);
+    setPosterReady(false);
+    setImageLoaded(false);
+    setImageFailed(false);
+    setBadges({});
+    let active=true;
+    const controller=new AbortController();
+    // Small JSON response only. Never download, base64-encode, or send image
+    // bytes through the JS bridge just because the share sheet was opened.
+    fetch(BRANDING_API+'/api/public/b2b-footer',{signal:controller.signal})
+      .then(response=>response.ok?response.json():{})
+      .then((value:StoreBadges)=>{if(active)setBadges(value||{});})
+      .catch(()=>{if(active)setBadges({});});
+    return ()=>{active=false;controller.abort();};
+  },[visible,product.id]);
+
+  async function share(){
+    if(saving)return;
+    if(!photo||imageFailed||!imageLoaded||!posterReady||!posterRef.current){
+      appAlert('Görsel hazır değil','Ürün fotoğrafının yüklenmesini kontrol edin ve tekrar deneyin.');
+      return;
+    }
+    setSaving(true);
+    try{
+      if(!await Sharing.isAvailableAsync())throw Error('Bu cihazda paylaşım kullanılamıyor.');
+      // Native iOS/Android snapshot writes directly to a temporary file.
+      // No WKWebView, 8MB Base64 bridge, canvas.toDataURL or file JS write.
+      const uri=await captureRef(posterRef,{
+        format:'png',result:'tmpfile',
+        width:1080,height:1920,quality:1,
+      });
+      if(!uri||typeof uri!=='string')throw Error('HD paylaşım görseli oluşturulamadı.');
+      await Sharing.shareAsync(uri.startsWith('file://')?uri:'file://'+uri,{
+        mimeType:'image/png',UTI:'public.png',
+        dialogTitle:'Çalışkan B2B ürününü paylaş',
+      });
+    }catch(error){
+      appAlert('Ürün paylaşılamadı',
+        error instanceof Error?error.message:'Görsel hazırlanırken bir sorun oluştu.');
+    }finally{setSaving(false);}
   }
-  if(line)out.push(line);
-  return out.slice(0,maxLines);
- }
- function openImage(src){return new Promise(ok=>{
-  if(!src)return ok(null);
-  const i=new Image();i.onload=()=>ok(i);i.onerror=()=>ok(null);i.src=src;
- });}
- function contain(im,x,y,w,h){
-  const s=Math.min(w/im.width,h/im.height);
-  const ww=im.width*s,hh=im.height*s;
-  g.drawImage(im,x+(w-ww)/2,y+(h-hh)/2,ww,hh);
- }
- function icon(label,x,y){
-  box(x,y,72,72,19,Y);g.strokeStyle=BLACK;g.lineWidth=4.5;
-  g.lineCap='round';g.lineJoin='round';g.beginPath();
-  if(label==='Model / Kod'){
-   g.moveTo(x+16,y+25);g.lineTo(x+34,y+13);g.lineTo(x+56,y+25);
-   g.lineTo(x+56,y+48);g.lineTo(x+34,y+60);g.lineTo(x+16,y+48);g.closePath();
-  }else if(label==='Koli İçi'||label==='Minimum Alım'){
-   g.rect(x+17,y+21,38,34);g.moveTo(x+17,y+32);g.lineTo(x+55,y+32);
-  }else{
-   g.arc(x+36,y+36,17,0,Math.PI*2);
-  }
-  g.stroke();
- }
- // Brand signature and sweeping golden ribbon. Safe margins >=80px.
- const imgs=await Promise.all([openImage(data.photo),openImage(data.appIcon),
-   openImage(data.appStoreBadge),openImage(data.playBadge)]);
- const [product,app,appStore,google]=imgs;
- if(!product){window.ReactNativeWebView.postMessage(JSON.stringify({kind:'error',message:'Ürün görseli alınamadı'}));return;}
- g.fillStyle='#FEFEFD';g.fillRect(0,0,1080,1920);
- g.fillStyle='#1B1B1B';g.beginPath();g.moveTo(0,0);g.lineTo(494,0);
- g.quadraticCurveTo(459,83,394,159);g.quadraticCurveTo(338,235,0,269);g.closePath();g.fill();
- g.strokeStyle=Y;g.lineWidth=6;g.beginPath();g.moveTo(510,0);
- g.bezierCurveTo(392,197,383,201,0,278);g.stroke();
- box(75,88,350,113,32,Y);
- type('ÇALIŞKAN',107,110,53,'#0C0C0C','900',290);
- type('B2B',303,156,27,'#0C0C0C','900',72);
- // A layered, restrained halo behind the original photograph.
- g.fillStyle='#FFCB0524';g.beginPath();g.ellipse(570,678,477,474,0,0,Math.PI*2);g.fill();
- g.strokeStyle='#FFCB05';g.lineWidth=35;g.globalAlpha=.55;
- g.beginPath();g.ellipse(550,692,469,431,-.16,0,Math.PI*2);g.stroke();g.globalAlpha=1;
- g.save();g.shadowColor='rgba(0,0,0,.10)';g.shadowBlur=33;g.shadowOffsetY=12;
- box(86,247,908,763,35,'#FFFFFF');g.restore();
- contain(product,118,269,844,718);
- // Product's brand wordmark comes from the real catalog, not an invented mark.
- g.save();g.shadowColor='rgba(0,0,0,.10)';g.shadowBlur=24;g.shadowOffsetY=6;
- box(75,1037,930,483,35,'#FFFFFF');g.restore();
- if(data.brand){
-  g.font='900 44px Arial,sans-serif';
-  const badgeW=Math.min(340,Math.max(145,g.measureText(data.brand).width+64));
-  box(112,1072,badgeW,69,15,'#1B1B1B');
-  type(data.brand,142,1084,39,'#FFFFFF','900',badgeW-45);
- }
- const nameStart=data.brand?1163:1089;
- wrap(data.name,855,53,2).forEach((line,j)=>type(line,115,nameStart+j*63,53,BLACK,'900',855));
- const sepY=data.brand?1289:1250;
- g.fillStyle='#E9E9E9';g.fillRect(115,sepY,850,2);
- const facts=data.facts.slice(0,6),factsY=sepY+25;
- facts.forEach(([label,value],i)=>{
-  const col=i%2,row=Math.floor(i/2);
-  const x=115+col*429,y=factsY+row*63;
-  icon(label,x,y);
-  type(label.toLocaleUpperCase('tr-TR'),x+90,y+6,18,'#686868','700',320);
-  type(value,x+90,y+31,26,BLACK,'800',320);
- });
- // Bottom call-to-action with centrally uploaded app icon.
- box(75,1541,930,120,31,Y);
- if(app){
-  box(110,1554,95,94,23,'#181818');
-  contain(app,115,1559,85,84);
- }else{box(110,1554,95,94,23,'#181818');type('Ç',140,1573,57,Y);}
- type('ÇALIŞKAN B2B',238,1558,35,BLACK,'900',655);
- type('UYGULAMASINI İNDİR',238,1605,39,BLACK,'900',690);
- // Use ONLY actual admin-uploaded App Store and Google Play badge artwork.
- if(appStore||google){
-  if(appStore&&google){contain(appStore,272,1681,258,61);contain(google,543,1681,258,61);}
-  else if(appStore)contain(appStore,420,1681,255,61);
-  else contain(google,420,1681,255,61);
- }
- type('b2b.ecalisgan.com',384,1760,23,'#777777','600',335);
- window.ReactNativeWebView.postMessage(JSON.stringify({kind:'done',
-   png:c.toDataURL('image/png').split(',')[1]}));
- })().catch(e=>window.ReactNativeWebView.postMessage(JSON.stringify({kind:'error',message:String(e)})));
- </script></body></html>`;
+
+  const shareAllowed=!!photo&&imageLoaded&&!imageFailed&&posterReady&&!saving;
+  const appStore=verifiedBadge(badges.appStoreImage);
+  const googlePlay=verifiedBadge(badges.googlePlayImage);
+
+  return <Modal visible={visible} transparent animationType="slide"
+    onRequestClose={onClose} statusBarTranslucent>
+    <View style={styles.backdrop}>
+      <Pressable accessibilityLabel="Paylaşım penceresini kapat" style={{flex:1}} onPress={onClose}/>
+      <View style={styles.sheet}>
+        <View style={styles.handle}/>
+        <View style={styles.header}>
+          <Text style={styles.heading}>Ürünü paylaş</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Kapat" onPress={onClose}
+            style={{padding:4}}><Ionicons name="close" size={25} color="#171717"/></Pressable>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false}
+          contentContainerStyle={{alignItems:'center',paddingBottom:25}}>
+          {/* Render one small native view. It is NOT captured on modal open;
+              capture happens only when the user taps Share. */}
+          <View ref={posterRef} collapsable={false}
+            onLayout={()=>setPosterReady(true)}
+            style={[styles.poster,{width:posterWidth,height:posterWidth*16/9}]}>
+            <View style={styles.posterHeader}>
+              <View style={styles.brandLabel}>
+                <Text style={styles.brandWord}>ÇALIŞKAN</Text>
+                <Text style={styles.brandSuffix}>B2B</Text>
+              </View>
+              <View style={styles.brandAccent}/>
+            </View>
+            <View style={styles.hero}>
+              {photo?<NativeImage key={photo} source={{uri:photo}}
+                style={styles.productImage} resizeMode="contain"
+                onLoad={()=>setImageLoaded(true)}
+                onError={()=>{setImageFailed(true);setImageLoaded(false);}}/>:
+                <Ionicons name="image-outline" size={40} color="#999"/>}
+            </View>
+            <View style={styles.details}>
+              {!!product.brand&&<View style={styles.brandTag}><Text style={styles.brandText}
+                numberOfLines={1}>{String(product.brand).slice(0,42)}</Text></View>}
+              <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+              <View style={styles.separator}/>
+              <View style={styles.facts}>
+                {facts.map(([label,value],index)=><View key={label+'-'+index} style={styles.fact}>
+                  <Text style={styles.factLabel} numberOfLines={1}>{label.toLocaleUpperCase('tr-TR')}</Text>
+                  <Text style={styles.factValue} numberOfLines={1}>{value}</Text>
+                </View>)}
+              </View>
+            </View>
+            <View style={styles.download}>
+              <View style={styles.appIcon}>
+                {appIcon?<NativeImage source={{uri:appIcon}} resizeMode="contain"
+                  style={{width:'100%',height:'100%'}}/>:
+                  <Text style={{color:'#FFCB05',fontWeight:'900',fontSize:29}}>Ç</Text>}
+              </View>
+              <View style={{flex:1}}>
+                <Text style={styles.downloadBrand}>ÇALIŞKAN B2B</Text>
+                <Text style={styles.downloadTitle}>UYGULAMASINI İNDİR</Text>
+              </View>
+            </View>
+            <View style={styles.stores}>
+              {!!appStore&&<NativeImage source={{uri:appStore}} resizeMode="contain"
+                style={styles.storeBadge}/>}
+              {!!googlePlay&&<NativeImage source={{uri:googlePlay}} resizeMode="contain"
+                style={styles.storeBadge}/>}
+            </View>
+            <Text style={styles.domain}>b2b.ecalisgan.com</Text>
+          </View>
+          <Text style={styles.note}>1080 × 1920 HD PNG · Fiyat gösterilmez</Text>
+          {imageFailed&&<Text style={styles.error}>Ürün görseli yüklenemedi. Paylaşım için tekrar deneyin.</Text>}
+          <Pressable accessibilityRole="button"
+            onPress={()=>void share()} disabled={!shareAllowed}
+            style={[styles.shareButton,{opacity:shareAllowed?1:.5}]}>
+            {saving?<ActivityIndicator color="#171717"/>:
+              <Ionicons name="share-social-outline" color="#171717" size={21}/>}
+            <Text style={styles.shareLabel}>
+              {saving?'Görsel hazırlanıyor…':imageFailed?'Görsel yüklenemedi':
+                !imageLoaded?'Ürün görseli yükleniyor…':'Paylaş / Görseli Kaydet'}
+            </Text>
+          </Pressable>
+          <Text style={styles.help}>Instagram, WhatsApp veya Fotoğraflar için paylaşım menüsünü kullanın.</Text>
+        </ScrollView>
+      </View>
+    </View>
+  </Modal>;
 }
-export function ProductShareSheet({product,imageUri,logoUri,visible,onClose}:{product:B2BProduct;imageUri?:string|null;logoUri?:string|null;visible:boolean;onClose:()=>void}){
- const [html,setHtml]=useState(''),[file,setFile]=useState(''),[busy,setBusy]=useState(false);
- const facts=useMemo(()=>shareFacts(product),[product]);
- useEffect(()=>{if(!visible)return;let active=true;setFile('');setHtml('');setBusy(true);
- Promise.all([
-  dataImage(imageUri),
-  dataImage(logoUri),
-  fetch((process.env.EXPO_PUBLIC_BRANDING_API_URL||'https://admin.ecalisgan.com').replace(/\/$/,'')+'/api/public/b2b-footer',{headers:{Accept:'application/json'},signal:AbortSignal.timeout(7000)})
-    .then(r=>r.ok?r.json():{}).catch(()=>({}))
- ]).then(async ([photo,appIcon,links])=>{
-  const badges=links as {appStoreImage?:string;googlePlayImage?:string};
-  const [appStore,googlePlay]=await Promise.all([dataImage(badges.appStoreImage),dataImage(badges.googlePlayImage)]);
-  if(!active)return;
-  if(!photo)throw Error('Ürün fotoğrafı yüklenemedi; eksik görselle paylaşım yapılamaz');
-  setHtml(makePoster(product,photo,appIcon,appStore,googlePlay));
- }).catch(error=>{if(active){setBusy(false);appAlert('Görsel hazırlanamadı',error instanceof Error?error.message:'Görsel hazırlanamadı.');}});
- return ()=>{active=false;};},[visible,product,imageUri,logoUri]);
- async function share(){if(!file)return;try{if(!await Sharing.isAvailableAsync())throw Error('Paylaşım kullanılamıyor.');
- await Sharing.shareAsync(file,{mimeType:'image/png',UTI:'public.png',dialogTitle:'Çalışkan B2B ürününü paylaş'});}
- catch(e){appAlert('Paylaşım başarısız',e instanceof Error?e.message:'Tekrar deneyin.');}}
- return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
- <View style={st.backdrop}><Pressable style={{flex:1}} onPress={onClose}/>
- <View style={st.sheet}><View style={st.handle}/><View style={st.header}>
- <Text style={st.title}>Ürünü paylaş</Text><Pressable accessibilityLabel="Kapat" onPress={onClose}><Ionicons name="close" color="#171717" size={26}/></Pressable></View>
- <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom:24}}>
- <View style={st.poster}>
- {file?<Image source={{uri:file}} style={{width:'100%',height:'100%'}} contentFit="contain"/>:
- <View style={{flex:1,padding:11}}>
-  <View style={st.mark}><Text style={{color:'#FFCB05',fontWeight:'900',fontSize:13}}>ÇALIŞKAN B2B</Text></View>
-  <View style={st.imageArea}>{imageUri?<Image source={{uri:imageUri}} style={{width:'100%',height:'100%'}} contentFit="contain"/>:<Ionicons name="image-outline" size={42} color="#aaa"/>}</View>
-  <View style={st.detail}><Text numberOfLines={2} style={st.productTitle}>{product.name}</Text>{facts.slice(0,5).map(([a,b],i)=><Text key={i} style={st.fact} numberOfLines={1}>{a}: {b}</Text>)}</View>
-  <View style={st.cta}><Text style={{color:'#171717',fontWeight:'900',fontSize:12}}>ÇALIŞKAN B2B UYGULAMASINI İNDİR</Text></View>
- </View>}</View>
- <Text style={st.note}>1080 × 1920 HD PNG · Fiyatsız · Instagram Reels/Hikâye için uygun</Text>
- <Pressable onPress={()=>void share()} disabled={!file||busy} style={[st.action,{opacity:file&&!busy?1:.5}]}>
- {busy?<ActivityIndicator color="#171717"/>:<Ionicons name="share-social" color="#171717" size={21}/>}
- <Text style={{fontWeight:'900',fontSize:15,color:'#171717'}}>{busy?'HD tasarım hazırlanıyor…':'Paylaş / Görseli Kaydet'}</Text></Pressable>
- <Text style={st.help}>Instagram, WhatsApp veya galeriyi iOS paylaşım menüsünden seçebilirsiniz.</Text></ScrollView>
- {!!html&&busy&&<WebView originWhitelist={['*']} source={{html,baseUrl:'https://b2b.ecalisgan.com'}} style={{position:'absolute',width:1,height:1,opacity:0}} javaScriptEnabled onMessage={async e=>{
- try{const v=JSON.parse(e.nativeEvent.data);if(v.kind!=='done'||!v.png)throw Error(v.message||'PNG oluşturulamadı');
- const path=FS.cacheDirectory+'caliskan-b2b-share-'+Date.now()+'.png';await FS.writeAsStringAsync(path,v.png,{encoding:FS.EncodingType.Base64});setFile(path);
- }catch(error){appAlert('Görsel üretilemedi',error instanceof Error?error.message:'Lütfen tekrar deneyin.');}
- finally{setBusy(false);}
- }}/>}
- </View></View></Modal>;
-}
-const st=StyleSheet.create({
- backdrop:{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(0,0,0,.6)'},
- sheet:{backgroundColor:'#fff',borderTopLeftRadius:26,borderTopRightRadius:26,paddingHorizontal:20,maxHeight:Dimensions.get('window').height*.82},
- handle:{width:44,height:5,borderRadius:3,backgroundColor:'#ccc',alignSelf:'center',marginTop:9,marginBottom:15},
- header:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:10},
- title:{fontSize:19,fontWeight:'900',color:'#171717'},
- poster:{width:208,aspectRatio:9/16,alignSelf:'center',borderRadius:14,borderWidth:1,borderColor:'#e3e3e3',overflow:'hidden',backgroundColor:'#fafaf8'},
- mark:{padding:9,borderRadius:5,backgroundColor:'#171717',alignSelf:'flex-start'},
- imageArea:{flex:1,backgroundColor:'#f7f7f7',borderRadius:7,marginVertical:9,justifyContent:'center',alignItems:'center'},
- detail:{borderRadius:7,backgroundColor:'#f6f6f6',padding:8},
- productTitle:{fontSize:10,color:'#161616',fontWeight:'900'},
- fact:{fontSize:8,color:'#555',marginTop:3},
- cta:{backgroundColor:'#FFCB05',padding:8,alignItems:'center',borderRadius:6,marginTop:9},
- note:{fontSize:11,color:'#555',textAlign:'center',marginVertical:13},
- action:{height:50,borderRadius:12,backgroundColor:'#FFCB05',alignItems:'center',justifyContent:'center',flexDirection:'row',gap:8},
- help:{fontSize:11,textAlign:'center',marginTop:9,color:'#777'},
+
+const styles=StyleSheet.create({
+  backdrop:{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(0,0,0,.57)'},
+  sheet:{backgroundColor:'#FFFFFF',borderTopLeftRadius:26,borderTopRightRadius:26,
+    paddingHorizontal:18,maxHeight:Dimensions.get('window').height*.88},
+  handle:{width:42,height:5,borderRadius:5,backgroundColor:'#D1D1D1',
+    alignSelf:'center',marginTop:10,marginBottom:12},
+  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:10},
+  heading:{fontSize:19,fontWeight:'900',color:'#171717'},
+  poster:{backgroundColor:'#FAFAF8',overflow:'hidden',
+    borderWidth:1,borderColor:'#E6E6E6',borderRadius:9,paddingHorizontal:13},
+  posterHeader:{height:'13%',justifyContent:'center',flexDirection:'row',alignItems:'center'},
+  brandLabel:{backgroundColor:'#181818',borderRadius:8,width:'91%',
+    height:42,justifyContent:'center',paddingLeft:14},
+  brandWord:{fontSize:21,fontWeight:'900',color:'#FFCB05',letterSpacing:-.6},
+  brandSuffix:{fontSize:10,fontWeight:'900',color:'#FFFFFF',position:'absolute',right:13},
+  brandAccent:{position:'absolute',bottom:4,left:0,right:0,height:2,backgroundColor:'#FFCB05'},
+  hero:{height:'42%',backgroundColor:'#FFFFFF',borderRadius:12,
+    justifyContent:'center',alignItems:'center',padding:6},
+  productImage:{height:'100%',width:'100%'},
+  details:{marginTop:7,height:'24%',backgroundColor:'#FFFFFF',borderRadius:10,
+    paddingHorizontal:10,paddingVertical:7},
+  brandTag:{backgroundColor:'#171717',alignSelf:'flex-start',borderRadius:4,
+    paddingHorizontal:6,paddingVertical:3,marginBottom:4,maxWidth:'100%'},
+  brandText:{color:'#FFFFFF',fontSize:10,fontWeight:'800'},
+  productName:{fontSize:15,fontWeight:'900',color:'#181818',lineHeight:18},
+  separator:{height:1,backgroundColor:'#E6E6E6',marginVertical:4},
+  facts:{flex:1,flexDirection:'row',flexWrap:'wrap',alignContent:'flex-start'},
+  fact:{width:'50%',paddingRight:5,marginBottom:3},
+  factLabel:{fontSize:7,color:'#737373',fontWeight:'700'},
+  factValue:{fontSize:10,color:'#171717',fontWeight:'800'},
+  download:{height:'11%',flexDirection:'row',backgroundColor:'#FFCB05',
+    borderRadius:9,alignItems:'center',paddingHorizontal:10,marginTop:8,gap:9},
+  appIcon:{width:37,height:37,borderRadius:7,backgroundColor:'#171717',
+    justifyContent:'center',alignItems:'center',overflow:'hidden'},
+  downloadBrand:{fontSize:11,color:'#181818',fontWeight:'900'},
+  downloadTitle:{fontSize:13,color:'#181818',fontWeight:'900'},
+  stores:{height:'5%',flexDirection:'row',justifyContent:'center',alignItems:'center',gap:9},
+  storeBadge:{width:103,height:23},
+  domain:{fontSize:8,color:'#737373',textAlign:'center',marginTop:1},
+  note:{fontSize:11,color:'#686868',marginVertical:12,textAlign:'center'},
+  error:{fontSize:11,color:'#B91C1C',textAlign:'center',marginBottom:7},
+  shareButton:{backgroundColor:'#FFCB05',borderRadius:12,height:50,
+    width:'100%',flexDirection:'row',gap:9,justifyContent:'center',alignItems:'center'},
+  shareLabel:{fontSize:14,color:'#171717',fontWeight:'900'},
+  help:{fontSize:11,color:'#747474',textAlign:'center',marginTop:9},
 });
