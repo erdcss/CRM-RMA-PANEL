@@ -20,6 +20,7 @@ import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
 import { asCatalogProduct, isMarketplaceProduct } from '@/lib/marketplace-products';
 import { addToOrderList } from '@/lib/b2b-order-list';
 import { appAlert } from '@/lib/appAlert';
+import { ProductShareSheet } from '@/components/products/ProductShareSheet';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -55,6 +56,7 @@ export default function ProductDetailScreen() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
+  const [shareOpen,setShareOpen]=useState(false);
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if(successTimer.current) clearTimeout(successTimer.current); }, []);
   const progress = useRef(new Animated.Value(0)).current;
@@ -160,10 +162,16 @@ export default function ProductDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.page}
       >
-        <Pressable style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={20} color={palette.textSecondary} />
-          <Text style={styles.backText}>Ürünlere dön</Text>
-        </Pressable>
+<View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
+          <Pressable style={styles.back} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={20} color={palette.textSecondary} />
+            <Text style={styles.backText}>Ürünlere dön</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Ürünü paylaş"
+            onPress={()=>setShareOpen(true)} style={{width:46,height:46,borderRadius:14,backgroundColor:palette.surfaceSecondary,borderWidth:1,borderColor:palette.border,alignItems:'center',justifyContent:'center'}}>
+            <Ionicons name="share-social-outline" size={23} color={palette.text}/>
+          </Pressable>
+        </View>
 
         <View style={styles.imageCard} onLayout={(event) => setGalleryWidth(event.nativeEvent.layout.width)}>
           {images.length ? (
@@ -474,6 +482,8 @@ export default function ProductDetailScreen() {
           </Pressable>
         </View>
       </View>
+      <ProductShareSheet product={product} imageUri={image} logoUri={isSellerProduct ? absoluteMediaUrl(product.seller_logo_url) : companyLogo}
+        visible={shareOpen} onClose={()=>setShareOpen(false)}/>
     </Screen>
   );
 }
