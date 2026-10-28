@@ -383,7 +383,7 @@ export default function Ayarlar() {
             </Card>
 
             <Card>
-              <CardHeader><CardTitle>B2B Alt Bilgi · Sosyal Medya ve Uygulama Mağazaları</CardTitle><CardDescription>Web sitesinin en altındaki siyah şerit ve mobil hamburger menüsündeki bağlantıları yönetin. Boş alanlar kullanıcıya gösterilmez.</CardDescription></CardHeader>
+              <CardHeader><CardTitle>B2B Sosyal Medya ve Ürün Paylaşım Mağaza Rozetleri</CardTitle><CardDescription>Buraya eklediğiniz App Store ve Google Play rozet görselleri, B2B mobil ürün paylaşımının 1080×1920 şablonunda otomatik kullanılır. Web alt bilgi bağlantıları da buradan yönetilir; boş rozet paylaşımda gösterilmez.</CardDescription></CardHeader>
               <CardContent className="space-y-5">
                 <div className="grid gap-4 md:grid-cols-2">
                   {([
@@ -393,8 +393,13 @@ export default function Ayarlar() {
                   ] as const).map(([key,title])=><label key={key} className="space-y-2"><span className="text-sm font-semibold">{title}</span><Input type="url" placeholder="https://" value={footerValues[key] || ""} onChange={e=>setFooterDraft(v=>({...v,[key]:e.target.value}))}/></label>)}
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <AssetUploader title="App Store rozet görseli yükle" description="PNG, JPEG veya WebP mağaza rozeti; küçük dosya önerilir." value={footerValues.appStoreImage || null} onChange={value=>setFooterDraft(v=>({...v,appStoreImage:value||""}))}/>
+                  <AssetUploader title="App Store rozet görseli yükle" description="Ürün paylaşım görselinde kullanılacak orijinal mağaza rozeti. Yüksek çözünürlüklü PNG önerilir." value={footerValues.appStoreImage || null} onChange={value=>setFooterDraft(v=>({...v,appStoreImage:value||""}))}/>
                   <AssetUploader title="Google Play rozet görseli yükle" description="PNG, JPEG veya WebP mağaza rozeti; küçük dosya önerilir." value={footerValues.googlePlayImage || null} onChange={value=>setFooterDraft(v=>({...v,googlePlayImage:value||""}))}/>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-950">
+                  Bu iki görsel mobil uygulamanın ürün paylaşım şablonuna doğrudan yansır.
+                  Değişiklikleri <b>Alt Bilgi Bağlantılarını Kaydet</b> butonuyla kaydedin.
+                  Kayıt sonrasında yeni paylaşım görselleri güncel rozetleri kullanır.
                 </div>
                 <div className="flex flex-wrap gap-4">
                   {(["appStoreImage","googlePlayImage"] as const).map(key => footerValues[key] ? <img key={key} src={footerValues[key]} alt={key} className="h-12 max-w-44 rounded bg-slate-900 object-contain p-1"/> : null)}
@@ -415,7 +420,7 @@ export default function Ayarlar() {
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <AssetUploader
                     title="Uygulama Logosu"
-                    description="iOS uygulama simgesi için 1024×1024 PNG yükleyin."
+                    description="Bu 1024×1024 PNG, iOS uygulama simgesi ve HD ürün paylaşım şablonundaki uygulama ikonu olarak kullanılır."
                     value={values.b2b_mobile_logo}
                     onChange={(value) => setAsset("b2b_mobile_logo", value)}
                     square
