@@ -66,3 +66,40 @@ export async function markB2BPushSignedOut(accessToken:string):Promise<void>{
     if(!response.ok)console.warn('[push] signed-out device state not acknowledged',response.status);
   }catch(error){console.warn('[push] signed-out status unavailable',error);}
 }
+
+/** Explicit optional opt-in for users whose signup application is pending.
+ * Registration returns a short-lived one-time receipt, not an auth session.
+ * This device can only receive admin-selected generic campaign notices until
+ * the user later signs in. No account details are exposed here. */
+export async function enrollPendingB2BPush(enrollmentToken:string):Promise<boolean>{
+  if(Platform.OS==='web'||!enrollmentToken)return false;
+  try{
+    if(Platform.OS==='android'){
+      await Notifications.setNotificationChannelAsync('default',{
+        name:'Genel Bildirimler',importance:Notifications.AndroidImportance.HIGH,sound:'default'
+      });
+    }
+    const current=await Notifications.getPermissionsAsync();
+    const permission=current.granted?current:await Notifications.requestPermissionsAsync();
+    if(!permission.granted)return false;
+    const projectId=Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+    if(!projectId)return false;
+    const token=(await Notifications.getExpoPushTokenAsync({projectId})).data;
+    const api=(process.env.EXPO_PUBLIC_API_URL||'https://b2b.ecalisgan.com').replace(/\/$/,'');
+    const response=await fetch(api+'/api/push/b2b-enroll',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({enrollmentToken,expoToken:token,platform:Platform.OS,marketingConsent:true}),
+      signal:AbortSignal.timeout(10000),
+    });
+    if(response.ok){
+      await AsyncStorage.setItem('b2b-last-registered-push-token',token);
+      return true;
+    }
+    console.warn('[push] Pending B2B device enrollment failed',response.status);
+    return false;
+  }catch(error){
+    console.warn('[push] Pending B2B notification enrollment unavailable',error);
+    return false;
+  }
+}
