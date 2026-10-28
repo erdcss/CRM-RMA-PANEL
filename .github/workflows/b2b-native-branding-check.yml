@@ -9,6 +9,9 @@ on:
       - 'mobile/scripts/check-brand-sync.cjs'
       - 'mobile/scripts/eas-preinstall.cjs'
       - 'mobile/scripts/eas-branding-preinstall.cjs'
+      - 'mobile/scripts/b2b-custom-notification-sound.cjs'
+      - 'mobile/scripts/b2b-custom-notification-sound.test.cjs'
+      - 'mobile/eas.json'
       - 'mobile/app.json'
       - '.github/workflows/b2b-native-branding-check.yml'
   workflow_dispatch:
@@ -29,5 +32,9 @@ jobs:
           node --check mobile/scripts/check-brand-sync.cjs
           node --check mobile/scripts/eas-preinstall.cjs
           node --check mobile/scripts/eas-branding-preinstall.cjs
+          node --check mobile/scripts/b2b-custom-notification-sound.cjs
+          node --check mobile/scripts/b2b-custom-notification-sound.test.cjs
+      - name: Test iOS/Android notification sound packaging
+        run: node --test mobile/scripts/b2b-custom-notification-sound.test.cjs
       - name: Validate admin-only brand sync
         run: node mobile/scripts/check-brand-sync.cjs
