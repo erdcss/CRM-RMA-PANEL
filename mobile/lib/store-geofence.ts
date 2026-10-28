@@ -160,7 +160,10 @@ export async function configureStoreNearby(user:string){
   if(Platform.OS==='web')return;
   const cfg=await refreshConfig();
   if(!cfg?.enabled||!cfg.coordinates_verified){
-    // Do not request background location for a campaign disabled by admin.
+    // Existing permission holders are listed in admin even while the campaign
+    // is paused; do not request new permissions or monitor location.
+    if(await AsyncStorage.getItem(CONSENT_PREFIX+user)==='yes')
+      await reportPermission(user,true);
     await stopStoreNearby();
     return;
   }
