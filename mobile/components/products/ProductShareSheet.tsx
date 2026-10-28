@@ -37,7 +37,7 @@ function makePoster(p:B2BProduct,photo:string,logo:string){
  const payload=JSON.stringify({
    name:String(p.name||'Ürün').replace(/\s+/g,' ').slice(0,100),
    facts:shareFacts(p),photo,logo,
- }).replace(/</g,'\u003c');
+ }).replace(/</g,'\\u003c');
  return `<!doctype html><html><head><meta name="viewport" content="width=device-width"></head>
  <body style="margin:0;background:#fff"><canvas id="c" width="1080" height="1920" style="width:1px;height:1px"></canvas>
  <script>
