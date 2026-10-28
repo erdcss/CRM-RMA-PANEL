@@ -1,0 +1,8 @@
+Çalışkan B2B ve Çalışkan Business — Android Google Play AAB sürüm talebi
+Tarih: 2026-10-28
+Talep: Her iki uygulamanın güncel main kaynak kodundan imzalı Android App Bundle (.aab) oluştur.
+Uygulama 1: Çalışkan B2B / com.caliskangroup.rma / mobile / 1.1.0
+Uygulama 2: Çalışkan Business / com.caliskangroup.business / business-mobile / 1.0.0
+Profil: android-aab (store, app-bundle); production API URL'lerini ve splash/branding kaynaklarını koru.
+Önce TypeScript ve B2B native splash doğrula. Ardından EAS cloud build. Tamamlanan imzalı AAB dosyalarını ayrı GitHub Actions artifact olarak yükle.
+iOS/TestFlight sürümleri ve Google Play Console yayınlaması bu talep kapsamında değil.
