@@ -37,6 +37,7 @@ export async function registerMobilePushToken(input: {
   app: PushApp;
   expoToken: string;
   platform?: string;
+  sessionActive?: boolean;
 }) {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
   const token = String(input.expoToken || "").trim();
@@ -46,16 +47,16 @@ export async function registerMobilePushToken(input: {
 
   await pool.query(
     `INSERT INTO mobile_push_tokens (user_id, app, expo_token, platform, active, session_active, updated_at)
-     VALUES ($1,$2,$3,$4,TRUE,TRUE,NOW())
+     VALUES ($1,$2,$3,$4,TRUE,$5,NOW())
      ON CONFLICT (expo_token)
      DO UPDATE SET
        user_id = EXCLUDED.user_id,
        app = EXCLUDED.app,
        platform = EXCLUDED.platform,
        active = TRUE,
-       session_active = TRUE,
+       session_active = EXCLUDED.session_active,
        updated_at = NOW()`,
-    [input.userId, input.app, token, input.platform || null],
+    [input.userId, input.app, token, input.platform || null, input.sessionActive !== false],
   );
 
   return { ok: true };
