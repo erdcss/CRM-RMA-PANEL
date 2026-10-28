@@ -1,0 +1,77 @@
+name: Çalışkan B2B - Existing iOS Build 102 to TestFlight
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-b2b-submit-existing-102
+  cancel-in-progress: false
+
+jobs:
+  submit-b2b-102:
+    name: Submit exact B2B build 102 (no rebuild)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Confirm Expo authorization
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=Missing EXPO_TOKEN::Add EXPO_TOKEN to GitHub Actions repository secrets."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Resolve exactly build 102
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas whoami
+          eas build:list --platform ios --status finished --limit 100 --json --non-interactive > "$RUNNER_TEMP/eas-ios-builds.json"
+          node - "$RUNNER_TEMP/eas-ios-builds.json" "$GITHUB_OUTPUT" <<'NODE'
+          const fs=require('fs');
+          const [file,out]=process.argv.slice(2);
+          const builds=JSON.parse(fs.readFileSync(file,'utf8'));
+          if(!Array.isArray(builds)) throw Error('Unexpected EAS build list response');
+          const matches=builds.filter(b=>
+            b.platform==='IOS' &&
+            String(b.appBuildVersion)==='102' &&
+            ['production','testflight'].includes(b.buildProfile) &&
+            b.status==='FINISHED' &&
+            b.artifacts?.buildUrl
+          );
+          if(matches.length!==1){
+            console.error('Expected exactly one finished B2B iOS store build 102; found',matches.length);
+            console.error('Visible iOS versions:', builds.slice(0,20).map(b=>({
+              version:b.appVersion,build:b.appBuildVersion,status:b.status,profile:b.buildProfile
+            })));
+            process.exit(1);
+          }
+          const b=matches[0];
+          fs.appendFileSync(out,'build_id='+b.id+'\n');
+          console.log('Verified B2B iOS build 102: '+b.id+' ('+b.appVersion+')');
+          NODE
+      - name: Submit the exact existing build (no build command)
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas submit --platform ios --profile testflight --id "${{ steps.resolve.outputs.build_id }}" --non-interactive --wait
+          echo "### B2B build 102 submitted to Apple" >> "$GITHUB_STEP_SUMMARY"
+          echo "EAS build ID: \`${{ steps.resolve.outputs.build_id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check App Store Connect for processing and TestFlight availability." >> "$GITHUB_STEP_SUMMARY"
