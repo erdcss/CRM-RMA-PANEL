@@ -99,10 +99,13 @@ export default function B2BProductPage() {
         </Link>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,42%)_minmax(0,58%)] lg:gap-6">
-          <section className="overflow-hidden rounded-2xl border bg-white">
-            <div className="flex aspect-square items-center justify-center bg-white">
+          {/* Keep the image card compact rather than stretching it to the details column.
+              On desktop it follows the product details while scrolling, then stops at
+              the end of this grid row. Mobile keeps the natural document flow. */}
+          <section className="self-start overflow-hidden rounded-2xl border bg-white lg:sticky lg:top-20">
+            <div className="flex aspect-[5/4] w-full items-center justify-center bg-white">
               {image ? (
-                <img src={image} alt={product.name || "Ürün"} className="h-full w-full object-contain p-5" />
+                <img src={image} alt={product.name || "Ürün"} className="h-full w-full object-contain p-4 sm:p-5" />
               ) : (
                 <Package className="h-24 w-24 text-slate-200" />
               )}
