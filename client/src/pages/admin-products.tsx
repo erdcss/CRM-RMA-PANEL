@@ -170,7 +170,7 @@ export default function AdminProducts() {
             <Button asChild variant="outline">
               <Link href="/urunler/ai-aktar">
                 <Sparkles className="mr-2 h-4 w-4" />
-                AI ile İçeri Aktar
+                AI ile Toplu Ürün Ekle
               </Link>
             </Button>
             <Button asChild>
