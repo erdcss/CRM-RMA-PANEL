@@ -1,0 +1,18 @@
+ÇALIŞKAN B2B — iOS 1.3.5 TestFlight — DİNAMİK LOGO VE ROZET SENKRONİZASYONU
+29 Ekim 2026
+
+Ürün paylaşım önizlemesi:
+- Admin Ayarlar > Marka ve Görseller > B2B Mobile Uygulama Logosu
+  (b2b_mobile_logo) doğrudan native paylaşım görselinde kullanılır.
+- Admin Ayarlar > B2B Sosyal Medya ve Uygulama Mağazaları
+  (appStoreImage, googlePlayImage) yüklenen PNG/JPEG/WEBP rozetler
+  küçük public HTTPS görsel rotaları ile gösterilir.
+- Paylaşım penceresi her açılışta üç varlığı güncel olarak okur;
+  yeni yüklenen logo/rozet için tekrar native build gerekmez.
+- Mevcut 1080×1920 PNG, fiyatsız ürün bilgileri ve native share
+  dosya yakalama korunur.
+- Üçüncü taraf fiyat/maliyet bilgisi paylaşılmaz.
+- GitHub kaynak denetimi ve share-crash regresyon testleri zorunlu.
+- Hedef sadece Çalışkan B2B, iOS 1.3.5 TestFlight.
+- Önceki başarılı 1.3.4 (109) üzerinde yeni build numarası.
+- Genel App Store yayını yok.
