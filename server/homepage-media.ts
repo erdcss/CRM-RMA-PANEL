@@ -13,7 +13,38 @@ function safeString(value: unknown, max = 180) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-type Banner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string; imageWidth?: number; imageHeight?: number };
+export const HOME_BANNER_PAGES = [
+  '/(tabs)', '/(tabs)/products', '/(tabs)/discover', '/(tabs)/menu',
+  '/ledger', '/notifications',
+] as const;
+export type BannerLinkType = 'none' | 'product' | 'page' | 'url';
+type Banner = {
+  id:string;title:string;subtitle:string;buttonText:string;imageId:string;
+  imageWidth?:number;imageHeight?:number;
+  linkType:BannerLinkType;productId:number|null;pagePath:string;externalUrl:string;
+};
+function safeBannerLink(item:any):Pick<Banner,'linkType'|'productId'|'pagePath'|'externalUrl'> {
+  const type:BannerLinkType = ['product','page','url'].includes(item?.linkType)
+    ? item.linkType : 'none';
+  const n=Number(item?.productId);
+  const productId=Number.isSafeInteger(n)&&n>0?n:null;
+  const pagePath=typeof item?.pagePath==='string'&&
+    (HOME_BANNER_PAGES as readonly string[]).includes(item.pagePath)
+    ? item.pagePath : '';
+  const url=typeof item?.externalUrl==='string'?item.externalUrl.trim():'';
+  let externalUrl='';
+  try{
+    const parsed=new URL(url);
+    if(parsed.protocol==='https:'&&parsed.hostname&&
+       !parsed.username&&!parsed.password&&!/^localhost$/i.test(parsed.hostname)&&
+       !/^(?:127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(parsed.hostname)&&
+       url.length<=1500)externalUrl=parsed.toString();
+  }catch{/* Malformed or missing URL. */}
+  if(type==='product'&&productId)return {linkType:type,productId,pagePath:'',externalUrl:''};
+  if(type==='page'&&pagePath)return {linkType:type,productId:null,pagePath,externalUrl:''};
+  if(type==='url'&&externalUrl)return {linkType:type,productId:null,pagePath:'',externalUrl};
+  return {linkType:'none',productId:null,pagePath:'',externalUrl:''};
+}
 type CategoryCard = { category: string; label: string; imageId: string; tags: string[] };
 
 export type MobileHomeLayout = {
@@ -34,6 +65,7 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
     imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
     imageWidth: Number.isSafeInteger(item?.imageWidth) && item.imageWidth > 0 && item.imageWidth <= 16384 ? item.imageWidth : undefined,
     imageHeight: Number.isSafeInteger(item?.imageHeight) && item.imageHeight > 0 && item.imageHeight <= 16384 ? item.imageHeight : undefined,
+    ...safeBannerLink(item),
   }));
   const categoryCards = (Array.isArray(input.categoryCards) ? input.categoryCards : []).slice(0, 30).map((item: any) => ({
     category: safeString(item?.category, 80),
