@@ -6,6 +6,7 @@
 export type SourceImageBox={x:number;y:number;width:number;height:number};
 export type RenderedCataloguePage={
   pageNumber:number;totalPages:number;filename:string;dataUrl:string;
+  sourcePriceCount:number;
   crop:(box:SourceImageBox)=>string|null;
 };
 function safeBox(b:SourceImageBox){
@@ -46,6 +47,11 @@ export async function* renderCataloguePdf(file:File):AsyncGenerator<RenderedCata
  try{
    for(let n=1;n<=pdf.numPages;n++){
      const page=await pdf.getPage(n);
+     // A separate text-layer check catches omitted product rows independently
+     // of what the vision model thinks the expected row count is.
+     const textContent=await page.getTextContent();
+     const pageText=textContent.items.map(item=>('str' in item?String(item.str):'')).join(' ');
+     const sourcePriceCount=(pageText.match(/₺/g)||[]).length;
      const base=page.getViewport({scale:1});
      const scale=Math.min(3,Math.sqrt(5_500_000/(base.width*base.height)));
      const viewport=page.getViewport({scale});
@@ -59,7 +65,7 @@ export async function* renderCataloguePdf(file:File):AsyncGenerator<RenderedCata
      yield {
        pageNumber:n,totalPages:pdf.numPages,
        filename:file.name+' · Sayfa '+n,
-       dataUrl,crop:box=>cropProductImage(canvas,box)
+       sourcePriceCount,dataUrl,crop:box=>cropProductImage(canvas,box)
      };
      page.cleanup();
    }
