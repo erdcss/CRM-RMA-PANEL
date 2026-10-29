@@ -1,0 +1,13 @@
+ÇALIŞKAN B2B — iOS 1.3.7 TestFlight
+29 Ekim 2026
+
+- Mobil ana sayfada görselin kendi en-boy oranına göre dinamik genişlik/yükseklik.
+- Eski 10:3 carouselSlide aspectRatio, 60% ekran maksimum yüksekliği kaldırıldı.
+- Yüklenen görseller kare/yatay/dikey oranda tam çerçeveye oturur; altta/solda siyah boşluk kalmaz.
+- Admin banner düzenleyicisine ürün seçici, uygulama sayfası ve HTTPS dış bağlantı eklendi.
+- Bannerın kendisine ve metin butonuna basınca hedef açılır.
+- Eski bağlantısız bannerlar gösterilmeye devam eder.
+- Uygulama bildirim sesi, ürün paylaşım posterleri ve diğer özellikler korunur.
+- CI: admin yapı derlemesi, native TypeScript, banner boyutu + rota regresyon testleri.
+- com.caliskangroup.rma, sürüm 1.3.7, build > 111, sadece iOS TestFlight.
+- Genel App Store yayını yapılmaz.
