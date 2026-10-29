@@ -28,3 +28,31 @@ test('normalizes stored dimensions and remains backward compatible',()=>{
  assert.equal(result.banners[1].imageWidth,undefined);
  assert.equal(result.banners[1].imageHeight,undefined);
 });
+
+test('preserves valid clickable product, app page, and HTTPS destinations',()=>{
+ const id='a'.repeat(32),imageId='b'.repeat(32);
+ const rows=[
+  {id,imageId,linkType:'product',productId:125},
+  {id,imageId,linkType:'page',pagePath:'/(tabs)/products'},
+  {id,imageId,linkType:'url',externalUrl:'https://b2b.ecalisgan.com/urunler'},
+ ];
+ const normalized=normalizeHomeLayout({banners:rows}).banners;
+ assert.equal(normalized[0].linkType,'product');
+ assert.equal(normalized[0].productId,125);
+ assert.equal(normalized[1].pagePath,'/(tabs)/products');
+ assert.equal(normalized[2].externalUrl,'https://b2b.ecalisgan.com/urunler');
+});
+test('rejects arbitrary app routes, unsafe URLs and invalid product ids',()=>{
+ const id='a'.repeat(32),imageId='b'.repeat(32);
+ const rows=[
+  {id,imageId,linkType:'url',externalUrl:'javascript:alert(1)'},
+  {id,imageId,linkType:'url',externalUrl:'http://example.com'},
+  {id,imageId,linkType:'url',externalUrl:'https://localhost/internal'},
+  {id,imageId,linkType:'page',pagePath:'../other'},
+  {id,imageId,linkType:'product',productId:-9},
+  {id,imageId},
+ ];
+ const normalized=normalizeHomeLayout({banners:rows}).banners;
+ assert.ok(normalized.every(b=>b.linkType==='none'));
+ assert.ok(normalized.every(b=>!b.productId&&!b.pagePath&&!b.externalUrl));
+});
