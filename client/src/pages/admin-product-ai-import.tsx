@@ -572,6 +572,11 @@ export default function AdminProductAiImport() {
                   name:file.name+" - sayfa "+page.pageNumber
                 });
                 appendProducts(result.products||[],file,page.pageNumber,page.crop);
+                if(page.sourcePriceCount>0&&page.sourcePriceCount!==(result.products||[]).length){
+                  warnings.push(file.name+" · "+page.pageNumber+". sayfa: Belgede "+
+                    page.sourcePriceCount+" fiyat girdisi var; AI "+(result.products||[]).length+
+                    " ürün çıkardı. Eksik veya fazla satırları inceleyin.");
+                }
                 if(typeof result.expectedCount==="number"&&
                   result.expectedCount!==(result.products||[]).length){
                   warnings.push(file.name+" · Sayfa "+page.pageNumber+": "+
