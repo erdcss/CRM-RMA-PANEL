@@ -34,7 +34,7 @@ export function cropProductImage(canvas:HTMLCanvasElement,box:SourceImageBox):st
 }
 export async function* renderCataloguePdf(file:File):AsyncGenerator<RenderedCataloguePage>{
  // Lazy import avoids adding PDF.js to the normal admin product pages.
- const pdfjs=await import('pdfjs-dist/build/pdf.mjs');
+ const pdfjs=await import('pdfjs-dist');
  const worker=await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
  pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
  const pdf=await pdfjs.getDocument({
