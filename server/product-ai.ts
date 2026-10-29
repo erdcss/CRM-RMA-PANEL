@@ -26,9 +26,16 @@ const productSchema = z.object({
   variant: z.string().nullable(),
   label: z.string().nullable(),
   otherProperties: z.array(z.object({ key: z.string(), value: z.string() })),
+  sourceImageBox: z.object({
+    x:z.number().int().min(0).max(1000),y:z.number().int().min(0).max(1000),
+    width:z.number().int().min(0).max(1000),height:z.number().int().min(0).max(1000)
+  }).nullable(),
 });
 
-const productListSchema = z.object({ products: z.array(productSchema).max(500) });
+const productListSchema = z.object({
+  expectedCount:z.number().int().min(0).max(500),
+  products:z.array(productSchema).max(500)
+});
 
 const imageSearchInputSchema = z.object({
   attempt: z.number().int().min(0).max(1).optional().default(0),
@@ -172,6 +179,7 @@ const MAX_IMAGE_CACHE_ENTRIES = 800;
 
 type ExtractCacheValue = {
   products: z.infer<typeof productSchema>[];
+  expectedCount:number;
   model: string;
 };
 
@@ -214,6 +222,7 @@ const productJsonSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    expectedCount:{type:"integer",minimum:0,maximum:500},
     products: {
       type: "array",
       maxItems: 500,
@@ -237,6 +246,13 @@ const productJsonSchema = {
           size: { type: ["string", "null"] },
           variant: { type: ["string", "null"] },
           label: { type: ["string", "null"] },
+          sourceImageBox:{
+            type:["object","null"],additionalProperties:false,
+            properties:{
+              x:{type:"integer"},y:{type:"integer"},
+              width:{type:"integer"},height:{type:"integer"}
+            },required:["x","y","width","height"]
+          },
           otherProperties: {
             type: "array",
             items: {
@@ -253,12 +269,12 @@ const productJsonSchema = {
         required: [
           "name", "sku", "barcode", "brand", "category", "description",
           "purchasePrice", "salePrice", "vatRate", "stock", "unitsPerBox",
-          "minimumOrderQuantity", "color", "size", "variant", "label", "otherProperties",
+          "minimumOrderQuantity", "color", "size", "variant", "label", "otherProperties", "sourceImageBox",
         ],
       },
     },
   },
-  required: ["products"],
+  required: ["products","expectedCount"],
 } as const;
 
 function parseDataUrl(dataUrl: unknown, mime: unknown, maxBytes: number) {
@@ -1004,6 +1020,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       if (cached) {
         return res.json({
           products: cached.products,
+          expectedCount: cached.expectedCount,
           count: cached.products.length,
           model: cached.model,
           cached: true,
@@ -1051,6 +1068,11 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
                 "category alanına belgede geçen gerçek ürün kategorisini yaz; kategori belirtilmiyorsa null bırak. " +
                 "Stok kodu, barkod, marka, ürün adı, satın alma/satış fiyatı, stok, koli içi adet ve minimum sipariş alanlarını özellikle ayır. " +
                 "Tabloda aynı satıra ait bilgileri başka satırlarla karıştırma. Barkod ve stok kodlarını metin olarak eksiksiz koru.",
+                "Özellikle fiyat listelerinde soldaki ve sağdaki TÜM ürünleri, sayfadaki sırasıyla tek tek çıkar. Aynı modelin farklı renklerini ayrı ürün olarak tut.",
+                "expectedCount: bu SAYFADA görüntülenen toplam benzersiz ürün hücresi sayısı. products uzunluğu bu sayıya eşit olmalı. Boş tablo hücresini sayma.",
+                "Satış fiyatı veya liste fiyatı yazıyorsa salePrice alanına geçir; bu tutarı purchasePrice olarak iki kez yazma. Koli içi adet stock değildir.",
+                "Stok, KDV, minimum sipariş ve barkod listede yoksa null bırak. Sayfa üzerindeki ürünün fotoğrafını bul ve sourceImageBox içine görüntünün TAM dikdörtgenini 0..1000 normalize koordinatlarında x,y,width,height yaz. Sadece ürünü içeren fotoğrafı kapsa; fiyat, komşu ürün ya da metin sütununu katma. Görsel yoksa sourceImageBox null.",
+                "Koyu arka planlı, küçük veya birden fazla renkli ürün resmi varsa yine kendi hücresindeki tek ürün resim alanını işaretle. Bbox uydurma; kararsızsan null yap.",
             },
             source,
           ],
@@ -1071,11 +1093,13 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
 
       setCachedExtraction(cacheKey, {
         products: parsed.products,
+        expectedCount:parsed.expectedCount,
         model,
       });
 
       return res.json({
         products: parsed.products,
+        expectedCount:parsed.expectedCount,
         count: parsed.products.length,
         model,
         cached: false,
