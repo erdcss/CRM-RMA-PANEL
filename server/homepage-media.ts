@@ -77,8 +77,15 @@ export async function saveMobileHomeLayout(raw: unknown): Promise<MobileHomeLayo
   return result;
 }
 
+/** Accept all aspect ratios, with pixel-count limits for safe decoding. */
+export function isSafeBannerSize(size:{width:number;height:number}):boolean {
+  return Number.isInteger(size.width)&&Number.isInteger(size.height)&&
+    size.width>0&&size.height>0&&size.width<=16384&&size.height<=16384&&
+    size.width*size.height<=40_000_000;
+}
+
 // Read intrinsic dimensions without relying on MIME headers supplied by clients.
-function imageDimensions(bytes: Buffer, mime: string): { width: number; height: number } | null {
+export function imageDimensions(bytes: Buffer, mime: string): { width: number; height: number } | null {
   if (mime === "image/png" && bytes.length >= 24) {
     return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
   }
@@ -134,9 +141,7 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
     // Any aspect ratio is accepted (portrait, landscape, square). Reject only
     // malformed/unsafe raster dimensions, not a predefined banner size.
     const dimensions = imageDimensions(bytes, mime);
-    if (!dimensions || dimensions.width < 1 || dimensions.height < 1 ||
-        dimensions.width > 16384 || dimensions.height > 16384 ||
-        dimensions.width * dimensions.height > 40_000_000) {
+    if (!dimensions || !isSafeBannerSize(dimensions)) {
       return res.status(400).json({ error: "Geçerli ve güvenli boyutlarda bir PNG, JPEG, WebP veya GIF görsel yükleyin." });
     }
     const id = randomBytes(16).toString("hex");
