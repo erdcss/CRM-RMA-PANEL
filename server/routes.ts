@@ -3120,7 +3120,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${imagesSql},
           barcode,
           collection_name,
-          tags
+          tags,
+          created_at
         FROM b2b_products
         WHERE is_active IS DISTINCT FROM FALSE
         ORDER BY created_at DESC
