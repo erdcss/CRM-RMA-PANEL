@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
+import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import {
   getAdminPaymentSettings,
@@ -779,23 +780,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           ? pool.query("SELECT updated_at FROM platform_settings WHERE key='b2b_footer_links' LIMIT 1")
           : Promise.resolve({rows:[]}),
       ]);
-      // The mobile application icon has priority; if it has not been
-      // configured yet, show the B2B web logo rather than an empty placeholder.
-      const appLogo=branding.b2b_mobile_logo||branding.b2b_logo||null;
-      const resolveBadge=(value:unknown,store:"app-store"|"google-play"):string|null=>{
-        if(typeof value!=="string"||!value.trim())return null;
-        if(/^https:\/\/\S+$/i.test(value))return value;
-        if(/^data:image\/(?:png|jpeg|webp);base64,/i.test(value)){
-          const version=revision.rows?.[0]?.updated_at
-            ? new Date(revision.rows[0].updated_at).getTime():0;
-          return "/api/public/b2b-share-badge/"+store+"?v="+version;
-        }
-        return null;
-      };
+      const version=revision.rows?.[0]?.updated_at
+        ? new Date(revision.rows[0].updated_at).getTime():0;
       return res.json({
-        appIcon:appLogo,
-        appStoreBadge:resolveBadge(footer.appStoreImage,"app-store"),
-        googlePlayBadge:resolveBadge(footer.googlePlayImage,"google-play"),
+        appIcon:shareAppLogo(branding),
+        appStoreBadge:shareBadgeUrl(footer.appStoreImage,"app-store",version),
+        googlePlayBadge:shareBadgeUrl(footer.googlePlayImage,"google-play",version),
       });
     }catch(e){
       console.error("Public B2B share assets",e);
