@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { fileToCompressedDataUrl } from "@/lib/compress-image";
+import {renderCataloguePdf,type SourceImageBox} from "@/lib/pdf-catalog-pages";
 
 type ImportVariant = {
   name: string;
@@ -51,6 +52,9 @@ type ImportRow = {
   imageSourceUrl: string | null;
   imageReason: string;
   variants: ImportVariant[];
+  sourceDocument?:string;
+  sourcePage?:number;
+  sourceImageReview?:boolean;
 };
 
 const allowedTypes = new Set(["application/pdf", "image/png", "image/jpeg"]);
@@ -188,6 +192,8 @@ export default function AdminProductAiImport() {
   const [imageSearching, setImageSearching] = useState(false);
   const [profitPercent, setProfitPercent] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [analysisProgress,setAnalysisProgress]=useState("");
+  const [analysisWarnings,setAnalysisWarnings]=useState<string[]>([]);
 
   const selectedRows = useMemo(() => rows.filter((row) => row.selected), [rows]);
   const waitingImageCount = selectedRows.filter((row) => row.images.length === 0).length;
@@ -447,8 +453,10 @@ export default function AdminProductAiImport() {
     addFiles(Array.from(event.dataTransfer.files || []));
   }
 
-  async function extractFileWithRetry(file: File) {
-    const dataUrl = await fileToDataUrl(file);
+  async function extractFileWithRetry(file: File, source?:{dataUrl:string;mime:string;name:string}) {
+    const dataUrl = source?.dataUrl || await fileToDataUrl(file);
+    const mime=source?.mime || file.type;
+    const name=source?.name || file.name;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -458,14 +466,15 @@ export default function AdminProductAiImport() {
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: file.name,
-            mime: file.type,
+            name,
+            mime,
             dataUrl,
           }),
         });
 
         const payload = await response.json().catch(() => ({})) as {
           products?: any[];
+          expectedCount?:number;
           error?: string;
           retryable?: boolean;
         };
@@ -507,141 +516,137 @@ export default function AdminProductAiImport() {
   }
 
   async function analyze() {
-    if (!files.length) return;
-
+    if(!files.length)return;
     setAnalyzing(true);
-    const extracted: ImportRow[] = [];
-    const failedFiles: Array<{ name: string; message: string }> = [];
+    setAnalysisProgress('');
+    setAnalysisWarnings([]);
+    const extracted:ImportRow[]=[];
+    const failedFiles:Array<{name:string;message:string}>=[];
+    const warnings:string[]=[];
+    const hasPdf=files.some(f=>f.type==="application/pdf");
 
-    try {
-      for (const file of files) {
-        try {
-          const result = await extractFileWithRetry(file);
-          const products = result.products || [];
-
-          let automaticImage: string | null = null;
-          if (file.type.startsWith("image/") && products.length === 1) {
-            automaticImage = await fileToCompressedDataUrl(file);
-          }
-
-          for (const product of products) {
-            const sku = product.sku || product.barcode || "";
-            const rawPrice =
-              product.salePrice == null
-                ? product.purchasePrice
-                : product.salePrice;
-            const sourcePrice = rawPrice == null ? "" : String(rawPrice);
-
-            extracted.push({
-              key: crypto.randomUUID(),
-              selected: true,
-              sku,
-              barcode: product.barcode || "",
-              name: product.name || "",
-              brand: product.brand || "",
-              category: product.category || "",
-              description: descriptionWithProductCode(product.description, sku),
-              sourcePrice,
-              price: sourcePrice
-                ? priceWithProfit(sourcePrice, profitPercent)
-                : "",
-              stock: product.stock == null ? "0" : String(product.stock),
-              minOrderQty:
-                product.minimumOrderQuantity == null
-                  ? "1"
-                  : String(product.minimumOrderQuantity),
-              unitsPerBox:
-                product.unitsPerBox == null
-                  ? "1"
-                  : String(product.unitsPerBox),
-              collectionName: "",
-              images: automaticImage ? [automaticImage] : [],
-              imageStatus: automaticImage ? "verified" : "idle",
-              imageConfidence: automaticImage ? 1 : null,
-              imageSourceUrl: null,
-              imageReason: automaticImage
-                ? "Yüklenen ürün görselinden doğrudan alındı."
-                : "",
-              variants: variantsFromAi(product),
-            });
-          }
-        } catch (error) {
-          failedFiles.push({
-            name: file.name,
-            message:
-              error instanceof Error
-                ? error.message
-                : "AI analizi tamamlanamadı",
-          });
-        }
-      }
-
-      if (!extracted.length) {
-        throw new Error(
-          failedFiles[0]?.message ||
-            "Dosyalardan ürün verisi çıkarılamadı.",
-        );
-      }
-
-
-      // Reuse catalog photos for the same exact product before searching online.
-      let prepared = extracted;
-      try {
-        const response = await fetch("/api/admin/b2b-products", {
-          credentials: "include",
-          cache: "no-store",
+    function appendProducts(products:any[],file:File,pageNumber:number,
+      crop:(box:SourceImageBox)=>string|null,originalImage:string|null=null){
+      for(const product of products){
+        const box=product.sourceImageBox as SourceImageBox|null;
+        const cropped=box?crop(box):null;
+        const automaticImage=cropped||(products.length===1?originalImage:null);
+        const sku=String(product.sku||product.barcode||"").trim();
+        const price=product.salePrice??product.purchasePrice;
+        const sourcePrice=price==null?"":String(price);
+        const fromList=!!cropped&&file.type==="application/pdf";
+        extracted.push({
+          key:crypto.randomUUID(),selected:true,sku,
+          barcode:String(product.barcode||""),
+          name:String(product.name||""),brand:String(product.brand||""),
+          category:String(product.category||""),
+          description:descriptionWithProductCode(product.description,sku),
+          sourcePrice,price:sourcePrice?priceWithProfit(sourcePrice,profitPercent):"",
+          stock:product.stock==null?"0":String(product.stock),
+          minOrderQty:product.minimumOrderQuantity==null?"1":String(product.minimumOrderQuantity),
+          unitsPerBox:product.unitsPerBox==null?"":String(product.unitsPerBox),
+          collectionName:"",images:automaticImage?[automaticImage]:[],
+          imageStatus:automaticImage?"verified":"idle",
+          imageConfidence:fromList?0.85:automaticImage?1:null,
+          imageSourceUrl:null,
+          imageReason:fromList
+            ?"Yüklenen listenin "+pageNumber+". sayfasından alındı. Eşleşmeyi kontrol edin."
+            :automaticImage?"Yüklenen belgeden doğrudan alındı.":"",
+          variants:variantsFromAi(product),
+          sourceDocument:file.name,sourcePage:pageNumber,
+          sourceImageReview:fromList,
         });
-        if (response.ok) {
-          const catalog: unknown = await response.json();
-          if (Array.isArray(catalog)) {
-            prepared = extracted.map((row) => {
-              if (row.images.length) return row;
-              const image = matchCatalogImage(row, catalog as ExistingCatalogProduct[]);
-              return image ? {
-                ...row,
-                images: [image],
-                imageStatus: "verified" as const,
-                imageConfidence: 1,
-                imageSourceUrl: null,
-                imageReason: "Mevcut ürün listesindeki eşleşen ürün görseli alındı.",
-              } : row;
+      }
+    }
+    try{
+      for(const file of files){
+        try{
+          if(file.type==="application/pdf"){
+            let pageCount=0;
+            for await (const page of renderCataloguePdf(file)){
+              pageCount++;
+              setAnalysisProgress(file.name+": "+page.pageNumber+"/"+page.totalPages+" sayfa");
+              const result=await extractFileWithRetry(file,{
+                dataUrl:page.dataUrl,mime:"image/jpeg",
+                name:file.name+" - sayfa "+page.pageNumber
+              });
+              appendProducts(result.products||[],file,page.pageNumber,page.crop);
+              if(typeof result.expectedCount==="number"&&
+                result.expectedCount!==(result.products||[]).length){
+                warnings.push(file.name+" · Sayfa "+page.pageNumber+": "+
+                  result.expectedCount+" ürün hücresi görüldü, "+
+                  (result.products||[]).length+" ürün çıkarıldı. Kontrol edin.");
+              }
+            }
+            if(!pageCount)warnings.push(file.name+": İşlenecek sayfa bulunamadı.");
+          }else{
+            setAnalysisProgress(file.name+" analiz ediliyor");
+            const result=await extractFileWithRetry(file);
+            const originalImage=file.type.startsWith("image/")?
+              await fileToCompressedDataUrl(file):null;
+            appendProducts(result.products||[],file,1,()=>null,originalImage);
+            if(typeof result.expectedCount==="number"&&
+              result.expectedCount!==(result.products||[]).length){
+              warnings.push(file.name+": "+result.expectedCount+" ürün hücresi görüldü, "+
+                (result.products||[]).length+" ürün çıkarıldı.");
+            }
+          }
+        }catch(error){
+          failedFiles.push({name:file.name,message:error instanceof Error?error.message:"Analiz başarısız"});
+        }
+      }
+      if(!extracted.length)throw Error(failedFiles[0]?.message||"Hiçbir ürün çıkarılamadı.");
+
+      // Products with same model and different colours remain distinct.
+      const occurrences=new Map<string,number>();
+      for(const row of extracted){
+        const code=normalizeIdentifier(row.sku);
+        if(code)occurrences.set(code,(occurrences.get(code)||0)+1);
+      }
+      const serial=new Map<string,number>();
+      for(const row of extracted){
+        const code=normalizeIdentifier(row.sku);
+        if(!code||occurrences.get(code)===1)continue;
+        const count=(serial.get(code)||0)+1;serial.set(code,count);
+        const variant=row.variants.find(v=>v.name==="Renk")?.value||"";
+        const suffix=variant.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+          .replace(/[^a-z0-9]/gi,"").toUpperCase().slice(0,12);
+        row.sku=row.sku+"-"+(suffix||"V")+count;
+        row.description=descriptionWithProductCode(row.description,row.sku);
+        warnings.push(row.name+": Aynı modelin varyantı için ayrı stok kodu oluşturuldu; kontrol edin.");
+      }
+
+      let prepared=extracted;
+      try{
+        const response=await fetch("/api/admin/b2b-products",{credentials:"include",cache:"no-store"});
+        if(response.ok){
+          const catalog:unknown=await response.json();
+          if(Array.isArray(catalog)){
+            prepared=extracted.map(row=>{
+              if(row.images.length)return row;
+              const photo=matchCatalogImage(row,catalog as ExistingCatalogProduct[]);
+              return photo?{...row,images:[photo],imageStatus:"verified" as const,
+                imageConfidence:1,imageSourceUrl:null,
+                imageReason:"Mevcut katalogdaki birebir eşleşen ürünün görseli alındı."}:row;
             });
           }
         }
-      } catch {
-        // A catalog read failure must not block AI extraction.
-      }
-
+      }catch{/* Optional exact catalog match. */}
       setRows(prepared);
-      const withoutImages = prepared.filter((row) => row.images.length === 0).length;
-      toast({
-        title: "AI analizi tamamlandı",
-        description: prepared.length + " ürün listelendi." +
-          (failedFiles.length ? " " + failedFiles.length + " dosya analiz edilemedi." : "") +
-          (withoutImages ? " " + withoutImages + " ürünün görseli otomatik aranıyor." : " Tüm ürün görselleri hazır."),
-      });
-
-      // Missing images are fetched automatically; manual retry remains available.
-      if (withoutImages > 0) void findWebImages(prepared);
-
-      if (failedFiles.length > 0) {
-        toast({
-          title: "Bazı dosyalar atlandı",
-          description: failedFiles
-            .slice(0, 2)
-            .map((item) => `${item.name}: ${item.message}`)
-            .join(" · "),
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Belge analiz edilemedi",
-        description:
-          error instanceof Error ? error.message : "Bilinmeyen hata",
-        variant: "destructive",
-      });
-    } finally {
+      setAnalysisWarnings([...warnings,...failedFiles.map(f=>f.name+": "+f.message)]);
+      const missing=prepared.filter(row=>!row.images.length).length;
+      toast({title:prepared.length+" ürün analiz edildi",
+        description:missing
+          ?missing+" ürün için kaynak görseli bulunamadı; görsel eklenmeden kaydedilemez."
+          :"Listedeki görseller ürün kartlarına alındı. Onay ekranını kontrol edin."});
+      // PDF image mismatches must not silently become unrelated web photos.
+      if(!hasPdf&&missing)void findWebImages(prepared);
+    }catch(error){
+      toast({title:"Belge analiz edilemedi",
+        description:error instanceof Error?error.message:"Bilinmeyen hata",
+        variant:"destructive"});
+    }finally{
+      setAnalysisProgress("");
       setAnalyzing(false);
     }
   }
