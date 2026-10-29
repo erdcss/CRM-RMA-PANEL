@@ -8,6 +8,7 @@ import {captureRef} from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import {appAlert} from '@/lib/appAlert';
 import {absoluteMediaUrl,type B2BProduct} from '@/lib/api';
+import {SHARE_POSTER_RULES} from './share-poster-rules';
 
 // The publicly shared poster must never include pricing, discounts, margins,
 // private supplier information or inventory movement history.
@@ -111,7 +112,7 @@ export function ProductShareSheet({
       // No WKWebView, 8MB Base64 bridge, canvas.toDataURL or file JS write.
       const uri=await captureRef(posterRef,{
         format:'png',result:'tmpfile',
-        width:1080,height:1920,quality:1,
+        width:SHARE_POSTER_RULES.output.width,height:SHARE_POSTER_RULES.output.height,quality:1,
       });
       if(!uri||typeof uri!=='string')throw Error('HD paylaşım görseli oluşturulamadı.');
       await Sharing.shareAsync(uri.startsWith('file://')?uri:'file://'+uri,{
@@ -146,7 +147,7 @@ export function ProductShareSheet({
             style={[styles.poster,{width:posterWidth,height:posterWidth*16/9}]}>
             <View style={styles.posterHeader}>
               <View style={styles.brandLabel}>
-                {!!appIcon&&<NativeImage key={'header-'+appIcon} source={{uri:appIcon}}
+                {!!appIcon && <NativeImage source={{uri:appIcon}}
                   resizeMode="contain" style={styles.headerAppIcon}/>}
                 <Text style={styles.brandWord}>ÇALIŞKAN</Text>
                 <Text style={styles.brandSuffix}>B2B</Text>
@@ -161,14 +162,14 @@ export function ProductShareSheet({
                 <Ionicons name="image-outline" size={40} color="#999"/>}
             </View>
             <View style={styles.details}>
-              {!!product.brand&&<View style={styles.brandTag}><Text style={styles.brandText}
-                numberOfLines={1}>{String(product.brand).slice(0,42)}</Text></View>}
+              {!!product.brand&&<View style={styles.brandTag}>
+                <Text style={styles.brandText} numberOfLines={1}>{String(product.brand).slice(0,42)}</Text>
+              </View>}
               <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-              <View style={styles.separator}/>
               <View style={styles.facts}>
                 {facts.map(([label,value],index)=><View key={label+'-'+index} style={styles.fact}>
                   <Text style={styles.factLabel} numberOfLines={1}>{label.toLocaleUpperCase('tr-TR')}</Text>
-                  <Text style={styles.factValue} numberOfLines={1}>{value}</Text>
+                  <Text style={styles.factValue} numberOfLines={2}>{value}</Text>
                 </View>)}
               </View>
             </View>
@@ -178,7 +179,7 @@ export function ProductShareSheet({
                   onLoad={()=>setLoadedAssets(previous=>({...previous,app:true}))}
                   onError={()=>setAssetsError('Ayarlar’daki uygulama logosu yüklenemedi')}
                   style={{width:'100%',height:'100%'}}/>:
-                  <Text style={{color:'#FFCB05',fontWeight:'900',fontSize:29}}>Ç</Text>}
+                  <Text style={{color:'#FFCB05',fontWeight:'900',fontSize:24}}>Ç</Text>}
               </View>
               <View style={{flex:1}}>
                 <Text style={styles.downloadBrand}>ÇALIŞKAN B2B</Text>
@@ -186,14 +187,18 @@ export function ProductShareSheet({
               </View>
             </View>
             <View style={styles.stores}>
-              {!!appStore&&<NativeImage key={appStore} source={{uri:appStore}} resizeMode="contain"
-                onLoad={()=>setLoadedAssets(previous=>({...previous,apple:true}))}
-                onError={()=>setAssetsError('App Store rozet görseli yüklenemedi')}
-                style={styles.storeBadge}/>}
-              {!!googlePlay&&<NativeImage key={googlePlay} source={{uri:googlePlay}} resizeMode="contain"
-                onLoad={()=>setLoadedAssets(previous=>({...previous,google:true}))}
-                onError={()=>setAssetsError('Google Play rozet görseli yüklenemedi')}
-                style={styles.storeBadge}/>}
+              {!!appStore&&<View style={styles.storeBox}>
+                <NativeImage key={appStore} source={{uri:appStore}} resizeMode="contain"
+                  onLoad={()=>setLoadedAssets(previous=>({...previous,apple:true}))}
+                  onError={()=>setAssetsError('App Store rozet görseli yüklenemedi')}
+                  style={styles.storeBadge}/>
+              </View>}
+              {!!googlePlay&&<View style={styles.storeBox}>
+                <NativeImage key={googlePlay} source={{uri:googlePlay}} resizeMode="contain"
+                  onLoad={()=>setLoadedAssets(previous=>({...previous,google:true}))}
+                  onError={()=>setAssetsError('Google Play rozet görseli yüklenemedi')}
+                  style={styles.storeBadge}/>
+              </View>}
             </View>
             <Text style={styles.domain}>b2b.ecalisgan.com</Text>
           </View>
@@ -227,42 +232,45 @@ const styles=StyleSheet.create({
     alignSelf:'center',marginTop:10,marginBottom:12},
   header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:10},
   heading:{fontSize:19,fontWeight:'900',color:'#171717'},
-  poster:{backgroundColor:'#FAFAF8',overflow:'hidden',
-    borderWidth:1,borderColor:'#E6E6E6',borderRadius:9,paddingHorizontal:13},
-  posterHeader:{height:'13%',justifyContent:'center',flexDirection:'row',alignItems:'center'},
-  brandLabel:{backgroundColor:'#181818',borderRadius:8,width:'91%',
-    height:42,justifyContent:'center',paddingLeft:14,flexDirection:'row',alignItems:'center',gap:8},
-  headerAppIcon:{width:35,height:35,borderRadius:6},
-  brandWord:{fontSize:21,fontWeight:'900',color:'#FFCB05',letterSpacing:-.6},
-  brandSuffix:{fontSize:10,fontWeight:'900',color:'#FFFFFF',position:'absolute',right:13},
-  brandAccent:{position:'absolute',bottom:4,left:0,right:0,height:2,backgroundColor:'#FFCB05'},
-  hero:{height:'42%',backgroundColor:'#FFFFFF',borderRadius:12,
-    justifyContent:'center',alignItems:'center',padding:6},
-  productImage:{height:'100%',width:'100%'},
-  details:{marginTop:7,height:'24%',backgroundColor:'#FFFFFF',borderRadius:10,
-    paddingHorizontal:10,paddingVertical:7},
-  brandTag:{backgroundColor:'#171717',alignSelf:'flex-start',borderRadius:4,
-    paddingHorizontal:6,paddingVertical:3,marginBottom:4,maxWidth:'100%'},
-  brandText:{color:'#FFFFFF',fontSize:10,fontWeight:'800'},
-  productName:{fontSize:15,fontWeight:'900',color:'#181818',lineHeight:18},
-  separator:{height:1,backgroundColor:'#E6E6E6',marginVertical:4},
-  facts:{flex:1,flexDirection:'row',flexWrap:'wrap',alignContent:'flex-start'},
-  fact:{width:'50%',paddingRight:5,marginBottom:3},
-  factLabel:{fontSize:7,color:'#737373',fontWeight:'700'},
-  factValue:{fontSize:10,color:'#171717',fontWeight:'800'},
-  download:{height:'11%',flexDirection:'row',backgroundColor:'#FFCB05',
-    borderRadius:9,alignItems:'center',paddingHorizontal:10,marginTop:8,gap:9},
-  appIcon:{width:37,height:37,borderRadius:7,backgroundColor:'#171717',
+  poster:{backgroundColor:'#F5F5F3',overflow:'hidden',borderWidth:1,borderColor:'#E6E6E6',
+    borderRadius:12,paddingHorizontal:10,paddingTop:9,paddingBottom:6},
+  posterHeader:{height:49,marginBottom:4,justifyContent:'center'},
+  brandLabel:{backgroundColor:'#181818',borderRadius:10,width:'100%',height:43,
+    flexDirection:'row',alignItems:'center',paddingHorizontal:11,gap:8},
+  headerAppIcon:{width:33,height:33,borderRadius:7},
+  brandWord:{fontSize:20,fontWeight:'900',color:'#FFCB05',letterSpacing:-.5,flexShrink:1},
+  brandSuffix:{fontSize:10,fontWeight:'900',color:'#FFFFFF',marginLeft:'auto'},
+  brandAccent:{height:2,backgroundColor:'#FFCB05',borderRadius:3,position:'absolute',
+    left:0,right:0,bottom:0},
+  hero:{height:160,backgroundColor:'#FFFFFF',borderRadius:12,
+    justifyContent:'center',alignItems:'center',padding:7,marginBottom:6},
+  productImage:{width:'100%',height:'100%'},
+  details:{height:142,backgroundColor:'#FFFFFF',borderRadius:11,
+    paddingHorizontal:8,paddingVertical:6,marginBottom:6},
+  brandTag:{backgroundColor:'#171717',alignSelf:'flex-start',borderRadius:5,
+    paddingHorizontal:7,paddingVertical:2,marginBottom:3,maxWidth:'95%'},
+  brandText:{fontSize:9,color:'#FFFFFF',fontWeight:'800'},
+  productName:{fontSize:14,lineHeight:16,fontWeight:'900',color:'#181818',marginBottom:4},
+  facts:{flex:1,flexDirection:'row',flexWrap:'wrap',gap:4,alignContent:'flex-start'},
+  fact:{width:'49%',minHeight:29,backgroundColor:'#F5F5F5',
+    borderWidth:1,borderColor:'#E9E9E9',borderRadius:6,paddingHorizontal:6,paddingVertical:3},
+  factLabel:{fontSize:6.5,color:'#707070',fontWeight:'700'},
+  factValue:{fontSize:9.5,lineHeight:11,color:'#151515',fontWeight:'900'},
+  download:{height:44,flexDirection:'row',alignItems:'center',backgroundColor:'#FFCB05',
+    borderRadius:10,paddingHorizontal:9,gap:8,marginBottom:5},
+  appIcon:{width:34,height:34,borderRadius:7,backgroundColor:'#171717',
     justifyContent:'center',alignItems:'center',overflow:'hidden'},
-  downloadBrand:{fontSize:11,color:'#181818',fontWeight:'900'},
-  downloadTitle:{fontSize:13,color:'#181818',fontWeight:'900'},
-  stores:{height:'5%',flexDirection:'row',justifyContent:'center',alignItems:'center',gap:9},
-  storeBadge:{width:103,height:23},
-  domain:{fontSize:8,color:'#737373',textAlign:'center',marginTop:1},
+  downloadBrand:{fontSize:10,color:'#171717',fontWeight:'900'},
+  downloadTitle:{fontSize:12,color:'#171717',fontWeight:'900'},
+  stores:{height:33,flexDirection:'row',justifyContent:'center',alignItems:'center',gap:10},
+  storeBox:{width:'46%',height:31,backgroundColor:'#FFFFFF',borderWidth:1,
+    borderColor:'#E2E2E2',borderRadius:7,alignItems:'center',justifyContent:'center',padding:3},
+  storeBadge:{width:'96%',height:'96%'},
+  domain:{fontSize:8,color:'#707070',textAlign:'center',marginTop:3},
   note:{fontSize:11,color:'#686868',marginVertical:12,textAlign:'center'},
   error:{fontSize:11,color:'#B91C1C',textAlign:'center',marginBottom:7},
-  shareButton:{backgroundColor:'#FFCB05',borderRadius:12,height:50,
-    width:'100%',flexDirection:'row',gap:9,justifyContent:'center',alignItems:'center'},
+  shareButton:{backgroundColor:'#FFCB05',borderRadius:12,height:50,width:'100%',
+    flexDirection:'row',gap:9,justifyContent:'center',alignItems:'center'},
   shareLabel:{fontSize:14,color:'#171717',fontWeight:'900'},
   help:{fontSize:11,color:'#747474',textAlign:'center',marginTop:9},
 });
