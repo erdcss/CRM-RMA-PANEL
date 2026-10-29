@@ -1030,7 +1030,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       const model =
         process.env.OPENAI_PRODUCT_MODEL ||
         process.env.OPENAI_MODEL ||
-        "gpt-4o-mini";
+        "gpt-4.1";
 
       // PDF/table extraction can legitimately take longer than 45 seconds.
       // Use one longer request instead of two short SDK retries, which previously
