@@ -566,16 +566,22 @@ export default function AdminProductAiImport() {
             for await (const page of renderCataloguePdf(file)){
               pageCount++;
               setAnalysisProgress(file.name+": "+page.pageNumber+"/"+page.totalPages+" sayfa");
-              const result=await extractFileWithRetry(file,{
-                dataUrl:page.dataUrl,mime:"image/jpeg",
-                name:file.name+" - sayfa "+page.pageNumber
-              });
-              appendProducts(result.products||[],file,page.pageNumber,page.crop);
-              if(typeof result.expectedCount==="number"&&
-                result.expectedCount!==(result.products||[]).length){
-                warnings.push(file.name+" · Sayfa "+page.pageNumber+": "+
-                  result.expectedCount+" ürün hücresi görüldü, "+
-                  (result.products||[]).length+" ürün çıkarıldı. Kontrol edin.");
+              try{
+                const result=await extractFileWithRetry(file,{
+                  dataUrl:page.dataUrl,mime:"image/jpeg",
+                  name:file.name+" - sayfa "+page.pageNumber
+                });
+                appendProducts(result.products||[],file,page.pageNumber,page.crop);
+                if(typeof result.expectedCount==="number"&&
+                  result.expectedCount!==(result.products||[]).length){
+                  warnings.push(file.name+" · Sayfa "+page.pageNumber+": "+
+                    result.expectedCount+" ürün hücresi görüldü, "+
+                    (result.products||[]).length+" ürün çıkarıldı. Kontrol edin.");
+                }
+              }catch(error){
+                warnings.push(file.name+" · "+page.pageNumber+". sayfa çözümlenemedi: "+
+                  (error instanceof Error?error.message:"Tekrar deneyin")+
+                  ". Diğer sayfalar korunuyor; eksik sayfayı yeniden analiz edin.");
               }
             }
             if(!pageCount)warnings.push(file.name+": İşlenecek sayfa bulunamadı.");
