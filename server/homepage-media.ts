@@ -13,7 +13,7 @@ function safeString(value: unknown, max = 180) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-type Banner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
+type Banner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string; imageWidth?: number; imageHeight?: number };
 type CategoryCard = { category: string; label: string; imageId: string; tags: string[] };
 
 export type MobileHomeLayout = {
@@ -32,6 +32,8 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
     subtitle: safeString(item?.subtitle, 240),
     buttonText: safeString(item?.buttonText, 45),
     imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
+    imageWidth: Number.isSafeInteger(item?.imageWidth) && item.imageWidth > 0 && item.imageWidth <= 16384 ? item.imageWidth : undefined,
+    imageHeight: Number.isSafeInteger(item?.imageHeight) && item.imageHeight > 0 && item.imageHeight <= 16384 ? item.imageHeight : undefined,
   }));
   const categoryCards = (Array.isArray(input.categoryCards) ? input.categoryCards : []).slice(0, 30).map((item: any) => ({
     category: safeString(item?.category, 80),
@@ -129,11 +131,13 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
     if (!(mime === "image/png" && isPng || mime === "image/jpeg" && isJpeg || mime === "image/gif" && isGif || mime === "image/webp" && isWebp)) {
       return res.status(400).json({ error: "Görsel dosyası hatalı." });
     }
-    if (req.body?.purpose === "mobile_banner") {
-      const dimensions = imageDimensions(bytes, mime);
-      if (!dimensions || dimensions.width !== 1200 || dimensions.height !== 360) {
-        return res.status(400).json({ error: "Mobil banner görseli tam olarak 1200 × 360 piksel olmalıdır." });
-      }
+    // Any aspect ratio is accepted (portrait, landscape, square). Reject only
+    // malformed/unsafe raster dimensions, not a predefined banner size.
+    const dimensions = imageDimensions(bytes, mime);
+    if (!dimensions || dimensions.width < 1 || dimensions.height < 1 ||
+        dimensions.width > 16384 || dimensions.height > 16384 ||
+        dimensions.width * dimensions.height > 40_000_000) {
+      return res.status(400).json({ error: "Geçerli ve güvenli boyutlarda bir PNG, JPEG, WebP veya GIF görsel yükleyin." });
     }
     const id = randomBytes(16).toString("hex");
     try {
@@ -141,7 +145,7 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
         `INSERT INTO platform_settings (key,value,updated_at) VALUES ($1,$2,NOW())`,
         [MEDIA_PREFIX + id, raw],
       );
-      return res.status(201).json({ id, url: homepageImageUrl(id) });
+      return res.status(201).json({ id, url: homepageImageUrl(id), imageWidth: dimensions.width, imageHeight: dimensions.height });
     } catch (err) {
       console.error("Homepage media upload failed:", err);
       return res.status(500).json({ error: "Görsel kaydedilemedi." });
