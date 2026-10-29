@@ -3,6 +3,8 @@ on:
   push:
     paths:
       - 'server/admin-platform.ts'
+      - 'server/b2b-share-asset-urls.ts'
+      - 'server/b2b-share-asset-urls.test.ts'
       - 'client/src/pages/ayarlar.tsx'
       - 'client/src/hooks/use-branding.ts'
       - '.github/workflows/b2b-branding-build.yml'
@@ -19,4 +21,5 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
+      - run: npx tsx --test server/b2b-share-asset-urls.test.ts
       - run: npm run build
