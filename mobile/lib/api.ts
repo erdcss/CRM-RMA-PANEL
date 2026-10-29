@@ -188,7 +188,12 @@ export type MarketplaceCart = {
   subtotal:number;currency:string;paymentEnabled:boolean;notice:string;
 };
 
-export type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string; imageWidth?: number; imageHeight?: number };
+export type HomeBanner = {
+  id:string;title:string;subtitle:string;buttonText:string;imageId:string;
+  imageWidth?:number;imageHeight?:number;
+  linkType?:'none'|'product'|'page'|'url';productId?:number|null;
+  pagePath?:string;externalUrl?:string;
+};
 export type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
 export type B2BHomepage = {
   categories: string[];
