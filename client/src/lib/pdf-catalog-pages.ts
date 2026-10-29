@@ -37,11 +37,11 @@ export async function* renderCataloguePdf(file:File):AsyncGenerator<RenderedCata
  const pdfjs=await import('pdfjs-dist');
  const worker=await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
  pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
- const pdf=await pdfjs.getDocument({
+ const loadingTask=pdfjs.getDocument({
    data:new Uint8Array(await file.arrayBuffer()),
-   isEvalSupported:false,
    useSystemFonts:true,
- }).promise;
+ });
+ const pdf=await loadingTask.promise;
  if(pdf.numPages>100)throw Error('Bir PDF en fazla 100 sayfa içerebilir. Dosyayı bölerek yükleyin.');
  try{
    for(let n=1;n<=pdf.numPages;n++){
@@ -63,5 +63,5 @@ export async function* renderCataloguePdf(file:File):AsyncGenerator<RenderedCata
      };
      page.cleanup();
    }
- }finally{await pdf.destroy();}
+ }finally{await loadingTask.destroy();}
 }
