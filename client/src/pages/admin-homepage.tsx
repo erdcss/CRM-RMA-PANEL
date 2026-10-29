@@ -8,7 +8,17 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string; imageWidth?: number; imageHeight?: number };
+type HomeBanner = {
+  id:string;title:string;subtitle:string;buttonText:string;imageId:string;
+  imageWidth?:number;imageHeight?:number;
+  linkType:'none'|'product'|'page'|'url';productId:number|null;pagePath:string;externalUrl:string;
+};
+type ProductOption={id:number|string;name:string;sku?:string|null};
+const pageDestinations=[
+  {path:'/(tabs)',label:'Ana Sayfa'}, {path:'/(tabs)/products',label:'Ürünler'},
+  {path:'/(tabs)/discover',label:'Keşfet'}, {path:'/(tabs)/menu',label:'Menü'},
+  {path:'/ledger',label:'Defter'}, {path:'/notifications',label:'Bildirimler'}
+];
 type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
 
 type HomepageConfig = {
@@ -39,6 +49,10 @@ export default function AdminHomepage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [productSearch,setProductSearch]=useState<Record<string,string>>({});
+  const {data:productOptions=[]}=useQuery<ProductOption[]>({
+    queryKey:["/api/admin/b2b-products"],
+  });
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
   const [ledgerTileImageId, setLedgerTileImageId] = useState('');
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
@@ -99,7 +113,10 @@ export default function AdminHomepage() {
 
   function addBanner() {
     const id = Array.from(crypto.getRandomValues(new Uint8Array(16))).map((x) => x.toString(16).padStart(2, "0")).join("");
-    setBanners((items) => [...items, { id, title: "", subtitle: "", buttonText: "Ürünleri Keşfet", imageId: "" }].slice(0, 12));
+    setBanners((items) => [...items, {
+      id,title:"",subtitle:"",buttonText:"Ürünleri Keşfet",imageId:"",
+      linkType:"none",productId:null,pagePath:"",externalUrl:"",
+    }].slice(0,12));
   }
 
   function addCategory(raw: string) {
@@ -127,6 +144,16 @@ export default function AdminHomepage() {
   }
 
   async function save() {
+    const invalid=banners.find(banner=>
+      (banner.linkType==='product'&&(!banner.productId||!productOptions.some(p=>Number(p.id)===Number(banner.productId))))||
+      (banner.linkType==='page'&&!pageDestinations.some(page=>page.path===banner.pagePath))||
+      (banner.linkType==='url'&&!/^https:\/\/[^\s/]+(?:\/[^\s]*)?$/.test(banner.externalUrl||''))
+    );
+    if(invalid){
+      toast({title:"Banner bağlantısı eksik veya geçersiz",
+        description:"Ürün, uygulama sayfası veya HTTPS adresini kontrol edin.",variant:"destructive"});
+      return;
+    }
     setSaving(true);
     try {
       const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs });
@@ -328,6 +355,62 @@ export default function AdminHomepage() {
                   <label className="space-y-1 text-xs font-semibold">Buton metni<Input maxLength={45} value={banner.buttonText} onChange={e => setBanners(items => items.map(x => x.id === banner.id ? { ...x, buttonText: e.target.value } : x))} /></label>
                   <label className="space-y-1 text-xs font-semibold md:col-span-2">Açıklama<Input maxLength={240} value={banner.subtitle} onChange={e => setBanners(items => items.map(x => x.id === banner.id ? { ...x, subtitle: e.target.value } : x))} /></label>
                 </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2 rounded-xl border bg-muted/20 p-3">
+                  <label className="space-y-1 text-xs font-semibold">
+                    Banner bağlantı tipi
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={banner.linkType||'none'}
+                      onChange={event=>setBanners(items=>items.map(x=>x.id===banner.id?
+                        {...x,linkType:event.target.value as HomeBanner['linkType'],
+                          productId:null,pagePath:'',externalUrl:''}:x))}>
+                      <option value="none">Bağlantı yok</option>
+                      <option value="product">Ürün sayfasına git</option>
+                      <option value="page">Uygulama sayfasına git</option>
+                      <option value="url">Harici HTTPS bağlantısı</option>
+                    </select>
+                  </label>
+                  {banner.linkType==='product'&&<div className="space-y-2">
+                    <label className="text-xs font-semibold">Ürün adı veya stok kodu ara
+                      <Input placeholder="Ürün ara..." value={productSearch[banner.id]||''}
+                        onChange={event=>setProductSearch(q=>({...q,[banner.id]:event.target.value}))}/>
+                    </label>
+                    <select aria-label="Bannerın yönlendireceği ürün"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={banner.productId||''}
+                      onChange={event=>setBanners(items=>items.map(x=>x.id===banner.id?
+                        {...x,productId:Number(event.target.value)||null}:x))}>
+                      <option value="">Ürün seçin</option>
+                      {productOptions.filter(p=>{
+                        const q=(productSearch[banner.id]||'').toLocaleLowerCase('tr-TR');
+                        return Number(p.id)===Number(banner.productId)||!q||
+                          (p.name+' '+(p.sku||'')).toLocaleLowerCase('tr-TR').includes(q);
+                      }).slice(0,120).map(p=>
+                        <option key={String(p.id)} value={String(p.id)}>{p.name} {p.sku?'· '+p.sku:''}</option>)}
+                    </select>
+                  </div>}
+                  {banner.linkType==='page'&&<label className="space-y-1 text-xs font-semibold">
+                    Açılacak uygulama sayfası
+                    <select aria-label="Banner sayfa bağlantısı"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={banner.pagePath||''}
+                      onChange={event=>setBanners(items=>items.map(x=>x.id===banner.id?
+                        {...x,pagePath:event.target.value}:x))}>
+                      <option value="">Sayfa seçin</option>
+                      {pageDestinations.map(p=><option key={p.path} value={p.path}>{p.label}</option>)}
+                    </select>
+                  </label>}
+                  {banner.linkType==='url'&&<label className="space-y-1 text-xs font-semibold">
+                    Harici bağlantı (HTTPS)
+                    <Input type="url" placeholder="https://example.com/..."
+                      value={banner.externalUrl||''}
+                      onChange={event=>setBanners(items=>items.map(x=>x.id===banner.id?
+                        {...x,externalUrl:event.target.value}:x))}/>
+                  </label>}
+                  <p className="md:col-span-2 text-xs text-muted-foreground">
+                    Görsele veya banner butonuna dokunulduğunda seçilen hedef açılır.
+                    Bağlantı yoksa banner yalnızca görsel olarak gösterilir.
+                  </p>
+                </div>
                 <div className="mt-3 flex flex-wrap items-center gap-4">
                   <label className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-muted">
                     {banner.imageId ? "Görseli Değiştir" : "Banner Görseli Ekle"}
@@ -339,7 +422,12 @@ export default function AdminHomepage() {
                     <span>Yatay, dikey, kare · Maksimum 3 MB · PNG, JPG, WebP veya GIF</span>
                     <span className="block">Görsel oranı korunur; ekran genişliğine uyum sağlar.</span>
                   </div>
-                  {banner.imageId ? <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title || "Banner önizlemesi"} className="w-full max-w-[420px] max-h-[300px] rounded-lg border bg-muted/20 object-contain" /> : null}
+                  {banner.imageId ? <div className="w-full max-w-[420px]">
+                    <img src={`/api/public/homepage/media/${banner.imageId}`}
+                      alt={banner.title||"Banner önizlemesi"}
+                      className="block w-full h-auto rounded-lg border" />
+                    <p className="mt-1 text-xs text-muted-foreground">Görselin gerçek oranı korunur; mobil çerçeve aynı orana uyarlanır.</p>
+                  </div> : null}
                 </div>
               </div>
             )) : <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Banner bulunmuyor. Yeni bir banner ekleyerek başlayın.</p>}
