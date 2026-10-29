@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string };
+type HomeBanner = { id: string; title: string; subtitle: string; buttonText: string; imageId: string; imageWidth?: number; imageHeight?: number };
 type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
 
 type HomepageConfig = {
@@ -68,29 +68,7 @@ export default function AdminHomepage() {
     });
   }
 
-  async function validateBannerDimensions(file: File): Promise<boolean> {
-    const url = URL.createObjectURL(file);
-    try {
-      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
-        image.onerror = () => reject(new Error("Görsel boyutları okunamadı."));
-        image.src = url;
-      });
-      if (dimensions.width !== 1200 || dimensions.height !== 360) {
-        toast({ title: "Banner ölçüsü uygun değil", description: "Yalnızca 1200 × 360 piksel (uzun-ince) banner yüklenebilir.", variant: "destructive" });
-        return false;
-      }
-      return true;
-    } catch {
-      toast({ title: "Görsel okunamadı", description: "Geçerli bir 1200 × 360 piksel görsel seçin.", variant: "destructive" });
-      return false;
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  }
-
-  async function uploadMedia(file: File, onReady: (id: string) => void, purpose?: "mobile_banner") {
+  async function uploadMedia(file: File, onReady: (id: string, imageWidth?: number, imageHeight?: number) => void, purpose?: "mobile_banner") {
     if (file.size > 3 * 1024 * 1024) {
       toast({ title: "Görsel büyük", description: "En fazla 3 MB PNG, JPEG, WebP veya GIF yüklenebilir.", variant: "destructive" });
       return;
@@ -110,7 +88,7 @@ export default function AdminHomepage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Görsel kaydedilemedi");
-      onReady(String(result.id));
+      onReady(String(result.id), Number(result.imageWidth)||undefined, Number(result.imageHeight)||undefined);
       toast({ title: "Görsel yüklendi", description: "Yayımlamak için değişiklikleri kaydedin." });
     } catch (error) {
       toast({ title: "Görsel yüklenemedi", description: error instanceof Error ? error.message : "Tekrar deneyin", variant: "destructive" });
@@ -317,7 +295,7 @@ export default function AdminHomepage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
             <div>
               <h2 className="text-lg font-bold">Mobil Ana Sayfa Bannerları</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sabit banner ölçüsü: 1200 × 360 piksel (10:3). Farklı ölçüdeki görseller kabul edilmez.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Yatay, dikey veya kare: Her en-boy oranındaki bannerı yükleyebilirsiniz. Görsel mobilde kesilmeden ölçeklenir.</p>
             </div>
             <Button type="button" variant="outline" onClick={addBanner} disabled={banners.length >= 12}><Plus className="mr-2 h-4 w-4" /> Banner Ekle</Button>
           </div>
@@ -354,14 +332,14 @@ export default function AdminHomepage() {
                   <label className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-semibold hover:bg-muted">
                     {banner.imageId ? "Görseli Değiştir" : "Banner Görseli Ekle"}
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading}
-                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void (async () => { if (await validateBannerDimensions(file)) await uploadMedia(file, (imageId) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId } : x)), "mobile_banner"); })(); e.target.value = ""; }} />
+                      onChange={(e) => { const file = e.target.files?.[0]; if (file) void (async () => { await uploadMedia(file, (imageId, imageWidth, imageHeight) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId, imageWidth, imageHeight } : x)), "mobile_banner"); })(); e.target.value = ""; }} />
                   </label>
                   <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground" role="note">
-                    <strong className="block text-sm text-foreground">Gerekli banner ölçüsü: 1200 × 360 px</strong>
-                    <span>Uzun-ince yatay görsel · 10:3 oran · Maksimum 3 MB · PNG, JPG, WebP veya GIF</span>
-                    <span className="block">Farklı piksel ölçülerindeki görseller yüklenemez.</span>
+                    <strong className="block text-sm text-foreground">Serbest görsel ölçüsü</strong>
+                    <span>Yatay, dikey, kare · Maksimum 3 MB · PNG, JPG, WebP veya GIF</span>
+                    <span className="block">Görsel oranı korunur; ekran genişliğine uyum sağlar.</span>
                   </div>
-                  {banner.imageId ? <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title || "Banner önizlemesi"} className="w-full max-w-[420px] aspect-[10/3] rounded-lg object-contain" /> : null}
+                  {banner.imageId ? <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title || "Banner önizlemesi"} className="w-full max-w-[420px] max-h-[300px] rounded-lg border bg-muted/20 object-contain" /> : null}
                 </div>
               </div>
             )) : <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Banner bulunmuyor. Yeni bir banner ekleyerek başlayın.</p>}
