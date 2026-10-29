@@ -1067,11 +1067,11 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
                 "Her ürünü ayrı kaydet. Sayısal alanları sayı, bilinmeyen alanları null yap. " +
                 "category alanına belgede geçen gerçek ürün kategorisini yaz; kategori belirtilmiyorsa null bırak. " +
                 "Stok kodu, barkod, marka, ürün adı, satın alma/satış fiyatı, stok, koli içi adet ve minimum sipariş alanlarını özellikle ayır. " +
-                "Tabloda aynı satıra ait bilgileri başka satırlarla karıştırma. Barkod ve stok kodlarını metin olarak eksiksiz koru.",
-                "Özellikle fiyat listelerinde soldaki ve sağdaki TÜM ürünleri, sayfadaki sırasıyla tek tek çıkar. Aynı modelin farklı renklerini ayrı ürün olarak tut.",
-                "expectedCount: bu SAYFADA görüntülenen toplam benzersiz ürün hücresi sayısı. products uzunluğu bu sayıya eşit olmalı. Boş tablo hücresini sayma.",
-                "Satış fiyatı veya liste fiyatı yazıyorsa salePrice alanına geçir; bu tutarı purchasePrice olarak iki kez yazma. Koli içi adet stock değildir.",
-                "Stok, KDV, minimum sipariş ve barkod listede yoksa null bırak. Sayfa üzerindeki ürünün fotoğrafını bul ve sourceImageBox içine görüntünün TAM dikdörtgenini 0..1000 normalize koordinatlarında x,y,width,height yaz. Sadece ürünü içeren fotoğrafı kapsa; fiyat, komşu ürün ya da metin sütununu katma. Görsel yoksa sourceImageBox null.",
+                "Tabloda aynı satıra ait bilgileri başka satırlarla karıştırma. Barkod ve stok kodlarını metin olarak eksiksiz koru." +
+                "Özellikle fiyat listelerinde soldaki ve sağdaki TÜM ürünleri, sayfadaki sırasıyla tek tek çıkar. Aynı modelin farklı renklerini ayrı ürün olarak tut." +
+                "expectedCount: bu SAYFADA görüntülenen toplam benzersiz ürün hücresi sayısı. products uzunluğu bu sayıya eşit olmalı. Boş tablo hücresini sayma." +
+                "Satış fiyatı veya liste fiyatı yazıyorsa salePrice alanına geçir; bu tutarı purchasePrice olarak iki kez yazma. Koli içi adet stock değildir." +
+                "Stok, KDV, minimum sipariş ve barkod listede yoksa null bırak. Sayfa üzerindeki ürünün fotoğrafını bul ve sourceImageBox içine görüntünün TAM dikdörtgenini 0..1000 normalize koordinatlarında x,y,width,height yaz. Sadece ürünü içeren fotoğrafı kapsa; fiyat, komşu ürün ya da metin sütununu katma. Görsel yoksa sourceImageBox null." +
                 "Koyu arka planlı, küçük veya birden fazla renkli ürün resmi varsa yine kendi hücresindeki tek ürün resim alanını işaretle. Bbox uydurma; kararsızsan null yap.",
             },
             source,
