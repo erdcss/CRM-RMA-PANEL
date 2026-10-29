@@ -56,7 +56,7 @@ function productImage(product: B2BProduct) {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const { session } = useAuth();
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -76,11 +76,21 @@ export default function HomeScreen() {
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
   const bannerWidth = screenWidth;
   const [bannerIndex, setBannerIndex] = useState(0);
+  const [loadedBannerSizes,setLoadedBannerSizes]=useState<Record<string,{width:number;height:number}>>({});
   const bannerScrollRef = useRef<ScrollView>(null);
   const newProductsScrollRef = useRef<ScrollView>(null);
   const newProductsIndexRef = useRef(0);
   const [newProductsWidth, setNewProductsWidth] = useState(0);
   const bannerIndexRef = useRef(0);
+  const activeBanner=banners[bannerIndex];
+  const activeSize=activeBanner ? (loadedBannerSizes[activeBanner.imageId] ||
+    ((activeBanner.imageWidth && activeBanner.imageHeight) ? {width:activeBanner.imageWidth,height:activeBanner.imageHeight} : null)) : null;
+  // The slide height follows its original ratio, with a reasonable maximum
+  // for portrait banners. contentFit=contain guarantees no cropping.
+  const naturalHeight=activeSize?.width&&activeSize?.height
+    ? bannerWidth * activeSize.height / activeSize.width : bannerWidth * 0.3;
+  const bannerHeight=Math.round(Math.min(Math.max(naturalHeight,bannerWidth*0.18),
+    Math.min(screenHeight*0.60,bannerWidth*1.25)));
   const [scannerOpen, setScannerOpen] = useState(false);
   const scanLockedRef = useRef(false);
   const [query, setQuery] = useState('');
@@ -326,13 +336,13 @@ export default function HomeScreen() {
         {banners.length > 0 ? (
           <>
             <View
-              style={[styles.carouselContainer, { width: bannerWidth, height: bannerWidth * 3 / 10 }]}
+              style={[styles.carouselContainer, { width: bannerWidth, height: bannerHeight }]}
             >
               {bannerWidth > 0 ? (
                 <ScrollView
                   ref={bannerScrollRef}
                   horizontal
-                  style={{ width: bannerWidth, height: bannerWidth * 3 / 10 }}
+                  style={{ width: bannerWidth, height: bannerHeight }}
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   scrollEventThrottle={100}
@@ -348,11 +358,17 @@ export default function HomeScreen() {
                         <Image
                           source={{ uri: homepageMediaUrl(banner.imageId)! }}
                           style={styles.carouselImage}
-                          contentFit="cover"
+                          contentFit="contain"
                           cachePolicy="memory-disk"
                           transition={180}
                           onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
-                          onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
+                          onLoad={(event) => {
+                            setFailedBannerIds(ids => ids.filter(id => id !== banner.id));
+                            const width=event.source?.width, height=event.source?.height;
+                            if(width>0 && height>0)setLoadedBannerSizes(previous=>
+                              previous[banner.imageId]?.width===width&&previous[banner.imageId]?.height===height
+                                ? previous : {...previous,[banner.imageId]:{width,height}});
+                          }}
                         />
                       ) : null}
                       {failedBannerIds.includes(banner.id) ? (
@@ -662,7 +678,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: 15, alignSelf: 'center', width: '100%', aspectRatio: 10 / 3, marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselContainer: { marginTop: 15, alignSelf: 'center', width: '100%', marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
   carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
   bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
