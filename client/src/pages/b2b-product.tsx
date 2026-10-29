@@ -1,16 +1,18 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { trackProductView } from "@/lib/analytics";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, BadgeCheck, Boxes, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Boxes, ChevronLeft, ChevronRight, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
+import { B2BFooter } from "@/components/b2b-footer";
+import { B2BProductCard } from "@/components/b2b-product-card";
 import { useBranding } from "@/hooks/use-branding";
 import { addB2BCartItem, refreshB2BCart } from "@/lib/b2b-cart";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { loadApprovedSupplierProduct, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
+import { loadApprovedSupplierProduct, loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 
 type SessionUser = {
   role?: string;
@@ -22,6 +24,13 @@ async function loadSession(): Promise<SessionUser | null> {
   const response = await fetch("/api/auth/me", { credentials: "include" });
   if (!response.ok) return null;
   return response.json();
+}
+
+async function loadAvailableProducts(): Promise<UnifiedB2BProduct[]> {
+  const response = await fetch("/api/b2b/products", { credentials: "include" });
+  if (!response.ok) throw new Error("Ürün listesi yüklenemedi");
+  const products: unknown = await response.json();
+  return Array.isArray(products) ? products as UnifiedB2BProduct[] : [];
 }
 
 async function loadProduct(id: string): Promise<UnifiedB2BProduct> {
@@ -48,6 +57,7 @@ export default function B2BProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [added,setAdded] = useState(false);
+  const arrivalsRailRef = useRef<HTMLDivElement>(null);
   useEffect(()=>{if(!added)return;const t=window.setTimeout(()=>setAdded(false),2400);return ()=>window.clearTimeout(t);},[added]);
 
   const { data: product, isLoading, error } = useQuery({
@@ -56,6 +66,30 @@ export default function B2BProductPage() {
     enabled: Boolean(id),
     staleTime: 30_000,
   });
+
+  const { data: ownProducts = [], isLoading: loadingOwn } = useQuery<UnifiedB2BProduct[]>({
+    queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
+    queryFn: loadAvailableProducts,
+    staleTime: 30_000,
+  });
+  const { data: supplierProducts = [], isLoading: loadingSuppliers } = useQuery<UnifiedB2BProduct[]>({
+    queryKey: ["/api/marketplace/products", loggedIn ? "member" : "guest"],
+    queryFn: loadApprovedSupplierProducts,
+    staleTime: 30_000,
+  });
+
+  // Include only live, approved listings returned by the public catalog APIs.
+  // Use actual creation time rather than array position or unrelated product IDs.
+  const newArrivals = useMemo(() => {
+    return [...ownProducts, ...supplierProducts]
+      .filter(item => String(item.id) !== String(id))
+      .sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
+      })
+      .slice(0, 12);
+  }, [ownProducts, supplierProducts, id]);
 
   useEffect(() => {
     if (product?.id) void trackProductView(product.id, product.name, Number(product.price || 0));
@@ -296,7 +330,44 @@ export default function B2BProductPage() {
             </div>
           </section>
         </div>
+
+        <section aria-labelledby="new-arrivals-heading" className="mt-10 sm:mt-12">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="new-arrivals-heading" className="text-xl font-black text-slate-950 sm:text-2xl">Yeni Gelen Ürünler</h2>
+              <p className="mt-1 text-sm text-slate-500">Kataloğumuza en son eklenen ürünleri keşfedin.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/" className="mr-1 text-sm font-semibold text-amber-800 hover:underline">Tüm ürünler</Link>
+              <button type="button" aria-label="Ürünlerde sola kaydır"
+                onClick={() => arrivalsRailRef.current?.scrollBy({left:-265,behavior:"smooth"})}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:border-amber-400 hover:bg-amber-50">
+                <ChevronLeft className="h-5 w-5"/>
+              </button>
+              <button type="button" aria-label="Ürünlerde sağa kaydır"
+                onClick={() => arrivalsRailRef.current?.scrollBy({left:265,behavior:"smooth"})}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 hover:border-amber-400 hover:bg-amber-50">
+                <ChevronRight className="h-5 w-5"/>
+              </button>
+            </div>
+          </div>
+          {(loadingOwn || loadingSuppliers) && newArrivals.length === 0 ? (
+            <div className="rounded-2xl border bg-white px-5 py-8 text-sm text-slate-500">Yeni ürünler yükleniyor…</div>
+          ) : newArrivals.length ? (
+            <div ref={arrivalsRailRef} role="region" tabIndex={0} aria-label="Yeni gelen ürünler, sağa sola kaydırılabilir"
+              className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-4 [-webkit-overflow-scrolling:touch] sm:mx-0 sm:px-0">
+              {newArrivals.map(item => (
+                <div key={String(item.id)} className="w-[66vw] max-w-[260px] shrink-0 snap-start sm:w-[225px]">
+                  <B2BProductCard product={item} loggedIn={loggedIn}/>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border bg-white px-5 py-8 text-sm text-slate-500">Şu anda gösterilecek yeni ürün bulunmuyor.</div>
+          )}
+        </section>
       </main>
+      <B2BFooter />
     </div>
   );
 }
