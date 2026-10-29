@@ -1,5 +1,6 @@
 export type UnifiedB2BProduct = {
   id: number | string;
+  created_at?: string | null;
   sku?: string | null;
   name?: string | null;
   description?: string | null;
@@ -22,6 +23,7 @@ export type UnifiedB2BProduct = {
 
 export type ApprovedSupplierProduct = {
   id: number;
+  created_at?: string | null;
   sku: string;
   stock: number;
   seller_slug: string;
@@ -44,6 +46,7 @@ export type ApprovedSupplierProduct = {
 export function toUnifiedProduct(row: ApprovedSupplierProduct): UnifiedB2BProduct {
   return {
     id: "mp-" + row.id,
+    created_at: row.created_at ?? null,
     marketplace: true,
     marketplace_product_id: Number(row.id),
     seller_slug: row.seller_slug,
