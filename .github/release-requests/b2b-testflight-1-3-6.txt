@@ -1,0 +1,14 @@
+ÇALIŞKAN B2B — iOS 1.3.6 TESTFLIGHT
+Tarih: 29.10.2026
+Kapsam:
+- Premium 1080x1920 fiyat içermeyen ürün paylaşım posterinde
+  kompakt tasarım, başlık altında iki sütun mini özellik kutuları,
+  App Store ve Google Play için ayrı kart alanları.
+- Marka ve mağaza rozeti resimleri admin ayarlarından canlı gelir.
+- Ürün paylaşımı native dosya çıktısı kullanır; WebView/Base64 yok.
+- Admin Mobil Ana Sayfa Bannerları için 1200x360 zorunluluğu kaldırıldı.
+  Her yatay/dikey/kare oranı kabul edilir (3 MB ve güvenli piksel sınırında).
+- Mobil ana sayfa banner görseli orijinal oranla, kesilmeden görüntülenir;
+  çok uzun görsellerde ekran yüksekliği sınırı kullanılır.
+- Yalnızca iOS TestFlight 1.3.6; önceki başarılı build 110'dan büyük
+  build numarası; herkese açık App Store yayını yok.
