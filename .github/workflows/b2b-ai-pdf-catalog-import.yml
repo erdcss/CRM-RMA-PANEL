@@ -34,7 +34,7 @@ jobs:
           if(!ui.includes('for await (const page of renderCataloguePdf(file))') ||
              !ui.includes('page.crop') || !ui.includes('allowMissingImages: false'))
             throw Error('Per-page PDF import, source-image extraction or missing-photo gate absent');
-          if(!pdf.includes('pdfjs-dist/build/pdf.mjs')||!pdf.includes('cropProductImage'))
+          if(!pdf.includes("import('pdfjs-dist')")||!pdf.includes('cropProductImage'))
             throw Error('PDF rendering or image crop missing');
           if(!api.includes('sourceImageBox')||!api.includes('expectedCount'))
             throw Error('Source photo box or completeness count missing from AI schema');
