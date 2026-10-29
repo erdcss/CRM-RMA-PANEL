@@ -34,16 +34,20 @@ export function shareFacts(product:B2BProduct):Array<[string,string]> {
 const BRANDING_API=(process.env.EXPO_PUBLIC_BRANDING_API_URL||'https://admin.ecalisgan.com').replace(/\/$/,'');
 const POSTER_WIDTH=270;
 const POSTER_HEIGHT=480;
-type StoreBadges={appStoreImage?:string;googlePlayImage?:string};
-function verifiedBadge(value:unknown):string|null {
-  const url=absoluteMediaUrl(typeof value==='string'?value:null);
-  return url&&/^https:\/\//i.test(url)?url:null;
+type ShareAssets={appIcon?:string|null;appStoreBadge?:string|null;googlePlayBadge?:string|null};
+function adminShareImage(value:unknown):string|null {
+  if(typeof value!=='string'||!value.trim())return null;
+  const url=value.trim();
+  // Admin returns small image routes, never raw base64 images to the app.
+  if(url.startsWith('/api/public/'))return BRANDING_API+url;
+  if(/^https:\/\/[^\s]+$/i.test(url))return url;
+  return null;
 }
 
 export function ProductShareSheet({
-  product,imageUri,logoUri,visible,onClose,
+  product,imageUri,visible,onClose,
 }:{
-  product:B2BProduct;imageUri?:string|null;logoUri?:string|null;
+  product:B2BProduct;imageUri?:string|null;
   visible:boolean;onClose:()=>void;
 }){
   const posterRef=useRef<View>(null);
@@ -51,10 +55,18 @@ export function ProductShareSheet({
   const [posterReady,setPosterReady]=useState(false);
   const [imageLoaded,setImageLoaded]=useState(false);
   const [imageFailed,setImageFailed]=useState(false);
-  const [badges,setBadges]=useState<StoreBadges>({});
+  const [assets,setAssets]=useState<ShareAssets>({});
+  const [assetsReady,setAssetsReady]=useState(false);
+  const [assetsError,setAssetsError]=useState('');
+  const [loadedAssets,setLoadedAssets]=useState({app:false,apple:false,google:false});
   const facts=useMemo(()=>shareFacts(product),[product]);
   const photo=absoluteMediaUrl(imageUri);
-  const appIcon=absoluteMediaUrl(logoUri);
+  const appIcon=adminShareImage(assets.appIcon);
+  const appStore=adminShareImage(assets.appStoreBadge);
+  const googlePlay=adminShareImage(assets.googlePlayBadge);
+  const allAssetsLoaded=(!appIcon||loadedAssets.app)&&
+    (!appStore||loadedAssets.apple)&&(!googlePlay||loadedAssets.google);
+  const brandingReady=assetsReady&&!assetsError&&allAssetsLoaded;
   const posterWidth=Math.min(POSTER_WIDTH,Dimensions.get('window').width-64);
 
   useEffect(()=>{
@@ -63,21 +75,32 @@ export function ProductShareSheet({
     setPosterReady(false);
     setImageLoaded(false);
     setImageFailed(false);
-    setBadges({});
+    setAssets({});
+    setAssetsReady(false);
+    setAssetsError('');
+    setLoadedAssets({app:false,apple:false,google:false});
     let active=true;
     const controller=new AbortController();
-    // Small JSON response only. Never download, base64-encode, or send image
-    // bytes through the JS bridge just because the share sheet was opened.
-    fetch(BRANDING_API+'/api/public/b2b-footer',{signal:controller.signal})
-      .then(response=>response.ok?response.json():{})
-      .then((value:StoreBadges)=>{if(active)setBadges(value||{});})
-      .catch(()=>{if(active)setBadges({});});
+    // Every opening reads saved admin assets again; a new admin upload changes
+    // the next product share, without another native iOS / Android build.
+    fetch(BRANDING_API+'/api/public/b2b-share-assets',{
+      signal:controller.signal,
+      headers:{'Accept':'application/json','Cache-Control':'no-cache'}
+    })
+      .then(async response=>{
+        if(!response.ok)throw Error('Uygulama logo ve mağaza görselleri alınamadı');
+        return response.json() as Promise<ShareAssets>;
+      })
+      .then(value=>{if(active){setAssets(value||{});setAssetsReady(true);}})
+      .catch(error=>{
+        if(active){setAssetsError(error instanceof Error?error.message:'Görseller alınamadı');setAssetsReady(true);}
+      });
     return ()=>{active=false;controller.abort();};
   },[visible,product.id]);
 
   async function share(){
     if(saving)return;
-    if(!photo||imageFailed||!imageLoaded||!posterReady||!posterRef.current){
+    if(!photo||imageFailed||!imageLoaded||!posterReady||!brandingReady||!posterRef.current){
       appAlert('Görsel hazır değil','Ürün fotoğrafının yüklenmesini kontrol edin ve tekrar deneyin.');
       return;
     }
@@ -101,9 +124,7 @@ export function ProductShareSheet({
     }finally{setSaving(false);}
   }
 
-  const shareAllowed=!!photo&&imageLoaded&&!imageFailed&&posterReady&&!saving;
-  const appStore=verifiedBadge(badges.appStoreImage);
-  const googlePlay=verifiedBadge(badges.googlePlayImage);
+  const shareAllowed=!!photo&&imageLoaded&&!imageFailed&&posterReady&&brandingReady&&!saving;
 
   return <Modal visible={visible} transparent animationType="slide"
     onRequestClose={onClose} statusBarTranslucent>
@@ -125,6 +146,8 @@ export function ProductShareSheet({
             style={[styles.poster,{width:posterWidth,height:posterWidth*16/9}]}>
             <View style={styles.posterHeader}>
               <View style={styles.brandLabel}>
+                {!!appIcon&&<NativeImage key={'header-'+appIcon} source={{uri:appIcon}}
+                  resizeMode="contain" style={styles.headerAppIcon}/>}
                 <Text style={styles.brandWord}>ÇALIŞKAN</Text>
                 <Text style={styles.brandSuffix}>B2B</Text>
               </View>
@@ -151,7 +174,9 @@ export function ProductShareSheet({
             </View>
             <View style={styles.download}>
               <View style={styles.appIcon}>
-                {appIcon?<NativeImage source={{uri:appIcon}} resizeMode="contain"
+                {appIcon?<NativeImage key={appIcon} source={{uri:appIcon}} resizeMode="contain"
+                  onLoad={()=>setLoadedAssets(previous=>({...previous,app:true}))}
+                  onError={()=>setAssetsError('Ayarlar’daki uygulama logosu yüklenemedi')}
                   style={{width:'100%',height:'100%'}}/>:
                   <Text style={{color:'#FFCB05',fontWeight:'900',fontSize:29}}>Ç</Text>}
               </View>
@@ -161,15 +186,20 @@ export function ProductShareSheet({
               </View>
             </View>
             <View style={styles.stores}>
-              {!!appStore&&<NativeImage source={{uri:appStore}} resizeMode="contain"
+              {!!appStore&&<NativeImage key={appStore} source={{uri:appStore}} resizeMode="contain"
+                onLoad={()=>setLoadedAssets(previous=>({...previous,apple:true}))}
+                onError={()=>setAssetsError('App Store rozet görseli yüklenemedi')}
                 style={styles.storeBadge}/>}
-              {!!googlePlay&&<NativeImage source={{uri:googlePlay}} resizeMode="contain"
+              {!!googlePlay&&<NativeImage key={googlePlay} source={{uri:googlePlay}} resizeMode="contain"
+                onLoad={()=>setLoadedAssets(previous=>({...previous,google:true}))}
+                onError={()=>setAssetsError('Google Play rozet görseli yüklenemedi')}
                 style={styles.storeBadge}/>}
             </View>
             <Text style={styles.domain}>b2b.ecalisgan.com</Text>
           </View>
           <Text style={styles.note}>1080 × 1920 HD PNG · Fiyat gösterilmez</Text>
           {imageFailed&&<Text style={styles.error}>Ürün görseli yüklenemedi. Paylaşım için tekrar deneyin.</Text>}
+          {!!assetsError&&<Text style={styles.error}>{assetsError}. Ayarlar’daki görseli kontrol edin.</Text>}
           <Pressable accessibilityRole="button"
             onPress={()=>void share()} disabled={!shareAllowed}
             style={[styles.shareButton,{opacity:shareAllowed?1:.5}]}>
@@ -177,7 +207,9 @@ export function ProductShareSheet({
               <Ionicons name="share-social-outline" color="#171717" size={21}/>}
             <Text style={styles.shareLabel}>
               {saving?'Görsel hazırlanıyor…':imageFailed?'Görsel yüklenemedi':
-                !imageLoaded?'Ürün görseli yükleniyor…':'Paylaş / Görseli Kaydet'}
+                !imageLoaded?'Ürün görseli yükleniyor…':
+                !brandingReady?(assetsError?'Mağaza görselleri yüklenemedi':'Marka görselleri yükleniyor…'):
+                'Paylaş / Görseli Kaydet'}
             </Text>
           </Pressable>
           <Text style={styles.help}>Instagram, WhatsApp veya Fotoğraflar için paylaşım menüsünü kullanın.</Text>
@@ -199,7 +231,8 @@ const styles=StyleSheet.create({
     borderWidth:1,borderColor:'#E6E6E6',borderRadius:9,paddingHorizontal:13},
   posterHeader:{height:'13%',justifyContent:'center',flexDirection:'row',alignItems:'center'},
   brandLabel:{backgroundColor:'#181818',borderRadius:8,width:'91%',
-    height:42,justifyContent:'center',paddingLeft:14},
+    height:42,justifyContent:'center',paddingLeft:14,flexDirection:'row',alignItems:'center',gap:8},
+  headerAppIcon:{width:35,height:35,borderRadius:6},
   brandWord:{fontSize:21,fontWeight:'900',color:'#FFCB05',letterSpacing:-.6},
   brandSuffix:{fontSize:10,fontWeight:'900',color:'#FFFFFF',position:'absolute',right:13},
   brandAccent:{position:'absolute',bottom:4,left:0,right:0,height:2,backgroundColor:'#FFCB05'},
