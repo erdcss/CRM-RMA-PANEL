@@ -32,7 +32,7 @@ jobs:
           const pdf=fs.readFileSync('client/src/lib/pdf-catalog-pages.ts','utf8');
           const api=fs.readFileSync('server/product-ai.ts','utf8');
           if(!ui.includes('for await (const page of renderCataloguePdf(file))') ||
-             !ui.includes('page.crop') || !ui.includes('allowMissingImages: false'))
+             !ui.includes('page.crop') || !/allowMissingImages\s*:\s*false/.test(ui))
             throw Error('Per-page PDF import, source-image extraction or missing-photo gate absent');
           if(!pdf.includes("import('pdfjs-dist')")||!pdf.includes('cropProductImage'))
             throw Error('PDF rendering or image crop missing');
