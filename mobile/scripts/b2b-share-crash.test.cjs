@@ -23,10 +23,22 @@ test('preview appears immediately, and capture requires successful image render'
 });
 test('poster filters private/commercial values and shows store branding without prices',()=>{
  assert.ok(src.includes("!/(?:₺|€|\\$|"));
- assert.ok(src.includes('appStoreImage'));
- assert.ok(src.includes('googlePlayImage'));
- assert.ok(src.includes('logoUri'));
+ assert.ok(src.includes('appStoreBadge'));
+ assert.ok(src.includes('googlePlayBadge'));
+ assert.ok(src.includes('appIcon'));
+ assert.ok(src.includes('/api/public/b2b-share-assets'));
+ assert.ok(src.includes('setLoadedAssets'));
+ assert.ok(src.includes('brandingReady'));
+ assert.ok(src.includes('!brandingReady'));
  assert.ok(!src.includes('product.price'));
  assert.ok(!src.includes('product.stock'));
  assert.ok(!src.includes('product.supplier'));
+});
+
+test('freshly saved admin share assets are requested each time the sheet opens',()=>{
+ assert.ok(src.includes("fetch(BRANDING_API+'/api/public/b2b-share-assets'"));
+ assert.ok(src.includes('setAssetsReady(false)'));
+ assert.ok(src.includes('setLoadedAssets({app:false,apple:false,google:false})'));
+ assert.ok(src.includes('return ()=>{active=false;controller.abort();}'));
+ assert.ok(!src.includes("'/api/public/b2b-footer'"));
 });
