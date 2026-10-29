@@ -664,14 +664,17 @@ export default function AdminProductAiImport() {
       (row) =>
         !row.sku.trim() ||
         !row.name.trim() ||
-        !Number.isFinite(Number(row.price || 0)),
+        !Number.isFinite(Number(row.price || 0)) ||
+        Number(row.price) <= 0 ||
+        !Number.isSafeInteger(Number(row.unitsPerBox)) ||
+        Number(row.unitsPerBox) < 1,
     );
 
     if (missingCoreFields.length > 0) {
       toast({
         title: "Eksik ürün bilgisi var",
         description:
-          "Tüm ürünlerde stok kodu, ürün adı ve geçerli fiyat bulunmalıdır.",
+          "Stok kodu, ürün adı, pozitif fiyat ve koli içi adet zorunludur. Belgede olmayan koli bilgisini kaydetmeden önce tamamlayın.",
         variant: "destructive",
       });
       return;
