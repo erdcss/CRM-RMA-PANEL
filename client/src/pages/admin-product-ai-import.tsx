@@ -717,7 +717,11 @@ export default function AdminProductAiImport() {
       if(batch.keys.length&&(batch.keys.length>=25||batchBytes+bytes>6_000_000)){
         batches.push(batch);batch={keys:[],products:[]};batchBytes=0;
       }
-      if(bytes>6_000_000)throw Error(row.name+": görsel çok büyük; daha küçük fotoğraf yükleyin.");
+      if(bytes>6_000_000){
+        setSaving(false);
+        toast({title:"Görsel çok büyük",description:row.name+": daha küçük bir ürün fotoğrafı yükleyin.",variant:"destructive"});
+        return;
+      }
       batch.keys.push(row.key);batch.products.push(product);batchBytes+=bytes;
     }
     if(batch.keys.length)batches.push(batch);
