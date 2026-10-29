@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  Linking,
   useWindowDimensions,
   Pressable,
   RefreshControl,
@@ -33,6 +34,7 @@ import {
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
+import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -56,7 +58,7 @@ function productImage(product: B2BProduct) {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { width: screenWidth } = useWindowDimensions();
   const { session } = useAuth();
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -84,13 +86,24 @@ export default function HomeScreen() {
   const bannerIndexRef = useRef(0);
   const activeBanner=banners[bannerIndex];
   const activeSize=activeBanner ? (loadedBannerSizes[activeBanner.imageId] ||
-    ((activeBanner.imageWidth && activeBanner.imageHeight) ? {width:activeBanner.imageWidth,height:activeBanner.imageHeight} : null)) : null;
-  // The slide height follows its original ratio, with a reasonable maximum
-  // for portrait banners. contentFit=contain guarantees no cropping.
-  const naturalHeight=activeSize?.width&&activeSize?.height
-    ? bannerWidth * activeSize.height / activeSize.width : bannerWidth * 0.3;
-  const bannerHeight=Math.round(Math.min(Math.max(naturalHeight,bannerWidth*0.18),
-    Math.min(screenHeight*0.60,bannerWidth*1.25)));
+    (activeBanner.imageWidth && activeBanner.imageHeight
+      ? {width:activeBanner.imageWidth,height:activeBanner.imageHeight} : null)) : null;
+  const bannerHeight=bannerDisplayHeight(
+    bannerWidth,activeSize?.width,activeSize?.height
+  );
+  const onBannerPress=useCallback((banner:HomeBanner)=>{
+    const destination=bannerDestination(banner);
+    if(!destination)return;
+    if(destination.kind==='product'){
+      router.push({pathname:'/product/[id]',params:{id:destination.id}} as never);
+    }else if(destination.kind==='page'){
+      router.push(destination.path as never);
+    }else{
+      void Linking.openURL(destination.url).catch(
+        ()=>appAlert('Bağlantı açılamadı','Lütfen bağlantıyı tekrar deneyin.')
+      );
+    }
+  },[router]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const scanLockedRef = useRef(false);
   const [query, setQuery] = useState('');
@@ -353,12 +366,17 @@ export default function HomeScreen() {
                   }}
                 >
                   {banners.map((banner) => (
-                    <View key={banner.id} style={[styles.carouselSlide, { width: bannerWidth }]}>
+                    <Pressable key={banner.id}
+                      accessible accessibilityRole="button"
+                      accessibilityLabel={banner.title||'Banner'}
+                      disabled={!bannerDestination(banner)}
+                      onPress={()=>onBannerPress(banner)}
+                      style={[styles.carouselSlide,{width:bannerWidth,height:bannerHeight}]}>
                       {homepageMediaUrl(banner.imageId) ? (
                         <Image
                           source={{ uri: homepageMediaUrl(banner.imageId)! }}
                           style={styles.carouselImage}
-                          contentFit="contain"
+                          contentFit="cover"
                           cachePolicy="memory-disk"
                           transition={180}
                           onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
@@ -377,7 +395,7 @@ export default function HomeScreen() {
                           <Text style={styles.bannerErrorText}>Banner görseli yüklenemedi</Text>
                         </View>
                       ) : null}
-                    </View>
+                    </Pressable>
                   ))}
                 </ScrollView>
               ) : null}
@@ -407,7 +425,9 @@ export default function HomeScreen() {
                   </Text>
                 ) : null}
                 {banners[bannerIndex]?.buttonText?.trim() ? (
-                  <Pressable style={styles.carouselButton} onPress={() => router.push('/(tabs)/menu')}>
+                  <Pressable style={styles.carouselButton}
+                    disabled={!bannerDestination(banners[bannerIndex])}
+                    onPress={()=>onBannerPress(banners[bannerIndex])}>
                     <Text style={styles.carouselButtonText}>{banners[bannerIndex].buttonText}</Text>
                     <Ionicons name="arrow-forward" size={15} color="#131313" />
                   </Pressable>
@@ -678,11 +698,11 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: 15, alignSelf: 'center', width: '100%', marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#202124' },
+  carouselContainer: { marginTop: 15, alignSelf: 'center', width: '100%', marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#FFFFFF' },
   carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
   bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
-  carouselSlide: { aspectRatio: 10 / 3, overflow: 'hidden' },
+  carouselSlide: { overflow: 'hidden', backgroundColor: '#FFFFFF' },
   bannerDetails: {
     marginTop: spacing.sm,
     paddingHorizontal: spacing.md,
