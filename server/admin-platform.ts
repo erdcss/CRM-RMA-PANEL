@@ -779,9 +779,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           ? pool.query("SELECT updated_at FROM platform_settings WHERE key='b2b_footer_links' LIMIT 1")
           : Promise.resolve({rows:[]}),
       ]);
-      const appLogo=branding.b2b_mobile_logo
-        ? "/api/public/branding-asset/b2b_mobile_logo"+branding.b2b_mobile_logo.split("?").slice(1).map(s=>"?"+s).join("")
-        : null;
+      // The mobile application icon has priority; if it has not been
+      // configured yet, show the B2B web logo rather than an empty placeholder.
+      const appLogo=branding.b2b_mobile_logo||branding.b2b_logo||null;
       const resolveBadge=(value:unknown,store:"app-store"|"google-play"):string|null=>{
         if(typeof value!=="string"||!value.trim())return null;
         if(/^https:\/\/\S+$/i.test(value))return value;
