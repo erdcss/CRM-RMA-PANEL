@@ -335,7 +335,7 @@ export function registerMarketplaceRoutes(
       const viewer=await db.query("SELECT role,is_active FROM users WHERE id=$1",[viewerId]);
       canSeePrice=viewer.rows[0]?.role==="b2b_customer" && Number(viewer.rows[0]?.is_active)===1;
     }
-    const result=await db.query(`SELECT p.id,p.sku,p.stock,
+    const result=await db.query(`SELECT p.id,p.sku,p.stock,p.created_at,
       (v.content || jsonb_build_object('price',COALESCE(p.current_price,(v.content->>'price')::numeric))) AS content,
       s.slug AS seller_slug,s.company_name AS seller_name,
       COALESCE(sv.content->>'logoUrl','') AS seller_logo_url
