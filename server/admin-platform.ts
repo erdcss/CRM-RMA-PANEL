@@ -766,6 +766,62 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     } catch { return res.status(500).json({error:"Alt bilgi ayarları kaydedilemedi"}); }
   });
 
+  // Product-sharing art is always sourced from the SAME settings as Admin >
+  // Marka & Görseller (B2B mobile logo) and B2B footer (store badges).
+  // Never return multi-megabyte base64 badge payloads to the mobile client:
+  // the native share view renders small, revisioned HTTP image references.
+  app.get("/api/public/b2b-share-assets", async (_req,res) => {
+    res.setHeader("Cache-Control","no-store, max-age=0");
+    try {
+      const [branding,footer,revision] = await Promise.all([
+        brandingReferences(),readFooter(),
+        pool
+          ? pool.query("SELECT updated_at FROM platform_settings WHERE key='b2b_footer_links' LIMIT 1")
+          : Promise.resolve({rows:[]}),
+      ]);
+      const appLogo=branding.b2b_mobile_logo
+        ? "/api/public/branding-asset/b2b_mobile_logo"+branding.b2b_mobile_logo.split("?").slice(1).map(s=>"?"+s).join("")
+        : null;
+      const resolveBadge=(value:unknown,store:"app-store"|"google-play"):string|null=>{
+        if(typeof value!=="string"||!value.trim())return null;
+        if(/^https:\/\/\S+$/i.test(value))return value;
+        if(/^data:image\/(?:png|jpeg|webp);base64,/i.test(value)){
+          const version=revision.rows?.[0]?.updated_at
+            ? new Date(revision.rows[0].updated_at).getTime():0;
+          return "/api/public/b2b-share-badge/"+store+"?v="+version;
+        }
+        return null;
+      };
+      return res.json({
+        appIcon:appLogo,
+        appStoreBadge:resolveBadge(footer.appStoreImage,"app-store"),
+        googlePlayBadge:resolveBadge(footer.googlePlayImage,"google-play"),
+      });
+    }catch(e){
+      console.error("Public B2B share assets",e);
+      return res.status(500).json({error:"Paylaşım görselleri alınamadı"});
+    }
+  });
+
+  app.get("/api/public/b2b-share-badge/:store", async (req,res)=>{
+    const store=req.params.store;
+    if(store!=="app-store"&&store!=="google-play")return res.status(404).end();
+    try{
+      const links=await readFooter();
+      const image=store==="app-store"?links.appStoreImage:links.googlePlayImage;
+      if(typeof image!=="string"||image.length>3_000_000)return res.status(404).end();
+      const match=/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/s.exec(image);
+      if(!match)return res.status(404).end();
+      res.setHeader("Content-Type",match[1]);
+      res.setHeader("Cache-Control","no-store, max-age=0");
+      res.setHeader("X-Content-Type-Options","nosniff");
+      return res.send(Buffer.from(match[2],"base64"));
+    }catch(e){
+      console.error("B2B share badge",e);
+      return res.status(500).end();
+    }
+  });
+
   app.get("/api/public/branding", async (_req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, max-age=0");
