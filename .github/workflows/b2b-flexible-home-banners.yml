@@ -5,6 +5,9 @@ on:
       - 'server/homepage-media.ts'
       - 'server/homepage-media.test.ts'
       - 'client/src/pages/admin-homepage.tsx'
+      - 'mobile/lib/home-banner.ts'
+      - 'mobile/lib/home-banner.test.ts'
+      - 'mobile/app/(tabs)/index.tsx'
       - '.github/workflows/b2b-flexible-home-banners.yml'
   workflow_dispatch:
 jobs:
@@ -19,4 +22,5 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
       - run: npx tsx --test server/homepage-media.test.ts
+      - run: npx tsx --test mobile/lib/home-banner.test.ts
       - run: npm run build
