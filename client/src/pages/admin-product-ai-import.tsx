@@ -831,7 +831,7 @@ export default function AdminProductAiImport() {
 
                 <Button onClick={analyze} disabled={analyzing}>
                   <Sparkles className="mr-2 h-4 w-4" />
-                  {analyzing ? "AI analiz ediyor…" : "AI ile Analiz Et"}
+                  {analyzing ? (analysisProgress||"AI sayfaları analiz ediyor…") : "AI ile Analiz Et"}
                 </Button>
               </div>
             </div>
@@ -873,13 +873,22 @@ export default function AdminProductAiImport() {
           </div>
         ) : null}
 
+        {analysisWarnings.length>0&&(
+          <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+            <div className="font-semibold text-amber-950">Belge kontrol uyarıları ({analysisWarnings.length})</div>
+            <p className="mt-1 text-xs text-amber-900">Eksik sayfa, varyant veya kaynak görseli için içe aktarmadan önce doğrulama yapın.</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+              {analysisWarnings.slice(0,30).map((warning,index)=><li key={index}>{warning}</li>)}
+            </ul>
+          </div>
+        )}
         {rows.length > 0 ? (
           <div className="mt-6 rounded-2xl border bg-background shadow-sm">
             <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="font-bold">AI tarafından bulunan ürünler</div>
                 <div className="text-sm text-muted-foreground">
-                  AI ürünleri listeler, mevcut ürün fotoğraflarını eşleştirir ve eksikleri otomatik arar. Bulunamayan görseller için “Görselleri Çek” ile yeniden deneyebilirsiniz.
+                  PDF dosyalarının tüm sayfaları okunur. Ürün fotoğrafları önce aynı PDF sayfasındaki ilgili hücreden alınır; görselleri ve ürün bilgilerini onaylamadan kaydetmeyin. Eksik görseli elle ekleyebilir veya isteğe bağlı “Görselleri Çek” kullanabilirsiniz.
                 </div>
               </div>
 
@@ -976,6 +985,12 @@ export default function AdminProductAiImport() {
                             )}
                           </label>
 
+                          {!!row.sourceDocument&&(
+                            <div className="mt-1 text-[10px] text-muted-foreground" title={row.sourceDocument}>
+                              {row.sourcePage ? "Kaynak PDF sayfa "+row.sourcePage : "Yüklenen belge"}
+                              {row.sourceImageReview?" · Görseli kontrol edin":""}
+                            </div>
+                          )}
                           <div className="mt-1.5">
                             <span
                               className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
