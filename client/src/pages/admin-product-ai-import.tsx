@@ -696,53 +696,66 @@ export default function AdminProductAiImport() {
     }
 
     setSaving(true);
-
-    try {
-      const response = await apiRequest("POST", "/api/admin/b2b-products/bulk", {
-        allowMissingImages: false,
-        products: selectedRows.map((row) => ({
-          sku: row.sku.trim(),
-          barcode: row.barcode.trim(),
-          name: row.name.trim(),
-          brand: row.brand.trim(),
-          category: row.category.trim(),
-          description: descriptionWithProductCode(row.description, row.sku),
-          price: Number(row.price || 0),
-          stock: Number(row.stock || 0),
-          minOrderQty: Number(row.minOrderQty || 1),
-          unitsPerBox: Number(row.unitsPerBox || 1),
-          collectionName: row.collectionName.trim(),
-          images: row.images,
-          variants: row.variants,
-        })),
-      });
-
-      const result = await response.json() as { count?: number };
-      const saved = Number(result.count || selectedRows.length);
-      const savedKeys = new Set(selectedRows.map((row) => row.key));
-      const remaining = rows.filter((row) => !savedKeys.has(row.key));
-
-      await queryClient.invalidateQueries({
-        queryKey: ["/api/admin/b2b-products"],
-      });
-
-      setRows(remaining);
-      if (!remaining.length) setFiles([]);
-
-      toast({
-        title: `${saved} ürün içe aktarıldı`,
-        description:
-          "Seçili ürünlerin tamamı B2B kataloğuna aktarıldı.",
-      });
-    } catch (error) {
-      toast({
-        title: "Ürün aktarımı tamamlanamadı",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Ürün kaydetme sırasında hata oluştu",
-        variant: "destructive",
-      });
+    const makePayload=(row:ImportRow)=>({
+      sku:row.sku.trim(),barcode:row.barcode.trim(),
+      name:row.name.trim(),brand:row.brand.trim(),
+      category:row.category.trim(),
+      description:descriptionWithProductCode(row.description,row.sku),
+      price:Number(row.price),stock:Number(row.stock||0),
+      minOrderQty:Number(row.minOrderQty||1),unitsPerBox:Number(row.unitsPerBox),
+      collectionName:row.collectionName.trim(),images:row.images,variants:row.variants,
+    });
+    const batches:Array<{keys:string[];products:ReturnType<typeof makePayload>[]}>=[];
+    let batch:{keys:string[];products:ReturnType<typeof makePayload>[]}
+      ={keys:[],products:[]};
+    let batchBytes=0;
+    // Keep each request below the Express 15 MB JSON body limit. Sending a
+    // whole 100-photo catalogue in one request previously exceeded the limit.
+    for(const row of selectedRows){
+      const product=makePayload(row);
+      const bytes=JSON.stringify(product).length;
+      if(batch.keys.length&&(batch.keys.length>=25||batchBytes+bytes>6_000_000)){
+        batches.push(batch);batch={keys:[],products:[]};batchBytes=0;
+      }
+      if(bytes>6_000_000)throw Error(row.name+": görsel çok büyük; daha küçük fotoğraf yükleyin.");
+      batch.keys.push(row.key);batch.products.push(product);batchBytes+=bytes;
+    }
+    if(batch.keys.length)batches.push(batch);
+    let saved=0;
+    let completedKeys:string[]=[];
+    let errorMessage="";
+    try{
+      for(let index=0;index<batches.length;index++){
+        const current=batches[index];
+        try{
+          const response=await apiRequest("POST","/api/admin/b2b-products/bulk",{
+            allowMissingImages:false,products:current.products
+          });
+          const result=await response.json() as {count?:number};
+          saved+=Number(result.count||current.keys.length);
+          completedKeys=[...completedKeys,...current.keys];
+          const doneKeys=new Set(current.keys);
+          setRows(existing=>existing.filter(row=>!doneKeys.has(row.key)));
+        }catch(error){
+          errorMessage="Parti "+(index+1)+"/"+batches.length+": "+
+            (error instanceof Error?error.message:"Ürünler aktarılamadı");
+          break;
+        }
+      }
+      await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-products"]});
+      if(completedKeys.length===selectedRows.length){
+        const remaining=rows.filter(row=>!completedKeys.includes(row.key));
+        if(!remaining.length)setFiles([]);
+        toast({title:saved+" ürün içe aktarıldı",description:"Tüm seçili ürünler görselleriyle kaydedildi."});
+      }else{
+        toast({title:saved+" ürün kaydedildi; kalan ürünler korundu",
+          description:errorMessage||"Eksik ürünleri kontrol edip tekrar aktarın.",
+          variant:"destructive"});
+      }
+    } catch(error){
+      toast({title:"Ürün aktarımı tamamlanamadı",
+        description:error instanceof Error?error.message:"Yeniden deneyin",
+        variant:"destructive"});
     } finally {
       setSaving(false);
     }
