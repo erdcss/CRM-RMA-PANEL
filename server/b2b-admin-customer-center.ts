@@ -1,4 +1,4 @@
-import type {Express,RequestHandler} from "express";
+import type {Express,RequestHandler,Request} from "express";
 import {storage} from "./storage";
 import {pool} from "./db";
 
@@ -22,7 +22,7 @@ function fail(res:any,error:unknown){
 }
 const noStore=(res:any)=>res.setHeader("Cache-Control","private, no-store");
 
-export function registerB2BAdminCustomerCenter(app:Express,requireAdmin:RequestHandler) {
+export function registerB2BAdminCustomerCenter(app:Express,requireAdmin:RequestHandler, sessionUserId:(req:Request)=>number|undefined) {
   app.get("/api/admin/b2b-customers",requireAdmin,async(_req,res)=>{
     noStore(res);
     try {
@@ -43,7 +43,7 @@ export function registerB2BAdminCustomerCenter(app:Express,requireAdmin:RequestH
     if(typeof verified!=="boolean" || (verified && taxOffice.length<2)){
       return res.status(400).json({error:"Vergi dairesi ve manuel teyit durumunu kontrol edin."});
     }
-    const actor=Number((req.session as {userId?:number})?.userId || 0);
+    const actor=Number(sessionUserId(req)||0);
     if(!actor)return res.status(401).json({error:"Yönetici oturumu gerekiyor."});
     if(!pool)return res.status(503).json({error:"Veritabanı erişilemiyor."});
     const transaction=await pool.connect();
