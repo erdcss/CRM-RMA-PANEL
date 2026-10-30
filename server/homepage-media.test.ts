@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {imageDimensions,isSafeBannerSize,normalizeHomeLayout} from './homepage-media';
+import {imageDimensions,isSafeBannerSize,normalizeHomeLayout,addElectronicsTitleSubcategories} from './homepage-media';
 
 test('square portrait and panoramic banners all pass image dimension validation',()=>{
  for(const [width,height] of [[1080,1080],[750,1334],[1920,480],[1200,360],[640,960],[300,100]]){
@@ -55,4 +55,31 @@ test('rejects arbitrary app routes, unsafe URLs and invalid product ids',()=>{
  const normalized=normalizeHomeLayout({banners:rows}).banners;
  assert.ok(normalized.every(b=>b.linkType==='none'));
  assert.ok(normalized.every(b=>!b.productId&&!b.pagePath&&!b.externalUrl));
+});
+
+test('adds two title-matched categories without removing existing electronics subcategories',()=>{
+ const original=normalizeHomeLayout({categoryCards:[{
+   category:'elektronik', label:'Elektronik', imageId:'b'.repeat(32),tags:['ses'],
+   subcategories:[{id:'a'.repeat(24),name:'uydu alıcıları',imageId:'b'.repeat(32),tags:['uydu']}],
+ }]});
+ const {layout,changed}=addElectronicsTitleSubcategories(original);
+ assert.equal(changed,true);
+ const card=layout.categoryCards[0];
+ assert.deepEqual(card.subcategories.map(item=>item.name),['uydu alıcıları','ÇELİK CEZVE','ÇAY MAKİNESİ']);
+ assert.deepEqual(card.subcategories[1].titleKeywords,['çelik cezve']);
+ assert.deepEqual(card.subcategories[2].titleKeywords,['çay makinesi']);
+ assert.equal(card.imageId,'b'.repeat(32));
+ assert.equal(card.subcategories[0].imageId,'b'.repeat(32));
+ assert.equal(addElectronicsTitleSubcategories(layout).changed,false);
+});
+
+test('normalizes title keywords while retaining existing tag-based matching',()=>{
+ const layout=normalizeHomeLayout({categoryCards:[{
+   category:'elektronik',subcategories:[{
+     id:'a'.repeat(24),name:'ÇELİK CEZVE',imageId:'',tags:['cezve'],
+     titleKeywords:['  çelik    cezve ','çay makinesi']
+   }]
+ }]});
+ assert.deepEqual(layout.categoryCards[0].subcategories[0].titleKeywords,['çelik cezve','çay makinesi']);
+ assert.deepEqual(layout.categoryCards[0].subcategories[0].tags,['cezve']);
 });
