@@ -45,7 +45,32 @@ function safeBannerLink(item:any):Pick<Banner,'linkType'|'productId'|'pagePath'|
   if(type==='url'&&externalUrl)return {linkType:type,productId:null,pagePath:'',externalUrl};
   return {linkType:'none',productId:null,pagePath:'',externalUrl:''};
 }
-type CategoryCard = { category: string; label: string; imageId: string; tags: string[] };
+type Subcategory = { id: string; name: string; imageId: string; tags: string[] };
+type CategoryCard = { category: string; label: string; imageId: string; tags: string[]; subcategories: Subcategory[] };
+
+function normalizeSubcategories(raw: unknown): Subcategory[] {
+  if (!Array.isArray(raw)) return [];
+  const seenNames = new Set<string>();
+  const seenIds = new Set<string>();
+  const result: Subcategory[] = [];
+  for (const item of raw.slice(0, 24)) {
+    const name = safeString(item?.name, 80).replace(/\\s+/g, " ");
+    if (!name || seenNames.has(name.toLocaleLowerCase("tr-TR"))) continue;
+    seenNames.add(name.toLocaleLowerCase("tr-TR"));
+    let id = /^[a-f0-9]{24}$/i.test(String(item?.id || "")) ? String(item.id).toLowerCase() : randomBytes(12).toString("hex");
+    if (seenIds.has(id)) id = randomBytes(12).toString("hex");
+    seenIds.add(id);
+    result.push({
+      id, name,
+      imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
+      tags: [...new Set((Array.isArray(item?.tags) ? item.tags : [])
+        .filter((tag: unknown): tag is string => typeof tag === "string")
+        .map((tag: string) => safeString(tag, 60).replace(/\\s+/g, " "))
+        .filter(Boolean))].slice(0, 30),
+    });
+  }
+  return result;
+}
 
 export type MobileHomeLayout = {
   banners: Banner[];
@@ -72,6 +97,7 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
     label: safeString(item?.label, 80),
     imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
     tags: [...new Set((Array.isArray(item?.tags) ? item.tags : []).filter((tag: unknown): tag is string => typeof tag === "string").map((tag: string) => safeString(tag, 60)).filter(Boolean))].slice(0, 30),
+    subcategories: normalizeSubcategories(item?.subcategories),
   })).filter((item: CategoryCard) => item.category);
   const n = Number(input.sliderIntervalMs);
   return {
