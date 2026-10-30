@@ -1,6 +1,6 @@
 {
   "name": "caliskan-dukkan-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Çalışkan Dükkan Windows desktop shell",
   "main": "main.cjs",
@@ -17,6 +17,7 @@
     "productName": "Çalışkan Dükkan",
     "files": [
       "main.cjs",
+      "preload.cjs",
       "package.json"
     ],
     "directories": {
