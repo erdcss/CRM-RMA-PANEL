@@ -152,10 +152,10 @@ export default function AdminHomepage() {
       for (const item of subcategories) {
         const name = item.name.trim().replace(/\s+/g, " ");
         const key = name.toLocaleLowerCase("tr-TR");
-        if (!name || seen.has(key) || !item.tags.length) {
+        if (!name || seen.has(key) || !(item.tags?.length || item.titleKeywords?.length)) {
           toast({
             title: "Alt kategori bilgilerini kontrol edin",
-            description: category + ": Her alt kategorinin benzersiz adı ve en az bir ürün etiketi olmalıdır.",
+            description: category + ": Her alt kategorinin benzersiz adı ve en az bir ürün etiketi veya başlık ifadesi olmalıdır.",
             variant: "destructive",
           });
           return;
