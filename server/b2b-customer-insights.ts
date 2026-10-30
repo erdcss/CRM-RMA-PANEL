@@ -4,6 +4,7 @@ import { pool } from "./db";
 const SESSION_RE = /^[A-Za-z0-9_-]{12,100}$/;
 const PRODUCT_RE = /^[A-Za-z0-9_-]{1,120}$/;
 let ready: Promise<void> | null = null;
+let lastPruneAt = 0;
 
 async function ensureUsageSchema() {
   if (!pool) throw new Error("Database unavailable");
@@ -28,6 +29,12 @@ async function ensureUsageSchema() {
     })().catch(error => { ready = null; throw error; });
   }
   await ready;
+  // Keep only a short rolling window of account-linked behavioral data.
+  if (Date.now()-lastPruneAt > 24*60*60*1000) {
+    lastPruneAt = Date.now();
+    try { await pool.query("DELETE FROM b2b_customer_usage_events WHERE created_at < NOW()-INTERVAL '90 days'"); }
+    catch (error) { lastPruneAt = 0; console.error("Usage retention cleanup failed:",error); }
+  }
 }
 
 export function registerB2BCustomerInsights(
