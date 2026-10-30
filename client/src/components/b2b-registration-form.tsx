@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Loader2,
   Mail,
+  Phone,
   UserRound,
   UserPlus,
 } from "lucide-react";
@@ -61,6 +62,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [companyCategory, setCompanyCategory] = useState("");
   const [taxNumber, setTaxNumber] = useState("");
   const [taxOffice, setTaxOffice] = useState("");
@@ -160,6 +162,10 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     event.preventDefault();
     setError("");
 
+    if (!/^[0-9]{10}$/.test(phone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, ""))) {
+      setError("Geçerli 10 haneli cep telefonu numarası girin");
+      return;
+    }
     if (!companyCategory) {
       setError("Firma kategorisi seçin");
       return;
@@ -176,6 +182,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
+        phone: phone.trim(),
         companyCategory,
         taxNumber,
       });
@@ -259,6 +266,16 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
             onChange={(event) => setEmail(event.target.value)}
             required
           />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="register-phone">Cep telefonu (zorunlu)</Label>
+        <div className="relative">
+          <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input id="register-phone" type="tel" autoComplete="tel" inputMode="tel" required
+            value={phone} onChange={event => setPhone(event.target.value)}
+            placeholder="05XX XXX XX XX" maxLength={20} className="h-11 pl-9" />
         </div>
       </div>
 
