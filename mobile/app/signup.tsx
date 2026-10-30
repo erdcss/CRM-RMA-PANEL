@@ -120,7 +120,7 @@ export default function SignupScreen() {
       appAlert('E-posta geçersiz', 'Geçerli bir e-posta adresi girin.');
       return;
     }
-    if (!/^[0-9]{10}$/.test(phone.replace(/\D/g, '').replace(/^90(?=5\d{9}$)/, '').replace(/^0(?=5\d{9}$)/, ''))) {
+    if (!/^5\d{9}$/.test(phone.replace(/\D/g, '').replace(/^90(?=5\d{9}$)/, '').replace(/^0(?=5\d{9}$)/, ''))) {
       appAlert('Telefon numarası geçersiz', '10 haneli geçerli cep telefonu numarası girin.');
       return;
     }
