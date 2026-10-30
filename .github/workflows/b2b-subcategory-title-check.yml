@@ -1,0 +1,38 @@
+name: B2B Subcategory Title Matching
+on:
+  push:
+    paths:
+      - 'server/homepage-media.ts'
+      - 'server/homepage-media.test.ts'
+      - 'client/src/lib/b2b-categories.ts'
+      - 'client/src/lib/b2b-categories.test.ts'
+      - 'client/src/components/admin-subcategory-drawer.tsx'
+      - 'client/src/pages/admin-homepage.tsx'
+      - '.github/workflows/b2b-subcategory-title-check.yml'
+  pull_request:
+    paths:
+      - 'server/homepage-media.ts'
+      - 'server/homepage-media.test.ts'
+      - 'client/src/lib/b2b-categories.ts'
+      - 'client/src/lib/b2b-categories.test.ts'
+      - 'client/src/components/admin-subcategory-drawer.tsx'
+      - 'client/src/pages/admin-homepage.tsx'
+      - '.github/workflows/b2b-subcategory-title-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Category title matching + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx tsx --test server/homepage-media.test.ts client/src/lib/b2b-categories.test.ts
+      - run: npm run check
+      - run: npm run build
