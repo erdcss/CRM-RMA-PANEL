@@ -115,7 +115,7 @@ export default function AdminHomepage() {
     const id = Array.from(crypto.getRandomValues(new Uint8Array(16))).map((x) => x.toString(16).padStart(2, "0")).join("");
     setBanners((items) => [...items, {
       id,title:"",subtitle:"",buttonText:"Ürünleri Keşfet",imageId:"",
-      linkType:"none",productId:null,pagePath:"",externalUrl:"",
+      linkType:"none" as const,productId:null,pagePath:"",externalUrl:"",
     }].slice(0,12));
   }
 
