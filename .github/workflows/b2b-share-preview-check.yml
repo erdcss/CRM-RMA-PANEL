@@ -1,0 +1,33 @@
+name: B2B Dynamic Share Preview - Build and Tests
+on:
+  push:
+    paths:
+      - 'server/b2b-link-preview.ts'
+      - 'server/b2b-link-preview.test.ts'
+      - 'server/static.ts'
+      - 'server/vite.ts'
+      - '.github/workflows/b2b-share-preview-check.yml'
+  pull_request:
+    paths:
+      - 'server/b2b-link-preview.ts'
+      - 'server/b2b-link-preview.test.ts'
+      - 'server/static.ts'
+      - 'server/vite.ts'
+      - '.github/workflows/b2b-share-preview-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx tsx --test server/b2b-link-preview.test.ts
+      - run: npm run check
+      - run: npm run build
