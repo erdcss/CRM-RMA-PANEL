@@ -63,10 +63,10 @@ function normalizeSubcategories(raw: unknown): Subcategory[] {
     result.push({
       id, name,
       imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
-      tags: [...new Set((Array.isArray(item?.tags) ? item.tags : [])
+      tags: [...new Set<string>(((Array.isArray(item?.tags) ? item.tags : [])
         .filter((tag: unknown): tag is string => typeof tag === "string")
         .map((tag: string) => safeString(tag, 60).replace(/\s+/g, " "))
-        .filter(Boolean))].slice(0, 30),
+        .filter(Boolean)) as string[])].slice(0, 30),
     });
   }
   return result;
