@@ -48,6 +48,7 @@ export type RegistrationPayload = {
   firstName: string;
   lastName: string;
   email: string;
+  phone: string;
   companyCategory: string;
   taxNumber: string;
 };
