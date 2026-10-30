@@ -171,6 +171,120 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json({sales:sales.rows[0].total,purchases:purchases.rows[0].total,stock:stock.rows[0],netBalance:receivables.rows[0].net_balance,bankBalance:banks.rows[0].bank_balance,overdue:overdue.rows[0]});
   }));
 
+
+  // Financial documents are interpreted by AI only after an authenticated member uploads them.
+  // This route NEVER posts a ledger entry. All extracted fields require explicit review.
+  app.post("/api/dukkan/stores/:storeId/ai-documents/extract", safe(async(req,res)=>{
+    const payload=z.object({
+      section:z.enum(["products","stock","instruments","parties","sales","purchases"]),
+      filename:z.string().trim().min(1).max(180),
+      mimeType:z.enum(["application/pdf","image/png","image/jpeg","image/webp"]),
+      base64:z.string().min(20).max(11_000_000).regex(/^[a-zA-Z0-9+/]+={0,2}$/)
+    }).parse(req.body);
+    const role=String(res.locals.dukkanRole||"");
+    if (["products","stock"].includes(payload.section)) manager(res);
+    else if (["instruments","purchases"].includes(payload.section)) accountant(res);
+    if (role==="viewer") deny("Belge içe aktarma yetkiniz yok");
+    const bytes=Buffer.from(payload.base64,"base64");
+    if (bytes.byteLength>8_000_000 || bytes.byteLength<64)throw Object.assign(new Error("Belge 8 MB sınırını aşıyor veya boş"),{status:413});
+    const magic=bytes.subarray(0,12);
+    const isPdf=magic.subarray(0,5).toString()==="%PDF-";
+    const isPng=magic.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    const isJpeg=magic[0]===255&&magic[1]===216&&magic[2]===255;
+    const isWebp=magic.subarray(0,4).toString()==="RIFF"&&magic.subarray(8,12).toString()==="WEBP";
+    if (!({ "application/pdf":isPdf,"image/png":isPng,"image/jpeg":isJpeg,"image/webp":isWebp } as Record<string,boolean>)[payload.mimeType])
+      throw Object.assign(new Error("Dosyanın gerçek biçimi ile uzantısı uyuşmuyor"),{status:400});
+    if (!process.env.OPENAI_API_KEY)throw Object.assign(new Error("AI belge analizi sunucuda henüz yapılandırılmamış"),{status:503});
+    const sid=store(req),db=await ready();
+    const [parties,products]=await Promise.all([
+      db.query("SELECT id,name,tax_number FROM dukkan_parties WHERE store_id=$1 LIMIT 500",[sid]),
+      db.query("SELECT id,name,sku,barcode FROM dukkan_products WHERE store_id=$1 LIMIT 500",[sid])
+    ]);
+    const prompt=[
+      "Sen bir Türkçe ticari belge veri ayıklama sistemisin. Kullanıcının yüklediği belgeyi incele.",
+      "Belge türü: "+payload.section+". Kesinlikle olmayan bir bilgiyi uydurma. Okunamayanları boş bırak.",
+      "Yalnız geçerli JSON döndür; markdown veya açıklama ekleme.",
+      'Şema: {"fields":{"name":"","sku":"","barcode":"","unit":"","purchasePrice":"","salePrice":"","partyName":"","partyTaxNumber":"","date":"","kind":"","delta":"","direction":"","number":"","amount":"","dueDate":"","note":""},"lines":[{"productName":"","sku":"","barcode":"","quantity":"","unitPrice":"","taxRate":""}],"products":[{"name":"","sku":"","barcode":"","unit":"","purchasePrice":"","salePrice":""}],"warnings":["..."]}.',
+      "Tarihler YYYY-MM-DD, sayılar noktalı ondalık formatta yazılmalı. Yüzde KDV yalnız oran olarak verilmeli.",
+      "Çek veya senet için kind cheque veya promissory, direction received veya issued.",
+      "Satış ve alışta kind sale veya purchase. Fatura satırlarını lines içine yaz.",
+      "Ürün listesi ürünleri products içine, ürün kartı tekse fields içine ekle.",
+      "Stok hareketi delta pozitif giriş, negatif çıkış; tahmini miktar üretme.",
+      "Ürün ve cari kayıtlarını numara/isim benzerliğine göre tahmin ederek kimlik atama; yalnızca belgedeki bilgileri çıkar."
+    ].join("\n");
+    const media=payload.mimeType==="application/pdf"
+      ?{type:"input_file",filename:payload.filename,file_data:"data:application/pdf;base64,"+payload.base64}
+      :{type:"input_image",image_url:"data:"+payload.mimeType+";base64,"+payload.base64,detail:"high"};
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),60000);
+    let result:any;
+    try{
+      const response=await fetch("https://api.openai.com/v1/responses",{
+        method:"POST",signal:controller.signal,
+        headers:{"Authorization":"Bearer "+process.env.OPENAI_API_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({model:process.env.DUKKAN_DOC_AI_MODEL||"gpt-4.1-mini",max_output_tokens:2500,
+          input:[{role:"user",content:[{type:"input_text",text:prompt},media]}]})
+      });
+      if(!response.ok)throw Object.assign(new Error("Belge analiz hizmetine erişilemiyor"),{status:502});
+      result=await response.json();
+    }catch(error){if((error as Error).name==="AbortError")throw Object.assign(new Error("Belge analizi zaman aşımına uğradı"),{status:504});throw error;}
+    finally{clearTimeout(timeout);}
+    const output=(result.output||[]).flatMap((o:any)=>o.content||[]).filter((c:any)=>c.type==="output_text").map((c:any)=>c.text).join("\n");
+    const match=output.match(/\{[\s\S]*\}/);
+    if(!match)throw Object.assign(new Error("Belge okunamadı. Daha net bir belge yükleyin."),{status:422});
+    let extracted:any;
+    try{extracted=JSON.parse(match[0]);}catch{throw Object.assign(new Error("Belge alanları doğrulanamadı"),{status:422});}
+    const clean=(v:any)=>String(v??"").trim().slice(0,220);
+    const fields:Record<string,string>={};
+    for(const key of ["name","sku","barcode","unit","purchasePrice","salePrice","partyName","partyTaxNumber","date","kind","delta","direction","number","amount","dueDate","note"]){
+      fields[key]=clean(extracted.fields?.[key]);
+    }
+    const warnings:string[]=Array.isArray(extracted.warnings)?extracted.warnings.slice(0,10).map(clean):[];
+    const norm=(v:any)=>String(v||"").trim().toLocaleLowerCase("tr-TR");
+    const party=parties.rows.filter((p:any)=>fields.partyTaxNumber?norm(p.tax_number)===norm(fields.partyTaxNumber):fields.partyName&&norm(p.name)===norm(fields.partyName));
+    if(party.length===1)fields.partyId=String(party[0].id);
+    else if(["sales","purchases","instruments"].includes(payload.section))warnings.push("Cari hesap eşleşmedi veya birden fazla eşleşme var; kullanıcı seçmeli.");
+    const resolveProduct=(item:any)=>{
+      const match=products.rows.filter((p:any)=>(item.barcode&&norm(p.barcode)===norm(item.barcode))||
+        (item.sku&&norm(p.sku)===norm(item.sku))||(!item.barcode&&!item.sku&&item.productName&&norm(p.name)===norm(item.productName)));
+      if(match.length!==1)warnings.push("Ürün eşleşmesi kontrol edilmeli: "+clean(item.productName||item.sku));
+      return match.length===1?String(match[0].id):"";
+    };
+    if(payload.section==="stock")fields.productId=resolveProduct({productName:fields.name,sku:fields.sku,barcode:fields.barcode});
+    const lines=(Array.isArray(extracted.lines)?extracted.lines:[]).slice(0,200).map((v:any)=>({
+      productId:resolveProduct(v),productName:clean(v.productName),sku:clean(v.sku),
+      quantity:clean(v.quantity),unitPrice:clean(v.unitPrice),taxRate:clean(v.taxRate||"20")
+    }));
+    const productRows=(Array.isArray(extracted.products)?extracted.products:[]).slice(0,100).map((v:any)=>({
+      name:clean(v.name),sku:clean(v.sku),barcode:clean(v.barcode),unit:clean(v.unit||"adet"),
+      purchasePrice:clean(v.purchasePrice||"0"),salePrice:clean(v.salePrice||"0")
+    }));
+    res.setHeader("Cache-Control","no-store");
+    res.json({section:payload.section,fields,lines,products:productRows,warnings});
+  }));
+
+  // Bulk product approval is atomic: a duplicate SKU/barcode rolls back every row.
+  app.post("/api/dukkan/stores/:storeId/ai-documents/import-products",safe(async(req,res)=>{
+    manager(res);
+    const row=z.object({name:string,sku:string,barcode:z.string().trim().max(64).optional(),
+      unit:z.string().trim().min(1).max(20).default("adet"),
+      purchasePrice:z.coerce.number().finite().min(0).refine(twoDecimals),
+      salePrice:z.coerce.number().finite().min(0).refine(twoDecimals)});
+    const payload=z.object({products:z.array(row).min(1).max(100)}).parse(req.body);
+    const sid=store(req);
+    const imported=await transaction(async c=>{
+      const records=[];
+      for(const p of payload.products){
+        const result=await c.query("INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,purchase_price,sale_price) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,sku",[
+          sid,p.name,p.sku,p.barcode||null,p.unit,money(p.purchasePrice),money(p.salePrice)
+        ]);
+        records.push(result.rows[0]);
+      }
+      return records;
+    });
+    res.status(201).json({created:imported.length,records:imported});
+  }));
+
   app.post("/api/dukkan/stores/:storeId/parties",safe(async(req,res)=>{
     const p=z.object({name:string,type:z.enum(["customer","supplier","both"]),taxNumber:z.string().max(30).optional(),phone:z.string().max(40).optional(),email:z.string().max(200).optional()}).parse(req.body);
     const db=await ready();const r=await db.query("INSERT INTO dukkan_parties(store_id,name,type,tax_number,phone,email) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",[store(req),p.name,p.type,p.taxNumber||null,p.phone||null,p.email||null]);res.status(201).json(r.rows[0]);
