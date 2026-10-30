@@ -140,7 +140,7 @@ export default function B2BCategoryPage({ category: rawCategory, subcategoryId }
             const image=b2bCategoryImage(item.imageId);
             const count=products.filter(product => matchesB2BSubcategory(product,item)).length;
             return <Link key={item.id} href={b2bSubcategoryHref(category,item.id)}
-              className="group w-[42vw] min-w-[145px] max-w-[205px] shrink-0 snap-start overflow-hidden rounded-none border-0 bg-white shadow-none transition sm:w-auto sm:max-w-none">
+              className="group w-[42vw] min-w-[145px] max-w-[205px] shrink-0 snap-start overflow-hidden rounded-2xl border-0 bg-white shadow-none transition sm:w-auto sm:max-w-none">
               <div className="flex aspect-square w-full items-center justify-center overflow-hidden bg-slate-50">
                 {image ? <img src={image} alt="" loading="lazy" className="block h-full w-full object-cover transition-transform group-hover:scale-105"/>
                   : <Boxes className="h-12 w-12 text-slate-300" aria-hidden="true"/>}
