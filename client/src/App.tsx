@@ -225,6 +225,7 @@ function B2BWebsite() {
       <Switch location={routePath}>
         <Route path="/" component={B2BStorefront} />
         <Route path="/kategoriler" component={B2BCategoriesDirectory} />
+        {/* Keep the nested route before the parent category route. */}
         <Route path="/kategori/:category/alt/:subcategory">{(params)=><B2BCategoryPage category={params.category} subcategoryId={params.subcategory}/>}</Route>
         <Route path="/kategori/:category">{(params)=><B2BCategoryPage category={params.category}/>}</Route>
         <Route path="/urun/:id" component={B2BProductPage} />
