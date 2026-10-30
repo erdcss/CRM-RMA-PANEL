@@ -54,7 +54,7 @@ function normalizeSubcategories(raw: unknown): Subcategory[] {
   const seenIds = new Set<string>();
   const result: Subcategory[] = [];
   for (const item of raw.slice(0, 24)) {
-    const name = safeString(item?.name, 80).replace(/\\s+/g, " ");
+    const name = safeString(item?.name, 80).replace(/\s+/g, " ");
     if (!name || seenNames.has(name.toLocaleLowerCase("tr-TR"))) continue;
     seenNames.add(name.toLocaleLowerCase("tr-TR"));
     let id = /^[a-f0-9]{24}$/i.test(String(item?.id || "")) ? String(item.id).toLowerCase() : randomBytes(12).toString("hex");
@@ -65,7 +65,7 @@ function normalizeSubcategories(raw: unknown): Subcategory[] {
       imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
       tags: [...new Set((Array.isArray(item?.tags) ? item.tags : [])
         .filter((tag: unknown): tag is string => typeof tag === "string")
-        .map((tag: string) => safeString(tag, 60).replace(/\\s+/g, " "))
+        .map((tag: string) => safeString(tag, 60).replace(/\s+/g, " "))
         .filter(Boolean))].slice(0, 30),
     });
   }
