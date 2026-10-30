@@ -162,7 +162,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     event.preventDefault();
     setError("");
 
-    if (!/^[0-9]{10}$/.test(phone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, ""))) {
+    if (!/^5\d{9}$/.test(phone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, ""))) {
       setError("Geçerli 10 haneli cep telefonu numarası girin");
       return;
     }
