@@ -55,3 +55,31 @@ export function trackProductView(productId: string | number, name?: string | nul
     name: name || "",
   });
 }
+
+
+/** Authenticated, first-party customer engagement; independent from advertising pixels. */
+function usageEvent(body: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  return post("/api/b2b/usage-event", {
+    sessionId: getVisitorId(), platform: "web", ...body,
+  });
+}
+
+export function trackCustomerUsageSession() {
+  if (typeof document !== "undefined" && !document.hidden) {
+    void usageEvent({ type: "session" });
+  }
+}
+
+export function trackCustomerProductVisit(id: string | number, name: string | null | undefined) {
+  return usageEvent({ type: "product_view", productId: String(id), productName: name || "" });
+}
+
+export function trackCustomerProductDuration(id: string | number, name: string | null | undefined, seconds: number) {
+  const duration = Math.min(300, Math.max(0, Math.round(seconds)));
+  if (duration < 1) return;
+  return usageEvent({
+    type: "product_duration", productId: String(id), productName: name || "",
+    seconds: duration,
+  });
+}

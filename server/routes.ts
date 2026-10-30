@@ -29,6 +29,7 @@ import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
+import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
@@ -2180,6 +2181,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const lastName = typeof req.body?.lastName === "string" ? req.body.lastName.trim() : "";
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const companyCategory = typeof req.body?.companyCategory === "string" ? req.body.companyCategory.trim() : "";
+    const rawPhone = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
+    const phoneDigits = rawPhone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, "");
+    const phone = /^5\d{9}$/.test(phoneDigits) ? "+90" + phoneDigits : "";
     const taxNumber = typeof req.body?.taxNumber === "string" ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10) : "";
 
     if (companyName.length < 2) {
@@ -2191,6 +2195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       return res.status(400).json({ error: "Geçerli bir e-posta adresi girin" });
     }
+    if (!phone) return res.status(400).json({ error: "Geçerli cep telefonu numarası zorunludur" });
     if (!(B2B_COMPANY_CATEGORIES as readonly string[]).includes(companyCategory)) {
       return res.status(400).json({ error: "Geçerli bir firma kategorisi seçin" });
     }
@@ -2235,7 +2240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           username: email, email,
           password: hashPassword(randomBytes(32).toString("hex")),
           companyName: taxLookup.companyName || companyName,
-          firstName, lastName, companyCategory, taxNumber,
+          firstName, lastName, companyCategory, taxNumber, phone,
           taxOffice: taxLookup.taxOffice || null,
           taxVerified: taxLookup.verified && taxLookup.taxOffice ? 1 : 0,
           isActive: 0, applicationStatus: "pending", mustChangePassword: 0,
@@ -2259,6 +2264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         firstName,
         lastName,
         email,
+        phone,
         companyCategory,
         taxNumber,
         taxOffice: taxLookup.taxOffice || null,
@@ -2445,7 +2451,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  registerB2BAdminCustomerCenter(app, requireAdmin);
+  registerB2BAdminCustomerCenter(app, requireAdmin, sessionUserId);
+  registerB2BCustomerInsights(app, requireB2B, requireAdmin);
 
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
     const allUsers = await storage.listUsers();

@@ -54,6 +54,7 @@ export default function SignupScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [companyCategory, setCompanyCategory] = useState('');
   const [taxNumber, setTaxNumber] = useState('');
   const [taxOffice, setTaxOffice] = useState('');
@@ -119,6 +120,10 @@ export default function SignupScreen() {
       appAlert('E-posta geçersiz', 'Geçerli bir e-posta adresi girin.');
       return;
     }
+    if (!/^5\d{9}$/.test(phone.replace(/\D/g, '').replace(/^90(?=5\d{9}$)/, '').replace(/^0(?=5\d{9}$)/, ''))) {
+      appAlert('Telefon numarası geçersiz', '10 haneli geçerli cep telefonu numarası girin.');
+      return;
+    }
     if (!companyCategory) {
       appAlert('Kategori seçin', 'Firma kategorinizi listeden seçin.');
       return;
@@ -135,6 +140,7 @@ export default function SignupScreen() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim().toLowerCase(),
+        phone: phone.trim(),
         companyCategory,
         taxNumber,
       });
@@ -242,6 +248,15 @@ export default function SignupScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="ornek@firma.com"
+          />
+
+          <FormField
+            label="Cep Telefonu (Zorunlu)"
+            appearance="dark"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            placeholder="05XX XXX XX XX"
           />
 
           <View style={styles.fieldGroup}>

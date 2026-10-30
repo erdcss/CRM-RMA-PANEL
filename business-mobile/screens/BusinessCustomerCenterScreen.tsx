@@ -1,20 +1,22 @@
 import {useCallback,useEffect,useMemo,useState} from "react";
 import {ActivityIndicator,Alert,RefreshControl,ScrollView,StyleSheet,Text,
-  TouchableOpacity,View} from "react-native";
+  TouchableOpacity,View,TextInput,Switch} from "react-native";
 import {apiFetch} from "../lib/api";
 import {
-  changeApplication,formatDate,fullName,getCenter,getTimeline,moneyTR,statusName,
+  changeApplication,formatDate,fullName,getCenter,getTimeline,moneyTR,statusName,getCustomerInsights,saveCustomerTax,
+  type CustomerInsights,
   type ActivityPage,type ActivityRecord,type B2BApplication,type CenterDetail,type CenterRecord,
 } from "../lib/b2b-customer-center";
 import {C} from "../ui/theme";
 import {BackHeader,EmptyState} from "./common";
 
-type Tab="profile"|"orders"|"invoices"|"returns"|"support"|"addresses"|"ledger"|"activity";
+type Tab="profile"|"orders"|"invoices"|"returns"|"support"|"addresses"|"ledger"|"activity"|"insights";
 const sections:{key:Tab;label:string}[]=[
   {key:"profile",label:"Firma Bilgileri"},{key:"orders",label:"Siparişler"},
   {key:"invoices",label:"Faturalar"},{key:"returns",label:"İadeler"},
   {key:"support",label:"Destek"},{key:"addresses",label:"Adresler"},
   {key:"ledger",label:"Defter"},{key:"activity",label:"Tüm Hareketler"},
+  {key:"insights",label:"Kullanım Analizi"},
 ];
 const tagStyle=(status:string)=>status==="approved"?
   {color:C.green,bg:C.greenSoft}:status==="rejected"?
@@ -46,9 +48,17 @@ export function BusinessCustomerCenterScreen({
   const [timeline,setTimeline]=useState<ActivityPage|null>(null);
   const [loadingTimeline,setLoadingTimeline]=useState(false);
   const [timelineError,setTimelineError]=useState("");
+  const [insights,setInsights]=useState<CustomerInsights|null>(null);
+  const [insightsError,setInsightsError]=useState("");
+  const [insightsLoading,setInsightsLoading]=useState(false);
+  const [taxOfficeDraft,setTaxOfficeDraft]=useState("");
+  const [taxVerifiedDraft,setTaxVerifiedDraft]=useState(false);
+  const [taxNote,setTaxNote]=useState("");
   const load=useCallback(async()=>{
     setError("");
-    try {setData(await getCenter(id));}
+    try {const next=await getCenter(id);setData(next);
+      setTaxOfficeDraft(next.customer.taxOffice||"");
+      setTaxVerifiedDraft(Boolean(next.customer.taxVerified));}
     catch(e){setError(e instanceof Error?e.message:"Firma bilgileri alınamadı.");}
     finally{setLoading(false);setRefreshing(false);}
   },[id]);
@@ -62,6 +72,31 @@ export function BusinessCustomerCenterScreen({
     }).finally(()=>{if(active)setLoadingTimeline(false);});
     return ()=>{active=false;};
   },[tab,page,id,data?.customer.applicationStatus]);
+
+  useEffect(()=>{
+    if(tab!=="insights"||data?.customer.applicationStatus!=="approved")return;
+    let active=true;setInsightsLoading(true);setInsightsError("");
+    getCustomerInsights(id).then(v=>{if(active)setInsights(v);})
+      .catch(e=>{if(active)setInsightsError(e instanceof Error?e.message:"Kullanım analizi alınamadı");})
+      .finally(()=>{if(active)setInsightsLoading(false);});
+    return ()=>{active=false;};
+  },[tab,id,data?.customer.applicationStatus]);
+  const submitTax=()=>{
+    if(taxVerifiedDraft&&taxOfficeDraft.trim().length<2){
+      Alert.alert("Vergi dairesi gerekli","Manuel teyit için vergi dairesi adını yazın.");return;
+    }
+    Alert.alert("Manuel teyit","Vergi dairesi ve manuel teyit bilgilerini kaydetmek istiyor musunuz?",[
+      {text:"Vazgeç",style:"cancel"},
+      {text:"Kaydet",onPress:async()=>{
+        setBusy(true);
+        try{await saveCustomerTax(id,taxOfficeDraft.trim(),taxVerifiedDraft,taxNote.trim());
+          setTaxNote("");await load();
+          Alert.alert("Kaydedildi","Vergi doğrulama değişikliği yönetici geçmişine işlendi.");
+        }catch(error){Alert.alert("İşlem başarısız",error instanceof Error?error.message:"Tekrar deneyin.");}
+        finally{setBusy(false);}
+      }},
+    ]);
+  };
 
   const item=data?.customer;
   const approved=item?.applicationStatus==="approved";
@@ -175,6 +210,7 @@ export function BusinessCustomerCenterScreen({
           <ProfileLine label="Firma adı" value={item.companyName}/>
           <ProfileLine label="Yetkili" value={fullName(item)}/>
           <ProfileLine label="E-posta adresi" value={item.email||item.username}/>
+          <ProfileLine label="Cep telefonu" value={item.phone}/>
           <ProfileLine label="Kullanıcı adı" value={item.username}/>
           <ProfileLine label="Firma kategorisi" value={item.companyCategory}/>
           <ProfileLine label="Vergi numarası" value={item.taxNumber}/>
@@ -187,11 +223,53 @@ export function BusinessCustomerCenterScreen({
           <ProfileLine label="Erişim" value={item.isActive?"Aktif":"Pasif"}/>
           <ProfileLine label="Yeni şifre zorunluluğu" value={item.mustChangePassword?"İlk şifre bekleniyor":"Şifre değişimi gerekmiyor"}/>
         </View>
+        <View style={[s.profileCard,{marginTop:12,gap:10}]}>
+          <Text style={s.heading}>Vergi dairesi / manuel teyit</Text>
+          <Text style={s.hint}>Manuel teyit resmî vergi servisi doğrulaması değildir; değişiklik kaydedilir.</Text>
+          <TextInput value={taxOfficeDraft} onChangeText={setTaxOfficeDraft}
+            placeholder="Vergi dairesi adı" placeholderTextColor={C.muted}
+            style={{borderWidth:1,borderColor:C.line,borderRadius:10,padding:12,color:C.text}}/>
+          <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}>
+            <Text style={{color:C.text,flex:1}}>Vergi bilgileri manuel kontrol edildi</Text>
+            <Switch value={taxVerifiedDraft} onValueChange={setTaxVerifiedDraft}/>
+          </View>
+          <TextInput value={taxNote} onChangeText={setTaxNote}
+            placeholder="İç not (isteğe bağlı)" placeholderTextColor={C.muted}
+            style={{borderWidth:1,borderColor:C.line,borderRadius:10,padding:12,color:C.text}}/>
+          <TouchableOpacity style={s.action} disabled={busy} onPress={submitTax}>
+            <Text style={s.actionText}>{busy?"Kaydediliyor…":"Vergi bilgilerini kaydet"}</Text>
+          </TouchableOpacity>
+        </View>
         {!approved?<Text style={s.hint}>
           {item.applicationStatus==="rejected"?
             "Firma aynı e-posta ve vergi numarasıyla yeniden başvurabilir.":
             "Onaydan sonra kullanıcıya tek kullanımlık şifre e-posta ile gönderilir."}
         </Text>:null}
+      </>:tab==="insights"?<>
+        <Text style={s.heading}>Müşteri kullanım analizi · Son 30 gün</Text>
+        {insightsLoading?<ActivityIndicator color={C.blue} style={{marginVertical:24}}/>:
+          insightsError?<Text style={s.error}>{insightsError}</Text>:
+          !insights?<EmptyState title="Henüz rapor yok" text="Giriş yapan müşteri kullanımı bekleniyor."/>:<>
+          <View style={s.metrics}>
+            <Stat name="Ürün görüntüleme" value={insights.summary.product_views||0}/>
+            <Stat name="Aktif ürün süresi" value={Math.round((insights.summary.seconds||0)/60)+" dk"}/>
+            <Stat name="Aktif gün" value={insights.summary.active_days||0}/>
+            <Stat name="Oturum" value={insights.summary.sessions||0}/>
+            <Stat name="Web oturum" value={insights.summary.web_sessions||0}/>
+            <Stat name="Mobil oturum" value={insights.summary.mobile_sessions||0}/>
+          </View>
+          <View style={s.recordList}>
+            <Text style={[s.heading,{padding:12}]}>En çok bakılan ürünler</Text>
+            {insights.products.length?insights.products.map(p=><View key={p.product_id} style={s.record}>
+              <View style={{flex:1}}>
+                <Text style={s.recordTitle}>{p.product_name||p.product_id}</Text>
+                <Text style={s.recordDetail}>{p.views} görüntüleme · {Math.round((p.seconds||0)/60)} dk</Text>
+                <Text style={s.recordDate}>{formatDate(p.last_seen)}</Text>
+              </View>
+            </View>):<Text style={s.hint}>Henüz ürün görüntüleme kaydı yok.</Text>}
+          </View>
+          <Text style={s.hint}>{insights.note}</Text>
+        </>}
       </>:tab==="activity"?<>
         <View style={s.listHeading}><Text style={s.heading}>Tüm Hareketler</Text>
           <Text style={s.count}>{timeline?.total||0} kayıt</Text></View>

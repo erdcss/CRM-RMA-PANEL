@@ -21,6 +21,7 @@ import { asCatalogProduct, isMarketplaceProduct } from '@/lib/marketplace-produc
 import { addToOrderList } from '@/lib/b2b-order-list';
 import { appAlert } from '@/lib/appAlert';
 import { ProductShareSheet } from '@/components/products/ProductShareSheet';
+import { monitorMobileProduct } from '@/lib/customer-insights';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -109,6 +110,11 @@ export default function ProductDetailScreen() {
       .catch(()=>{ /* Use the store icon if the branding service is unavailable. */ });
     return () => { active=false; };
   }, [product?.id, product?.seller_slug]);
+
+  useEffect(() => {
+    if (!product?.id || session?.user?.role !== 'b2b_customer' || session.user.isActive !== true) return;
+    return monitorMobileProduct(String(product.id), String(product.name || 'Ürün'));
+  }, [product?.id, product?.name, session?.access_token]);
 
   const pack = Math.max(1, Number(product?.units_per_box || 1));
   const min = Math.max(1, Number(product?.min_order_qty || 1));
