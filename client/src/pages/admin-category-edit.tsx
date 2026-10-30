@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-type CategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
+type CategoryCard = { category: string; label: string; imageId: string; tags?: string[]; subcategories?: { id: string; name: string; imageId: string; tags: string[] }[] };
 type HomepageConfig = {
   categories: string[];
   categoryCards: CategoryCard[];
@@ -104,7 +104,8 @@ export default function AdminCategoryEdit() {
       const categories = data.categories.map(item => item === originalName ? clean : item);
       const categoryCards = (data.categoryCards || [])
         .filter(item => item.category !== originalName && item.category !== clean);
-      categoryCards.push({ category: clean, label: label.trim() || clean, imageId, tags: selectedTags });
+      const previous = data.categoryCards?.find(item => item.category === originalName);
+      categoryCards.push({ category: clean, label: label.trim() || clean, imageId, tags: selectedTags, subcategories: previous?.subcategories || [] });
       await apiRequest("PUT", "/api/admin/homepage", {
         categories, categoryCards, ledgerTileImageId: data.ledgerTileImageId || '', banners: data.banners || [],
         sliderAutoPlay: data.sliderAutoPlay, sliderIntervalMs: data.sliderIntervalMs,

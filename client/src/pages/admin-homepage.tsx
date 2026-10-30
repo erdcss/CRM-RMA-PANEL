@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin-subcategory-drawer";
 
 type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
@@ -19,13 +20,14 @@ const pageDestinations=[
   {path:'/(tabs)/discover',label:'Keşfet'}, {path:'/(tabs)/menu',label:'Menü'},
   {path:'/ledger',label:'Defter'}, {path:'/notifications',label:'Bildirimler'}
 ];
-type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
+type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[]; subcategories?: HomeSubcategory[] };
 
 type HomepageConfig = {
   categories: string[];
   detectedCategories: string[];
   banners: HomeBanner[];
   categoryCards: HomeCategoryCard[];
+  availableTags?: string[];
   ledgerTileImageId?: string;
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
@@ -144,6 +146,23 @@ export default function AdminHomepage() {
   }
 
   async function save() {
+    for (const category of categories) {
+      const subcategories = categoryCards.find(card => card.category === category)?.subcategories || [];
+      const seen = new Set<string>();
+      for (const item of subcategories) {
+        const name = item.name.trim().replace(/\s+/g, " ");
+        const key = name.toLocaleLowerCase("tr-TR");
+        if (!name || seen.has(key) || !item.tags.length) {
+          toast({
+            title: "Alt kategori bilgilerini kontrol edin",
+            description: category + ": Her alt kategorinin benzersiz adı ve en az bir ürün etiketi olmalıdır.",
+            variant: "destructive",
+          });
+          return;
+        }
+        seen.add(key);
+      }
+    }
     const invalid=banners.find(banner=>
       (banner.linkType==='product'&&(!banner.productId||!productOptions.some(p=>Number(p.id)===Number(banner.productId))))||
       (banner.linkType==='page'&&!pageDestinations.some(page=>page.path===banner.pagePath))||
@@ -255,7 +274,8 @@ export default function AdminHomepage() {
                 </div>
               ) : (
                 categories.map((category, index) => (
-                  <div key={category} className="flex items-center gap-3 rounded-xl border bg-muted/10 px-3 py-3">
+                  <div key={category} className="rounded-xl border bg-muted/10 px-3 py-3">
+                    <div className="flex items-center gap-3">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-bold">{index + 1}</span>
                     {categoryCards.find(card => card.category === category)?.imageId ? (
                       <img alt="" className="h-12 w-12 rounded-lg object-cover"
@@ -272,6 +292,14 @@ export default function AdminHomepage() {
                     <Button type="button" size="icon" variant="ghost" disabled={index === categories.length - 1} onClick={() => move(index, 1)} aria-label="Aşağı taşı"><ArrowDown className="h-4 w-4" /></Button>
                     <Button type="button" size="icon" variant="ghost" onClick={() => setCategories(current => current.filter((_, i) => i !== index))} aria-label="Kategoriyi sil"><Trash2 className="h-4 w-4" /></Button>
                     <Link href={`/ana-sayfa/kategori/${encodeURIComponent(category)}`} aria-label="Kategoriyi düzenle"><ChevronRight className="h-5 w-5 text-muted-foreground" /></Link>
+                    </div>
+                    <AdminSubcategoryDrawer
+                      category={category}
+                      subcategories={categoryCards.find(card => card.category === category)?.subcategories || []}
+                      availableTags={data?.availableTags || []}
+                      uploading={uploading} setUploading={setUploading}
+                      onChange={items => updateCategoryCard(category, { subcategories: items })}
+                    />
                   </div>
                 ))
               )}
