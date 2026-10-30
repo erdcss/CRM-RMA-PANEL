@@ -2451,7 +2451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  registerB2BAdminCustomerCenter(app, requireAdmin);
+  registerB2BAdminCustomerCenter(app, requireAdmin, sessionUserId);
   registerB2BCustomerInsights(app, requireB2B, requireAdmin);
 
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
