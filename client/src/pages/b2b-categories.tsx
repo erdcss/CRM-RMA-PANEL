@@ -166,7 +166,6 @@ export default function B2BCategoryPage({ category: rawCategory, subcategoryId }
         <Link href="/kategoriler" className="mt-4 inline-flex rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white">Diğer Kategoriler</Link>
       </div>
       :<div>
-        <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Ürünleri görmek için sağa kaydırın →</p>
         <B2BProductRail products={filtered} loggedIn={loggedIn} title={displayName+" kategorisindeki ürünler"}/>
       </div>}
       <Link href={isSubcategory ? b2bCategoryHref(category) : "/kategoriler"} className="mt-8 inline-flex items-center gap-2 text-sm font-bold text-amber-900 hover:underline">
