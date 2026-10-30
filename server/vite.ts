@@ -5,6 +5,7 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { injectB2BPreviewHtml, isB2BPreviewRequest, resolveB2BPreview } from "./b2b-link-preview";
 
 const viteLogger = createLogger();
 
@@ -48,7 +49,10 @@ export async function setupVite(app: Express, server: Server) {
         `src="/src/main.tsx?v=${nanoid()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      const rendered = isB2BPreviewRequest(req)
+        ? injectB2BPreviewHtml(page, await resolveB2BPreview(req.path))
+        : page;
+      res.status(200).set({ "Content-Type": "text/html", "Cache-Control": "no-store" }).end(rendered);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
