@@ -1,7 +1,8 @@
 import React,{useCallback,useEffect,useState} from "react";
 import * as SecureStore from "expo-secure-store";
+import {pickAiDocument} from "./ai-document";
 import {Image} from "react-native";
-import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,type StoreInfo} from "./remote-db";
+import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,importAiProducts,type AiDocumentSection,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
 import {DUKKAN_THEME} from "./design-system";
 import {DukkanMobileHeader,DukkanDrawerNavigation,DukkanBottomNavigation,DukkanDashboardOverview,type DukkanTab} from "./dukkan-home";
@@ -67,6 +68,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const [error,setError]=useState("");
  const [refresh,setRefresh]=useState(0);
  const [pdfBusy,setPdfBusy]=useState<number|null>(null);
+ const [aiBusy,setAiBusy]=useState(false);
  const openInvoicePdf=async(invoice:RecordRow)=>{
    const invoiceId=Number(invoice.id);
    if(!Number.isSafeInteger(invoiceId)||invoiceId<1||pdfBusy!==null)return;
@@ -105,6 +107,53 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
   };
   setData(defaults[kind]||{});
   setLines([{productId:"",qty:"1",price:"0",vat:"20"}]);
+ };
+ const analyzeAi=async(section:AiDocumentSection)=>{
+  if(aiBusy)return;
+  setAiBusy(true);
+  try{
+   const result=await pickAiDocument(section);
+   if(!result)return;
+   const fields=result.fields||{};
+   if(section==="products"&&result.products.length>1){
+    const summary=result.products.slice(0,6).map(p=>p.name+" · "+p.sku).join("\n");
+    Alert.alert("Ürün Listesi: "+result.products.length,summary+"\n\nTüm ürünleri kayıt etmeden önce stok kodlarını kontrol ediniz.",[
+      {text:"Vazgeç",style:"cancel"},
+      {text:"Onayla",onPress:()=>{void importAiProducts(result.products).then(r=>{
+        Alert.alert("Aktarıldı",r.created+" ürün kaydedildi");setRefresh(v=>v+1);
+       }).catch(e=>Alert.alert("Aktarım hatası",(e as Error).message));}}
+    ]);
+    return;
+   }
+   if(section==="products"){
+    const p=result.products[0]||fields;
+    setFormType("product");setData({name:p.name||"",code:p.sku||"",barcode:p.barcode||"",unit:p.unit||"Adet",purchase:p.purchasePrice||"0",sale:p.salePrice||"0"});
+   }else if(section==="stock"){
+    const delta=Number(fields.delta||0);
+    setFormType("stock");setData({productId:fields.productId||"",direction:delta<0?"decrease":"increase",qty:String(Math.abs(delta)||""),notes:fields.note||""});
+   }else if(section==="parties"){
+    setFormType("party");setData({name:fields.name||fields.partyName||"",kind:["customer","supplier","both"].includes(fields.kind)?fields.kind:"customer",tax:fields.partyTaxNumber||""});
+   }else if(section==="instruments"){
+    setFormType("instrument");setData({partyId:fields.partyId||"",kind:fields.kind==="promissory"?"note":"cheque",direction:fields.direction==="issued"?"issued":"received",
+      number:fields.number||"",amount:fields.amount||"",dueDate:fields.dueDate||"",notes:fields.note||""});
+   }else{
+    setFormType("invoice");setData({partyId:fields.partyId||"",date:fields.date||today(),kind:section==="purchases"?"purchase":"sale"});
+    setLines(result.lines.length?result.lines.map(l=>({productId:l.productId||"",qty:l.quantity||"1",price:l.unitPrice||"0",vat:l.taxRate||"20"})):
+     [{productId:"",qty:"1",price:"0",vat:"20"}]);
+   }
+   Alert.alert("AI Taslağı Hazır","Belgeden alınan alanları düzeltip İşlemi Kaydet düğmesine basın."+
+    (result.warnings?.length?"\n\n"+result.warnings.slice(0,4).join("\n"):""));
+  }catch(e){Alert.alert("AI belge işlenemedi",(e as Error).message);}
+  finally{setAiBusy(false);}
+ };
+ const startAi=()=>{
+  if(tab==="invoices")return Alert.alert("Belge Türü","Belgeyi hangi bölüme aktaralım?",[
+   {text:"Satış",onPress:()=>void analyzeAi("sales")},
+   {text:"Satın Alma",onPress:()=>void analyzeAi("purchases")},
+   {text:"İptal",style:"cancel"}
+  ]);
+  const section:Partial<Record<Tab,AiDocumentSection>>={products:"products",movements:"stock",parties:"parties",instruments:"instruments"};
+  if(section[tab])void analyzeAi(section[tab]!);
  };
  const submit=async()=>{
   if(!formType||busy)return;
@@ -214,7 +263,12 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     <Pressable disabled={busy} style={[styles.secondary,{marginVertical:8}]} onPress={doImport}><Text style={styles.secondaryText}>Eski Yedekler Hakkında</Text></Pressable>
     <Text style={styles.hint}>Önemli: Eski çevrimdışı SQLite kayıtları sunucuya otomatik aktarılmaz; yerel yedeklerinizi koruyun.</Text></View>
     <View style={styles.card}><Text style={styles.groupTitle}>Dahili Muhasebe Uyarısı</Text><Text style={styles.hint}>e-Fatura/e-Arşiv oluşturma ve GİB'e gönderim yoktur. Resmî muhasebe belgesi olarak kullanmayın.</Text></View></View>}
-   {tab!=="dashboard"&&visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
+   {["invoices","products","movements","parties","instruments"].includes(tab)&&
+      (!cashier||["invoices","parties"].includes(tab))&&(!["products","movements"].includes(tab)||canManage)&&
+      <Pressable disabled={aiBusy} onPress={startAi} style={[styles.secondary,{marginBottom:13}]}>
+       <Text style={styles.secondaryText}>{aiBusy?"Belge analiz ediliyor...":"AI ile Belge İçe Aktar (PDF / Fotoğraf)"}</Text>
+      </Pressable>}
+    {tab!=="dashboard"&&visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
     {visibleActions(tab).map(x=><Pressable key={x.kind} onPress={()=>open(x.kind)} style={styles.primary}><Text style={styles.primaryText}>＋ {x.label}</Text></Pressable>)}
    </ScrollView>}
    {!["settings","report"].includes(tab)&&<View>
