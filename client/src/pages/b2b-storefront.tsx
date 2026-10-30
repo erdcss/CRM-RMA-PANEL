@@ -222,7 +222,6 @@ export default function B2BStorefront() {
           </div>
         ) : (
           <div>
-            <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Ürünleri görmek için sağa kaydırın →</p>
             <B2BProductRail products={filtered} loggedIn={loggedIn} title="Toptan Ürünler" />
           </div>
         )}
