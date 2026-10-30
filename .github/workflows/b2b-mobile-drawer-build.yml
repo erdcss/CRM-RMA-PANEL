@@ -1,0 +1,29 @@
+name: B2B Mobile Drawer - TypeScript and Build
+on:
+  push:
+    paths:
+      - 'client/src/components/b2b-header.tsx'
+      - 'client/src/components/b2b-mobile-pull-to-refresh.tsx'
+      - '.github/workflows/b2b-mobile-drawer-build.yml'
+  pull_request:
+    paths:
+      - 'client/src/components/b2b-header.tsx'
+      - 'client/src/components/b2b-mobile-pull-to-refresh.tsx'
+      - '.github/workflows/b2b-mobile-drawer-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Verify mobile B2B header
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run build
