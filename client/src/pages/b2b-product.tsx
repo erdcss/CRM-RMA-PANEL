@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { trackProductView } from "@/lib/analytics";
+import { trackProductView, trackCustomerProductVisit, trackCustomerProductDuration } from "@/lib/analytics";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
@@ -94,6 +94,34 @@ export default function B2BProductPage() {
   useEffect(() => {
     if (product?.id) void trackProductView(product.id, product.name, Number(product.price || 0));
   }, [product?.id, product?.name, product?.price]);
+
+  useEffect(() => {
+    if (!loggedIn || !product?.id) return;
+    const productId = product.id;
+    const name = product.name;
+    trackCustomerProductVisit(productId, name);
+    let activeSince = document.hidden ? 0 : Date.now();
+    const flush = () => {
+      if (!activeSince) return;
+      const elapsed = Math.floor((Date.now() - activeSince) / 1000);
+      activeSince = Date.now();
+      // Do not count idle or background time as product viewing.
+      if (elapsed > 0 && elapsed <= 120) trackCustomerProductDuration(productId, name, elapsed);
+    };
+    const visibility = () => {
+      if (document.hidden) { flush(); activeSince = 0; }
+      else activeSince = Date.now();
+    };
+    const interval = window.setInterval(flush, 30000);
+    document.addEventListener("visibilitychange", visibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      flush();
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", visibility);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [loggedIn, product?.id, product?.name]);
 
   if (isLoading) {
     return <div className="min-h-screen grid place-items-center bg-[#f6f7f9] text-slate-500">Ürün yükleniyor…</div>;
