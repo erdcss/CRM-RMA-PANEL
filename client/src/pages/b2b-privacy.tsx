@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
-const updatedAt = "26 Ekim 2026";
+const updatedAt = "30 Ekim 2026";
 
 const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] = [
   {
@@ -61,6 +61,7 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
       "Web sitesinde oturumun sürdürülmesi, güvenlik ve temel işlevler için çerezler veya benzer depolama teknikleri kullanılabilir. Mobil uygulama; kullanıcı tarafından izin verilen kamera, bildirim veya benzeri cihaz özelliklerine ilgili işlevlerin sağlanması amacıyla erişebilir. Kullanım ve hata kayıtları hizmet kalitesini iyileştirmek için değerlendirilebilir.",
       "B2B web mağazasındaki Meta Pixel yalnızca ziyaretçinin reklam ve ölçüm çerezlerine açıkça izin vermesi üzerine yüklenir. İzin verilirse sayfa görüntüleme, ürün görüntüleme, arama, sepete ekleme, ödeme başlatma, doğrulanmış satın alma ve yeni kayıt başvurusu gibi etkileşimlerin olay bilgileri Meta ile paylaşılabilir.",
       "Meta Conversions API erişimi sunucuda etkinleştirilmişse ve ziyaretçi ölçüme izin vermişse, doğrulanmış satın alma olayları eşleştirme amacıyla SHA-256 ile özetlenmiş e-posta ve sınırlı teknik bilgilerle Meta tarafına iletilebilir. Meta hizmetleri nedeniyle yurt dışına aktarım söz konusu olabileceğinden, veri sorumlusu gerekli KVKK değerlendirmelerini ayrıca yapmalıdır.",
+      "Giriş yapan B2B müşterilerinin web ve mobil uygulamada ürün görüntülemeleri, uygulama oturumları, kullanım sıklığı ve ürün sayfasının görünür kaldığı yaklaşık süreler, müşteri hizmetleri ve hizmetin geliştirilmesi için birinci taraf kayıtlar olarak tutulur. Bu kayıtlar hesapla ilişkilidir, yetkili yöneticilerin müşteri panelinden son 30 gün için raporlanır ve 90 günden eski kullanım olayları periyodik olarak silinir. Tarayıcı sekmesi veya uygulama arka plandayken geçirilen süre ürün incelemesi olarak sayılmaz.",
       "Bu isteğe bağlı ölçümden vazgeçmek veya yeniden izin vermek için web mağazası altındaki Reklam ve çerez tercihleri bağlantısını kullanabilirsiniz. Ret halinde Meta Pixel yüklenmez; site alışveriş işlevleri devam eder."
     ]
   },
