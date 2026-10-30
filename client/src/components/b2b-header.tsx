@@ -8,6 +8,7 @@ import { footerGroups, B2BSocialAndStores, B2BMobileDownloadHeader } from "@/com
 import { Button } from "@/components/ui/button";
 import { useBranding } from "@/hooks/use-branding";
 import { useB2BCart } from "@/lib/b2b-cart";
+import { trackCustomerUsageSession } from "@/lib/analytics";
 
 type SessionUser = {
   id: number;
@@ -90,6 +91,10 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
   const loggedIn =
     session?.role === "b2b_customer" &&
     session?.isActive === true;
+
+  useEffect(() => {
+    if (loggedIn) trackCustomerUsageSession();
+  }, [loggedIn]);
 
   return (
     <>
