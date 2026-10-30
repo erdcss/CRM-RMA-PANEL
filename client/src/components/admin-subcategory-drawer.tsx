@@ -27,6 +27,7 @@ export function AdminSubcategoryDrawer({
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [tagDrafts, setTagDrafts] = useState<Record<string, string>>({});
 
   function patch(id: string, change: Partial<HomeSubcategory>) {
     onChange(subcategories.map(item => item.id === id ? { ...item, ...change } : item));
@@ -51,6 +52,7 @@ export function AdminSubcategoryDrawer({
   }
 
   function updateTags(id: string, raw: string) {
+    setTagDrafts(current => ({ ...current, [id]: raw }));
     const tags: string[] = [];
     const seen = new Set<string>();
     for (const item of raw.split(",")) {
@@ -146,7 +148,8 @@ export function AdminSubcategoryDrawer({
             </div>
             <label className="block space-y-1 text-xs font-semibold">
               Ürün etiketleri (virgülle ayırın)
-              <Input value={item.tags.join(", ")} onChange={event => updateTags(item.id, event.target.value)}
+              <Input value={tagDrafts[item.id] ?? item.tags.join(", ")} onChange={event => updateTags(item.id, event.target.value)}
+                onBlur={() => setTagDrafts(current => { const next = { ...current }; delete next[item.id]; return next; })}
                 placeholder="Örn. uydu alıcısı, mini uydu" />
             </label>
             {availableTags.length > 0 && <div>
