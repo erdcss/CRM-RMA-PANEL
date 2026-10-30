@@ -5,7 +5,7 @@ import {pool} from "./db";
 const eligible=(u:any)=>u?.role==="b2b_customer" && u.companyName!=="Çalışkan B2B - Apple İnceleme"
   && ["pending","approved","rejected"].includes(String(u.applicationStatus));
 const safe=(u:any)=>({
-  id:u.id,username:u.username,email:u.email,companyName:u.companyName,
+  id:u.id,username:u.username,email:u.email,phone:u.phone,companyName:u.companyName,
   firstName:u.firstName,lastName:u.lastName,companyCategory:u.companyCategory,
   taxNumber:u.taxNumber,taxOffice:u.taxOffice,taxVerified:u.taxVerified===1,
   applicationStatus:u.applicationStatus,isActive:u.isActive===1,
@@ -29,6 +29,54 @@ export function registerB2BAdminCustomerCenter(app:Express,requireAdmin:RequestH
       const users=await storage.listUsers();
       return res.json(users.filter(u=>eligible(u)&&u.applicationStatus==="approved"&&u.isActive===1).map(safe));
     }catch(error){return fail(res,error);}
+  });
+
+  // Manual tax verification is an authenticated administrator action, never a public
+  // taxpayer-service response. Record the actor and previous values for accountability.
+  app.patch("/api/admin/b2b-customer-center/:id/tax",requireAdmin,async(req,res)=>{
+    noStore(res);
+    const id=validId(req.params.id);
+    if(!id)return res.status(400).json({error:"Geçersiz firma numarası."});
+    const taxOffice=typeof req.body?.taxOffice==="string" ? req.body.taxOffice.trim().slice(0,180) : "";
+    const verified=req.body?.taxVerified;
+    const note=typeof req.body?.note==="string" ? req.body.note.trim().slice(0,500) : "";
+    if(typeof verified!=="boolean" || (verified && taxOffice.length<2)){
+      return res.status(400).json({error:"Vergi dairesi ve manuel teyit durumunu kontrol edin."});
+    }
+    const actor=Number((req.session as {userId?:number})?.userId || 0);
+    if(!actor)return res.status(401).json({error:"Yönetici oturumu gerekiyor."});
+    if(!pool)return res.status(503).json({error:"Veritabanı erişilemiyor."});
+    const transaction=await pool.connect();
+    try {
+      await transaction.query("BEGIN");
+      const existing=await transaction.query(
+        "SELECT id,role,tax_office,tax_verified FROM users WHERE id=$1 FOR UPDATE",[id],
+      );
+      if(existing.rows[0]?.role!=="b2b_customer"){
+        await transaction.query("ROLLBACK");
+        return res.status(404).json({error:"B2B firması bulunamadı."});
+      }
+      await transaction.query(
+        "CREATE TABLE IF NOT EXISTS b2b_tax_verification_audit ("+
+        "id BIGSERIAL PRIMARY KEY,customer_id INTEGER NOT NULL,admin_id INTEGER NOT NULL,"+
+        "old_tax_office TEXT,new_tax_office TEXT,old_verified BOOLEAN NOT NULL,"+
+        "new_verified BOOLEAN NOT NULL,note TEXT,created_at TIMESTAMPTZ DEFAULT NOW())",
+      );
+      await transaction.query("UPDATE users SET tax_office=$2,tax_verified=$3 WHERE id=$1",
+        [id,taxOffice||null,verified?1:0]);
+      await transaction.query(
+        "INSERT INTO b2b_tax_verification_audit "+
+        "(customer_id,admin_id,old_tax_office,new_tax_office,old_verified,new_verified,note) "+
+        "VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [id,actor,existing.rows[0].tax_office,taxOffice||null,existing.rows[0].tax_verified===1,verified,note||null],
+      );
+      await transaction.query("COMMIT");
+      return res.json({ok:true,taxOffice:taxOffice||null,taxVerified:verified,
+        verificationMethod:verified?"manual":"unverified"});
+    }catch(error){
+      await transaction.query("ROLLBACK").catch(()=>{});
+      return fail(res,error);
+    }finally{transaction.release();}
   });
 
   app.get("/api/admin/b2b-customer-center/:id",requireAdmin,async(req,res)=>{
