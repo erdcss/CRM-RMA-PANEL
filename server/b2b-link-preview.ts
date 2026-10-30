@@ -62,8 +62,9 @@ export async function resolveB2BPreview(pathname: string): Promise<LinkPreview> 
   }
 
   const match = /^\/urun\/([^/]+)\/?$/.exec(path);
-  if (!match || !pool) return base;
-  const id = decode(match[1]);
+  const shopProduct = /^\/magaza\/([^/]+)\/urun\/([1-9]\d*)\/?$/.exec(path);
+  if ((!match && !shopProduct) || !pool) return base;
+  const id = match ? decode(match[1]) : "mp-" + shopProduct![2];
   if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return base;
 
   let row: Record<string, unknown> | undefined;
@@ -76,8 +77,10 @@ export async function resolveB2BPreview(pathname: string): Promise<LinkPreview> 
       "AND s.status='approved' AND s.is_holiday=FALSE AND s.is_admin_paused=FALSE",
       "JOIN mp_product_versions v ON v.product_id=p.id",
       "AND v.is_live=TRUE AND v.status='approved'",
-      "WHERE p.id=$1 AND p.is_enabled=TRUE LIMIT 1",
-    ].join(" "), [id.slice(3)]);
+      "WHERE p.id=$1 AND p.is_enabled=TRUE",
+      shopProduct ? "AND s.slug=$2" : "",
+      "LIMIT 1",
+    ].join(" "), shopProduct ? [id.slice(3), decode(shopProduct[1])] : [id.slice(3)]);
     row = result.rows[0];
   } else {
     const result = await pool.query([
