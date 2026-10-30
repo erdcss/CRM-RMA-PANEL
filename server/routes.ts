@@ -29,6 +29,7 @@ import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
+import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
@@ -2451,6 +2452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerB2BAdminCustomerCenter(app, requireAdmin);
+  registerB2BCustomerInsights(app, requireB2B, requireAdmin);
 
   app.get("/api/admin/b2b-applications", requireAdmin, async (_req, res) => {
     const allUsers = await storage.listUsers();
