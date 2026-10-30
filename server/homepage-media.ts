@@ -45,7 +45,7 @@ function safeBannerLink(item:any):Pick<Banner,'linkType'|'productId'|'pagePath'|
   if(type==='url'&&externalUrl)return {linkType:type,productId:null,pagePath:'',externalUrl};
   return {linkType:'none',productId:null,pagePath:'',externalUrl:''};
 }
-type Subcategory = { id: string; name: string; imageId: string; tags: string[] };
+type Subcategory = { id: string; name: string; imageId: string; tags: string[]; titleKeywords: string[] };
 type CategoryCard = { category: string; label: string; imageId: string; tags: string[]; subcategories: Subcategory[] };
 
 function normalizeSubcategories(raw: unknown): Subcategory[] {
@@ -63,6 +63,10 @@ function normalizeSubcategories(raw: unknown): Subcategory[] {
     result.push({
       id, name,
       imageId: validId.test(String(item?.imageId || "")) ? String(item.imageId) : "",
+      titleKeywords: [...new Set<string>((Array.isArray(item?.titleKeywords) ? item.titleKeywords : [])
+        .filter((term: unknown): term is string => typeof term === "string")
+        .map((term: string) => safeString(term, 80).replace(/\s+/g, " "))
+        .filter(Boolean))].slice(0, 15),
       tags: [...new Set<string>(((Array.isArray(item?.tags) ? item.tags : [])
         .filter((tag: unknown): tag is string => typeof tag === "string")
         .map((tag: string) => safeString(tag, 60).replace(/\s+/g, " "))
@@ -113,8 +117,104 @@ export function homepageImageUrl(id: string) {
   return validId.test(id) ? `/api/public/homepage/media/${id}` : null;
 }
 
+const ELECTRONICS_TITLE_SEED_KEY = "b2b_electronics_title_subcategories_v1";
+const DEFAULT_TITLE_SUBCATEGORIES = [
+  { name: "ÇELİK CEZVE", title: "çelik cezve" },
+  { name: "ÇAY MAKİNESİ", title: "çay makinesi" },
+] as const;
+
+/**
+ * One-time, transactionally locked addition to the actual saved homepage layout.
+ * Preserves existing categories, images, tags, banners and all other settings.
+ * An admin can subsequently edit or remove these categories without a later
+ * process restart automatically recreating them.
+ */
+export function addElectronicsTitleSubcategories(layout: MobileHomeLayout): { layout: MobileHomeLayout; changed: boolean } {
+  let changed = false;
+  let card = layout.categoryCards.find(item => item.category.toLocaleLowerCase("tr-TR") === "elektronik");
+  if (!card) {
+    card = { category: "elektronik", label: "Elektronik", imageId: "", tags: [], subcategories: [] };
+    layout.categoryCards.push(card);
+    changed = true;
+  }
+  for (const spec of DEFAULT_TITLE_SUBCATEGORIES) {
+    let sub = card.subcategories.find(item => item.name.trim().toLocaleLowerCase("tr-TR") === spec.name.toLocaleLowerCase("tr-TR"));
+    if (!sub) {
+      if (card.subcategories.length >= 24) break;
+      sub = {
+        id: randomBytes(12).toString("hex"),
+        name: spec.name,
+        imageId: "",
+        tags: [],
+        titleKeywords: [spec.title],
+      };
+      card.subcategories.push(sub);
+      changed = true;
+    } else if (!sub.titleKeywords.some(keyword => keyword.toLocaleLowerCase("tr-TR") === spec.title)) {
+      sub.titleKeywords = [...sub.titleKeywords, spec.title];
+      changed = true;
+    }
+  }
+  return { layout, changed };
+}
+
+let seedPromise: Promise<void> | null = null;
+
+async function ensureElectronicsTitleSubcategories(): Promise<void> {
+  if (!pool) return;
+  if (!seedPromise) {
+    seedPromise = (async () => {
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        await db.query("SELECT pg_advisory_xact_lock(hashtext($1))", [ELECTRONICS_TITLE_SEED_KEY]);
+        const existingSeed = await db.query(
+          "SELECT 1 FROM platform_settings WHERE key=$1 LIMIT 1", [ELECTRONICS_TITLE_SEED_KEY],
+        );
+        if (existingSeed.rowCount) {
+          await db.query("COMMIT");
+          return;
+        }
+
+        const saved = await db.query(
+          "SELECT value FROM platform_settings WHERE key=$1 FOR UPDATE", [LAYOUT_KEY],
+        );
+        let stored: unknown = {};
+        if (saved.rows[0]?.value) {
+          try { stored = JSON.parse(String(saved.rows[0].value)); } catch { stored = {}; }
+        }
+        const normalized = normalizeHomeLayout(stored);
+        const { layout, changed } = addElectronicsTitleSubcategories(normalized);
+        if (changed) {
+          await db.query(
+            "INSERT INTO platform_settings (key,value,updated_at) VALUES ($1,$2,NOW()) " +
+            "ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()",
+            [LAYOUT_KEY, JSON.stringify(layout)],
+          );
+        }
+        await db.query(
+          "INSERT INTO platform_settings (key,value,updated_at) VALUES ($1,'applied',NOW()) " +
+          "ON CONFLICT(key) DO NOTHING",
+          [ELECTRONICS_TITLE_SEED_KEY],
+        );
+        await db.query("COMMIT");
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+    })().catch(error => {
+      seedPromise = null; // Retry if the database is temporarily unavailable.
+      throw error;
+    });
+  }
+  await seedPromise;
+}
+
 export async function getMobileHomeLayout(): Promise<MobileHomeLayout> {
   if (!pool) return normalizeHomeLayout({});
+  await ensureElectronicsTitleSubcategories();
   const result = await pool.query("SELECT value FROM platform_settings WHERE key = $1", [LAYOUT_KEY]);
   if (!result.rows[0]?.value) return normalizeHomeLayout({});
   try {
@@ -126,6 +226,7 @@ export async function getMobileHomeLayout(): Promise<MobileHomeLayout> {
 
 export async function saveMobileHomeLayout(raw: unknown): Promise<MobileHomeLayout> {
   if (!pool) throw new Error("Veritabanı bağlantısı bulunamadı");
+  await ensureElectronicsTitleSubcategories();
   const result = normalizeHomeLayout(raw);
   await pool.query(
     `INSERT INTO platform_settings (key, value, updated_at) VALUES ($1,$2,NOW())
