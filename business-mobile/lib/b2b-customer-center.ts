@@ -1,7 +1,7 @@
 import { apiFetch } from "./api";
 export type ApplicationStatus = "pending" | "approved" | "rejected";
 export type B2BApplication = {
-  id:number; username:string; email?:string|null; companyName?:string|null;
+  id:number; username:string; email?:string|null; phone?:string|null; companyName?:string|null;
   firstName?:string|null;lastName?:string|null;companyCategory?:string|null;
   taxNumber?:string|null;taxOffice?:string|null; taxVerified:boolean;
   applicationStatus?:ApplicationStatus|string|null; mustChangePassword:boolean;
@@ -57,3 +57,18 @@ export const formatDate=(v?:string|null)=>{
   if(!v)return "—";const d=new Date(v);
   return Number.isNaN(d.getTime())?"—":d.toLocaleString("tr-TR",{dateStyle:"short",timeStyle:"short"});
 };
+
+export type CustomerInsights = {
+  periodDays:number;
+  summary:{product_views:number;active_days:number;sessions:number;web_sessions:number;mobile_sessions:number;seconds:number;last_seen?:string|null};
+  products:{product_id:string;product_name:string|null;views:number;seconds:number;last_seen:string}[];
+  daily:{day:string;views:number;sessions:number}[];
+  recent:{platform:string;event_type:string;product_name?:string;duration_seconds:number;created_at:string}[];
+  note:string;
+};
+export const getCustomerInsights=(id:string)=>apiFetch<CustomerInsights>(
+  "/api/admin/b2b-customer-center/"+encodeURIComponent(id)+"/insights");
+export const saveCustomerTax=(id:string,taxOffice:string,taxVerified:boolean,note:string)=>
+  apiFetch<{ok:boolean}>("/api/admin/b2b-customer-center/"+encodeURIComponent(id)+"/tax",{
+    method:"PATCH",body:JSON.stringify({taxOffice,taxVerified,note}),
+  });
