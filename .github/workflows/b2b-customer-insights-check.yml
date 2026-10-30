@@ -1,0 +1,44 @@
+name: B2B Customer Insights Tax Phone
+on:
+  push:
+    branches:
+      - feat/b2b-customer-insights-tax-phone-20261030
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  web-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run build
+  b2b-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: cd mobile && npm ci --ignore-scripts
+      - run: cd mobile && npm run typecheck
+  business-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - run: cd business-mobile && npm ci --ignore-scripts
+      - run: cd business-mobile && npx tsc --noEmit
