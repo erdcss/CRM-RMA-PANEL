@@ -228,14 +228,14 @@ export function BusinessCustomerCenterScreen({
           <Text style={s.hint}>Manuel teyit resmî vergi servisi doğrulaması değildir; değişiklik kaydedilir.</Text>
           <TextInput value={taxOfficeDraft} onChangeText={setTaxOfficeDraft}
             placeholder="Vergi dairesi adı" placeholderTextColor={C.muted}
-            style={{borderWidth:1,borderColor:C.border,borderRadius:10,padding:12,color:C.text}}/>
+            style={{borderWidth:1,borderColor:C.line,borderRadius:10,padding:12,color:C.text}}/>
           <View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}>
             <Text style={{color:C.text,flex:1}}>Vergi bilgileri manuel kontrol edildi</Text>
             <Switch value={taxVerifiedDraft} onValueChange={setTaxVerifiedDraft}/>
           </View>
           <TextInput value={taxNote} onChangeText={setTaxNote}
             placeholder="İç not (isteğe bağlı)" placeholderTextColor={C.muted}
-            style={{borderWidth:1,borderColor:C.border,borderRadius:10,padding:12,color:C.text}}/>
+            style={{borderWidth:1,borderColor:C.line,borderRadius:10,padding:12,color:C.text}}/>
           <TouchableOpacity style={s.action} disabled={busy} onPress={submitTax}>
             <Text style={s.actionText}>{busy?"Kaydediliyor…":"Vergi bilgilerini kaydet"}</Text>
           </TouchableOpacity>
