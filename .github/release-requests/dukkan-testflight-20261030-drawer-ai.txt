@@ -1,0 +1,10 @@
+Çalışkan Dükkan iOS TestFlight release request — 2026-10-30
+
+Source: main branch after PR #15 (https://github.com/erdcss/CRM-RMA-PANEL/pull/15)
+Features:
+- Sol çekmece menü, rol bazlı gezinti
+- PDF ve görsel dosyalardan AI ile belge analizi ve onaylı kayıt formuna aktarım
+- Ürünler, stok, cari, satış/satın alma, çek ve senet destekleri
+- Yönetici tarafından sağlanan Çalışkan Dükkan logosu
+
+Run the existing guarded iOS build & App Store Connect TestFlight workflow. Maintain dedicated bundle com.caliskan.dukkan. Do not mix other apps. Ensure required EXPO_TOKEN and Apple credentials are available; workflow must fail safely if missing.
