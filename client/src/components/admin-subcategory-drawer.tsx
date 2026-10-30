@@ -9,6 +9,7 @@ export type HomeSubcategory = {
   name: string;
   imageId: string;
   tags: string[];
+  titleKeywords?: string[];
 };
 
 const normalized = (value: string) => value.trim().replace(/\s+/g, " ");
@@ -28,6 +29,7 @@ export function AdminSubcategoryDrawer({
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [tagDrafts, setTagDrafts] = useState<Record<string, string>>({});
+  const [titleDrafts, setTitleDrafts] = useState<Record<string, string>>({});
 
   function patch(id: string, change: Partial<HomeSubcategory>) {
     onChange(subcategories.map(item => item.id === id ? { ...item, ...change } : item));
@@ -46,7 +48,7 @@ export function AdminSubcategoryDrawer({
     if (subcategories.length >= 24) return;
     const id = Array.from(crypto.getRandomValues(new Uint8Array(12)))
       .map(value => value.toString(16).padStart(2, "0")).join("");
-    onChange([...subcategories, { id, name, imageId: "", tags: [] }]);
+    onChange([...subcategories, { id, name, imageId: "", tags: [], titleKeywords: [] }]);
     setNewName("");
     setOpen(true);
   }
@@ -63,6 +65,20 @@ export function AdminSubcategoryDrawer({
       if (tags.length === 30) break;
     }
     patch(id, { tags });
+  }
+
+  function updateTitleKeywords(id: string, raw: string) {
+    setTitleDrafts(current => ({ ...current, [id]: raw }));
+    const terms: string[] = [];
+    const seen = new Set<string>();
+    for (const value of raw.split(",")) {
+      const phrase = normalized(value).slice(0, 80);
+      if (!phrase || seen.has(keyFor(phrase))) continue;
+      seen.add(keyFor(phrase));
+      terms.push(phrase);
+      if (terms.length >= 15) break;
+    }
+    patch(id, { titleKeywords: terms });
   }
 
   function toggleTag(item: HomeSubcategory, tag: string) {
@@ -108,7 +124,7 @@ export function AdminSubcategoryDrawer({
         {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
       {open && <div className="space-y-4 border-t p-4">
-        <p className="text-xs text-muted-foreground">Alt kategori görseli ve ürün etiketlerini tanımlayın. Ürün bu etiketlerden en az birine sahipse webde otomatik görünür.</p>
+        <p className="text-xs text-muted-foreground">Alt kategori görseli, ürün etiketi veya başlıkta aranacak ifadeyi tanımlayın. Ürün, etiketle ya da başlıktaki ifadeyle eşleşirse otomatik listelenir.</p>
         <div className="flex flex-wrap gap-2">
           <Input value={newName} onChange={event => setNewName(event.target.value)}
             onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); add(); } }}
@@ -151,6 +167,18 @@ export function AdminSubcategoryDrawer({
               <Input value={tagDrafts[item.id] ?? item.tags.join(", ")} onChange={event => updateTags(item.id, event.target.value)}
                 onBlur={() => setTagDrafts(current => { const next = { ...current }; delete next[item.id]; return next; })}
                 placeholder="Örn. uydu alıcısı, mini uydu" />
+            </label>
+            <label className="block space-y-1 text-xs font-semibold">
+              Ürün başlığında geçen ifadeler (virgülle ayırın)
+              <Input
+                value={titleDrafts[item.id] ?? (item.titleKeywords || []).join(", ")}
+                onChange={event => updateTitleKeywords(item.id, event.target.value)}
+                onBlur={() => setTitleDrafts(current => { const next = { ...current }; delete next[item.id]; return next; })}
+                placeholder="Örn. çelik cezve, çay makinesi"
+              />
+              <span className="block font-normal text-muted-foreground">
+                Büyük/küçük harf fark etmez; başlığında bu ifade geçen tüm ürünler otomatik gelir.
+              </span>
             </label>
             {availableTags.length > 0 && <div>
               <p className="mb-2 text-xs text-muted-foreground">Ürünlerde mevcut etiketler — eklemek veya kaldırmak için seçin</p>
