@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   appAccess: text("app_access").notNull().default("business"),
   isActive: integer("is_active").notNull().default(1),
   companyName: text("company_name"),
+  phone: text("phone"),
   firstName: text("first_name"),
   lastName: text("last_name"),
   email: text("email"),
