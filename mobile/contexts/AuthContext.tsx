@@ -17,6 +17,8 @@ import {
 } from '@/lib/supabase';
 import { rmaApi } from '@/lib/api';
 import { markB2BPushSignedOut } from '@/lib/push';
+import { AppState } from 'react-native';
+import { trackMobileSession } from '@/lib/customer-insights';
 
 type AuthContextValue = {
   session: AuthSession | null;
@@ -61,6 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (timeout) clearTimeout(timeout);
     };
   }, []);
+
+  useEffect(() => {
+    if (session?.user?.role !== 'b2b_customer' || session.user.isActive !== true) return;
+    void trackMobileSession();
+    const listener=AppState.addEventListener('change',state=>{
+      if(state==='active')void trackMobileSession();
+    });
+    return ()=>listener.remove();
+  }, [session?.access_token]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
