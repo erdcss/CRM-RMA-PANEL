@@ -4,7 +4,7 @@ import {Image} from "react-native";
 import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
 import {DUKKAN_THEME} from "./design-system";
-import {DukkanMobileHeader,DukkanTopNavigation,DukkanBottomNavigation,DukkanDashboardOverview,type DukkanTab} from "./dukkan-home";
+import {DukkanMobileHeader,DukkanDrawerNavigation,DukkanBottomNavigation,DukkanDashboardOverview,type DukkanTab} from "./dukkan-home";
 import {ActivityIndicator,Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from "react-native";
 import {StatusBar as ExpoStatusBar} from "expo-status-bar";
 import {today,type Collection,type Form,type Line,type RecordRow} from "./local-db";
@@ -49,6 +49,7 @@ const LABELS:Record<string,string>={invoices:"Fatura",products:"Ürün",movement
 function moneyStyle(n:number){return n<0?{color:"#bd524e"}:{color:f.green};}
 function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()=>void;onSwitch:(store:StoreInfo)=>void}){
  const [tab,setTab]=useState<Tab>("dashboard");
+ const [drawerOpen,setDrawerOpen]=useState(false);
  const [records,setRecords]=useState<RecordRow[]>([]);
  const [parties,setParties]=useState<RecordRow[]>([]);
  const [products,setProducts]=useState<RecordRow[]>([]);
@@ -196,8 +197,8 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  return <SafeAreaView style={[styles.safe,{backgroundColor:"#0b2146"}]}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor="#0b2146"/>
   <View style={{flex:1,backgroundColor:"#f2f6fc"}}>
   <DukkanMobileHeader company={company} username={session.user.username} role={session.store.role}
-    online={error===""} stores={session.stores} storeId={session.store.id} onSwitch={onSwitch} onLogout={confirmLogout}/>
-  <DukkanTopNavigation tabs={visibleTabs} selected={tab} onChange={navigate}/>
+    online={error===""} stores={session.stores} storeId={session.store.id} onSwitch={onSwitch} onLogout={confirmLogout} onMenuPress={()=>setDrawerOpen(true)}/>
+  <DukkanDrawerNavigation visible={drawerOpen} tabs={visibleTabs} selected={tab} onChange={navigate} onClose={()=>setDrawerOpen(false)}/>
   <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
    {tab!=="dashboard"&&<View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="settings"?"Güvenli hesap ve merkezi veri yönetimi":"Mağazanızın güncel kayıtları"}</Text></View>}
    {error!==""&&<Text style={styles.error}>{error}</Text>}
