@@ -1,10 +1,12 @@
 import type { UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 
+export type B2BSubcategory = { id: string; name: string; imageId?: string; tags: string[] };
 export type B2BCategoryCard = {
   category: string;
   label?: string;
   imageId?: string;
   tags?: string[];
+  subcategories?: B2BSubcategory[];
 };
 export type B2BHomepageCategories = {
   categories: string[];
@@ -35,6 +37,15 @@ export function b2bCategoryImage(imageId?: string) {
     : null;
 }
 
+export function b2bSubcategoryHref(category: string, id: string) {
+  return "/kategori/" + encodeURIComponent(category) + "/alt/" + encodeURIComponent(id);
+}
+
+export function matchesB2BSubcategory(product: UnifiedB2BProduct, item: B2BSubcategory) {
+  const allowed = new Set((item.tags || []).map(normalize).filter(Boolean));
+  return allowed.size > 0 && (product.tags || []).some(tag => allowed.has(normalize(tag)));
+}
+
 export function b2bCategoryHref(category: string) {
   return "/kategori/" + encodeURIComponent(category);
 }
@@ -45,7 +56,7 @@ export function matchesB2BCategory(product: UnifiedB2BProduct, name: string, car
   const expected = normalize(name);
   if (!expected) return true;
   if (normalize(product.category) === expected || normalize(product.collection_name) === expected) return true;
-  const allowed = new Set((card?.tags || []).map(normalize).filter(Boolean));
+  const allowed = new Set([...(card?.tags || []), ...(card?.subcategories || []).flatMap(item => item.tags || [])].map(normalize).filter(Boolean));
   if (!allowed.size) return false;
   return (product.tags || []).some(tag => allowed.has(normalize(tag)));
 }
