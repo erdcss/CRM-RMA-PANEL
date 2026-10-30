@@ -146,6 +146,23 @@ export default function AdminHomepage() {
   }
 
   async function save() {
+    for (const category of categories) {
+      const subcategories = categoryCards.find(card => card.category === category)?.subcategories || [];
+      const seen = new Set<string>();
+      for (const item of subcategories) {
+        const name = item.name.trim().replace(/\s+/g, " ");
+        const key = name.toLocaleLowerCase("tr-TR");
+        if (!name || seen.has(key) || !item.tags.length) {
+          toast({
+            title: "Alt kategori bilgilerini kontrol edin",
+            description: category + ": Her alt kategorinin benzersiz adı ve en az bir ürün etiketi olmalıdır.",
+            variant: "destructive",
+          });
+          return;
+        }
+        seen.add(key);
+      }
+    }
     const invalid=banners.find(banner=>
       (banner.linkType==='product'&&(!banner.productId||!productOptions.some(p=>Number(p.id)===Number(banner.productId))))||
       (banner.linkType==='page'&&!pageDestinations.some(page=>page.path===banner.pagePath))||
