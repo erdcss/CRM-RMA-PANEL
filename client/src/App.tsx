@@ -151,12 +151,12 @@ function AppContent() {
       {isLoading ? null : user && typeof window !== "undefined" && window.location.pathname.startsWith("/dukkan") && !["super_admin", "admin"].includes(user.role) ? (
           <Dukkan />
         ) : user && ["super_admin", "admin"].includes(user.role) ? (
-          <SidebarProvider defaultOpen={true} style={style as React.CSSProperties}>
+          <SidebarProvider defaultOpen={typeof document === "undefined" || !document.cookie.split(";").some(item => item.trim() === "sidebar_state=false")} style={style as React.CSSProperties}>
             <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
               <AppSidebar username={user.username} role={user.role} />
               <div className="flex flex-col flex-1 min-w-0 min-h-0">
                 <header className="flex items-center justify-between p-4 border-b shrink-0 pt-[max(1rem,env(safe-area-inset-top))]">
-                  <SidebarTrigger className="md:hidden" data-testid="button-sidebar-toggle" />
+                  <SidebarTrigger className="shrink-0" aria-label="Sol menüyü aç veya kapat" data-testid="button-sidebar-toggle" />
                   <div className="flex items-center gap-2">
                     <NotificationCenter />
                     <ThemeToggle />

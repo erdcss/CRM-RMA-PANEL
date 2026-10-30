@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
+import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock } from "lucide-react";
 
 type Entry = Record<string, any>;
@@ -113,6 +114,23 @@ export default function Dukkan() {
     }
   },[section,parties,products,banks,cashier]);
 
+  const applyAiDocument=(extracted:AiDocumentDraft)=>{
+    const data={...extracted.fields};
+    if(section==="parties")data.type=data.kind||"customer";
+    if(section==="sales")data.kind=["sale","sale_return"].includes(data.kind)?data.kind:"sale";
+    if(section==="purchases")data.kind=["purchase","purchase_return"].includes(data.kind)?data.kind:"purchase";
+    if(section==="products"&&extracted.products.length===1)Object.assign(data,extracted.products[0]);
+    setDraft(data);
+    if(["sales","purchases"].includes(section)){
+      setLines(extracted.lines.length?extracted.lines.map(item=>({
+        productId:item.productId||"",quantity:item.quantity||"1",unitPrice:item.unitPrice||"0",taxRate:item.taxRate||"20"
+      })):[{...NEW_LINE}]);
+    }
+    setEditingProductId(null);
+    setShowForm(true);
+    setNotice("AI taslağı hazır. Belge alanlarını ve eşleşmeyen kayıtları kontrol edip Kaydet ve İşle düğmesine basın.");
+    setError("");
+  };
   const put=(k:string,v:string)=>setDraft(d=>({...d,[k]:v}));
   const onSubmit=async(e:FormEvent)=>{
     e.preventDefault();if(!storeId)return;
@@ -234,7 +252,10 @@ export default function Dukkan() {
               <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{displayed.length} kayıt · {currentStore?.name}</p></div>
               {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setDraft({});}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
-            {showForm&&fields.length>0&&<form onSubmit={onSubmit} className="mb-5 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
+            {isWriter&&(["products","stock","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
+               <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
+                 onApply={applyAiDocument} onImported={()=>{setNotice("Belgedeki ürünler başarıyla kaydedildi.");setRefresh(v=>v+1);}}/></div>}
+             {showForm&&fields.length>0&&<form onSubmit={onSubmit} className="mb-5 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">{editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>

@@ -70,30 +70,32 @@ const operationItems = [
 
 export function AppSidebar({ username, role }: { username: string; role: string }) {
   const [location] = useLocation();
-  const { setOpenMobile, isMobile } = useSidebar();
+  const { setOpenMobile, isMobile, state } = useSidebar();
   const { data: branding } = useBranding();
+  const onDukkan = location === "/dukkan" || location.startsWith("/dukkan/");
+  const collapsed = !isMobile && state === "collapsed";
   const rmaActive = rmaItems.some((item) => location === item.url || location.startsWith("/kayit/"));
 
   return (
-    <Sidebar collapsible={isMobile ? "offcanvas" : "none"} className="shrink-0">
+    <Sidebar collapsible={isMobile ? "offcanvas" : "icon"} className="shrink-0">
       <SidebarHeader className="border-b p-3">
         <div className="flex items-center gap-2.5 px-1">
           <img
-            src={branding?.admin_logo || BRAND.logo}
-            alt={BRAND.name}
+            src={(onDukkan && branding?.dukkan_logo) || branding?.admin_logo || BRAND.logo}
+            alt={onDukkan ? "Çalışkan Dükkan" : BRAND.name}
             width={38}
             height={38}
             className="h-10 w-10 rounded-lg border border-sidebar-border object-cover shrink-0"
           />
-          <div className="min-w-0">
-            <p className="truncate text-base font-bold tracking-tight leading-tight">{BRAND.name}</p>
+          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+            <p className="truncate text-base font-bold tracking-tight leading-tight">{onDukkan ? "Çalışkan Dükkan" : BRAND.name}</p>
             <p className="truncate text-[11px] text-muted-foreground">Yönetim Merkezi</p>
           </div>
         </div>
         {role === "super_admin" ? (
-        <Link href="/pazaryeri" onClick={() => setOpenMobile(false)} className={"mt-3 flex items-center gap-2 rounded-lg border px-3 py-3 text-xs font-bold transition "+(location.startsWith("/pazaryeri")?"border-amber-400 bg-amber-100 text-slate-950":"border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:border-amber-400")}>
+        <Link href="/pazaryeri" onClick={() => setOpenMobile(false)} className={"mt-3 flex items-center gap-2 rounded-lg border px-3 py-3 text-xs font-bold transition group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 "+(location.startsWith("/pazaryeri")?"border-amber-400 bg-amber-100 text-slate-950":"border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:border-amber-400")}>
           <Store className="h-4 w-4 shrink-0" />
-          <span>Pazaryeri Yönetim Paneli</span>
+          <span className="group-data-[collapsible=icon]:hidden">Pazaryeri Yönetim Paneli</span>
         </Link>
         ) : null}
       </SidebarHeader>
@@ -120,16 +122,16 @@ export function AppSidebar({ username, role }: { username: string; role: string 
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              <Collapsible defaultOpen={rmaActive}>
+              <Collapsible defaultOpen={rmaActive && !collapsed}>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton isActive={rmaActive} className="w-full">
                       <RotateCcw className="h-4 w-4" />
                       <span>RMA</span>
-                      <ChevronDown className="ml-auto h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+                      <ChevronDown className="ml-auto h-4 w-4 transition-transform data-[state=open]:rotate-180 group-data-[collapsible=icon]:hidden" />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
+                  <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
                     <div className="ml-4 mt-1 space-y-1 border-l pl-3">
                       {rmaItems.map((item) => {
                         const active = location === item.url || (item.url === "/kayitlar" && location.startsWith("/kayit/"));
@@ -164,7 +166,7 @@ export function AppSidebar({ username, role }: { username: string; role: string 
       </SidebarContent>
 
       <div className="shrink-0 border-t bg-sidebar p-2">
-        <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground group-data-[collapsible=icon]:hidden">
           Araçlar
         </div>
         <SidebarMenu>
@@ -191,7 +193,7 @@ export function AppSidebar({ username, role }: { username: string; role: string 
 
       <SidebarFooter className="shrink-0 border-t p-4">
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
+          <div className="min-w-0 group-data-[collapsible=icon]:hidden">
             <div className="truncate text-sm font-medium">{username}</div>
             <div className="text-[11px] text-muted-foreground">Süper Admin</div>
           </div>

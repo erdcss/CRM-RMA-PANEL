@@ -1,9 +1,9 @@
 import React,{useMemo,useState} from "react";
-import {Alert,Pressable,ScrollView,StyleSheet,Text,View,useWindowDimensions} from "react-native";
+import {Alert,Modal,Pressable,ScrollView,StyleSheet,Text,View,useWindowDimensions} from "react-native";
 import {LinearGradient} from "expo-linear-gradient";
 import {
  ArrowRight,ArrowUpRight,BarChart3,BookOpen,Box,Boxes,CalendarDays,ChevronDown,ChevronRight,
- CircleCheck,ClipboardList,Cloud,FileText,House,Landmark,Layers,LogOut,Package,
+ CircleCheck,ClipboardList,Cloud,FileText,House,Landmark,Layers,LogOut,Package,Menu,X,
  PackagePlus,Receipt,RefreshCw,Settings2,ShieldCheck,ShoppingCart,Store,TrendingUp,
  UsersRound,Wallet,CreditCard,HandCoins, type LucideIcon
 } from "lucide-react-native";
@@ -20,17 +20,18 @@ const tabIcons:Record<DukkanTab,LucideIcon>={
 type StoreChoice={id:number;name:string;role:string};
 type HeaderProps={
  company:string;username:string;role:string;online:boolean;
- stores:StoreChoice[];storeId:number;onSwitch:(store:StoreChoice)=>void;onLogout:()=>void;
+ stores:StoreChoice[];storeId:number;onSwitch:(store:StoreChoice)=>void;onLogout:()=>void;onMenuPress:()=>void;
 };
 const roleName=(value:string)=>({owner:"Sahip",manager:"Müdür",accountant:"Muhasebe",cashier:"Kasiyer",viewer:"Görüntüleyici"}[value]||value);
 
-export function DukkanMobileHeader({company,username,role,online,stores,storeId,onSwitch,onLogout}:HeaderProps){
+export function DukkanMobileHeader({company,username,role,online,stores,storeId,onSwitch,onLogout,onMenuPress}:HeaderProps){
  const [open,setOpen]=useState(false);
  const storeChoices=stores.length>1;
  return <LinearGradient colors={["#0a1b36","#113a73","#0b2146"]} start={{x:0,y:0}} end={{x:1,y:1}} style={ui.header}>
    <View pointerEvents="none" style={ui.headerOrbA}/><View pointerEvents="none" style={ui.headerOrbB}/>
    <View style={ui.headerBrandRow}>
-     <View>
+     <Pressable accessibilityRole="button" accessibilityLabel="Sol menüyü aç" onPress={onMenuPress} style={{padding:10,borderWidth:1,borderColor:"#5a85b3",borderRadius:12,marginRight:12}}><Menu color="#ffffff" size={22}/></Pressable>
+     <View style={{flex:1}}>
        <Text style={ui.brandLine}>ÇALIŞKAN <Text style={ui.brandBlue}>DÜKKAN</Text></Text>
        <Text style={ui.brandSub}>M O B İ L   ·   İ Ş L E T M E   Y Ö N E T İ M İ</Text>
      </View>
@@ -62,6 +63,36 @@ export function DukkanMobileHeader({company,username,role,online,stores,storeId,
      </Pressable>)}
    </View>}
  </LinearGradient>;
+}
+
+export function DukkanDrawerNavigation({visible,tabs,selected,onChange,onClose}:{
+ visible:boolean;tabs:{key:DukkanTab;title:string}[];selected:DukkanTab;
+ onChange:(tab:DukkanTab)=>void;onClose:()=>void;
+}){
+ return <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose} statusBarTranslucent>
+  <View style={{flex:1,flexDirection:"row",backgroundColor:"#02061780"}}>
+   <View style={{width:"83%",maxWidth:340,backgroundColor:"#ffffff",paddingTop:52,paddingBottom:26,elevation:15}}>
+    <View style={{paddingHorizontal:20,paddingBottom:20,borderBottomWidth:1,borderBottomColor:"#e5eaf1",flexDirection:"row",alignItems:"center",justifyContent:"space-between"}}>
+     <View><Text style={{fontWeight:"900",color:"#102744",fontSize:20}}>Çalışkan Dükkan</Text>
+      <Text style={{marginTop:4,fontSize:11,color:"#64748b"}}>İşletme yönetimi · Çalışma Alanı</Text></View>
+     <Pressable accessibilityRole="button" accessibilityLabel="Menüyü kapat" onPress={onClose} style={{padding:8}}><X color="#334155" size={22}/></Pressable>
+    </View>
+    <ScrollView contentContainerStyle={{padding:12,paddingBottom:35}}>
+     {tabs.map(item=>{
+      const Icon=tabIcons[item.key],active=item.key===selected;
+      return <Pressable key={item.key} accessibilityRole="button" accessibilityState={{selected:active}}
+       onPress={()=>{onChange(item.key);onClose();}}
+       style={{flexDirection:"row",alignItems:"center",gap:13,paddingVertical:14,paddingHorizontal:13,marginVertical:2,borderRadius:13,backgroundColor:active?"#164e86":"transparent"}}>
+       <Icon size={19} color={active?"#ffffff":"#46617d"}/>
+       <Text style={{fontSize:14,fontWeight:active?"800":"600",color:active?"#ffffff":"#253d5b",flex:1}}>{item.title}</Text>
+       {active&&<ChevronRight size={15} color="#ffffff"/>}
+      </Pressable>;
+     })}
+    </ScrollView>
+   </View>
+   <Pressable accessibilityRole="button" accessibilityLabel="Menüyü kapat" onPress={onClose} style={{flex:1}}/>
+  </View>
+ </Modal>;
 }
 
 type NavProps={tabs:{key:DukkanTab;title:string}[];selected:DukkanTab;onChange:(tab:DukkanTab)=>void};
