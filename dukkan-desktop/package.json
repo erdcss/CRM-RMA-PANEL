@@ -6,11 +6,13 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win nsis --x64"
+    "build:win": "npm run prepare:branding && electron-builder --win nsis --x64",
+    "prepare:branding": "node scripts/prepare-branding.cjs"
   },
   "devDependencies": {
     "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "sharp": "^0.33.5"
   },
   "build": {
     "appId": "com.caliskan.dukkan",
@@ -18,7 +20,8 @@
     "files": [
       "main.cjs",
       "preload.cjs",
-      "package.json"
+      "package.json",
+      "dukkan-icon.png"
     ],
     "directories": {
       "output": "dist"
@@ -27,7 +30,8 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Caliskan-Dukkan-Setup-${version}.${ext}"
+      "artifactName": "Caliskan-Dukkan-Setup-${version}.${ext}",
+      "icon": "dukkan-icon.png"
     },
     "nsis": {
       "oneClick": false,
