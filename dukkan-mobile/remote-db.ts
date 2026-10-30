@@ -85,6 +85,26 @@ export type SalesDocument={
 export async function getSaleDocument(id:number):Promise<SalesDocument>{
  return request<SalesDocument>(path()+"/invoices/"+id+"/pdf-data");
 }
+
+export type AiDocumentSection="products"|"stock"|"instruments"|"parties"|"sales"|"purchases";
+export type AiDocumentResult={
+ section:AiDocumentSection;
+ fields:Record<string,string>;
+ lines:Array<{productId:string;productName:string;sku:string;quantity:string;unitPrice:string;taxRate:string}>;
+ products:Array<{name:string;sku:string;barcode:string;unit:string;purchasePrice:string;salePrice:string}>;
+ warnings:string[];
+};
+export async function extractAiDocument(section:AiDocumentSection,file:{
+ name:string;mimeType:string;base64:string;
+}):Promise<AiDocumentResult>{
+ return request<AiDocumentResult>(path()+"/ai-documents/extract","POST",{
+  section,filename:file.name,mimeType:file.mimeType,base64:file.base64
+ });
+}
+export async function importAiProducts(products:AiDocumentResult["products"]):Promise<{created:number}>{
+ return request<{created:number}>(path()+"/ai-documents/import-products","POST",{products});
+}
+
 export async function settings(){return {company:currentStore?.name||"Çalışkan Dükkan"};}
 type InputLine={productId:string|number;qty:string|number;price:string|number;vat:string|number};
 const lines=(v:InputLine[],isOrder=false)=>v.map(l=>({
