@@ -118,7 +118,7 @@ export default function App() {
             ) : null}
           </SafeAreaView>
         ) : screen.name === "dashboard" ? (
-          <AdminShell active="dashboard" onTab={openTab}>
+          <AdminShell reviewer={user?.role === "business_reviewer"} active="dashboard" onTab={openTab}>
             <DashboardScreen
               user={user}
               onOrders={() => setScreen({ name: "orders" })}
@@ -130,7 +130,7 @@ export default function App() {
             />
           </AdminShell>
         ) : screen.name === "orders" ? (
-          <AdminShell active="orders" onTab={openTab}>
+          <AdminShell reviewer={user?.role === "business_reviewer"} active="orders" onTab={openTab}>
             <OrdersScreen
               onOpenOrder={(id) => setScreen({ name: "orderDetail", id })}
             />
@@ -143,7 +143,7 @@ export default function App() {
             />
           </SafeAreaView>
         ) : screen.name === "products" ? (
-          <AdminShell active="products" onTab={openTab}>
+          <AdminShell reviewer={user?.role === "business_reviewer"} active="products" onTab={openTab}>
             <ProductsScreen onAdd={() => setScreen({ name: "productAdd" })}
               onEdit={(id) => setScreen({ name: "productEdit", id, backTo: "products" })}
               onAiAdd={user?.role === "super_admin" ? () => setScreen({ name: "aiProductStudio", mode: "super_admin" }) : undefined} />
@@ -180,7 +180,7 @@ export default function App() {
             />
           </SafeAreaView>
         ) : screen.name === "customers" ? (
-          <AdminShell active="customers" onTab={openTab}>
+          <AdminShell reviewer={user?.role === "business_reviewer"} active="customers" onTab={openTab}>
             <CustomersScreen
               onOpenCustomer={(id) => setScreen({ name: "customerDetail", id })}
             />
@@ -211,11 +211,11 @@ export default function App() {
             />
           </SafeAreaView>
         ) : screen.name === "support" ? (
-          <AdminShell active="more" onTab={openTab}>
+          <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
             <SupportScreen />
           </AdminShell>
         ) : screen.name === "more" ? (
-          <AdminShell active="more" onTab={openTab}>
+          <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
             <MoreScreen
               user={user}
               onSupport={() => setScreen({ name: "support" })}
@@ -265,15 +265,17 @@ function AdminShell({
   active,
   onTab,
   children,
+  reviewer = false,
 }: {
   active: MainTab;
   onTab: (tab: MainTab) => void;
   children: ReactNode;
+  reviewer?: boolean;
 }) {
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.shell}>
-        {user?.role === "business_reviewer" ? (
+        {reviewer ? (
           <View style={s.reviewNotice}>
             <Text style={s.reviewNoticeText}>
               İnceleme hesabı · Temsilî veriler · Salt okunur
