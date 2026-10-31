@@ -25,7 +25,7 @@ export function MoreScreen({
       <View style={s.profile}>
         <View style={s.avatar}><Text style={s.avatarText}>{email.slice(0,1).toUpperCase()}</Text></View>
         <View style={s.profileMain}>
-          <Text style={s.profileTitle}>Yönetici hesabı</Text>
+          <Text style={s.profileTitle}>{user?.role === "business_reviewer" ? "İnceleme hesabı" : "Yönetici hesabı"}</Text>
           <Text style={s.profileSub}>{email}</Text>
         </View>
       </View>
