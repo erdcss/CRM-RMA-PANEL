@@ -84,6 +84,8 @@ export type IyzicoCheckoutRetrieveResponse = {
   cardType?: string;
   cardAssociation?: string;
   lastFourDigits?: string;
+  cardUserKey?: string;
+  cardToken?: string;
 };
 
 export async function initializeIyzicoCheckout(
