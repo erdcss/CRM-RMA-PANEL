@@ -177,6 +177,10 @@ export type Iyzico3DSAuthResponse = {
   price?: number | string;
   currency?: string;
   fraudStatus?: number;
+  cardUserKey?: string;
+  cardToken?: string;
+  lastFourDigits?: string;
+  cardAssociation?: string;
   errorCode?: string;
   errorMessage?: string;
 };
@@ -197,4 +201,24 @@ export async function completeIyzico3DS(
     "/payment/3dsecure/auth",
     payload,
   );
+}
+
+/** Revoke a stored payment instrument at iyzico before deleting its local alias. */
+export async function deleteIyzicoStoredCard(cardUserKey: string, cardToken: string) {
+  if (!cardUserKey || !cardToken) throw new Error("Kayıtlı kart anahtarı eksik");
+  const path = "/cardstorage/card";
+  const body = JSON.stringify({
+    locale: "tr", cardUserKey, cardToken,
+  });
+  const { baseUrl, headers } = await authorization(path, body);
+  const response = await fetch(`${baseUrl}${path}`, {
+    method: "DELETE",
+    headers: { ...headers, "Content-Type": "application/json", Accept: "application/json" },
+    body,
+  });
+  const result = await response.json().catch(() => ({})) as { status?: string; errorMessage?: string };
+  if (!response.ok || result.status !== "success") {
+    throw new Error(result.errorMessage || "Kart iyzico üzerinden silinemedi");
+  }
+  return true;
 }
