@@ -176,7 +176,7 @@ const s=StyleSheet.create({
   bottomLabelActive:{color:DARK},
   bottomDot:{position:"absolute",top:-8,width:30,height:3,borderRadius:2,backgroundColor:YELLOW},
   overlay:{flex:1,flexDirection:"row"},
-  scrim:{...StyleSheet.absoluteFillObject,backgroundColor:"rgba(3,10,20,0.62)"},
+  scrim:{...StyleSheet.absoluteFill,backgroundColor:"rgba(3,10,20,0.62)"},
   drawer:{width:"86%",maxWidth:365,backgroundColor:"#FFFFFF",
     borderTopRightRadius:23,borderBottomRightRadius:23,overflow:"hidden"},
   drawerTop:{backgroundColor:"#FFF8DC",padding:22,paddingTop:28,flexDirection:"row",gap:10},
