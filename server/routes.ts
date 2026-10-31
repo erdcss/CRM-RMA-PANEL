@@ -14,13 +14,14 @@ import { registerAdminPlatformRoutes } from "./admin-platform";
 import { registerDukkanRoutes } from "./dukkan";
 import {
   completeIyzico3DS,
+  deleteIyzicoStoredCard,
   initializeIyzico3DS,
   initializeIyzicoCheckout,
   isIyzicoConfigured,
   retrieveIyzicoInstallments,
   retrieveIyzicoCheckout,
 } from "./iyzico";
-import { getPaymentConfig } from "./payment-config";
+import { getPaymentConfig, encryptStoredCardToken, decryptStoredCardToken } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins } from "./push-notifications";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BLocationAdmin } from "./b2b-location-admin";
@@ -667,6 +668,11 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS holder_name TEXT;
     ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS card_user_key TEXT;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS card_token TEXT;
+    ALTER TABLE b2b_payment_methods ADD COLUMN IF NOT EXISTS card_token_hash TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS b2b_payment_methods_card_token_unique
+      ON b2b_payment_methods(user_id, card_token_hash) WHERE card_token_hash IS NOT NULL;
     CREATE INDEX IF NOT EXISTS b2b_payment_methods_user_idx ON b2b_payment_methods(user_id, created_at DESC);
 
     CREATE TABLE IF NOT EXISTS b2b_orders (
@@ -704,6 +710,7 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS card_last4 TEXT;
+    ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS save_card_requested BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS card_association TEXT;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS billing_details JSONB NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE b2b_orders ADD COLUMN IF NOT EXISTS shipping_address JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -3589,7 +3596,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    const card = req.body?.card && typeof req.body.card === "object"
+    const savedCardId = Number(req.body?.savedCardId || 0);
+    let savedCard: { card_user_key: string; card_token: string; last4: string } | null = null;
+    if (savedCardId) {
+      if (!Number.isSafeInteger(savedCardId) || savedCardId <= 0) {
+        return res.status(400).json({ error: "Geçersiz kayıtlı kart seçimi" });
+      }
+      const found = await pool.query(
+        `SELECT card_user_key, card_token, last4 FROM b2b_payment_methods
+         WHERE id=$1 AND user_id=$2 LIMIT 1`,
+        [savedCardId, user.id],
+      );
+      if (!found.rows[0]?.card_user_key || !found.rows[0]?.card_token) {
+        return res.status(404).json({ error: "Kayıtlı kart bulunamadı" });
+      }
+      try {
+        savedCard = {
+          card_user_key: decryptStoredCardToken(found.rows[0].card_user_key),
+          card_token: decryptStoredCardToken(found.rows[0].card_token),
+          last4: String(found.rows[0].last4 || ""),
+        };
+        if (!savedCard.card_user_key || !savedCard.card_token) throw new Error();
+      } catch {
+        return res.status(503).json({ error: "Kayıtlı kart güvenle açılamadı" });
+      }
+    }
+    const saveCardRequested = !savedCard && req.body?.saveCard === true;
+    const card = !savedCard && req.body?.card && typeof req.body.card === "object"
       ? req.body.card as Record<string, unknown>
       : {};
     const cardHolderName = String(card.cardHolderName || "").trim().slice(0, 100);
@@ -3600,21 +3633,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const installment = Number.parseInt(String(req.body?.installment || "1"), 10);
 
     if (expireYear.length === 4) expireYear = expireYear.slice(-2);
-    if (cardHolderName.length < 2) {
+    if (!savedCard && cardHolderName.length < 2) {
       return res.status(400).json({ error: "Kart üzerindeki isim soyisim zorunludur" });
     }
-    if (!isValidPaymentCardNumber(cardNumber)) {
+    if (!savedCard && !isValidPaymentCardNumber(cardNumber)) {
       return res.status(400).json({
         error: "Kart numarası eksik veya geçersiz. Lütfen kart üzerindeki numarayı kontrol edin.",
       });
     }
-    if (!/^(0[1-9]|1[0-2])$/.test(expireMonth) || !/^\d{2}$/.test(expireYear)) {
+    if (!savedCard && (!/^(0[1-9]|1[0-2])$/.test(expireMonth) || !/^\d{2}$/.test(expireYear))) {
       return res.status(400).json({ error: "Kart son kullanım tarihi geçersiz" });
     }
-    if (!/^\d{3,4}$/.test(cvc)) {
+    if (!savedCard && !/^\d{3,4}$/.test(cvc)) {
       return res.status(400).json({ error: "CVV bilgisi geçersiz" });
     }
-    if (![1, 2, 3, 6, 9, 12].includes(installment)) {
+    if (![1, 2, 3, 6, 9, 12].includes(installment) || (savedCard && installment !== 1)) {
       return res.status(400).json({ error: "Geçersiz taksit seçeneği" });
     }
 
@@ -3639,24 +3672,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let installmentTotal = checkout.total;
     let installmentRate = 0;
     try {
-      const installmentInfo = await retrieveIyzicoInstallments(
+      // Registered cards have no PAN/BIN in our database: do not guess installments.
+      const installmentInfo = savedCard ? null : await retrieveIyzicoInstallments(
         checkout.total,
         cardNumber.slice(0, 8),
       );
-      const detail = Array.isArray(installmentInfo.installmentDetails)
-        ? installmentInfo.installmentDetails[0]
+      const detail = Array.isArray(installmentInfo?.installmentDetails)
+        ? installmentInfo!.installmentDetails![0]
         : undefined;
       const selected = detail?.installmentPrices?.find(
         (item) => Number(item.installmentNumber) === installment,
       );
 
-      if (!selected) {
+      if (!selected && !savedCard) {
         return res.status(400).json({
           error: "Seçilen taksit bu kart için iyzico tarafından desteklenmiyor",
         });
       }
 
-      installmentTotal = Number(Number(selected.totalPrice).toFixed(2));
+      installmentTotal = savedCard ? checkout.total : Number(Number(selected?.totalPrice).toFixed(2));
       if (!Number.isFinite(installmentTotal) || installmentTotal <= 0) {
         throw new Error("iyzico geçerli taksit toplamı döndürmedi");
       }
@@ -3733,9 +3767,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
         shipping_method, shipping_details, user_id, items,
-        billing_details, shipping_address, checkout_trace
+        billing_details, shipping_address, checkout_trace, save_card_requested
       )
-      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb)
+      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico_3ds','initializing',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12)
       RETURNING id`,
       [
         orderNumber,
@@ -3749,6 +3783,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JSON.stringify(billingDetails),
         JSON.stringify(shippingAddress),
         JSON.stringify(checkoutTrace),
+        saveCardRequested,
       ],
     );
     const orderId = created.rows[0]?.id;
@@ -3765,14 +3800,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         basketId: orderNumber,
         paymentGroup: "PRODUCT",
         callbackUrl,
-        paymentCard: {
-          cardHolderName,
-          cardNumber,
-          expireYear,
-          expireMonth,
-          cvc,
-          registerCard: 0,
-        },
+        paymentCard: savedCard
+          ? { cardUserKey: savedCard.card_user_key, cardToken: savedCard.card_token }
+          : {
+              cardHolderName, cardNumber, expireYear, expireMonth, cvc,
+              registerCard: saveCardRequested ? 1 : 0,
+            },
         buyer: {
           id: String(user.id),
           name: firstName,
@@ -3984,7 +4017,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await client.query("BEGIN");
       const orderResult = await client.query(
-        `SELECT id, user_id, total_amount, order_number, payment_status, items
+        `SELECT id, user_id, total_amount, order_number, payment_status, items, save_card_requested
          FROM b2b_orders
          WHERE order_number = $1 AND payment_id = $2
          LIMIT 1
@@ -4076,6 +4109,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [order.id, stockReview ? "paid_stock_review" : "paid", payment.paymentId || paymentId],
       );
       await client.query("COMMIT");
+
+      // Payment authorization, not a client redirect, is the single source of truth.
+      // Only masked metadata + encrypted provider tokens are retained.
+      if (order.save_card_requested && order.user_id && payment.cardUserKey && payment.cardToken) {
+        try {
+          const encryptedUserKey = encryptStoredCardToken(String(payment.cardUserKey));
+          const encryptedToken = encryptStoredCardToken(String(payment.cardToken));
+          const hash = createHash("sha256").update(String(payment.cardToken)).digest("hex");
+          const last4 = String(payment.lastFourDigits || "").replace(/\D/g, "").slice(-4);
+          if (/^\d{4}$/.test(last4)) {
+            await pool.query(
+              `INSERT INTO b2b_payment_methods
+                 (user_id, provider, brand, last4, card_user_key, card_token, card_token_hash, is_default)
+               VALUES ($1, 'iyzico', $2, $3, $4, $5, $6, TRUE)
+               ON CONFLICT (user_id, card_token_hash) WHERE card_token_hash IS NOT NULL
+               DO UPDATE SET brand=EXCLUDED.brand, last4=EXCLUDED.last4`,
+              [order.user_id, String(payment.cardAssociation || "Kart").slice(0, 35),
+               last4, encryptedUserKey, encryptedToken, hash],
+            );
+          }
+        } catch (error) {
+          console.error("iyzico stored-card save failed", error instanceof Error ? error.message : "unknown");
+        }
+      }
+
       if(order.user_id){
         void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
           .catch(e=>console.error("Supplier cart cleanup",e));
@@ -4712,6 +4770,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [user.id],
     );
     return res.json(result.rows);
+  });
+
+  app.delete("/api/b2b/payment-methods/:id", requireB2B, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const user = (res.locals as any).b2bUser;
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: "Geçersiz kart" });
+    const result = await pool.query(
+      "SELECT card_user_key, card_token FROM b2b_payment_methods WHERE id=$1 AND user_id=$2",
+      [id, user.id],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Kayıtlı kart bulunamadı" });
+    try {
+      await deleteIyzicoStoredCard(
+        decryptStoredCardToken(result.rows[0].card_user_key),
+        decryptStoredCardToken(result.rows[0].card_token),
+      );
+      await pool.query("DELETE FROM b2b_payment_methods WHERE id=$1 AND user_id=$2", [id, user.id]);
+      return res.json({ success: true });
+    } catch {
+      return res.status(502).json({ error: "Kart iyzico üzerinden silinemedi; lütfen tekrar deneyin" });
+    }
   });
 
   // Optional Meta Conversions API; never sends customer information without an
