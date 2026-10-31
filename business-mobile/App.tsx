@@ -15,7 +15,6 @@ import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusine
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
 import { LoginScreen } from "./screens/LoginScreen";
-import { BusinessReviewScreen } from "./screens/BusinessReviewScreen";
 import { LowStockScreen } from "./screens/LowStockScreen";
 import { MarketplaceScreen } from "./screens/MarketplaceScreen";
 import { ModuleScreen } from "./screens/ModuleScreen";
@@ -92,14 +91,6 @@ export default function App() {
               setScreen(nextUser.role === "b2b_seller" || nextUser.role === "b2b_customer" ? { name: "marketplace" } : { name: "dashboard" });
             }}
           />
-        ) : user?.role === "business_reviewer" ? (
-          <BusinessReviewScreen onLogout={() => {
-            void (async () => {
-              await signOut();
-              setUser(null);
-              setScreen({ name: "login" });
-            })();
-          }} />
         ) : screen.name === "marketplace" ? (
           <SafeAreaView style={s.fullSafe} edges={["top", "left", "right", "bottom"]}>
             <MarketplaceScreen
@@ -282,6 +273,13 @@ function AdminShell({
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
       <View style={s.shell}>
+        {user?.role === "business_reviewer" ? (
+          <View style={s.reviewNotice}>
+            <Text style={s.reviewNoticeText}>
+              İnceleme hesabı · Temsilî veriler · Salt okunur
+            </Text>
+          </View>
+        ) : null}
         {children}
         <GlassTabBar active={active} onTab={onTab} />
       </View>
@@ -294,6 +292,8 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
   fullSafe: { flex: 1, backgroundColor: C.bg },
   shell: { flex: 1, backgroundColor: C.bg },
+  reviewNotice: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.panel, borderBottomColor: C.line, borderBottomWidth: 1 },
+  reviewNoticeText: { fontSize: 11, fontWeight: "600", color: C.text2, textAlign: "center" },
   splash: {
     ...StyleSheet.absoluteFill,
     zIndex: 9999,
