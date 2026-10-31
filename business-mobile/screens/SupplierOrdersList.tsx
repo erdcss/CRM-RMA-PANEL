@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { shortDate } from "../ui/theme";
+import { shortDate, isApprovedBusinessOrder } from "../ui/theme";
 import type { SupplierOrder } from "./SupplierOrderDetailScreen";
 
 const BLACK="#081329",GRAY="#66738A",LINE="#E0E7EF";
@@ -12,17 +12,22 @@ export function SupplierOrdersList({orders,onOpen}:{
   orders:SupplierOrder[];onOpen?:(id:number)=>void;
 }){
   const [query,setQuery]=useState("");
-  const approved=useMemo(()=>orders.filter(x=>x.status==="paid"),[orders]);
+  const [recentOnly,setRecentOnly]=useState(false);
+  const approved=useMemo(()=>orders.filter(x=>isApprovedBusinessOrder(x.status))
+    .sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()),[orders]);
   const visible=useMemo(()=>{
     const needle=query.toLocaleLowerCase("tr-TR").trim();
-    return approved.filter(x=>!needle || [
-      x.order_id,x.customer_company,...(x.items||[]).map(item=>item.name||item.sku)
-    ].some(value=>String(value??"").toLocaleLowerCase("tr-TR").includes(needle)));
-  },[approved,query]);
+    const weekAgo=Date.now()-7*24*60*60*1000;
+    return approved.filter(x=>(!recentOnly||new Date(x.created_at).getTime()>=weekAgo)
+      && (!needle||[
+      x.order_number,x.order_id,x.customer_company,...(x.items||[]).map(item=>item.name||item.sku)
+    ].some(value=>String(value??"").toLocaleLowerCase("tr-TR").includes(needle))));
+  },[approved,query,recentOnly]);
+  const total=visible.reduce((sum,x)=>sum+Number(x.subtotal||0),0);
   return <View style={styles.container}>
     <View style={styles.header}>
       <Text style={styles.heading}>Siparişler</Text>
-      <Text style={styles.subtitle}>Yalnızca onaylanan siparişler listelenir.</Text>
+      <Text style={styles.subtitle}>Onaylanmış siparişlerinizi görüntüleyin ve PDF olarak dışa aktarın.</Text>
     </View>
     <View style={styles.search}>
       <Ionicons name="search-outline" size={19} color={GRAY}/>
@@ -30,9 +35,21 @@ export function SupplierOrdersList({orders,onOpen}:{
         placeholder="Sipariş no, firma adı veya ürün ara..." placeholderTextColor={GRAY}/>
     </View>
     <View style={styles.filters}>
-      <View style={styles.activeFilter}><Ionicons name="cart-outline" size={16} color="#FFFFFF"/>
-        <Text style={styles.activeFilterLabel}>Onaylanan Siparişler</Text>
-        <Text style={styles.count}>{approved.length}</Text></View>
+      <TouchableOpacity accessibilityRole="button" onPress={()=>setRecentOnly(false)}
+        style={[styles.activeFilter,recentOnly&&styles.inactiveFilter]}>
+        <Text style={[styles.activeFilterLabel,recentOnly&&styles.inactiveLabel]}>Tüm Siparişler</Text>
+        <Text style={[styles.count,recentOnly&&styles.inactiveCount]}>{approved.length}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" onPress={()=>setRecentOnly(true)}
+        style={[styles.activeFilter,!recentOnly&&styles.inactiveFilter]}>
+        <Text style={[styles.activeFilterLabel,!recentOnly&&styles.inactiveLabel]}>Son 7 Gün</Text>
+      </TouchableOpacity>
+    </View>
+    <View style={styles.summary}>
+      <View><Text style={styles.summaryCaption}>GÖSTERİLEN SİPARİŞ</Text>
+        <Text style={styles.summaryValue}>{visible.length}</Text></View>
+      <View style={{alignItems:"flex-end"}}><Text style={styles.summaryCaption}>SİPARİŞ TUTARI</Text>
+        <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>{money(total)}</Text></View>
     </View>
     {!visible.length?<View style={styles.empty}><Text style={styles.emptyTitle}>Onaylanan sipariş bulunamadı.</Text>
       <Text style={styles.subtitle}>{query?"Arama kriterlerini değiştirebilirsiniz.":"Henüz onaylanan sipariş yok."}</Text>
@@ -40,14 +57,14 @@ export function SupplierOrdersList({orders,onOpen}:{
       activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={"Sipariş "+order.order_id+" detaylarını aç"}
       style={styles.card}>
       <View style={styles.cardTop}>
-        <Text style={styles.orderNo}>#CB{order.order_id}</Text>
+        <Text style={styles.orderNo}>{order.order_number||("#CB"+order.order_id)}</Text>
         <View style={styles.tag}><Text style={styles.tagText}>Onaylandı</Text></View>
         <Ionicons name="chevron-forward" color={BLACK} size={20} style={{marginLeft:"auto"}}/>
       </View>
       <Text style={styles.date}>{shortDate(order.created_at)}</Text>
       {order.customer_company?<Text style={styles.company}>{order.customer_company}</Text>:null}
       <View style={styles.cardBottom}>
-        <Text style={styles.date}>{(order.items||[]).length} ürün</Text>
+        <Text style={styles.date}>{(order.items||[]).length} ürün · Detay / PDF</Text>
         <Text style={styles.amount}>{money(order.subtotal)}</Text>
       </View>
     </TouchableOpacity>)}
@@ -60,10 +77,17 @@ const styles=StyleSheet.create({
   search:{flexDirection:"row",alignItems:"center",gap:8,borderRadius:14,paddingHorizontal:12,
     borderColor:LINE,borderWidth:1,backgroundColor:"#FFFFFF",minHeight:49,marginBottom:6},
   input:{flex:1,fontSize:13,color:BLACK},
-  filters:{flexDirection:"row",marginBottom:2},
+  filters:{flexDirection:"row",flexWrap:"wrap",gap:7,marginBottom:2},
   activeFilter:{flexDirection:"row",alignItems:"center",gap:8,backgroundColor:BLACK,
     borderRadius:30,paddingVertical:11,paddingHorizontal:13},
   activeFilterLabel:{color:"#FFFFFF",fontWeight:"800",fontSize:12},
+  inactiveFilter:{backgroundColor:"#FFFFFF",borderWidth:1,borderColor:LINE},
+  inactiveLabel:{color:BLACK},
+  inactiveCount:{backgroundColor:"#E9EEF6",color:BLACK},
+  summary:{flexDirection:"row",justifyContent:"space-between",backgroundColor:"#FFF8DE",
+    borderRadius:15,padding:14,marginBottom:5},
+  summaryCaption:{color:"#7C6C47",fontSize:10,fontWeight:"800",letterSpacing:0.5},
+  summaryValue:{color:BLACK,fontSize:19,fontWeight:"900",marginTop:6},
   count:{backgroundColor:"#FFFFFF",color:BLACK,fontSize:11,fontWeight:"900",
     overflow:"hidden",borderRadius:12,paddingHorizontal:7,paddingVertical:2},
   card:{backgroundColor:"#FFFFFF",borderWidth:1,borderColor:LINE,borderRadius:17,
