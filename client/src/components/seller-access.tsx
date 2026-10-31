@@ -1,12 +1,20 @@
-import { useState, type FormEvent } from "react";
-import { Link } from "wouter";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation } from "wouter";
+import { sellerAccessModeFromPath, sellerAccessPath, type SellerAccessMode } from "@/lib/seller-access-route";
 import { useBranding } from "@/hooks/use-branding";
 import { queryClient } from "@/lib/queryClient";
 import { announceSupplierSessionChange } from "@/lib/supplier-session-sync";
 import { ArrowRight, BadgeCheck, Boxes, Building2, CheckCircle2, Eye, EyeOff, Package, ShieldCheck, Store, Truck } from "lucide-react";
 
 export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
-  const [mode,setMode]=useState<"home"|"login"|"register">("home");
+  const [path,navigate] = useLocation();
+  const [mode,setMode]=useState<SellerAccessMode>(()=>sellerAccessModeFromPath(window.location.pathname));
+  useEffect(() => { setMode(sellerAccessModeFromPath(path)); }, [path]);
+  const goMode = (next: SellerAccessMode) => {
+    setError("");
+    setMode(next);
+    navigate(sellerAccessPath(next));
+  };
   const [form,setForm]=useState({firstName:"",lastName:"",companyName:"",email:"",password:""});
   const { data:branding }=useBranding();
   const [showPassword,setShowPassword]=useState(false);
@@ -27,8 +35,23 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
       // products, orders, messages and storefronts must never survive login.
       queryClient.clear();
       announceSupplierSessionChange();
-      // A full reload discards every component-local draft as well.
-      window.location.replace(window.location.pathname+window.location.search);
+      // Verify that the browser actually retained the authenticated cookie.
+      // A missing session must be shown as a recoverable error, not redirect
+      // the user back to the landing page with their form wiped.
+      const confirmation=await fetch("/api/auth/me",{
+        credentials:"include",cache:"no-store",headers:{"Accept":"application/json"},
+      });
+      const identity=await confirmation.json().catch(()=>null) as
+        {id?:number;role?:string;isActive?:boolean} | null;
+      if(!confirmation.ok || identity?.role!=="b2b_seller" || !identity.isActive){
+        throw new Error("Giriş doğrulanamadı. Tarayıcı oturumu koruyamıyor. Çerez izinlerini kontrol edip tekrar deneyin.");
+      }
+      const workspace=await fetch("/api/marketplace/me",{
+        credentials:"include",cache:"no-store",headers:{"Accept":"application/json"},
+      });
+      if(!workspace.ok) throw new Error("Giriş yapıldı ancak satıcı oturumu doğrulanamadı. Lütfen tekrar deneyin.");
+      // Reopen the seller dashboard in a fresh state, never a transient form.
+      window.location.replace("/");
     } catch(e) { setError(e instanceof Error?e.message:"Lütfen tekrar deneyin"); }
     finally {setBusy(false);}
   }
@@ -37,8 +60,8 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
         <Link href="/" className="flex items-center" aria-label="Çalışkan B2B ana sayfa">{branding?.b2b_logo?<img src={branding.b2b_logo} alt="Çalışkan B2B" className="h-10 max-w-44 object-contain"/>:<span className="text-lg font-black tracking-tighter">ÇALIŞKAN <span className="rounded bg-[#ffcc00] px-1.5 py-0.5 text-sm">B2B</span></span>}</Link>
         <nav className="flex gap-2">
-          <button type="button" onClick={()=>setMode("login")} className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${mode==="login"?"bg-black text-white":"border border-black/15 hover:bg-slate-100"}`}>Giriş Yap</button>
-          <button type="button" onClick={()=>setMode("register")} className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${mode==="register"?"bg-[#ffcc00]":"border border-black/15 hover:bg-slate-100"}`}>Satıcı Ol</button>
+          <button type="button" onClick={()=>goMode("login")} className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${mode==="login"?"bg-black text-white":"border border-black/15 hover:bg-slate-100"}`}>Giriş Yap</button>
+          <button type="button" onClick={()=>goMode("register")} className={`rounded-xl px-4 py-2.5 text-sm font-bold transition ${mode==="register"?"bg-[#ffcc00]":"border border-black/15 hover:bg-slate-100"}`}>Satıcı Ol</button>
         </nav>
       </div>
     </header>
@@ -72,7 +95,7 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
             {error?<p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>:null}
             <button disabled={busy||(mode==="register"&&form.password!==confirmPassword)} type="submit" className="flex min-h-12 w-full items-center justify-center gap-3 rounded-xl bg-[#ffcc00] px-5 py-3 font-black transition hover:bg-[#f4be00] disabled:opacity-50">{busy?"İşleniyor…":mode==="register"?"Satıcı Hesabı Oluştur":"Satıcı Paneline Giriş Yap"}<ArrowRight className="h-5 w-5"/></button>
           </form>
-          <p className="mt-5 text-center text-sm text-slate-500">{mode==="register"?"Zaten satıcı hesabınız var mı?":"Satıcı hesabınız yok mu?"} <button className="font-extrabold text-black underline underline-offset-4" type="button" onClick={()=>setMode(mode==="login"?"register":"login")}>{mode==="register"?"Giriş Yap":"Satıcı Ol"}</button></p>
+          <p className="mt-5 text-center text-sm text-slate-500">{mode==="register"?"Zaten satıcı hesabınız var mı?":"Satıcı hesabınız yok mu?"} <button className="font-extrabold text-black underline underline-offset-4" type="button" onClick={()=>goMode(mode==="login"?"register":"login")}>{mode==="register"?"Giriş Yap":"Satıcı Ol"}</button></p>
         </section>
         <section className="relative flex min-h-[450px] flex-col justify-between overflow-hidden bg-[#0c0c0c] p-8 text-white sm:p-12">
           <div className="pointer-events-none absolute -right-20 -top-24 h-96 w-96 rounded-full bg-[#ffcc00]/30 blur-[90px]"/>
