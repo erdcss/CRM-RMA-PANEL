@@ -1,17 +1,28 @@
-ÇALIŞKAN BUSINESS — APP STORE REVIEW UI DÜZELTME İÇİN TESTFLIGHT YAYINI
+ÇALIŞKAN BUSINESS — TEDARİKÇİ PANELİ YENİDEN TASARIM TESTFLIGHT
 Tarih: 2026-10-31
 Kaynak branch: main
-Kaynak commit: 30e8dd23c8d83bdcd3789237cef4e1fa7e67cf4f
-Hedef yalnızca Çalışkan Business iOS (com.caliskangroup.business, ASC 6818161236).
-Workflow: .github/workflows/testflight-all-apps.yml, Business-only push trigger.
+Kaynak commit: 4b2823891d6924a0dabe2a100b62240dfedaf61d
+PR: https://github.com/erdcss/CRM-RMA-PANEL/pull/27
 
-Düzeltme:
-- business-mobile/App.tsx: business_reviewer artık ayrı BusinessReviewScreen yerine normal Business AdminShell, DashboardScreen, OrdersScreen, ProductsScreen, CustomersScreen ve MoreScreen arayüzlerini görür.
-- business-mobile/lib/review-fixtures.ts ve lib/api.ts: canlı müşteri, finans veya yönetici bilgisine erişmeden sınırlı temsili veriyle arayüzü inceleme. Yazma talepleri kesin olarak engellenir.
-- server/routes.ts: eski business_reviewer 403 canlı veri güvenlik engeli korunur.
-- Giriş / inceleme hesabı kimliği değiştirilmez; Apple'a verilmiş hesap bilgileri aynı kalabilir.
-- business-mobile/lib/review-fixtures.test.ts: testleri başarılı.
+Hedef yalnızca Çalışkan Business iOS:
+com.caliskangroup.business / App Store Connect 6818161236.
+B2B müşteri iOS uygulamasını build etme. Halka açık App Store yayını yapma.
+Business-only TestFlight workflow push tetikleyicisi.
 
-CI: GitHub Actions Business App Store Review Real UI run 41196493550 SUCCESS; PR #25 birleştirildi.
-Beklenen işlem: EAS iOS testflight build -> sadece Çalışkan Business App Store Connect TestFlight yüklemesi.
-Önemli: Bu işlem Apple'ın mevcut inceleme build'ini otomatik değiştirmez; App Store Connect üzerinde yeni build seçilip tekrar incelemeye sunulmalıdır.
+İçerik:
+- Yenilenen Çalışkan Business mobil giriş tasarımı
+- Tedarikçi ana paneli ve hesap özeti, profesyonel kartlar
+- Araçlar: hamburger menü / bağımsız içerik kaydırması
+- Siparişler / ürünler / mağaza / Reels / mesajlar / ayarlar düzeni
+- Güvenli çıkış yalnızca menü ve onayla; geri tuşu oturumu kapatmaz
+- Sipariş PDF dışa aktar ve PDF bağlantısını paylaş
+- Önceki Apple reviewer gerçek UI düzeltmesi korunmuştur
+
+Kontroller:
+Business Supplier Workspace QA 41203618060 = SUCCESS
+- supplierBackAction navigation regression = success
+- npm tsc --noEmit = success
+- iOS JS bundle export = success
+- Android JS bundle export = success
+
+TestFlight build EAS ile oluşturulup Apple TestFlight'a gönderilirse, App Store incelemesine yeni sürüm seçmek kullanıcı kontrolündedir.
