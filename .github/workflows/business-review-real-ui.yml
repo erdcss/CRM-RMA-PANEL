@@ -1,0 +1,25 @@
+name: Business App Store Review Real UI
+on:
+  push:
+    branches:
+      - fix/business-apple-review-real-ui-20261031
+  pull_request:
+    paths:
+      - 'business-mobile/**'
+      - '.github/workflows/business-review-real-ui.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - run: cd business-mobile && npm ci --ignore-scripts
+      - run: cd business-mobile && npx tsc --noEmit
+      - run: cd business-mobile && npx tsx --test lib/review-fixtures.test.ts
