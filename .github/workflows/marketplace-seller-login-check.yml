@@ -1,0 +1,36 @@
+name: Marketplace Seller Login Regression
+on:
+  push:
+    paths:
+      - 'client/src/components/seller-access.tsx'
+      - 'client/src/lib/seller-access-route.ts'
+      - 'client/src/lib/seller-access-route.test.ts'
+      - 'client/src/pages/marketplace-seller.tsx'
+      - 'client/src/App.tsx'
+      - '.github/workflows/marketplace-seller-login-check.yml'
+  pull_request:
+    paths:
+      - 'client/src/components/seller-access.tsx'
+      - 'client/src/lib/seller-access-route.ts'
+      - 'client/src/lib/seller-access-route.test.ts'
+      - 'client/src/pages/marketplace-seller.tsx'
+      - 'client/src/App.tsx'
+      - '.github/workflows/marketplace-seller-login-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Marketplace Login Types, Routes and Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx tsx --test client/src/lib/seller-access-route.test.ts
+      - run: npm run check
+      - run: npm run build
