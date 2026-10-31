@@ -11,3 +11,12 @@
 - CI: admin yapı derlemesi, native TypeScript, banner boyutu + rota regresyon testleri.
 - com.caliskangroup.rma, sürüm 1.3.7, build > 111, sadece iOS TestFlight.
 - Genel App Store yayını yapılmaz.
+
+1 Kasım 2026 — B2B ödeme kolaylığı iOS TestFlight güncellemesi
+- Başarılı 3D Secure işlemi sonrasında isteğe bağlı iyzico kart tokenı saklama; müşteri hesabı bazlı.
+- Kayıtlı Kartlarım: kart markası ve son dört hane, tek çekim, güvenli 3D Secure.
+- Ödeme Bilgilerim: maskeli kartlar ve kart silme.
+- Sipariş özeti çekmecesi animasyonu, alt sekme spring animasyonları, daha ince ödeme butonu yazısı.
+- Web ödemesinde mevcut iyzico Checkout Form güvenlik kuralı korundu.
+- iOS bundle: com.caliskangroup.rma, uygulama sürümü 1.3.7, yeni otomatik build numarası.
+- İstenen dağıtım yalnızca TestFlight, App Store'a genel yayın değildir.
