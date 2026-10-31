@@ -210,6 +210,7 @@ export default function ProfileScreen() {
           <Panel title="Ödeme Bilgilerim" subtitle="Kayıtlı ödeme yöntemleriniz">
             {payments.length ? (
               payments.map((payment, index) => (
+                <View key={payment.id}>
                 <ListCard
                   key={payment.id}
                   icon="card-outline"
@@ -236,6 +237,7 @@ export default function ProfileScreen() {
                   )}>
                   <Text style={{ fontSize: 13, color: '#DC2626', fontWeight: '600' }}>Kayıtlı Kartı Sil</Text>
                 </Pressable>
+                </View>
               ))
             ) : (
               <EmptyText text="Kayıtlı ödeme yöntemi bulunmuyor." />
