@@ -9,6 +9,11 @@ import type { AdminOrder } from "../types";
 import { money, shortDate, statusMeta } from "../ui/theme";
 import type { SupplierOrder } from "./SupplierOrderDetailScreen";
 import { SupplierOrdersList } from "./SupplierOrdersList";
+import {
+  SupplierBottomNav, SupplierDrawer, SupplierHeader,
+  supplierTabLabels, type SupplierTab,
+} from "../components/SupplierWorkspaceShell";
+import { Ionicons } from "@expo/vector-icons";
 
 type Review={id:string;company_name?:string;title?:string;status:string;review_note?:string;
   contact_name?:string;created_at?:string;content?:{name?:string;title?:string}};
@@ -21,7 +26,7 @@ type Chat={id:string;latest_message?:string;buyer_user_id:string};
 type Msg={id:string;text:string;created_at:string};
 type SupplierProfile={id:number;company_name:string;is_admin_paused:boolean;is_holiday:boolean;holiday_reactivate_at?:string|null};
 type SellerOrder=SupplierOrder;
-type Tab="overview"|"suppliers"|"products"|"stores"|"reels"|"messages"|"orders"|"returns"|"payments"|"settings";
+type Tab=SupplierTab|"suppliers";
 const names:Record<string,string>={overview:"Genel",suppliers:"Tedarikçiler",products:"Ürünler",stores:"Mağaza",reels:"Reels",messages:"Mesajlar",orders:"Siparişler",returns:"İadeler",payments:"Ödemeler",settings:"Ayarlar"};
 const status:Record<string,string>={pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",requested:"Teklif bekleniyor",offered:"Teklif sunuldu",accepted:"Kabul edildi"};
 const Input=({value,onChangeText,placeholder,multiline=false}:{value:string;onChangeText:(x:string)=>void;placeholder:string;multiline?:boolean})=>
@@ -32,9 +37,18 @@ function Action({title,onPress,disabled=false}:{title:string;onPress:()=>void;di
     <Text style={s.buttonText}>{title}</Text>
   </TouchableOpacity>;
 }
-export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSupplierOrder,onAiProductAdd,initialTab}:{
-  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;onOpenOrder?:(id:string)=>void;onOpenSupplierOrder?:(id:number)=>void;onAiProductAdd:()=>void;initialTab?:"products"|"orders"}) {
+export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSupplierOrder,onAiProductAdd,initialTab,onTabChange}:{
+  isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;
+  onOpenOrder?:(id:string)=>void;onOpenSupplierOrder?:(id:number)=>void;
+  onAiProductAdd:()=>void;initialTab?:SupplierTab;
+  onTabChange?:(tab:SupplierTab)=>void;
+}) {
  const [tab,setTab]=useState<Tab>(initialTab||"overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
+ const [drawerOpen,setDrawerOpen]=useState(false);
+ useEffect(()=>{if(initialTab)setTab(initialTab);},[initialTab]);
+ const navigateSupplier=(next:SupplierTab)=>{
+   setDrawerOpen(false);setTab(next);onTabChange?.(next);
+ };
  const [queue,setQueue]=useState<Queue|null>(null),[products,setProducts]=useState<any[]>([]);
  const [profile,setProfile]=useState<SupplierProfile|null>(null),[supplierOrders,setSupplierOrders]=useState<SellerOrder[]>([]);
  const [adminOrders,setAdminOrders]=useState<AdminOrder[]>([]);
@@ -160,12 +174,23 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSup
  const stats=overview as AdminStats|null;
  const seller=overview as SupplierStats|null;
  const items=isSuper?(tab==="suppliers"?queue?.suppliers:tab==="products"?queue?.products:tab==="stores"?queue?.stores:tab==="reels"?queue?.reels:[])||[]:[];
- const shownTabs:Tab[]=isSuper?["overview","orders","suppliers","products","stores","reels"]:["overview","orders","returns","payments","stores","products","reels","messages","settings"];
- return <ScrollView style={s.screen} contentContainerStyle={s.content} refreshControl={<RefreshControl refreshing={refreshing}
-    onRefresh={()=>{setRefreshing(true);void load();}} tintColor={C.text}/>}>
-  <BackHeader title="Pazaryeri Yönetimi" subtitle={isSuper?"Süper yönetim merkezi":"Tedarikçi çalışma alanı"} onBack={isSuper?onBack:()=>void onLogout()}/>
-  <View style={s.tabs}>{shownTabs.map(t=><TouchableOpacity key={t} onPress={()=>setTab(t)} style={[s.tab,tab===t&&s.tabActive]}>
-      <Text style={[s.tabText,tab===t&&s.tabActiveText]}>{names[t]}</Text></TouchableOpacity>)}</View>
+ const shownTabs:Tab[]=isSuper?["overview","orders","suppliers","products","stores","reels"]:[];
+ const paidOrders=supplierOrders.filter(order=>["paid","confirmed","approved","onaylandi"].includes(String(order.status).toLowerCase()));
+ const paidTotal=paidOrders.reduce((total,order)=>total+(Number(order.subtotal)||0),0);
+ return <View style={s.workspaceRoot}>
+  {!isSuper?<SupplierHeader
+    title={supplierTabLabels[tab as SupplierTab]}
+    company={profile?.company_name||seller?.supplier?.company_name||"Tedarikçi Paneli"}
+    onMenu={()=>setDrawerOpen(true)}
+    onRefresh={()=>{setRefreshing(true);void load();}}
+  />:null}
+ <ScrollView style={[s.screen,!isSuper&&s.supplierScreen]}
+    contentContainerStyle={[s.content,!isSuper&&s.supplierContent]}
+    refreshControl={<RefreshControl refreshing={refreshing}
+      onRefresh={()=>{setRefreshing(true);void load();}} tintColor={isSuper?C.text:"#071322"}/>}>
+  {isSuper?<BackHeader title="Pazaryeri Yönetimi" subtitle="Süper yönetim merkezi" onBack={onBack}/>:null}
+  {isSuper?<View style={s.tabs}>{shownTabs.map(t=><TouchableOpacity key={t} onPress={()=>setTab(t)} style={[s.tab,tab===t&&s.tabActive]}>
+      <Text style={[s.tabText,tab===t&&s.tabActiveText]}>{names[t]}</Text></TouchableOpacity>)}</View>:null}
   {!isSuper&&profile?.is_admin_paused?<View style={[s.panel,{borderColor:C.red,marginBottom:12}]}>
     <Text style={[s.heading,{color:C.red}]}>Mağazanız pasife alındı</Text>
     <Text style={s.help}>Mağaza ve ürünleriniz satışa kapatıldı. Onaylı kayıtlarınız korunuyor.</Text>
@@ -181,8 +206,37 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSup
   {loading?<ActivityIndicator size="large" color={C.blue}/>:null}
   {error?<Text style={s.error}>{error}</Text>:null}
   {notice?<Text style={s.notice}>{notice}</Text>:null}
-  {tab==="overview"?<View style={s.panel}>
-    <Text style={s.heading}>{isSuper?"Pazaryeri Onay Merkezi":seller?.supplier?.company_name||"Mağazam"}</Text>
+  {tab==="overview"?<View style={[s.panel,!isSuper&&s.supplierPanel]}>
+    {!isSuper?<View style={s.supplierHero}>
+      <View style={s.supplierHeroTop}>
+        <View style={s.supplierVerified}>
+          <Ionicons name="checkmark-circle" color="#165E3D" size={15}/>
+          <Text style={s.supplierVerifiedText}>TEDARİKÇİ MERKEZİ</Text>
+        </View>
+        <Ionicons name="storefront-outline" color="#FFCC00" size={29}/>
+      </View>
+      <Text style={s.supplierHeroTitle} numberOfLines={2}>
+        {profile?.company_name||seller?.supplier?.company_name||"İşletme Paneli"}
+      </Text>
+      <Text style={s.supplierHeroDesc}>Satışlarınızı ve ürünlerinizi tek panelden yönetin.</Text>
+    </View>:null}
+    <Text style={[s.heading,!isSuper&&s.supplierHeading]}>
+      {isSuper?"Pazaryeri Onay Merkezi":"İşletme Özeti"}
+    </Text>
+    {!isSuper?<View style={s.supplierMetrics}>
+      <View style={s.supplierMetric}><Ionicons name="receipt-outline" color="#A06D00" size={23}/>
+        <Text style={s.supplierMetricValue}>{paidOrders.length}</Text>
+        <Text style={s.supplierMetricTitle}>Onaylı sipariş</Text></View>
+      <View style={s.supplierMetric}><Ionicons name="cash-outline" color="#A06D00" size={23}/>
+        <Text style={s.supplierMetricValue} numberOfLines={1} adjustsFontSizeToFit>{money(paidTotal)}</Text>
+        <Text style={s.supplierMetricTitle}>Sipariş toplamı</Text></View>
+      <View style={s.supplierMetric}><Ionicons name="cube-outline" color="#A06D00" size={23}/>
+        <Text style={s.supplierMetricValue}>{seller?.productCount||0}</Text>
+        <Text style={s.supplierMetricTitle}>Ürün sayısı</Text></View>
+      <View style={s.supplierMetric}><Ionicons name="chatbubbles-outline" color="#A06D00" size={23}/>
+        <Text style={s.supplierMetricValue}>{seller?.conversations||0}</Text>
+        <Text style={s.supplierMetricTitle}>Görüşmeler</Text></View>
+    </View>:null}
     {isSuper?
       ([["Bekleyen tedarikçiler",stats?.suppliers],["Ürün onayı",stats?.products],["Mağaza onayı",stats?.stores],
         ["Reels onayı",stats?.reels]] as Array<[string,Array<{status:string;total:number}>|undefined]>)
@@ -193,9 +247,25 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSup
        .map(([title,v])=><View style={s.row} key={title}><Text style={s.text}>{title}</Text>
          <Text style={s.value}>{String(v??0)}</Text></View>)}
     <Text style={s.help}>Standart komisyon %3 · Depo kontrolünde ek %3 · Canlı çok satıcılı tahsilat henüz etkin değil.</Text>
-    {!isSuper?<Action title="Çıkış Yap" onPress={()=>void onLogout()}/>:null}
+    {!isSuper?<View style={s.supplierQuick}>
+      <TouchableOpacity style={s.supplierQuickItem} onPress={()=>navigateSupplier("orders")}>
+        <Ionicons name="receipt-outline" color="#071322" size={19}/>
+        <Text style={s.supplierQuickText}>Siparişleri Gör</Text>
+        <Ionicons name="chevron-forward" color="#071322" size={17}/>
+      </TouchableOpacity>
+      <TouchableOpacity style={s.supplierQuickItem} onPress={()=>navigateSupplier("products")}>
+        <Ionicons name="cube-outline" color="#071322" size={19}/>
+        <Text style={s.supplierQuickText}>Ürünleri Yönet</Text>
+        <Ionicons name="chevron-forward" color="#071322" size={17}/>
+      </TouchableOpacity>
+      <TouchableOpacity style={s.supplierQuickItem} onPress={()=>setDrawerOpen(true)}>
+        <Ionicons name="apps-outline" color="#071322" size={19}/>
+        <Text style={s.supplierQuickText}>Tüm Araçlar</Text>
+        <Ionicons name="chevron-forward" color="#071322" size={17}/>
+      </TouchableOpacity>
+    </View>:null}
   </View>:null}
-  {tab==="orders"?<View style={s.panel}>
+  {tab==="orders"?<View style={[s.panel,!isSuper&&s.supplierPanel]}>
     <Text style={s.heading}>{isSuper?"Tüm Siparişler":"Siparişlerim"}</Text>
     <Text style={s.help}>{isSuper?"Tüm şirket ve tedarikçi satışlarının sipariş kayıtlarını ve durumlarını inceleyin.":"Yalnızca sizin ürünlerinizi içeren siparişler listelenir."}</Text>
     {isSuper?adminOrders.length?adminOrders.slice(0,100).map(order=><TouchableOpacity key={String(order.id)} style={s.card}
@@ -396,9 +466,41 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSup
     </View>:null}
     <Text style={s.help}>Yeni görüşmeyi sadece müşteri başlatır.</Text>
   </View>:null}
- </ScrollView>;
+ </ScrollView>
+ {!isSuper?<SupplierBottomNav
+   tab={tab as SupplierTab} onSelect={navigateSupplier}
+   onMenu={()=>setDrawerOpen(true)}
+ />:null}
+ {!isSuper?<SupplierDrawer
+   open={drawerOpen} onClose={()=>setDrawerOpen(false)}
+   tab={tab as SupplierTab} onSelect={navigateSupplier}
+   onAiAdd={onAiProductAdd} onLogout={onLogout}
+   company={profile?.company_name||seller?.supplier?.company_name||"Tedarikçi"}
+ />:null}
+ </View>;
 }
 const s=StyleSheet.create({
+ workspaceRoot:{flex:1,backgroundColor:"#F5F7FB"},
+ supplierScreen:{backgroundColor:"#F5F7FB"},
+ supplierContent:{paddingHorizontal:14,paddingTop:12,paddingBottom:32},
+ supplierPanel:{backgroundColor:"#FFFFFF",borderColor:"#E2E8F0",borderRadius:22,padding:14,gap:13},
+ supplierHeading:{color:"#071322",fontSize:17,fontWeight:"900"},
+ supplierHero:{padding:18,borderRadius:19,backgroundColor:"#081421",gap:11,marginBottom:8},
+ supplierHeroTop:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
+ supplierVerified:{flexDirection:"row",alignItems:"center",gap:6,backgroundColor:"#DDFAE8",
+   paddingHorizontal:11,paddingVertical:7,borderRadius:24},
+ supplierVerifiedText:{fontWeight:"900",fontSize:10,color:"#165E3D"},
+ supplierHeroTitle:{color:"#FFFFFF",fontSize:25,fontWeight:"900",letterSpacing:-0.7},
+ supplierHeroDesc:{color:"#D5DBE4",fontSize:12,lineHeight:18},
+ supplierMetrics:{flexDirection:"row",flexWrap:"wrap",gap:10},
+ supplierMetric:{width:"48%",flexGrow:1,backgroundColor:"#FBFCFE",borderColor:"#E7EAF1",
+   borderWidth:1,borderRadius:16,padding:14,gap:9,minHeight:122},
+ supplierMetricValue:{fontSize:20,fontWeight:"900",color:"#071322"},
+ supplierMetricTitle:{color:"#687588",fontSize:11},
+ supplierQuick:{gap:9,marginTop:8},
+ supplierQuickItem:{flexDirection:"row",alignItems:"center",gap:11,
+   backgroundColor:"#F6F8FC",padding:14,borderRadius:13},
+ supplierQuickText:{flex:1,color:"#071322",fontWeight:"800",fontSize:13},
  screen:{flex:1,backgroundColor:C.bg},content:{paddingHorizontal:16,paddingTop:10,paddingBottom:70},
  tabs:{flexDirection:"row",flexWrap:"wrap",gap:7,marginVertical:14},
  tab:{borderRadius:12,paddingHorizontal:13,paddingVertical:11,backgroundColor:C.panel,borderWidth:1,borderColor:C.line},
