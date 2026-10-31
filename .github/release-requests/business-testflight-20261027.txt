@@ -1,16 +1,17 @@
-ÇALIŞKAN BUSINESS — TESTFLIGHT: REFERANS GÖRSELİNE UYGUN YENİ SİPARİŞ DETAYI
-Tarih: 2026-10-27
+ÇALIŞKAN BUSINESS — APP STORE REVIEW UI DÜZELTME İÇİN TESTFLIGHT YAYINI
+Tarih: 2026-10-31
 Kaynak branch: main
-Kaynak commit: a1fef983633126686927412a239bb892b8825fb8
-Hedef yalnızca Çalışkan Business iOS, com.caliskangroup.business, App Store Connect 6818161236.
-Sürüm 1.0.0, EAS testflight profile autoIncrement:true; her seferinde benzersiz build number.
-Kapsam:
-- business-mobile/screens/SupplierOrderDetailScreen.tsx: referans iki ekranlı açık tema sipariş detayı ve PDF önizleme, Standart / Sade Liste, paylaşım, gerçek sipariş numarası, ayrıntılar.
-- business-mobile/screens/OrderDetailScreen.tsx: eski koyu admin sipariş detayı aynı yeni tasarıma bağlandı; admin-only müşteri telefonu/e-posta ayrı kapalı bölüm, havale onay fonksiyonu korundu.
-- server/admin-platform.ts: admin-only PDF link endpoint; PDF her durumda yalnız özel verisiz güvenli sipariş projeksiyonundan üretilir.
-- server/marketplace-cart.ts, server/supplier-privacy.ts: sadece ilgili tedarikçinin siparişi, gerçek sipariş numarası, customer phone/e-mail filtering. Telefon asla supplier response'ta veya PDF'de yok.
-- server/supplier-order-pdf.ts: iki farklı PDF belge şekli, resmi fatura değil.
-- Siparişi düzenle ve müşteriyle iletişime geç seçenekleri tedarikçi için YOK.
-Mobil TypeScript + iOS/Android bundles: GitHub Actions run 40557409500 SUCCESS.
-Sunucu privacy tests + typecheck + build: GitHub Actions run 40557694419.
-Yalnız Business iOS build + EAS TestFlight submit (wait, auto retry), Çalışkan B2B'ye dokunulmaz.
+Kaynak commit: 30e8dd23c8d83bdcd3789237cef4e1fa7e67cf4f
+Hedef yalnızca Çalışkan Business iOS (com.caliskangroup.business, ASC 6818161236).
+Workflow: .github/workflows/testflight-all-apps.yml, Business-only push trigger.
+
+Düzeltme:
+- business-mobile/App.tsx: business_reviewer artık ayrı BusinessReviewScreen yerine normal Business AdminShell, DashboardScreen, OrdersScreen, ProductsScreen, CustomersScreen ve MoreScreen arayüzlerini görür.
+- business-mobile/lib/review-fixtures.ts ve lib/api.ts: canlı müşteri, finans veya yönetici bilgisine erişmeden sınırlı temsili veriyle arayüzü inceleme. Yazma talepleri kesin olarak engellenir.
+- server/routes.ts: eski business_reviewer 403 canlı veri güvenlik engeli korunur.
+- Giriş / inceleme hesabı kimliği değiştirilmez; Apple'a verilmiş hesap bilgileri aynı kalabilir.
+- business-mobile/lib/review-fixtures.test.ts: testleri başarılı.
+
+CI: GitHub Actions Business App Store Review Real UI run 41196493550 SUCCESS; PR #25 birleştirildi.
+Beklenen işlem: EAS iOS testflight build -> sadece Çalışkan Business App Store Connect TestFlight yüklemesi.
+Önemli: Bu işlem Apple'ın mevcut inceleme build'ini otomatik değiştirmez; App Store Connect üzerinde yeni build seçilip tekrar incelemeye sunulmalıdır.
