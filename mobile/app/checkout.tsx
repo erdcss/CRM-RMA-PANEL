@@ -1657,7 +1657,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   warningBox: { borderRadius: radius.md, backgroundColor: '#FFF7DD', borderColor: '#D97706', borderWidth: 1, padding: spacing.md, flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   warningText: { ...typography.caption, color: '#713F12', fontWeight: '700', flex: 1, lineHeight: 20 },
   payButton: { minHeight: 58, borderRadius: radius.lg, backgroundColor: '#FACC15', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, paddingHorizontal: spacing.lg },
-  payButtonText: { ...typography.bodyMedium, color: '#111827', fontWeight: '900' },
+  payButtonText: { ...typography.bodyMedium, color: '#111827', fontWeight: '400', letterSpacing: 0.1 },
   primaryButton: { minHeight: 50, borderRadius: radius.md, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
   primaryButtonText: { ...typography.bodyMedium, color: '#FFFFFF', fontWeight: '800' },
   disabled: { opacity: 0.45 },
