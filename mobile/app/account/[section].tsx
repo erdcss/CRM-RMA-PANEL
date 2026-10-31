@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Linking,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -217,8 +218,24 @@ export default function ProfileScreen() {
                     payment.last4 ? `•••• ${payment.last4}` : 'Kart bilgisi'
                   }
                   badge={payment.is_default ? 'Varsayılan' : undefined}
-                  last={index === payments.length - 1}
+                  last={false}
                 />
+                <Pressable accessibilityRole="button"
+                  style={{ alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8 }}
+                  onPress={() => Alert.alert(
+                    'Kayıtlı kartı sil',
+                    `•••• ${payment.last4 || '••••'} ile biten kart iyzico üzerinden kaldırılacak. Devam edilsin mi?`,
+                    [
+                      { text: 'Vazgeç', style: 'cancel' },
+                      { text: 'Kartı Sil', style: 'destructive', onPress: () => {
+                        void rmaApi.removeB2BPaymentMethod(payment.id)
+                          .then(() => setPayments(items => items.filter(item => item.id !== payment.id)))
+                          .catch(error => appAlert('Kart silinemedi', error instanceof Error ? error.message : 'Lütfen tekrar deneyin.', undefined, 'error'));
+                      } },
+                    ],
+                  )}>
+                  <Text style={{ fontSize: 13, color: '#DC2626', fontWeight: '600' }}>Kayıtlı Kartı Sil</Text>
+                </Pressable>
               ))
             ) : (
               <EmptyText text="Kayıtlı ödeme yöntemi bulunmuyor." />
