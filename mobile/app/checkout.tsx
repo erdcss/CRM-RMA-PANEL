@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
   Easing,
   Pressable,
   ScrollView,
@@ -30,6 +33,7 @@ import {
   type B2BCheckoutPreview,
   type B2BCheckoutCartPreview,
   type B2BPaymentSettings,
+  type B2BPaymentMethod,
   type B2BInstallmentLookup,
 } from '@/lib/api';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
@@ -113,6 +117,9 @@ export default function CheckoutScreen() {
   const [bankReferenceLoading, setBankReferenceLoading] = useState(false);
   const [bankReferenceError, setBankReferenceError] = useState('');
   const [bankReferenceRetry, setBankReferenceRetry] = useState(0);
+  const [savedCards, setSavedCards] = useState<B2BPaymentMethod[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [saveCard, setSaveCard] = useState(false);
   const [cardHolderName, setCardHolderName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
   const [expireMonth, setExpireMonth] = useState('');
@@ -137,6 +144,16 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(true);
   const [checkoutError,setCheckoutError] = useState('');
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (session) {
+      void rmaApi.listB2BPaymentMethods()
+        .then(cards => { if (active) setSavedCards(cards); })
+        .catch(() => { if (active) setSavedCards([]); });
+    }
+    return () => { active = false; };
+  }, [session]);
+
 
   const load = useCallback(async () => {
     if (!session) return;
@@ -231,6 +248,7 @@ export default function CheckoutScreen() {
 
     if (
       paymentMethod !== 'card' ||
+      selectedCardId !== null ||
       !preview ||
       bin.length !== 8
     ) {
@@ -284,7 +302,7 @@ export default function CheckoutScreen() {
       active = false;
       clearTimeout(timer);
     };
-  }, [cardNumber, listMode, orderItems, paymentMethod, preview, productId, quantity]);
+  }, [cardNumber, selectedCardId, listMode, orderItems, paymentMethod, preview, productId, quantity]);
 
   // Reference is allocated server-side before an order exists. A payment reference
   // is not a paid invoice or proof of receiving a bank transfer.
@@ -340,7 +358,7 @@ export default function CheckoutScreen() {
   const selectedInstallment = installments?.options?.find(
     (option) => option.installmentNumber === installment,
   );
-  const payableTotal = selectedInstallment?.totalPrice ?? preview?.total ?? 0;
+  const payableTotal = selectedCardId !== null ? preview?.total ?? 0 : selectedInstallment?.totalPrice ?? preview?.total ?? 0;
 
   const canPay = Boolean(
     preview &&
@@ -349,9 +367,10 @@ export default function CheckoutScreen() {
       shippingValid && visibility[shippingMethod] && visibility[paymentMethod] &&
       ((paymentMethod === 'card' &&
         settings?.iyzicoConfigured &&
-        cardFormValid &&
-        !installmentsLoading &&
-        (!installments || installments.options.some((option) => option.installmentNumber === installment))) ||
+        (selectedCardId !== null ||
+          (cardFormValid &&
+           !installmentsLoading &&
+           (!installments || installments.options.some((option) => option.installmentNumber === installment))))) ||
         (paymentMethod === 'bank_transfer' && settings?.bankTransfer.enabled && Boolean(bankReference || bankOrder))),
   );
 
@@ -390,8 +409,10 @@ export default function CheckoutScreen() {
         addressId: selectedAddress.id,
         shipping: shippingPayload,
         mobileReturnUrl,
-        installment,
-        card: {
+        installment: selectedCardId !== null ? 1 : installment,
+        savedCardId: selectedCardId ?? undefined,
+        saveCard: selectedCardId === null && saveCard,
+        card: selectedCardId !== null ? undefined : {
           cardHolderName: cardHolderName.trim(),
           cardNumber: cardNumber.replace(/\D/g, ''),
           expireMonth,
@@ -816,6 +837,36 @@ export default function CheckoutScreen() {
                 </View>
               </View>
 
+              {savedCards.length > 0 ? (
+                <View style={{ gap: 9, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: palette.border }}>
+                  <Text style={[styles.secureTitle, { marginBottom: 4 }]}>Kayıtlı Kartlarım</Text>
+                  {savedCards.map(saved => (
+                    <Pressable key={saved.id}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selectedCardId === saved.id }}
+                      onPress={() => { setSelectedCardId(saved.id); setInstallment(1); }}
+                      style={[styles.choiceCard, selectedCardId === saved.id && styles.choiceCardActive, { minHeight: 58 }]}>
+                      <Ionicons name={selectedCardId === saved.id ? 'radio-button-on' : 'radio-button-off'}
+                        size={21} color={selectedCardId === saved.id ? '#B48C00' : palette.textSecondary} />
+                      <Ionicons name="card-outline" size={22} color={palette.text} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.choiceTitle}>{saved.brand || 'Banka / Kredi Kartı'}</Text>
+                        <Text style={styles.choiceSubtitle}>•••• •••• •••• {saved.last4 || '••••'}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                  <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedCardId === null }}
+                    onPress={() => setSelectedCardId(null)}
+                    style={[styles.choiceCard, selectedCardId === null && styles.choiceCardActive, { minHeight: 58 }]}>
+                    <Ionicons name={selectedCardId === null ? 'radio-button-on' : 'radio-button-off'}
+                      size={21} color={palette.textSecondary} />
+                    <Text style={styles.choiceTitle}>Başka bir kart kullan</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {selectedCardId === null ? (
+              <>
               <View style={styles.cardFlipContainer}>
                 <Animated.View style={[styles.cardVisual, styles.cardFace, { transform: [{ rotateY: frontRotation }] }]}>
                   <View style={styles.cardVisualTop}>
@@ -950,6 +1001,22 @@ export default function CheckoutScreen() {
                 </View>
               </View>
 
+              <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: saveCard }}
+                onPress={() => setSaveCard(value => !value)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1,
+                  borderRadius: 12, borderColor: palette.border, backgroundColor: palette.surface }}>
+                <Ionicons name={saveCard ? 'checkbox' : 'square-outline'} size={24}
+                  color={saveCard ? '#C29B00' : palette.textSecondary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: '600' }}>
+                    Bir sonraki alışverişim için kartımı kaydet
+                  </Text>
+                  <Text style={{ color: palette.textSecondary, fontSize: 11, marginTop: 4 }}>
+                    Yalnızca başarılı ödemede, iyzico kart saklama altyapısıyla kaydedilir.
+                  </Text>
+                </View>
+              </Pressable>
+
               <View style={styles.installmentSection}>
                 <View style={styles.installmentHeader}>
                   <View>
@@ -1034,6 +1101,12 @@ export default function CheckoutScreen() {
                   </View>
                 )}
               </View>
+              </>
+              ) : (
+                <Text style={{ color: palette.textSecondary, fontSize: 12, lineHeight: 20 }}>
+                  Kayıtlı kartınızla güvenli 3D Secure doğrulaması yaparak tek çekim ödeme gerçekleştirebilirsiniz.
+                </Text>
+              )}
             </View>
           ) : null}
 
@@ -1146,6 +1219,20 @@ function Section({
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [expanded, setExpanded] = useState(!defaultCollapsed);
+  const arrowProgress = useRef(new Animated.Value(defaultCollapsed ? 0 : 1)).current;
+  const changeExpanded = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    Animated.timing(arrowProgress, {
+      toValue: expanded ? 0 : 1, duration: 230,
+      easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    }).start();
+    setExpanded(current => !current);
+  };
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
   const header = (
     <>
       <View style={styles.sectionIcon}>
@@ -1153,14 +1240,18 @@ function Section({
       </View>
       <Text style={[styles.sectionTitle,{flex:1}]}>{title}</Text>
       {collapsible && !expanded && summaryValue ? <Text style={styles.summaryCollapsedTotal}>{summaryValue}</Text>:null}
-      {collapsible ? <Ionicons name={expanded?'chevron-up':'chevron-down'} color={palette.text} size={20}/>:null}
+      {collapsible ? (
+        <Animated.View style={{ transform: [{ rotate: arrowProgress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
+          <Ionicons name="chevron-down" color={palette.text} size={20} />
+        </Animated.View>
+      ) : null}
     </>
   );
   return (
     <View style={styles.section}>
       {collapsible ? (
         <Pressable style={styles.sectionHeader} accessibilityRole="button"
-          accessibilityState={{expanded}} onPress={() => setExpanded(current=>!current)}>
+          accessibilityState={{expanded}} onPress={changeExpanded}>
           {header}
         </Pressable>
       ) : <View style={styles.sectionHeader}>{header}</View>}
