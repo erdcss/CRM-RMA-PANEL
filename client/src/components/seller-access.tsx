@@ -33,8 +33,6 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
       if(!response.ok)throw new Error(body.error || "İşlem gerçekleştirilemedi");
       // This browser may have been used by another supplier. React Query keys for
       // products, orders, messages and storefronts must never survive login.
-      queryClient.clear();
-      announceSupplierSessionChange();
       // Verify that the browser actually retained the authenticated cookie.
       // A missing session must be shown as a recoverable error, not redirect
       // the user back to the landing page with their form wiped.
@@ -51,6 +49,8 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
       });
       if(!workspace.ok) throw new Error("Giriş yapıldı ancak satıcı oturumu doğrulanamadı. Lütfen tekrar deneyin.");
       // Reopen the seller dashboard in a fresh state, never a transient form.
+      queryClient.clear();
+      announceSupplierSessionChange();
       window.location.replace("/");
     } catch(e) { setError(e instanceof Error?e.message:"Lütfen tekrar deneyin"); }
     finally {setBusy(false);}
@@ -73,7 +73,7 @@ export function SellerAccess(_props:{onAuthenticated:()=>Promise<unknown>}) {
           <div><span className="inline-flex rounded-full border border-[#ffcc00]/40 px-4 py-2 text-xs font-extrabold tracking-widest text-[#ffcc00]">ÇALIŞKAN B2B · SATICI EKOSİSTEMİ</span>
             <h1 className="mt-8 max-w-xl text-4xl font-black leading-tight tracking-tight sm:text-6xl">Toptan Ticaretin Gücünü <span className="text-[#ffcc00]">Birlikte Büyütelim.</span></h1>
             <p className="mt-6 max-w-xl text-base leading-8 text-slate-300">Tedarikçi ve toptancılar için tasarlanan dijital ticaret ekosistemi. Mağazanızı oluşturun, ürünlerinizi yönetin, işletmelerle yeni iş birlikleri kurun.</p>
-            <div className="mt-9 flex flex-wrap gap-3"><button onClick={()=>setMode("register")} className="inline-flex min-h-12 items-center gap-3 rounded-xl bg-[#ffcc00] px-7 py-3 font-extrabold text-black transition hover:bg-yellow-300">Satıcı Ol <ArrowRight className="h-5 w-5"/></button><button onClick={()=>setMode("login")} className="min-h-12 rounded-xl border border-white/30 px-7 py-3 font-bold transition hover:bg-white/10">Satıcı Girişi</button></div>
+            <div className="mt-9 flex flex-wrap gap-3"><button onClick={()=>goMode("register")} className="inline-flex min-h-12 items-center gap-3 rounded-xl bg-[#ffcc00] px-7 py-3 font-extrabold text-black transition hover:bg-yellow-300">Satıcı Ol <ArrowRight className="h-5 w-5"/></button><button onClick={()=>goMode("login")} className="min-h-12 rounded-xl border border-white/30 px-7 py-3 font-bold transition hover:bg-white/10">Satıcı Girişi</button></div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">{[[Store,"Dijital Mağazanız","Ürünlerinizi profesyonel mağazanızda sunun."],[Boxes,"Ürün ve Stok","Katalog ve stok süreçlerinizi yönetin."],[Truck,"Toptan Tedarik","İşletmelere yönelik satış süreçlerinizi geliştirin."],[BadgeCheck,"Güvenli İş Ortaklığı","Şirket doğrulamasıyla güvenli ticaret ortamı."]].map(([Icon,title,description])=>{const ItemIcon=Icon as typeof Store;return <div key={String(title)} className="rounded-2xl border border-white/15 bg-white/[.07] p-6 backdrop-blur-sm"><ItemIcon className="h-8 w-8 text-[#ffcc00]"/><h2 className="mt-6 text-lg font-black">{String(title)}</h2><p className="mt-2 text-sm leading-6 text-slate-300">{String(description)}</p></div>})}</div>
         </div>
