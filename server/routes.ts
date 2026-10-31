@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertWarehouseSchema, insertSupplierSchema, insertInvoiceSchema, insertUserSchema } from "@shared/schema";
 import { saveImageDataUrl, persistProductImageUrl } from "./image-storage";
 import { z } from "zod";
+import { isOptionalSupplierIbanValid, normalizeOptionalSupplierIban, supplierOnboardingFieldError } from "@shared/marketplace-supplier-input";
 import OpenAI from "openai";
 import { registerProductAIRoutes } from "./product-ai";
 import { registerBusinessAiProductRoutes } from "./business-ai-products";
@@ -2896,11 +2897,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       taxNumber:z.union([z.literal(""),z.string().trim().regex(/^[0-9]{10,11}$/)]).default(""),
       taxOffice:z.string().trim().max(140).default(""),
       companyType:z.enum(["","sahis","limited","anonim","kooperatif","diger"]).default(""),
-      iban:z.union([z.literal(""),z.string().trim().toUpperCase().regex(/^TR[0-9]{24}$/)]).default(""),
+      iban:z.string().trim().transform(normalizeOptionalSupplierIban)
+        .refine(isOptionalSupplierIbanValid, "IBAN biçimi geçersiz.").default(""),
       description:z.string().trim().max(600).default("")
     }).strict().safeParse(req.body);
     if(!details.success){
-      return res.status(400).json({error:"Firma ve yetkili bilgilerini kontrol edin.",issues:details.error.flatten().fieldErrors});
+      const fields=details.error.flatten().fieldErrors;
+      const issues=Object.fromEntries(
+        Object.keys(fields).map(field=>[field,[supplierOnboardingFieldError(field)]])
+      );
+      const firstField=Object.keys(issues)[0];
+      return res.status(400).json({
+        error:firstField ? supplierOnboardingFieldError(firstField) : "Firma ve yetkili bilgilerini kontrol edin.",
+        issues,
+      });
     }
     const actor=sessionUserId(req);
     if(!actor||!pool)return res.status(503).json({error:"Veritabanı bağlantısı kullanılamıyor"});
