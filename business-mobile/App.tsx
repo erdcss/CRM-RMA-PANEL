@@ -88,7 +88,7 @@ export default function App() {
             background={branding.business_mobile_splash}
             onSuccess={(nextUser) => {
               setUser(nextUser);
-              setScreen(nextUser.role === "b2b_seller" || nextUser.role === "b2b_customer" ? { name: "marketplace" } : { name: "dashboard" });
+              setScreen(nextUser.role === "b2b_seller" ? { name: "marketplace" } : { name: "dashboard" });
             }}
           />
         ) : screen.name === "marketplace" ? (
