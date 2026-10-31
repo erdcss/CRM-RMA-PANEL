@@ -68,6 +68,15 @@ function encryptionKey() {
   return createHash("sha256").update(source, "utf8").digest();
 }
 
+/** Tokenized payment credentials are sealed at rest; never store PAN or CVC. */
+export function encryptStoredCardToken(value: string) {
+  if (!value || value.length > 2048) throw new Error("Geçersiz kart anahtarı");
+  return encryptSecret(value);
+}
+export function decryptStoredCardToken(value: string) {
+  return decryptSecret(value);
+}
+
 function encryptSecret(value: string) {
   const key = encryptionKey();
   if (!key) throw new Error("PAYMENT_SETTINGS_ENCRYPTION_KEY tanımlı değil");
