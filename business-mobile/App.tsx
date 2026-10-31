@@ -11,6 +11,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GlassTabBar } from "./components/GlassTabBar";
 import { signOut, type BusinessAuthUser } from "./lib/auth";
+import { supplierBackAction } from "./lib/supplier-back";
 import { useMobileBranding } from "./lib/branding";
 import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
 
@@ -50,27 +51,16 @@ export default function App() {
     // the supplier overview; at the root it can exit the app, not the session.
     if (user?.role !== "b2b_seller") return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (screen.name === "supplierOrderDetail") {
-        setScreen({ name: "marketplace", tab: "orders" });
-        return true;
+      const action = supplierBackAction(screen);
+      if (action.kind === "navigate") {
+        setScreen(action.screen);
+      } else {
+        Alert.alert("Uygulamadan çıkılsın mı?",
+          "Oturumunuz geri tuşuyla kapatılmaz. Çıkış için menüde Güvenli Çıkış Yap seçeneğini kullanın.", [
+            { text: "Vazgeç", style: "cancel" },
+            { text: "Uygulamadan Çık", onPress: () => BackHandler.exitApp() },
+          ]);
       }
-      if (screen.name === "aiProductStudio" && screen.mode === "supplier") {
-        setScreen({ name: "marketplace", tab: "products" });
-        return true;
-      }
-      if (screen.name === "marketplace") {
-        if (screen.tab && screen.tab !== "overview") {
-          setScreen({ name: "marketplace", tab: "overview" });
-        } else {
-          Alert.alert("Uygulamadan çıkılsın mı?",
-            "Hesabınızda oturum açık kalacak. Çıkış yapmak için menüdeki Güvenli Çıkış Yap seçeneğini kullanın.", [
-              { text: "Vazgeç", style: "cancel" },
-              { text: "Uygulamadan Çık", onPress: () => BackHandler.exitApp() },
-            ]);
-        }
-        return true;
-      }
-      setScreen({ name: "marketplace", tab: "overview" });
       return true;
     });
     return () => subscription.remove();
@@ -114,7 +104,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={s.root}>
-        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        <StatusBar barStyle={screen.name === "login" ? "dark-content" : "light-content"} backgroundColor={screen.name === "login" ? "#F5F7FB" : C.bg} />
 
         {screen.name === "login" ? (
           <LoginScreen
@@ -133,7 +123,7 @@ export default function App() {
               onAiProductAdd={() => setScreen({ name: "aiProductStudio", mode: user?.role === "super_admin" ? "super_admin" : "supplier" })}
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
               onOpenSupplierOrder={(id)=>{if(user?.role==="b2b_seller")setScreen({name:"supplierOrderDetail",id});}}
-              onBack={() => setScreen({ name: user?.role === "b2b_seller" ? "marketplace" : "more", tab: "overview" } as Screen)}
+              onBack={() => setScreen(user?.role === "b2b_seller" ? { name: "marketplace", tab: "overview" } : { name: "more" })}
               onLogout={async () => {
                 await unregisterBusinessPush();
                 await signOut();
