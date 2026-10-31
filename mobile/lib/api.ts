@@ -813,6 +813,8 @@ export const rmaApi = {
   }),
   listB2BAddresses: () => request<B2BAddress[]>('/api/b2b/addresses'),
   listB2BPaymentMethods: () => request<B2BPaymentMethod[]>('/api/b2b/payment-methods'),
+  removeB2BPaymentMethod: (id: number) =>
+    request<{ success: boolean }>(`/api/b2b/payment-methods/${id}`, { method: 'DELETE' }),
   getB2BPaymentSettings: () =>
     request<B2BPaymentSettings>('/api/public/payment-settings'),
   getB2BCheckoutPreview: (productId: string | number, quantity: number) =>
@@ -871,13 +873,15 @@ export const rmaApi = {
     quantity: number;
     addressId: string | number;
     shipping: Record<string, unknown>;
-    card: {
+    card?: {
       cardHolderName: string;
       cardNumber: string;
       expireMonth: string;
       expireYear: string;
       cvc: string;
     };
+    savedCardId?: number;
+    saveCard?: boolean;
     installment: number;
     checkoutContext?: Record<string, unknown>;
     mobileReturnUrl?: string;
@@ -890,13 +894,15 @@ export const rmaApi = {
     items: Array<{ productId: string | number; quantity: number }>;
     addressId: string | number;
     shipping: Record<string, unknown>;
-    card: {
+    card?: {
       cardHolderName: string;
       cardNumber: string;
       expireMonth: string;
       expireYear: string;
       cvc: string;
     };
+    savedCardId?: number;
+    saveCard?: boolean;
     installment: number;
     checkoutContext?: Record<string, unknown>;
     mobileReturnUrl?: string;
