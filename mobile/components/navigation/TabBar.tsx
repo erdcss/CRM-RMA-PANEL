@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -70,27 +70,89 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
           };
 
           return (
-            <Pressable key={route.key} onPress={onPress} style={styles.tab}
-              accessibilityRole="tab"
-              accessibilityLabel={route.name === 'orders' && orderCount > 0 ? `Siparişlerim, ${orderCount} ürün` : config.label}>
-              <View style={[styles.iconWrap, focused && styles.iconWrapActive, focused && { backgroundColor: mode === 'dark' ? '#383C40' : '#FFF1A8' }]}>
-                <Ionicons
-                  name={focused ? config.activeIcon : config.icon}
-                  size={21}
-                  color={focused ? (mode === 'dark' ? '#FFCD00' : '#191919') : palette.textSecondary}
-                />
-                {route.name === 'orders' && orderCount > 0 ? (
-                  <View style={styles.counterBadge}>
-                    <Text style={styles.counterText}>{orderCount > 9 ? '+9' : orderCount}</Text>
-                  </View>
-                ) : null}
-              </View>
-              <Text style={[styles.label, focused && styles.labelActive, { color: focused ? (mode === 'dark' ? '#FFCD00' : palette.text) : palette.textSecondary }]}>{config.label}</Text>
-            </Pressable>
+            <TabButton
+              key={route.key}
+              config={config}
+              focused={focused}
+              mode={mode}
+              palette={palette}
+              orderCount={route.name === 'orders' ? orderCount : 0}
+              onPress={onPress}
+            />
           );
         })}
       </View>
     </View>
+  );
+}
+
+/**
+ * Native spring mirrors the web nav: active yellow capsule, a lifted icon,
+ * label easing and touch compression. Native driver keeps transitions fluid.
+ */
+function TabButton({
+  config, focused, mode, palette, orderCount, onPress,
+}: {
+  config: (typeof TAB_CONFIG)[string];
+  focused: boolean;
+  mode: string;
+  palette: ReturnType<typeof useAppearance>['palette'];
+  orderCount: number;
+  onPress: () => void;
+}) {
+  const focus = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const press = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.spring(focus, {
+      toValue: focused ? 1 : 0,
+      stiffness: 470,
+      damping: 35,
+      mass: 1,
+      useNativeDriver: true,
+    }).start();
+  }, [focus, focused]);
+  const scaleTo = (toValue: number) => {
+    Animated.spring(press, { toValue, stiffness: 420, damping: 27, useNativeDriver: true }).start();
+  };
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => scaleTo(0.86)}
+      onPressOut={() => scaleTo(1)}
+      style={styles.tab}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: focused }}
+      accessibilityLabel={config.label + (orderCount ? `, ${orderCount} ürün` : '')}
+    >
+      <Animated.View style={{
+        transform: [
+          { translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) },
+          { scale: Animated.multiply(press, focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] })) },
+        ],
+      }}>
+        <View style={styles.iconWrap}>
+          <Animated.View pointerEvents="none" style={[
+            StyleSheet.absoluteFillObject,
+            { borderRadius: radius.full, backgroundColor: mode === 'dark' ? '#383C40' : '#FFF1A8', opacity: focus },
+          ]} />
+          <Ionicons name={focused ? config.activeIcon : config.icon} size={21}
+            color={focused ? (mode === 'dark' ? '#FFCD00' : '#191919') : palette.textSecondary} />
+          {orderCount > 0 ? (
+            <View style={styles.counterBadge}>
+              <Text style={styles.counterText}>{orderCount > 9 ? '+9' : orderCount}</Text>
+            </View>
+          ) : null}
+        </View>
+      </Animated.View>
+      <Animated.Text style={[
+        styles.label,
+        focused && styles.labelActive,
+        { color: focused ? (mode === 'dark' ? '#FFCD00' : palette.text) : palette.textSecondary,
+          opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }),
+          transform: [{ translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -1] }) }],
+        },
+      ]}>{config.label}</Animated.Text>
+    </Pressable>
   );
 }
 
