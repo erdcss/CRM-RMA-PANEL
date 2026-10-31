@@ -4427,6 +4427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const payment = await retrieveIyzicoCheckout(token);
       const persistCardWhenPaid = async () => {
+        if (!pool) return;
         if (!order.save_card_requested || !order.user_id || !payment.cardUserKey || !payment.cardToken) return;
         try {
           const last4 = String(payment.lastFourDigits || "").replace(/\D/g, "").slice(-4);
