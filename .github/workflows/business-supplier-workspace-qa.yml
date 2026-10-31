@@ -1,0 +1,32 @@
+name: Business Supplier Workspace QA
+on:
+  push:
+    branches:
+      - feat/business-supplier-workspace-redesign-20261031
+  pull_request:
+    paths:
+      - 'business-mobile/**'
+      - '.github/workflows/business-supplier-workspace-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-and-navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - name: Install Business dependencies
+        run: cd business-mobile && npm ci --ignore-scripts
+      - name: Supplier back navigation regression tests
+        run: cd business-mobile && npx tsx lib/supplier-back.test.ts
+      - name: Mobile TypeScript
+        run: cd business-mobile && npx tsc --noEmit
+      - name: iOS JS bundle
+        run: cd business-mobile && npx expo export:embed --platform ios --dev false --entry-file index.js --bundle-output /tmp/business-supplier-ios.js --assets-dest /tmp/business-supplier-ios-assets
+      - name: Android JS bundle
+        run: cd business-mobile && npx expo export:embed --platform android --dev false --entry-file index.js --bundle-output /tmp/business-supplier-android.js --assets-dest /tmp/business-supplier-android-assets
