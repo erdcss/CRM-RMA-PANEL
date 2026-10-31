@@ -295,14 +295,37 @@ function AddressesPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"]
 }
 
 function PaymentsPanel() {
+  const { toast } = useToast();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const { data = [] } = useQuery<any[]>({
     queryKey: ["/api/b2b/payment-methods"],
     queryFn: () => getJson("/api/b2b/payment-methods"),
   });
+  async function deleteCard(item: {id:number;last4?:string}) {
+    if (!window.confirm(`•••• ${item.last4 || "••••"} ile biten kayıtlı kart silinsin mi?`)) return;
+    setDeletingId(item.id);
+    try {
+      await apiRequest("DELETE", `/api/b2b/payment-methods/${item.id}`);
+      await queryClient.invalidateQueries({ queryKey: ["/api/b2b/payment-methods"] });
+      toast({ title: "Kayıtlı kart kaldırıldı" });
+    } catch (error) {
+      toast({ title: "Kart silinemedi", description: error instanceof Error ? error.message : "Lütfen tekrar deneyin", variant: "destructive" });
+    } finally { setDeletingId(null); }
+  }
   return (
-    <Panel title="Ödeme Bilgilerim" description="Güvenli ödeme sağlayıcınız üzerinden kaydedilmiş ödeme yöntemleri burada görünür.">
-      {data.length === 0 ? <Empty text="Henüz kayıtlı ödeme yöntemi yok. Kart numarası gibi hassas bilgiler Çalışkan B2B sunucularında saklanmaz." /> : (
-        <div className="space-y-3">{data.map((item) => <div key={item.id} className="rounded-xl border p-4 font-medium">{item.brand || item.provider} •••• {item.last4}</div>)}</div>
+    <Panel title="Ödeme Bilgilerim" description="Yalnızca kartın son dört rakamı görüntülenir. Kart numarası veya CVV saklanmaz.">
+      {data.length === 0 ? <Empty text="Henüz kayıtlı ödeme yöntemi yok." /> : (
+        <div className="space-y-3">{data.map((item) =>
+          <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border p-4">
+            <div className="flex items-center gap-3 font-medium">
+              <CreditCard className="h-5 w-5" />
+              <span>{item.brand || item.provider} •••• {item.last4}</span>
+            </div>
+            <Button type="button" variant="outline" size="sm" disabled={deletingId === item.id} onClick={() => void deleteCard(item)}>
+              <Trash2 className="mr-1 h-4 w-4" /> Sil
+            </Button>
+          </div>)}
+        </div>
       )}
     </Panel>
   );
