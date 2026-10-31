@@ -93,23 +93,42 @@ export function SupplierOrderDetailScreen({id,onBack,adminMode=false}:{id:number
   const products=useMemo(()=>order?.items||[],[order]);
   const quantity=products.reduce((total,item)=>total+Number(item.boxes||0)*Number(item.unitsPerBox||1),0);
 
+  async function getPdfUrl():Promise<string>{
+    if(!order)throw new Error("Sipariş yüklenmedi.");
+    const path=adminMode
+      ? "/api/admin/orders/"+encodeURIComponent(String(order.id))+"/pdf-link"
+      : "/api/marketplace/seller/orders/"+encodeURIComponent(String(order.id))+"/pdf-link";
+    const response=await apiFetch<{url:string}>(path,{
+      method:"POST",body:JSON.stringify({variant:pdfType}),
+    });
+    const target=new URL(response.url);
+    if(target.protocol!=="https:"||target.hostname!=="admin.ecalisgan.com"||
+       !/^\/api\/(?:marketplace\/seller|admin)\/orders\/pdf\/[0-9a-f]{64}$/.test(target.pathname))
+      throw new Error("PDF bağlantısı doğrulanamadı.");
+    return target.toString();
+  }
   async function exportPdf(){
     if(!order||exporting)return;
     setExporting(true);
     try{
-      const path=adminMode
-        ? "/api/admin/orders/"+encodeURIComponent(String(order.id))+"/pdf-link"
-        : "/api/marketplace/seller/orders/"+encodeURIComponent(String(order.id))+"/pdf-link";
-      const r=await apiFetch<{url:string}>(path,{
-        method:"POST",body:JSON.stringify({variant:pdfType}),
-      });
-      const target=new URL(r.url);
-      if(target.protocol!=="https:"||target.hostname!=="admin.ecalisgan.com"||
-         !/^\/api\/(?:marketplace\/seller|admin)\/orders\/pdf\/[0-9a-f]{64}$/.test(target.pathname))
-        throw new Error("PDF adresi doğrulanamadı.");
-      await Linking.openURL(r.url);
+      const url=await getPdfUrl();
+      const supported=await Linking.canOpenURL(url);
+      if(!supported)throw new Error("Bu cihaz PDF bağlantısını açamıyor.");
+      await Linking.openURL(url);
       setShowPdf(false);
-    }catch(e){Alert.alert("PDF oluşturulamadı",e instanceof Error?e.message:"Tekrar deneyin.");}
+    }catch(e){Alert.alert("PDF dışa aktarılamadı",e instanceof Error?e.message:"Tekrar deneyin.");}
+    finally{setExporting(false);}
+  }
+  async function sharePdfLink(){
+    if(!order||exporting)return;
+    setExporting(true);
+    try{
+      const url=await getPdfUrl();
+      await Share.share({
+        title:"Çalışkan Business - Sipariş "+orderNo,
+        message:"Sipariş PDF çıktısı: "+orderNo+"\n"+url,
+      });
+    }catch(e){Alert.alert("PDF paylaşılamadı",e instanceof Error?e.message:"Tekrar deneyin.");}
     finally{setExporting(false);}
   }
   async function approveBankPayment(){
@@ -351,8 +370,18 @@ export function SupplierOrderDetailScreen({id,onBack,adminMode=false}:{id:number
           <TouchableOpacity disabled={!order||exporting}
             style={[styles.downloadButton,exporting&&{opacity:0.6}]} onPress={()=>void exportPdf()}>
             {exporting?<ActivityIndicator color="#FFFFFF"/>:<Ionicons name="download-outline" size={20} color="#FFFFFF"/>}
-            <Text style={styles.downloadText}>{exporting?"PDF hazırlanıyor...":"PDF İndir"}</Text>
+            <Text style={styles.downloadText}>{exporting?"PDF hazırlanıyor...":"PDF Aç / İndir"}</Text>
           </TouchableOpacity>
+          <TouchableOpacity disabled={!order||exporting} accessibilityRole="button"
+            accessibilityLabel="PDF bağlantısını paylaş"
+            style={[styles.downloadButton,{backgroundColor:BLUE,marginTop:9},exporting&&{opacity:0.6}]}
+            onPress={()=>void sharePdfLink()}>
+            <Ionicons name="share-social-outline" color="#FFFFFF" size={19}/>
+            <Text style={styles.downloadText}>PDF Bağlantısını Paylaş</Text>
+          </TouchableOpacity>
+          <Text style={[styles.previewFootnote,{marginTop:10}]}>
+            PDF sunucuda hazırlanır. İndirilen belge sipariş özeti niteliğindedir, fatura değildir.
+          </Text>
         </View>
       </View>
     </Modal>
