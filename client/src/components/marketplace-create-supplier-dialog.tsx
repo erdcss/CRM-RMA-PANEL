@@ -2,7 +2,9 @@ import { useState, type FormEvent } from "react";
 import { Building2, CheckCircle2, Copy, KeyRound, Loader2, UserPlus } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
+import {
+  isOptionalSupplierIbanValid, normalizeOptionalSupplierIban, SUPPLIER_IBAN_ERROR
+} from "@shared/marketplace-supplier-input";
 
 type SupplierForm={
   verificationStatus:"verified"|"unverified";
@@ -22,26 +24,57 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
   const [form,setForm]=useState<SupplierForm>(blank);
   const [working,setWorking]=useState(false);
   const [error,setError]=useState("");
+  const [fieldErrors,setFieldErrors]=useState<Partial<Record<keyof SupplierForm,string>>>({});
   const [created,setCreated]=useState<CreatedSupplier|null>(null);
   const [copied,setCopied]=useState(false);
 
   function change<K extends keyof SupplierForm>(key:K,value:SupplierForm[K]){
     setForm(previous=>({...previous,[key]:value}));
+    setFieldErrors(previous=>({...previous,[key]:undefined}));
+    setError("");
   }
   function toggle(next:boolean){
     if(working)return;
     onOpenChange(next);
-    if(!next){setForm(blank);setCreated(null);setCopied(false);setError("");}
+    if(!next){setForm(blank);setCreated(null);setCopied(false);setError("");setFieldErrors({});}
   }
   async function submit(event:FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(working||created)return;
     setError("");
+    setFieldErrors({});
+    // IBAN is optional, but an entered value must contain its country prefix.
+    // Do not silently invent the missing TR prefix for a bank account.
+    if (!isOptionalSupplierIbanValid(form.iban)) {
+      setFieldErrors({iban:SUPPLIER_IBAN_ERROR});
+      setError(SUPPLIER_IBAN_ERROR);
+      return;
+    }
     setWorking(true);
-    try{
-      const response=await apiRequest("POST","/api/admin/marketplace/suppliers",form);
-      const result=await response.json() as CreatedSupplier;
-      setCreated(result);
+    try {
+      const response=await fetch("/api/admin/marketplace/suppliers",{
+        method:"POST",credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({...form,iban:normalizeOptionalSupplierIban(form.iban)}),
+      });
+      const result=await response.json().catch(()=>null) as
+        (Partial<CreatedSupplier> & {error?:string;issues?:Record<string,string[]>}) | null;
+      if(!response.ok) {
+        const errors:Partial<Record<keyof SupplierForm,string>>={};
+        for(const [field,values] of Object.entries(result?.issues||{})){
+          if(field in form && Array.isArray(values) && typeof values[0]==="string"){
+            errors[field as keyof SupplierForm]=values[0];
+          }
+        }
+        setFieldErrors(errors);
+        const message=Object.values(errors)[0] || result?.error ||
+          "Tedarikçi oluşturulamadı. Bilgileri kontrol edin.";
+        throw new Error(message);
+      }
+      if(!result?.supplierId || !result?.temporaryPassword) {
+        throw new Error("Sunucu geçerli tedarikçi bilgilerini döndürmedi.");
+      }
+      setCreated(result as CreatedSupplier);
       onCreated();
     }catch(cause){
       setError(cause instanceof Error?cause.message:"Tedarikçi oluşturulamadı.");
@@ -61,6 +94,8 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
   }
 
   const inputClass="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100";
+  const fieldError=(field:keyof SupplierForm)=>
+    fieldErrors[field]?<span role="alert" className="mt-1 block text-xs font-semibold text-red-700">{fieldErrors[field]}</span>:null;
   return <Dialog open={open} onOpenChange={toggle}>
     <DialogContent className="w-[calc(100%-2rem)] max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl border-slate-200 p-5 sm:p-6">
       <DialogHeader>
@@ -124,7 +159,9 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-xs font-bold text-slate-700">Vergi / T.C. kimlik no
               <input inputMode="numeric" pattern="([0-9]{10}|[0-9]{11})?" maxLength={11} className={inputClass}
-                placeholder="10 veya 11 hane (isteğe bağlı)" value={form.taxNumber} onChange={e=>change("taxNumber",e.target.value)}/>
+                placeholder="10 veya 11 hane (isteğe bağlı)" aria-invalid={Boolean(fieldErrors.taxNumber)}
+                value={form.taxNumber} onChange={e=>change("taxNumber",e.target.value)}/>
+              {fieldError("taxNumber")}
             </label>
             <label className="block space-y-1 text-xs font-bold text-slate-700">Vergi dairesi
               <input maxLength={140} className={inputClass} value={form.taxOffice} onChange={e=>change("taxOffice",e.target.value)}/>
@@ -137,7 +174,16 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
               </select>
             </label>
             <label className="block space-y-1 text-xs font-bold text-slate-700">IBAN
-              <input maxLength={26} className={inputClass} placeholder="TR ile başlayan 26 karakter" value={form.iban} onChange={e=>change("iban",e.target.value.toUpperCase().replace(/\s/g,""))}/>
+              <input maxLength={34} className={inputClass+(fieldErrors.iban?" border-red-500 ring-1 ring-red-200":"")}
+                placeholder="TR00 0000 0000 0000 0000 0000 00 (isteğe bağlı)"
+                aria-invalid={Boolean(fieldErrors.iban)}
+                value={form.iban} onChange={e=>change("iban",e.target.value.toUpperCase())}
+                onBlur={()=>{
+                  if(form.iban && !isOptionalSupplierIbanValid(form.iban)){
+                    setFieldErrors(previous=>({...previous,iban:SUPPLIER_IBAN_ERROR}));
+                  }
+                }}/>
+              {fieldError("iban")}
             </label>
           </div>
         </div>
@@ -154,7 +200,10 @@ export function MarketplaceCreateSupplierDialog({open,onOpenChange,onCreated}:Pr
               <input required type="email" maxLength={254} className={inputClass} autoComplete="off" value={form.email} onChange={e=>change("email",e.target.value)}/>
             </label>
             <label className="block space-y-1 text-xs font-bold text-slate-700">Telefon *
-              <input required type="tel" minLength={10} maxLength={25} className={inputClass} autoComplete="off" value={form.phone} onChange={e=>change("phone",e.target.value)}/>
+              <input required type="tel" minLength={10} maxLength={25} className={inputClass}
+                aria-invalid={Boolean(fieldErrors.phone)} autoComplete="off"
+                value={form.phone} onChange={e=>change("phone",e.target.value)}/>
+              {fieldError("phone")}
             </label>
           </div>
           <label className="block space-y-1 text-xs font-bold text-slate-700">Faaliyet alanı / açıklama
