@@ -4263,9 +4263,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         order_no, order_number, customer_email, status, item_count, total_amount,
         payment_method, payment_provider, payment_status,
         shipping_method, shipping_details, user_id, items,
-        billing_details, shipping_address, checkout_trace
+        billing_details, shipping_address, checkout_trace, save_card_requested
       )
-      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico','initializing',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb)
+      VALUES ($1,$1,$2,'payment_pending',$3,$4,'card','iyzico','initializing',$5,$6::jsonb,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12)
       RETURNING id, order_number`,
       [
         orderNumber,
@@ -4279,6 +4279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         JSON.stringify(billingDetails),
         JSON.stringify(shippingAddress),
         JSON.stringify(checkoutTrace),
+        req.body?.saveCard === true,
       ],
     );
 
@@ -4400,7 +4401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await client.query("BEGIN");
       const orderResult = await client.query(
-        `SELECT id, user_id, total_amount, order_number, payment_status, items
+        `SELECT id, user_id, total_amount, order_number, payment_status, items, save_card_requested
          FROM b2b_orders
          WHERE payment_token = $1
          LIMIT 1
@@ -4425,6 +4426,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const payment = await retrieveIyzicoCheckout(token);
+      const persistCardWhenPaid = async () => {
+        if (!order.save_card_requested || !order.user_id || !payment.cardUserKey || !payment.cardToken) return;
+        try {
+          const last4 = String(payment.lastFourDigits || "").replace(/\D/g, "").slice(-4);
+          if (!/^\d{4}$/.test(last4)) return;
+          await pool.query(
+            `INSERT INTO b2b_payment_methods
+               (user_id, provider, brand, last4, card_user_key, card_token, card_token_hash, is_default)
+             VALUES ($1, 'iyzico', $2, $3, $4, $5, $6, TRUE)
+             ON CONFLICT (user_id, card_token_hash) WHERE card_token_hash IS NOT NULL
+             DO UPDATE SET last4=EXCLUDED.last4, brand=EXCLUDED.brand`,
+            [order.user_id, String(payment.cardAssociation || "Kart").slice(0, 35),
+             last4, encryptStoredCardToken(String(payment.cardUserKey)),
+             encryptStoredCardToken(String(payment.cardToken)),
+             createHash("sha256").update(String(payment.cardToken)).digest("hex")],
+          );
+        } catch (error) {
+          console.error("CheckoutForm card storage failed:", error instanceof Error ? error.message : "unknown");
+        }
+      };
       const success =
         payment.status === "success" &&
         String(payment.paymentStatus || "").toUpperCase() === "SUCCESS";
@@ -4471,6 +4492,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ],
             );
             await client.query("COMMIT");
+            await persistCardWhenPaid();
             if(order.user_id)void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
               .catch(e=>console.error("Supplier cart cleanup",e));
             void notifyVerifiedSupplierOrder(String(order.order_number),order.items,true)
@@ -4535,6 +4557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await client.query("COMMIT");
 
       if (success) {
+        await persistCardWhenPaid();
         if(order.user_id)void removePurchasedMarketplaceCartItems(Number(order.user_id),order.items)
           .catch(e=>console.error("Supplier cart cleanup",e));
         void notifyVerifiedSupplierOrder(String(order.order_number),order.items)
