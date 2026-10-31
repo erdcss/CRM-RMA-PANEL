@@ -65,6 +65,11 @@ export function getBusinessReviewFixture(path:string):unknown {
   if(route==="/api/admin/dashboard-overview")return dashboard;
   if(route==="/api/admin/orders")return orders;
   if(route==="/api/admin/b2b-products")return products;
+  if(route.startsWith("/api/admin/b2b-products/")) {
+    const product=products.find(item=>String(item.id)===route.split("/").pop());
+    if(!product)throw new Error("Örnek ürün bulunamadı");
+    return product;
+  }
   if(route==="/api/admin/b2b-applications"||route==="/api/admin/b2b-customers")return customers;
   if(route==="/api/admin/b2b-support")return support;
   if(route==="/api/admin/returns")return [];
