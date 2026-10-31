@@ -1,8 +1,10 @@
+import type { SupplierTab } from "./components/SupplierWorkspaceShell";
+
 export type MainTab = "dashboard" | "orders" | "products" | "customers" | "more";
 
 export type Screen =
   | { name: "login" }
-  | { name: "marketplace"; tab?: "products" | "orders" }
+  | { name: "marketplace"; tab?: SupplierTab }
   | { name: "supplierOrderDetail"; id: number }
   | { name: "dashboard" }
   | { name: "orders" }

@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Alert,
+  BackHandler,
   Image,
   StatusBar,
   StyleSheet,
@@ -9,6 +11,7 @@ import {
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GlassTabBar } from "./components/GlassTabBar";
 import { signOut, type BusinessAuthUser } from "./lib/auth";
+import { supplierBackAction } from "./lib/supplier-back";
 import { useMobileBranding } from "./lib/branding";
 import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
 
@@ -42,6 +45,26 @@ export default function App() {
     const timer = setTimeout(() => setShowSplash(false), branding.loaded ? 1400 : 3500);
     return () => clearTimeout(timer);
   }, [branding.loaded]);
+
+  useEffect(() => {
+    // Suppliers must never navigate back to the login screen. Back returns to
+    // the supplier overview; at the root it can exit the app, not the session.
+    if (user?.role !== "b2b_seller") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      const action = supplierBackAction(screen);
+      if (action.kind === "navigate") {
+        setScreen(action.screen);
+      } else {
+        Alert.alert("Uygulamadan çıkılsın mı?",
+          "Oturumunuz geri tuşuyla kapatılmaz. Çıkış için menüde Güvenli Çıkış Yap seçeneğini kullanın.", [
+            { text: "Vazgeç", style: "cancel" },
+            { text: "Uygulamadan Çık", onPress: () => BackHandler.exitApp() },
+          ]);
+      }
+      return true;
+    });
+    return () => subscription.remove();
+  }, [user?.role, screen]);
 
   useEffect(() => {
     if (!user || user.role === "business_reviewer") return;
@@ -81,7 +104,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={s.root}>
-        <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+        <StatusBar barStyle={screen.name === "login" ? "dark-content" : "light-content"} backgroundColor={screen.name === "login" ? "#F5F7FB" : C.bg} />
 
         {screen.name === "login" ? (
           <LoginScreen
@@ -96,10 +119,11 @@ export default function App() {
             <MarketplaceScreen
               isSuper={user?.role === "super_admin" || user?.role === "admin"}
               initialTab={screen.tab}
+              onTabChange={(tab) => setScreen({ name: "marketplace", tab })}
               onAiProductAdd={() => setScreen({ name: "aiProductStudio", mode: user?.role === "super_admin" ? "super_admin" : "supplier" })}
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
               onOpenSupplierOrder={(id)=>{if(user?.role==="b2b_seller")setScreen({name:"supplierOrderDetail",id});}}
-              onBack={() => setScreen({ name: "more" })}
+              onBack={() => setScreen(user?.role === "b2b_seller" ? { name: "marketplace", tab: "overview" } : { name: "more" })}
               onLogout={async () => {
                 await unregisterBusinessPush();
                 await signOut();
