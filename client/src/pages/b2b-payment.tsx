@@ -286,6 +286,9 @@ export default function B2BPaymentPage() {
   const [checkoutFrameLoading, setCheckoutFrameLoading] = useState(false);
   const [checkoutFrameError, setCheckoutFrameError] = useState("");
   const [checkoutFrameRevision, setCheckoutFrameRevision] = useState(0);
+  const [saveCardForNextTime, setSaveCardForNextTime] = useState(false);
+  const [selectedSavedCard, setSelectedSavedCard] = useState<number | null>(null);
+  const [savedCardBusy, setSavedCardBusy] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [bankReference, setBankReference] = useState<{
@@ -304,6 +307,11 @@ export default function B2BPaymentPage() {
     bankTransfer: PaymentSettings["bankTransfer"];
   } | null>(null);
 
+  const { data: savedCards = [] } = useQuery<Array<{id:number;brand?:string;last4?:string}>>({
+    queryKey: ["/api/b2b/payment-methods"],
+    queryFn: () => getJson("/api/b2b/payment-methods"),
+    enabled: !result,
+  });
   const { data: settings } = useQuery<PaymentSettings>({
     queryKey: ["/api/public/payment-settings"],
     queryFn: () => getJson("/api/public/payment-settings"),
@@ -542,6 +550,8 @@ export default function B2BPaymentPage() {
   );
 
   const cardCheckoutContext = JSON.stringify({
+    savedCardId: selectedSavedCard,
+    saveCard: saveCardForNextTime,
     addressId: selectedAddressId,
     shippingMethod,
     freightCompany: freightCompany.trim(),
@@ -555,7 +565,7 @@ export default function B2BPaymentPage() {
   });
 
   useEffect(() => {
-    if (!cardCheckoutReady) {
+    if (!cardCheckoutReady || selectedSavedCard !== null) {
       setCheckoutFrameUrl("");
       setCheckoutFrameError("");
       setCheckoutFrameLoading(false);
@@ -577,6 +587,7 @@ export default function B2BPaymentPage() {
             ...orderPayload(),
             addressId: selectedAddressId,
             shipping,
+            saveCard: saveCardForNextTime,
             checkoutContext: {
               source: cartMode ? "Sipariş listesi / sepet" : "Ürün detayı",
               entryPath: window.location.pathname + window.location.search,
@@ -624,7 +635,27 @@ export default function B2BPaymentPage() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [cardCheckoutContext, cardCheckoutReady]);
+  }, [cardCheckoutContext, cardCheckoutReady, selectedSavedCard]);
+
+  async function payWithSavedCard() {
+    if (!cardCheckoutReady || selectedSavedCard === null || savedCardBusy) return;
+    const shipping = shippingPayload();
+    if (!shipping) return;
+    setSavedCardBusy(true);
+    try {
+      const response = await apiRequest("POST", "/api/b2b/payments/iyzico/3ds/initialize", {
+        ...orderPayload(), addressId: selectedAddressId, shipping, installment: 1,
+        savedCardId: selectedSavedCard,
+        checkoutContext: { source: "Kayıtlı kart / web", cartMode, platform: "web" },
+      });
+      const payment = await response.json() as {threeDSHtmlContent?:string};
+      if (!payment.threeDSHtmlContent) throw new Error("3D Secure doğrulaması oluşturulamadı.");
+      openThreeDSInTopWindow(payment.threeDSHtmlContent);
+    } catch (error) {
+      toast({ title: "Kayıtlı kart ödemesi başlatılamadı",
+        description: error instanceof Error ? error.message : "Tekrar deneyin", variant: "destructive" });
+    } finally { setSavedCardBusy(false); }
+  }
 
   function orderPayload() {
     if (!preview) return {};
@@ -1087,6 +1118,34 @@ export default function B2BPaymentPage() {
                     </div>
                   </div>
 
+                  {savedCards.length > 0 ? (
+                    <div className="mt-4 space-y-2 rounded-xl border p-3">
+                      <h4 className="text-sm font-semibold">Kayıtlı Kartlarım</h4>
+                      {savedCards.map(card => (
+                        <label key={card.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${selectedSavedCard === card.id ? "border-yellow-400 bg-amber-50" : "border-slate-200"}`}>
+                          <input type="radio" name="savedCard" checked={selectedSavedCard === card.id}
+                            onChange={() => setSelectedSavedCard(card.id)} />
+                          <CreditCard className="h-5 w-5" />
+                          <span>{card.brand || "Banka / Kredi Kartı"} <b>•••• {card.last4}</b></span>
+                        </label>
+                      ))}
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm">
+                        <input type="radio" name="savedCard" checked={selectedSavedCard === null}
+                          onChange={() => setSelectedSavedCard(null)} />
+                        Yeni bir kart kullan
+                      </label>
+                    </div>
+                  ) : null}
+                  {selectedSavedCard !== null && cardCheckoutReady ? (
+                    <div className="mt-4 space-y-3 rounded-xl border bg-slate-50 p-4">
+                      <p className="text-xs text-slate-600">Kayıtlı kart ile tek çekim ödeme ve banka 3D Secure doğrulaması.</p>
+                      <Button type="button" disabled={savedCardBusy} onClick={() => void payWithSavedCard()}
+                        className="w-full bg-amber-300 font-normal text-slate-900 hover:bg-amber-400">
+                        {savedCardBusy ? "Ödeme hazırlanıyor…" : "Ödemeyi Tamamla"}
+                      </Button>
+                    </div>
+                  ) : null}
+
                   {!cardCheckoutReady ? (
                     <div className="mt-4 rounded-xl border border-dashed bg-slate-50 p-5 text-sm text-slate-600">
                       {!selectedAddressId
@@ -1102,7 +1161,7 @@ export default function B2BPaymentPage() {
                     </div>
                   ) : null}
 
-                  {checkoutFrameLoading && !checkoutFrameUrl ? (
+                  {selectedSavedCard === null && checkoutFrameLoading && !checkoutFrameUrl ? (
                     <div className="mt-4 overflow-hidden rounded-xl border bg-white p-4">
                       <div className="animate-pulse space-y-4" aria-label="Kart formu hazırlanıyor">
                         <div className="h-4 w-40 rounded bg-slate-200" />
@@ -1117,7 +1176,7 @@ export default function B2BPaymentPage() {
                     </div>
                   ) : null}
 
-                  {checkoutFrameError ? (
+                  {selectedSavedCard === null && checkoutFrameError ? (
                     <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
                       <div className="font-bold">Kart alanı yüklenemedi</div>
                       <div className="mt-1">{checkoutFrameError}</div>
@@ -1133,7 +1192,7 @@ export default function B2BPaymentPage() {
                     </div>
                   ) : null}
 
-                  {checkoutFrameUrl ? (
+                  {selectedSavedCard === null && checkoutFrameUrl ? (
                     <div className="mt-4 overflow-hidden rounded-xl border bg-white">
                       <iframe
                         title="iyzico Güvenli Kart Ödemesi"
@@ -1161,6 +1220,13 @@ export default function B2BPaymentPage() {
                     </div>
                   ) : null}
 
+                  {selectedSavedCard === null ? (
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm">
+                      <input type="checkbox" checked={saveCardForNextTime}
+                        onChange={event => setSaveCardForNextTime(event.target.checked)} />
+                      <span>Bir sonraki alışverişim için kartımı kaydet</span>
+                    </label>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
                     <span>Ödenecek tutar: <b className="text-slate-900">{formatMoney(preview.total)}</b></span>
                     {checkoutFrameUrl ? (
