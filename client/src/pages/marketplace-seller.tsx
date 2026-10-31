@@ -164,11 +164,13 @@ export default function MarketplaceSeller(){
   // is checked independently of the marketplace profile and revalidated on focus.
   const authIdentity=useQuery<{id:number;role:string;email?:string;username?:string}>({
     queryKey:["/api/auth/me"],retry:false,staleTime:0,
-    refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
+    refetchInterval:(query)=>query.state.status==="success"?10000:false,
+    refetchOnWindowFocus:true,refetchOnMount:"always"
   });
   const me=useQuery<Supplier|null>({
     queryKey:["/api/marketplace/me"],retry:false,staleTime:0,
-    refetchInterval:10000,refetchOnWindowFocus:true,refetchOnMount:"always"
+    refetchInterval:(query)=>query.state.status==="success"?10000:false,
+    refetchOnWindowFocus:true,refetchOnMount:"always"
   });
   const [accountMismatch,setAccountMismatch]=useState(false);
   const identityValid=Boolean(me.data && authIdentity.data &&

@@ -272,6 +272,8 @@ function MarketplaceWebsite() {
       <Switch>
         <Route path="/" component={MarketplaceSeller} />
         <Route path="/satici" component={MarketplaceSeller} />
+        <Route path="/auth/login" component={MarketplaceSeller} />
+        <Route path="/auth/register" component={MarketplaceSeller} />
         <Route path="/satici/urun/:id">{(params) => <MarketplaceSellerProduct id={params.id} />}</Route>
         <Route path="/urun/:id" component={B2BProductPage} />
         <Route path="/magazalar" component={MarketplaceDirectory} />
