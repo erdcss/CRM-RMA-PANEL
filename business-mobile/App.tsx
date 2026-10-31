@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Alert,
+  BackHandler,
   Image,
   StatusBar,
   StyleSheet,
@@ -42,6 +44,37 @@ export default function App() {
     const timer = setTimeout(() => setShowSplash(false), branding.loaded ? 1400 : 3500);
     return () => clearTimeout(timer);
   }, [branding.loaded]);
+
+  useEffect(() => {
+    // Suppliers must never navigate back to the login screen. Back returns to
+    // the supplier overview; at the root it can exit the app, not the session.
+    if (user?.role !== "b2b_seller") return;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (screen.name === "supplierOrderDetail") {
+        setScreen({ name: "marketplace", tab: "orders" });
+        return true;
+      }
+      if (screen.name === "aiProductStudio" && screen.mode === "supplier") {
+        setScreen({ name: "marketplace", tab: "products" });
+        return true;
+      }
+      if (screen.name === "marketplace") {
+        if (screen.tab && screen.tab !== "overview") {
+          setScreen({ name: "marketplace", tab: "overview" });
+        } else {
+          Alert.alert("Uygulamadan çıkılsın mı?",
+            "Hesabınızda oturum açık kalacak. Çıkış yapmak için menüdeki Güvenli Çıkış Yap seçeneğini kullanın.", [
+              { text: "Vazgeç", style: "cancel" },
+              { text: "Uygulamadan Çık", onPress: () => BackHandler.exitApp() },
+            ]);
+        }
+        return true;
+      }
+      setScreen({ name: "marketplace", tab: "overview" });
+      return true;
+    });
+    return () => subscription.remove();
+  }, [user?.role, screen]);
 
   useEffect(() => {
     if (!user || user.role === "business_reviewer") return;
@@ -96,10 +129,11 @@ export default function App() {
             <MarketplaceScreen
               isSuper={user?.role === "super_admin" || user?.role === "admin"}
               initialTab={screen.tab}
+              onTabChange={(tab) => setScreen({ name: "marketplace", tab })}
               onAiProductAdd={() => setScreen({ name: "aiProductStudio", mode: user?.role === "super_admin" ? "super_admin" : "supplier" })}
               onOpenOrder={(id)=>{if(user?.role==="super_admin"||user?.role==="admin")setScreen({name:"orderDetail",id});}}
               onOpenSupplierOrder={(id)=>{if(user?.role==="b2b_seller")setScreen({name:"supplierOrderDetail",id});}}
-              onBack={() => setScreen({ name: "more" })}
+              onBack={() => setScreen({ name: user?.role === "b2b_seller" ? "marketplace" : "more", tab: "overview" } as Screen)}
               onLogout={async () => {
                 await unregisterBusinessPush();
                 await signOut();
