@@ -22,4 +22,4 @@ jobs:
           cache-dependency-path: business-mobile/package-lock.json
       - run: cd business-mobile && npm ci --ignore-scripts
       - run: cd business-mobile && npx tsc --noEmit
-      - run: cd business-mobile && npx tsx --test lib/review-fixtures.test.ts
+      - run: cd business-mobile && npx tsx lib/review-fixtures.test.ts
