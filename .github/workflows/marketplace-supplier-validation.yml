@@ -1,0 +1,33 @@
+name: Marketplace Supplier Onboarding Validation
+on:
+  push:
+    paths:
+      - 'client/src/components/marketplace-create-supplier-dialog.tsx'
+      - 'server/routes.ts'
+      - 'shared/marketplace-supplier-input.ts'
+      - 'shared/marketplace-supplier-input.test.ts'
+      - '.github/workflows/marketplace-supplier-validation.yml'
+  pull_request:
+    paths:
+      - 'client/src/components/marketplace-create-supplier-dialog.tsx'
+      - 'server/routes.ts'
+      - 'shared/marketplace-supplier-input.ts'
+      - 'shared/marketplace-supplier-input.test.ts'
+      - '.github/workflows/marketplace-supplier-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx tsx --test shared/marketplace-supplier-input.test.ts
+      - run: npm run check
+      - run: npm run build
