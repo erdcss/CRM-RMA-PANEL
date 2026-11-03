@@ -1,0 +1,159 @@
+name: Ortak Expo TestFlight Merkezi (B2B, Business, Dukkan, M.A.Y.K)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "TestFlight uygulamasini secin"
+        type: choice
+        required: true
+        default: mayk
+        options:
+          - b2b
+          - business
+          - dukkan
+          - mayk
+      operation:
+        description: "Sadece kontrol veya iOS TestFlight"
+        type: choice
+        required: true
+        default: verify
+        options:
+          - verify
+          - testflight
+      mayk_asc_app_id:
+        description: "Sadece M.A.Y.K TestFlight icin App Store Connect Apple ID (sayisal)"
+        type: string
+        required: false
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/release-requests/central-ios/*.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: central-ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  selected-ios-app:
+    name: Paylasilan Expo token ile iOS
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CI: "1"
+      EAS_NO_VCS: "1"
+      MAYK_REQUIRE_REMOTE_ICON: "1"
+      EXPO_PUBLIC_MAYK_WEB_URL: "https://progres.turmarkt.com"
+
+    steps:
+      - name: Checkout central CI repo
+        uses: actions/checkout@v4
+
+      - name: Resolve requested app and operation safely
+        id: target
+        run: node .github/scripts/resolve-central-ios.mjs
+
+      - name: Checkout M.A.Y.K public source
+        if: ${{ steps.target.outputs.app == 'mayk' }}
+        uses: actions/checkout@v4
+        with:
+          repository: erdcss/AI-PROGRES
+          ref: main
+          path: mayk-source
+          persist-credentials: false
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check existing Expo robot access without printing credentials
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::Existing EXPO_TOKEN is not configured in CRM-RMA-PANEL Actions Secrets"
+            exit 1
+          fi
+          echo "Central Expo token is configured."
+
+      - name: Install app dependencies
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        run: |
+          if [ "${{ steps.target.outputs.app }}" = "b2b" ] || [ "${{ steps.target.outputs.app }}" = "business" ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Prepare production branding and validate app
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        env:
+          APP: ${{ steps.target.outputs.app }}
+        run: |
+          case "$APP" in
+            b2b)
+              node scripts/create-scan-beep.cjs
+              node scripts/prepare-native-release.cjs
+              npm run sync:branding
+              npm run typecheck
+              ;;
+            business)
+              npm run sync:branding
+              ;;
+            dukkan)
+              npm run prepare:branding
+              npm run check
+              ;;
+            mayk)
+              npm run prepare:icon
+              npm run typecheck
+              node -e "const c=require('./app.config.js').expo;if(c.name!=='M.A.Y.K'||c.ios?.bundleIdentifier!=='com.turmarkt.mayk'||c.extra?.eas?.projectId!=='904c797e-7ddc-46a6-b5ed-e081f1c39bd3')process.exit(1);console.log('Correct M.A.Y.K iOS app and EAS project')"
+              ;;
+          esac
+          npx expo config --type public > /dev/null
+          echo "iOS app config validated."
+
+      - name: Authenticate with existing shared Expo token
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify EAS identity and project access
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        run: |
+          eas whoami
+          eas project:info --non-interactive
+
+      - name: Set M.A.Y.K App Store Connect app ID only for release
+        if: ${{ steps.target.outputs.app == 'mayk' && steps.target.outputs.operation == 'testflight' }}
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          MAYK_ASC_APP_ID: ${{ steps.target.outputs.mayk_asc_app_id }}
+        run: node scripts/configure-submit.mjs
+
+      - name: Run dedicated signed iOS build and submit to TestFlight
+        if: ${{ steps.target.outputs.operation == 'testflight' }}
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PROFILE: ${{ steps.target.outputs.profile }}
+        run: |
+          eas build --platform ios --profile "$PROFILE" --auto-submit --non-interactive --wait
+          echo "### iOS build handed to EAS Submit" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check the EAS Submit result and Apple TestFlight processing. It does not submit for public App Store review." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Print verification result
+        if: ${{ steps.target.outputs.operation == 'verify' }}
+        env:
+          APP: ${{ steps.target.outputs.app }}
+        run: |
+          echo "### Central Expo/EAS verification succeeded" >> "$GITHUB_STEP_SUMMARY"
+          echo "Selected application: $APP" >> "$GITHUB_STEP_SUMMARY"
+          echo "Existing CRM-RMA-PANEL Expo token authenticated and EAS project info resolved. No TestFlight build or submission started." >> "$GITHUB_STEP_SUMMARY"
