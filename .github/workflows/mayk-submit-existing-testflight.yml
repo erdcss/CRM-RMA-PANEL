@@ -1,0 +1,114 @@
+name: M.A.Y.K - Hazir iOS build'i TestFlight'a gonder (yeni build yok)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_id:
+        description: "Mevcut, basarili iOS EAS build UUID"
+        type: string
+        required: true
+        default: "6b5b2089-dbec-4a2d-9e9d-40c34d387d33"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/release-requests/mayk-submit-existing/*.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mayk-existing-build-submit
+  cancel-in-progress: false
+
+jobs:
+  submit-existing:
+    name: Existing EAS build -> Apple TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      MAYK_ASC_APP_ID: "6830099249"
+      CI: "1"
+      EAS_NO_VCS: "1"
+      MAYK_REQUIRE_REMOTE_ICON: "1"
+      EXPO_PUBLIC_MAYK_WEB_URL: https://progres.turmarkt.com
+      EAS_PROJECT_ROOT: ${{ github.workspace }}/mayk-source/mayk-ios
+
+    steps:
+      - name: Checkout shared CI repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Validate existing build id (no new iOS build)
+        id: target
+        env:
+          DISPATCH_BUILD_ID: ${{ inputs.build_id }}
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import { execFileSync } from "node:child_process";
+            let id = process.env.DISPATCH_BUILD_ID || "";
+            if (process.env.GITHUB_EVENT_NAME === "push") {
+              const changed = execFileSync("git", ["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"], {encoding:"utf8"}).trim().split("\n");
+              const files = changed.filter(p => /^\.github\/release-requests\/mayk-submit-existing\/[a-zA-Z0-9_-]+\.json$/.test(p));
+              if(files.length!==1) throw Error("Exactly one existing build request must be committed");
+              const request = JSON.parse(fs.readFileSync(files[0], "utf8"));
+              id = request.buildId;
+            }
+            if (typeof id !== "string" || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw Error("Invalid EAS build UUID");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "build_id="+id+"\n");
+            console.log("Submitting an already completed EAS iOS build only:", id);
+          '
+
+      - name: Checkout M.A.Y.K source (read-only)
+        uses: actions/checkout@v4
+        with:
+          repository: erdcss/AI-PROGRES
+          ref: main
+          path: mayk-source
+          persist-credentials: false
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Require authorized shared Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error::EXPO_TOKEN missing from CRM-RMA-PANEL secrets"
+            exit 1
+          fi
+
+      - name: Install M.A.Y.K dependencies
+        working-directory: mayk-source/mayk-ios
+        run: npm install --no-audit --no-fund
+
+      - name: Configure existing App Store Connect credentials
+        working-directory: mayk-source/mayk-ios
+        run: |
+          node scripts/configure-submit.mjs
+
+      - name: Authenticate with shared Expo robot
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify existing EAS project
+        working-directory: mayk-source/mayk-ios
+        run: |
+          eas whoami
+          eas project:info --non-interactive
+
+      - name: Resubmit exact existing iOS build - NO new EAS Build
+        working-directory: mayk-source/mayk-ios
+        env:
+          BUILD_ID: ${{ steps.target.outputs.build_id }}
+        run: |
+          eas submit --platform ios --profile production --id "$BUILD_ID" --non-interactive --wait --verbose
+          echo "### M.A.Y.K iOS build submitted to App Store Connect" >> "$GITHUB_STEP_SUMMARY"
+          echo "Build ID: $BUILD_ID" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check Apple processing and TestFlight internal testing after successful submission." >> "$GITHUB_STEP_SUMMARY"
