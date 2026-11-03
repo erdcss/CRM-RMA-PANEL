@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  normalizeCategoryText,
-  productMatchesSubcategory,
-  productMatchesCollection,
-} from "../mobile/lib/category-collections";
+// The mobile package is CommonJS while the workspace tests run as ESM.
+// Import the CJS default namespace so tsx can load the same live matcher code.
+import collectionModule from "../mobile/lib/category-collections";
+
+const { normalizeCategoryText, productMatchesSubcategory, productMatchesCollection } = collectionModule;
 
 const steel = { id: "1", name: "Paslanmaz ÇELİK   CEZVE 500 ML", category: "elektronik", tags: [] };
 const tea = { id: "2", name: "Elektrikli ÇAY MAKİNESİ Cam Demlik", category: "mutfak", tags: [] };
