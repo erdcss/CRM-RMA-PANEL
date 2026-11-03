@@ -18,6 +18,7 @@ export default function MenuScreen() {
   const mayAdd=user?.role==='super_admin'||user?.role==='b2b_seller';
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     rmaApi
@@ -48,6 +49,10 @@ export default function MenuScreen() {
       pathname: '/collection/[category]',
       params: { category },
     } as never);
+  };
+
+  const openSubcategory = (category: string, subcategoryId: string) => {
+    router.push({ pathname: '/collection/[category]', params: { category, subcategoryId } } as never);
   };
 
   return (
@@ -83,9 +88,11 @@ export default function MenuScreen() {
         <View style={styles.list}>
           {categories.map((category, index) => {
             const card = categoryCards.find(item => item.category.toLocaleLowerCase('tr-TR') === category.toLocaleLowerCase('tr-TR'));
+            const subcategories = card?.subcategories || [];
+            const expanded = expandedCategory === category;
             return (
+            <View key={category} style={styles.categoryGroup}>
             <Pressable
-              key={category}
               style={styles.item}
               onPress={() => openCategory(category)}
             >
@@ -99,7 +106,9 @@ export default function MenuScreen() {
               <View style={styles.textGroup}>
                 <Text style={styles.itemTitle}>{card?.label || category}</Text>
                 <Text style={styles.itemSubtitle}>
-                  {category} ürünlerini görüntüle
+                  {subcategories.length
+                    ? subcategories.length + ' alt kategori · Ürünleri görüntüle'
+                    : category + ' ürünlerini görüntüle'}
                 </Text>
               </View>
               <Ionicons
@@ -108,6 +117,41 @@ export default function MenuScreen() {
                 color={palette.muted}
               />
             </Pressable>
+            {subcategories.length > 0 ? (
+              <>
+                <Pressable
+                  onPress={() => setExpandedCategory(current => current === category ? null : category)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded }}
+                  style={styles.subcategoryToggle}
+                >
+                  <Ionicons name="layers-outline" size={16} color={palette.textSecondary} />
+                  <Text style={styles.subcategoryToggleText}>Alt Kategoriler ({subcategories.length})</Text>
+                  <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.textSecondary} />
+                </Pressable>
+                {expanded ? (
+                  <View style={styles.subcategoryList}>
+                    {subcategories.map(child => (
+                      <Pressable key={child.id}
+                        style={styles.subcategoryRow}
+                        accessibilityRole="button"
+                        accessibilityLabel={child.name + ' alt kategorisini aç'}
+                        onPress={() => openSubcategory(category, child.id)}>
+                        <View style={styles.childIcon}>
+                          {child.imageId ? (
+                            <Image source={{ uri: homepageMediaUrl(child.imageId) || '' }}
+                              contentFit="cover" style={styles.childImage} cachePolicy="memory-disk" />
+                          ) : <Ionicons name="cube-outline" size={19} color={palette.muted}/>}
+                        </View>
+                        <Text style={styles.childLabel} numberOfLines={2}>{child.name}</Text>
+                        <Ionicons name="chevron-forward" size={17} color={palette.muted} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+            </View>
           );})}
         </View>
 
@@ -178,6 +222,28 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   list: {
     gap: spacing.sm,
   },
+  categoryGroup: { gap: 4 },
+  subcategoryToggle: {
+    marginLeft: 12, minHeight: 42, paddingHorizontal: spacing.md,
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+    borderRadius: radius.md, backgroundColor: palette.surfaceSecondary,
+  },
+  subcategoryToggleText: { ...typography.caption, color: palette.textSecondary, flex: 1, fontWeight: '700' },
+  subcategoryList: {
+    marginLeft: 12, paddingLeft: 12, borderLeftWidth: 2, borderLeftColor: '#FACC15', gap: 5,
+  },
+  subcategoryRow: {
+    minHeight: 55, paddingHorizontal: spacing.sm, paddingVertical: 6,
+    borderRadius: radius.md, backgroundColor: palette.surface,
+    borderWidth: 1, borderColor: palette.border, flexDirection: 'row',
+    alignItems: 'center', gap: spacing.md,
+  },
+  childIcon: {
+    width: 36, height: 36, borderRadius: 9, backgroundColor: palette.surfaceSecondary,
+    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+  },
+  childImage: { width: 36, height: 36 },
+  childLabel: { ...typography.bodyMedium, fontSize: 13, fontWeight: '700', flex: 1, color: palette.text },
   item: {
     minHeight: 74,
     borderRadius: radius.lg,
