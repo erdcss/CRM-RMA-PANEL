@@ -132,6 +132,34 @@ jobs:
           eas whoami
           eas project:info --non-interactive
 
+      - name: Verify M.A.Y.K EAS upload archive contains the actual icon and splash (no paid build)
+        if: ${{ steps.target.outputs.app == 'mayk' }}
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        env:
+          EAS_PROJECT_ROOT: ${{ github.workspace }}/mayk-source/mayk-ios
+        run: |
+          set -euo pipefail
+          echo "Checking archive with EAS_PROJECT_ROOT=$EAS_PROJECT_ROOT"
+          test -f assets/icon.png
+          test -f assets/splash.png
+          eas build:inspect --platform ios --profile production --stage archive --output "$RUNNER_TEMP/mayk-eas-archive" --force
+          node -e '
+            const fs=require("fs"),path=require("path"),sharp=require("sharp");
+            (async()=>{
+              const dir=process.env.RUNNER_TEMP+"/mayk-eas-archive";
+              let root=dir;
+              if(!fs.existsSync(path.join(root,"assets/icon.png")) && fs.existsSync(path.join(root,"mayk-ios/assets/icon.png")))root=path.join(root,"mayk-ios");
+              const icon=path.join(root,"assets/icon.png");
+              const splash=path.join(root,"assets/splash.png");
+              if(!fs.existsSync(icon)||!fs.existsSync(splash)) throw Error("EAS uploaded archive is missing assets/icon.png or assets/splash.png");
+              const info=await sharp(icon).metadata();
+              if(info.format!=="png"||info.width!==1024||info.height!==1024||info.hasAlpha)throw Error("Archive icon must be opaque 1024x1024 PNG");
+              const sInfo=await sharp(splash).metadata();
+              if(sInfo.format!=="png")throw Error("Archive splash must be PNG");
+              console.log("VERIFIED EAS ARCHIVE: icon.png opaque 1024x1024 PNG and splash.png present.");
+            })().catch(e=>{console.error(e.message);process.exit(1)});
+          '
+
       - name: Set M.A.Y.K App Store Connect app ID only for release
         if: ${{ steps.target.outputs.app == 'mayk' && steps.target.outputs.operation == 'testflight' }}
         working-directory: ${{ steps.target.outputs.app_dir }}
@@ -147,6 +175,9 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           PROFILE: ${{ steps.target.outputs.profile }}
         run: |
+          if [ "${{ steps.target.outputs.app }}" = "mayk" ]; then
+            export EAS_PROJECT_ROOT="$GITHUB_WORKSPACE/mayk-source/mayk-ios"
+          fi
           eas build --platform ios --profile "$PROFILE" --auto-submit --non-interactive --wait
           echo "### iOS build handed to EAS Submit" >> "$GITHUB_STEP_SUMMARY"
           echo "Check the EAS Submit result and Apple TestFlight processing. It does not submit for public App Store review." >> "$GITHUB_STEP_SUMMARY"
