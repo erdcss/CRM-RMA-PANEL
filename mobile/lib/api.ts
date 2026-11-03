@@ -194,7 +194,20 @@ export type HomeBanner = {
   linkType?:'none'|'product'|'page'|'url';productId?:number|null;
   pagePath?:string;externalUrl?:string;
 };
-export type HomeCategoryCard = { category: string; label: string; imageId: string; tags?: string[] };
+export type HomeSubcategory = {
+  id: string;
+  name: string;
+  imageId?: string;
+  tags: string[];
+  titleKeywords?: string[];
+};
+export type HomeCategoryCard = {
+  category: string;
+  label?: string;
+  imageId?: string;
+  tags?: string[];
+  subcategories?: HomeSubcategory[];
+};
 export type B2BHomepage = {
   categories: string[];
   banners?: HomeBanner[];
