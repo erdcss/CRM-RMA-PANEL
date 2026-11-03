@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const ALLOWED = Object.freeze({
   b2b: { directory: "mobile", profile: "testflight" },
@@ -14,7 +15,10 @@ if (process.env.GITHUB_EVENT_NAME === "workflow_dispatch") {
   operation = event.inputs?.operation;
   ascAppId = event.inputs?.mayk_asc_app_id || "";
 } else if (process.env.GITHUB_EVENT_NAME === "push") {
-  const changes = [...(event.head_commit?.added ?? []), ...(event.head_commit?.modified ?? [])];
+  // GitHub Actions push payload omits added/modified lists; read the committed file diff.
+  const changes = execFileSync("git", ["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"], {
+    encoding: "utf8",
+  }).split(/\r?\n/).filter(Boolean);
   const markers = changes.filter((name) =>
     /^\.github\/release-requests\/central-ios\/[a-zA-Z0-9_-]+\.json$/.test(name),
   );

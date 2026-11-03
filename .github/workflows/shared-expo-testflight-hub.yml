@@ -52,6 +52,8 @@ jobs:
     steps:
       - name: Checkout central CI repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Resolve requested app and operation safely
         id: target
