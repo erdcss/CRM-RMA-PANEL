@@ -172,6 +172,7 @@ export type MarketplaceProduct = {
     price?: string | number | null;
     category?: string;
     brand?: string;
+    tags?: string[];
     unitsPerBox?: number;
     minBoxes?: number;
   };
