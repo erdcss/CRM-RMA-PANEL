@@ -17,6 +17,7 @@ export function asCatalogProduct(item: MarketplaceProduct): B2BProduct {
     barcode: item.content.barcode || null,
     category: item.content.category || null,
     brand: item.content.brand || null,
+    tags: Array.isArray(item.content.tags) ? item.content.tags : [],
     units_per_box: Math.max(1, Number(item.content.unitsPerBox) || 1),
     min_order_qty: Math.max(1, Number(item.content.minBoxes) || 1),
     marketplace: true,
