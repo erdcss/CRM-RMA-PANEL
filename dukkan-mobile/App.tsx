@@ -264,7 +264,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     <TextInput style={styles.input} value={String(line[key])} keyboardType="decimal-pad" onChangeText={txt=>setLines(x=>x.map((v,n)=>n===i?{...v,[key]:txt}:v))}/>
    </View>)}
   </View>
-  {lines.length>1&&<Pressable onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}><Text style={{color:"#b24a53",fontWeight:"700",marginTop:8}}>Satırı Kaldır</Text></Pressable>}
+  {lines.length>1&&<Pressable onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}><Text style={{color:"#b24a53",fontWeight:"500",marginTop:8}}>Satırı Kaldır</Text></Pressable>}
  </View>;
  return <SafeAreaView style={[styles.safe,{backgroundColor:"#0b2146"}]}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor="#0b2146"/>
   <View style={{flex:1,backgroundColor:"#f2f6fc"}}>
@@ -285,7 +285,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
        onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
      />
      <Pressable accessibilityRole="button" onPress={()=>openWeb("overview")}
-       style={[styles.primary,{marginTop:16,marginRight:0}]}>
+       style={[styles.primary,{marginTop:11,marginRight:0}]}>
        <Text style={styles.primaryText}>Web Panelindeki Tüm İşlemler ve Yetkiler</Text>
      </Pressable>
    </>}
@@ -433,8 +433,8 @@ export default function App(){
   <View style={{backgroundColor:"white",borderRadius:28,padding:26,borderWidth:1,borderColor:"#dfebfa",shadowColor:"#0b1e3c",shadowOpacity:0.12,shadowRadius:25,shadowOffset:{width:0,height:13},elevation:5}}>
    <View style={{alignItems:"center",marginBottom:24}}>
     {logo?<Image source={{uri:logo}} style={{width:100,height:100,borderRadius:20}} resizeMode="contain"/>:
-      <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"900",fontSize:26}}>ÇD</Text></View>}
-    <Text style={{fontSize:24,fontWeight:"900",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
+      <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"600",fontSize:26}}>ÇD</Text></View>}
+    <Text style={{fontSize:24,fontWeight:"600",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
     <Text style={{fontSize:12,color:"#64748b",marginTop:4}}>Yetkili mağaza hesabınızla giriş yapın</Text>
    </View>
    <Text style={styles.label}>Kullanıcı adı / E-posta</Text>
