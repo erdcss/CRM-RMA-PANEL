@@ -108,6 +108,7 @@ export default function Dukkan() {
   const base="/api/dukkan/stores/"+encodeURIComponent(storeId);
   const isWriter=currentStore?.role!=="viewer";
   const canManage=currentStore?.role==="owner"||currentStore?.role==="manager";
+  const canManageStock=canManage||currentStore?.role==="accountant"||isAdmin;
   const canAccount=!cashier;
   const isManager=["owner","manager"].includes(String(currentStore?.role));
   const canAccessSettings=canManage||isSuperAdmin;
@@ -700,7 +701,7 @@ export default function Dukkan() {
               storeId={storeId}
               base={base}
               products={products as StockProduct[]}
-              canManage={canManage}
+              canManage={canManageStock}
               onChanged={()=>setRefresh(value=>value+1)}
             />}
             {section!=="stock"&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
