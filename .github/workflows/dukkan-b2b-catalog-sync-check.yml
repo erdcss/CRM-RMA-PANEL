@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'server/dukkan.ts'
+      - 'server/dukkan-stock-ledger.ts'
+      - 'server/dukkan-stock-ledger.integration.test.ts'
+      - 'client/src/components/dukkan-stock-workspace.tsx'
       - 'server/dukkan-b2b-sync.ts'
       - 'server/dukkan-b2b-sync.test.ts'
       - 'server/dukkan-b2b-sync.integration.test.ts'
@@ -18,6 +21,9 @@ on:
   pull_request:
     paths:
       - 'server/dukkan.ts'
+      - 'server/dukkan-stock-ledger.ts'
+      - 'server/dukkan-stock-ledger.integration.test.ts'
+      - 'client/src/components/dukkan-stock-workspace.tsx'
       - 'server/dukkan-b2b-sync.ts'
       - 'server/dukkan-b2b-sync.test.ts'
       - 'server/dukkan-b2b-sync.integration.test.ts'
@@ -44,6 +50,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
-      - run: npx tsx --test server/dukkan-b2b-sync.test.ts server/dukkan-b2b-sync.integration.test.ts server/dukkan-b2b-autoimport.integration.test.ts client/src/lib/dukkan-product-toolbar.test.ts
+      - run: npx tsx --test server/dukkan-b2b-sync.test.ts server/dukkan-b2b-sync.integration.test.ts server/dukkan-b2b-autoimport.integration.test.ts client/src/lib/dukkan-product-toolbar.test.ts server/dukkan-stock-ledger.integration.test.ts
       - run: npm run check
       - run: npm run build
