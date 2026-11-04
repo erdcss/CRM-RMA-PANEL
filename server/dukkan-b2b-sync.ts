@@ -54,7 +54,7 @@ export async function ensureDukkanB2BBridge(pool: Pool): Promise<void> {
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_product_id BIGINT",
     "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_b2b_product_link_unique ON dukkan_products(b2b_product_id) WHERE b2b_product_id IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS dukkan_products_store_b2b_idx ON dukkan_products(store_id, b2b_product_id)",
-    "CREATE OR REPLACE FUNCTION sync_b2b_stock_to_dukkan() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE dukkan_products SET stock=NEW.stock WHERE b2b_product_id=NEW.id AND stock IS DISTINCT FROM NEW.stock; RETURN NEW; END $fn$",
+    "CREATE OR REPLACE FUNCTION sync_b2b_stock_to_dukkan() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR current_setting('app.dukkan_sync_origin',true)='dukkan' OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE dukkan_products SET stock=NEW.stock WHERE b2b_product_id=NEW.id AND stock IS DISTINCT FROM NEW.stock; RETURN NEW; END $fn$",
     "DROP TRIGGER IF EXISTS b2b_dukkan_stock_bridge ON b2b_products",
     "CREATE TRIGGER b2b_dukkan_stock_bridge AFTER UPDATE OF stock ON b2b_products FOR EACH ROW EXECUTE FUNCTION sync_b2b_stock_to_dukkan()",
     "CREATE OR REPLACE FUNCTION sync_dukkan_stock_to_b2b() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR NEW.b2b_product_id IS NULL OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE b2b_products SET stock=FLOOR(NEW.stock)::integer, updated_at=NOW() WHERE id=NEW.b2b_product_id AND stock IS DISTINCT FROM FLOOR(NEW.stock)::integer; RETURN NEW; END $fn$",
@@ -68,6 +68,9 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   if (!b2bPublicationAllowed(row)) {
     throw Object.assign(new Error("B2B yayını için en az bir ürün görseli ekleyin"), {status:400});
   }
+  // Distinguish a product-card update from a B2B sale; never round away fractional
+  // Dükkan inventory when writing B2B's integer stock snapshot.
+  await c.query("SELECT set_config('app.dukkan_sync_origin','dukkan',true)");
   const images = Array.isArray(row.images) ? row.images : [];
   const photo = images[0] || row.image_data || null;
   const price = Number(row.sale_price);
