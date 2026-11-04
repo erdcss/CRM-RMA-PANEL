@@ -245,7 +245,12 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
      placeholderTextColor="#97a4b5" style={styles.input} autoCapitalize="none" keyboardType={field.kind==="number"?"decimal-pad":"default"}/>}
  </View>;
  const lineView=(line:Line,i:number)=><View key={i} style={styles.line}>
-  <Text style={styles.label}>Ürün {i+1}</Text>
+  <View style={{flexDirection:"row",alignItems:"center",gap:9,marginBottom:8}}>
+    {products.find(p=>String(p.id)===String(line.productId))&&
+      <ProductThumbnail item={products.find(p=>String(p.id)===String(line.productId))!}
+        storeId={session.store.id} token={session.token} size={48}/>}
+    <Text style={styles.label}>Ürün {i+1}</Text>
+  </View>
   <ScrollView horizontal style={{flexGrow:0}} showsHorizontalScrollIndicator={false}>
    {products.map(p=><Pressable key={String(p.id)} style={[styles.chip,String(line.productId)===String(p.id)?styles.chipActive:null]} onPress={()=>{
     setLines(x=>x.map((v,n)=>n!==i?v:{...v,productId:String(p.id),price:String(Number(["purchase","purchase_return"].includes(data.kind)?p.purchase_cents:p.sale_cents)/100)}));
@@ -273,7 +278,8 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
    {tab==="dashboard"&&<>
      <DukkanDashboardOverview
        summary={sums} cashier={cashier} canManage={canManage&&isWriter}
-       onQuickAction={open} onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
+       onQuickAction={kind=>isWriter?open(kind):Alert.alert("Salt okunur","Bu hesapla kayıt oluşturamazsınız.")}
+       onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
      />
      <Pressable accessibilityRole="button" onPress={()=>openWeb("overview")}
        style={[styles.primary,{marginTop:16,marginRight:0}]}>
