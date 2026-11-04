@@ -2,6 +2,7 @@
 export type ProductSourceFilter = "all" | "b2b" | "local";
 export type ProductStockFilter = "all" | "available" | "low" | "empty";
 export type ProductPublicationFilter = "all" | "published" | "draft";
+export type ProductVisibilityFilter = "active" | "archived" | "all";
 export type ProductSort = "newest" | "name" | "stock-desc" | "stock-asc" | "price-asc" | "price-desc";
 
 export type ProductToolbarState = {
@@ -9,6 +10,7 @@ export type ProductToolbarState = {
   source: ProductSourceFilter;
   stock: ProductStockFilter;
   publication: ProductPublicationFilter;
+  visibility: ProductVisibilityFilter;
   sort: ProductSort;
   page: number;
   pageSize: number;
@@ -19,6 +21,7 @@ export const DEFAULT_PRODUCT_TOOLBAR: ProductToolbarState = {
   source: "all",
   stock: "all",
   publication: "all",
+  visibility: "active",
   sort: "newest",
   page: 1,
   pageSize: 50,
@@ -36,6 +39,7 @@ export type DukkanProductRow = {
   b2b_product_id?: string | null;
   b2b_source_sku?: string | null;
   publish_b2b?: boolean | null;
+  archived_at?: string | null;
 };
 
 export function normalizeProductSearch(value: unknown) {
@@ -51,11 +55,13 @@ const numeric = (value: unknown) => {
 
 export function selectDukkanProducts<T extends DukkanProductRow>(
   products: T[],
-  state: Pick<ProductToolbarState, "search" | "source" | "stock" | "publication" | "sort">,
+  state: Pick<ProductToolbarState, "search" | "source" | "stock" | "publication" | "visibility" | "sort">,
 ): T[] {
   const search = normalizeProductSearch(state.search);
   const tokens = search ? search.split(" ") : [];
   const filtered = products.filter(product => {
+    if(state.visibility==="active"&&product.archived_at)return false;
+    if(state.visibility==="archived"&&!product.archived_at)return false;
     const hasB2B = Boolean(product.b2b_product_id);
     if (state.source === "b2b" && !hasB2B) return false;
     if (state.source === "local" && hasB2B) return false;
@@ -114,6 +120,7 @@ export function restoreProductToolbar(raw: string | null): ProductToolbarState {
       source: ["all","b2b","local"].includes(input.source) ? input.source : "all",
       stock: ["all","available","low","empty"].includes(input.stock) ? input.stock : "all",
       publication: ["all","published","draft"].includes(input.publication) ? input.publication : "all",
+      visibility: ["active","archived","all"].includes(input.visibility) ? input.visibility : "active",
       sort: ["newest","name","stock-desc","stock-asc","price-asc","price-desc"].includes(input.sort) ? input.sort : "newest",
       page: Number.isSafeInteger(input.page) && input.page > 0 ? input.page : 1,
       pageSize: [25,50,100].includes(input.pageSize) ? input.pageSize : 50,
