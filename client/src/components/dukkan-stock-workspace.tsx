@@ -498,7 +498,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                         <tr>
                           {["Tarih / Saat", "İşlem Türü", "Stok Değişimi", "Birim Fiyat", "Tutar", "Belge / Açıklama"].map(header =>
                             <th key={header} className="px-3.5 py-3.5 font-bold">{header}</th>)}
-                          {canManage&&<th className="min-w-[130px] px-3.5 py-3.5 font-bold">İşlem</th>}
+                          <th className="sticky right-0 z-10 min-w-[162px] bg-[#f0f5fb] px-3.5 py-3.5 font-bold">Düzenle / Sil</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -530,7 +530,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                                 {item.note && <div className="mt-0.5 break-words">{item.note}</div>}
                                 {!item.invoice_no && !item.note && "Manuel stok işlemi"}
                               </td>
-                              {canManage&&<td className="px-3 py-3">
+                              <td className="sticky right-0 z-10 bg-white px-3 py-3">
                                 <div className="flex flex-wrap gap-1.5">
                                   {item.reason==="adjustment"&&!item.voided_at&&<>
                                     <button type="button" disabled={editingBusy||busy} title="Stok hareketini düzenle"
@@ -551,11 +551,13 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                                     </button>}
                                   {item.reason!=="adjustment"&&
                                     <span className="text-[10px] leading-5 text-slate-400">Fatura kaynaklı</span>}
+                                  {!canManage&&item.reason==="adjustment"&&
+                                    <span className="text-[10px] leading-5 text-slate-400">Düzenleme yetkisi gerekli</span>}
                                 </div>
-                              </td>}
+                              </td>
                             </tr>
                             {editing?.id===String(item.id)&&<tr className="border-t border-sky-100 bg-[#f1f8ff]">
-                              <td colSpan={canManage?7:6} className="px-3 py-4">
+                              <td colSpan={7} className="px-3 py-4">
                                 <form onSubmit={saveEditedMovement} className="space-y-3">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
                                     <p className="text-xs font-extrabold text-[#15385c]">Manuel hareketi düzenle</p>
@@ -585,7 +587,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                               </td>
                             </tr>}
                             {auditMovementId===String(item.id)&&<tr className="border-t border-slate-100 bg-[#f8fafd]">
-                              <td colSpan={canManage?7:6} className="px-4 py-4">
+                              <td colSpan={7} className="px-4 py-4">
                                 <p className="mb-2 flex items-center gap-2 text-xs font-extrabold text-[#284c72]">
                                   <ShieldCheck size={14}/> Değişiklik / Silme Denetim Kaydı
                                 </p>
