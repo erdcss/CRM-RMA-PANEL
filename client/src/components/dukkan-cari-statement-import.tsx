@@ -72,7 +72,9 @@ export function DukkanCariStatementImport({base,onImported}:Props){
     const credit=round(document.entries.reduce((sum,e)=>sum+e.credit,0));
     const balance=round(debit-credit);
     const invoices=document.entries.filter(e=>e.kind==="sale"||e.kind==="purchase");
-    const mismatches:string[]=[];
+    const mismatches:string[]=[
+      ...document.warnings.filter(w=>/hareket atlandı|sütunları ayrıştırılamadı/i.test(w)),
+    ];
     invoices.forEach(e=>{
       const amount=round(e.debit+e.credit);
       const lines=round(e.lines.reduce((sum,line)=>sum+line.lineTotal,0));
@@ -80,11 +82,25 @@ export function DukkanCariStatementImport({base,onImported}:Props){
       else if(Math.abs(amount-lines)>0.05)mismatches.push(
         e.documentNo+": fatura toplamı "+fmt(amount)+", ürün satırları toplamı "+fmt(lines));
     });
+    const movementChecks:{index:number;calculated:number;printed:number}[]=[];
+    let previousBalance=0;
+    document.entries.forEach((entry,index)=>{
+      const calculated=round(previousBalance+entry.debit-entry.credit);
+      if(entry.sourceBalance!==null){
+        if(Math.abs(calculated-entry.sourceBalance)>0.02){
+          mismatches.push(entry.documentNo+" (sayfa "+entry.sourcePage+
+            "): hesaplanan hareket bakiyesi "+fmt(calculated)+
+            ", PDF satır bakiyesi "+fmt(entry.sourceBalance)+".");
+          movementChecks.push({index,calculated,printed:entry.sourceBalance});
+        }
+        previousBalance=entry.sourceBalance;
+      }else previousBalance=calculated;
+    });
     if(document.declaredClosingBalance!==null&&Math.abs(balance-document.declaredClosingBalance)>0.02)
       mismatches.push("Belge kapanış bakiyesi "+fmt(document.declaredClosingBalance)+
         ", hareketlerin toplam bakiyesi "+fmt(balance)+".");
     return {debit,credit,balance,invoiceCount:invoices.length,
-      lineCount:invoices.reduce((a,e)=>a+e.lines.length,0),mismatches};
+      lineCount:invoices.reduce((a,e)=>a+e.lines.length,0),mismatches,movementChecks};
   },[document]);
   const analyze=async()=>{
     if(!file)return;
@@ -116,6 +132,17 @@ export function DukkanCariStatementImport({base,onImported}:Props){
       entries:p.statement.entries.map((entry,index)=>index===row?
         {...entry,lines:entry.lines.map((item,k)=>k===line?{...item,...patch}:item)}:entry)}}:p);
     setConfirmed(false);
+  };
+  const addLine=(row:number)=>{
+    const entry=document?.entries[row];
+    if(!entry||entry.lines.length>=500)return;
+    editRow(row,{lines:[...entry.lines,{productName:"Yeni ürün",quantity:1,
+      unit:"ADET",unitPrice:0,discountedUnitPrice:null,lineTotal:0}]});
+  };
+  const removeLine=(row:number,line:number)=>{
+    const entry=document?.entries[row];
+    if(!entry)return;
+    editRow(row,{lines:entry.lines.filter((_,i)=>i!==line)});
   };
   const importData=async()=>{
     if(!preview||!document||!summary||busy||preview.duplicate||summary.mismatches.length)return;
@@ -267,6 +294,11 @@ export function DukkanCariStatementImport({base,onImported}:Props){
               <span className="ml-auto font-extrabold">{fmt(row.debit||row.credit)} {row.debit>0?"Borç":"Alacak"}</span>
               {row.lines.length>0&&<span className="text-sky-700">({row.lines.length} kalem)</span>}
             </summary>
+            {summary?.movementChecks.filter(x=>x.index===i).map(check=>
+              <p key={i} className="mt-2 rounded-lg bg-rose-50 p-2 text-xs font-semibold text-rose-700">
+                PDF satır bakiyesi {fmt(check.printed)}; önceki hareketlerle hesaplanan
+                bakiye {fmt(check.calculated)}. Borç ve alacak tutarını kontrol edin.
+              </p>)}
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <label className="text-[11px]">İşlem Tarihi
                 <input type="date" className={input} value={row.date}
@@ -299,7 +331,7 @@ export function DukkanCariStatementImport({base,onImported}:Props){
                   onChange={e=>editRow(i,{description:e.target.value})}/>
               </label>
             </div>
-            {!!row.lines.length&&<div className="mt-3 space-y-2">
+            {(row.kind==="sale"||row.kind==="purchase")&&<div className="mt-3 space-y-2">
               <h6 className="text-[11px] font-bold">Fatura Ürün Satırları</h6>
               {row.lines.map((line,j)=><div key={j} className="grid gap-1.5 rounded-lg bg-[#f4f7fb] p-2 sm:grid-cols-6">
                 <label className="text-[10px] sm:col-span-3">Ürün
@@ -318,7 +350,13 @@ export function DukkanCariStatementImport({base,onImported}:Props){
                   <input type="number" step="0.01" min="0" className={input} value={line.lineTotal}
                     onChange={e=>editLine(i,j,{lineTotal:num(e.target.value)})}/>
                 </label>
+                <button type="button" className="text-xs font-bold text-rose-700 sm:col-span-6 sm:justify-self-end"
+                  onClick={()=>removeLine(i,j)}>Hatalı ürün satırını kaldır</button>
               </div>)}
+              <button type="button" onClick={()=>addLine(i)} disabled={row.lines.length>=500}
+                className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-bold text-sky-800 disabled:opacity-40">
+                Eksik fatura ürün satırı ekle
+              </button>
             </div>}
           </details>)}
         </div>
