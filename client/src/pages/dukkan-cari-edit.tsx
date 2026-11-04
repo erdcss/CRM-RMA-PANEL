@@ -306,7 +306,7 @@ export default function DukkanCariEdit({id}:{id:string}){
                 </tr>)}</tbody>
               </table>
             </div>:<p className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">Bu cari hesap için henüz hareket yok.</p>}
-          </section>
+          </section>}
         </div>
       ):<div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-600">
         <CreditCard size={28} className="mx-auto mb-3 text-slate-400"/>
