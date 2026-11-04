@@ -170,7 +170,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
 
   const listQueries: Record<string,string> = {
-    parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
+    parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance,MAX(e.created_at) AS last_transaction_at FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
     products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 ORDER BY id DESC LIMIT 5000",
     invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 ORDER BY i.id DESC LIMIT 500",
     orders:"SELECT o.*,p.name AS party_name FROM dukkan_orders o JOIN dukkan_parties p ON p.id=o.party_id AND p.store_id=o.store_id WHERE o.store_id=$1 ORDER BY o.id DESC LIMIT 500",
@@ -357,9 +357,52 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.status(201).json({created:imported.length,records:imported});
   }));
 
+  const cariProfileSchema=z.object({
+    name:string,
+    type:z.enum(["customer","supplier","both"]),
+    sourceCariNo:z.string().trim().max(80).optional(),
+    taxNumber:z.string().trim().max(30).optional(),
+    phone:z.string().trim().max(40).optional(),
+    email:z.union([z.literal(""),z.string().trim().email().max(200)]).optional(),
+    accountCode:z.string().trim().max(80).optional(),
+    city:z.string().trim().max(120).optional(),
+    specialCode:z.string().trim().max(200).optional()
+  });
+  const cariValues=(p:z.infer<typeof cariProfileSchema>)=>[
+    p.name,p.type,p.sourceCariNo||null,p.accountCode||null,p.city||null,
+    p.taxNumber||null,p.phone||null,p.email||null,p.specialCode||null
+  ];
   app.post("/api/dukkan/stores/:storeId/parties",safe(async(req,res)=>{
-    const p=z.object({name:string,type:z.enum(["customer","supplier","both"]),taxNumber:z.string().max(30).optional(),phone:z.string().max(40).optional(),email:z.string().max(200).optional(),accountCode:z.string().trim().max(80).optional(),city:z.string().trim().max(120).optional(),specialCode:z.string().trim().max(200).optional()}).parse(req.body);
-    const db=await ready();const r=await db.query("INSERT INTO dukkan_parties(store_id,name,type,tax_number,phone,email,account_code,city,special_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",[store(req),p.name,p.type,p.taxNumber||null,p.phone||null,p.email||null,p.accountCode||null,p.city||null,p.specialCode||null]);res.status(201).json(r.rows[0]);
+    accountant(res);
+    const p=cariProfileSchema.parse(req.body);
+    const db=await ready();
+    try{
+      const r=await db.query(
+        "INSERT INTO dukkan_parties(store_id,name,type,source_cari_no,account_code,city,tax_number,phone,email,special_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
+        [store(req),...cariValues(p)]
+      );
+      res.status(201).json(r.rows[0]);
+    }catch(error){
+      if((error as {code?:string}).code==="23505")return res.status(409).json({error:"Bu cari numarası zaten mevcut."});
+      throw error;
+    }
+  }));
+  app.patch("/api/dukkan/stores/:storeId/parties/:partyId",safe(async(req,res)=>{
+    accountant(res);
+    const sid=store(req),partyId=id.parse(req.params.partyId),p=cariProfileSchema.parse(req.body);
+    try{
+      const db=await ready();
+      const r=await db.query(
+        "UPDATE dukkan_parties SET name=$3,type=$4,source_cari_no=$5,account_code=$6,city=$7,tax_number=$8,phone=$9,email=$10,special_code=$11 WHERE store_id=$1 AND id=$2 RETURNING *",
+        [sid,partyId,...cariValues(p)]
+      );
+      if(!r.rowCount)return res.status(404).json({error:"Cari hesap bu mağazada bulunamadı."});
+      res.setHeader("Cache-Control","private, no-store");
+      res.json(r.rows[0]);
+    }catch(error){
+      if((error as {code?:string}).code==="23505")return res.status(409).json({error:"Bu cari numarası zaten mevcut."});
+      throw error;
+    }
   }));
   const productPayload = z.object({
     name:string,sku:string,
