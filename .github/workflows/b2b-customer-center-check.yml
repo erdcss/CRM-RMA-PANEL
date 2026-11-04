@@ -8,6 +8,11 @@ on:
       - 'client/src/pages/admin-b2b-customers.tsx'
       - 'client/src/pages/admin-b2b-customer-detail.tsx'
       - 'client/src/App.tsx'
+      - 'client/src/components/b2b-bottom-nav.tsx'
+      - 'client/src/lib/b2b-bottom-nav-routes.ts'
+      - 'client/src/lib/b2b-bottom-nav-routes.test.ts'
+      - 'client/src/pages/b2b-login.tsx'
+      - 'client/src/pages/b2b-account.tsx'
       - 'client/src/components/app-sidebar.tsx'
       - '.github/workflows/b2b-customer-center-check.yml'
   workflow_dispatch:
@@ -25,5 +30,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
+      - run: npx tsx --test client/src/lib/b2b-bottom-nav-routes.test.ts
       - run: npm run check
       - run: npm run build
