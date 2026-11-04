@@ -42,8 +42,30 @@ export default function Dukkan() {
   const [isSuperAdmin,setIsSuperAdmin]=useState(false);
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [members,setMembers]=useState<Entry[]>([]);
-  const [storeId,setStoreId]=useState(()=>new URLSearchParams(window.location.search).get("storeId")||"");
-  const [section,setSection]=useState<Section>("overview");
+  const [storeId,setStoreId]=useState(()=>{
+    const fromUrl=new URLSearchParams(window.location.search).get("storeId");
+    if(fromUrl)return fromUrl;
+    try{
+      const returning=sessionStorage.getItem("dukkan:return-to-products");
+      const previous=JSON.parse(sessionStorage.getItem("dukkan:last-product-list")||"null");
+      if(returning&&previous?.storeId===returning)return returning;
+    }catch{ /* storage unavailable */ }
+    return "";
+  });
+  const [section,setSection]=useState<Section>(()=>{
+    const params=new URLSearchParams(window.location.search);
+    const tab=params.get("tab");
+    try{
+      const returning=sessionStorage.getItem("dukkan:return-to-products");
+      const previous=JSON.parse(sessionStorage.getItem("dukkan:last-product-list")||"null");
+      if(returning&&previous?.storeId===returning&&
+          (!params.get("storeId")||params.get("storeId")===returning)){
+        sessionStorage.removeItem("dukkan:return-to-products");
+        return "products";
+      }
+    }catch{ /* use query-string fallback */ }
+    return SECTIONS.some(item=>item.key===tab)?tab as Section:"overview";
+  });
   const [productToolbar,setProductToolbar]=useState<ProductToolbarState>(()=>{
     try{
       const initialStore=new URLSearchParams(window.location.search).get("storeId")||"";
@@ -286,7 +308,13 @@ export default function Dukkan() {
       sessionStorage.setItem("dukkan:last-product-list",JSON.stringify({
         route:backRoute,storeId,scroll,productId:String(item.id),
       }));
+      sessionStorage.setItem("dukkan:return-to-products",storeId);
+      sessionStorage.setItem("dukkan:restore-scroll","1");
     }catch{ /* navigation works even if browser storage is disabled */ }
+    // Browser Back also needs the same tab/store route as the editor's back button.
+    if(window.location.pathname==="/dukkan"){
+      window.history.replaceState(window.history.state,"",backRoute);
+    }
     navigate("/dukkan/urunler/"+encodeURIComponent(String(item.id))+
       "?storeId="+encodeURIComponent(storeId));
   };
