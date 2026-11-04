@@ -79,7 +79,10 @@ try {
   assert.equal(exportable.lines.length,1,"Sales PDF must contain all posted product lines");
   assert.equal(exportable.officialInvoice,false,"Dahili PDF must never masquerade as an official GİB invoice");
   assert.match(exportable.disclaimer,/GİB/,"Sales PDF must carry a fiscal disclaimer");
-  await call("GET",base+"/invoices/"+purchased.id+"/pdf-data",undefined,400);
+  const purchasePdf=await call("GET",base+"/invoices/"+purchased.id+"/pdf-data");
+  assert.equal(purchasePdf.invoice.kind,"purchase");
+  assert.equal(purchasePdf.officialInvoice,false);
+  assert.match(purchasePdf.disclaimer,/GİB/);
 
   const repeat=await call("POST",base+"/invoices",sale,201);
   assert.equal(first.id,repeat.id,"Request UUID must be idempotent");
