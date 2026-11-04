@@ -81,6 +81,12 @@ export async function postImportedStatement(
     partyId=Number(added.rows[0].id);
     created=true;
   }
+  const dupBatch=await c.query(
+    "SELECT id FROM dukkan_cari_import_batches WHERE store_id=$1 AND party_id=$2 AND source_sha256=$3",
+    [storeId,partyId,sha256],
+  );
+  if(dupBatch.rows.length)
+    throw error("Bu PDF zaten içe aktarılmış. Aynı dosya tekrar işlenmedi.");
   const currentEntries=await c.query(
     "SELECT id,debit,credit,description,invoice_id,payment_id "+
     "FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=$2 ORDER BY id",
@@ -93,12 +99,6 @@ export async function postImportedStatement(
     /^(excel\s+)?açılış bakiyesi/i.test(String(currentEntries.rows[0].description||""));
   if(args.replaceOpening&&!canReplaceOpening)
     throw error("Yalnızca tek bir eski Excel/açılış bakiyesi mahsup edilebilir; diğer cari işlemleri silinemez.");
-  const dupBatch=await c.query(
-    "SELECT id FROM dukkan_cari_import_batches WHERE store_id=$1 AND party_id=$2 AND source_sha256=$3",
-    [storeId,partyId,sha256],
-  );
-  if(dupBatch.rows.length)
-    throw error("Bu PDF zaten içe aktarılmış. Aynı dosya tekrar işlenmedi.");
   const collision=await c.query(
     "SELECT doc.document_no,doc.document_date,doc.kind FROM dukkan_cari_import_entries doc "+
     "WHERE doc.store_id=$1 AND doc.party_id=$2 AND "+
