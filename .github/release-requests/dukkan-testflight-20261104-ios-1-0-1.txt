@@ -1,0 +1,20 @@
+Çalışkan Dükkan — 4 Kasım 2026 iOS TestFlight 1.0.1 dağıtım talebi
+
+Kaynak: main (release 1.0.1 hazırlığı merge commit 818a1beeca4cad402c8314200d4b9e6a1e443dd6).
+Uygulama: dukkan-mobile
+Bundle ID: com.caliskan.dukkan
+EAS projesi: 21b3de7c-763f-4c25-87aa-66e818498d6e
+App Store Connect Apple ID: 6826848065
+
+Native iOS hazırlık doğrulamaları:
+- GitHub Actions native-check başarılı (41870595614).
+- Expo EAS erişim + App Store Connect TestFlight sorgusu başarılı (41870595310).
+- EAS önceki iOS derlemeler 1.0.0 Build 7, 8, 9 FINISHED.
+- iOS TypeScript kontrolü başarılı (41870595154 mobile-typecheck).
+- Mevcut web-build test ortamında bağımsız "b2b_products" şema kurulum eksikliği görüldü; native paketleme kontrollerini etkilemiyor.
+
+Sürüm kapsamı: React Native merkezi mağaza bağlantısı, mağaza/rol seçimi, stok, satış/alış/iade, cari, çek/senet, PDF paylaşımı ve AI belge analizi.
+Server cari PDF önizleme tutar ve bakiye düzeltmeleri PR #32 ile main'e alındı; native ayrı ayrıntılı ekstre UI'si bu sürüme eklenmiş değildir.
+Dağıtım: EXPO_TOKEN ve mevcut Apple imzalama ile yalnızca Çalışkan Dükkan 1.0.1 iOS EAS store build + App Store Connect TestFlight yüklemesi.
+Mevcut Apple sertifikaları değiştirilmez; --freeze-credentials ile yeni kimlik oluşturulmaz.
+Başarısız olursa yanlış biçimde TestFlight başarılı denmemelidir.
