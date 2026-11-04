@@ -1091,7 +1091,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
     const db=await ready();
     const invoice=await db.query(
-      "SELECT i.id,i.store_id,i.invoice_no,i.kind,i.issued_at,i.subtotal,i.tax_total,i.grand_total,i.status,p.name AS party_name,p.tax_number AS party_tax_number,p.phone AS party_phone,s.name AS store_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id JOIN dukkan_stores s ON s.id=i.store_id WHERE i.id=$1 AND i.store_id=$2",
+      "SELECT i.id,i.store_id,i.party_id,i.invoice_no,i.kind,i.issued_at,i.subtotal,i.tax_total,i.grand_total,i.status,p.name AS party_name,p.tax_number AS party_tax_number,p.phone AS party_phone,s.name AS store_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id JOIN dukkan_stores s ON s.id=i.store_id WHERE i.id=$1 AND i.store_id=$2",
       [invoiceId,sid]
     );
     if(!invoice.rowCount)return res.status(404).json({error:"Bu mağazada fatura bulunamadı"});
@@ -1111,7 +1111,13 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "SELECT settings FROM dukkan_invoice_form_templates WHERE store_id=$1 AND kind=$2",
       [sid,templateKind],
     );
-    res.json({invoice:doc,lines:lines.rows,
+    const canShowBalance=["owner","manager","accountant"].includes(String(res.locals.dukkanRole));
+    const balance=canShowBalance?await db.query(
+      "SELECT COALESCE(SUM(debit-credit),0) AS total FROM dukkan_cari_entries "+
+      "WHERE store_id=$1 AND party_id=$2",
+      [sid,doc.party_id],
+    ):null;
+    res.json({invoice:{...doc,party_balance:balance?.rows[0]?.total??null},lines:lines.rows,
       template:resolveInvoiceForm(templateKind,templateRows.rows[0]?.settings),
       officialInvoice:false,
       disclaimer:"Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez."});
