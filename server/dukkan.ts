@@ -54,6 +54,8 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_bank_movements (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), bank_id BIGINT NOT NULL, amount NUMERIC(18,2) NOT NULL CHECK(amount<>0), type TEXT NOT NULL, note TEXT, payment_id BIGINT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_entries (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, debit NUMERIC(18,2) NOT NULL DEFAULT 0, credit NUMERIC(18,2) NOT NULL DEFAULT 0, description TEXT NOT NULL, invoice_id BIGINT REFERENCES dukkan_invoices(id), payment_id BIGINT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_payments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, direction TEXT NOT NULL CHECK(direction IN ('collection','payment')), method TEXT NOT NULL CHECK(method IN ('cash','bank')), bank_id BIGINT, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), note TEXT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
+  "ALTER TABLE dukkan_payments DROP CONSTRAINT IF EXISTS dukkan_payments_method_check",
+  "ALTER TABLE dukkan_payments ADD CONSTRAINT dukkan_payments_method_check CHECK(method IN ('cash','bank','card','other'))",
   "ALTER TABLE dukkan_payments ADD COLUMN IF NOT EXISTS paid_on DATE",
   "ALTER TABLE dukkan_payments ADD COLUMN IF NOT EXISTS document_no TEXT",
   "ALTER TABLE dukkan_payments ADD COLUMN IF NOT EXISTS request_key UUID",
@@ -553,7 +555,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const sid=store(req),partyId=id.parse(req.params.partyId);
     const data=z.object({
       direction:z.enum(["collection","payment"]),amount,
-      method:z.enum(["cash","bank"]),bankId:id.optional(),
+      method:z.enum(["cash","bank","card","other"]),bankId:id.optional(),
       date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       documentNo:z.string().trim().max(80).optional(),
       note:z.string().trim().max(500).optional(),
