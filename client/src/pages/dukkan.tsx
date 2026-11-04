@@ -116,12 +116,13 @@ export default function Dukkan() {
       };
       if(section!=="products"&&resource[section])result=await api(base+"/data/"+resource[section]);
       if(!isCurrent())return;
+      const sameStore=lastLoadedStore.current===storeId;
       setParties(partiesResult);setProducts(productsResult);setBanks(banksResult);setReport(reportResult);
-      setB2bCatalog(current=>warning&&lastLoadedStore.current===storeId?current:catalog);
+      setB2bCatalog(current=>warning&&sameStore?current:catalog);
       setRows(current=>{
         if(section!=="products")return result;
         const local=(productsResult as Entry[]).map(item=>({...item,_source:"dukkan"}));
-        const remote=warning&&lastLoadedStore.current===storeId
+        const remote=warning&&sameStore
           ? current.filter(item=>item._source==="b2b")
           : catalog.map((item:Entry)=>({...item,id:"b2b-"+item.id,_b2bId:String(item.id),
             _source:"b2b",sale_price:item.price,stock:item.stock}));
@@ -388,14 +389,16 @@ export default function Dukkan() {
           {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{displayed.length} kayıt · {currentStore?.name}</p></div>
-              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setDraft({});
+              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setDraft({});
                  setProductImages([]);setPublishToB2B(false);}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
             {isWriter&&(["products","stock","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
                <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
                  onApply={applyAiDocument} onImported={()=>{setNotice("Belgedeki ürünler başarıyla kaydedildi.");setRefresh(v=>v+1);}}/></div>}
-             {showForm&&fields.length>0&&<form onSubmit={onSubmit} className="mb-5 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
-              <h3 className="mb-4 text-base font-black text-[#122b4f]">{editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}</h3>
+             {showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
+              <h3 className="mb-4 text-base font-black text-[#122b4f]">
+                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}
+              </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
                   {f.type==="select"?<select className={inputClass} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
@@ -491,7 +494,7 @@ export default function Dukkan() {
               <span className="font-bold">{b2bCatalog.length} B2B ürün · {products.length} mağaza ürünü</span>
             </div>}
             <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
-              <table className="w-full min-w-[650px] border-collapse text-left text-sm">
+              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
                     section==="parties"?["Cari Adı","Türü","Telefon","Bakiye"]:
@@ -503,7 +506,13 @@ export default function Dukkan() {
                     ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-4 py-4 font-semibold">{h}</th>)}
                   {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
-                <tbody>{displayed.map(r=><tr key={String(r._source||section)+":"+String(r.id)} className="border-t border-[#edf1f7] hover:bg-[#f7faff]">
+                <tbody>{displayed.map(r=><tr key={String(r._source||section)+":"+String(r.id)}
+                  className={"border-t border-[#edf1f7] hover:bg-[#f7faff] "+(section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store))?"cursor-pointer":"")}
+                  onClick={event=>{
+                    if(section!=="products"||!canManage||(r._source==="b2b"&&(!isAdmin||r.linked_to_store)))return;
+                    if((event.target as HTMLElement).closest("button,a,input,select,textarea"))return;
+                    void editProduct(r);
+                  }}>
                   {section==="products" ? <>
                     <td className="px-3 py-2">
                       {r.image_url ? <img src={r.image_url} alt={r.name||"Ürün"} loading="lazy"
@@ -513,13 +522,44 @@ export default function Dukkan() {
                     {[r.sku,r.name,r.barcode,r.stock,
                       r._source==="b2b"?"—":currency(r.purchase_price),
                       currency(r.sale_price)].map((v,i)=>
-                      <td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
-                    <td className="px-3 py-3">
-                      {r._source==="b2b"?
-                        <span className="rounded-lg bg-sky-100 px-2.5 py-1.5 text-xs font-bold text-sky-800">B2B Kataloğu</span>:
-                        r.publish_b2b?
-                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1.5 text-xs font-bold text-emerald-800">Yayında</span>:
-                        <span className="rounded-lg bg-amber-100 px-2.5 py-1.5 text-xs font-bold text-amber-800">Taslak</span>}
+                      <td key={i} className={i===1?"min-w-[200px] px-4 py-3.5":"whitespace-nowrap px-4 py-3.5"}>
+                        {i===1&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store))?
+                          <button type="button" className="max-w-[420px] text-left font-semibold text-[#123b6b] hover:underline focus-visible:rounded focus-visible:outline-2 focus-visible:outline-sky-500"
+                            disabled={editingLoading} onClick={()=>void editProduct(r)}
+                            aria-label={String(r.name||"Ürün")+" içeriğini düzenle"}>{fmt(v)}</button>:
+                          fmt(v)}
+                      </td>)}
+                    <td className="min-w-[153px] px-3 py-3">
+                      {(()=>{
+                        const published=r._source==="b2b"?r.is_active!==false:Boolean(r.publish_b2b);
+                        const allowed=canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store));
+                        const identity=(r._source==="b2b"?"b2b:":"dukkan:")+
+                          (r._source==="b2b"?String(r._b2bId):String(r.id));
+                        return <div className="flex flex-col items-start gap-1.5">
+                          {r._source==="b2b"?<span className="text-[10px] font-semibold text-sky-700">B2B Kataloğu</span>:null}
+                          {allowed?
+                            <button type="button" role="switch" aria-checked={published}
+                              aria-label={String(r.name)+" B2B yayını "+(published?"açık":"kapalı")}
+                              title={published?"B2B'de yayından kaldır":"B2B'de yayınla"}
+                              disabled={busy||Boolean(publishingId)||editingLoading}
+                              onClick={event=>{event.stopPropagation();void togglePublication(r);}}
+                              className={"inline-flex min-h-9 items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-bold transition disabled:opacity-50 "+
+                                (published?"border-emerald-200 bg-emerald-50 text-emerald-800":"border-slate-200 bg-slate-100 text-slate-600")}>
+                              <span className={"relative h-[19px] w-[35px] shrink-0 rounded-full transition-colors "+
+                                (published?"bg-emerald-500":"bg-slate-400")}>
+                                <span className={"absolute top-[3px] h-[13px] w-[13px] rounded-full bg-white shadow transition-[left] "+
+                                  (published?"left-[19px]":"left-[3px]")}/>
+                              </span>
+                              {publishingId===identity?"Kaydediliyor":published?"Yayında":"Yayında Değil"}
+                            </button>:
+                            <span className={"rounded-lg px-2.5 py-1.5 text-xs font-bold "+
+                              (published?"bg-emerald-100 text-emerald-800":"bg-slate-100 text-slate-600")}>
+                              {published?"Yayında":"Yayında Değil"}
+                            </span>}
+                          {r._source==="b2b"&&r.linked_to_store?
+                            <span className="text-[10px] text-amber-700">Başka mağazaya bağlı</span>:null}
+                        </div>;
+                      })()}
                     </td>
                   </>:(
                     section==="parties"?[r.name,r.type,r.phone,currency(r.balance)]:
@@ -538,9 +578,15 @@ export default function Dukkan() {
                     </button>
                   </td>}
                   {section==="products"&&canManage&&<td className="px-3 py-3">
-                    {r._source==="b2b" ? (!isAdmin ? <span className="text-xs text-slate-400">Yalnızca yönetici aktarabilir</span> :
-                      <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40"
-                        onClick={()=>void importB2BProduct(r)}><Plus size={14}/> Mağazaya Ekle</button>):
+                    {r._source==="b2b" ? (!isAdmin||r.linked_to_store
+                      ? <span className="text-xs text-slate-400">{r.linked_to_store?"Bağlı mağazadan düzenle":"Yönetici yetkisi gerekli"}</span>
+                      : <div className="flex flex-col gap-1.5">
+                          <button type="button" disabled={editingLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-100 disabled:opacity-40"
+                            onClick={()=>void editProduct(r)}>{editingLoading?"Yükleniyor...":"Düzenle"}</button>
+                          {r.is_active!==false?
+                            <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40"
+                              onClick={()=>void importB2BProduct(r)}><Plus size={14}/> Mağazaya Ekle</button>:null}
+                        </div>):
                       <button type="button" disabled={editingLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 disabled:opacity-40"
                         onClick={()=>void editProduct(r)}>{editingLoading?"Yükleniyor...":"Düzenle"}</button>}
                   </td>}
