@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
@@ -56,6 +56,10 @@ export default function Dukkan() {
   const [busy,setBusy]=useState(false);
   const [showForm,setShowForm]=useState(false);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
+  const [editingCatalogId,setEditingCatalogId]=useState<string|null>(null);
+  const [publishingId,setPublishingId]=useState<string|null>(null);
+  const requestVersion=useRef(0);
+  const lastLoadedStore=useRef("");
   const [newStoreName,setNewStoreName]=useState("");
   const [showNewStore,setShowNewStore]=useState(false);
   const [refresh,setRefresh]=useState(0);
@@ -82,47 +86,60 @@ export default function Dukkan() {
   useEffect(()=>{void loadStores(); void api("/api/auth/me").then(person=>{setIsAdmin(["super_admin","admin"].includes(person.role));setIsSuperAdmin(person.role==="super_admin");}).catch(()=>{});},[loadStores]);
   const load=useCallback(async()=>{
     if(!storeId)return;
+    const request=++requestVersion.current;
+    const isCurrent=()=>request===requestVersion.current;
+    const wantsCatalog=section==="products"&&!cashier;
     try{
-      const [p,pr,b,summary]=await Promise.all([
-        api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
+      // One atomic list update: never briefly replace the full product list with
+      // only local products during the 10-second background refresh.
+      const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome]=await Promise.all([
+        api(base+"/data/parties"),
+        api(base+"/data/products"),
+        cashier?Promise.resolve([]):api(base+"/data/banks"),
+        cashier?Promise.resolve(null):api(base+"/report"),
+        wantsCatalog
+          ? api(base+"/catalog/b2b").then(value=>({value,error:""}))
+            .catch(error=>({value:null,error:(error as Error).message}))
+          : Promise.resolve({value:[],error:""}),
       ]);
-      setParties(p);setProducts(pr);setBanks(b);setReport(summary);
-      // Show local rows immediately, even if the optional B2B catalog lookup fails.
-      if(section==="products"){
-        setRows(pr.map((item:Entry)=>({...item,_source:"dukkan"})));
-      }
-      let catalog:Entry[]=[];
-      let catalogWarning="";
-      if(section==="products"&&!cashier){
-        try {
-          const response=await api(base+"/catalog/b2b");
-          if(!Array.isArray(response))throw new Error("Katalog yanıtı geçersiz");
-          catalog=response;
-        }catch(e){
-          catalogWarning="B2B kataloğu alınamadı: "+(e as Error).message+
-            ". Mağaza ürünleriniz görüntülenmeye devam ediyor.";
-        }
-      }
-      setB2bCatalog(catalog);
-      if(section==="settings"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
+      if(!isCurrent())return;
+      const catalog=Array.isArray(catalogOutcome.value)?catalogOutcome.value:[] as Entry[];
+      const warning=wantsCatalog&&catalogOutcome.error
+        ? "B2B kataloğunun bağlantısı geçici olarak kesildi: "+catalogOutcome.error+
+          ". Son başarılı liste korunuyor."
+        : "";
+      let result:Entry[]=[];
+      if(section==="settings"&&canManage)setMembers(await api(base+"/members"));else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
         orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements",settings:null
       };
-      const result=section==="products"?pr:resource[section]?await api(base+"/data/"+resource[section]):[];
-      setRows(section==="products"
-        ? [...result.map((item:Entry)=>({...item,_source:"dukkan"})),
-           ...catalog.map((item:Entry)=>({
-             ...item,id:"b2b-"+item.id,_b2bId:String(item.id),_source:"b2b",
-             sale_price:item.price,stock:item.stock,
-           }))]
-        : result);
-      setError(catalogWarning);
-    }catch(e){setError((e as Error).message);}
+      if(section!=="products"&&resource[section])result=await api(base+"/data/"+resource[section]);
+      if(!isCurrent())return;
+      setParties(partiesResult);setProducts(productsResult);setBanks(banksResult);setReport(reportResult);
+      setB2bCatalog(current=>warning&&lastLoadedStore.current===storeId?current:catalog);
+      setRows(current=>{
+        if(section!=="products")return result;
+        const local=(productsResult as Entry[]).map(item=>({...item,_source:"dukkan"}));
+        const remote=warning&&lastLoadedStore.current===storeId
+          ? current.filter(item=>item._source==="b2b")
+          : catalog.map((item:Entry)=>({...item,id:"b2b-"+item.id,_b2bId:String(item.id),
+            _source:"b2b",sale_price:item.price,stock:item.stock}));
+        return [...local,...remote];
+      });
+      lastLoadedStore.current=storeId;
+      setError(warning);
+    }catch(e){
+      if(isCurrent())setError("Ürünler yenilenemedi; son liste korunuyor. "+(e as Error).message);
+    }
   },[base,storeId,section,cashier,canManage]);
-  useEffect(()=>{void load();},[load,refresh]);
+  useEffect(()=>{
+    void load();
+    return()=>{ requestVersion.current++; };
+  },[load,refresh]);
   useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
-    setEditingProductId(null);setProductImages([]);setPublishToB2B(false);},[section,storeId]);
+    setEditingProductId(null);setEditingCatalogId(null);
+    setProductImages([]);setPublishToB2B(false);},[section,storeId]);
   // The database bridge writes synchronously; refresh open catalog views so changes
   // made on a second device or in B2B appear without a full page reload.
   useEffect(()=>{
@@ -143,7 +160,8 @@ export default function Dukkan() {
     switch(section){
       case "products":return [{key:"name",label:"Ürün Adı",required:true},{key:"sku",label:"Stok Kodu",required:true},
         {key:"barcode",label:"Barkod"},{key:"brand",label:"Marka"},{key:"category",label:"Kategori"},
-        {key:"unit",label:"Birim"},{key:"purchasePrice",label:"Alış Fiyatı",type:"number"},
+        ...(editingCatalogId?[{key:"stock",label:"B2B Stok Adedi",type:"number" as const,required:true}]:
+          [{key:"unit",label:"Birim"},{key:"purchasePrice",label:"Alış Fiyatı",type:"number" as const}]),
         {key:"salePrice",label:"Satış Fiyatı",type:"number"},
         {key:"unitsPerBox",label:"Koli İçi Adet",type:"number"},
         {key:"minOrderQty",label:"Minimum Koli",type:"number"},
@@ -156,7 +174,7 @@ export default function Dukkan() {
       case "banks":return [bank,{key:"type",label:"İşlem",type:"select",options:[{value:"deposit",label:"Para girişi"},{value:"withdrawal",label:"Para çıkışı"}]},{key:"amount",label:"Tutar (TL)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       default:return [];
     }
-  },[section,parties,products,banks,cashier]);
+  },[section,parties,products,banks,cashier,editingCatalogId]);
 
   const applyAiDocument=(extracted:AiDocumentDraft)=>{
     const data={...extracted.fields};
@@ -170,7 +188,7 @@ export default function Dukkan() {
         productId:item.productId||"",quantity:item.quantity||"1",unitPrice:item.unitPrice||"0",taxRate:item.taxRate||"20"
       })):[{...NEW_LINE}]);
     }
-    setEditingProductId(null);
+    setEditingProductId(null);setEditingCatalogId(null);
     if(section==="products"){setProductImages([]);setPublishToB2B(false);}
     setShowForm(true);
     setNotice("AI taslağı hazır. Belge alanlarını ve eşleşmeyen kayıtları kontrol edip Kaydet ve İşle düğmesine basın.");
@@ -193,6 +211,7 @@ export default function Dukkan() {
       }else if(section==="products"){
         path="/products";body.images=productImages;body.publishB2B=publishToB2B;
         body.unitsPerBox=Number(draft.unitsPerBox||1);body.minOrderQty=Number(draft.minOrderQty||1);
+        if(editingCatalogId)body.stock=Number(draft.stock);
         if(publishToB2B&&!productImages.length)throw new Error("B2B'de yayınlamak için önce ürün görseli ekleyin.");
       }
       else if(section==="parties"){path="/parties";body.type=body.type||"customer";}
@@ -200,34 +219,70 @@ export default function Dukkan() {
       else if(section==="instruments"){path="/instruments";body.kind=body.kind||"cheque";body.direction=body.direction||"received";}
       else if(section==="banks"){path="/bank-movements";body.type=body.type||"deposit";}
       else return;
-      const editing=section==="products"&&Boolean(editingProductId);
-      const saved=await api(base+path+(editing?"/"+editingProductId:""),{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
+      const editing=section==="products"&&Boolean(editingProductId||editingCatalogId);
+      const url=editingCatalogId
+        ? base+"/catalog/b2b/"+encodeURIComponent(editingCatalogId)
+        : base+path+(editingProductId?"/"+editingProductId:"");
+      const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
       setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
         (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
-      setEditingProductId(null);
+      setEditingProductId(null);setEditingCatalogId(null);
       setShowForm(false);setDraft({});setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
   const editProduct=async(item:Entry)=>{
-    if(!canManage||item._source==="b2b")return;
+    if(!canManage)return;
+    const fromB2B=item._source==="b2b";
+    if(fromB2B&&(!isAdmin||item.linked_to_store))return;
     setEditingLoading(true);setError("");
     try{
-      const details=await api(base+"/products/"+item.id);
-      setEditingProductId(String(details.id));
+      const details=await api(fromB2B
+        ? base+"/catalog/b2b/"+encodeURIComponent(String(item._b2bId))
+        : base+"/products/"+item.id);
+      setEditingProductId(fromB2B?null:String(details.id));
+      setEditingCatalogId(fromB2B?String(details.id):null);
       setDraft({name:String(details.name||""),sku:String(details.sku||""),
         barcode:String(details.barcode||""),unit:String(details.unit||"adet"),
-        purchasePrice:String(details.purchase_price||0),salePrice:String(details.sale_price||0),
+        purchasePrice:fromB2B?"":String(details.purchase_price||0),
+        salePrice:String(fromB2B?details.price||0:details.sale_price||0),
+        stock:String(details.stock||0),
         brand:String(details.brand||""),category:String(details.category||""),
         description:String(details.description||""),
         unitsPerBox:String(details.units_per_box||1),minOrderQty:String(details.min_order_qty||1)});
       setProductImages(Array.isArray(details.images)&&details.images.length
         ? details.images : details.image_data?[details.image_data]:[]);
-      setPublishToB2B(Boolean(details.publish_b2b));
+      setPublishToB2B(fromB2B?details.is_active!==false:Boolean(details.publish_b2b));
       setShowForm(true);setNotice("");
+      window.setTimeout(()=>{
+        document.getElementById("dukkan-product-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
+      },0);
     }catch(e){setError((e as Error).message);}
     finally{setEditingLoading(false);}
+  };
+  const togglePublication=async(item:Entry)=>{
+    if(!canManage||publishingId)return;
+    const global=item._source==="b2b";
+    if(global&&(!isAdmin||item.linked_to_store))return;
+    const published=global?item.is_active!==false:Boolean(item.publish_b2b);
+    const target=global?String(item._b2bId):String(item.id);
+    const key=(global?"b2b:":"dukkan:")+target;
+    setPublishingId(key);setError("");setNotice("");
+    try{
+      const endpoint=global
+        ? base+"/catalog/b2b/"+encodeURIComponent(target)+"/publication"
+        : base+"/products/"+encodeURIComponent(target)+"/publication";
+      await api(endpoint,{method:"PATCH",body:JSON.stringify({published:!published})});
+      // Reflect the committed state without waiting for the next polling cycle.
+      setRows(current=>current.map(entry=>entry.id===item.id&&entry._source===item._source
+        ? {...entry,[global?"is_active":"publish_b2b"]:!published}:entry));
+      setB2bCatalog(current=>global?current.map(entry=>String(entry.id)===target
+        ? {...entry,is_active:!published}:entry):current);
+      setNotice(item.name+" B2B'de "+(published?"yayından kaldırıldı.":"yayına alındı."));
+      setRefresh(value=>value+1);
+    }catch(e){setError((e as Error).message);}
+    finally{setPublishingId(null);}
   };
   const addProductImages=async(files:File[])=>{
     try{
