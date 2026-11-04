@@ -107,7 +107,20 @@ try {
   await call("PATCH",base+"/instruments/"+instrument.id,{status:"settled"});
   assert.equal((await call("GET",base+"/data/payments")).length,1,"Cheque settlement must not create a second payment");
 
+  const history=await call("GET",base+"/parties/"+buyer.id+
+    "/statement?mode=detailed&sort=latest");
+  assert.equal(history.sort,"latest");
+  assert.equal(history.party.name,"Test Müşteri");
+  assert.equal(history.entries.length,3,"Sale, return and payment must be visible on the cari card");
+  assert.equal(Number(history.entries[0].running_balance),-30);
+  assert.ok(history.entries.some((entry:any)=>entry.invoice_lines?.length===1),
+    "Invoice product lines must be available on the native cari detail");
+  const chronological=await call("GET",base+"/parties/"+buyer.id+"/statement");
+  assert.equal(chronological.sort,"chronological","Existing web statement order must not change");
+  assert.equal(Number(chronological.entries[chronological.entries.length-1].running_balance),-30);
+
   activeUser=outsider;
+  await call("GET",base+"/parties/"+buyer.id+"/statement?sort=latest",undefined,403);
   await call("GET",base+"/data/products",undefined,403);
   await call("GET",base+"/invoices/"+first.id+"/pdf-data",undefined,403);
   await call("POST",base+"/parties",{name:"Cross tenant attempt",type:"customer"},403);
