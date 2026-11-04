@@ -131,7 +131,7 @@ export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise
       "SELECT id FROM dukkan_stores WHERE id=$1 AND LOWER(TRIM(name))=LOWER('ÇALIŞKAN GROUP') LIMIT 1",
       [storeId],
     );
-    if(!owner.rowCount){
+    if(!owner.rows[0]){
       await c.query("COMMIT");
       return {imported:0,total:0,assignedElsewhere:0,skipped:0,enabled:false};
     }
@@ -170,7 +170,7 @@ export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise
     );
     await c.query("COMMIT");
     return {
-      imported:created.rowCount||0,
+      imported:created.rows.length,
       total:Number(count.rows[0]?.total||0),
       assignedElsewhere:Number(linked.rows[0]?.total||0),
       skipped:Number(missing.rows[0]?.missing||0),
