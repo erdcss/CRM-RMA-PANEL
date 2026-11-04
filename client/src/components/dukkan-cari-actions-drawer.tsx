@@ -200,6 +200,8 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
   const [note,setNote]=useState("");
   const [confirmName,setConfirmName]=useState("");
   const [confirmChecked,setConfirmChecked]=useState(false);
+  const inFlight=useRef(false);
+  const paymentRequestKey=useRef(crypto.randomUUID());
   const firstButton=useRef<HTMLButtonElement|null>(null);
   const printArea=useRef<HTMLDivElement|null>(null);
   const base="/api/dukkan/stores/"+encodeURIComponent(storeId);
@@ -230,9 +232,11 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
     const next=await jsonRequest(base+"/parties/"+encodeURIComponent(partyId));
     setCurrent(next);onUpdated();
   };
+  useEffect(()=>{paymentRequestKey.current=crypto.randomUUID();},[view,amount,method,bankId,date,documentNo,note,direction]);
   const submitMovement=async(event:FormEvent<HTMLFormElement>)=>{
     event.preventDefault();
-    if(busy)return;
+    if(inFlight.current||busy)return;
+    inFlight.current=true;
     setBusy(true);setError("");setSuccess("");
     try{
       const value=Number(amount.replace(",","."));if(!Number.isFinite(value)||value<=0)throw new Error("Pozitif bir tutar girin.");
@@ -246,7 +250,7 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
           method:"POST",body:JSON.stringify({
             direction:view==="collection"?"collection":"payment",amount:value,method,
             bankId:method==="bank"?Number(bankId):undefined,date,documentNo,note,
-            requestKey:crypto.randomUUID()
+            requestKey:paymentRequestKey.current
           })
         });
       }
@@ -255,7 +259,7 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
       setSuccess(view==="opening"?"Açılış bakiyesi kaydedildi.":"Ödeme/tahsilat cari hesaba işlendi.");
       setView("menu");
     }catch(e){setError((e as Error).message);}
-    finally{setBusy(false);}
+    finally{inFlight.current=false;setBusy(false);}
   };
   const loadStatement=async(mode:"standard"|"detailed")=>{
     setStatementBusy(true);setError("");setStatement(null);
