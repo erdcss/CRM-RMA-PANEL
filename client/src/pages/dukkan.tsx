@@ -557,15 +557,15 @@ export default function Dukkan() {
           {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{section==="stock"?products.length:displayed.length} kayıt · {currentStore?.name}</p></div>
-              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setDraft({});
-                 setProductImages([]);setPublishToB2B(false);}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
+              {isWriter&&(!cashier||["sales","orders"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);setDraft(isCariSection?{type:section==="suppliers"?"supplier":"customer"}:{});
+                 setProductImages([]);setPublishToB2B(false);}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":isCariSection?"Yeni Cari":"Yeni İşlem"}</button>}
             </div>
             {isWriter&&(["products","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
                <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
                  onApply={applyAiDocument} onImported={()=>{setNotice("Belgedeki ürünler başarıyla kaydedildi.");setRefresh(v=>v+1);}}/></div>}
              {section!=="stock"&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">
-                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}
+                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":"Yeni kayıt oluştur"}
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
@@ -648,15 +648,32 @@ export default function Dukkan() {
               <form className="rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void submitSpecial("banks",{name:draft.newBank,iban:draft.newIban});}}><h3 className="mb-2 text-sm font-bold">Yeni banka hesabı</h3><input className={inputClass+" mb-2"} placeholder="Banka adı" required value={draft.newBank||""} onChange={e=>put("newBank",e.target.value)}/><input className={inputClass+" mb-2"} placeholder="IBAN (opsiyonel)" value={draft.newIban||""} onChange={e=>put("newIban",e.target.value)}/><button disabled={busy} className={buttonClass}>Banka Ekle</button></form>
               <div className="rounded-xl border p-3"><h3 className="mb-2 text-sm font-bold">Banka bakiyeleri</h3>{banks.map(b=><p key={b.id} className="flex justify-between border-b py-2 text-sm"><span>{b.name}</span><strong>{currency(b.balance)}</strong></p>)}</div>
             </div>}
-            {section==="parties"&&isWriter&&<form className="mb-4 grid gap-2 rounded-xl border p-3 sm:grid-cols-5" onSubmit={e=>{e.preventDefault();if(!draft.paymentParty){setError("Lütfen arama sonuçlarından bir cari hesap seçin.");return;}void submitSpecial("payments",{partyId:Number(draft.paymentParty),direction:draft.paymentDirection||"collection",method:draft.paymentMethod||"cash",bankId:draft.paymentMethod==="bank"?Number(draft.paymentBank):undefined,amount:Number(draft.paymentAmount),note:draft.paymentNote||""});}}>
-              <h3 className="sm:col-span-5 text-sm font-bold">Tahsilat / Ödeme İşlemi</h3>
-              <DukkanCariSearchPicker key={storeId} parties={parties.filter(p=>p.id!=null&&typeof p.name==="string").map(p=>({id:p.id,name:String(p.name),account_code:p.account_code,source_cari_no:p.source_cari_no,phone:p.phone,city:p.city}))} value={draft.paymentParty||""} onChange={value=>put("paymentParty",value)}/>
-              <select className={inputClass} value={draft.paymentDirection||"collection"} onChange={e=>put("paymentDirection",e.target.value)}><option value="collection">Tahsilat</option><option value="payment">Ödeme</option></select>
-              <select className={inputClass} value={draft.paymentMethod||"cash"} onChange={e=>put("paymentMethod",e.target.value)}><option value="cash">Nakit</option><option value="bank">Banka</option></select>
-              {draft.paymentMethod==="bank"?<select required className={inputClass} value={draft.paymentBank||""} onChange={e=>put("paymentBank",e.target.value)}><option value="">Banka seç</option>{bankOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:<input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Tutar" value={draft.paymentAmount||""} onChange={e=>put("paymentAmount",e.target.value)}/>}
-              {draft.paymentMethod==="bank"&&<input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Tutar" value={draft.paymentAmount||""} onChange={e=>put("paymentAmount",e.target.value)}/>}
-              <button disabled={busy} className={buttonClass}>İşle</button>
-            </form>}
+            {isCariSection&&<section className="mb-4 rounded-2xl border border-[#dce7f4] bg-[#f6faff] p-4" aria-label="Cari liste arama ve filtreleri">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(220px,290px)]">
+                <label className="relative block min-w-0">
+                  <span className="mb-1.5 block text-xs font-bold text-[#254c7c]">Cari ara</span>
+                  <Search size={18} aria-hidden="true" className="pointer-events-none absolute bottom-3.5 left-3 text-slate-500"/>
+                  <input type="search" className={inputClass+" pl-10"} value={cariSearch}
+                    onChange={e=>setCariSearch(e.target.value)}
+                    placeholder="Firma adı, cari no, hesap kodu, telefon..." aria-label="Cari hesap araması"/>
+                </label>
+                <label className="block min-w-0">
+                  <span className="mb-1.5 block text-xs font-bold text-[#254c7c]">Sırala / filtrele</span>
+                  <select className={inputClass} aria-label="Cari sıralama ve bakiye filtresi" value={cariFilter}
+                    onChange={e=>setCariFilter(e.target.value as "az"|"debtor"|"creditor"|"recent")}>
+                    <option value="az">A'dan Z'ye</option>
+                    <option value="debtor">Borçlu Cariler</option>
+                    <option value="creditor">Alacaklı Cariler</option>
+                    <option value="recent">Son İşlem Yapılan Cariler</option>
+                  </select>
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                {displayed.length} hesap listeleniyor · Cari kartına tıklayarak bilgilerini düzenleyebilirsiniz.
+                {section==="parties"&&rows.some(item=>item.type==="both")?
+                  " · Eski Müşteri / Tedarikçi kayıtları burada korunur; karttan türü değiştirilebilir.":""}
+              </p>
+            </section>}
             {section==="products"&&<div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-[#f1f8ff] px-4 py-3 text-xs text-[#235681]">
               <span className="flex items-center gap-2 font-semibold">
                 <CheckCircle2 size={16} className="shrink-0 text-emerald-600"/>
