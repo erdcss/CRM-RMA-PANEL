@@ -100,6 +100,7 @@ export default function Dukkan() {
   const [publishingId,setPublishingId]=useState<string|null>(null);
   const requestVersion=useRef(0);
   const lastLoadedStore=useRef("");
+  const pageCache=useRef<Map<string,Entry[]>>(new Map());
   const [newStoreName,setNewStoreName]=useState("");
   const [showNewStore,setShowNewStore]=useState(false);
   const [refresh,setRefresh]=useState(0);
@@ -159,16 +160,30 @@ export default function Dukkan() {
       }
       // One atomic list update: never briefly replace the full product list with
       // only local products during the 10-second background refresh.
-      const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome,summaryOutcome]=await Promise.all([
-        productPage?Promise.resolve(null):api(base+"/data/parties"),
-        api(base+"/data/products"),
-        productPage||cashier?Promise.resolve(null):api(base+"/data/banks"),
-        productPage||cashier?Promise.resolve(null):api(base+"/report"),
+      const needsProducts=["products","sales","purchases","orders"].includes(section);
+      const needsParties=["parties","suppliers","sales","purchases","orders","instruments","reports"].includes(section);
+      const needsBanks=!cashier&&["banks","parties","suppliers"].includes(section);
+      const needsReport=!cashier&&["overview","reports"].includes(section);
+      const resource:Record<Section,string|null>={
+        overview:"invoices",sales:"invoices",purchases:"invoices",products:null,stock:null,
+        orders:"orders",instruments:"instruments",banks:"bank-movements",
+        parties:"parties",suppliers:"parties",reports:"cari-movements",settings:null
+      };
+      // All visible resources load in parallel. Unrelated heavy product, bank and
+      // cari queries are not awaited when entering another module.
+      const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome,summaryOutcome,
+        resourceResult,membersResult]=await Promise.all([
+        needsParties?api(base+"/data/parties"):Promise.resolve(null),
+        needsProducts?api(base+"/data/products"):Promise.resolve(null),
+        needsBanks?api(base+"/data/banks"):Promise.resolve(null),
+        needsReport?api(base+"/report"):Promise.resolve(null),
         wantsCatalog
           ? api(base+"/catalog/b2b").then(value=>({value,error:""}))
             .catch(error=>({value:null,error:(error as Error).message}))
           : Promise.resolve({value:[],error:""}),
         productPage?api(base+"/catalog/summary").catch(()=>null):Promise.resolve(null),
+        resource[section]?api(base+"/data/"+resource[section]):Promise.resolve([]),
+        section==="settings"&&canManage?api(base+"/members"):Promise.resolve([]),
       ]);
       if(!isCurrent())return;
       const catalog=Array.isArray(catalogOutcome.value)?catalogOutcome.value:[] as Entry[];
@@ -176,38 +191,39 @@ export default function Dukkan() {
         ? "B2B kataloğunun bağlantısı geçici olarak kesildi: "+catalogOutcome.error+
           ". Son başarılı liste korunuyor."
         : "";
-      let result:Entry[]=[];
-      if(section==="settings"&&canManage)setMembers(await api(base+"/members"));else setMembers([]);
-      const resource:Record<Section,string|null>={
-        overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:null,
-        orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",suppliers:"parties",reports:"cari-movements",settings:null
-      };
-      if(section!=="products"&&resource[section])result=await api(base+"/data/"+resource[section]);
+      const result=Array.isArray(resourceResult)?resourceResult as Entry[]:[];
+      setMembers(Array.isArray(membersResult)?membersResult:[]);
       if(!isCurrent())return;
       const sameStore=lastLoadedStore.current===storeId;
-      if(!productPage){
-        setParties(partiesResult);setBanks(banksResult);setReport(reportResult);
-      }
-      setProducts(productsResult);
+      if(Array.isArray(partiesResult))setParties(partiesResult);
+      if(Array.isArray(banksResult))setBanks(banksResult);
+      if(reportResult!==null)setReport(reportResult);
+      if(Array.isArray(productsResult))setProducts(productsResult);
       if(summaryOutcome && Number.isFinite(summaryOutcome.publishedB2B) && Number.isFinite(summaryOutcome.dukkanTotal)){
         setProductCounts({storeId,publishedB2B:summaryOutcome.publishedB2B,dukkanTotal:summaryOutcome.dukkanTotal});
       }
       setB2bCatalog(current=>warning&&sameStore?current:catalog);
-      setRows(current=>{
-        if(section!=="products")return result;
-        const local=(productsResult as Entry[]).map(item=>({...item,_source:"dukkan"}));
-        const remote=warning&&sameStore
-          ? current.filter(item=>item._source==="b2b")
-          : catalog.map((item:Entry)=>({...item,id:"b2b-"+item.id,_b2bId:String(item.id),
-            _source:"b2b",sale_price:item.price,stock:item.stock}));
-        return [...local,...remote];
-      });
+      const previous=pageCache.current.get(storeId+":"+section)||[];
+      const nextRows=section==="products"?[
+        ...(Array.isArray(productsResult)?productsResult:[]).map((item:Entry)=>({...item,_source:"dukkan"})),
+        ...(warning&&sameStore?previous.filter(item=>item._source==="b2b"):
+          catalog.map((item:Entry)=>({...item,id:"b2b-"+item.id,_b2bId:String(item.id),
+            _source:"b2b",sale_price:item.price,stock:item.stock}))),
+      ]:result;
+      pageCache.current.set(storeId+":"+section,nextRows);
+      setRows(nextRows);
       lastLoadedStore.current=storeId;
       setError(warning);
     }catch(e){
       if(isCurrent())setError("Ürünler yenilenemedi; son liste korunuyor. "+(e as Error).message);
     }
   },[base,storeId,section,cashier,canManage]);
+  // Switching back to an already opened module shows its last rows immediately,
+  // while the fresh request updates them without a blocking full-page loader.
+  useEffect(()=>{
+    const stored=pageCache.current.get(storeId+":"+section);
+    if(stored&&section!=="stock")setRows(stored);
+  },[storeId,section]);
   useEffect(()=>{
     void load();
     return()=>{ requestVersion.current++; };
