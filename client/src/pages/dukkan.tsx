@@ -454,6 +454,27 @@ export default function Dukkan() {
                 <p className="mt-3 truncate text-xl font-black tabular-nums tracking-tight text-[#142b4e]">{value}</p>
                </div>)}
           </div>}
+          {section==="reports"&&canAccount&&<section className={softCard+" mb-4"} aria-label="Cari hesap Excel raporları">
+            <h2 className="text-lg font-extrabold text-[#142b4e]">Cari Hesap Bakiye Raporları</h2>
+            <p className="mb-4 mt-1 text-sm text-slate-500">Güncel hareketlerden hesaplanan borçlu ve alacaklı carileri ayrı Excel (.xlsx) dosyaları olarak indirin. Sıfır bakiyeliler dahil edilmez.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(["debt","credit"] as const).map(kind=>{
+                const matched=parties.filter(p=>kind==="debt"?Number(p.balance)>0:Number(p.balance)<0);
+                const cents=matched.reduce((sum,p)=>sum+Math.round(Math.abs(Number(p.balance))*100),0);
+                return <div key={kind} className="rounded-2xl border border-[#e0e9f5] bg-[#f8fbff] p-4">
+                  <h3 className="font-bold text-[#163251]">{kind==="debt"?"Borçlu Cariler":"Alacaklı Cariler"}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{matched.length} cari hesap</p>
+                  <p className="my-3 text-lg font-black tabular-nums text-[#142b4e]">{currency(cents/100)}</p>
+                  <button type="button" disabled={exportingCari!==null}
+                    onClick={()=>{void downloadCariExcel(kind);}} className={buttonClass+" w-full"}>
+                    <Download size={17}/>
+                    {exportingCari===kind?"Excel hazırlanıyor...":"Excel İndir (.xlsx)"}
+                  </button>
+                </div>;
+              })}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Excel sütunları: Cari No, Hesap Kodu, Cari Adı, İl, Telefon, Cari Tipi, Vergi No, E-posta, Özel Kod ve Bakiye (TL).</p>
+          </section>}
           {section==="reports"&&<div className={softCard+" mb-4"}><h2 className="font-bold">Vadesi geçmiş çek ve senetler</h2><p className="mt-2 text-sm">Belge: {fmt(report?.overdue?.count)} · Toplam: {currency(report?.overdue?.amount)}</p><p className="mt-2 text-xs text-slate-500">Raporlar kayıtlı işlemlerden üretilir; resmî mali tablo veya GİB e-Fatura yerine geçmez.</p></div>}
           {section==="settings"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
           {section==="settings"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
