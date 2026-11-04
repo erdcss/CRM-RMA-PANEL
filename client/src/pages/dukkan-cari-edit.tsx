@@ -217,15 +217,7 @@ export default function DukkanCariEdit({id}:{id:string}){
                       <option value="seller">Satıcı</option>
                       <option value="both">Alıcı / Satıcı</option>
                     </select>
-                    <span className="mt-1 block text-[11px] text-slate-500">Cari Tipi ve müşteri/tedarikçi listelerini değiştirmez.</span>
-                  </label>
-                  <label className="block min-w-0">
-                    <span className="mb-1.5 block text-xs font-bold text-slate-600">Cari Tipi</span>
-                    <select className={fieldClass} required value={form.type} onChange={event=>edit("type",event.target.value)}>
-                      <option value="customer">Müşteri</option>
-                      <option value="supplier">Tedarikçi</option>
-                      {(cari.type==="both"||form.type==="both")&&<option value="both">Müşteri / Tedarikçi (eski kayıt)</option>}
-                    </select>
+                    <span className="mt-1 block text-[11px] text-slate-500">Hesap tipi, müşteri ve tedarikçi listelerini değiştirmez.</span>
                   </label>
                   {input("name","Ünvan / Firma - Kişi Adı",true)}
                   {input("sourceCariNo","Cari No")}
