@@ -7,7 +7,7 @@ import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
-import {DukkanStockWorkspace} from "@/components/dukkan-stock-workspace";
+import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
@@ -568,7 +568,7 @@ export default function Dukkan() {
               key={storeId}
               storeId={storeId}
               base={base}
-              products={products}
+              products={products as StockProduct[]}
               canManage={canManage}
               onChanged={()=>setRefresh(value=>value+1)}
             />}
@@ -577,7 +577,6 @@ export default function Dukkan() {
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
                     section==="parties"?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
-                    section==="stock"?["Tarih","Ürün","Değişim","Neden"]:
                     ["sales","purchases","overview"].includes(section)?["Fatura No","Cari","Tür","Toplam","Tarih"]:
                     section==="orders"?["Sipariş No","Cari","Tür","Durum"]:
                     section==="instruments"?["Belge No","Cari","Tür","Tutar","Vade","Durum"]:
@@ -642,7 +641,6 @@ export default function Dukkan() {
                     </td>
                   </>:(
                     section==="parties"?[r.source_cari_no||"—",r.account_code||"—",r.name,r.city||"—",r.type==="both"?"Müşteri / Tedarikçi":r.type==="supplier"?"Tedarikçi":"Müşteri",r.phone||"—",r.balance==null?"—":(Number(r.balance)<0?"Alacak ":"Borç ")+currency(Math.abs(Number(r.balance)))]:
-                    section==="stock"?[String(r.created_at).slice(0,10),r.product_name,r.delta,r.reason]:
                     ["sales","purchases","overview"].includes(section)?[r.invoice_no,r.party_name,typeLabel[r.kind]||r.kind,currency(r.grand_total),r.issued_at?.slice(0,10)]:
                     section==="orders"?[r.order_no,r.party_name,typeLabel[r.kind]||r.kind,r.status]:
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
