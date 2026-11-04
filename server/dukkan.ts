@@ -393,6 +393,25 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       throw error;
     }
   }));
+  // Deep-linkable cari detail; the store scope prevents cross-store access.
+  app.get("/api/dukkan/stores/:storeId/parties/:partyId",safe(async(req,res)=>{
+    accountant(res);
+    const sid=store(req),partyId=id.parse(req.params.partyId),db=await ready();
+    const party=await db.query(
+      "SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance,MAX(e.created_at) AS last_transaction_at "+
+      "FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id "+
+      "WHERE p.store_id=$1 AND p.id=$2 GROUP BY p.id",
+      [sid,partyId]
+    );
+    if(!party.rowCount)return res.status(404).json({error:"Cari hesap bulunamadı veya bu mağazaya ait değil."});
+    const movements=await db.query(
+      "SELECT id,debit,credit,description,created_at FROM dukkan_cari_entries "+
+      "WHERE store_id=$1 AND party_id=$2 ORDER BY created_at DESC,id DESC LIMIT 20",
+      [sid,partyId]
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.json({...party.rows[0],recent_movements:movements.rows});
+  }));
   app.patch("/api/dukkan/stores/:storeId/parties/:partyId",safe(async(req,res)=>{
     accountant(res);
     const sid=store(req),partyId=id.parse(req.params.partyId),p=cariProfileSchema.parse(req.body);
