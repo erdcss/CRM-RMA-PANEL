@@ -334,10 +334,25 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "WHERE store_id=$1 AND party_id=$2 AND source_sha256=$3",
       [sid,existing.rows[0].id,documentSha256(bytes)],
     ): {rows:[]};
+    const ledger=existing.rows[0]?await db.query(
+      "SELECT COUNT(*)::integer AS count,COALESCE(SUM(debit-credit),0) AS balance, "+
+      "MAX(CASE WHEN invoice_id IS NULL AND payment_id IS NULL AND "+
+      "(description ILIKE 'Excel açılış bakiyesi%' OR description ILIKE 'Açılış bakiyesi%') "+
+      "THEN 1 ELSE 0 END) AS opening "+
+      "FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=$2",
+      [sid,existing.rows[0].id],
+    ):null;
+    const ledgerInfo=ledger?.rows[0];
     res.setHeader("Cache-Control","private,no-store");
     res.json({
       statement,summary,sha256:documentSha256(bytes),filename:payload.filename,
       existingParty:existing.rows[0]||null,
+      existingLedger:{
+        count:Number(ledgerInfo?.count||0),
+        balance:Number(ledgerInfo?.balance||0),
+        canReplaceOpening:Number(ledgerInfo?.count||0)===1&&
+          Number(ledgerInfo?.opening||0)===1,
+      },
       duplicate:alreadyImported.rows.length>0,
     });
   }));
@@ -347,6 +362,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       sha256:z.string().regex(/^[a-f0-9]{64}$/),
       filename:z.string().trim().min(1).max(180),
       partyId:z.number().int().positive().optional(),
+      confirmExisting:z.boolean().optional(),
+      replaceOpening:z.boolean().optional(),
       statement:importedStatementSchema,
       confirmed:z.literal(true),
     }).strict().parse(req.body);
@@ -354,6 +371,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const saved=await transaction(async c=>postImportedStatement(c,{
       storeId:sid,actor:user(res),sha256:input.sha256,filename:input.filename,
       partyId:input.partyId,statement:input.statement,
+      confirmExisting:input.confirmExisting,replaceOpening:input.replaceOpening,
     }));
     res.setHeader("Cache-Control","no-store");
     res.status(201).json(saved);
