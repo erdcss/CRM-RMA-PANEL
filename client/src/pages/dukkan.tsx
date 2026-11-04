@@ -246,7 +246,16 @@ export default function Dukkan() {
         {key:"unitsPerBox",label:"Koli İçi Adet",type:"number"},
         {key:"minOrderQty",label:"Minimum Koli",type:"number"},
         {key:"description",label:"Ürün Açıklaması"}];
-      case "parties":return [{key:"name",label:"Firma / Kişi Adı",required:true},{key:"type",label:"Cari Tipi",type:"select",options:[{value:"customer",label:"Müşteri"},{value:"supplier",label:"Tedarikçi"},{value:"both",label:"Her ikisi"}]},{key:"accountCode",label:"Hesap Kodu"},{key:"city",label:"İl"},{key:"taxNumber",label:"Vergi Numarası"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"},{key:"specialCode",label:"Özel Kod"}];
+      case "parties":case "suppliers":return [
+        {key:"name",label:"Firma / Kişi Adı",required:true},
+        {key:"type",label:"Cari Tipi",type:"select",required:true,options:[
+          {value:"customer",label:"Müşteri"},{value:"supplier",label:"Tedarikçi"},
+          ...(editingPartyId&&draft.type==="both"?[{value:"both",label:"Müşteri / Tedarikçi (eski kayıt)"}]:[])
+        ]},
+        {key:"sourceCariNo",label:"Cari No"},{key:"accountCode",label:"Hesap Kodu"},
+        {key:"city",label:"İl"},{key:"taxNumber",label:"Vergi Numarası"},
+        {key:"phone",label:"Telefon"},{key:"email",label:"E-posta"},{key:"specialCode",label:"Özel Kod"}
+      ];
       case "stock":return [product,{key:"delta",label:"Stok Değişimi (+/-)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       case "sales":case "purchases":return [party,{key:"date",label:"Fatura Tarihi",type:"date"},{key:"kind",label:"İşlem Türü",type:"select",options:section==="sales"?(cashier?[{value:"sale",label:"Satış faturası"}]:[{value:"sale",label:"Satış faturası"},{value:"sale_return",label:"Satış iadesi"}]):[{value:"purchase",label:"Alış faturası"},{value:"purchase_return",label:"Alış iadesi"}]}];
       case "orders":return [party,{key:"number",label:"Sipariş Numarası",required:true},{key:"kind",label:"Sipariş Tipi",type:"select",options:cashier?[{value:"sale",label:"Müşteri siparişi"}]:[{value:"sale",label:"Müşteri siparişi"},{value:"purchase",label:"Tedarikçi siparişi"}]}];
@@ -254,7 +263,7 @@ export default function Dukkan() {
       case "banks":return [bank,{key:"type",label:"İşlem",type:"select",options:[{value:"deposit",label:"Para girişi"},{value:"withdrawal",label:"Para çıkışı"}]},{key:"amount",label:"Tutar (TL)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       default:return [];
     }
-  },[section,parties,products,banks,cashier,editingCatalogId]);
+  },[section,parties,products,banks,cashier,editingCatalogId,editingPartyId,draft.type]);
 
   const applyAiDocument=(extracted:AiDocumentDraft)=>{
     const data={...extracted.fields};
@@ -268,7 +277,7 @@ export default function Dukkan() {
         productId:item.productId||"",quantity:item.quantity||"1",unitPrice:item.unitPrice||"0",taxRate:item.taxRate||"20"
       })):[{...NEW_LINE}]);
     }
-    setEditingProductId(null);setEditingCatalogId(null);
+    setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
     if(section==="products"){setProductImages([]);setPublishToB2B(false);}
     setShowForm(true);
     setNotice("AI taslağı hazır. Belge alanlarını ve eşleşmeyen kayıtları kontrol edip Kaydet ve İşle düğmesine basın.");
@@ -294,20 +303,21 @@ export default function Dukkan() {
         if(editingCatalogId)body.stock=Number(draft.stock);
         if(publishToB2B&&!productImages.length)throw new Error("B2B'de yayınlamak için önce ürün görseli ekleyin.");
       }
-      else if(section==="parties"){path="/parties";body.type=body.type||"customer";}
+      else if(section==="parties"||section==="suppliers"){path="/parties";body.type=body.type||(section==="suppliers"?"supplier":"customer");}
       else if(section==="stock")path="/stock-movements";
       else if(section==="instruments"){path="/instruments";body.kind=body.kind||"cheque";body.direction=body.direction||"received";}
       else if(section==="banks"){path="/bank-movements";body.type=body.type||"deposit";}
       else return;
-      const editing=section==="products"&&Boolean(editingProductId||editingCatalogId);
+      const editing=(section==="products"&&Boolean(editingProductId||editingCatalogId))||
+        ((section==="parties"||section==="suppliers")&&Boolean(editingPartyId));
       const url=editingCatalogId
         ? base+"/catalog/b2b/"+encodeURIComponent(editingCatalogId)
-        : base+path+(editingProductId?"/"+editingProductId:"");
+        : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
       const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
       setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
         (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
-      setEditingProductId(null);setEditingCatalogId(null);
+      setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
       setShowForm(false);setDraft({});setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
