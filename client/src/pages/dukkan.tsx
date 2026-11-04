@@ -7,6 +7,7 @@ import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
+import {DukkanStockWorkspace} from "@/components/dukkan-stock-workspace";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
@@ -162,7 +163,7 @@ export default function Dukkan() {
       let result:Entry[]=[];
       if(section==="settings"&&canManage)setMembers(await api(base+"/members"));else setMembers([]);
       const resource:Record<Section,string|null>={
-        overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
+        overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:null,
         orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements",settings:null
       };
       if(section!=="products"&&resource[section])result=await api(base+"/data/"+resource[section]);
@@ -441,14 +442,14 @@ export default function Dukkan() {
           </div>}
           {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{displayed.length} kayıt · {currentStore?.name}</p></div>
-              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setDraft({});
+              <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{section==="stock"?products.length:displayed.length} kayıt · {currentStore?.name}</p></div>
+              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setDraft({});
                  setProductImages([]);setPublishToB2B(false);}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
-            {isWriter&&(["products","stock","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
+            {isWriter&&(["products","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
                <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
                  onApply={applyAiDocument} onImported={()=>{setNotice("Belgedeki ürünler başarıyla kaydedildi.");setRefresh(v=>v+1);}}/></div>}
-             {showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
+             {section!=="stock"&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">
                 {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":"Yeni kayıt oluştur"}
               </h3>
@@ -563,7 +564,15 @@ export default function Dukkan() {
             {section==="products"&&<DukkanProductToolbar value={productToolbar} onChange={changeToolbar}
               onClear={()=>setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR})}
               page={pagedProducts} totalProducts={rows.length}/>}
-            <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
+            {section==="stock"&&<DukkanStockWorkspace
+              key={storeId}
+              storeId={storeId}
+              base={base}
+              products={products}
+              canManage={canManage}
+              onChanged={()=>setRefresh(value=>value+1)}
+            />}
+            {section!=="stock"&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":section==="parties"?"min-w-[980px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
