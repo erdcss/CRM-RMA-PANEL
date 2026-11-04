@@ -379,6 +379,33 @@ export default function Dukkan() {
     try{await api(base+"/"+resource,{method:"POST",body:JSON.stringify(payload)});setNotice("İşlem kaydedildi");setDraft({});setRefresh(n=>n+1);}
     catch(e){setError((e as Error).message);}finally{setBusy(false);}
   };
+  const downloadCariExcel=async(kind:"debt"|"credit")=>{
+    if(!storeId||exportingCari)return;
+    setExportingCari(kind);
+    setError("");
+    try{
+      const response=await fetch(base+"/report/cari-excel?type="+kind,{
+        credentials:"include",cache:"no-store"
+      });
+      if(!response.ok){
+        const body=await response.json().catch(()=>({}));
+        throw new Error(body.error||"Cari Excel raporu indirilemedi.");
+      }
+      const blob=await response.blob();
+      const objectUrl=URL.createObjectURL(blob);
+      const anchor=document.createElement("a");
+      anchor.href=objectUrl;
+      anchor.download="caliskan-dukkan-"+(kind==="debt"?"borclu":"alacakli")+"-cariler.xlsx";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+    }catch(error){
+      setError((error as Error).message);
+    }finally{
+      setExportingCari(null);
+    }
+  };
   const updateInstrument=async(row:Entry,status:string)=>{
     setBusy(true);try{await api(base+"/instruments/"+row.id,{method:"PATCH",body:JSON.stringify({status})});setRefresh(n=>n+1);}
     catch(e){setError((e as Error).message);}finally{setBusy(false);}
