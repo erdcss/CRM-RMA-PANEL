@@ -3,7 +3,7 @@
     "name": "Çalışkan Dükkan",
     "slug": "caliskan-dukkan",
     "scheme": "caliskandukkan",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
@@ -26,7 +26,7 @@
       "expo-sqlite",
       "expo-document-picker"
     ],
-    "description": "Merkezi mağaza yönetimi: satış, alış, iade, cari, stok, rapor, AI belge analizi ve dahili PDF.",
+    "description": "Çalışkan Dükkan: görselli ürün yönetimi, cari hesaplar ve web panelindeki tüm yetkili işlemlere mobil erişim.",
     "owner": "erdcls",
     "extra": {
       "releaseChannel": "testflight",

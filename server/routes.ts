@@ -107,8 +107,12 @@ function issueMobileAuthToken(userId: number) {
 function mobileTokenUserId(req: Request): number | undefined {
   const authorization = String(req.headers.authorization || "").trim();
   if (!authorization.toLowerCase().startsWith("bearer ")) return undefined;
+  return verifiedMobileTokenUserId(authorization.slice(7).trim());
+}
 
-  const token = authorization.slice(7).trim();
+// Both the native API and the in-app web workspace use the same signed identity.
+// Never derive web session identity from unverified POST data or an existing cookie.
+function verifiedMobileTokenUserId(token: string): number | undefined {
   const [encoded, signature] = token.split(".");
   if (!encoded || !signature) return undefined;
 
@@ -2806,6 +2810,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }catch(error){
       console.error("Dükkan login failed",error instanceof Error?error.message:"unknown");
       res.status(503).json({error:"Giriş hizmeti şu anda kullanılamıyor"});
+    }
+  });
+
+  // Establish a normal browser session *inside* the native WebView, using the
+  // already-authenticated native bearer token. No token is put in any URL.
+  // Store membership is rechecked at the time the web workspace is opened.
+  app.post("/api/dukkan/mobile-web-session", async (req,res)=>{
+    res.setHeader("Cache-Control","no-store");
+    res.setHeader("Referrer-Policy","no-referrer");
+    if(!req.is("application/json"))
+      return res.status(415).json({error:"Geçersiz oturum isteği"});
+    const token=typeof req.body?.token==="string"?req.body.token:"";
+    const storeId=Number(req.body?.storeId);
+    const allowedTabs=new Set(["overview","sales","purchases","products","stock",
+      "orders","instruments","banks","parties","suppliers","reports","settings"]);
+    const tab=allowedTabs.has(req.body?.tab)?req.body.tab:"overview";
+    if(token.length<20||token.length>1500||!Number.isSafeInteger(storeId)||storeId<=0)
+      return res.status(400).json({error:"Geçersiz mağaza oturumu"});
+    const uid=verifiedMobileTokenUserId(token);
+    if(!uid)return res.status(401).json({error:"Mobil oturum süresi doldu; yeniden giriş yapın"});
+    try{
+      const person=await storage.getUser(uid);
+      if(!person||person.isActive!==1||person.mustChangePassword===1)
+        return res.status(403).json({error:"Kullanıcı etkin değil"});
+      if(!pool)return res.status(503).json({error:"Mağaza veritabanına erişilemiyor"});
+      const member=await pool.query(
+        "SELECT 1 FROM dukkan_members WHERE store_id=$1 AND user_id=$2 LIMIT 1",[storeId,uid]);
+      if(!member.rowCount)return res.status(403).json({error:"Bu mağazaya erişiminiz yok"});
+      await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
+      (req.session as {userId?:number}).userId=uid;
+      await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
+      return res.redirect(303,"/dukkan?storeId="+storeId+"&tab="+encodeURIComponent(tab));
+    }catch(error){
+      console.error("Dükkan mobil web oturumu:",error instanceof Error?error.message:"unknown");
+      return res.status(503).json({error:"Web çalışma alanı oturumu açılamadı"});
     }
   });
 

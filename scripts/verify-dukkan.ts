@@ -9,6 +9,25 @@ if (!pool || !String(process.env.DATABASE_URL||"").includes("localhost")) {
   throw new Error("Integration test only runs against a local, disposable PostgreSQL instance");
 }
 
+// Disposable integration DB must expose the same B2B catalog dependency
+// that production already has. Never create this fixture outside localhost.
+await pool.query(`CREATE TABLE IF NOT EXISTS b2b_products (
+  id TEXT PRIMARY KEY DEFAULT md5(random()::text || clock_timestamp()::text),
+  sku TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  barcode TEXT,
+  brand TEXT,category TEXT,description TEXT,
+  price NUMERIC(18,2) NOT NULL DEFAULT 0,
+  stock INTEGER NOT NULL DEFAULT 0,
+  min_order_qty INTEGER NOT NULL DEFAULT 1,
+  units_per_box INTEGER NOT NULL DEFAULT 1,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  image_data TEXT,
+  images JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)`);
+
 const users=await pool.query(
   "INSERT INTO users(username,password,role,app_access,is_active) VALUES($1,$2,'admin','business',1),($3,$2,'admin','business',1) RETURNING id",
   ["dukkan-integration-admin","integration-not-for-login","dukkan-integration-outsider"]
@@ -60,7 +79,10 @@ try {
   assert.equal(exportable.lines.length,1,"Sales PDF must contain all posted product lines");
   assert.equal(exportable.officialInvoice,false,"Dahili PDF must never masquerade as an official GİB invoice");
   assert.match(exportable.disclaimer,/GİB/,"Sales PDF must carry a fiscal disclaimer");
-  await call("GET",base+"/invoices/"+purchased.id+"/pdf-data",undefined,400);
+  const purchasePdf=await call("GET",base+"/invoices/"+purchased.id+"/pdf-data");
+  assert.equal(purchasePdf.invoice.kind,"purchase");
+  assert.equal(purchasePdf.officialInvoice,false);
+  assert.match(purchasePdf.disclaimer,/GİB/);
 
   const repeat=await call("POST",base+"/invoices",sale,201);
   assert.equal(first.id,repeat.id,"Request UUID must be idempotent");

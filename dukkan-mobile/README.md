@@ -1,5 +1,17 @@
 # Çalışkan Dükkan Mobil — Bağlantılı Mağaza Sürümü
 
+## 4 Kasım 2026 — iOS 1.0.2 ürün görselleri ve web işlemleri
+
+- Native ürün listelerinde ve seçilen fatura kaleminde ürünün küçük görseli gösterilir. Mağazaya özel görseller üye oturumuyla; dış HTTPS görselleri yetki anahtarı gönderilmeden yüklenir.
+- Genel bakıştaki cari alacak/borç toplamları sunucunun cari bakiyelerinden, yalnız yetkili roller için hesaplanır.
+- **Tüm Web İşlemleri** alanı uygulamanın içinde webdeki tam Dükkan yönetim arayüzünü açar: detaylı cari kartı, cari hareketleri, AI ekstre içe aktarma, satış/alış/iade, stok, tedarikçiler, siparişler, banka, çek/senet, raporlar ve rolünün izin verdiği diğer ekranlar.
+- Bu bir **hibrit** sürümdür: tüm gelişmiş web formları React Native olarak yeniden yazılmamıştır. Web işlemleri uygulama içindeki güvenli, geçici WebView oturumuyla çalışır.
+- Native oturumdan webe geçiş, mobil bearer tokenın gövdeyle HTTPS POST edilmesi, sunucunun imzayı ve mağaza üyeliğini kontrol etmesi, oturumu yenilemesi ve yetkili web paneline yönlendirmesiyle gerçekleşir. Token URL'ye yazılmaz.
+- Web ve native tarafında mağaza/rol yetkisi API'de yeniden kontrol edilir. Görüntüleyici hesaplar kayıt oluşturamaz; diğer üyeler kendi yetkilerinin dışında işlem yapamaz.
+- API adresi `https://admin.ecalisgan.com`; canlı sunucu güncellemesi mobil sürümle birlikte olmalıdır.
+- Dükkan 1.0.2 yalnız mevcut `com.caliskan.dukkan` bundle kimliğiyle TestFlight'a gönderilir. Başka Çalışkan uygulamalarının sertifika ve kimlikleri değiştirilmez.
+
+
 ## 4 Kasım 2026 — TestFlight 1.0.1 aday sürümü
 
 Bu aday sürüm, mevcut `dukkan-mobile/App.tsx` React Native istemcisinin bağlı mağaza API'si ile çalışan özelliklerini paketler: güvenli kullanıcı ve mağaza seçimi, rol bazlı menü, dashboard, ürün ve stok, satış/alış/iade, cari, çek/senet, AI ile belge analizi ve dahili satış PDF paylaşımı.

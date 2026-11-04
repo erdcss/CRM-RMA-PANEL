@@ -1,0 +1,35 @@
+name: Dukkan mobile web parity regression
+on:
+  pull_request:
+    paths:
+      - "dukkan-mobile/**"
+      - "server/routes.ts"
+      - "server/dukkan.ts"
+      - ".github/workflows/dukkan-mobile-web-parity.yml"
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install web server and test dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Image URL and authorization tests
+        run: npx tsx --test dukkan-mobile/product-images.test.ts
+      - name: Server authorization and type check
+        run: npm run check
+      - name: Native dependencies
+        working-directory: dukkan-mobile
+        run: npm install --no-audit --no-fund
+      - name: Native TypeScript and Expo SDK dependency validation
+        working-directory: dukkan-mobile
+        run: |
+          npm run check
+          npx expo install --check
+      - name: iOS JS export
+        working-directory: dukkan-mobile
+        run: npx expo export --platform ios --output-dir dist-ios-parity-check
