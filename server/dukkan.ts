@@ -277,13 +277,15 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const imported=await transaction(async c=>{
       const records=[];
       for(const p of payload.products){
-        const result=await c.query("INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,purchase_price,sale_price) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id,sku",[
+        const result=await c.query("INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,purchase_price,sale_price) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *",[
           sid,p.name,p.sku,p.barcode||null,p.unit,money(p.purchasePrice),money(p.salePrice)
         ]);
-        records.push(result.rows[0]);
+        const linked=await syncDukkanToB2B(c,result.rows[0]);
+        records.push({id:linked.id,sku:linked.sku,b2b_product_id:linked.b2b_product_id});
       }
       return records;
     });
+    notifyMetaCatalogChange();
     res.status(201).json({created:imported.length,records:imported});
   }));
 
