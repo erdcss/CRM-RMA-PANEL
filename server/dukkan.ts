@@ -610,6 +610,85 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     });
     res.status(201).json(r);
   }));
+  // Detailed product ledger is store-scoped and combines immutable invoice line prices
+  // with their matching inventory entries. A manual adjustment has no sales/purchase
+  // unit price, and imported opening stock is never represented as a fictitious invoice.
+  app.get("/api/dukkan/stores/:storeId/stock-products/:productId/history",safe(async(req,res)=>{
+    const sid=store(req),productId=id.parse(req.params.productId);
+    const paging=z.object({
+      page:z.coerce.number().int().min(1).max(100000).default(1),
+      pageSize:z.coerce.number().int().min(10).max(100).default(50),
+    }).parse(req.query);
+    const db=await ready();
+    const p=await db.query(
+      "SELECT id,name,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,"+
+      "stock,unit,sale_price,purchase_price,b2b_product_id FROM dukkan_products WHERE store_id=$1 AND id=$2 LIMIT 1",
+      [sid,productId],
+    );
+    if(!p.rows[0])return res.status(404).json({error:"Bu mağazada ürün bulunamadı"});
+    const [totals,history]=await Promise.all([
+      db.query(
+        "SELECT COUNT(*)::integer AS total,COALESCE(SUM(delta),0) AS net_delta,"+
+        "COALESCE(SUM(CASE WHEN reason='purchase' THEN delta ELSE 0 END),0) AS purchased,"+
+        "COALESCE(SUM(CASE WHEN reason='sale' THEN -delta ELSE 0 END),0) AS sold,"+
+        "COALESCE(SUM(CASE WHEN reason='sale_return' THEN delta ELSE 0 END),0) AS sale_returned,"+
+        "COALESCE(SUM(CASE WHEN reason='purchase_return' THEN -delta ELSE 0 END),0) AS purchase_returned,"+
+        "COALESCE(SUM(CASE WHEN reason='adjustment' AND delta>0 THEN delta ELSE 0 END),0) AS manual_in,"+
+        "COALESCE(SUM(CASE WHEN reason='adjustment' AND delta<0 THEN -delta ELSE 0 END),0) AS manual_out "+
+        "FROM dukkan_stock_movements WHERE store_id=$1 AND product_id=$2",
+        [sid,productId],
+      ),
+      db.query(
+        "WITH movements AS ("+
+        "SELECT m.id,m.created_at,m.invoice_id,m.product_id,m.delta,m.reason,m.note,"+
+        "ROW_NUMBER() OVER (PARTITION BY m.invoice_id,m.product_id ORDER BY m.id) AS movement_line "+
+        "FROM dukkan_stock_movements m WHERE m.store_id=$1 AND m.product_id=$2), "+
+        "invoice_lines AS ("+
+        "SELECT l.invoice_id,l.product_id,l.quantity,l.unit_price,l.tax_rate,l.line_total,"+
+        "ROW_NUMBER() OVER (PARTITION BY l.invoice_id,l.product_id ORDER BY l.id) AS invoice_line "+
+        "FROM dukkan_invoice_lines l JOIN dukkan_invoices matched ON matched.id=l.invoice_id "+
+        "WHERE matched.store_id=$1 AND l.product_id=$2) "+
+        "SELECT m.id,m.created_at,m.delta,m.reason,m.note,m.invoice_id,"+
+        "i.invoice_no,i.issued_at,i.kind AS invoice_kind,party.name AS party_name,"+
+        "line.quantity,line.unit_price,line.tax_rate,line.line_total "+
+        "FROM movements m "+
+        "LEFT JOIN dukkan_invoices i ON i.id=m.invoice_id AND i.store_id=$1 "+
+        "LEFT JOIN dukkan_parties party ON party.id=i.party_id AND party.store_id=$1 "+
+        "LEFT JOIN invoice_lines line ON line.invoice_id=m.invoice_id AND line.product_id=m.product_id "+
+        "AND line.invoice_line=m.movement_line "+
+        "ORDER BY m.created_at DESC,m.id DESC LIMIT $3 OFFSET $4",
+        [sid,productId,paging.pageSize,(paging.page-1)*paging.pageSize],
+      ),
+    ]);
+    const stats=totals.rows[0];
+    const canSeePurchasePrices=["owner","manager","accountant"].includes(String(res.locals.dukkanRole));
+    const product=p.rows[0];
+    const entries=history.rows.map(row=>{
+      const isPurchaseSide=row.reason==="purchase"||row.reason==="purchase_return";
+      return {
+        ...row,
+        unit_price:canSeePurchasePrices||!isPurchaseSide?row.unit_price:null,
+        line_total:canSeePurchasePrices||!isPurchaseSide?row.line_total:null,
+        tax_rate:canSeePurchasePrices||!isPurchaseSide?row.tax_rate:null,
+      };
+    });
+    const openingDifference=Number(product.stock)-Number(stats.net_delta);
+    res.setHeader("Cache-Control","private, no-store");
+    res.json({
+      product:{
+        ...product,
+        purchase_price:canSeePurchasePrices?product.purchase_price:null,
+      },
+      entries,
+      stats:{
+        ...stats,
+        unrecorded_balance:openingDifference.toFixed(3),
+      },
+      page:paging.page,
+      pageSize:paging.pageSize,
+      totalPages:Math.max(1,Math.ceil(Number(stats.total)/paging.pageSize)),
+    });
+  }));
   // Read an immutable posted invoice amount from the user's authorized store.
   // The PDF renderer receives only the requested invoice and its product lines.
   // Cashiers may export sales documents only; purchases remain accountant-only.
