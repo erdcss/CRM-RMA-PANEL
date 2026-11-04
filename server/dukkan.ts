@@ -270,7 +270,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const [sales,purchases,stock,receivables,banks,overdue]=await Promise.all([
       db.query("SELECT COALESCE(SUM(CASE WHEN kind='sale' THEN grand_total WHEN kind='sale_return' THEN -grand_total ELSE 0 END),0) AS total FROM dukkan_invoices WHERE store_id=$1",[sid]),
       db.query("SELECT COALESCE(SUM(CASE WHEN kind='purchase' THEN grand_total WHEN kind='purchase_return' THEN -grand_total ELSE 0 END),0) AS total FROM dukkan_invoices WHERE store_id=$1",[sid]),
-      db.query("SELECT COUNT(*)::int AS product_count,COALESCE(SUM(stock*purchase_price),0) AS stock_cost FROM dukkan_products WHERE store_id=$1",[sid]),
+      db.query("SELECT COUNT(*)::int AS product_count,COALESCE(SUM(stock*purchase_price),0) AS stock_cost FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL",[sid]),
       db.query("SELECT COALESCE(SUM(debit-credit),0) AS net_balance FROM dukkan_cari_entries WHERE store_id=$1",[sid]),
       db.query("SELECT COALESCE(SUM(amount),0) AS bank_balance FROM dukkan_bank_movements WHERE store_id=$1",[sid]),
       db.query("SELECT COUNT(*)::int AS count,COALESCE(SUM(amount),0) AS amount FROM dukkan_instruments WHERE store_id=$1 AND status='pending' AND due_date<CURRENT_DATE",[sid])
@@ -775,7 +775,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const db=await ready();
     const counts=await db.query(
       "SELECT (SELECT COUNT(*)::integer FROM b2b_products WHERE is_active IS DISTINCT FROM FALSE) AS published_b2b, "+
-      "(SELECT COUNT(*)::integer FROM dukkan_products WHERE store_id=$1) AS dukkan_total",
+      "(SELECT COUNT(*)::integer FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL) AS dukkan_total",
       [store(req)],
     );
     res.setHeader("Cache-Control","private, no-store");
