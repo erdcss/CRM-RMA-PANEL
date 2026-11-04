@@ -333,7 +333,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "SELECT id,imported_at FROM dukkan_cari_import_batches "+
       "WHERE store_id=$1 AND party_id=$2 AND source_sha256=$3",
       [sid,existing.rows[0].id,documentSha256(bytes)],
-    ):{rows:unknown[]}={rows:[]};
+    ): {rows:[]};
     res.setHeader("Cache-Control","private,no-store");
     res.json({
       statement,summary,sha256:documentSha256(bytes),filename:payload.filename,
