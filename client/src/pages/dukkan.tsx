@@ -8,6 +8,7 @@ import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-a
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
+import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
@@ -89,6 +90,7 @@ export default function Dukkan() {
   const [notice,setNotice]=useState("");
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
+  const [exportingCari,setExportingCari]=useState<"debt"|"credit"|null>(null);
   const [showForm,setShowForm]=useState(false);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
   const [editingCatalogId,setEditingCatalogId]=useState<string|null>(null);
@@ -534,9 +536,9 @@ export default function Dukkan() {
               <form className="rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void submitSpecial("banks",{name:draft.newBank,iban:draft.newIban});}}><h3 className="mb-2 text-sm font-bold">Yeni banka hesabı</h3><input className={inputClass+" mb-2"} placeholder="Banka adı" required value={draft.newBank||""} onChange={e=>put("newBank",e.target.value)}/><input className={inputClass+" mb-2"} placeholder="IBAN (opsiyonel)" value={draft.newIban||""} onChange={e=>put("newIban",e.target.value)}/><button disabled={busy} className={buttonClass}>Banka Ekle</button></form>
               <div className="rounded-xl border p-3"><h3 className="mb-2 text-sm font-bold">Banka bakiyeleri</h3>{banks.map(b=><p key={b.id} className="flex justify-between border-b py-2 text-sm"><span>{b.name}</span><strong>{currency(b.balance)}</strong></p>)}</div>
             </div>}
-            {section==="parties"&&isWriter&&<form className="mb-4 grid gap-2 rounded-xl border p-3 sm:grid-cols-5" onSubmit={e=>{e.preventDefault();void submitSpecial("payments",{partyId:Number(draft.paymentParty),direction:draft.paymentDirection||"collection",method:draft.paymentMethod||"cash",bankId:draft.paymentMethod==="bank"?Number(draft.paymentBank):undefined,amount:Number(draft.paymentAmount),note:draft.paymentNote||""});}}>
+            {section==="parties"&&isWriter&&<form className="mb-4 grid gap-2 rounded-xl border p-3 sm:grid-cols-5" onSubmit={e=>{e.preventDefault();if(!draft.paymentParty){setError("Lütfen arama sonuçlarından bir cari hesap seçin.");return;}void submitSpecial("payments",{partyId:Number(draft.paymentParty),direction:draft.paymentDirection||"collection",method:draft.paymentMethod||"cash",bankId:draft.paymentMethod==="bank"?Number(draft.paymentBank):undefined,amount:Number(draft.paymentAmount),note:draft.paymentNote||""});}}>
               <h3 className="sm:col-span-5 text-sm font-bold">Tahsilat / Ödeme İşlemi</h3>
-              <select required className={inputClass} value={draft.paymentParty||""} onChange={e=>put("paymentParty",e.target.value)}><option value="">Cari seç</option>{partyOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>
+              <DukkanCariSearchPicker key={storeId} parties={parties} value={draft.paymentParty||""} onChange={value=>put("paymentParty",value)}/>
               <select className={inputClass} value={draft.paymentDirection||"collection"} onChange={e=>put("paymentDirection",e.target.value)}><option value="collection">Tahsilat</option><option value="payment">Ödeme</option></select>
               <select className={inputClass} value={draft.paymentMethod||"cash"} onChange={e=>put("paymentMethod",e.target.value)}><option value="cash">Nakit</option><option value="bank">Banka</option></select>
               {draft.paymentMethod==="bank"?<select required className={inputClass} value={draft.paymentBank||""} onChange={e=>put("paymentBank",e.target.value)}><option value="">Banka seç</option>{bankOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>:<input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Tutar" value={draft.paymentAmount||""} onChange={e=>put("paymentAmount",e.target.value)}/>}
