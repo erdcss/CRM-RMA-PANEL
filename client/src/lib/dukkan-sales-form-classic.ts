@@ -97,8 +97,6 @@ export function paintClassicSalesPage(
   text(data.invoice.party_name,224,207,19,true,945);
   text("TEL :",58,244,18,true);
   if(config.showPartyPhone)text(data.invoice.party_phone,118,244,17,false,500);
-  if(config.showPartyTaxNumber&&data.invoice.party_tax_number)
-    text("VKN/TCKN: "+str(data.invoice.party_tax_number),730,244,16,false,450);
 
   // Column proportions follow the original A4 document.
   const cols=[X,228,757,850,927,1057,RIGHT];
