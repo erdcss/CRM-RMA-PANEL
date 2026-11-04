@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownCircle, ArrowUpCircle, CalendarDays, ChevronLeft, ChevronRight,
   ClipboardList, History, Package, Plus, RefreshCw, Search, ShoppingBag,
@@ -463,7 +463,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
 function ChevronRightIcon({active}:{active:boolean}) {
   return <ChevronRight size={17} className={active?"shrink-0 text-sky-700":"shrink-0 text-slate-300"}/>;
 }
-function Metric({label,value,icon}:{label:string;value:string;icon:React.ReactNode}) {
+function Metric({label,value,icon}:{label:string;value:string;icon:ReactNode}) {
   return <div className="rounded-xl border border-[#e3ecf6] bg-[#f8fbff] px-3 py-3">
     <div className="flex items-center gap-1.5 text-[#4c7599]">{icon}<span className="text-[10px] font-semibold">{label}</span></div>
     <div className="mt-2 truncate text-base font-black tabular-nums text-[#15375c]">{value}</div>
