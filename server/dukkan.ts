@@ -508,13 +508,14 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const shop=await db.query("SELECT name FROM dukkan_stores WHERE id=$1",[sid]);
     const result=await db.query(
       "SELECT e.id,e.created_at,e.description,e.debit,e.credit,e.invoice_id,e.payment_id,"+
-      "COALESCE(i.issued_at,p.paid_on,e.created_at::date) AS document_date,"+
+      "COALESCE(i.issued_at,p.paid_on,o.opened_on,e.created_at::date) AS document_date,"+
       "i.invoice_no,i.kind AS invoice_kind,p.direction AS payment_direction,"+
       "p.method AS payment_method,p.document_no,"+
       "SUM(e.debit-e.credit) OVER (ORDER BY e.created_at,e.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance "+
       "FROM dukkan_cari_entries e "+
       "LEFT JOIN dukkan_invoices i ON i.id=e.invoice_id AND i.store_id=e.store_id AND i.party_id=e.party_id "+
       "LEFT JOIN dukkan_payments p ON p.id=e.payment_id AND p.store_id=e.store_id AND p.party_id=e.party_id "+
+      "LEFT JOIN dukkan_cari_openings o ON o.store_id=e.store_id AND o.party_id=e.party_id AND o.entry_id=e.id "+
       "WHERE e.store_id=$1 AND e.party_id=$2 "+
       "ORDER BY e.created_at,e.id LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
     );
@@ -566,10 +567,16 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       if(previous.rowCount)return {id:previous.rows[0].id,replayed:true};
       const pay=await c.query(
         "INSERT INTO dukkan_payments(store_id,party_id,direction,method,bank_id,amount,note,created_by,paid_on,document_no,request_key) "+
-        "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id",
+        "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) "+
+        "ON CONFLICT (store_id,request_key) WHERE request_key IS NOT NULL DO NOTHING RETURNING id",
         [sid,partyId,data.direction,data.method,data.method==="bank"?data.bankId:null,
           money(data.amount),data.note||null,user(res),data.date,data.documentNo||null,data.requestKey]
       );
+      if(!pay.rowCount){
+        const replay=await c.query("SELECT id FROM dukkan_payments WHERE store_id=$1 AND request_key=$2",[sid,data.requestKey]);
+        if(replay.rowCount)return {id:replay.rows[0].id,replayed:true};
+        throw Object.assign(new Error("Aynı ödeme işlemi işleniyor, tekrar deneyin."),{status:409});
+      }
       const paymentId=pay.rows[0].id;
       await c.query(
         "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description,payment_id) "+
