@@ -23,7 +23,8 @@ test("PostgreSQL stock bridge updates both directions without a recursive trigge
 
     await db.query("UPDATE b2b_products SET stock=4 WHERE id=5");
     const afterB2B=await db.query<{stock:string}>("SELECT stock::text AS stock FROM dukkan_products WHERE id=1");
-    assert.equal(Number(afterB2B.rows[0].stock),4);
+    // The B2B delta must not discard the store's fractional unit remainder.
+    assert.equal(Number(afterB2B.rows[0].stock),4.75);
   }finally{
     await db.close();
   }
