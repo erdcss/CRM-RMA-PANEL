@@ -7,7 +7,7 @@ test("per-product ledger joins actual purchase/sale invoice lines at their exact
   const db=new PGlite();
   try{
     await db.exec([
-      "CREATE TABLE dukkan_stock_movements(id BIGSERIAL PRIMARY KEY,store_id BIGINT,product_id BIGINT,delta NUMERIC(16,3),reason TEXT,invoice_id BIGINT,note TEXT,created_at TIMESTAMPTZ DEFAULT NOW())",
+      "CREATE TABLE dukkan_stock_movements(id BIGSERIAL PRIMARY KEY,store_id BIGINT,product_id BIGINT,delta NUMERIC(16,3),reason TEXT,invoice_id BIGINT,note TEXT,edited_at TIMESTAMPTZ,voided_at TIMESTAMPTZ,created_at TIMESTAMPTZ DEFAULT NOW())",
       "CREATE TABLE dukkan_invoices(id BIGINT PRIMARY KEY,store_id BIGINT,party_id BIGINT,kind TEXT,invoice_no TEXT,issued_at DATE)",
       "CREATE TABLE dukkan_invoice_lines(id BIGSERIAL PRIMARY KEY,invoice_id BIGINT,product_id BIGINT,quantity NUMERIC(16,3),unit_price NUMERIC(18,2),tax_rate NUMERIC(5,2),line_total NUMERIC(18,2))",
       "CREATE TABLE dukkan_parties(id BIGINT PRIMARY KEY,store_id BIGINT,name TEXT)",
