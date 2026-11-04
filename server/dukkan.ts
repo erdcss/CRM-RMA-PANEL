@@ -1058,7 +1058,10 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const p=productPayload.parse(req.body);
     const updated=await transaction(async c=>{
       const before=await c.query("SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,productId]);
-      if(!before.rows[0])throw Object.assign(new Error("Bu mağazada ürün bulunamadı"),{status:404});
+      if(!before.rows[0]||before.rows[0].deleted_at)
+        throw Object.assign(new Error("Bu mağazada etkin ürün bulunamadı"),{status:404});
+      if(before.rows[0].archived_at&&p.publishB2B)
+        throw Object.assign(new Error("Arşivlenen ürün önce arşivden çıkarılmalıdır."),{status:409});
       const images=p.images===undefined?before.rows[0].images:validateDukkanImages(p.images);
       const original=before.rows[0];
       const importedFromB2B=Boolean(original.b2b_source_sku);
