@@ -1,0 +1,27 @@
+Çalışkan Dükkan iOS TestFlight 1.0.2 release request — 4 Kasım 2026
+
+Ana dal geliştirme: https://github.com/erdcss/CRM-RMA-PANEL/pull/34
+Birleştirme: 1d80643ee5817086e1afb02d026c40168686f2ba
+Uygulama: dukkan-mobile / Çalışkan Dükkan
+iOS bundle identifier: com.caliskan.dukkan
+Expo project: 21b3de7c-763f-4c25-87aa-66e818498d6e
+App Store Connect Apple ID: 6826848065
+iOS app version: 1.0.2, remote EAS build autoIncrement
+
+Yeni özellikler:
+- Native ürün listelerinde ve fatura kalemlerinde yetkili ürün görselleri
+- Detaylı web cari hesap, cari hareket, AI ekstre, stok, satış, alış, iade,
+  tedarikçi, banka, çek/senet, rapor ve yöneticilik işlemlerine uygulama içinden erişim
+- Web rol ve mağaza yetkilerinin sunucuda aynı hesap üzerinden doğrulanması
+- Mobil cari borç/alacak özet hesapları ve salt okunur kullanıcı koruması
+- React Native 0.81.5 + Expo SDK 54 + react-native-webview 13.15.0
+
+Doğrulama: web-build CI başarılı (41889693300), native iOS export/Android
+(41889344039), ürün görseli auth + Expo uyumu regresyonu
+(41889344210); 1.0.2 son kaynakta Expo TestFlight workflow validate
+adımı yeniden çalıştırılacaktır.
+
+Güvenlik: Bu sürüm mevcut Apple imzalama ve Expo kimlik bilgilerini kullanır,
+sertifika yaratmaz/değiştirmez; --freeze-credentials ile imzalı .ipa oluşturur,
+başarılıysa App Store Connect TestFlight'a gönderir.
+TestFlight başarı koşulu: EAS build + EAS submit başarıyla tamamlanmalı.
