@@ -212,10 +212,26 @@ export default function Dukkan() {
     void load();
     return()=>{ requestVersion.current++; };
   },[load,refresh]);
-  useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
+  useEffect(()=>{
+    setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
     setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
-    setCariSearch("");setCariFilter("az");
-    setProductImages([]);setPublishToB2B(false);},[section,storeId]);
+    // Restore the exact customer/supplier filter used before entering a cari card.
+    let restored=false;
+    try{
+      const last=JSON.parse(sessionStorage.getItem("dukkan:last-cari-list")||"null");
+      if(["parties","suppliers"].includes(section)&&storeId&&
+          sessionStorage.getItem("dukkan:return-to-cari")==="1"&&
+          last?.storeId===storeId&&last?.section===section){
+        setCariSearch(typeof last.search==="string"?last.search:"");
+        setCariFilter(["az","debtor","creditor","recent"].includes(last.filter)?last.filter:"az");
+        sessionStorage.removeItem("dukkan:return-to-cari");
+        sessionStorage.setItem("dukkan:restore-cari-scroll","1");
+        restored=true;
+      }
+    }catch{ /* storage may be unavailable */ }
+    if(!restored){setCariSearch("");setCariFilter("az");}
+    setProductImages([]);setPublishToB2B(false);
+  },[section,storeId]);
   // The database bridge writes synchronously; refresh open catalog views so changes
   // made on a second device or in B2B appear without a full page reload.
   useEffect(()=>{
@@ -235,6 +251,21 @@ export default function Dukkan() {
       const scroll=Number(last.scroll);
       if(!Number.isFinite(scroll))return;
       sessionStorage.removeItem("dukkan:restore-scroll");
+      requestAnimationFrame(()=>{
+        const container=document.querySelector<HTMLElement>("[data-dukkan-scroll]");
+        if(container)container.scrollTop=Math.max(0,scroll);
+      });
+    }catch{ /* ignore stale navigation state */ }
+  },[storeId,section,rows.length]);
+  useEffect(()=>{
+    if(!["parties","suppliers"].includes(section)||!storeId||!rows.length)return;
+    try{
+      if(sessionStorage.getItem("dukkan:restore-cari-scroll")!=="1")return;
+      const last=JSON.parse(sessionStorage.getItem("dukkan:last-cari-list")||"null");
+      if(last?.storeId!==storeId||last?.section!==section)return;
+      const scroll=Number(last.scroll);
+      sessionStorage.removeItem("dukkan:restore-cari-scroll");
+      if(!Number.isFinite(scroll))return;
       requestAnimationFrame(()=>{
         const container=document.querySelector<HTMLElement>("[data-dukkan-scroll]");
         if(container)container.scrollTop=Math.max(0,scroll);
@@ -334,26 +365,20 @@ export default function Dukkan() {
     finally{setBusy(false);}
   };
   const editCari=(item:Entry)=>{
-    if(!isWriter||!canAccount)return;
-    setEditingPartyId(String(item.id));
-    setEditingProductId(null);setEditingCatalogId(null);
-    setDraft({
-      name:String(item.name||""),
-      type:String(item.type||"customer"),
-      sourceCariNo:String(item.source_cari_no||""),
-      accountCode:String(item.account_code||""),
-      city:String(item.city||""),
-      taxNumber:String(item.tax_number||""),
-      phone:String(item.phone||""),
-      email:String(item.email||""),
-      specialCode:String(item.special_code||""),
-    });
-    setError("");setNotice("");setShowForm(true);
-    requestAnimationFrame(()=>{
-      document.getElementById("dukkan-product-editor")?.scrollIntoView({
-        behavior:"smooth",block:"start"
-      });
-    });
+    if(!isWriter||!canAccount||!storeId||!item.id)return;
+    const backRoute="/dukkan?tab="+section+"&storeId="+encodeURIComponent(storeId);
+    const scroll=document.querySelector<HTMLElement>("[data-dukkan-scroll]")?.scrollTop||0;
+    try{
+      sessionStorage.setItem("dukkan:last-cari-list",JSON.stringify({
+        storeId,section,search:cariSearch,filter:cariFilter,scroll,route:backRoute
+      }));
+      sessionStorage.setItem("dukkan:return-to-cari","1");
+    }catch{ /* deep link works without session storage */ }
+    // Ensure the browser Back button restores the same list, even if the tab was switched without a URL change.
+    if(window.location.pathname==="/dukkan")
+      window.history.replaceState(window.history.state,"",backRoute);
+    navigate("/dukkan/cariler/"+encodeURIComponent(String(item.id))+
+      "?storeId="+encodeURIComponent(storeId)+"&from="+section);
   };
   const editProduct=(item:Entry)=>{
     if(!canManage||item._source==="b2b")return;
