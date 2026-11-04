@@ -39,7 +39,8 @@ export function summarizeImportedStatement(raw:ImportedStatement){
 }
 export async function postImportedStatement(
   c:PoolClient,
-  args:{storeId:number;actor:number;sha256:string;filename:string;statement:ImportedStatement;partyId?:number},
+  args:{storeId:number;actor:number;sha256:string;filename:string;statement:ImportedStatement;
+    partyId?:number;confirmExisting?:boolean;replaceOpening?:boolean},
 ){
   const {storeId,actor,sha256,filename}=args;
   const statement=importedStatementSchema.parse(args.statement);
@@ -80,6 +81,18 @@ export async function postImportedStatement(
     partyId=Number(added.rows[0].id);
     created=true;
   }
+  const currentEntries=await c.query(
+    "SELECT id,debit,credit,description,invoice_id,payment_id "+
+    "FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=$2 ORDER BY id",
+    [storeId,partyId],
+  );
+  if(currentEntries.rows.length&&!args.confirmExisting)
+    throw error("Mevcut cari bakiyesi var. Çift bakiye oluşmaması için mevcut kayıtlar ayrı olarak onaylanmalı.");
+  const canReplaceOpening=currentEntries.rows.length===1 &&
+    !currentEntries.rows[0].invoice_id&&!currentEntries.rows[0].payment_id &&
+    /^(excel\s+)?açılış bakiyesi/i.test(String(currentEntries.rows[0].description||""));
+  if(args.replaceOpening&&!canReplaceOpening)
+    throw error("Yalnızca tek bir eski Excel/açılış bakiyesi mahsup edilebilir; diğer cari işlemleri silinemez.");
   const dupBatch=await c.query(
     "SELECT id FROM dukkan_cari_import_batches WHERE store_id=$1 AND party_id=$2 AND source_sha256=$3",
     [storeId,partyId,sha256],
@@ -117,6 +130,18 @@ export async function postImportedStatement(
       statement.declaredClosingBalance===null?null:fixed(statement.declaredClosingBalance),actor],
   );
   const batchId=Number(batch.rows[0].id);
+  if(args.replaceOpening){
+    const opening=currentEntries.rows[0];
+    const oldBalance=round(Number(opening.debit)-Number(opening.credit));
+    // Reversal entry preserves an audit trail of the original Excel opening.
+    // The incoming full historical statement then replaces its balance effect.
+    await c.query(
+      "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description) "+
+      "VALUES($1,$2,$3,$4,$5)",
+      [storeId,partyId,fixed(Math.max(0,-oldBalance)),fixed(Math.max(0,oldBalance)),
+        "Eski açılış bakiyesi mahsup edildi · cari arşiv aktarımı #"+batchId],
+    );
+  }
   for(const [index,entry] of statement.entries.entries()){
     // Imported archival entries affect only the current account balance,
     // never product stock, bank accounts, POS, e-invoices or actual posted invoices.
