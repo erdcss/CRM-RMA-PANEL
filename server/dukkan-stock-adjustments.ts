@@ -40,7 +40,12 @@ export async function createManualStockMovement(
       "SELECT m.*,p.stock FROM dukkan_stock_movements m "+
       "JOIN dukkan_products p ON p.store_id=m.store_id AND p.id=m.product_id "+
       "WHERE m.store_id=$1 AND m.request_key=$2 LIMIT 1",[storeId,requestKey]);
-    if(prior.rows[0])return {...prior.rows[0],replayed:true};
+    if(prior.rows[0]){
+      const posted=prior.rows[0];
+      if(Number(posted.product_id)!==productId||Number(posted.delta)!==delta||posted.note!==note)
+        throw error("Bu işlem kimliği farklı stok bilgileriyle daha önce kullanılmış.",409);
+      return {...posted,replayed:true};
+    }
   }
   const product=await client.query(
     "UPDATE dukkan_products SET stock=stock+$3 "+
