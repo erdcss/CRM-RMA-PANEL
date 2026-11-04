@@ -20,7 +20,7 @@ const selectClass =
 export function DukkanProductToolbar({value, onChange, onClear, page, totalProducts}: Props) {
   const hasFilters = Boolean(value.search.trim()) ||
     value.source !== "all" || value.stock !== "all" ||
-    value.publication !== "all" || value.sort !== "newest";
+    value.publication !== "all" || value.visibility !== "active" || value.sort !== "newest";
 
   return (
     <section aria-label="Ürün Yönetim Barı" className="mb-4 rounded-[20px] border border-[#d9e6f4] bg-[#f8fbff] p-3 shadow-sm sm:p-4">
@@ -42,7 +42,7 @@ export function DukkanProductToolbar({value, onChange, onClear, page, totalProdu
         </div>
       </div>
       <div role="search" aria-label="Ürün arama ve filtreleme"
-        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-[minmax(220px,2fr)_repeat(4,minmax(145px,1fr))]">
+        className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-[minmax(220px,2fr)_repeat(5,minmax(135px,1fr))]">
         <label className="relative block min-w-0">
           <span className="sr-only">Ürün adı, stok kodu veya barkod ara</span>
           <Search size={18} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
@@ -59,6 +59,16 @@ export function DukkanProductToolbar({value, onChange, onClear, page, totalProdu
             <option value="all">Tüm Kaynaklar</option>
             <option value="b2b">B2B Bağlantılı</option>
             <option value="local">Yalnız Dükkân</option>
+          </select>
+        </label>
+        <label className="block min-w-0">
+          <span className="sr-only">Ürün arşiv durumu</span>
+          <select value={value.visibility} aria-label="Ürün arşiv filtresi"
+            onChange={event => onChange({visibility:event.target.value as ProductToolbarState["visibility"]})}
+            className={selectClass}>
+            <option value="active">Aktif Ürünler</option>
+            <option value="archived">Arşivlenenler</option>
+            <option value="all">Aktif ve Arşiv</option>
           </select>
         </label>
         <label className="block min-w-0">
