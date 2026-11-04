@@ -3,7 +3,7 @@ import { pool } from "./db";
 import { storage } from "./storage";
 import { z, ZodError } from "zod";
 import type { PoolClient } from "pg";
-import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
+import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
@@ -137,7 +137,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
 
   const listQueries: Record<string,string> = {
     parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 500",
-    products:"SELECT id,store_id,sku,barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 ORDER BY id DESC LIMIT 500",
+    products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 ORDER BY id DESC LIMIT 1000",
     invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 ORDER BY i.id DESC LIMIT 500",
     orders:"SELECT o.*,p.name AS party_name FROM dukkan_orders o JOIN dukkan_parties p ON p.id=o.party_id AND p.store_id=o.store_id WHERE o.store_id=$1 ORDER BY o.id DESC LIMIT 500",
     "stock-movements":"SELECT m.*,p.name AS product_name FROM dukkan_stock_movements m JOIN dukkan_products p ON p.id=m.product_id AND p.store_id=m.store_id WHERE m.store_id=$1 ORDER BY m.id DESC LIMIT 500",
@@ -154,6 +154,12 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const cashier=res.locals.dukkanRole==="cashier";
     if(cashier && ["banks","bank-movements","instruments","payments","cari-movements"].includes(resource))deny("Bu bölüm için muhasebe yetkisi gerekiyor");
     const db=await ready();
+    if(resource==="products"){
+      const imported=await importAllB2BToDukkan(db,store(req));
+      if(imported.imported)console.info("Dukkan B2B auto-import:",{storeId:store(req),imported:imported.imported,total:imported.total});
+      if(imported.skipped)console.warn("Dukkan B2B auto-import:",{storeId:store(req),skipped:imported.skipped,assignedElsewhere:imported.assignedElsewhere});
+    }
+    res.setHeader("Cache-Control","private, no-store");
     const sql=cashier&&resource==="invoices"?query.replace("ORDER BY i.id DESC","AND i.kind IN (\'sale\',\'sale_return\') ORDER BY i.id DESC"):query;
     const r=await db.query(sql,[store(req)]);
     const rows=cashier&&resource==="products"?r.rows.map(({purchase_price,...rest})=>rest):cashier&&resource==="parties"?r.rows.map(({balance,...rest})=>rest):r.rows;
@@ -494,7 +500,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const r=await db.query("SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 LIMIT 1",[sid,productId]);
     if(!r.rows[0])return res.status(404).json({error:"Ürün bulunamadı"});
     res.setHeader("Cache-Control","private,no-store");
-    res.json(r.rows[0]);
+    res.json({...r.rows[0],sku:r.rows[0].b2b_source_sku||r.rows[0].sku,
+      barcode:r.rows[0].b2b_source_barcode||r.rows[0].barcode});
   }));
   app.post("/api/dukkan/stores/:storeId/products",safe(async(req,res)=>{
     manager(res);
@@ -522,14 +529,31 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       const before=await c.query("SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,productId]);
       if(!before.rows[0])throw Object.assign(new Error("Bu mağazada ürün bulunamadı"),{status:404});
       const images=p.images===undefined?before.rows[0].images:validateDukkanImages(p.images);
+      const original=before.rows[0];
+      const importedFromB2B=Boolean(original.b2b_source_sku);
+      // Imported catalog rows keep their original sales SKU / barcode visible,
+      // but collisions must not break Dükkan's unique scanner/index constraints.
+      const sameSku=await c.query(
+        "SELECT id FROM dukkan_products WHERE store_id=$1 AND sku=$2 AND id<>$3 LIMIT 1",
+        [sid,p.sku,productId],
+      );
+      const internalSku=importedFromB2B&&sameSku.rowCount
+        ? "B2B-"+String(original.b2b_product_id) : p.sku;
+      const sameBarcode=p.barcode?await c.query(
+        "SELECT id FROM dukkan_products WHERE store_id=$1 AND barcode=$2 AND id<>$3 LIMIT 1",
+        [sid,p.barcode,productId],
+      ):null;
+      const internalBarcode=importedFromB2B&&sameBarcode?.rowCount?null:p.barcode||null;
       const result=await c.query(
         "UPDATE dukkan_products SET name=$3,sku=$4,barcode=$5,unit=$6,purchase_price=$7,sale_price=$8,"+
         "brand=$9,category=$10,description=$11,images=$12::jsonb,image_data=$13,"+
-        "units_per_box=$14,min_order_qty=$15,publish_b2b=$16 "+
+        "units_per_box=$14,min_order_qty=$15,publish_b2b=$16,"+
+        "b2b_source_sku=$17,b2b_source_barcode=$18 "+
         "WHERE store_id=$1 AND id=$2 RETURNING *",
-        [sid,productId,p.name,p.sku,p.barcode||null,p.unit,money(p.purchasePrice),
+        [sid,productId,p.name,internalSku,internalBarcode,p.unit,money(p.purchasePrice),
          money(p.salePrice),p.brand||null,p.category||null,p.description||null,
-         JSON.stringify(images),images[0]||null,p.unitsPerBox,p.minOrderQty,p.publishB2B],
+         JSON.stringify(images),images[0]||null,p.unitsPerBox,p.minOrderQty,p.publishB2B,
+         importedFromB2B?p.sku:null,importedFromB2B?p.barcode||null:null],
       );
       return syncDukkanToB2B(c,result.rows[0]);
     });
