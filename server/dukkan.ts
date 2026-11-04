@@ -332,14 +332,16 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   // B2B global catalogue editing requires both store-manager and platform-admin access.
   // Linked products must be edited from their owning store, where stock is authoritative.
   const editableGlobalB2B = async (c: PoolClient, productId: string) => {
-    const linked = await c.query(
+    // Lock the catalog row before checking store ownership, matching the import
+    // transaction's lock order so concurrent editing cannot take over a link.
+    const product=await c.query("SELECT * FROM b2b_products WHERE id::text=$1 FOR UPDATE",[productId]);
+    if(!product.rows[0])throw Object.assign(new Error("B2B ürünü bulunamadı"),{status:404});
+    const linked=await c.query(
       "SELECT store_id,id FROM dukkan_products WHERE b2b_product_id=$1 LIMIT 1",[productId],
     );
-    if (linked.rowCount) throw Object.assign(
+    if(linked.rowCount)throw Object.assign(
       new Error("Ürün mağaza stoklarına bağlı. Bağlı mağazanın ürün kartından düzenleyin."),{status:409},
     );
-    const product = await c.query("SELECT * FROM b2b_products WHERE id::text=$1 FOR UPDATE",[productId]);
-    if(!product.rows[0])throw Object.assign(new Error("B2B ürünü bulunamadı"),{status:404});
     return product.rows[0];
   };
   const globalB2BAdmin = (res:Response) => {
