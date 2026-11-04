@@ -39,7 +39,9 @@ export type DukkanProductRow = {
 };
 
 export function normalizeProductSearch(value: unknown) {
-  return String(value ?? "").normalize("NFKC").toLocaleLowerCase("tr-TR").trim().replace(/\s+/g, " ");
+  return String(value ?? "").normalize("NFKC").toLocaleLowerCase("tr-TR")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i")
+    .trim().replace(/\s+/g, " ");
 }
 
 const numeric = (value: unknown) => {
