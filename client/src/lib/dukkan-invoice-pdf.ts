@@ -121,8 +121,8 @@ export function showDukkanInvoicePrint(pdf:jsPDF,printWindow:Window|null){
   pdf.autoPrint();
   const blobUrl=pdf.output("bloburl");
   if(printWindow){
-    printWindow.location.href=blobUrl;
-    window.setTimeout(()=>URL.revokeObjectURL(blobUrl),60000);
+    printWindow.location.href=blobUrl.toString();
+    window.setTimeout(()=>URL.revokeObjectURL(blobUrl.toString()),60000);
   }else{
     pdf.save("Caliskan-Dukkan-Yazdir.pdf");
   }
