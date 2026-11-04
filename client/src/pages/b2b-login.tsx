@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
+import { b2bDestinationAfterLogin } from "@/lib/b2b-bottom-nav-routes";
 import { useBranding } from "@/hooks/use-branding";
 import {
   Sheet,
@@ -84,7 +85,7 @@ export default function B2BLogin() {
         return;
       }
 
-      window.location.assign(window.location.hostname === "pazaryeri.ecalisgan.com" || window.location.hostname.startsWith("pazaryeri-") ? "/magazalar" : "/");
+      window.location.assign(window.location.hostname === "pazaryeri.ecalisgan.com" || window.location.hostname.startsWith("pazaryeri-") ? "/magazalar" : b2bDestinationAfterLogin(window.location.search));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş yapılamadı");
       setBusy(false);
@@ -110,7 +111,7 @@ export default function B2BLogin() {
         password: newPassword,
         passwordAgain: newPasswordAgain,
       });
-      window.location.assign(window.location.hostname === "pazaryeri.ecalisgan.com" || window.location.hostname.startsWith("pazaryeri-") ? "/magazalar" : "/");
+      window.location.assign(window.location.hostname === "pazaryeri.ecalisgan.com" || window.location.hostname.startsWith("pazaryeri-") ? "/magazalar" : b2bDestinationAfterLogin(window.location.search));
     } catch (err) {
       setPasswordSetupError(err instanceof Error ? err.message : "Şifre oluşturulamadı");
       setPasswordSetupBusy(false);
