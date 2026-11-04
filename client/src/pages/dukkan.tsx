@@ -189,7 +189,7 @@ export default function Dukkan() {
         {key:"unitsPerBox",label:"Koli İçi Adet",type:"number"},
         {key:"minOrderQty",label:"Minimum Koli",type:"number"},
         {key:"description",label:"Ürün Açıklaması"}];
-      case "parties":return [{key:"name",label:"Firma / Kişi Adı",required:true},{key:"type",label:"Cari Tipi",type:"select",options:[{value:"customer",label:"Müşteri"},{value:"supplier",label:"Tedarikçi"},{value:"both",label:"Her ikisi"}]},{key:"taxNumber",label:"Vergi Numarası"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"}];
+      case "parties":return [{key:"name",label:"Firma / Kişi Adı",required:true},{key:"type",label:"Cari Tipi",type:"select",options:[{value:"customer",label:"Müşteri"},{value:"supplier",label:"Tedarikçi"},{value:"both",label:"Her ikisi"}]},{key:"accountCode",label:"Hesap Kodu"},{key:"city",label:"İl"},{key:"taxNumber",label:"Vergi Numarası"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"},{key:"specialCode",label:"Özel Kod"}];
       case "stock":return [product,{key:"delta",label:"Stok Değişimi (+/-)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       case "sales":case "purchases":return [party,{key:"date",label:"Fatura Tarihi",type:"date"},{key:"kind",label:"İşlem Türü",type:"select",options:section==="sales"?(cashier?[{value:"sale",label:"Satış faturası"}]:[{value:"sale",label:"Satış faturası"},{value:"sale_return",label:"Satış iadesi"}]):[{value:"purchase",label:"Alış faturası"},{value:"purchase_return",label:"Alış iadesi"}]}];
       case "orders":return [party,{key:"number",label:"Sipariş Numarası",required:true},{key:"kind",label:"Sipariş Tipi",type:"select",options:cashier?[{value:"sale",label:"Müşteri siparişi"}]:[{value:"sale",label:"Müşteri siparişi"},{value:"purchase",label:"Tedarikçi siparişi"}]}];
@@ -488,10 +488,10 @@ export default function Dukkan() {
               <span className="font-bold">{products.filter(p=>p.b2b_product_id).length} B2B bağlantılı · {products.length} mağaza ürünü</span>
             </div>}
             <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
-              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":"min-w-[650px]")}>
+              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":section==="parties"?"min-w-[980px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
-                    section==="parties"?["Cari Adı","Türü","Telefon","Bakiye"]:
+                    section==="parties"?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
                     section==="stock"?["Tarih","Ürün","Değişim","Neden"]:
                     ["sales","purchases","overview"].includes(section)?["Fatura No","Cari","Tür","Toplam","Tarih"]:
                     section==="orders"?["Sipariş No","Cari","Tür","Durum"]:
@@ -556,7 +556,7 @@ export default function Dukkan() {
                       })()}
                     </td>
                   </>:(
-                    section==="parties"?[r.name,r.type,r.phone,currency(r.balance)]:
+                    section==="parties"?[r.source_cari_no||"—",r.account_code||"—",r.name,r.city||"—",r.type==="both"?"Müşteri / Tedarikçi":r.type==="supplier"?"Tedarikçi":"Müşteri",r.phone||"—",r.balance==null?"—":(Number(r.balance)<0?"Alacak ":"Borç ")+currency(Math.abs(Number(r.balance)))]:
                     section==="stock"?[String(r.created_at).slice(0,10),r.product_name,r.delta,r.reason]:
                     ["sales","purchases","overview"].includes(section)?[r.invoice_no,r.party_name,typeLabel[r.kind]||r.kind,currency(r.grand_total),r.issued_at?.slice(0,10)]:
                     section==="orders"?[r.order_no,r.party_name,typeLabel[r.kind]||r.kind,r.status]:
