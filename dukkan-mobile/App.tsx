@@ -15,6 +15,7 @@ import {today,type Collection,type Form,type Line,type RecordRow} from "./local-
 
 
 type Tab=DukkanTab;
+type SelectedParty={id:number|string;name:string;balance:number;source_cari_no:string|null;code:string|null};
 type Field={key:string;label:string;kind?:"text"|"number"|"choice"|"party"|"product"|"bank";options?:string[];required?:boolean};
 const TABS:{key:Tab;title:string}[]=[
  {key:"dashboard",title:"Genel Bakış"},{key:"invoices",title:"Faturalar / İadeler"},{key:"products",title:"Ürün ve Stok"},
@@ -73,7 +74,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const [refresh,setRefresh]=useState(0);
  const [pdfBusy,setPdfBusy]=useState<number|null>(null);
  const [aiBusy,setAiBusy]=useState(false);
- const [selectedParty,setSelectedParty]=useState<RecordRow|null>(null);
+ const [selectedParty,setSelectedParty]=useState<SelectedParty|null>(null);
  const openInvoicePdf=async(invoice:RecordRow)=>{
    const invoiceId=Number(invoice.id);
    if(!Number.isSafeInteger(invoiceId)||invoiceId<1||pdfBusy!==null)return;
@@ -319,7 +320,9 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
         if(!["owner","manager","accountant"].includes(session.store.role)){
           Alert.alert("İşlem yetkisi","Cari hareketleri yalnızca yetkili muhasebe kullanıcılarına açıktır.");return;
         }
-        setSelectedParty(r);return;
+        setSelectedParty({id:String(r.id),name:String(r.name||"Cari hesap"),
+          balance:Number(r.balance||0),source_cari_no:r.source_cari_no?String(r.source_cari_no):null,
+          code:r.code?String(r.code):null});return;
       }
       if(tab==="products"){editProduct(r);return;}
       if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);
