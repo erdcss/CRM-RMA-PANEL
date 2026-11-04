@@ -204,23 +204,73 @@ export default function DukkanCariEdit({id}:{id:string}){
               <h2 className="text-base font-black">Cari Bilgilerini Düzenle</h2>
               <p className="mt-1 text-xs text-slate-500">Kimlik ve iletişim bilgilerini güncelleyebilirsiniz. Borç/alacak bakiyesi bu alandan değiştirilemez.</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {input("name","Firma / Kişi Adı",true)}
-              <label className="block min-w-0">
-                <span className="mb-1.5 block text-xs font-bold text-slate-600">Cari Tipi</span>
-                <select className={fieldClass} required value={form.type} onChange={event=>edit("type",event.target.value)}>
-                  <option value="customer">Müşteri</option>
-                  <option value="supplier">Tedarikçi</option>
-                  {(cari.type==="both"||form.type==="both")&&<option value="both">Müşteri / Tedarikçi (eski kayıt)</option>}
-                </select>
-              </label>
-              {input("sourceCariNo","Cari No")}
-              {input("accountCode","Hesap Kodu")}
-              {input("city","İl")}
-              {input("taxNumber","Vergi Numarası")}
-              {input("phone","Telefon")}
-              {input("email","E-posta")}
-              {input("specialCode","Özel Kod")}
+            <div className="space-y-7">
+              <section>
+                <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-black text-[#20416f]">Genel ve Hesap Bilgileri</h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {input("accountCode","Hesap Kodu")}
+                  <label className="block min-w-0">
+                    <span className="mb-1.5 block text-xs font-bold text-slate-600">Hesap Tipi</span>
+                    <select className={fieldClass} value={form.accountKind} onChange={event=>edit("accountKind",event.target.value)}>
+                      <option value="">Belirtilmedi</option>
+                      <option value="buyer">Alıcı</option>
+                      <option value="seller">Satıcı</option>
+                      <option value="both">Alıcı / Satıcı</option>
+                    </select>
+                    <span className="mt-1 block text-[11px] text-slate-500">Cari Tipi ve müşteri/tedarikçi listelerini değiştirmez.</span>
+                  </label>
+                  <label className="block min-w-0">
+                    <span className="mb-1.5 block text-xs font-bold text-slate-600">Cari Tipi</span>
+                    <select className={fieldClass} required value={form.type} onChange={event=>edit("type",event.target.value)}>
+                      <option value="customer">Müşteri</option>
+                      <option value="supplier">Tedarikçi</option>
+                      {(cari.type==="both"||form.type==="both")&&<option value="both">Müşteri / Tedarikçi (eski kayıt)</option>}
+                    </select>
+                  </label>
+                  {input("name","Ünvan / Firma - Kişi Adı",true)}
+                  {input("sourceCariNo","Cari No")}
+                  {input("specialCode","Özel Kod")}
+                  {input("specialCode2","Özel Kodlar 2")}
+                  {input("specialCode3","Özel Kodlar 3")}
+                </div>
+              </section>
+              <section>
+                <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-black text-[#20416f]">İlgili Kişiler ve İletişim</h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {input("contactPrimary","Birinci İlgili")}
+                  {input("contactSecondary","İkinci İlgili")}
+                  {input("phone","Telefon 1")}
+                  {input("phoneSecondary","Telefon 2")}
+                  {input("faxNumber","Fax No")}
+                  {input("mobileNumber","GSM No")}
+                  {input("email","E-Mail")}
+                </div>
+              </section>
+              <section>
+                <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-black text-[#20416f]">Adres ve Vergi Bilgileri</h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {input("city","İl")}
+                  {input("district","İlçesi")}
+                  {input("taxOffice","Vergi Dairesi")}
+                  {input("taxNumber","Vergi No")}
+                </div>
+                <label className="mt-4 block">
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Adresi</span>
+                  <textarea className={fieldClass+" min-h-24 resize-y"} maxLength={1000}
+                    value={form.address} onChange={event=>edit("address",event.target.value)}
+                    placeholder="Cadde, sokak, bina numarası ve diğer adres bilgileri" />
+                </label>
+              </section>
+              <section>
+                <h3 className="mb-3 border-b border-slate-100 pb-2 text-sm font-black text-[#20416f]">Notlar</h3>
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-bold text-slate-600">Cari Hesap Notları</span>
+                  <textarea className={fieldClass+" min-h-36 resize-y"} maxLength={8000}
+                    value={form.notes} onChange={event=>edit("notes",event.target.value)}
+                    placeholder="Cari hesap hakkında notlarınızı yazabilirsiniz." />
+                  <span className="mt-1 block text-right text-[11px] text-slate-500">{form.notes.length} / 8000</span>
+                </label>
+              </section>
             </div>
             {form.type!==cari.type&&<div className="mt-5 flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-[#204e81]">
               <Users size={19} className="mt-0.5 shrink-0"/>
