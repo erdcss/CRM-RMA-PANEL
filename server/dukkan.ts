@@ -8,7 +8,7 @@ import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import { buildCariExcel } from "./dukkan-cari-excel";
-import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
+import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,resolveInvoiceFormForStore,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
 // Monetary values stay NUMERIC in PostgreSQL, never FLOAT. All postings use transactions.
@@ -1056,16 +1056,19 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   // Only presentation settings can be edited. Financial values remain immutable.
   app.get("/api/dukkan/stores/:storeId/print-forms",safe(async(req,res)=>{
     const sid=store(req),db=await ready();
-    const saved=await db.query(
-      "SELECT kind,settings FROM dukkan_invoice_form_templates WHERE store_id=$1",[sid],
-    );
+    const [saved,storeName]=await Promise.all([
+      db.query("SELECT kind,settings FROM dukkan_invoice_form_templates WHERE store_id=$1",[sid]),
+      db.query("SELECT name FROM dukkan_stores WHERE id=$1",[sid]),
+    ]);
+    const name=String(storeName.rows[0]?.name||"");
     const config:Record<InvoiceFormKind,ReturnType<typeof defaultInvoiceForm>>={
-      sale:defaultInvoiceForm("sale"),purchase:defaultInvoiceForm("purchase"),
+      sale:resolveInvoiceFormForStore("sale",null,name),
+      purchase:resolveInvoiceFormForStore("purchase",null,name),
     };
     for(const item of saved.rows){
       const kind=String(item.kind);
       if(kind==="sale"||kind==="purchase")
-        config[kind]=resolveInvoiceForm(kind,item.settings);
+        config[kind]=resolveInvoiceFormForStore(kind,item.settings,name);
     }
     res.setHeader("Cache-Control","private, no-store");
     res.json(config);
@@ -1120,7 +1123,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       [sid,doc.party_id],
     ):null;
     res.json({invoice:{...doc,party_balance:balance?.rows[0]?.total??null},lines:lines.rows,
-      template:resolveInvoiceForm(templateKind,templateRows.rows[0]?.settings),
+      template:resolveInvoiceFormForStore(templateKind,templateRows.rows[0]?.settings,doc.store_name),
       officialInvoice:false,
       disclaimer:"Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez."});
   }));
