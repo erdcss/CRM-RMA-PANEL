@@ -25,19 +25,19 @@ export function DukkanWebWorkspace({token,storeId,module="overview",onClose}:{
     <View style={{paddingHorizontal:16,paddingVertical:11,flexDirection:"row",
       alignItems:"center",justifyContent:"space-between",backgroundColor:"#eaf1fa"}}>
       <View style={{flex:1}}>
-        <Text style={{fontWeight:"900",fontSize:16,color:"#122d50"}}>Tam Yönetim</Text>
+        <Text style={{fontWeight:"600",fontSize:16,color:"#122d50"}}>Tam Yönetim</Text>
         <Text style={{color:"#506781",fontSize:11,marginTop:3}}>Web panelindeki mağaza yetkileriniz geçerlidir</Text>
       </View>
       <Pressable accessibilityRole="button" onPress={onClose}
         style={{padding:10,borderRadius:10,backgroundColor:"#d8e7f7"}}>
-        <Text style={{fontWeight:"800",color:"#164a7d"}}>Kapat</Text>
+        <Text style={{fontWeight:"500",color:"#164a7d"}}>Kapat</Text>
       </Pressable>
     </View>
     {error?<View style={{padding:20,gap:12}}>
-      <Text style={{color:"#b42331",fontWeight:"700"}}>{error}</Text>
+      <Text style={{color:"#b42331",fontWeight:"500"}}>{error}</Text>
       <Pressable accessibilityRole="button" onPress={()=>{setError("");setLoading(true);setRetry(v=>v+1);}}
         style={{padding:12,backgroundColor:"#154d83",borderRadius:12}}>
-        <Text style={{color:"white",fontWeight:"800",textAlign:"center"}}>Tekrar dene</Text>
+        <Text style={{color:"white",fontWeight:"500",textAlign:"center"}}>Tekrar dene</Text>
       </Pressable>
     </View>:null}
     <WebView key={storeId+"-"+module+"-"+retry}
