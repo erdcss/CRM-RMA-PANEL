@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import {pickAiDocument} from "./ai-document";
 import {Image} from "react-native";
 import {ProductThumbnail} from "./product-thumbnail";
+import {CariMovements} from "./cari-movements";
 import {DukkanWebWorkspace,type WebModule} from "./dukkan-web-workspace";
 import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,importAiProducts,type AiDocumentSection,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
@@ -14,6 +15,7 @@ import {today,type Collection,type Form,type Line,type RecordRow} from "./local-
 
 
 type Tab=DukkanTab;
+type SelectedParty={id:number|string;name:string;balance:number;source_cari_no:string|null;code:string|null};
 type Field={key:string;label:string;kind?:"text"|"number"|"choice"|"party"|"product"|"bank";options?:string[];required?:boolean};
 const TABS:{key:Tab;title:string}[]=[
  {key:"dashboard",title:"Genel Bakış"},{key:"invoices",title:"Faturalar / İadeler"},{key:"products",title:"Ürün ve Stok"},
@@ -72,6 +74,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const [refresh,setRefresh]=useState(0);
  const [pdfBusy,setPdfBusy]=useState<number|null>(null);
  const [aiBusy,setAiBusy]=useState(false);
+ const [selectedParty,setSelectedParty]=useState<SelectedParty|null>(null);
  const openInvoicePdf=async(invoice:RecordRow)=>{
    const invoiceId=Number(invoice.id);
    if(!Number.isSafeInteger(invoiceId)||invoiceId<1||pdfBusy!==null)return;
@@ -262,7 +265,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     <TextInput style={styles.input} value={String(line[key])} keyboardType="decimal-pad" onChangeText={txt=>setLines(x=>x.map((v,n)=>n===i?{...v,[key]:txt}:v))}/>
    </View>)}
   </View>
-  {lines.length>1&&<Pressable onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}><Text style={{color:"#b24a53",fontWeight:"700",marginTop:8}}>Satırı Kaldır</Text></Pressable>}
+  {lines.length>1&&<Pressable onPress={()=>setLines(x=>x.filter((_,n)=>n!==i))}><Text style={{color:"#b24a53",fontWeight:"500",marginTop:8}}>Satırı Kaldır</Text></Pressable>}
  </View>;
  return <SafeAreaView style={[styles.safe,{backgroundColor:"#0b2146"}]}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor="#0b2146"/>
   <View style={{flex:1,backgroundColor:"#f2f6fc"}}>
@@ -283,7 +286,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
        onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
      />
      <Pressable accessibilityRole="button" onPress={()=>openWeb("overview")}
-       style={[styles.primary,{marginTop:16,marginRight:0}]}>
+       style={[styles.primary,{marginTop:11,marginRight:0}]}>
        <Text style={styles.primaryText}>Web Panelindeki Tüm İşlemler ve Yetkiler</Text>
      </Pressable>
    </>}
@@ -312,7 +315,18 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
    {!["settings","report"].includes(tab)&&<View>
     {tab!=="dashboard"&&<TextInput placeholder="Kayıtlarda ara..." placeholderTextColor={f.muted} value={filter} onChangeText={setFilter} style={[styles.input,{marginBottom:14}]}/>}
     <Text style={styles.groupTitle}>{tab==="dashboard"?"Son İşlemler":"Kayıtlar"} <Text style={{color:f.blue}}>({shown.length})</Text></Text>
-    {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{if(tab==="products"){editProduct(r);return;}if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);}}
+    {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{
+      if(tab==="parties"){
+        if(!["owner","manager","accountant"].includes(session.store.role)){
+          Alert.alert("İşlem yetkisi","Cari hareketleri yalnızca yetkili muhasebe kullanıcılarına açıktır.");return;
+        }
+        setSelectedParty({id:String(r.id),name:String(r.name||"Cari hesap"),
+          balance:Number(r.balance||0),source_cari_no:r.source_cari_no?String(r.source_cari_no):null,
+          code:r.code?String(r.code):null});return;
+      }
+      if(tab==="products"){editProduct(r);return;}
+      if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);
+    }}
       key={String(r.id||i)} style={styles.row}>
        {tab==="products"&&<ProductThumbnail item={r} storeId={session.store.id}
          token={session.token} size={62}/>}
@@ -326,6 +340,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
    </View>}
   </ScrollView>}
   <DukkanBottomNavigation selected={tab} cashier={cashier} onChange={navigate}/>
+  <CariMovements party={selectedParty} onClose={()=>setSelectedParty(null)}/>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
    <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{formType==="productEdit"?"Ürünü Düzenle":ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
     <ScrollView contentContainerStyle={{padding:20,paddingBottom:35}} keyboardShouldPersistTaps="always">
@@ -421,8 +436,8 @@ export default function App(){
   <View style={{backgroundColor:"white",borderRadius:28,padding:26,borderWidth:1,borderColor:"#dfebfa",shadowColor:"#0b1e3c",shadowOpacity:0.12,shadowRadius:25,shadowOffset:{width:0,height:13},elevation:5}}>
    <View style={{alignItems:"center",marginBottom:24}}>
     {logo?<Image source={{uri:logo}} style={{width:100,height:100,borderRadius:20}} resizeMode="contain"/>:
-      <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"900",fontSize:26}}>ÇD</Text></View>}
-    <Text style={{fontSize:24,fontWeight:"900",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
+      <View style={{width:86,height:86,borderRadius:18,backgroundColor:"#13283f",alignItems:"center",justifyContent:"center"}}><Text style={{color:"white",fontWeight:"600",fontSize:26}}>ÇD</Text></View>}
+    <Text style={{fontSize:24,fontWeight:"600",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
     <Text style={{fontSize:12,color:"#64748b",marginTop:4}}>Yetkili mağaza hesabınızla giriş yapın</Text>
    </View>
    <Text style={styles.label}>Kullanıcı adı / E-posta</Text>

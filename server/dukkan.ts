@@ -581,6 +581,9 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     accountant(res);
     const sid=store(req),partyId=id.parse(req.params.partyId);
     const mode=z.enum(["standard","detailed"]).parse(req.query.mode||"standard");
+    // Mobile may request newest-first history; preserve chronological web/PDF default.
+    const sort=z.enum(["chronological","latest"]).parse(req.query.sort||"chronological");
+    const direction=sort==="latest"?"DESC":"ASC";
     const offset=z.coerce.number().int().min(0).max(10000000).parse(req.query.offset||0);
     const batchSize=250;
     const db=await ready();
@@ -607,7 +610,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "LEFT JOIN dukkan_cari_openings o ON o.store_id=e.store_id AND o.party_id=e.party_id AND o.entry_id=e.id "+
       "LEFT JOIN dukkan_cari_import_entries legacy ON legacy.entry_id=e.id AND legacy.store_id=e.store_id AND legacy.party_id=e.party_id "+
       "WHERE e.store_id=$1 AND e.party_id=$2"+
-      ") x ORDER BY x.document_date,x.created_at,x.id LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
+      ") x ORDER BY x.document_date "+direction+",x.created_at "+direction+",x.id "+direction+
+      " LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
     );
     const records=result.rows;
     const invoiceIds=mode==="detailed"?[...new Set(records.map(row=>row.invoice_id).filter(Boolean))]:[];
@@ -641,7 +645,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     }
     res.setHeader("Cache-Control","private,no-store");
     res.json({
-      party:found.rows[0],storeName:shop.rows[0]?.name||"Çalışkan Dükkan",mode,offset,
+      party:found.rows[0],storeName:shop.rows[0]?.name||"Çalışkan Dükkan",mode,sort,offset,
       nextOffset:records.length===batchSize?offset+batchSize:null,
       entries:records.map(row=>({
         ...row,invoice_lines:mode==="detailed"?

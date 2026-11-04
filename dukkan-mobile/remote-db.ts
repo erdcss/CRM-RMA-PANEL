@@ -56,6 +56,24 @@ export async function list(kind:Collection):Promise<RecordRow[]>{
   }
  });
 }
+export type CariMovement={
+ id:number|string;description:string|null;document_date:string|null;created_at:string;
+ debit:string|number;credit:string|number;running_balance:string|number;
+ invoice_no?:string|null;invoice_kind?:string|null;document_no?:string|null;
+ payment_direction?:string|null;archived_kind?:string|null;due_date?:string|null;
+ invoice_lines?:Array<{product_name:string;quantity:string|number;unit:string;line_total:string|number}>;
+};
+export type CariStatement={
+ party:{id:number|string;name:string;source_cari_no?:string|null;account_code?:string|null;phone?:string|null};
+ entries:CariMovement[];nextOffset:number|null;offset:number;sort:string;
+};
+export async function getCariStatement(partyId:number,offset=0):Promise<CariStatement>{
+ if(!Number.isSafeInteger(partyId)||partyId<=0)throw Error("Geçersiz cari hesap");
+ if(!Number.isSafeInteger(offset)||offset<0)throw Error("Geçersiz hareket sayfası");
+ return request<CariStatement>(path()+"/parties/"+partyId+
+   "/statement?mode=detailed&sort=latest&offset="+offset);
+}
+
 export async function summary(){
  const r=await request<any>(path()+"/report");
  return {sales:cents(r.sales),purchases:cents(r.purchases),stockCost:cents(r.stock?.stock_cost),

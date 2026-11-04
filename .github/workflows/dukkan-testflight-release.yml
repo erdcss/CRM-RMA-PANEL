@@ -11,6 +11,7 @@ on:
       - '.github/release-requests/dukkan-testflight-20261030-drawer-ai.txt'
       - '.github/release-requests/dukkan-testflight-20261104-ios-1-0-1.txt'
       - '.github/release-requests/dukkan-testflight-20261104-web-parity-images-v1-0-2.txt'
+      - '.github/release-requests/dukkan-testflight-20261104-compact-cari-v1-0-3.txt'
 permissions:
   contents: read
 concurrency:
@@ -57,7 +58,7 @@ jobs:
           npx expo export --platform ios --output-dir dist-ios-check
       - name: Verify release candidate version
         run: |
-          node -e 'const c=require("./app.json").expo;if(c.version!=="1.0.2"||c.ios.bundleIdentifier!=="com.caliskan.dukkan"){throw Error("Dükkan iOS 1.0.2 sürüm kimliği hatalı")}'
+          node -e 'const c=require("./app.json").expo;if(c.version!=="1.0.3"||c.ios.bundleIdentifier!=="com.caliskan.dukkan"){throw Error("Dükkan iOS 1.0.3 sürüm kimliği hatalı")}'
       - name: Verify isolated Apple / Expo application identifiers (no Apple API calls)
         run: |
           node -e 'const app=require("./app.json").expo; const eas=require("./eas.json"); const s=eas.submit.testflight.ios; if(app.ios.bundleIdentifier!=="com.caliskan.dukkan" || app.extra?.eas?.projectId!=="21b3de7c-763f-4c25-87aa-66e818498d6e" || s.appleTeamId!=="U3WGSDJCT2" || s.ascAppId!=="6826848065"){console.error("Dükkan App Store Connect / Expo project identity mismatch");process.exit(1)}; console.log("Verified dedicated Dükkan iOS identity")'

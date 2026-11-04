@@ -3,6 +3,15 @@ import {ActivityIndicator,Linking,Pressable,Text,View} from "react-native";
 import {WebView} from "react-native-webview";
 
 const ORIGIN="https://admin.ecalisgan.com";
+// Native-only web presentation: preserve web controls while softening typography
+// on screens opened inside the iOS/Android app. No global website CSS change.
+const MOBILE_TYPOGRAPHY=`(function(){
+  var style=document.createElement("style");
+  style.textContent="body,body * {letter-spacing:normal !important;}"+
+    "body .font-black,body .font-extrabold,body .font-bold,body h1,body h2,body h3 {font-weight:500 !important;}"+
+    "body .font-semibold,body .font-medium {font-weight:400 !important;}";
+  (document.head||document.documentElement).appendChild(style);
+})(); true;`;
 export type WebModule="overview"|"sales"|"purchases"|"products"|"stock"|"orders"|
   "instruments"|"banks"|"parties"|"suppliers"|"reports"|"settings";
 
@@ -25,19 +34,19 @@ export function DukkanWebWorkspace({token,storeId,module="overview",onClose}:{
     <View style={{paddingHorizontal:16,paddingVertical:11,flexDirection:"row",
       alignItems:"center",justifyContent:"space-between",backgroundColor:"#eaf1fa"}}>
       <View style={{flex:1}}>
-        <Text style={{fontWeight:"900",fontSize:16,color:"#122d50"}}>Tam Yönetim</Text>
+        <Text style={{fontWeight:"600",fontSize:16,color:"#122d50"}}>Tam Yönetim</Text>
         <Text style={{color:"#506781",fontSize:11,marginTop:3}}>Web panelindeki mağaza yetkileriniz geçerlidir</Text>
       </View>
       <Pressable accessibilityRole="button" onPress={onClose}
         style={{padding:10,borderRadius:10,backgroundColor:"#d8e7f7"}}>
-        <Text style={{fontWeight:"800",color:"#164a7d"}}>Kapat</Text>
+        <Text style={{fontWeight:"500",color:"#164a7d"}}>Kapat</Text>
       </Pressable>
     </View>
     {error?<View style={{padding:20,gap:12}}>
-      <Text style={{color:"#b42331",fontWeight:"700"}}>{error}</Text>
+      <Text style={{color:"#b42331",fontWeight:"500"}}>{error}</Text>
       <Pressable accessibilityRole="button" onPress={()=>{setError("");setLoading(true);setRetry(v=>v+1);}}
         style={{padding:12,backgroundColor:"#154d83",borderRadius:12}}>
-        <Text style={{color:"white",fontWeight:"800",textAlign:"center"}}>Tekrar dene</Text>
+        <Text style={{color:"white",fontWeight:"500",textAlign:"center"}}>Tekrar dene</Text>
       </Pressable>
     </View>:null}
     <WebView key={storeId+"-"+module+"-"+retry}
@@ -48,6 +57,7 @@ export function DukkanWebWorkspace({token,storeId,module="overview",onClose}:{
       thirdPartyCookiesEnabled={false}
       originWhitelist={[ORIGIN,"blob:*","about:blank"]}
       javaScriptEnabled
+      injectedJavaScriptBeforeContentLoaded={MOBILE_TYPOGRAPHY}
       domStorageEnabled
       startInLoadingState
       onLoadStart={()=>setLoading(true)}
