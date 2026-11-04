@@ -55,6 +55,7 @@ type Ledger = {
   };
   page: number;
   totalPages: number;
+  historyTotal: number;
 };
 
 type Props = {
@@ -473,7 +474,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                   <h4 className="flex items-center gap-2 text-sm font-extrabold text-[#18385f]">
                     <CalendarDays size={17}/> Alış / Satış / Stok Geçmişi
                   </h4>
-                  <span className="text-xs font-medium text-slate-500">{ledger?.stats.total ?? 0} geçerli hareket</span>
+                  <span className="text-xs font-medium text-slate-500">{ledger?.historyTotal ?? 0} kayıt · {ledger?.stats.total ?? 0} geçerli hareket</span>
                 </div>
                 {error && !canManage && (
                   <div role="alert" className="m-4 rounded-xl bg-red-50 p-3 text-xs text-red-700">{error}</div>
