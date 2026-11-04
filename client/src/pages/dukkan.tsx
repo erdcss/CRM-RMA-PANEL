@@ -336,7 +336,22 @@ export default function Dukkan() {
 
   const applyAiDocument=(extracted:AiDocumentDraft)=>{
     const data={...extracted.fields};
-    if(section==="parties")data.type=data.kind||"customer";
+    if(section==="parties"){
+      const profile={
+        ...data,
+        name:data.partyName||data.name||"",
+        type:"customer",
+        sourceCariNo:data.sourceCariNo||data.accountCode||"",
+        taxNumber:data.partyTaxNumber||data.taxNumber||"",
+      };
+      try{
+        sessionStorage.setItem("dukkan:new-cari-ai-draft",
+          JSON.stringify({storeId,profile}));
+      }catch{ /* user can still complete the form manually */ }
+      navigate("/dukkan/cariler/new?storeId="+encodeURIComponent(storeId)+
+        "&from=parties");
+      return;
+    }
     if(section==="sales")data.kind=["sale","sale_return"].includes(data.kind)?data.kind:"sale";
     if(section==="purchases")data.kind=["purchase","purchase_return"].includes(data.kind)?data.kind:"purchase";
     if(section==="products"&&extracted.products.length===1)Object.assign(data,extracted.products[0]);
@@ -679,13 +694,28 @@ export default function Dukkan() {
           {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{section==="stock"?products.length:displayed.length} kayıt · {currentStore?.name}</p></div>
-              {isWriter&&(!cashier||["sales","orders"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);setDraft(isCariSection?{type:section==="suppliers"?"supplier":"customer"}:{});
-                 setProductImages([]);setPublishToB2B(false);}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":isCariSection?"Yeni Cari":"Yeni İşlem"}</button>}
+              {isWriter&&(!cashier||["sales","orders"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock"].includes(section)&&<button onClick={()=>{
+                if(isCariSection){
+                  const route="/dukkan?tab="+section+"&storeId="+encodeURIComponent(storeId);
+                  const scroll=document.querySelector<HTMLElement>("[data-dukkan-scroll]")?.scrollTop||0;
+                  try{
+                    sessionStorage.setItem("dukkan:last-cari-list",JSON.stringify({
+                      storeId,section,search:cariSearch,filter:cariFilter,scroll,route,
+                    }));
+                    sessionStorage.setItem("dukkan:return-to-cari","1");
+                  }catch{/* deep link still works */}
+                  window.history.replaceState(window.history.state,"",route);
+                  navigate("/dukkan/cariler/new?storeId="+encodeURIComponent(storeId)+"&from="+section);
+                  return;
+                }
+                setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);setDraft({});
+                setProductImages([]);setPublishToB2B(false);
+              }} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{isCariSection?"Yeni Cari":showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
             {isWriter&&(["products","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
                <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
-                 onApply={applyAiDocument} onImported={()=>{setNotice("Belgedeki ürünler başarıyla kaydedildi.");setRefresh(v=>v+1);}}/></div>}
-             {section!=="stock"&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
+                 onApply={applyAiDocument} onImported={()=>{setNotice(isCariSection?"Cari hareketleri ve fatura kalemleri içe aktarıldı.":"Belgedeki ürünler kaydedildi.");setRefresh(v=>v+1);}}/></div>}
+             {section!=="stock"&&!isCariSection&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">
                 {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":"Yeni kayıt oluştur"}
               </h3>
