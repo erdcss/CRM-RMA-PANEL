@@ -110,14 +110,15 @@ function statementPageHtml(statement:Statement,items:StatementEntry[],index:numb
         escapeHtml(line.quantity)+" "+escapeHtml(line.unit)+" x "+formatMoney(line.unit_price)+
         " TL · KDV %"+escapeHtml(line.tax_rate)+" · "+formatMoney(line.line_total)+" TL</div>").join("")+
       "</div>":"";
+    const continued=(entry as StatementEntry & {_continuation?:boolean})._continuation===true;
     return "<tr>"+
       "<td>"+escapeHtml(dateText(entry.document_date))+"</td>"+
-      "<td>"+escapeHtml(entryLabel(entry))+"</td>"+
+      "<td>"+escapeHtml(continued?"Fatura Devamı":entryLabel(entry))+"</td>"+
       "<td>"+escapeHtml(entry.invoice_no||entry.document_no||"—")+"</td>"+
       "<td>"+escapeHtml(entry.description||"—")+details+"</td>"+
-      "<td class='num'>"+formatMoney(entry.debit)+"</td>"+
-      "<td class='num'>"+formatMoney(entry.credit)+"</td>"+
-      "<td class='num bold'>"+formatMoney(entry.running_balance)+"</td></tr>";
+      "<td class='num'>"+(continued?"—":formatMoney(entry.debit))+"</td>"+
+      "<td class='num'>"+(continued?"—":formatMoney(entry.credit))+"</td>"+
+      "<td class='num bold'>"+(continued?"—":formatMoney(entry.running_balance))+"</td></tr>";
   }).join("");
   return "<div style='box-sizing:border-box;width:794px;height:1122px;padding:42px 40px;background:#fff;color:#142b4e;font-family:Arial,Helvetica,sans-serif;position:relative'>"+
     "<div style='background:#152a4f;color:#fff;padding:17px 19px;border-radius:10px'>"+
@@ -143,13 +144,28 @@ async function saveStatementPdf(statement:Statement){
   const [{default:html2canvas},{jsPDF}]=await Promise.all([
     import("html2canvas"),import("jspdf")
   ]);
-  // Limit by estimated rendered height, so itemised invoice lines stay with
-  // their parent movement while each A4 page is captured with Unicode browser fonts.
+  // Fragment unusually long invoice detail into separate continuation pages:
+  // every product line remains in the PDF, without duplicating financial totals.
+  const printable: Array<StatementEntry & {_continuation?:boolean}>=[];
+  for(const entry of statement.entries){
+    if(statement.mode!=="detailed"||!entry.invoice_lines||entry.invoice_lines.length<=10){
+      printable.push(entry);continue;
+    }
+    for(let index=0;index<entry.invoice_lines.length;index+=10){
+      const continuation=index>0;
+      printable.push({
+        ...entry,
+        description:continuation?"Fatura ürün kalemleri (devam)":entry.description,
+        invoice_lines:entry.invoice_lines.slice(index,index+10),
+        _continuation:continuation
+      });
+    }
+  }
   const chunks:StatementEntry[][]=[];
   let current:StatementEntry[]=[],units=0;
-  const capacity=statement.mode==="detailed"?15:20;
-  for(const entry of statement.entries){
-    const unitsForEntry=1+Math.min(12,entry.invoice_lines?.length||0)*0.75+
+  const capacity=statement.mode==="detailed"?13:20;
+  for(const entry of printable){
+    const unitsForEntry=1+(entry.invoice_lines?.length||0)*0.85+
       Math.min(3,Math.floor((entry.description||"").length/90))*0.5;
     if(current.length&&units+unitsForEntry>capacity){
       chunks.push(current);current=[];units=0;
