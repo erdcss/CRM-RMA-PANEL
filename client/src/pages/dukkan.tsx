@@ -22,7 +22,7 @@ const NEW_LINE: DocLine = { productId:"",quantity:"1",unitPrice:"0",taxRate:"20"
 const currency=(v: unknown)=>Number(v||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
 const fmt=(v:unknown)=>v===null||v===undefined?"—":String(v);
 const api=async(path:string,options?:RequestInit)=>{
-  const response=await fetch(path,{credentials:"include",...options,headers:{"Content-Type":"application/json",...(options?.headers||{})}});
+  const response=await fetch(path,{credentials:"include",cache:"no-store",...options,headers:{"Content-Type":"application/json",...(options?.headers||{})}});
   const value=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(value.error||"İşlem tamamlanamadı");
   return value;
@@ -87,14 +87,29 @@ export default function Dukkan() {
         api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
       ]);
       setParties(p);setProducts(pr);setBanks(b);setReport(summary);
-      const catalog=section==="products"&&!cashier ? await api(base+"/catalog/b2b") as Entry[] : [];
+      // Show local rows immediately, even if the optional B2B catalog lookup fails.
+      if(section==="products"){
+        setRows(pr.map((item:Entry)=>({...item,_source:"dukkan"})));
+      }
+      let catalog:Entry[]=[];
+      let catalogWarning="";
+      if(section==="products"&&!cashier){
+        try {
+          const response=await api(base+"/catalog/b2b");
+          if(!Array.isArray(response))throw new Error("Katalog yanıtı geçersiz");
+          catalog=response;
+        }catch(e){
+          catalogWarning="B2B kataloğu alınamadı: "+(e as Error).message+
+            ". Mağaza ürünleriniz görüntülenmeye devam ediyor.";
+        }
+      }
       setB2bCatalog(catalog);
       if(section==="settings"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
         orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements",settings:null
       };
-      const result=resource[section]?await api(base+"/data/"+resource[section]):[];
+      const result=section==="products"?pr:resource[section]?await api(base+"/data/"+resource[section]):[];
       setRows(section==="products"
         ? [...result.map((item:Entry)=>({...item,_source:"dukkan"})),
            ...catalog.map((item:Entry)=>({
@@ -102,7 +117,7 @@ export default function Dukkan() {
              sale_price:item.price,stock:item.stock,
            }))]
         : result);
-      setError("");
+      setError(catalogWarning);
     }catch(e){setError((e as Error).message);}
   },[base,storeId,section,cashier,canManage]);
   useEffect(()=>{void load();},[load,refresh]);
