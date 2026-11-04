@@ -40,6 +40,7 @@ import AdminReels from "@/pages/admin-reels";
 import AdminNotifications from "@/pages/admin-notifications";
 import Dukkan from "@/pages/dukkan";
 import DukkanProductEdit from "@/pages/dukkan-product-edit";
+import DukkanCariEdit from "@/pages/dukkan-cari-edit";
 import DukkanLogin from "@/pages/dukkan-login";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BCategoryPage, { B2BCategoriesDirectory } from "@/pages/b2b-categories";
@@ -95,6 +96,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/pazaryeri" component={AdminMarketplace} />
       <Route path="/dukkan/urunler/:id">{(params)=><DukkanProductEdit id={params.id}/>}</Route>
+      <Route path="/dukkan/cariler/:id">{(params)=><DukkanCariEdit id={params.id}/>}</Route>
       <Route path="/dukkan" component={Dukkan} />
       <Route path="/kayitlar" component={Kayitlar} />
       <Route path="/kayit/:id" component={KayitDetay} />
