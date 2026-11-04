@@ -4,6 +4,14 @@ on:
     branches: [main]
     paths:
       - 'server/dukkan.ts'
+      - 'server/dukkan-cari-statement-parser.ts'
+      - 'server/dukkan-cari-statement-parser.test.ts'
+      - 'server/dukkan-cari-import.ts'
+      - 'server/dukkan-cari-import.integration.test.ts'
+      - 'client/src/pages/dukkan-cari-edit.tsx'
+      - 'client/src/components/dukkan-cari-statement-import.tsx'
+      - 'client/src/components/dukkan-ai-document-import.tsx'
+      - 'client/src/components/dukkan-cari-actions-drawer.tsx'
       - 'server/dukkan-stock-ledger.ts'
       - 'server/dukkan-stock-ledger.integration.test.ts'
       - 'server/dukkan-stock-adjustments.ts'
@@ -29,6 +37,14 @@ on:
   pull_request:
     paths:
       - 'server/dukkan.ts'
+      - 'server/dukkan-cari-statement-parser.ts'
+      - 'server/dukkan-cari-statement-parser.test.ts'
+      - 'server/dukkan-cari-import.ts'
+      - 'server/dukkan-cari-import.integration.test.ts'
+      - 'client/src/pages/dukkan-cari-edit.tsx'
+      - 'client/src/components/dukkan-cari-statement-import.tsx'
+      - 'client/src/components/dukkan-ai-document-import.tsx'
+      - 'client/src/components/dukkan-cari-actions-drawer.tsx'
       - 'server/dukkan-stock-ledger.ts'
       - 'server/dukkan-stock-ledger.integration.test.ts'
       - 'server/dukkan-stock-adjustments.ts'
@@ -66,6 +82,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
-      - run: npx tsx --test server/dukkan-b2b-sync.test.ts server/dukkan-b2b-sync.integration.test.ts server/dukkan-b2b-autoimport.integration.test.ts client/src/lib/dukkan-product-toolbar.test.ts server/dukkan-stock-ledger.integration.test.ts server/dukkan-stock-adjustments.integration.test.ts shared/dukkan-invoice-forms.test.ts
+      - run: npx tsx --test server/dukkan-b2b-sync.test.ts server/dukkan-b2b-sync.integration.test.ts server/dukkan-b2b-autoimport.integration.test.ts client/src/lib/dukkan-product-toolbar.test.ts server/dukkan-stock-ledger.integration.test.ts server/dukkan-stock-adjustments.integration.test.ts shared/dukkan-invoice-forms.test.ts server/dukkan-cari-statement-parser.test.ts server/dukkan-cari-import.integration.test.ts
       - run: npm run check
       - run: npm run build
