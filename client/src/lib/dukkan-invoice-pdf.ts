@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import {paintClassicSalesPage,CLASSIC_SALES_LINES_PER_PAGE} from "./dukkan-sales-form-classic";
 import {invoiceColors,resolveInvoiceForm,type DukkanInvoiceForm,type InvoiceFormKind} from "@shared/dukkan-invoice-forms";
 
 export type SalesInvoicePdfData={
@@ -6,6 +7,7 @@ export type SalesInvoicePdfData={
     id:number;invoice_no:string;kind:"sale"|"sale_return"|"purchase"|"purchase_return";issued_at:string;
     party_name:string;party_tax_number?:string|null;party_phone?:string|null;
     store_name:string;subtotal:string|number;tax_total:string|number;grand_total:string|number;
+    party_balance?:string|number|null;
   };
   lines:Array<{id:number;quantity:string|number;unit_price:string|number;tax_rate:string|number;line_total:string|number;
     sku:string;product_name:string;unit:string}>;
@@ -98,12 +100,14 @@ export function renderDukkanInvoicePdf(data:SalesInvoicePdfData){
   const kind:InvoiceFormKind=data.invoice.kind.startsWith("purchase")?"purchase":"sale";
   const config=resolveInvoiceForm(kind,data.template);
   const pageSize=config.paperSize==="a5"?[148,210] as const:[210,297] as const;
-  const perPage=16;
+  const classic=kind==="sale"&&config.layout==="classic";
+  const perPage=classic?CLASSIC_SALES_LINES_PER_PAGE:16;
   const pages=Math.max(1,Math.ceil(data.lines.length/perPage));
   const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:config.paperSize,compress:true});
   for(let page=0;page<pages;page++){
     if(page)pdf.addPage();
-    const canvas=paintPage(data,page,pages,data.lines.slice(page*perPage,(page+1)*perPage));
+    const items=data.lines.slice(page*perPage,(page+1)*perPage);
+    const canvas=classic?paintClassicSalesPage(data,page,pages,items):paintPage(data,page,pages,items);
     pdf.addImage(canvas.toDataURL("image/jpeg",0.9),"JPEG",0,0,pageSize[0],pageSize[1],undefined,"FAST");
   }
   return pdf;
