@@ -33,7 +33,25 @@ const SCHEMA = [
 let schemaPromise: Promise<void> | undefined;
 async function ready() {
   if (!pool) throw Object.assign(new Error("PostgreSQL bağlantısı gerekli"), { status: 503 });
-  if (!schemaPromise) schemaPromise = pool.query(SCHEMA).then(() => ensureDukkanB2BBridge(pool!)).then(() => backfillExistingDukkanProducts(pool!)).then(() => undefined).catch((error) => { schemaPromise = undefined; throw error; });
+  if (!schemaPromise) schemaPromise = pool.query(SCHEMA)
+    .then(() => ensureDukkanB2BBridge(pool!))
+    .then(() => backfillExistingDukkanProducts(pool!))
+    .then(async()=>{
+      // Seed the requested ÇALIŞKAN GROUP catalog on service initialization,
+      // without waiting for the browser to open its Products page.
+      try{
+        const primary=await pool!.query(
+          "SELECT id FROM dukkan_stores WHERE LOWER(TRIM(name))=LOWER('ÇALIŞKAN GROUP') ORDER BY id LIMIT 1",
+        );
+        if(primary.rows[0]){
+          const result=await importAllB2BToDukkan(pool!,Number(primary.rows[0].id));
+          console.info("Dukkan B2B initial catalog sync:",result);
+        }
+      }catch(error){
+        console.error("Dukkan B2B initial sync failed; existing store data remains available:",error);
+      }
+    })
+    .catch((error) => { schemaPromise = undefined; throw error; });
   await schemaPromise;
   return pool;
 }
