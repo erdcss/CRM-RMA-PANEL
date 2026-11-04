@@ -79,11 +79,14 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   const minQty = Math.max(1, Number(row.min_order_qty) || 1);
 
   if (row.b2b_product_id) {
+    const conflict=await c.query("SELECT id FROM b2b_products WHERE sku=$1 AND id<>$2 LIMIT 1",
+      [row.sku,row.b2b_product_id]);
+    const b2bSku=conflict.rowCount?"DUK-"+row.store_id+"-"+row.id:row.sku;
     const result = await c.query(
-      "UPDATE b2b_products SET name=$2,brand=$3,category=$4,description=$5,price=$6,stock=$7," +
-      "min_order_qty=$8,units_per_box=$9,image_data=$10,images=$11::jsonb,barcode=$12," +
-      "is_active=$13,updated_at=NOW() WHERE id=$1 RETURNING id",
-      [row.b2b_product_id,row.name,row.brand||null,row.category||"Genel",row.description||null,
+      "UPDATE b2b_products SET sku=$2,name=$3,brand=$4,category=$5,description=$6,price=$7,stock=$8," +
+      "min_order_qty=$9,units_per_box=$10,image_data=$11,images=$12::jsonb,barcode=$13," +
+      "is_active=$14,updated_at=NOW() WHERE id=$1 RETURNING id",
+      [row.b2b_product_id,b2bSku,row.name,row.brand||null,row.category||"Genel",row.description||null,
        price,stock,minQty,boxSize,photo,JSON.stringify(images),row.barcode||null,row.publish_b2b],
     );
     if (!result.rowCount) throw Object.assign(new Error("Bağlı B2B ürünü bulunamadı; işlem geri alındı"),{status:409});
@@ -103,4 +106,37 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   await c.query("UPDATE dukkan_products SET b2b_product_id=$3 WHERE store_id=$1 AND id=$2",
     [row.store_id,row.id,linkedId]);
   return {...row,b2b_product_id:linkedId};
+}
+
+
+/** One-time safe import of existing Dükkan inventory as hidden B2B drafts.
+ * Existing store products must not become public before their manager opts in.
+ * Savepoints isolate an invalid legacy record without hiding the rest of the store.
+ */
+export async function backfillExistingDukkanProducts(pool: Pool): Promise<void> {
+  const c=await pool.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SELECT pg_advisory_xact_lock(hashtext('dukkan_b2b_backfill_v1'))");
+    const rows=await c.query(
+      "SELECT * FROM dukkan_products WHERE b2b_product_id IS NULL ORDER BY id LIMIT 500 FOR UPDATE",
+    );
+    for(const row of rows.rows){
+      await c.query("SAVEPOINT dukkan_backfill_row");
+      try {
+        await syncDukkanToB2B(c,row);
+        await c.query("RELEASE SAVEPOINT dukkan_backfill_row");
+      } catch(error) {
+        await c.query("ROLLBACK TO SAVEPOINT dukkan_backfill_row");
+        console.warn("Dukkan legacy B2B draft was skipped:",row.store_id,row.id,
+          error instanceof Error ? error.message : error);
+      }
+    }
+    await c.query("COMMIT");
+  } catch(error) {
+    await c.query("ROLLBACK").catch(()=>undefined);
+    throw error;
+  } finally {
+    c.release();
+  }
 }
