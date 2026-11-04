@@ -58,8 +58,8 @@ export function defaultInvoiceForm(kind: InvoiceFormKind): DukkanInvoiceForm {
     paperSize: "a4",
     showProductCode: kind === "sale",
     showUnitPrice: true,
-    showTaxRate: true,
-    showPartyTaxNumber: true,
+    showTaxRate: kind !== "sale",
+    showPartyTaxNumber: kind !== "sale",
     showPartyPhone: kind === "sale",
     showCompanyDetails: true,
   };
