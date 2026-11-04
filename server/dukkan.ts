@@ -54,6 +54,11 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_bank_movements (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), bank_id BIGINT NOT NULL, amount NUMERIC(18,2) NOT NULL CHECK(amount<>0), type TEXT NOT NULL, note TEXT, payment_id BIGINT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_entries (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, debit NUMERIC(18,2) NOT NULL DEFAULT 0, credit NUMERIC(18,2) NOT NULL DEFAULT 0, description TEXT NOT NULL, invoice_id BIGINT REFERENCES dukkan_invoices(id), payment_id BIGINT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_payments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, direction TEXT NOT NULL CHECK(direction IN ('collection','payment')), method TEXT NOT NULL CHECK(method IN ('cash','bank')), bank_id BIGINT, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), note TEXT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
+  "ALTER TABLE dukkan_payments ADD COLUMN IF NOT EXISTS paid_on DATE",
+  "ALTER TABLE dukkan_payments ADD COLUMN IF NOT EXISTS document_no TEXT",
+  "ALTER TABLE dukkan_payments ADD COLUMN IF NOT EXISTS request_key UUID",
+  "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_payments_request_key_unique ON dukkan_payments(store_id,request_key) WHERE request_key IS NOT NULL",
+  "CREATE TABLE IF NOT EXISTS dukkan_cari_openings (store_id BIGINT NOT NULL, party_id BIGINT NOT NULL, entry_id BIGINT NOT NULL REFERENCES dukkan_cari_entries(id), opened_on DATE NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(store_id,party_id), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_instruments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('cheque','promissory')), direction TEXT NOT NULL CHECK(direction IN ('received','issued')), document_no TEXT NOT NULL, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), due_date DATE NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','settled','bounced','cancelled')), note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,direction,document_no))",
   "CREATE INDEX IF NOT EXISTS dukkan_invoice_store_idx ON dukkan_invoices(store_id,issued_at DESC)",
   "CREATE INDEX IF NOT EXISTS dukkan_stock_store_idx ON dukkan_stock_movements(store_id,created_at DESC)",
@@ -485,6 +490,176 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       throw error;
     }
   }));
+
+  // A complete, paginated chronological ledger. Both formats contain every financial
+  // entry; the detailed variant adds original invoice lines and product quantities.
+  app.get("/api/dukkan/stores/:storeId/parties/:partyId/statement",safe(async(req,res)=>{
+    accountant(res);
+    const sid=store(req),partyId=id.parse(req.params.partyId);
+    const mode=z.enum(["standard","detailed"]).parse(req.query.mode||"standard");
+    const offset=z.coerce.number().int().min(0).max(10000000).parse(req.query.offset||0);
+    const batchSize=250;
+    const db=await ready();
+    const found=await db.query(
+      "SELECT id,name,source_cari_no,account_code,type,phone,city,address,tax_number "+
+      "FROM dukkan_parties WHERE store_id=$1 AND id=$2",[sid,partyId]
+    );
+    if(!found.rows.length)return res.status(404).json({error:"Bu mağazada cari hesap bulunamadı."});
+    const shop=await db.query("SELECT name FROM dukkan_stores WHERE id=$1",[sid]);
+    const result=await db.query(
+      "SELECT e.id,e.created_at,e.description,e.debit,e.credit,e.invoice_id,e.payment_id,"+
+      "COALESCE(i.issued_at,p.paid_on,e.created_at::date) AS document_date,"+
+      "i.invoice_no,i.kind AS invoice_kind,p.direction AS payment_direction,"+
+      "p.method AS payment_method,p.document_no,"+
+      "SUM(e.debit-e.credit) OVER (ORDER BY e.created_at,e.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance "+
+      "FROM dukkan_cari_entries e "+
+      "LEFT JOIN dukkan_invoices i ON i.id=e.invoice_id AND i.store_id=e.store_id AND i.party_id=e.party_id "+
+      "LEFT JOIN dukkan_payments p ON p.id=e.payment_id AND p.store_id=e.store_id AND p.party_id=e.party_id "+
+      "WHERE e.store_id=$1 AND e.party_id=$2 "+
+      "ORDER BY e.created_at,e.id LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
+    );
+    const records=result.rows;
+    const invoiceIds=mode==="detailed"?[...new Set(records.map(row=>row.invoice_id).filter(Boolean))]:[];
+    let lines:Record<string,unknown[]>={};
+    if(invoiceIds.length){
+      const details=await db.query(
+        "SELECT l.invoice_id,l.quantity,l.unit_price,l.tax_rate,l.line_total,"+
+        "prod.name AS product_name,prod.sku,prod.unit "+
+        "FROM dukkan_invoice_lines l "+
+        "JOIN dukkan_invoices inv ON inv.id=l.invoice_id AND inv.store_id=$1 AND inv.party_id=$2 "+
+        "JOIN dukkan_products prod ON prod.id=l.product_id AND prod.store_id=$1 "+
+        "WHERE l.invoice_id=ANY($3::bigint[]) ORDER BY l.invoice_id,l.id",
+        [sid,partyId,invoiceIds]
+      );
+      for(const row of details.rows)(lines[String(row.invoice_id)]??=[]).push(row);
+    }
+    res.setHeader("Cache-Control","private,no-store");
+    res.json({
+      party:found.rows[0],storeName:shop.rows[0]?.name||"Çalışkan Dükkan",mode,offset,
+      nextOffset:records.length===batchSize?offset+batchSize:null,
+      entries:records.map(row=>({
+        ...row,invoice_lines:mode==="detailed"?(lines[String(row.invoice_id)]||[]):undefined
+      }))
+    });
+  }));
+
+  // Incoming collection decreases the party debit balance; an outgoing payment
+  // increases it. Cash or real bank movement is posted in the same transaction.
+  app.post("/api/dukkan/stores/:storeId/parties/:partyId/payments",safe(async(req,res)=>{
+    accountant(res);
+    const sid=store(req),partyId=id.parse(req.params.partyId);
+    const data=z.object({
+      direction:z.enum(["collection","payment"]),amount,
+      method:z.enum(["cash","bank"]),bankId:id.optional(),
+      date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      documentNo:z.string().trim().max(80).optional(),
+      note:z.string().trim().max(500).optional(),
+      requestKey:z.string().uuid(),
+    }).parse(req.body);
+    if(data.method==="bank"&&!data.bankId)
+      return res.status(400).json({error:"Havale / EFT için banka seçmelisiniz."});
+    const output=await transaction(async c=>{
+      const locked=await c.query("SELECT id FROM dukkan_parties WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,partyId]);
+      if(!locked.rowCount)throw Object.assign(new Error("Cari hesap bulunamadı."),{status:404});
+      if(data.method==="bank")await exists(c,"dukkan_banks",sid,data.bankId!);
+      const previous=await c.query("SELECT id FROM dukkan_payments WHERE store_id=$1 AND request_key=$2",[sid,data.requestKey]);
+      if(previous.rowCount)return {id:previous.rows[0].id,replayed:true};
+      const pay=await c.query(
+        "INSERT INTO dukkan_payments(store_id,party_id,direction,method,bank_id,amount,note,created_by,paid_on,document_no,request_key) "+
+        "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id",
+        [sid,partyId,data.direction,data.method,data.method==="bank"?data.bankId:null,
+          money(data.amount),data.note||null,user(res),data.date,data.documentNo||null,data.requestKey]
+      );
+      const paymentId=pay.rows[0].id;
+      await c.query(
+        "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description,payment_id) "+
+        "VALUES($1,$2,$3,$4,$5,$6)",
+        [sid,partyId,data.direction==="payment"?money(data.amount):0,
+          data.direction==="collection"?money(data.amount):0,
+          (data.direction==="collection"?"Tahsilat":"Ödeme")+
+          (data.documentNo?" · "+data.documentNo:"")+(data.note?" · "+data.note:""),paymentId]
+      );
+      if(data.method==="bank")await c.query(
+        "INSERT INTO dukkan_bank_movements(store_id,bank_id,amount,type,note,payment_id,created_by) "+
+        "VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [sid,data.bankId,data.direction==="collection"?money(data.amount):-money(data.amount),
+          data.direction,data.note||null,paymentId,user(res)]
+      );
+      return {id:paymentId,replayed:false};
+    });
+    res.setHeader("Cache-Control","private,no-store");
+    res.status(output.replayed?200:201).json(output);
+  }));
+
+  // One opening balance per party, including legacy imported opening entries.
+  app.post("/api/dukkan/stores/:storeId/parties/:partyId/opening",safe(async(req,res)=>{
+    accountant(res);
+    const sid=store(req),partyId=id.parse(req.params.partyId);
+    const data=z.object({
+      type:z.enum(["debit","credit"]),amount,
+      date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      note:z.string().trim().max(500).optional()
+    }).parse(req.body);
+    const saved=await transaction(async c=>{
+      const locked=await c.query("SELECT id FROM dukkan_parties WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,partyId]);
+      if(!locked.rowCount)throw Object.assign(new Error("Cari hesap bulunamadı."),{status:404});
+      const existing=await c.query(
+        "SELECT e.id FROM dukkan_cari_entries e WHERE e.store_id=$1 AND e.party_id=$2 "+
+        "AND (e.description ILIKE 'Excel açılış bakiyesi%' OR e.description ILIKE 'Açılış bakiyesi%') LIMIT 1",
+        [sid,partyId]
+      );
+      const reserved=await c.query("SELECT entry_id FROM dukkan_cari_openings WHERE store_id=$1 AND party_id=$2",[sid,partyId]);
+      if(existing.rowCount||reserved.rowCount)
+        throw Object.assign(new Error("Bu cari için açılış bakiyesi mevcut. İkinci kez açılamaz."),{status:409});
+      const row=await c.query(
+        "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description) VALUES($1,$2,$3,$4,$5) RETURNING id",
+        [sid,partyId,data.type==="debit"?money(data.amount):0,
+          data.type==="credit"?money(data.amount):0,
+          "Açılış bakiyesi"+(data.note?" · "+data.note:"")]
+      );
+      await c.query(
+        "INSERT INTO dukkan_cari_openings(store_id,party_id,entry_id,opened_on,created_by) VALUES($1,$2,$3,$4,$5)",
+        [sid,partyId,row.rows[0].id,data.date,user(res)]
+      );
+      return {entryId:row.rows[0].id};
+    });
+    res.status(201).json(saved);
+  }));
+
+  // Hard-deletion is allowed only for a completely untouched account. A zero
+  // balance is NOT sufficient: invoices/orders/cheques/ledger entries block it.
+  app.delete("/api/dukkan/stores/:storeId/parties/:partyId",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req),partyId=id.parse(req.params.partyId);
+    const confirm=z.object({confirmName:z.string().trim().min(1)}).parse(req.body);
+    await transaction(async c=>{
+      const party=await c.query(
+        "SELECT name FROM dukkan_parties WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,partyId]
+      );
+      if(!party.rowCount)throw Object.assign(new Error("Cari hesap bulunamadı."),{status:404});
+      if(confirm.confirmName!==party.rows[0].name)
+        throw Object.assign(new Error("Son onay için firma adını doğru girin."),{status:400});
+      const checks=[
+        "dukkan_cari_entries","dukkan_invoices","dukkan_orders",
+        "dukkan_payments","dukkan_instruments","dukkan_cari_openings"
+      ] as const;
+      for(const table of checks){
+        const existsRow=await c.query("SELECT 1 FROM "+table+" WHERE store_id=$1 AND party_id=$2 LIMIT 1",[sid,partyId]);
+        if(existsRow.rowCount)throw Object.assign(
+          new Error("Cari hesapta işlem/hareket bulunduğu için silinemez. Hareketler korunmalıdır."),{status:409}
+        );
+      }
+      try{
+        await c.query("DELETE FROM dukkan_parties WHERE store_id=$1 AND id=$2",[sid,partyId]);
+      }catch(error){
+        if((error as {code?:string}).code==="23503")
+          throw Object.assign(new Error("Bu cari başka bir belgeye bağlı olduğu için silinemez."),{status:409});
+        throw error;
+      }
+    });
+    res.json({deleted:true});
+  }));
+
   const productPayload = z.object({
     name:string,sku:string,
     barcode:z.string().trim().max(64).optional(),
