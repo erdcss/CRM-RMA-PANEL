@@ -670,7 +670,7 @@ export default function Dukkan() {
                       className="ml-2 font-semibold text-[#17649f] underline">Filtreleri Temizle</button>
                   </>:"Henüz kayıt bulunmuyor."}
               </div>}
-            </div>
+            </div>}
           </div>}
           <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
           </DukkanWorkspaceLayout>
