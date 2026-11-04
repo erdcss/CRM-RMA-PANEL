@@ -919,7 +919,11 @@ export default function Dukkan() {
           </DukkanWorkspaceLayout>
           {selectedCariAction&&isWriter&&canAccount&&(
             <DukkanCariActionsDrawer key={storeId+":"+String(selectedCariAction.id)}
-              storeId={storeId} party={selectedCariAction} banks={banks}
+              storeId={storeId}
+              party={{id:selectedCariAction.id,name:String(selectedCariAction.name||""),type:selectedCariAction.type,
+                source_cari_no:selectedCariAction.source_cari_no,account_code:selectedCariAction.account_code,
+                balance:selectedCariAction.balance,phone:selectedCariAction.phone}}
+              banks={banks.filter(b=>b.id!=null&&typeof b.name==="string").map(b=>({id:b.id,name:String(b.name)}))}
               canDelete={isManager}
               onClose={()=>setSelectedCariAction(null)}
               onUpdated={()=>setRefresh(n=>n+1)}
