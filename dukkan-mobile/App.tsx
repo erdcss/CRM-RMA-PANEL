@@ -2,6 +2,8 @@ import React,{useCallback,useEffect,useState} from "react";
 import * as SecureStore from "expo-secure-store";
 import {pickAiDocument} from "./ai-document";
 import {Image} from "react-native";
+import {ProductThumbnail} from "./product-thumbnail";
+import {DukkanWebWorkspace,type WebModule} from "./dukkan-web-workspace";
 import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,importAiProducts,type AiDocumentSection,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
 import {DUKKAN_THEME} from "./design-system";
@@ -17,7 +19,7 @@ const TABS:{key:Tab;title:string}[]=[
  {key:"dashboard",title:"Genel Bakış"},{key:"invoices",title:"Faturalar / İadeler"},{key:"products",title:"Ürün ve Stok"},
  {key:"movements",title:"Stok Hareketleri"},{key:"parties",title:"Cari Hesaplar"},{key:"ledger",title:"Cari Hareketler"},
  {key:"orders",title:"Siparişler"},{key:"banks",title:"Bankalar"},{key:"cash_movements",title:"Kasa"},
- {key:"payments",title:"Tahsilat / Ödeme"},{key:"instruments",title:"Çek / Senet"},{key:"report",title:"Raporlar"},{key:"settings",title:"Ayarlar / Yedek"}
+ {key:"payments",title:"Tahsilat / Ödeme"},{key:"instruments",title:"Çek / Senet"},{key:"report",title:"Raporlar"},{key:"settings",title:"Ayarlar / Yedek"},{key:"web",title:"Tüm Web İşlemleri"}
 ];
 const LABEL:Record<string,string>={sale:"Satış",purchase:"Alış",sale_return:"Satış İadesi",purchase_return:"Alış İadesi",customer:"Müşteri",supplier:"Tedarikçi",both:"Her İkisi",collection:"Tahsilat",payment:"Ödeme",cash:"Kasa",bank:"Banka",cheque:"Çek",note:"Senet",received:"Alınan",issued:"Verilen",pending:"Bekliyor",collected:"Tahsil edildi",bounced:"Karşılıksız",cancelled:"İptal",completed:"Tamamlandı",open:"Açık",increase:"Stok Girişi",decrease:"Stok Çıkışı",in:"Giriş",out:"Çıkış"};
 const money=(c:unknown)=> (Number(c||0)/100).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
@@ -44,12 +46,13 @@ const ACTIONS:Record<Tab,{kind:string;label:string}[]>={
  movements:[{kind:"stock",label:"Stok Düzelt"}],parties:[{kind:"party",label:"Yeni Cari"}],ledger:[{kind:"payment",label:"Tahsilat / Ödeme"}],
  orders:[{kind:"order",label:"Yeni Sipariş"}],banks:[{kind:"bank",label:"Banka Ekle"},{kind:"bankMovement",label:"Banka Hareketi"}],
  cash_movements:[{kind:"cashMovement",label:"Nakit Giriş / Çıkış"}],payments:[{kind:"payment",label:"Tahsilat / Ödeme"}],
- instruments:[{kind:"instrument",label:"Yeni Çek / Senet"}],report:[],settings:[{kind:"settings",label:"Bilgileri Düzenle"}]
+ instruments:[{kind:"instrument",label:"Yeni Çek / Senet"}],report:[],settings:[{kind:"settings",label:"Bilgileri Düzenle"}],web:[]
 };
 const LABELS:Record<string,string>={invoices:"Fatura",products:"Ürün",movements:"Stok",parties:"Cari",ledger:"Cari Hareket",orders:"Sipariş",banks:"Banka",cash_movements:"Kasa",payments:"Ödeme",instruments:"Evrak"};
 function moneyStyle(n:number){return n<0?{color:"#bd524e"}:{color:f.green};}
 function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()=>void;onSwitch:(store:StoreInfo)=>void}){
  const [tab,setTab]=useState<Tab>("dashboard");
+ const [webModule,setWebModule]=useState<WebModule>("overview");
  const [drawerOpen,setDrawerOpen]=useState(false);
  const [records,setRecords]=useState<RecordRow[]>([]);
  const [parties,setParties]=useState<RecordRow[]>([]);
@@ -84,10 +87,16 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
   try{
    const cashier=session.store.role==="cashier";
    const [p,pr,b,s,sets]=await Promise.all([list("parties"),list("products"),cashier?Promise.resolve([]):list("banks"),cashier?Promise.resolve({}):summary(),settings()]);
-   setParties(p);setProducts(pr);setBanks(b);setSums(s);setExistingSettings(sets);setCompany(sets.company||"İşletmem");
+   setParties(p);setProducts(pr);setBanks(b);
+   if(!cashier){
+     const balances=p.map(row=>Number(row.balance)||0);
+     s.receivables=balances.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
+     s.payables=-balances.filter(value=>value<0).reduce((sum,value)=>sum+value,0);
+   }
+   setSums(s);setExistingSettings(sets);setCompany(sets.company||"İşletmem");
    if(tab==="report")setMonthly((await report()).monthly);
    else if(tab==="dashboard")setRecords((await list("invoices")).slice(0,10));
-   else if(tab==="settings")setRecords([]);
+   else if(tab==="settings"||tab==="web")setRecords([]);
    else setRecords(await list(tab as Collection));
    setError("");
   }catch(e){setError((e as Error).message);}finally{setReady(true);}
@@ -204,10 +213,16 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const actionStyles=styles.primary;
  const cashier=session.store.role==="cashier";
  const canManage=["owner","manager"].includes(session.store.role);
+ const isWriter=session.store.role!=="viewer";
  const visibleTabs=TABS.filter(t=>t.key!=="cash_movements"&&(cashier?!["products","movements","ledger","banks","payments","instruments","report","settings"].includes(t.key):true));
- const visibleActions=(selected:Tab)=>ACTIONS[selected].filter(a=>!["settings","cashMovement"].includes(a.kind)&&(!cashier||!["product","stock","bank","bankMovement","instrument"].includes(a.kind))&&(!["product","stock"].includes(a.kind)||canManage));
+ const visibleActions=(selected:Tab)=>!isWriter?[]:ACTIONS[selected].filter(a=>!["settings","cashMovement"].includes(a.kind)&&(!cashier||!["product","stock","bank","bankMovement","instrument"].includes(a.kind))&&(!["product","stock"].includes(a.kind)||canManage));
  const editProduct=(item:RecordRow)=>{if(!canManage)return;setData({id:item.id,code:item.code,name:item.name,barcode:item.barcode,unit:item.unit,purchase:Number(item.purchase_cents)/100,sale:Number(item.sale_cents)/100});setFormType("productEdit");};
- const navigate=(destination:Tab)=>{if(!visibleTabs.some(item=>item.key===destination))return;setTab(destination);setFilter("");setFormType(null);};
+ const navigate=(destination:Tab)=>{if(!visibleTabs.some(item=>item.key===destination))return;
+   if(destination==="web")setWebModule("overview");
+   setTab(destination);setFilter("");setFormType(null);};
+ const openWeb=(module:WebModule)=>{
+   setWebModule(module);setTab("web");setFilter("");setFormType(null);
+ };
  const confirmLogout=()=>Alert.alert("Çıkış Yap","Çalışkan Dükkan hesabından çıkış yapmak istiyor musunuz?",[
    {text:"Vazgeç",style:"cancel"},{text:"Çıkış Yap",style:"destructive",onPress:onLogout}
  ]);
@@ -248,14 +263,23 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
   <DukkanMobileHeader company={company} username={session.user.username} role={session.store.role}
     online={error===""} stores={session.stores} storeId={session.store.id} onSwitch={onSwitch} onLogout={confirmLogout} onMenuPress={()=>setDrawerOpen(true)}/>
   <DukkanDrawerNavigation visible={drawerOpen} tabs={visibleTabs} selected={tab} onChange={navigate} onClose={()=>setDrawerOpen(false)}/>
-  <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
+  {tab==="web"?
+   <DukkanWebWorkspace token={session.token} storeId={session.store.id} module={webModule}
+     onClose={()=>navigate("dashboard")}/>:
+   <ScrollView key={tab+session.store.id} style={styles.content} contentContainerStyle={styles.contentInner} keyboardShouldPersistTaps="handled">
    {tab!=="dashboard"&&<View style={styles.pageHead}><Text style={styles.pageTitle}>{TABS.find(x=>x.key===tab)?.title}</Text><Text style={styles.pageNote}>{tab==="settings"?"Güvenli hesap ve merkezi veri yönetimi":"Mağazanızın güncel kayıtları"}</Text></View>}
    {error!==""&&<Text style={styles.error}>{error}</Text>}
    {!ready?<ActivityIndicator color={f.ink} size="large"/>:null}
-   {tab==="dashboard"&&<DukkanDashboardOverview
-     summary={sums} cashier={cashier} canManage={canManage}
-     onQuickAction={open} onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
-   />}
+   {tab==="dashboard"&&<>
+     <DukkanDashboardOverview
+       summary={sums} cashier={cashier} canManage={canManage&&isWriter}
+       onQuickAction={open} onNavigate={navigate} onRefresh={()=>setRefresh(n=>n+1)}
+     />
+     <Pressable accessibilityRole="button" onPress={()=>openWeb("overview")}
+       style={[styles.primary,{marginTop:16,marginRight:0}]}>
+       <Text style={styles.primaryText}>Web Panelindeki Tüm İşlemler ve Yetkiler</Text>
+     </Pressable>
+   </>}
    {tab==="report"&&<View><View style={styles.cards}><View style={styles.stat}><Text style={styles.statName}>Faturalar</Text><Text style={styles.statValue}>{sums.documents||0}</Text></View><View style={styles.stat}><Text style={styles.statName}>Geciken Çek / Senet</Text><Text style={styles.statValue}>{sums.overdue||0}</Text></View></View>
      <Text style={styles.groupTitle}>Aylık alış / satış</Text>{monthly.map(r=><View style={styles.row} key={String(r.month)}><Text style={styles.rowTitle}>{r.month}</Text><Text style={styles.rowNote}>Satış {money(r.sales)}   ·   Alış {money(r.purchases)}</Text></View>)}</View>}
    {tab==="settings"&&<View><View style={styles.card}><Text style={styles.groupTitle}>Veriler ve Güvenlik</Text><Text style={styles.hint}>Bu uygulama Çalışkan Admin tarafından atanan mağazanın PostgreSQL veritabanını kullanır. Önceki sürümdeki SQLite verileri otomatik aktarılmaz.</Text>
@@ -267,6 +291,13 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
       (!cashier||["invoices","parties"].includes(tab))&&(!["products","movements"].includes(tab)||canManage)&&
       <Pressable disabled={aiBusy} onPress={startAi} style={[styles.secondary,{marginBottom:13}]}>
        <Text style={styles.secondaryText}>{aiBusy?"Belge analiz ediliyor...":"AI ile Belge İçe Aktar (PDF / Fotoğraf)"}</Text>
+      </Pressable>}
+    {["products","parties","ledger","invoices","payments","settings","report"].includes(tab)&&
+      <Pressable accessibilityRole="button" onPress={()=>
+        openWeb(tab==="products"?"products":tab==="invoices"?"sales":
+          tab==="settings"?"settings":tab==="report"?"reports":"parties")}
+        style={[styles.secondary,{marginBottom:13,marginRight:0}]}>
+        <Text style={styles.secondaryText}>Web'deki ayrıntılı işlemleri ve cari yönetimini aç</Text>
       </Pressable>}
     {tab!=="dashboard"&&visibleActions(tab).length>0&&<ScrollView horizontal style={{flexGrow:0,marginBottom:17}} showsHorizontalScrollIndicator={false}>
     {visibleActions(tab).map(x=><Pressable key={x.kind} onPress={()=>open(x.kind)} style={styles.primary}><Text style={styles.primaryText}>＋ {x.label}</Text></Pressable>)}
@@ -283,7 +314,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
         {r.status&&<Text style={styles.badge}>{val(r.status)}</Text>}</View></Pressable>)}
     {shown.length>250&&<Text style={styles.hint}>İlk 250 kayıt gösteriliyor. Arama ile filtreleyin.</Text>}
    </View>}
-  </ScrollView>
+  </ScrollView>}
   <DukkanBottomNavigation selected={tab} cashier={cashier} onChange={navigate}/>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
    <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{formType==="productEdit"?"Ürünü Düzenle":ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
