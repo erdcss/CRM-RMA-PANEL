@@ -56,6 +56,14 @@ export function trMoney(value:string):number|null{
   const parsed=Number(number);
   return Number.isFinite(parsed)?Math.round(parsed*100)/100:null;
 }
+/** PDF.js can merge neighboring table cells without whitespace, e.g.
+ * "0,00 150,00250,00" or "ADET100,00". Split monetary lexemes by their
+ * Turkish decimal comma rather than trusting the start x-position alone. */
+function moneyTokens(text:string):number[]{
+  return [...text.matchAll(/-?\d+(?:\.\d{3})*,\d{1,2}/g)]
+    .map(match=>trMoney(match[0]))
+    .filter((v):v is number=>v!==null);
+}
 function dateISO(s:string):string{
   const m=s.match(/(\d{2})\.(\d{2})\.(\d{4})/);
   return m?m[3]+"-"+m[2]+"-"+m[1]:"";
@@ -124,9 +132,13 @@ export function parsePositionedCariStatement(pages:PageWords[]):ImportedStatemen
       const balanceFlag=collect(words,563,595);
       const parsedKind=kindFor(type);
       if(dateISO(dateRaw)&&parsedKind&&docNo){
-        const dr=trMoney(debit)||0,cr=trMoney(credit)||0;
+        const grouped=moneyTokens(collect(words,430,565));
+        // A PDF renderer may combine every amount into one positioned item.
+        const useGrouped=(credit.trim()===""||balance.trim()==="")&&grouped.length>=2;
+        const dr=useGrouped?grouped[0]||0:trMoney(debit)||0;
+        const cr=useGrouped?grouped[1]||0:trMoney(credit)||0;
         if(!dr&&!cr){warnings.push("Belge "+docNo+": borç/alacak tutarı okunamadı.");continue;}
-        const rawBalance=trMoney(balance);
+        const rawBalance=useGrouped?grouped[2]??null:trMoney(balance);
         const sign=/\[A\]/i.test(balanceFlag)?-1:1;
         const entry:ImportedEntry={
           date:dateISO(dateRaw),dueDate:dateISO(due)||null,kind:parsedKind,documentNo:docNo,
@@ -140,17 +152,21 @@ export function parsePositionedCariStatement(pages:PageWords[]):ImportedStatemen
       }
       const name=collect(words,85,241);
       const qtyRaw=collect(words,240,269);
-      const unit=collect(words,269,306);
+      const unitRaw=collect(words,269,306);
+      const unit=unitRaw.match(/^(ADET|AD|KG|LT|LİTRE|PAKET|KOLİ|PCS|SET)/i)?.[0]||unitRaw;
       const price=collect(words,305,375);
       const discounted=collect(words,375,435);
       const total=collect(words,435,477);
+      const monetary=moneyTokens(collect(words,269,517));
       const quantityRaw=trMoney(qtyRaw);
       const quantity=quantityRaw===null?null:Math.round(quantityRaw*1000)/1000;
-      const lineTotal=trMoney(total);
+      const lineTotal=trMoney(total)??(monetary.length>=3?monetary.at(-1)??null:null);
       if(current&&name&&quantity!==null&&quantity>0&&lineTotal!==null&&unit){
+        const priceAmount=trMoney(price)??(monetary.length>=2?monetary[0]:0);
+        const discountedAmount=trMoney(discounted)??(monetary.length>=3?monetary[monetary.length-2]:null);
         const item={
-          productName:name,quantity,unit,unitPrice:trMoney(price)||0,
-          discountedUnitPrice:trMoney(discounted),lineTotal,
+          productName:name,quantity,unit,unitPrice:priceAmount,
+          discountedUnitPrice:discountedAmount,lineTotal,
         };
         current.lines.push(item);
         continue;
