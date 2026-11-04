@@ -33,7 +33,7 @@ const SCHEMA = [
 let schemaPromise: Promise<void> | undefined;
 async function ready() {
   if (!pool) throw Object.assign(new Error("PostgreSQL bağlantısı gerekli"), { status: 503 });
-  if (!schemaPromise) schemaPromise = pool.query(SCHEMA).then(() => ensureDukkanB2BBridge(pool)).then(() => undefined).catch((error) => { schemaPromise = undefined; throw error; });
+  if (!schemaPromise) schemaPromise = pool.query(SCHEMA).then(() => ensureDukkanB2BBridge(pool!)).then(() => undefined).catch((error) => { schemaPromise = undefined; throw error; });
   await schemaPromise;
   return pool;
 }
