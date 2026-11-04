@@ -57,6 +57,7 @@ export default function DukkanProductEdit({id}:{id:string}){
       }
     }catch{ /* use a safe fallback */ }
     try{
+      sessionStorage.setItem("dukkan:return-to-products",storeId);
       if(previous)sessionStorage.setItem("dukkan:restore-scroll","1");
     }catch{ /* storage can be disabled */ }
     navigate(previous||"/dukkan?tab=products&storeId="+encodeURIComponent(storeId));
