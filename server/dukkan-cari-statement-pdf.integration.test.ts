@@ -31,6 +31,7 @@ test("actual two-page PDF text coordinates preserve invoice continuation and amo
   const result=parsePositionedCariStatement(words);
   assert.equal(result.pageCount,2);
   assert.equal(result.party.sourceCariNo,"0000065");
+  console.log("PDF coordinate extraction:",JSON.stringify({entries:result.entries.map(e=>({kind:e.kind,date:e.date,doc:e.documentNo,lines:e.lines.length})),page2:words[1].filter(w=>w.y>=147&&w.y<195)}));
   assert.equal(result.entries.length,3);
   assert.equal(result.entries[1].kind,"sale");
   assert.equal(result.entries[1].lines.length,2);
