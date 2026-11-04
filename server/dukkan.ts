@@ -313,10 +313,12 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if (res.locals.dukkanRole==="cashier") deny("Ürün kataloğu için yetki gerekiyor");
     const db=await ready();
     const r=await db.query(
-      "SELECT p.id,p.sku,p.name,p.barcode,p.brand,p.category,p.price,p.stock,p.image_data,p.units_per_box,p.min_order_qty,p.updated_at " +
-      "FROM b2b_products p WHERE p.is_active IS DISTINCT FROM FALSE AND NOT EXISTS(" +
+      "SELECT p.id,p.sku,p.name,p.barcode,p.brand,p.category,p.price,p.stock,p.image_data," +
+      "p.units_per_box,p.min_order_qty,p.is_active,p.updated_at," +
+      "EXISTS(SELECT 1 FROM dukkan_products other WHERE other.b2b_product_id=p.id::text) AS linked_to_store " +
+      "FROM b2b_products p WHERE (p.is_active IS DISTINCT FROM FALSE OR $2::boolean) AND NOT EXISTS(" +
       "SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.b2b_product_id=p.id::text) ORDER BY p.updated_at DESC LIMIT 500",
-      [store(req)],
+      [store(req),Boolean(res.locals.dukkanAdmin)],
     );
     // No sensitive internal purchase cost; clients use a lightweight public thumbnail endpoint.
     res.setHeader("Cache-Control","private, no-store");
@@ -326,6 +328,108 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       image_data:undefined,
     })));
   }));
+
+  // B2B global catalogue editing requires both store-manager and platform-admin access.
+  // Linked products must be edited from their owning store, where stock is authoritative.
+  const editableGlobalB2B = async (c: PoolClient, productId: string) => {
+    const linked = await c.query(
+      "SELECT store_id,id FROM dukkan_products WHERE b2b_product_id=$1 LIMIT 1",[productId],
+    );
+    if (linked.rowCount) throw Object.assign(
+      new Error("Ürün mağaza stoklarına bağlı. Bağlı mağazanın ürün kartından düzenleyin."),{status:409},
+    );
+    const product = await c.query("SELECT * FROM b2b_products WHERE id::text=$1 FOR UPDATE",[productId]);
+    if(!product.rows[0])throw Object.assign(new Error("B2B ürünü bulunamadı"),{status:404});
+    return product.rows[0];
+  };
+  const globalB2BAdmin = (res:Response) => {
+    manager(res);
+    if(!res.locals.dukkanAdmin)deny("B2B kataloğunu düzenlemek için Çalışkan Admin yetkisi gerekiyor");
+  };
+  const globalId = z.string().trim().min(1).max(128);
+  app.get("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId",safe(async(req,res)=>{
+    globalB2BAdmin(res);
+    const productId=globalId.parse(req.params.b2bId),db=await ready();
+    const found=await db.query(
+      "SELECT id,sku,name,brand,category,description,price,stock,min_order_qty,units_per_box,"+
+      "image_data,images,barcode,is_active FROM b2b_products WHERE id::text=$1 LIMIT 1",[productId],
+    );
+    if(!found.rows[0])return res.status(404).json({error:"B2B ürünü bulunamadı"});
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(found.rows[0]);
+  }));
+  app.patch("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId",safe(async(req,res)=>{
+    globalB2BAdmin(res);
+    const productId=globalId.parse(req.params.b2bId);
+    const p=z.object({
+      name:string,sku:string,barcode:z.string().trim().max(64).optional(),
+      brand:z.string().trim().max(100).default(""),
+      category:z.string().trim().max(120).default(""),
+      description:z.string().trim().max(4000).default(""),
+      salePrice:z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals),
+      stock:z.coerce.number().int().min(0).max(2147483647),
+      unitsPerBox:z.coerce.number().int().min(1).max(100000),
+      minOrderQty:z.coerce.number().int().min(1).max(10000),
+      publishB2B:z.boolean(),
+      images:z.unknown().optional(),
+    }).parse(req.body);
+    const updated=await transaction(async c=>{
+      const before=await editableGlobalB2B(c,productId);
+      const images=p.images===undefined
+        ? (Array.isArray(before.images)&&before.images.length?before.images:before.image_data?[before.image_data]:[])
+        : validateDukkanImages(p.images);
+      if(p.publishB2B&&!images.length)throw Object.assign(
+        new Error("B2B'de yayınlamak için en az bir ürün görseli ekleyin"),{status:400});
+      const output=await c.query(
+        "UPDATE b2b_products SET name=$2,sku=$3,barcode=$4,brand=$5,category=$6,description=$7,"+
+        "price=$8,stock=$9,units_per_box=$10,min_order_qty=$11,is_active=$12,image_data=$13,"+
+        "images=$14::jsonb,updated_at=NOW() WHERE id::text=$1 RETURNING id,is_active",
+        [productId,p.name,p.sku,p.barcode||null,p.brand||null,p.category||null,
+         p.description||null,money(p.salePrice),p.stock,p.unitsPerBox,p.minOrderQty,
+         p.publishB2B,images[0]||null,JSON.stringify(images)],
+      );
+      return output.rows[0];
+    });
+    notifyMetaCatalogChange();
+    res.json(updated);
+  }));
+  // Fast publication switches change no product content, prices or stock.
+  app.patch("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId/publication",safe(async(req,res)=>{
+    globalB2BAdmin(res);
+    const productId=globalId.parse(req.params.b2bId);
+    const requested=z.object({published:z.boolean()}).parse(req.body);
+    const updated=await transaction(async c=>{
+      const before=await editableGlobalB2B(c,productId);
+      if(requested.published&&!before.image_data&&(!Array.isArray(before.images)||!before.images.length))
+        throw Object.assign(new Error("Yayınlamak için en az bir ürün görseli gerekli"),{status:400});
+      const result=await c.query(
+        "UPDATE b2b_products SET is_active=$2,updated_at=NOW() WHERE id::text=$1 RETURNING id,is_active",
+        [productId,requested.published],
+      );
+      return result.rows[0];
+    });
+    notifyMetaCatalogChange();
+    res.json(updated);
+  }));
+  app.patch("/api/dukkan/stores/:storeId/products/:productId/publication",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req),productId=id.parse(req.params.productId);
+    const {published}=z.object({published:z.boolean()}).parse(req.body);
+    const updated=await transaction(async c=>{
+      const found=await c.query("SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,productId]);
+      if(!found.rows[0])throw Object.assign(new Error("Mağaza ürünü bulunamadı"),{status:404});
+      if(published&&!found.rows[0].image_data&&(!Array.isArray(found.rows[0].images)||!found.rows[0].images.length))
+        throw Object.assign(new Error("Yayınlamak için ürün görseli ekleyin"),{status:400});
+      const result=await c.query(
+        "UPDATE dukkan_products SET publish_b2b=$3 WHERE store_id=$1 AND id=$2 RETURNING *",
+        [sid,productId,published],
+      );
+      return syncDukkanToB2B(c,result.rows[0]);
+    });
+    notifyMetaCatalogChange();
+    res.json({id:updated.id,publish_b2b:updated.publish_b2b});
+  }));
+
   // Importing makes a B2B product a local inventory item. Unique ownership prevents
   // two stores independently overwriting the same B2B stock.
   app.post("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId/import",safe(async(req,res)=>{
