@@ -131,23 +131,63 @@ export function parsePositionedCariStatement(pages:PageWords[]):ImportedStatemen
       const balance=collect(words,520,564);
       const balanceFlag=collect(words,563,595);
       const parsedKind=kindFor(type);
-      if(dateISO(dateRaw)&&parsedKind&&docNo){
+      if(dateISO(dateRaw)){
+        // Do not attach text after an unrecognized movement to the preceding
+        // invoice. Preserve otherwise valid unknown movements as "other".
+        current=null;
+        if(!docNo){
+          warnings.push("Sayfa "+(pageIndex+1)+": belge numarası okunamayan tarihli hareket atlandı.");
+          continue;
+        }
         const grouped=moneyTokens(collect(words,430,565));
-        // A PDF renderer may combine every amount into one positioned item.
-        const useGrouped=(credit.trim()===""||balance.trim()==="")&&grouped.length>=2;
-        const dr=useGrouped?grouped[0]||0:trMoney(debit)||0;
-        const cr=useGrouped?grouped[1]||0:trMoney(credit)||0;
-        if(!dr&&!cr){warnings.push("Belge "+docNo+": borç/alacak tutarı okunamadı.");continue;}
-        const rawBalance=useGrouped?grouped[2]??null:trMoney(balance);
         const sign=/\[A\]/i.test(balanceFlag)?-1:1;
+        let dr=trMoney(debit)??0;
+        let cr=trMoney(credit)??0;
+        let rawBalance=trMoney(balance);
+        if(grouped.length===3){
+          // Debit, credit and running balance; even when PDF.js merged cells.
+          [dr,cr,rawBalance]=grouped;
+        }else if(grouped.length===2&&(!credit.trim()||!balance.trim())){
+          // Two values must not be interpreted as debit + credit when the
+          // second one could be the running balance.
+          const previous=entries.at(-1)?.sourceBalance;
+          const change=previous===null||previous===undefined?null:
+            round(sign*grouped[1]-previous);
+          if(change!==null&&Math.abs(Math.abs(change)-grouped[0])<=0.02&&grouped[0]>0){
+            dr=change>0?grouped[0]:0;
+            cr=change<0?grouped[0]:0;
+            rawBalance=grouped[1];
+          }else if(parsedKind==="opening"&&Math.abs(grouped[0]-grouped[1])<=0.02){
+            dr=sign>0?grouped[0]:0;
+            cr=sign<0?grouped[0]:0;
+            rawBalance=grouped[1];
+          }else if(credit.trim()&&!balance.trim()){
+            [dr,cr]=grouped;
+            rawBalance=null;
+          }else{
+            warnings.push("Belge "+docNo+": bitişik tutarlar kesin ayrıştırılamadı; hareket atlandı.");
+            continue;
+          }
+        }else if(grouped.length!==3&&
+          (moneyTokens(debit).length>1||moneyTokens(credit).length>1||
+            moneyTokens(balance).length>1)){
+          warnings.push("Belge "+docNo+": birleşik tutar sütunları ayrıştırılamadı; hareket atlandı.");
+          continue;
+        }
+        if((dr===0)===(cr===0)){
+          warnings.push("Belge "+docNo+": borç/alacak okunamadı veya iki taraf da dolu; hareket atlandı.");
+          continue;
+        }
+        if(!parsedKind)warnings.push("Belge "+docNo+": işlem türü tanınmadı; 'Diğer' olarak gösterildi.");
         const entry:ImportedEntry={
-          date:dateISO(dateRaw),dueDate:dateISO(due)||null,kind:parsedKind,documentNo:docNo,
-          description:desc,debit:dr,credit:cr,
+          date:dateISO(dateRaw),dueDate:dateISO(due)||null,
+          kind:parsedKind??"other",documentNo:docNo,
+          description:desc||type,debit:dr,credit:cr,
           sourceBalance:rawBalance===null?null:round(sign*rawBalance),
           sourcePage:pageIndex+1,lines:[],
         };
         entries.push(entry);
-        current=entry;
+        current=entry.kind==="sale"||entry.kind==="purchase"?entry:null;
         continue;
       }
       const name=collect(words,85,241);
@@ -161,7 +201,8 @@ export function parsePositionedCariStatement(pages:PageWords[]):ImportedStatemen
       const quantityRaw=trMoney(qtyRaw);
       const quantity=quantityRaw===null?null:Math.round(quantityRaw*1000)/1000;
       const lineTotal=trMoney(total)??(monetary.length>=3?monetary.at(-1)??null:null);
-      if(current&&name&&quantity!==null&&quantity>0&&lineTotal!==null&&unit){
+      if(current&&name&&!/^(?:toplam|ara toplam|genel toplam|sayfa toplamı)\b/i.test(name)&&
+        quantity!==null&&quantity>0&&lineTotal!==null&&unit){
         const priceAmount=trMoney(price)??(monetary.length>=2?monetary[0]:0);
         const discountedAmount=trMoney(discounted)??(monetary.length>=3?monetary[monetary.length-2]:null);
         const item={
@@ -192,8 +233,7 @@ export function parsePositionedCariStatement(pages:PageWords[]):ImportedStatemen
   }
   if(!partyName||!code||!entries.length)
     throw Error("Cari hesap ekstresi düzeni tanınamadı. Cari adı, kodu veya işlem satırları okunamadı.");
-  // The same invoice may continue on another page. Keep the last active
-  // invoice attached to its product rows across page boundaries.
+  // An invoice can continue on the next page, but any new movement closes it.
   entries.forEach(e=>{
     if(e.lines.length&&["sale","purchase"].includes(e.kind)){
       const linesTotal=round(e.lines.reduce((sum,v)=>sum+v.lineTotal,0));

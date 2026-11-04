@@ -15,7 +15,9 @@ export function summarizeImportedStatement(raw:ImportedStatement){
   const net=round(debit-credit);
   const invoices=document.entries.filter(x=>x.kind==="sale"||x.kind==="purchase");
   const rows=invoices.reduce((a,x)=>a+x.lines.length,0);
-  const mismatches=invoices.flatMap(x=>{
+  const mismatches=[
+    ...document.warnings.filter(w=>/hareket atlandı|sütunları ayrıştırılamadı/i.test(w)),
+    ...invoices.flatMap(x=>{
     const total=round(x.lines.reduce((a,v)=>a+v.lineTotal,0));
     const documentAmount=round(x.debit+x.credit);
     if(x.lines.length&&Math.abs(total-documentAmount)>0.05)
@@ -23,7 +25,21 @@ export function summarizeImportedStatement(raw:ImportedStatement){
         " TL) belge tutarından ("+documentAmount.toFixed(2)+" TL) farklı."];
     if(!x.lines.length)return [x.documentNo+": faturanın ürün kalemleri belgede okunamadı."];
     return [];
-  });
+  }),
+  ];
+  // A correct final balance does not guarantee correct individual movements.
+  // Compare every printed running balance to its immediately preceding one.
+  let previousBalance=0;
+  for(const movement of document.entries){
+    const expected=round(previousBalance+movement.debit-movement.credit);
+    if(movement.sourceBalance!==null){
+      if(Math.abs(expected-movement.sourceBalance)>0.02)
+        mismatches.push(movement.documentNo+" (sayfa "+movement.sourcePage+
+          "): hesaplanan hareket bakiyesi "+fixed(expected)+" TL, PDF satır bakiyesi "+
+          fixed(movement.sourceBalance)+" TL.");
+      previousBalance=movement.sourceBalance;
+    }else previousBalance=expected;
+  }
   if(document.declaredClosingBalance!==null&&
     Math.abs(net-document.declaredClosingBalance)>0.02)
     mismatches.push("Ekstre net bakiyesi ("+net.toFixed(2)+

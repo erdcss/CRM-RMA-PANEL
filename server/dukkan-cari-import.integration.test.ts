@@ -112,3 +112,19 @@ test("unbalanced invoice lines block writes and missing VAT is not inferred",()=
   assert.equal(summary.balance,250);
   assert.equal(summary.blockingMismatches.length,1);
 });
+
+
+test("a movement-level balance mismatch blocks posting even when the final net agrees",()=>{
+  const invalid:ImportedStatement={...document,entries:document.entries.map((entry,i)=>
+    i===1?{...entry,sourceBalance:405}:entry)};
+  const summary=summarizeImportedStatement(invalid);
+  assert.equal(summary.balance,250);
+  assert.ok(summary.blockingMismatches.some(x=>x.includes("000184")&&x.includes("405.00")));
+  assert.equal(summary.reportedBalance,250);
+});
+
+test("skipped PDF movements block posting rather than silently importing an incomplete ledger",()=>{
+  const invalid:ImportedStatement={...document,warnings:["Belge 00099: bitişik tutarlar kesin ayrıştırılamadı; hareket atlandı."]};
+  const summary=summarizeImportedStatement(invalid);
+  assert.ok(summary.blockingMismatches.some(x=>x.includes("hareket atlandı")));
+});
