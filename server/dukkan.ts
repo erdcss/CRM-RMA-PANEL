@@ -704,4 +704,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     // Settlement marking tracks the document only; collection/payment is a separate posting.
     res.json(r.rows[0]);
   }));
+  // Start the idempotent catalog import when the server boots. It must not
+  // depend on a manager visiting Products before products become available.
+  void ready().catch(error=>console.error("Dukkan catalog startup sync failed:",error));
 }
