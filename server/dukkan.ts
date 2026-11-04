@@ -95,6 +95,12 @@ function safe(fn: SafeHandler): RequestHandler {
 function deny(message: string): never { throw Object.assign(new Error(message), { status: 403 }); }
 function accountant(res: Response) { if (!["owner","manager","accountant"].includes(res.locals.dukkanRole)) deny("Muhasebe yetkisi gerekiyor"); }
 function manager(res: Response) { if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Mağaza yönetim yetkisi gerekiyor"); }
+// Inventory reconciliation is allowed for store managers, accountants and platform admins.
+// Cashiers/viewers still cannot edit or void stock history.
+function stockEditor(res: Response) {
+  if (!res.locals.dukkanAdmin && !["owner","manager","accountant"].includes(String(res.locals.dukkanRole)))
+    deny("Stok hareketlerini düzenlemek için mağaza yönetim veya muhasebe yetkisi gerekiyor");
+}
 function store(req: Request) { return id.parse(req.params.storeId); }
 function user(res: Response) { return Number(res.locals.dukkanUserId); }
 async function transaction<T>(cb: (c: PoolClient) => Promise<T>): Promise<T> {
@@ -681,7 +687,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json(updated);
   }));
   app.post("/api/dukkan/stores/:storeId/stock-movements",safe(async(req,res)=>{
-    manager(res);
+    stockEditor(res);
     const p=z.object({
       productId:id,
       delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),
@@ -696,7 +702,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.status(saved.replayed?200:201).json(saved);
   }));
   app.patch("/api/dukkan/stores/:storeId/stock-movements/:movementId",safe(async(req,res)=>{
-    manager(res);
+    stockEditor(res);
     const p=z.object({
       delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),
       note:z.string().trim().min(3).max(500),
@@ -709,7 +715,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json(changed);
   }));
   app.delete("/api/dukkan/stores/:storeId/stock-movements/:movementId",safe(async(req,res)=>{
-    manager(res);
+    stockEditor(res);
     const changed=await transaction(async c=>changeManualStockMovement(c,{
       storeId:store(req),movementId:id.parse(req.params.movementId),
       actor:user(res),action:"delete",
@@ -718,7 +724,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json(changed);
   }));
   app.get("/api/dukkan/stores/:storeId/stock-movements/:movementId/audit",safe(async(req,res)=>{
-    manager(res);
+    stockEditor(res);
     const sid=store(req),movementId=id.parse(req.params.movementId);
     const db=await ready();
     const exists=await db.query(
