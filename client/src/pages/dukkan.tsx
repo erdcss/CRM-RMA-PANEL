@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useLocation } from "wouter";
 import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
@@ -33,12 +34,13 @@ const softCard="rounded-[24px] border border-[#e6edf6] bg-white p-5 shadow-[0_8p
 
 export default function Dukkan() {
   const {data:branding}=useBranding();
+  const [,navigate]=useLocation();
   const [stores,setStores]=useState<Entry[]>([]);
   const [isAdmin,setIsAdmin]=useState(false);
   const [isSuperAdmin,setIsSuperAdmin]=useState(false);
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [members,setMembers]=useState<Entry[]>([]);
-  const [storeId,setStoreId]=useState("");
+  const [storeId,setStoreId]=useState(()=>new URLSearchParams(window.location.search).get("storeId")||"");
   const [section,setSection]=useState<Section>("overview");
   const [rows,setRows]=useState<Entry[]>([]);
   const [parties,setParties]=useState<Entry[]>([]);
@@ -89,7 +91,8 @@ export default function Dukkan() {
     const request=++requestVersion.current;
     const isCurrent=()=>request===requestVersion.current;
     const productPage=section==="products";
-    const wantsCatalog=productPage&&!cashier;
+    // The B2B catalog is auto-imported by /data/products; one source of truth.
+    const wantsCatalog=false;
     try{
       // One atomic list update: never briefly replace the full product list with
       // only local products during the 10-second background refresh.
@@ -155,6 +158,21 @@ export default function Dukkan() {
     return()=>{window.clearInterval(timer);window.removeEventListener("focus",onFocus);};
   },[section,storeId,showForm]);
 
+  useEffect(()=>{
+    if(section!=="products"||!rows.length)return;
+    try{
+      if(sessionStorage.getItem("dukkan:restore-scroll")!=="1")return;
+      const last=JSON.parse(sessionStorage.getItem("dukkan:last-product-list")||"null");
+      if(last?.storeId!==storeId)return;
+      const scroll=Number(last.scroll);
+      if(!Number.isFinite(scroll))return;
+      sessionStorage.removeItem("dukkan:restore-scroll");
+      requestAnimationFrame(()=>{
+        const container=document.querySelector<HTMLElement>("[data-dukkan-scroll]");
+        if(container)container.scrollTop=Math.max(0,scroll);
+      });
+    }catch{ /* ignore stale navigation state */ }
+  },[storeId,section,rows.length]);
   const partyOpts=parties.map(v=>({value:String(v.id),label:v.name+" (#"+v.id+")"}));
   const productOpts=products.map(v=>({value:String(v.id),label:v.name+" · "+v.sku+" · stok "+v.stock}));
   const bankOpts=banks.map(v=>({value:String(v.id),label:v.name+" · "+currency(v.balance)}));
@@ -237,34 +255,17 @@ export default function Dukkan() {
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
-  const editProduct=async(item:Entry)=>{
-    if(!canManage)return;
-    const fromB2B=item._source==="b2b";
-    if(fromB2B&&(!isAdmin||item.linked_to_store))return;
-    setEditingLoading(true);setError("");
+  const editProduct=(item:Entry)=>{
+    if(!canManage||item._source==="b2b")return;
+    const scroll=document.querySelector<HTMLElement>("[data-dukkan-scroll]")?.scrollTop||0;
+    const backRoute="/dukkan?tab=products&storeId="+encodeURIComponent(storeId);
     try{
-      const details=await api(fromB2B
-        ? base+"/catalog/b2b/"+encodeURIComponent(String(item._b2bId))
-        : base+"/products/"+item.id);
-      setEditingProductId(fromB2B?null:String(details.id));
-      setEditingCatalogId(fromB2B?String(details.id):null);
-      setDraft({name:String(details.name||""),sku:String(details.sku||""),
-        barcode:String(details.barcode||""),unit:String(details.unit||"adet"),
-        purchasePrice:fromB2B?"":String(details.purchase_price||0),
-        salePrice:String(fromB2B?details.price||0:details.sale_price||0),
-        stock:String(details.stock||0),
-        brand:String(details.brand||""),category:String(details.category||""),
-        description:String(details.description||""),
-        unitsPerBox:String(details.units_per_box||1),minOrderQty:String(details.min_order_qty||1)});
-      setProductImages(Array.isArray(details.images)&&details.images.length
-        ? details.images : details.image_data?[details.image_data]:[]);
-      setPublishToB2B(fromB2B?details.is_active!==false:Boolean(details.publish_b2b));
-      setShowForm(true);setNotice("");
-      window.setTimeout(()=>{
-        document.getElementById("dukkan-product-editor")?.scrollIntoView({behavior:"smooth",block:"start"});
-      },0);
-    }catch(e){setError((e as Error).message);}
-    finally{setEditingLoading(false);}
+      sessionStorage.setItem("dukkan:last-product-list",JSON.stringify({
+        route:backRoute,storeId,scroll,productId:String(item.id),
+      }));
+    }catch{ /* navigation works even if browser storage is disabled */ }
+    navigate("/dukkan/urunler/"+encodeURIComponent(String(item.id))+
+      "?storeId="+encodeURIComponent(storeId));
   };
   const togglePublication=async(item:Entry)=>{
     if(!canManage||publishingId)return;
@@ -297,17 +298,6 @@ export default function Dukkan() {
       const images=await Promise.all(accepted.map(fileToCompressedDataUrl));
       setProductImages(current=>[...current,...images].slice(0,6));
     }catch(e){setError((e as Error).message);}
-  };
-  const importB2BProduct=async(item:Entry)=>{
-    if(!canManage||!isAdmin||!item._b2bId)return;
-    setBusy(true);setError("");setNotice("");
-    try{
-      await api(base+"/catalog/b2b/"+encodeURIComponent(item._b2bId)+"/import",
-        {method:"POST",body:"{}"});
-      setNotice("B2B ürünü bu mağazanın stoklarına eklendi ve iki sistem birbirine bağlandı.");
-      setRefresh(v=>v+1);
-    }catch(e){setError((e as Error).message);}
-    finally{setBusy(false);}
   };
   const exportPdf=async(invoice:Entry)=>{
     if(pdfBusyId)return;
@@ -345,7 +335,7 @@ export default function Dukkan() {
   const typeLabel:Record<string,string>={sale:"Satış",purchase:"Alış",sale_return:"Satış İadesi",purchase_return:"Alış İadesi",received:"Alınan",issued:"Verilen",pending:"Bekliyor",settled:"Tahsil/Ödendi",bounced:"Karşılıksız",cancelled:"İptal"};
 
   return (
-    <div className="h-full min-h-screen overflow-y-auto bg-[#f3f7fc] text-[#172945]">
+    <div data-dukkan-scroll="main" className="h-full min-h-screen overflow-y-auto bg-[#f3f7fc] text-[#172945]">
       <div className="mx-auto max-w-[1700px] px-3 py-5 sm:px-7 sm:py-7">
         <DukkanWorkspaceHeader logo={branding?.dukkan_logo} stores={stores.map(item=>({id:Number(item.id),name:String(item.name||"Mağaza")}))} storeId={storeId} onStoreChange={setStoreId}
           onRefresh={()=>setRefresh(n=>n+1)} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} onNewStore={()=>setShowNewStore(v=>!v)}/>
@@ -494,8 +484,8 @@ export default function Dukkan() {
               <button disabled={busy} className={buttonClass}>İşle</button>
             </form>}
             {section==="products"&&<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-100 bg-[#f1f8ff] px-4 py-3 text-xs text-[#235681]">
-              <span className="flex items-center gap-2"><Link2 size={16}/> Çalışkan B2B kataloğu bağlı. Yayınlanan ürünler ve Dükkan stok kartları tek listede.</span>
-              <span className="font-bold">{b2bCatalog.length} B2B ürün · {products.length} mağaza ürünü</span>
+              <span className="flex items-center gap-2"><Link2 size={16}/> B2B ürünleri otomatik olarak Çalışkan Dükkân stoklarına bağlanır. Tek tek aktarma gerekmez.</span>
+              <span className="font-bold">{products.filter(p=>p.b2b_product_id).length} B2B bağlantılı · {products.length} mağaza ürünü</span>
             </div>}
             <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":"min-w-[650px]")}>
@@ -582,17 +572,8 @@ export default function Dukkan() {
                     </button>
                   </td>}
                   {section==="products"&&canManage&&<td className="px-3 py-3">
-                    {r._source==="b2b" ? (!isAdmin||r.linked_to_store
-                      ? <span className="text-xs text-slate-400">{r.linked_to_store?"Bağlı mağazadan düzenle":"Yönetici yetkisi gerekli"}</span>
-                      : <div className="flex flex-col gap-1.5">
-                          <button type="button" disabled={editingLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-100 disabled:opacity-40"
-                            onClick={()=>void editProduct(r)}>{editingLoading?"Yükleniyor...":"Düzenle"}</button>
-                          {r.is_active!==false?
-                            <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40"
-                              onClick={()=>void importB2BProduct(r)}><Plus size={14}/> Mağazaya Ekle</button>:null}
-                        </div>):
-                      <button type="button" disabled={editingLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 disabled:opacity-40"
-                        onClick={()=>void editProduct(r)}>{editingLoading?"Yükleniyor...":"Düzenle"}</button>}
+                    <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-100"
+                      onClick={()=>editProduct(r)}>Düzenle</button>
                   </td>}
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
