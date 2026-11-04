@@ -505,6 +505,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                           const delta = Number(item.delta);
                           const positive = delta > 0;
                           return (
+                            <>
                             <tr key={String(item.id)} className={"border-t border-[#edf2f8] align-top "+(item.voided_at?"bg-slate-50 opacity-75":"")}>
                               <td className="whitespace-nowrap px-3.5 py-3.5 text-[#47617b]">{dateTime(item.created_at)}</td>
                               <td className="px-3.5 py-3.5 font-semibold text-[#18385b]">
@@ -601,6 +602,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                                   )}</div>}
                               </td>
                             </tr>}
+                            </>
                           );
                         })}
                       </tbody>
