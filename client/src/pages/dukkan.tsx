@@ -147,6 +147,16 @@ export default function Dukkan() {
     // The B2B catalog is auto-imported by /data/products; one source of truth.
     const wantsCatalog=false;
     try{
+      if(section==="stock"){
+        // A dedicated lean endpoint avoids expensive catalog imports, customer
+        // balances, bank reports and invoice queries on stock-page transitions.
+        const stockProducts=await api(base+"/stock-products");
+        if(isCurrent()){
+          setProducts(Array.isArray(stockProducts)?stockProducts:[]);
+          setError("");
+        }
+        return;
+      }
       // One atomic list update: never briefly replace the full product list with
       // only local products during the 10-second background refresh.
       const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome,summaryOutcome]=await Promise.all([
