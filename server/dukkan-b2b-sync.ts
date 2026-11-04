@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from "pg";
 /** One store-owned record controls one B2B product; never match ownership by SKU/barcode. */
 export type DukkanCatalogRecord = {
   id: string | number; store_id: string | number; sku: string; name: string;
+  b2b_source_sku?: string | null; b2b_source_barcode?: string | null;
   barcode?: string | null; brand?: string | null; category?: string | null;
   description?: string | null; stock: string | number; sale_price: string | number;
   image_data?: string | null; images?: string[] | null;
@@ -52,6 +53,8 @@ export async function ensureDukkanB2BBridge(pool: Pool): Promise<void> {
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS min_order_qty INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS publish_b2b BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_product_id TEXT",
+    "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_source_sku TEXT",
+    "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_source_barcode TEXT",
     // Legacy install created BIGINT mapping while the production catalog has TEXT IDs.
     "ALTER TABLE dukkan_products ALTER COLUMN b2b_product_id TYPE TEXT USING b2b_product_id::text",
     "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_b2b_product_link_unique ON dukkan_products(b2b_product_id) WHERE b2b_product_id IS NOT NULL",
@@ -81,15 +84,17 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   const minQty = Math.max(1, Number(row.min_order_qty) || 1);
 
   if (row.b2b_product_id) {
+    const desiredSku=row.b2b_source_sku || row.sku;
+    const desiredBarcode=row.b2b_source_barcode || row.barcode || null;
     const conflict=await c.query("SELECT id FROM b2b_products WHERE sku=$1 AND id::text<>$2 LIMIT 1",
-      [row.sku,row.b2b_product_id]);
-    const b2bSku=conflict.rowCount?"DUK-"+row.store_id+"-"+row.id:row.sku;
+      [desiredSku,row.b2b_product_id]);
+    const b2bSku=conflict.rowCount?"DUK-"+row.store_id+"-"+row.id:desiredSku;
     const result = await c.query(
       "UPDATE b2b_products SET sku=$2,name=$3,brand=$4,category=$5,description=$6,price=$7,stock=$8," +
       "min_order_qty=$9,units_per_box=$10,image_data=$11,images=$12::jsonb,barcode=$13," +
       "is_active=$14,updated_at=NOW() WHERE id::text=$1 RETURNING id",
       [row.b2b_product_id,b2bSku,row.name,row.brand||null,row.category||"Genel",row.description||null,
-       price,stock,minQty,boxSize,photo,JSON.stringify(images),row.barcode||null,row.publish_b2b],
+       price,stock,minQty,boxSize,photo,JSON.stringify(images),desiredBarcode,row.publish_b2b],
     );
     if (!result.rowCount) throw Object.assign(new Error("Bağlı B2B ürünü bulunamadı; işlem geri alındı"),{status:409});
     return row;
@@ -108,6 +113,73 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   await c.query("UPDATE dukkan_products SET b2b_product_id=$3 WHERE store_id=$1 AND id=$2",
     [row.store_id,row.id,linkedId]);
   return {...row,b2b_product_id:linkedId};
+}
+
+
+/** Bulk-import the B2B catalog into ÇALIŞKAN GROUP; repeat-safe by B2B ID.
+ * Duplicate catalog barcodes are kept as source fields, without creating
+ * ambiguous store scanner barcodes or overwriting other store products.
+ */
+export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise<{
+  imported: number; total: number; assignedElsewhere: number; skipped: number; enabled: boolean;
+}> {
+  const c=await pool.connect();
+  try{
+    await c.query("BEGIN");
+    await c.query("SELECT pg_advisory_xact_lock(hashtext('caliskan_primary_dukkan_b2b_import_v1'))");
+    const owner=await c.query(
+      "SELECT id FROM dukkan_stores WHERE id=$1 AND LOWER(TRIM(name))=LOWER('ÇALIŞKAN GROUP') LIMIT 1",
+      [storeId],
+    );
+    if(!owner.rowCount){
+      await c.query("COMMIT");
+      return {imported:0,total:0,assignedElsewhere:0,skipped:0,enabled:false};
+    }
+    const count=await c.query("SELECT COUNT(*)::int AS total FROM b2b_products");
+    const linked=await c.query(
+      "SELECT COUNT(*)::int AS total FROM dukkan_products WHERE b2b_product_id IS NOT NULL AND store_id<>$1",[storeId],
+    );
+    const query=[
+      "INSERT INTO dukkan_products (",
+      "store_id,sku,b2b_source_sku,barcode,b2b_source_barcode,name,unit,stock,",
+      "purchase_price,sale_price,brand,category,description,image_data,images,",
+      "units_per_box,min_order_qty,publish_b2b,b2b_product_id)",
+      "SELECT $1,",
+      "CASE WHEN EXISTS (SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.sku=p.sku)",
+      "THEN 'B2B-' || p.id::text ELSE p.sku END,",
+      "p.sku,",
+      "CASE WHEN NULLIF(TRIM(p.barcode),'') IS NOT NULL",
+      "AND ranked.barcode_rank=1",
+      "AND NOT EXISTS (SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.barcode=p.barcode)",
+      "THEN p.barcode ELSE NULL END,",
+      "NULLIF(TRIM(p.barcode),''),",
+      "p.name,'adet',GREATEST(0,COALESCE(p.stock,0)),0,COALESCE(p.price,0),",
+      "p.brand,p.category,p.description,p.image_data,COALESCE(p.images,'[]'::jsonb),",
+      "GREATEST(1,COALESCE(p.units_per_box,1)),GREATEST(1,COALESCE(p.min_order_qty,1)),",
+      "COALESCE(p.is_active,TRUE),p.id::text",
+      "FROM b2b_products p",
+      "JOIN (SELECT id, ROW_NUMBER() OVER (PARTITION BY NULLIF(TRIM(barcode),'')",
+      "ORDER BY created_at,id) AS barcode_rank FROM b2b_products) ranked ON ranked.id=p.id",
+      "WHERE NOT EXISTS (SELECT 1 FROM dukkan_products used WHERE used.b2b_product_id=p.id::text)",
+      "ON CONFLICT DO NOTHING RETURNING id",
+    ].join(" ");
+    const created=await c.query(query,[storeId]);
+    const missing=await c.query(
+      "SELECT COUNT(*)::int AS missing FROM b2b_products b WHERE NOT EXISTS ("+
+      "SELECT 1 FROM dukkan_products d WHERE d.b2b_product_id=b.id::text)",
+    );
+    await c.query("COMMIT");
+    return {
+      imported:created.rowCount||0,
+      total:Number(count.rows[0]?.total||0),
+      assignedElsewhere:Number(linked.rows[0]?.total||0),
+      skipped:Number(missing.rows[0]?.missing||0),
+      enabled:true,
+    };
+  }catch(error){
+    await c.query("ROLLBACK").catch(()=>undefined);
+    throw error;
+  }finally{ c.release(); }
 }
 
 
