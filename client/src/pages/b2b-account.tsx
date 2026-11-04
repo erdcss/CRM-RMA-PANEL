@@ -61,7 +61,7 @@ const tabs: Array<{ key: Tab; label: string; icon: typeof Building2 }> = [
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, { credentials: "include" });
   if (response.status === 401 || response.status === 403) {
-    window.location.assign("/uye-girisi");
+    window.location.assign("/uye-girisi?from=hesabim");
     throw new Error("Oturum gerekli");
   }
   if (!response.ok) throw new Error("Veri alınamadı");
