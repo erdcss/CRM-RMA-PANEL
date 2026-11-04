@@ -1,5 +1,6 @@
 import {useEffect,useState} from "react";
 import {FileUp,Loader2,ScanText,X} from "lucide-react";
+import {DukkanCariStatementImport} from "./dukkan-cari-statement-import";
 
 export type DocumentSection="products"|"stock"|"instruments"|"parties"|"sales"|"purchases";
 export type AiDocumentDraft={
@@ -30,6 +31,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
  const [open,setOpen]=useState(false),[file,setFile]=useState<File|null>(null);
  const [preview,setPreview]=useState(""),[result,setResult]=useState<AiDocumentDraft|null>(null);
  const [error,setError]=useState(""),[busy,setBusy]=useState(false);
+ const [cariMode,setCariMode]=useState<"profile"|"movements">("profile");
  useEffect(()=>{
   if(!file){setPreview("");return;}
   const url=URL.createObjectURL(file);setPreview(url);return ()=>URL.revokeObjectURL(url);
@@ -72,6 +74,19 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
      <div><h3 className="font-black">AI Belge İçe Aktarma</h3><p className="text-xs text-slate-500">Belge okunur, taslak hazırlanır; onay olmadan muhasebe kaydı yapılmaz.</p></div>
      <button type="button" disabled={busy} onClick={close} aria-label="Kapat"><X size={22}/></button>
     </header>
+    {section==="parties"&&<nav aria-label="Cari belge aktarım türü" className="grid grid-cols-2 gap-2 border-b border-[#e4ebf4] px-5 py-3">
+      <button type="button" aria-pressed={cariMode==="profile"} onClick={()=>{setCariMode("profile");setError("");}}
+        className={"rounded-xl px-4 py-3 text-xs font-bold "+(cariMode==="profile"?"bg-[#143e6d] text-white":"bg-slate-100 text-slate-600")}>
+        Cari Kartı Bilgilerini İçe Aktar
+      </button>
+      <button type="button" aria-pressed={cariMode==="movements"} onClick={()=>{setCariMode("movements");setError("");}}
+        className={"rounded-xl px-4 py-3 text-xs font-bold "+(cariMode==="movements"?"bg-[#143e6d] text-white":"bg-slate-100 text-slate-600")}>
+        Cari Hesaba Ait Hareketleri İçe Aktar
+      </button>
+    </nav>}
+    {section==="parties"&&cariMode==="movements"?
+      <DukkanCariStatementImport base={base}
+        onImported={()=>{closeAfterImport();onImported();}}/>:
     <div className="grid min-h-0 flex-1 gap-4 overflow-auto p-5 md:grid-cols-2">
      <div className="space-y-3">
       <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-sky-300 bg-sky-50 p-4 text-sm font-semibold">
@@ -110,7 +125,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
         <button type="button" disabled={busy} onClick={()=>{onApply(result);closeAfterImport();}} className="w-full rounded-xl bg-[#123e78] p-3 text-sm font-bold text-white">Taslağı Forma Aktar ve Düzenle</button>}
       </>}
      </div>
-    </div>
+    </div>}
    </section>
   </div>}
  </>;
