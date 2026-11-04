@@ -6,6 +6,8 @@ import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-w
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
+import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
+import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
 type Entry = Record<string, any>;
@@ -42,6 +44,13 @@ export default function Dukkan() {
   const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState(()=>new URLSearchParams(window.location.search).get("storeId")||"");
   const [section,setSection]=useState<Section>("overview");
+  const [productToolbar,setProductToolbar]=useState<ProductToolbarState>(()=>{
+    try{
+      const initialStore=new URLSearchParams(window.location.search).get("storeId")||"";
+      return restoreProductToolbar(sessionStorage.getItem("dukkan:products-toolbar:"+initialStore));
+    }catch{return {...DEFAULT_PRODUCT_TOOLBAR};}
+  });
+  const toolbarStore=useRef(new URLSearchParams(window.location.search).get("storeId")||"");
   const [rows,setRows]=useState<Entry[]>([]);
   const [parties,setParties]=useState<Entry[]>([]);
   const [products,setProducts]=useState<Entry[]>([]);
@@ -77,6 +86,20 @@ export default function Dukkan() {
     if(section==="settings"&&!canAccessSettings)setSection("overview");
   },[section,canAccessSettings]);
   const identity=useMemo(()=>new URLSearchParams(window.location.search).get("tab"),[]);
+  useEffect(()=>{
+    if(!storeId||toolbarStore.current===storeId)return;
+    toolbarStore.current=storeId;
+    try{setProductToolbar(restoreProductToolbar(sessionStorage.getItem("dukkan:products-toolbar:"+storeId)));}
+    catch{setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR});}
+  },[storeId]);
+  useEffect(()=>{
+    if(!storeId||toolbarStore.current!==storeId)return;
+    try{sessionStorage.setItem("dukkan:products-toolbar:"+storeId,JSON.stringify(productToolbar));}
+    catch{ /* Filtering works without browser storage. */ }
+  },[storeId,productToolbar]);
+  const changeToolbar=(changes:Partial<ProductToolbarState>)=>{
+    setProductToolbar(current=>({...current,...changes,page:changes.page!==undefined?changes.page:1}));
+  };
 
   useEffect(()=>{if(identity && SECTIONS.some(s=>s.key===identity))setSection(identity as Section);},[identity]);
   const loadStores=useCallback(async()=>{
@@ -332,6 +355,9 @@ export default function Dukkan() {
   }));
   const total=lines.reduce((sum,l)=>sum+Number(l.quantity||0)*Number(l.unitPrice||0)*(1+Number(section==="orders"?0:l.taxRate||0)/100),0);
   const displayed=rows.filter(v=>section==="sales"?["sale","sale_return"].includes(v.kind):section==="purchases"?["purchase","purchase_return"].includes(v.kind):true);
+  const matchingProducts=useMemo(()=>selectDukkanProducts(rows,productToolbar),[rows,productToolbar]);
+  const pagedProducts=useMemo(()=>paginateDukkanProducts(matchingProducts,productToolbar.page,productToolbar.pageSize),[matchingProducts,productToolbar.page,productToolbar.pageSize]);
+  const tableRows=section==="products"?pagedProducts.rows:displayed;
   const typeLabel:Record<string,string>={sale:"Satış",purchase:"Alış",sale_return:"Satış İadesi",purchase_return:"Alış İadesi",received:"Alınan",issued:"Verilen",pending:"Bekliyor",settled:"Tahsil/Ödendi",bounced:"Karşılıksız",cancelled:"İptal"};
 
   return (
@@ -487,6 +513,9 @@ export default function Dukkan() {
               <span className="flex items-center gap-2"><Link2 size={16}/> B2B ürünleri otomatik olarak Çalışkan Dükkân stoklarına bağlanır. Tek tek aktarma gerekmez.</span>
               <span className="font-bold">{products.filter(p=>p.b2b_product_id).length} B2B bağlantılı · {products.length} mağaza ürünü</span>
             </div>}
+            {section==="products"&&<DukkanProductToolbar value={productToolbar} onChange={changeToolbar}
+              onClear={()=>setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR})}
+              page={pagedProducts} totalProducts={rows.length}/>}
             <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":section==="parties"?"min-w-[980px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
@@ -500,7 +529,7 @@ export default function Dukkan() {
                     ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-4 py-4 font-semibold">{h}</th>)}
                   {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
-                <tbody>{displayed.map(r=><tr key={String(r._source||section)+":"+String(r.id)}
+                <tbody>{tableRows.map(r=><tr key={String(r._source||section)+":"+String(r.id)}
                   className={"border-t border-[#edf1f7] hover:bg-[#f7faff] "+(section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store))?"cursor-pointer":"")}
                   onClick={event=>{
                     if(section!=="products"||!canManage||(r._source==="b2b"&&(!isAdmin||r.linked_to_store)))return;
@@ -578,7 +607,13 @@ export default function Dukkan() {
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
               </table>
-              {displayed.length===0&&<p className="py-10 text-center text-sm text-slate-500">Henüz kayıt bulunmuyor.</p>}
+              {tableRows.length===0&&<div className="py-10 text-center text-sm text-slate-500">
+                {section==="products"&&rows.length>0?
+                  <>Filtrelerle eşleşen ürün bulunamadı.
+                    <button type="button" onClick={()=>setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR})}
+                      className="ml-2 font-semibold text-[#17649f] underline">Filtreleri Temizle</button>
+                  </>:"Henüz kayıt bulunmuyor."}
+              </div>}
             </div>
           </div>}
           <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
