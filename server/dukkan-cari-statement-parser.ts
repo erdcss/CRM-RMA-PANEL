@@ -218,6 +218,6 @@ export async function extractPositionedPdfWords(bytes:Buffer):Promise<PageWords[
       pages.push(words);
       page.cleanup();
     }
-  }finally{await doc.destroy();}
+  }finally{await task.destroy();}
   return pages;
 }
