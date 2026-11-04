@@ -201,8 +201,8 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
             <div className="mt-4 grid gap-2">
               {toggle("showProductCode","Stok Kodu","Ürünün altında stok kodunu göster")}
               {toggle("showUnitPrice","Birim Fiyat","Satırdaki birim fiyat sütununu göster")}
-              {toggle("showTaxRate","KDV Oranı","Ürün satırlarında KDV oranını göster")}
-              {toggle("showPartyTaxNumber","Cari VKN / TCKN","Müşteri/tedarikçinin vergi numarası")}
+              {!(kind==="sale"&&form.layout==="classic")&&toggle("showTaxRate","KDV Oranı","Ürün satırlarında KDV oranını göster")}
+              {!(kind==="sale"&&form.layout==="classic")&&toggle("showPartyTaxNumber","Cari VKN / TCKN","Müşteri/tedarikçinin vergi numarası")}
               {toggle("showPartyPhone","Cari Telefonu","Müşteri/tedarikçinin telefon numarası")}
               {toggle("showCompanyDetails","İşletme Detayları","Adres, telefon ve vergi bilgileri")}
             </div>
@@ -213,7 +213,7 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
               <label className="block"><span className={fieldLabel}>Şablon Görünümü</span>
                 <select value={form.layout} disabled={!canEdit} className={fieldStyle}
                   onChange={e=>put("layout",e.target.value as DukkanInvoiceForm["layout"])}>
-                  <option value="classic">Klasik Siyah Beyaz Satış Formu</option>
+                  <option value="classic" disabled={kind!=="sale"}>Klasik Siyah Beyaz Satış Formu</option>
                   <option value="modern">Modern Renkli Belge</option>
                 </select>
               </label>
@@ -224,7 +224,7 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
                   <option value="a5">A5 · 148 × 210 mm</option>
                 </select>
               </label>
-              <label className="block"><span className={fieldLabel}>Renk Teması</span>
+              {form.layout==="modern"&&<label className="block"><span className={fieldLabel}>Renk Teması</span>
                 <select value={form.color} disabled={!canEdit} className={fieldStyle}
                   onChange={e=>put("color",e.target.value as DukkanInvoiceForm["color"])}>
                   <option value="navy">Lacivert</option>
@@ -232,8 +232,12 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
                   <option value="emerald">Yeşil</option>
                   <option value="charcoal">Antrasit</option>
                 </select>
-              </label>
+              </label>}
             </div>
+            {kind==="sale"&&form.layout==="classic"&&<p className="mt-3 text-xs leading-5 text-slate-500">
+              Gönderilen örnekte olduğu gibi siyah-beyaz, işaretleme kutulu form kullanılır.
+              KDV sütunu bulunmaz; satır tutarları ve birim fiyatlar KDV dahil gösterilir.
+            </p>}
           </div>
           {error&&<p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           {notice&&<p role="status" className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
