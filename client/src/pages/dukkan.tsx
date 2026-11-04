@@ -322,6 +322,28 @@ export default function Dukkan() {
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
+  const editCari=(item:Entry)=>{
+    if(!isWriter||!canAccount)return;
+    setEditingPartyId(String(item.id));
+    setEditingProductId(null);setEditingCatalogId(null);
+    setDraft({
+      name:String(item.name||""),
+      type:String(item.type||"customer"),
+      sourceCariNo:String(item.source_cari_no||""),
+      accountCode:String(item.account_code||""),
+      city:String(item.city||""),
+      taxNumber:String(item.tax_number||""),
+      phone:String(item.phone||""),
+      email:String(item.email||""),
+      specialCode:String(item.special_code||""),
+    });
+    setError("");setNotice("");setShowForm(true);
+    requestAnimationFrame(()=>{
+      document.getElementById("dukkan-product-editor")?.scrollIntoView({
+        behavior:"smooth",block:"start"
+      });
+    });
+  };
   const editProduct=(item:Entry)=>{
     if(!canManage||item._source==="b2b")return;
     const scroll=document.querySelector<HTMLElement>("[data-dukkan-scroll]")?.scrollTop||0;
@@ -431,7 +453,35 @@ export default function Dukkan() {
     return next;
   }));
   const total=lines.reduce((sum,l)=>sum+Number(l.quantity||0)*Number(l.unitPrice||0)*(1+Number(section==="orders"?0:l.taxRate||0)/100),0);
-  const displayed=rows.filter(v=>section==="sales"?["sale","sale_return"].includes(v.kind):section==="purchases"?["purchase","purchase_return"].includes(v.kind):true);
+  const isCariSection=section==="parties"||section==="suppliers";
+  const displayed=rows.filter(v=>{
+    if(section==="sales")return ["sale","sale_return"].includes(v.kind);
+    if(section==="purchases")return ["purchase","purchase_return"].includes(v.kind);
+    if(!isCariSection)return true;
+    // Imported legacy "both" records stay on Cari Hesaplar until explicitly reclassified.
+    if(section==="suppliers"&&v.type!=="supplier")return false;
+    if(section==="parties"&&v.type==="supplier")return false;
+    const haystack=[v.name,v.source_cari_no,v.account_code,v.city,v.phone,v.email]
+      .filter(Boolean).join(" ").toLocaleLowerCase("tr-TR");
+    if(!cariSearch.trim().toLocaleLowerCase("tr-TR").split(/\s+/).filter(Boolean)
+      .every(part=>haystack.includes(part)))return false;
+    const balance=Number(v.balance||0);
+    if(cariFilter==="debtor"&&balance<=0)return false;
+    if(cariFilter==="creditor"&&balance>=0)return false;
+    return true;
+  }).sort((a,b)=>{
+    if(!isCariSection)return 0;
+    if(cariFilter==="recent"){
+      const recentA=a.last_transaction_at?new Date(a.last_transaction_at).getTime():0;
+      const recentB=b.last_transaction_at?new Date(b.last_transaction_at).getTime():0;
+      if(recentA!==recentB)return recentB-recentA;
+    }
+    if(cariFilter==="debtor"||cariFilter==="creditor"){
+      const difference=Math.abs(Number(b.balance||0))-Math.abs(Number(a.balance||0));
+      if(difference)return difference;
+    }
+    return String(a.name||"").localeCompare(String(b.name||""),"tr-TR");
+  });
   const matchingProducts=useMemo(()=>selectDukkanProducts(rows,productToolbar),[rows,productToolbar]);
   const pagedProducts=useMemo(()=>paginateDukkanProducts(matchingProducts,productToolbar.page,productToolbar.pageSize),[matchingProducts,productToolbar.page,productToolbar.pageSize]);
   const tableRows=section==="products"?pagedProducts.rows:displayed;
