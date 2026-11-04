@@ -19,6 +19,18 @@ const SCHEMA = [
   "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS account_code TEXT",
   "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS city TEXT",
   "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS special_code TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS account_kind TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS contact_primary TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS contact_secondary TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS phone_secondary TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS fax_number TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS mobile_number TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS address TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS district TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS tax_office TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS special_code_2 TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS special_code_3 TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS notes TEXT",
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_parties_source_cari_unique ON dukkan_parties(store_id,source_cari_no) WHERE source_cari_no IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_products (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), sku TEXT NOT NULL, barcode TEXT, name TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'adet', stock NUMERIC(16,3) NOT NULL DEFAULT 0 CHECK(stock>=0), purchase_price NUMERIC(18,2) NOT NULL DEFAULT 0, sale_price NUMERIC(18,2) NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,sku), UNIQUE(store_id,id))",
   "CREATE SEQUENCE IF NOT EXISTS dukkan_invoice_number_seq AS BIGINT START WITH 10000000000000 MINVALUE 10000000000000 MAXVALUE 99999999999999 NO CYCLE",
@@ -398,11 +410,27 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     email:z.union([z.literal(""),z.string().trim().email().max(200)]).optional(),
     accountCode:z.string().trim().max(80).optional(),
     city:z.string().trim().max(120).optional(),
-    specialCode:z.string().trim().max(200).optional()
+    specialCode:z.string().trim().max(200).optional(),
+    accountKind:z.enum(["buyer","seller","both",""]).optional(),
+    contactPrimary:z.string().trim().max(180).optional(),
+    contactSecondary:z.string().trim().max(180).optional(),
+    phoneSecondary:z.string().trim().max(50).optional(),
+    faxNumber:z.string().trim().max(50).optional(),
+    mobileNumber:z.string().trim().max(50).optional(),
+    address:z.string().trim().max(1000).optional(),
+    district:z.string().trim().max(120).optional(),
+    taxOffice:z.string().trim().max(160).optional(),
+    specialCode2:z.string().trim().max(200).optional(),
+    specialCode3:z.string().trim().max(200).optional(),
+    notes:z.string().trim().max(8000).optional()
   });
   const cariValues=(p:z.infer<typeof cariProfileSchema>)=>[
     p.name,p.type,p.sourceCariNo||null,p.accountCode||null,p.city||null,
-    p.taxNumber||null,p.phone||null,p.email||null,p.specialCode||null
+    p.taxNumber||null,p.phone||null,p.email||null,p.specialCode||null,
+    p.accountKind||null,p.contactPrimary||null,p.contactSecondary||null,
+    p.phoneSecondary||null,p.faxNumber||null,p.mobileNumber||null,
+    p.address||null,p.district||null,p.taxOffice||null,
+    p.specialCode2||null,p.specialCode3||null,p.notes||null
   ];
   app.post("/api/dukkan/stores/:storeId/parties",safe(async(req,res)=>{
     accountant(res);
@@ -410,7 +438,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const db=await ready();
     try{
       const r=await db.query(
-        "INSERT INTO dukkan_parties(store_id,name,type,source_cari_no,account_code,city,tax_number,phone,email,special_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *",
+        "INSERT INTO dukkan_parties(store_id,name,type,source_cari_no,account_code,city,tax_number,phone,email,special_code,account_kind,contact_primary,contact_secondary,phone_secondary,fax_number,mobile_number,address,district,tax_office,special_code_2,special_code_3,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *",
         [store(req),...cariValues(p)]
       );
       res.status(201).json(r.rows[0]);
@@ -444,7 +472,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     try{
       const db=await ready();
       const r=await db.query(
-        "UPDATE dukkan_parties SET name=$3,type=$4,source_cari_no=$5,account_code=$6,city=$7,tax_number=$8,phone=$9,email=$10,special_code=$11 WHERE store_id=$1 AND id=$2 RETURNING *",
+        "UPDATE dukkan_parties SET name=$3,type=$4,source_cari_no=$5,account_code=$6,city=$7,tax_number=$8,phone=$9,email=$10,special_code=$11,account_kind=$12,contact_primary=$13,contact_secondary=$14,phone_secondary=$15,fax_number=$16,mobile_number=$17,address=$18,district=$19,tax_office=$20,special_code_2=$21,special_code_3=$22,notes=$23 WHERE store_id=$1 AND id=$2 RETURNING *",
         [sid,partyId,...cariValues(p)]
       );
       if(!r.rowCount)return res.status(404).json({error:"Cari hesap bu mağazada bulunamadı."});
