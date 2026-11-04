@@ -7,6 +7,9 @@ on:
       - 'server/dukkan-b2b-sync.ts'
       - 'server/dukkan-b2b-sync.test.ts'
       - 'server/dukkan-b2b-sync.integration.test.ts'
+      - 'server/dukkan-b2b-autoimport.integration.test.ts'
+      - 'client/src/pages/dukkan-product-edit.tsx'
+      - 'client/src/App.tsx'
       - 'client/src/pages/dukkan.tsx'
       - '.github/workflows/dukkan-b2b-catalog-sync-check.yml'
   pull_request:
@@ -15,6 +18,9 @@ on:
       - 'server/dukkan-b2b-sync.ts'
       - 'server/dukkan-b2b-sync.test.ts'
       - 'server/dukkan-b2b-sync.integration.test.ts'
+      - 'server/dukkan-b2b-autoimport.integration.test.ts'
+      - 'client/src/pages/dukkan-product-edit.tsx'
+      - 'client/src/App.tsx'
       - 'client/src/pages/dukkan.tsx'
       - '.github/workflows/dukkan-b2b-catalog-sync-check.yml'
   workflow_dispatch:
@@ -32,6 +38,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
-      - run: npx tsx --test server/dukkan-b2b-sync.test.ts server/dukkan-b2b-sync.integration.test.ts
+      - run: npx tsx --test server/dukkan-b2b-sync.test.ts server/dukkan-b2b-sync.integration.test.ts server/dukkan-b2b-autoimport.integration.test.ts
       - run: npm run check
       - run: npm run build
