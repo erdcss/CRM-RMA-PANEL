@@ -879,8 +879,9 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       sale:defaultInvoiceForm("sale"),purchase:defaultInvoiceForm("purchase"),
     };
     for(const item of saved.rows){
-      if(item.kind==="sale"||item.kind==="purchase")
-        config[item.kind]=resolveInvoiceForm(item.kind,item.settings);
+      const kind=String(item.kind);
+      if(kind==="sale"||kind==="purchase")
+        config[kind]=resolveInvoiceForm(kind,item.settings);
     }
     res.setHeader("Cache-Control","private, no-store");
     res.json(config);
