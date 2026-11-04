@@ -10,6 +10,7 @@ import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
+import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
@@ -98,6 +99,7 @@ export default function Dukkan() {
   const [editingPartyId,setEditingPartyId]=useState<string|null>(null);
   const [cariSearch,setCariSearch]=useState("");
   const [cariFilter,setCariFilter]=useState<"az"|"debtor"|"creditor"|"recent">("az");
+  const [selectedCariAction,setSelectedCariAction]=useState<Entry|null>(null);
   const [editingCatalogId,setEditingCatalogId]=useState<string|null>(null);
   const [publishingId,setPublishingId]=useState<string|null>(null);
   const requestVersion=useRef(0);
@@ -794,7 +796,7 @@ export default function Dukkan() {
               onChanged={()=>setRefresh(value=>value+1)}
             />}
             {section!=="stock"&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
-              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":isCariSection?"min-w-[980px]":"min-w-[650px]")}>
+              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":isCariSection?"min-w-[1120px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
                     isCariSection?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
@@ -804,9 +806,10 @@ export default function Dukkan() {
                     section==="banks"?["Tarih","Banka","İşlem","Tutar"]:
                     ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-4 py-4 font-semibold">{h}</th>)}
                   {(section==="sales"||section==="purchases"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
+                  {isCariSection&&isWriter&&canAccount&&<th className="sticky right-0 z-10 w-[125px] bg-[#f0f5fc] px-3 py-3 text-right">İşlemler</th>}
                 </tr></thead>
                 <tbody>{tableRows.map(r=><tr key={String(r._source||section)+":"+String(r.id)}
-                  className={"border-t border-[#edf1f7] hover:bg-[#f7faff] "+((section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store)))||(isCariSection&&isWriter&&canAccount)?"cursor-pointer":"")}
+                  className={"group border-t border-[#edf1f7] hover:bg-[#f7faff] "+((section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store)))||(isCariSection&&isWriter&&canAccount)?"cursor-pointer":"")}
                   tabIndex={isCariSection&&isWriter&&canAccount?0:undefined}
                   aria-label={isCariSection&&isWriter&&canAccount?String(r.name||"Cari")+" hesabını düzenle":undefined}
                   onKeyDown={event=>{
@@ -893,6 +896,13 @@ export default function Dukkan() {
                     <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-100"
                       onClick={()=>editProduct(r)}>Düzenle</button>
                   </td>}
+                  {isCariSection&&isWriter&&canAccount&&<td className="sticky right-0 z-[1] bg-white/95 px-3 py-2 text-right transition-colors group-hover:bg-[#f7faff]">
+                    <button type="button" aria-label={String(r.name)+" cari işlemlerini aç"}
+                      onClick={event=>{event.stopPropagation();setSelectedCariAction(r);}}
+                      className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-[#122a51] px-3 py-2 text-xs font-bold text-white shadow-sm transition-all duration-300 ease-out hover:bg-[#1c4f8b] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 md:translate-x-2 md:opacity-0 md:group-hover:translate-x-0 md:group-hover:opacity-100 md:group-focus-within:translate-x-0 md:group-focus-within:opacity-100">
+                      İşlem Yap <ChevronRight size={14}/>
+                    </button>
+                  </td>}
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
               </table>
@@ -907,6 +917,14 @@ export default function Dukkan() {
           </div>}
           <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
           </DukkanWorkspaceLayout>
+          {selectedCariAction&&isWriter&&canAccount&&(
+            <DukkanCariActionsDrawer key={storeId+":"+String(selectedCariAction.id)}
+              storeId={storeId} party={selectedCariAction} banks={banks}
+              canDelete={isManager}
+              onClose={()=>setSelectedCariAction(null)}
+              onUpdated={()=>setRefresh(n=>n+1)}
+              onDeleted={()=>{setSelectedCariAction(null);setNotice("Cari hesap silindi.");setRefresh(n=>n+1);}}/>
+          )}
         </>}
       </div>
     </div>
