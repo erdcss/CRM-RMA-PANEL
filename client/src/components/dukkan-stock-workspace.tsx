@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { normalizeProductSearch } from "@/lib/dukkan-product-toolbar";
 
-type StockProduct = {
+export type StockProduct = {
   id: string | number;
   sku?: string | null;
   barcode?: string | null;
