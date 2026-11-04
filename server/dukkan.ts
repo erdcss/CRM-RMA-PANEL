@@ -62,6 +62,7 @@ const SCHEMA = [
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_payments_request_key_unique ON dukkan_payments(store_id,request_key) WHERE request_key IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_openings (store_id BIGINT NOT NULL, party_id BIGINT NOT NULL, entry_id BIGINT NOT NULL REFERENCES dukkan_cari_entries(id), opened_on DATE NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY(store_id,party_id), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_instruments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('cheque','promissory')), direction TEXT NOT NULL CHECK(direction IN ('received','issued')), document_no TEXT NOT NULL, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), due_date DATE NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','settled','bounced','cancelled')), note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,direction,document_no))",
+  "ALTER TABLE dukkan_instruments ADD COLUMN IF NOT EXISTS issued_on DATE",
   "CREATE INDEX IF NOT EXISTS dukkan_invoice_store_idx ON dukkan_invoices(store_id,issued_at DESC)",
   "CREATE INDEX IF NOT EXISTS dukkan_stock_store_idx ON dukkan_stock_movements(store_id,created_at DESC)",
   "CREATE INDEX IF NOT EXISTS dukkan_stock_product_history_idx ON dukkan_stock_movements(store_id,product_id,created_at DESC,id DESC)",
@@ -1205,11 +1206,11 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
   app.post("/api/dukkan/stores/:storeId/instruments",safe(async(req,res)=>{
     accountant(res);
-    const p=z.object({partyId:id,kind:z.enum(["cheque","promissory"]),direction:z.enum(["received","issued"]),number:string,amount,dueDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),note:z.string().max(500).optional()}).parse(req.body);
+    const p=z.object({partyId:id,kind:z.enum(["cheque","promissory"]),direction:z.enum(["received","issued"]),number:string,amount,dueDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),note:z.string().max(500).optional()}).parse(req.body);
     const sid=store(req);
     const result=await transaction(async c=>{
       await exists(c,"dukkan_parties",sid,p.partyId);
-      const r=await c.query("INSERT INTO dukkan_instruments(store_id,party_id,kind,direction,document_no,amount,due_date,note) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *",[sid,p.partyId,p.kind,p.direction,p.number,money(p.amount),p.dueDate,p.note||null]);return r.rows[0];
+      const r=await c.query("INSERT INTO dukkan_instruments(store_id,party_id,kind,direction,document_no,amount,due_date,note,issued_on) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",[sid,p.partyId,p.kind,p.direction,p.number,money(p.amount),p.dueDate,p.note||null,p.date||null]);return r.rows[0];
     });res.status(201).json(result);
   }));
   app.patch("/api/dukkan/stores/:storeId/instruments/:instrumentId",safe(async(req,res)=>{
