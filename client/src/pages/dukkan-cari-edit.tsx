@@ -14,6 +14,18 @@ type Cari = {
   phone: string | null;
   email: string | null;
   special_code: string | null;
+  account_kind?: "buyer" | "seller" | "both" | null;
+  contact_primary?: string | null;
+  contact_secondary?: string | null;
+  phone_secondary?: string | null;
+  fax_number?: string | null;
+  mobile_number?: string | null;
+  address?: string | null;
+  district?: string | null;
+  tax_office?: string | null;
+  special_code_2?: string | null;
+  special_code_3?: string | null;
+  notes?: string | null;
   balance: string | number;
   last_transaction_at?: string | null;
   recent_movements?: Array<{
@@ -28,10 +40,18 @@ type CariForm = {
   name: string; type: CariType; sourceCariNo: string;
   accountCode: string; city: string; taxNumber: string;
   phone: string; email: string; specialCode: string;
+  accountKind: "buyer" | "seller" | "both" | "";
+  contactPrimary: string; contactSecondary: string;
+  phoneSecondary: string; faxNumber: string; mobileNumber: string;
+  address: string; district: string; taxOffice: string;
+  specialCode2: string; specialCode3: string; notes: string;
 };
 const empty:CariForm = {
   name:"",type:"customer",sourceCariNo:"",accountCode:"",city:"",
-  taxNumber:"",phone:"",email:"",specialCode:""
+  taxNumber:"",phone:"",email:"",specialCode:"",
+  accountKind:"",contactPrimary:"",contactSecondary:"",
+  phoneSecondary:"",faxNumber:"",mobileNumber:"",
+  address:"",district:"",taxOffice:"",specialCode2:"",specialCode3:"",notes:""
 };
 const fieldClass="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-[#172945] outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 const currency=(value:unknown)=>Number(value||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
@@ -96,7 +116,19 @@ export default function DukkanCariEdit({id}:{id:string}){
           taxNumber:String(item.tax_number||""),
           phone:String(item.phone||""),
           email:String(item.email||""),
-          specialCode:String(item.special_code||"")
+          specialCode:String(item.special_code||""),
+          accountKind:item.account_kind||"",
+          contactPrimary:String(item.contact_primary||""),
+          contactSecondary:String(item.contact_secondary||""),
+          phoneSecondary:String(item.phone_secondary||""),
+          faxNumber:String(item.fax_number||""),
+          mobileNumber:String(item.mobile_number||""),
+          address:String(item.address||""),
+          district:String(item.district||""),
+          taxOffice:String(item.tax_office||""),
+          specialCode2:String(item.special_code_2||""),
+          specialCode3:String(item.special_code_3||""),
+          notes:String(item.notes||"")
         });
       })
       .catch((reason:Error)=>{if(live)setError(reason.message);})
@@ -121,8 +153,10 @@ export default function DukkanCariEdit({id}:{id:string}){
     <label key={key} className="block min-w-0">
       <span className="mb-1.5 block text-xs font-bold text-slate-600">{label}</span>
       <input className={fieldClass} required={required} value={form[key]}
-        maxLength={key==="name"?180:key==="email"?200:key==="specialCode"?200:120}
-        type={key==="email"?"email":key==="phone"?"tel":"text"}
+        maxLength={key==="name"||key==="contactPrimary"||key==="contactSecondary"?180:
+          key==="email"||key==="specialCode"||key==="specialCode2"||key==="specialCode3"?200:
+          ["phone","phoneSecondary","faxNumber","mobileNumber"].includes(key)?50:120}
+        type={key==="email"?"email":["phone","phoneSecondary","faxNumber","mobileNumber"].includes(key)?"tel":"text"}
         onChange={event=>edit(key,event.target.value)}/>
     </label>;
 
