@@ -75,12 +75,14 @@ function groupLines(words:PageWords):{y:number;words:Word[]}[]{
   return lines.sort((a,b)=>a.y-b.y);
 }
 function kindFor(label:string):ImportedEntry["kind"]|null{
-  const normalized=label.toLocaleLowerCase("tr-TR");
-  if(/açılış/.test(normalized))return "opening";
-  if(/satış/.test(normalized))return "sale";
-  if(/alış/.test(normalized))return "purchase";
+  const normalized=label.toLocaleLowerCase("tr-TR")
+    .replaceAll("ç","c").replaceAll("ş","s").replaceAll("ğ","g")
+    .replaceAll("ı","i").replaceAll("ö","o").replaceAll("ü","u");
+  if(/acilis/.test(normalized))return "opening";
+  if(/satis/.test(normalized))return "sale";
+  if(/alis/.test(normalized))return "purchase";
   if(/tahsil/.test(normalized))return "collection";
-  if(/ödeme/.test(normalized))return "payment";
+  if(/odeme/.test(normalized))return "payment";
   return null;
 }
 const round=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
@@ -142,7 +144,8 @@ export function parsePositionedCariStatement(pages:PageWords[]):ImportedStatemen
       const price=collect(words,305,375);
       const discounted=collect(words,375,435);
       const total=collect(words,435,477);
-      const quantity=trMoney(qtyRaw);
+      const quantityRaw=trMoney(qtyRaw);
+      const quantity=quantityRaw===null?null:Math.round(quantityRaw*1000)/1000;
       const lineTotal=trMoney(total);
       if(current&&name&&quantity!==null&&quantity>0&&lineTotal!==null&&unit){
         const item={
