@@ -6,6 +6,7 @@ import type { PoolClient } from "pg";
 import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
+import { buildCariExcel } from "./dukkan-cari-excel";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
 // Monetary values stay NUMERIC in PostgreSQL, never FLOAT. All postings use transactions.
@@ -203,6 +204,34 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json({sales:sales.rows[0].total,purchases:purchases.rows[0].total,stock:stock.rows[0],netBalance:receivables.rows[0].net_balance,bankBalance:banks.rows[0].bank_balance,overdue:overdue.rows[0]});
   }));
 
+
+  // Export the CURRENT signed ledger balances, not the historical Excel opening snapshot.
+  // Like /report this stays scoped to a logged-in store member, never to the public B2B API.
+  app.get("/api/dukkan/stores/:storeId/report/cari-excel",safe(async(req,res)=>{
+    if(res.locals.dukkanRole==="cashier")deny("Cari Excel raporunu indirme yetkiniz yok");
+    const kind=req.query.type;
+    if(kind!=="debt"&&kind!=="credit")return res.status(400).json({error:"Rapor türü borçlu veya alacaklı olmalıdır"});
+    const sid=store(req);
+    const db=await ready();
+    const result=await db.query(`
+      SELECT p.source_cari_no,p.account_code,p.name,p.city,p.phone,p.type,p.tax_number,
+             p.email,p.special_code,COALESCE(SUM(e.debit-e.credit),0) AS balance
+        FROM dukkan_parties p
+        LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id
+       WHERE p.store_id=$1
+       GROUP BY p.id
+      HAVING COALESCE(SUM(e.debit-e.credit),0) ${kind==="debt"?">":"<"} 0
+       ORDER BY ABS(COALESCE(SUM(e.debit-e.credit),0)) DESC,p.name ASC
+    `,[sid]);
+    const title=await db.query("SELECT name FROM dukkan_stores WHERE id=$1",[sid]);
+    const bytes=buildCariExcel(kind,title.rows[0]?.name||"Çalışkan Dükkan",result.rows);
+    const filename="caliskan-dukkan-"+(kind==="debt"?"borclu":"alacakli")+"-cariler-"+new Date().toISOString().slice(0,10)+".xlsx";
+    res.setHeader("Content-Type","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition",'attachment; filename="'+filename+'"');
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    return res.status(200).send(bytes);
+  }));
 
   // Financial documents are interpreted by AI only after an authenticated member uploads them.
   // This route NEVER posts a ledger entry. All extracted fields require explicit review.
