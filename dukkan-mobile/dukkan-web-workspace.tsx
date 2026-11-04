@@ -19,6 +19,7 @@ export function DukkanWebWorkspace({token,storeId,module="overview",onClose}:{
     body:JSON.stringify({token,storeId,tab:module}),
   }),[token,storeId,module,retry]);
   const allowed=(url:string)=>url==="about:blank"||
+    url.startsWith("blob:"+ORIGIN+"/")||
     url===ORIGIN||url.startsWith(ORIGIN+"/")||url.startsWith(ORIGIN+"?");
   return <View style={{flex:1,backgroundColor:"#f4f7fb"}}>
     <View style={{paddingHorizontal:16,paddingVertical:11,flexDirection:"row",
@@ -45,14 +46,15 @@ export function DukkanWebWorkspace({token,storeId,module="overview",onClose}:{
       incognito
       sharedCookiesEnabled={false}
       thirdPartyCookiesEnabled={false}
-      originWhitelist={[ORIGIN]}
+      originWhitelist={[ORIGIN,"blob:*","about:blank"]}
       javaScriptEnabled
       domStorageEnabled
       startInLoadingState
       onLoadStart={()=>setLoading(true)}
       onLoadEnd={()=>setLoading(false)}
       onHttpError={event=>{
-        if(event.nativeEvent.statusCode>=400&&event.nativeEvent.url.startsWith(ORIGIN))
+        if(event.nativeEvent.statusCode>=400&&
+          event.nativeEvent.url.startsWith(ORIGIN+"/api/dukkan/mobile-web-session"))
           setError("İşlem erişimi reddedildi veya oturum açılamadı (HTTP "+
             event.nativeEvent.statusCode+").");
       }}
