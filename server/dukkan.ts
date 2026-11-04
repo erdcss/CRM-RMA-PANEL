@@ -390,7 +390,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "Sen bir Türkçe ticari belge veri ayıklama sistemisin. Kullanıcının yüklediği belgeyi incele.",
       "Belge türü: "+payload.section+". Kesinlikle olmayan bir bilgiyi uydurma. Okunamayanları boş bırak.",
       "Yalnız geçerli JSON döndür; markdown veya açıklama ekleme.",
-      'Şema: {"fields":{"name":"","sku":"","barcode":"","unit":"","purchasePrice":"","salePrice":"","partyName":"","partyTaxNumber":"","date":"","kind":"","delta":"","direction":"","number":"","amount":"","dueDate":"","note":""},"lines":[{"productName":"","sku":"","barcode":"","quantity":"","unitPrice":"","taxRate":""}],"products":[{"name":"","sku":"","barcode":"","unit":"","purchasePrice":"","salePrice":""}],"warnings":["..."]}.',
+      'Şema: {"fields":{"name":"","sku":"","barcode":"","unit":"","purchasePrice":"","salePrice":"","partyName":"","partyTaxNumber":"","sourceCariNo":"","accountCode":"","city":"","district":"","address":"","taxNumber":"","taxOffice":"","phone":"","phoneSecondary":"","mobileNumber":"","faxNumber":"","email":"","contactPrimary":"","contactSecondary":"","specialCode":"","specialCode2":"","specialCode3":"","accountKind":"","notes":"","date":"","kind":"","delta":"","direction":"","number":"","amount":"","dueDate":"","note":""},"lines":[{"productName":"","sku":"","barcode":"","quantity":"","unitPrice":"","taxRate":""}],"products":[{"name":"","sku":"","barcode":"","unit":"","purchasePrice":"","salePrice":""}],"warnings":["..."]}.',
+      "Cari belgelerinde cari adı, cari kodu, hesap kodu, adres, il, ilçe, vergi, iletişim, ilgili kişi ve özel kod gibi bulunan bütün alanları fields içine çıkar. Cari no ile vergi no birbirine karıştırılmamalı; belge yoksa boş bırak.",
       "Tarihler YYYY-MM-DD, sayılar noktalı ondalık formatta yazılmalı. Yüzde KDV yalnız oran olarak verilmeli.",
       "Çek veya senet için kind cheque veya promissory, direction received veya issued.",
       "Satış ve alışta kind sale veya purchase. Fatura satırlarını lines içine yaz.",
@@ -422,8 +423,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     try{extracted=JSON.parse(match[0]);}catch{throw Object.assign(new Error("Belge alanları doğrulanamadı"),{status:422});}
     const clean=(v:any)=>String(v??"").trim().slice(0,220);
     const fields:Record<string,string>={};
-    for(const key of ["name","sku","barcode","unit","purchasePrice","salePrice","partyName","partyTaxNumber","date","kind","delta","direction","number","amount","dueDate","note"]){
-      fields[key]=clean(extracted.fields?.[key]);
+    for(const key of ["name","sku","barcode","unit","purchasePrice","salePrice","partyName","partyTaxNumber","sourceCariNo","accountCode","city","district","address","taxNumber","taxOffice","phone","phoneSecondary","mobileNumber","faxNumber","email","contactPrimary","contactSecondary","specialCode","specialCode2","specialCode3","accountKind","notes","date","kind","delta","direction","number","amount","dueDate","note"]){
+      fields[key]=key==="notes"?String(extracted.fields?.[key]||"").trim().slice(0,6000):key==="address"?String(extracted.fields?.[key]||"").trim().slice(0,1000):clean(extracted.fields?.[key]);
     }
     const warnings:string[]=Array.isArray(extracted.warnings)?extracted.warnings.slice(0,10).map(clean):[];
     const norm=(v:any)=>String(v||"").trim().toLocaleLowerCase("tr-TR");
