@@ -576,13 +576,17 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance "+
       "FROM ("+
       "SELECT e.id,e.created_at,e.description,e.debit,e.credit,e.invoice_id,e.payment_id,"+
-      "COALESCE(i.issued_at,p.paid_on,o.opened_on,e.created_at::date) AS document_date,"+
-      "i.invoice_no,i.kind AS invoice_kind,p.direction AS payment_direction,"+
-      "p.method AS payment_method,p.document_no "+
+      "COALESCE(legacy.document_date,i.issued_at,p.paid_on,o.opened_on,e.created_at::date) AS document_date,"+
+      "i.invoice_no,COALESCE(i.kind,CASE WHEN legacy.kind IN ('sale','purchase') THEN legacy.kind END) AS invoice_kind,"+
+      "COALESCE(p.direction,CASE WHEN legacy.kind='collection' THEN 'collection' "+
+      "WHEN legacy.kind='payment' THEN 'payment' END) AS payment_direction,"+
+      "p.method AS payment_method,COALESCE(p.document_no,legacy.document_no) AS document_no,"+
+      "legacy.kind AS archived_kind,legacy.due_date,legacy.source_balance,legacy.id AS import_entry_id "+
       "FROM dukkan_cari_entries e "+
       "LEFT JOIN dukkan_invoices i ON i.id=e.invoice_id AND i.store_id=e.store_id AND i.party_id=e.party_id "+
       "LEFT JOIN dukkan_payments p ON p.id=e.payment_id AND p.store_id=e.store_id AND p.party_id=e.party_id "+
       "LEFT JOIN dukkan_cari_openings o ON o.store_id=e.store_id AND o.party_id=e.party_id AND o.entry_id=e.id "+
+      "LEFT JOIN dukkan_cari_import_entries legacy ON legacy.entry_id=e.id AND legacy.store_id=e.store_id AND legacy.party_id=e.party_id "+
       "WHERE e.store_id=$1 AND e.party_id=$2"+
       ") x ORDER BY x.document_date,x.created_at,x.id LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
     );
@@ -601,12 +605,28 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       );
       for(const row of details.rows)(lines[String(row.invoice_id)]??=[]).push(row);
     }
+    const importedIds=mode==="detailed"?records.filter(row=>row.import_entry_id)
+      .map(row=>row.import_entry_id):[];
+    const importedLines:Record<string,unknown[]>={};
+    if(importedIds.length){
+      const imported=await db.query(
+        "SELECT ie.entry_id,line.product_name,line.quantity,line.unit,line.unit_price,"+
+        "line.discounted_unit_price,line.line_total,NULL::text AS sku,NULL::numeric AS tax_rate "+
+        "FROM dukkan_cari_import_lines line "+
+        "JOIN dukkan_cari_import_entries ie ON ie.id=line.import_entry_id "+
+        "WHERE ie.store_id=$1 AND ie.party_id=$2 AND ie.entry_id=ANY($3::bigint[]) "+
+        "ORDER BY ie.entry_id,line.line_position",
+        [sid,partyId,importedIds],
+      );
+      for(const row of imported.rows)(importedLines[String(row.entry_id)]??=[]).push(row);
+    }
     res.setHeader("Cache-Control","private,no-store");
     res.json({
       party:found.rows[0],storeName:shop.rows[0]?.name||"Çalışkan Dükkan",mode,offset,
       nextOffset:records.length===batchSize?offset+batchSize:null,
       entries:records.map(row=>({
-        ...row,invoice_lines:mode==="detailed"?(lines[String(row.invoice_id)]||[]):undefined
+        ...row,invoice_lines:mode==="detailed"?
+          (row.import_entry_id?importedLines[String(row.id)]||[]:lines[String(row.invoice_id)]||[]):undefined
       }))
     });
   }));
