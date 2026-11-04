@@ -102,7 +102,7 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
       officialInvoice:false as const,
       template:{
         ...form,
-        headerNote:"ÖRNEK ŞABLON · GERÇEK FATURA DEĞİLDİR · "+form.headerNote,
+        headerNote:("ÖRNEK ŞABLON · GERÇEK FATURA DEĞİLDİR · "+form.headerNote).slice(0,350),
       },
     };
   };
