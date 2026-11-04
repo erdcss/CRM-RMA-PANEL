@@ -87,10 +87,8 @@ export default function Dukkan() {
         api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
       ]);
       setParties(p);setProducts(pr);setBanks(b);setReport(summary);
-      if(section==="products"&&!cashier){
-        const catalog=await api(base+"/catalog/b2b") as Entry[];
-        setB2bCatalog(catalog);
-      }else setB2bCatalog([]);
+      const catalog=section==="products"&&!cashier ? await api(base+"/catalog/b2b") as Entry[] : [];
+      setB2bCatalog(catalog);
       if(section==="settings"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
@@ -99,12 +97,10 @@ export default function Dukkan() {
       const result=resource[section]?await api(base+"/data/"+resource[section]):[];
       setRows(section==="products"
         ? [...result.map((item:Entry)=>({...item,_source:"dukkan"})),
-           ...(section==="products"&&!cashier
-             ? (await api(base+"/catalog/b2b") as Entry[]).map((item:Entry)=>({
-               ...item,id:"b2b-"+item.id,_b2bId:String(item.id),_source:"b2b",
-               sale_price:item.price,stock:item.stock,
-             }))
-             : [])]
+           ...catalog.map((item:Entry)=>({
+             ...item,id:"b2b-"+item.id,_b2bId:String(item.id),_source:"b2b",
+             sale_price:item.price,stock:item.stock,
+           }))]
         : result);
       setError("");
     }catch(e){setError((e as Error).message);}
@@ -322,7 +318,8 @@ export default function Dukkan() {
           {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{displayed.length} kayıt · {currentStore?.name}</p></div>
-              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setDraft({});}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
+              {isWriter&&(!cashier||["sales","orders","parties"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports"].includes(section)&&<button onClick={()=>{setShowForm(v=>!v);setEditingProductId(null);setDraft({});
+                 setProductImages([]);setPublishToB2B(false);}} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
             {isWriter&&(["products","stock","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
                <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
@@ -336,6 +333,45 @@ export default function Dukkan() {
                   </select>:<input className={inputClass} type={f.type||"text"} step={f.type==="number"?"any":undefined} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
                 </label>)}
               </div>
+              {section==="products"&&<div className="mt-5 space-y-4">
+                <div className="rounded-2xl border border-[#d7e7fa] bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-extrabold text-[#122b4f]">Ürün Görselleri</h4>
+                      <p className="text-xs text-slate-500">En fazla 6 fotoğraf · JPG, PNG veya WebP · İlk görsel kapak fotoğrafı olur</p>
+                    </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-[#e9f4ff] px-4 py-2.5 text-xs font-bold text-[#145595] hover:bg-[#dcedff]">
+                      <ImagePlus size={17}/> Görsel Ekle
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only"
+                        onChange={e=>{void addProductImages(Array.from(e.target.files||[]));e.target.value="";}}/>
+                    </label>
+                  </div>
+                  {productImages.length===0?<div className="grid min-h-24 place-content-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-sm text-slate-400">
+                    <ImagePlus className="mx-auto" size={24}/> Henüz ürün görseli eklenmedi
+                  </div>:<div className="flex flex-wrap gap-3">
+                    {productImages.map((image,i)=><div key={i} className="relative h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                      <img src={image} alt={"Ürün görseli "+(i+1)} className="h-full w-full object-contain"/>
+                      <button type="button" onClick={()=>setProductImages(old=>old.filter((_,n)=>i!==n))}
+                        className="absolute right-1 top-1 rounded-full bg-white p-1 text-red-600 shadow" aria-label={"Görseli kaldır "+(i+1)}>
+                        <Trash2 size={14}/></button>
+                      {i===0?<span className="absolute bottom-1 left-1 rounded bg-[#112e51] px-2 py-0.5 text-[10px] text-white">Kapak</span>:null}
+                    </div>)}
+                  </div>}
+                </div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#cbdcf0] bg-[#eef6ff] p-4">
+                  <input type="checkbox" checked={publishToB2B} onChange={e=>setPublishToB2B(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-[#145595]"/>
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-sm font-extrabold text-[#12345d]">
+                      <Link2 size={18}/> Çalışkan B2B'de Yayınla
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-slate-600">
+                      Açıkken ürün B2B web ve mobil kataloğunda görünür. Kapatıldığında B2B kaydı taslak olur, ürün ve stok bağlantısı korunur.
+                      Yayın için en az bir görsel gereklidir.
+                    </span>
+                  </span>
+                </label>
+              </div>}
               {["sales","purchases"].includes(section)&&<p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">Fatura Numarası: Kaydettiğinizde sistem tarafından benzersiz 14 haneli rakam atanacaktır.</p>}
               {["sales","purchases","orders"].includes(section)&&<div className="mt-5">
                 <h4 className="mb-2 text-sm font-bold">Ürün Kalemleri</h4>
@@ -380,10 +416,14 @@ export default function Dukkan() {
               {draft.paymentMethod==="bank"&&<input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Tutar" value={draft.paymentAmount||""} onChange={e=>put("paymentAmount",e.target.value)}/>}
               <button disabled={busy} className={buttonClass}>İşle</button>
             </form>}
+            {section==="products"&&<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-100 bg-[#f1f8ff] px-4 py-3 text-xs text-[#235681]">
+              <span className="flex items-center gap-2"><Link2 size={16}/> Çalışkan B2B kataloğu bağlı. Yayınlanan ürünler ve Dükkan stok kartları tek listede.</span>
+              <span className="font-bold">{b2bCatalog.length} B2B ürün · {products.length} mağaza ürünü</span>
+            </div>}
             <div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className="w-full min-w-[650px] border-collapse text-left text-sm">
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
-                  {(section==="products"?["Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış"]:
+                  {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
                     section==="parties"?["Cari Adı","Türü","Telefon","Bakiye"]:
                     section==="stock"?["Tarih","Ürün","Değişim","Neden"]:
                     ["sales","purchases","overview"].includes(section)?["Fatura No","Cari","Tür","Toplam","Tarih"]:
@@ -393,23 +433,47 @@ export default function Dukkan() {
                     ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-4 py-4 font-semibold">{h}</th>)}
                   {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
-                <tbody>{displayed.map(r=><tr key={r.id} className="border-t border-[#edf1f7] hover:bg-[#f7faff]">
-                  {(section==="products"?[r.sku,r.name,r.barcode,r.stock,currency(r.purchase_price),currency(r.sale_price)]:
+                <tbody>{displayed.map(r=><tr key={String(r._source||section)+":"+String(r.id)} className="border-t border-[#edf1f7] hover:bg-[#f7faff]">
+                  {section==="products" ? <>
+                    <td className="px-3 py-2">
+                      {r.image_url ? <img src={r.image_url} alt={r.name||"Ürün"} loading="lazy"
+                        className="h-14 w-14 rounded-xl border border-slate-100 bg-white object-contain"/> :
+                        <span className="grid h-14 w-14 place-items-center rounded-xl bg-slate-100 text-slate-400"><Package size={21}/></span>}
+                    </td>
+                    {[r.sku,r.name,r.barcode,r.stock,
+                      r._source==="b2b"?"—":currency(r.purchase_price),
+                      currency(r.sale_price)].map((v,i)=>
+                      <td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
+                    <td className="px-3 py-3">
+                      {r._source==="b2b"?
+                        <span className="rounded-lg bg-sky-100 px-2.5 py-1.5 text-xs font-bold text-sky-800">B2B Kataloğu</span>:
+                        r.publish_b2b?
+                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1.5 text-xs font-bold text-emerald-800">Yayında</span>:
+                        <span className="rounded-lg bg-amber-100 px-2.5 py-1.5 text-xs font-bold text-amber-800">Taslak</span>}
+                    </td>
+                  </>:(
                     section==="parties"?[r.name,r.type,r.phone,currency(r.balance)]:
                     section==="stock"?[String(r.created_at).slice(0,10),r.product_name,r.delta,r.reason]:
                     ["sales","purchases","overview"].includes(section)?[r.invoice_no,r.party_name,typeLabel[r.kind]||r.kind,currency(r.grand_total),r.issued_at?.slice(0,10)]:
                     section==="orders"?[r.order_no,r.party_name,typeLabel[r.kind]||r.kind,r.status]:
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
-                    [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
+                    [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]
+                  ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
                   {section==="sales"&&<td className="px-3 py-3">
                     <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
                       title="Dahili satış belgesini PDF indir" aria-label={"PDF indir: "+r.invoice_no}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
                       <Download size={15}/>{pdfBusyId===String(r.id)?"Hazırlanıyor...":"PDF İndir"}
                     </button>
-                   </td>}
-                  {section==="products"&&canManage&&<td className="px-3 py-3"><button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100" onClick={()=>editProduct(r)}>Düzenle</button></td>}
+                  </td>}
+                  {section==="products"&&canManage&&<td className="px-3 py-3">
+                    {r._source==="b2b"?
+                      <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40"
+                        onClick={()=>void importB2BProduct(r)}><Plus size={14}/> Mağazaya Ekle</button>:
+                      <button type="button" disabled={editingLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 disabled:opacity-40"
+                        onClick={()=>void editProduct(r)}>{editingLoading?"Yükleniyor...":"Düzenle"}</button>}
+                  </td>}
                   {section==="instruments"&&<td className="px-3 py-3">{r.status==="pending"&&isWriter?<select className="rounded-md border p-1 text-xs" defaultValue="" onChange={e=>void updateInstrument(r,e.target.value)}><option value="" disabled>Durum değiştir</option><option value="settled">Tahsil/Ödendi</option><option value="bounced">Karşılıksız</option><option value="cancelled">İptal</option></select>:null}</td>}
                 </tr>)}</tbody>
               </table>
