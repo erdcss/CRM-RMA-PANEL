@@ -704,10 +704,10 @@ export default function Dukkan() {
               onChanged={()=>setRefresh(value=>value+1)}
             />}
             {section!=="stock"&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
-              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":section==="parties"?"min-w-[980px]":"min-w-[650px]")}>
+              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":isCariSection?"min-w-[980px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
-                    section==="parties"?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
+                    isCariSection?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
                     ["sales","purchases","overview"].includes(section)?["Fatura No","Cari","Tür","Toplam","Tarih"]:
                     section==="orders"?["Sipariş No","Cari","Tür","Durum"]:
                     section==="instruments"?["Belge No","Cari","Tür","Tutar","Vade","Durum"]:
@@ -716,10 +716,17 @@ export default function Dukkan() {
                   {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
                 <tbody>{tableRows.map(r=><tr key={String(r._source||section)+":"+String(r.id)}
-                  className={"border-t border-[#edf1f7] hover:bg-[#f7faff] "+(section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store))?"cursor-pointer":"")}
+                  className={"border-t border-[#edf1f7] hover:bg-[#f7faff] "+((section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store)))||(isCariSection&&isWriter&&canAccount)?"cursor-pointer":"")}
+                  tabIndex={isCariSection&&isWriter&&canAccount?0:undefined}
+                  aria-label={isCariSection&&isWriter&&canAccount?String(r.name||"Cari")+" hesabını düzenle":undefined}
+                  onKeyDown={event=>{
+                    if(!isCariSection||!isWriter||!canAccount||event.target!==event.currentTarget)return;
+                    if(event.key==="Enter"||event.key===" "){event.preventDefault();editCari(r);}
+                  }}
                   onClick={event=>{
-                    if(section!=="products"||!canManage||(r._source==="b2b"&&(!isAdmin||r.linked_to_store)))return;
                     if((event.target as HTMLElement).closest("button,a,input,select,textarea"))return;
+                    if(isCariSection){if(isWriter&&canAccount)editCari(r);return;}
+                    if(section!=="products"||!canManage||(r._source==="b2b"&&(!isAdmin||r.linked_to_store)))return;
                     void editProduct(r);
                   }}>
                   {section==="products" ? <>
@@ -771,7 +778,7 @@ export default function Dukkan() {
                       })()}
                     </td>
                   </>:(
-                    section==="parties"?[r.source_cari_no||"—",r.account_code||"—",r.name,r.city||"—",r.type==="both"?"Müşteri / Tedarikçi":r.type==="supplier"?"Tedarikçi":"Müşteri",r.phone||"—",r.balance==null?"—":(Number(r.balance)<0?"Alacak ":"Borç ")+currency(Math.abs(Number(r.balance)))]:
+                    isCariSection?[r.source_cari_no||"—",r.account_code||"—",r.name,r.city||"—",r.type==="both"?"Müşteri / Tedarikçi":r.type==="supplier"?"Tedarikçi":"Müşteri",r.phone||"—",r.balance==null?"—":(Number(r.balance)<0?"Alacak ":Number(r.balance)>0?"Borç ":"Bakiye ")+currency(Math.abs(Number(r.balance)))]:
                     ["sales","purchases","overview"].includes(section)?[r.invoice_no,r.party_name,typeLabel[r.kind]||r.kind,currency(r.grand_total),r.issued_at?.slice(0,10)]:
                     section==="orders"?[r.order_no,r.party_name,typeLabel[r.kind]||r.kind,r.status]:
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
