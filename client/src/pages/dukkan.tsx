@@ -100,6 +100,7 @@ export default function Dukkan() {
   const [publishingId,setPublishingId]=useState<string|null>(null);
   const requestVersion=useRef(0);
   const lastLoadedStore=useRef("");
+  const lastCariContext=useRef("");
   const pageCache=useRef<Map<string,Entry[]>>(new Map());
   const [newStoreName,setNewStoreName]=useState("");
   const [showNewStore,setShowNewStore]=useState(false);
@@ -229,6 +230,10 @@ export default function Dukkan() {
     return()=>{ requestVersion.current++; };
   },[load,refresh]);
   useEffect(()=>{
+    const context=storeId+":"+section;
+    // React StrictMode may re-run mount effects: preserve restored filters on the second run.
+    if(lastCariContext.current===context)return;
+    lastCariContext.current=context;
     setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
     setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
     // Restore the exact customer/supplier filter used before entering a cari card.
