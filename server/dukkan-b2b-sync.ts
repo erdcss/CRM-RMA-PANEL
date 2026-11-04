@@ -51,13 +51,15 @@ export async function ensureDukkanB2BBridge(pool: Pool): Promise<void> {
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS units_per_box INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS min_order_qty INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS publish_b2b BOOLEAN NOT NULL DEFAULT FALSE",
-    "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_product_id BIGINT",
+    "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_product_id TEXT",
+    // Legacy install created BIGINT mapping while the production catalog has TEXT IDs.
+    "ALTER TABLE dukkan_products ALTER COLUMN b2b_product_id TYPE TEXT USING b2b_product_id::text",
     "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_b2b_product_link_unique ON dukkan_products(b2b_product_id) WHERE b2b_product_id IS NOT NULL",
     "CREATE INDEX IF NOT EXISTS dukkan_products_store_b2b_idx ON dukkan_products(store_id, b2b_product_id)",
-    "CREATE OR REPLACE FUNCTION sync_b2b_stock_to_dukkan() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR current_setting('app.dukkan_sync_origin',true)='dukkan' OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE dukkan_products SET stock=GREATEST(0,stock+(NEW.stock-OLD.stock)) WHERE b2b_product_id=NEW.id; RETURN NEW; END $fn$",
+    "CREATE OR REPLACE FUNCTION sync_b2b_stock_to_dukkan() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR current_setting('app.dukkan_sync_origin',true)='dukkan' OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE dukkan_products SET stock=GREATEST(0,stock+(NEW.stock-OLD.stock)) WHERE b2b_product_id=NEW.id::text; RETURN NEW; END $fn$",
     "DROP TRIGGER IF EXISTS b2b_dukkan_stock_bridge ON b2b_products",
     "CREATE TRIGGER b2b_dukkan_stock_bridge AFTER UPDATE OF stock ON b2b_products FOR EACH ROW EXECUTE FUNCTION sync_b2b_stock_to_dukkan()",
-    "CREATE OR REPLACE FUNCTION sync_dukkan_stock_to_b2b() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR NEW.b2b_product_id IS NULL OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE b2b_products SET stock=FLOOR(NEW.stock)::integer, updated_at=NOW() WHERE id=NEW.b2b_product_id AND stock IS DISTINCT FROM FLOOR(NEW.stock)::integer; RETURN NEW; END $fn$",
+    "CREATE OR REPLACE FUNCTION sync_dukkan_stock_to_b2b() RETURNS trigger LANGUAGE plpgsql AS $fn$ BEGIN IF pg_trigger_depth() > 1 OR NEW.b2b_product_id IS NULL OR NEW.stock IS NOT DISTINCT FROM OLD.stock THEN RETURN NEW; END IF; UPDATE b2b_products SET stock=FLOOR(NEW.stock)::integer, updated_at=NOW() WHERE id::text=NEW.b2b_product_id AND stock IS DISTINCT FROM FLOOR(NEW.stock)::integer; RETURN NEW; END $fn$",
     "DROP TRIGGER IF EXISTS dukkan_b2b_stock_bridge ON dukkan_products",
     "CREATE TRIGGER dukkan_b2b_stock_bridge AFTER UPDATE OF stock ON dukkan_products FOR EACH ROW EXECUTE FUNCTION sync_dukkan_stock_to_b2b()",
   ];
@@ -79,13 +81,13 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   const minQty = Math.max(1, Number(row.min_order_qty) || 1);
 
   if (row.b2b_product_id) {
-    const conflict=await c.query("SELECT id FROM b2b_products WHERE sku=$1 AND id<>$2 LIMIT 1",
+    const conflict=await c.query("SELECT id FROM b2b_products WHERE sku=$1 AND id::text<>$2 LIMIT 1",
       [row.sku,row.b2b_product_id]);
     const b2bSku=conflict.rowCount?"DUK-"+row.store_id+"-"+row.id:row.sku;
     const result = await c.query(
       "UPDATE b2b_products SET sku=$2,name=$3,brand=$4,category=$5,description=$6,price=$7,stock=$8," +
       "min_order_qty=$9,units_per_box=$10,image_data=$11,images=$12::jsonb,barcode=$13," +
-      "is_active=$14,updated_at=NOW() WHERE id=$1 RETURNING id",
+      "is_active=$14,updated_at=NOW() WHERE id::text=$1 RETURNING id",
       [row.b2b_product_id,b2bSku,row.name,row.brand||null,row.category||"Genel",row.description||null,
        price,stock,minQty,boxSize,photo,JSON.stringify(images),row.barcode||null,row.publish_b2b],
     );
