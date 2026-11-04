@@ -306,7 +306,10 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
     {tab!=="dashboard"&&<TextInput placeholder="Kayıtlarda ara..." placeholderTextColor={f.muted} value={filter} onChangeText={setFilter} style={[styles.input,{marginBottom:14}]}/>}
     <Text style={styles.groupTitle}>{tab==="dashboard"?"Son İşlemler":"Kayıtlar"} <Text style={{color:f.blue}}>({shown.length})</Text></Text>
     {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{if(tab==="products"){editProduct(r);return;}if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);}}
-      key={String(r.id||i)} style={styles.row}><View style={{flex:1}}><Text numberOfLines={2} style={styles.rowTitle}>{rowTitle(r)}</Text><Text numberOfLines={2} style={styles.rowNote}>{rowSubtitle(r)}</Text></View><View style={{alignItems:"flex-end",maxWidth:130}}><Text style={styles.rowAmount}>{rowAmount(r)}</Text>
+      key={String(r.id||i)} style={styles.row}>
+       {tab==="products"&&<ProductThumbnail item={r} storeId={session.store.id}
+         token={session.token} size={62}/>}
+       <View style={{flex:1,marginLeft:tab==="products"?10:0}}><Text numberOfLines={2} style={styles.rowTitle}>{rowTitle(r)}</Text><Text numberOfLines={2} style={styles.rowNote}>{rowSubtitle(r)}</Text></View><View style={{alignItems:"flex-end",maxWidth:130}}><Text style={styles.rowAmount}>{rowAmount(r)}</Text>
         {(tab==="invoices"||tab==="dashboard")&&["sale","sale_return"].includes(String(r.kind))&&
           <Pressable accessibilityRole="button" disabled={pdfBusy!==null} onPress={()=>void openInvoicePdf(r)} style={styles.pdfButton}>
            <Text style={styles.pdfButtonText}>{pdfBusy===Number(r.id)?"Hazırlanıyor...":"↓ Satış PDF"}</Text>
