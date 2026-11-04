@@ -330,6 +330,9 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   // two stores independently overwriting the same B2B stock.
   app.post("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId/import",safe(async(req,res)=>{
     manager(res);
+    // A local store manager may sell its own products, but taking over an
+    // existing global B2B product requires verified platform-admin authority.
+    if(!res.locals.dukkanAdmin)deny("B2B ürününü mağazaya bağlamak için Çalışkan Admin yetkisi gerekiyor");
     const sid=store(req),b2bId=id.parse(req.params.b2bId);
     const item=await transaction(async c=>{
       const result=await c.query(
