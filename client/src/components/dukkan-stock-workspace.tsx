@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   ArrowDownCircle, ArrowUpCircle, CalendarDays, ChevronLeft, ChevronRight,
   ClipboardList, History, Package, Plus, RefreshCw, Search, ShoppingBag,
@@ -506,8 +506,8 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                           const delta = Number(item.delta);
                           const positive = delta > 0;
                           return (
-                            <>
-                            <tr key={String(item.id)} className={"border-t border-[#edf2f8] align-top "+(item.voided_at?"bg-slate-50 opacity-75":"")}>
+                            <Fragment key={String(item.id)}>
+                            <tr className={"border-t border-[#edf2f8] align-top "+(item.voided_at?"bg-slate-50 opacity-75":"")}>
                               <td className="whitespace-nowrap px-3.5 py-3.5 text-[#47617b]">{dateTime(item.created_at)}</td>
                               <td className="px-3.5 py-3.5 font-semibold text-[#18385b]">
                                 {movementNames[item.reason] || item.reason}
@@ -603,7 +603,7 @@ export function DukkanStockWorkspace({ storeId, base, products, canManage, onCha
                                   )}</div>}
                               </td>
                             </tr>}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </tbody>
