@@ -75,12 +75,14 @@ export function paintClassicSalesPage(
   // Framed company information and actual invoice date / document number.
   rule(X,50,RIGHT-X,130);
   text(config.companyName||data.invoice.store_name,58,83,23,true,760);
-  text("ADRES :",58,119,17,true);
-  text(config.companyAddress,148,119,17,false,700);
-  text("Tel :",58,153,17,true);
-  text(config.companyPhone,106,153,17,false,215);
-  text("mail :",323,153,17,true);
-  text(config.companyEmail,379,153,17,false,412);
+  if(config.showCompanyDetails){
+    text("ADRES :",58,119,17,true);
+    text(config.companyAddress,148,119,17,false,700);
+    text("Tel :",58,153,17,true);
+    text(config.companyPhone,106,153,17,false,215);
+    text("mail :",323,153,17,true);
+    text(config.companyEmail,379,153,17,false,412);
+  }
   text("Tarih :",840,85,19,true);
   text(new Date(data.invoice.issued_at).toLocaleDateString("tr-TR"),938,85,19,true,236);
   text("Belge NO :",840,120,19,true);
@@ -94,7 +96,9 @@ export function paintClassicSalesPage(
   text("AD SOYAD :",58,207,19,true);
   text(data.invoice.party_name,224,207,19,true,945);
   text("TEL :",58,244,18,true);
-  if(config.showPartyPhone)text(data.invoice.party_phone,118,244,17,false,920);
+  if(config.showPartyPhone)text(data.invoice.party_phone,118,244,17,false,500);
+  if(config.showPartyTaxNumber&&data.invoice.party_tax_number)
+    text("VKN/TCKN: "+str(data.invoice.party_tax_number),730,244,16,false,450);
 
   // Column proportions follow the original A4 document.
   const cols=[X,228,757,850,927,1057,RIGHT];
@@ -105,7 +109,7 @@ export function paintClassicSalesPage(
   centered(config.productHeader,cols[1],cols[2],288,17,true);
   centered(config.quantityHeader,cols[2],cols[3],288,16,true);
   centered(config.unitHeader,cols[3],cols[4],288,16,true);
-  centered(config.priceHeader,cols[4],cols[5],288,16,true);
+  if(config.showUnitPrice)centered(config.priceHeader,cols[4],cols[5],288,16,true);
   centered(config.amountHeader,cols[5],cols[6],288,16,true);
 
   const rowTop=301,rowH=30,rowGap=4;
@@ -114,7 +118,7 @@ export function paintClassicSalesPage(
     rule(X,y,RIGHT-X,rowH);
     cols.slice(1,-1).forEach(cx=>line(cx,y,cx,y+rowH));
     rule(X+8,y+7,15,15);
-    text(item.sku,X+29,baseline,17,false,cols[1]-X-37);
+    if(config.showProductCode)text(item.sku,X+29,baseline,17,false,cols[1]-X-37);
     text(item.product_name,cols[1]+8,baseline,17,false,cols[2]-cols[1]-16);
     right(quantity(item.quantity),cols[3]-8,baseline,17);
     centered(item.unit||"Adet",cols[3],cols[4],baseline,16);
@@ -123,7 +127,7 @@ export function paintClassicSalesPage(
     // price must agree with the stored tax-inclusive line amount.
     const count=Number(item.quantity),gross=Number(item.line_total);
     const grossUnit=count>0&&Number.isFinite(gross)?gross/count:Number(item.unit_price);
-    right(num(grossUnit),cols[5]-10,baseline,17);
+    if(config.showUnitPrice)right(num(grossUnit),cols[5]-10,baseline,17);
     right(num(item.line_total),cols[6]-10,baseline,17,true);
   });
 
@@ -147,10 +151,11 @@ export function paintClassicSalesPage(
     text("Belgenin devamı sonraki sayfadadır.",865,footerY+34,17,true,315);
   }
 
-  if(config.footerNote)wrapped(config.footerNote,X+10,footerY+119,1090,16,3);
+  if(config.headerNote)wrapped(config.headerNote,X+10,footerY+112,1090,16,2);
+  if(config.footerNote)wrapped(config.footerNote,X+10,footerY+180,1090,16,3);
   line(X,1701,RIGHT,1701);
-  text("Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez.",
-    X+3,1724,13);
+  text(config.documentTitle+" · Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez.",
+    X+3,1724,13,false,1020);
   right(String(page+1)+" / "+String(pages),RIGHT,1724,14);
   return canvas;
 }
