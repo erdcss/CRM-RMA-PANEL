@@ -1,5 +1,6 @@
 import {useEffect,useState,type FormEvent} from "react";
 import {Check,Eye,FileText,Printer,RotateCcw,Save,Settings2,ShoppingBag} from "lucide-react";
+import {DukkanClassicSalesPreview} from "./dukkan-classic-sales-preview";
 import {
   defaultInvoiceForm,invoiceColors,resolveInvoiceForm,
   type DukkanInvoiceForm,type InvoiceFormKind,
@@ -92,7 +93,7 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
         party_name:kind==="sale"?"ÖRNEK MÜŞTERİ":"ÖRNEK TEDARİKÇİ",
         party_tax_number:"1111111111",party_phone:"0500 000 00 00",
         store_name:storeName||"ÖRNEK MAĞAZA",
-        subtotal,tax_total:tax,grand_total:subtotal+tax,
+        subtotal,tax_total:tax,grand_total:subtotal+tax,party_balance:subtotal+tax,
       },
       lines:[
         {id:1,sku:"ORNEK-001",product_name:"Örnek Ürün",unit:"adet",
@@ -164,10 +165,15 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
               {textField("companyName","Yazdırılacak İşletme Adı",storeName,140)}
               <div className="sm:col-span-2">{textField("companyAddress","İşletme Adresi","Adres yazın",350)}</div>
               {textField("companyPhone","İşletme Telefonu","0...",45)}
+              {textField("companyEmail","İşletme E-posta","ornek@firma.com",120)}
               {textField("companyTaxOffice","Vergi Dairesi","Vergi dairesi",100)}
               {textField("companyTaxNumber","Vergi Numarası","VKN / TCKN",32)}
             </div>
             <div className="mt-4 space-y-3">
+              {kind==="sale"&&form.layout==="classic"&&<div className="grid gap-3 sm:grid-cols-2">
+                {textField("warehouseContact","Ambar İletişim","Ambarın telefon bilgisi",120)}
+                {textField("deliveredPackages","Teslim Edilen Bağ/Koli","Örn. 3 koli",140)}
+              </div>}
               <label className="block">
                 <span className={fieldLabel}>Üst Açıklama</span>
                 <textarea value={form.headerNote} disabled={!canEdit} maxLength={350} rows={2}
@@ -187,6 +193,7 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
             <div className="grid gap-3 sm:grid-cols-2">
               {textField("productHeader","Ürün Sütunu","ÜRÜN / HİZMET",40)}
               {textField("quantityHeader","Miktar Sütunu","MİKTAR",25)}
+              {kind==="sale"&&form.layout==="classic"&&textField("unitHeader","Birim Sütunu","BİRİM",25)}
               {textField("priceHeader","Fiyat Sütunu","BİRİM FİYAT",25)}
               {textField("taxHeader","KDV Sütunu","KDV",25)}
               {textField("amountHeader","Tutar Sütunu","TUTAR",25)}
@@ -203,6 +210,13 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
           <div className="rounded-[22px] border border-[#e0e9f5] bg-white p-5">
             <h3 className="mb-4 text-sm font-extrabold text-[#163858]">Kağıt ve Renk Teması</h3>
             <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block"><span className={fieldLabel}>Şablon Görünümü</span>
+                <select value={form.layout} disabled={!canEdit} className={fieldStyle}
+                  onChange={e=>put("layout",e.target.value as DukkanInvoiceForm["layout"])}>
+                  <option value="classic">Klasik Siyah Beyaz Satış Formu</option>
+                  <option value="modern">Modern Renkli Belge</option>
+                </select>
+              </label>
               <label className="block"><span className={fieldLabel}>Sayfa Boyutu</span>
                 <select value={form.paperSize} disabled={!canEdit} className={fieldStyle}
                   onChange={e=>put("paperSize",e.target.value as DukkanInvoiceForm["paperSize"])}>
@@ -245,6 +259,10 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
             <h3 className="flex items-center gap-2 text-sm font-extrabold text-[#163858]"><Eye size={17}/> Canlı Önizleme</h3>
             <span className="text-xs font-semibold text-slate-500">{form.paperSize.toUpperCase()}</span>
           </div>
+          {kind==="sale"&&form.layout==="classic"?
+            <div className="mx-auto max-w-[460px] overflow-hidden rounded-xl border border-[#dce5f0] bg-white shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
+              <DukkanClassicSalesPreview form={form} storeName={storeName}/>
+            </div>:
           <div className="mx-auto max-w-[460px] overflow-hidden rounded-xl border border-[#dce5f0] bg-white shadow-[0_14px_40px_rgba(15,23,42,0.08)]">
             <div className="border-t-[7px] px-5 py-6 text-white" style={{background:colors.main,borderTopColor:colors.accent}}>
               <h4 className="break-words text-lg font-black">{form.companyName||storeName}</h4>
@@ -296,7 +314,7 @@ export function DukkanInvoiceFormSettings({base,storeId,storeName,canEdit}:Props
                 Dahili ön muhasebe belgesidir; GİB e-Fatura / e-Arşiv yerine geçmez.
               </p>
             </div>
-          </div>
+          </div>}
           <div className="grid grid-cols-2 gap-2">
             <button type="button" disabled={printing} onClick={()=>void print(false)}
               className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#153b69] px-3 text-xs font-bold text-white disabled:opacity-50">
