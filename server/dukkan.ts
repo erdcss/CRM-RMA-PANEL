@@ -507,17 +507,19 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if(!found.rows.length)return res.status(404).json({error:"Bu mağazada cari hesap bulunamadı."});
     const shop=await db.query("SELECT name FROM dukkan_stores WHERE id=$1",[sid]);
     const result=await db.query(
+      "SELECT x.*,SUM(x.debit-x.credit) OVER (ORDER BY x.document_date,x.created_at,x.id "+
+      "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance "+
+      "FROM ("+
       "SELECT e.id,e.created_at,e.description,e.debit,e.credit,e.invoice_id,e.payment_id,"+
       "COALESCE(i.issued_at,p.paid_on,o.opened_on,e.created_at::date) AS document_date,"+
       "i.invoice_no,i.kind AS invoice_kind,p.direction AS payment_direction,"+
-      "p.method AS payment_method,p.document_no,"+
-      "SUM(e.debit-e.credit) OVER (ORDER BY e.created_at,e.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance "+
+      "p.method AS payment_method,p.document_no "+
       "FROM dukkan_cari_entries e "+
       "LEFT JOIN dukkan_invoices i ON i.id=e.invoice_id AND i.store_id=e.store_id AND i.party_id=e.party_id "+
       "LEFT JOIN dukkan_payments p ON p.id=e.payment_id AND p.store_id=e.store_id AND p.party_id=e.party_id "+
       "LEFT JOIN dukkan_cari_openings o ON o.store_id=e.store_id AND o.party_id=e.party_id AND o.entry_id=e.id "+
-      "WHERE e.store_id=$1 AND e.party_id=$2 "+
-      "ORDER BY e.created_at,e.id LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
+      "WHERE e.store_id=$1 AND e.party_id=$2"+
+      ") x ORDER BY x.document_date,x.created_at,x.id LIMIT $3 OFFSET $4",[sid,partyId,batchSize,offset]
     );
     const records=result.rows;
     const invoiceIds=mode==="detailed"?[...new Set(records.map(row=>row.invoice_id).filter(Boolean))]:[];
