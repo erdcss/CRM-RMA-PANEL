@@ -7,6 +7,13 @@ test("sales and purchase forms use independent titles and defaults",()=>{
   assert.equal(sale.documentTitle,"SATIŞ BELGESİ");
   assert.equal(purchase.documentTitle,"ALIŞ BELGESİ");
   assert.equal(sale.paperSize,"a4");
+  assert.equal(sale.layout,"classic");
+  assert.equal(purchase.layout,"modern");
+  assert.equal(sale.companyName,"ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ");
+  assert.equal(sale.companyEmail,"calisganelektronik@gmail.com");
+  assert.equal(sale.productHeader,"ÜRÜN AÇIKLAMASI");
+  assert.equal(sale.amountHeader,"SATIR TOPLAMI");
+  assert.equal(sale.unitHeader,"BİRİM");
   assert.equal(purchase.showTaxRate,true);
   assert.notEqual(sale.documentTitle,purchase.documentTitle);
 });
