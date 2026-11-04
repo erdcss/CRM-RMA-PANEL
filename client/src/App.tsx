@@ -131,6 +131,8 @@ function Router() {
 }
 
 function AppContent() {
+  // The restricted store-manager branch needs to react to SPA route changes.
+  const [appPath] = useLocation();
   const { data: user, isLoading } = useQuery<{ id: number; username: string; role: string; appAccess: string; isActive: boolean } | null>({
     queryKey: ["/api/auth/me"],
     retry: false,
@@ -151,9 +153,9 @@ function AppContent() {
 
   return (
     <>
-      {isLoading ? null : user && typeof window !== "undefined" && window.location.pathname.startsWith("/dukkan") && !["super_admin", "admin"].includes(user.role) ? (
-          /^\/dukkan\/urunler\/\d+$/.test(window.location.pathname)
-            ? <DukkanProductEdit id={window.location.pathname.split("/").pop()||""}/>
+      {isLoading ? null : user && appPath.startsWith("/dukkan") && !["super_admin", "admin"].includes(user.role) ? (
+          /^\/dukkan\/urunler\/\d+$/.test(appPath)
+            ? <DukkanProductEdit id={appPath.split("/").pop()||""}/>
             : <Dukkan />
         ) : user && ["super_admin", "admin"].includes(user.role) ? (
           <SidebarProvider defaultOpen={typeof document === "undefined" || !document.cookie.split(";").some(item => item.trim() === "sidebar_state=false")} style={style as React.CSSProperties}>
