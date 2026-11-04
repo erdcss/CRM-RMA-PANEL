@@ -306,7 +306,7 @@ export default function DukkanCariEdit({id}:{id:string}){
             </div>
           </form>
 
-          {!isNew&&<section className="rounded-[24px] border border-[#dce6f3] bg-white p-5 shadow-sm sm:p-7">
+          {!isNew&&cari&&<section className="rounded-[24px] border border-[#dce6f3] bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <ClipboardList size={20} className="text-[#215b92]"/>
               <h2 className="text-base font-black">Son Cari Hareketleri</h2>
