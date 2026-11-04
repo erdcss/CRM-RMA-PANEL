@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
+import {DukkanInvoiceFormSettings} from "@/components/dukkan-invoice-form-settings";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
@@ -43,6 +44,7 @@ export default function Dukkan() {
   const [isAdmin,setIsAdmin]=useState(false);
   const [isSuperAdmin,setIsSuperAdmin]=useState(false);
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
+  const [settingsView,setSettingsView]=useState<"general"|"forms">("general");
   const [members,setMembers]=useState<Entry[]>([]);
   const [storeId,setStoreId]=useState(()=>{
     const fromUrl=new URLSearchParams(window.location.search).get("storeId");
@@ -451,16 +453,25 @@ export default function Dukkan() {
       setProductImages(current=>[...current,...images].slice(0,6));
     }catch(e){setError((e as Error).message);}
   };
-  const exportPdf=async(invoice:Entry)=>{
+  const exportPdf=async(invoice:Entry,print=false)=>{
     if(pdfBusyId)return;
+    const viewer=print?window.open("","_blank"):null;
+    if(viewer){
+      viewer.document.title="Çalışkan Dükkân - Fatura Yazdır";
+      viewer.document.body.textContent="Yazdırma belgesi hazırlanıyor...";
+    }
     setPdfBusyId(String(invoice.id));setError("");
     try{
       const detail=await api(base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data");
-      const {exportSalesInvoicePdf}=await import("@/lib/dukkan-invoice-pdf");
-      await exportSalesInvoicePdf(detail);
-      setNotice("Satış belgesi PDF olarak indirildi: "+invoice.invoice_no);
-    }catch(e){setError("PDF hazırlanamadı: "+(e as Error).message);}
-    finally{setPdfBusyId(null);}
+      const pdf=await import("@/lib/dukkan-invoice-pdf");
+      if(print)pdf.showDukkanInvoicePrint(pdf.renderDukkanInvoicePdf(detail),viewer);
+      else await pdf.exportDukkanInvoicePdf(detail);
+      const kind=String(invoice.kind).startsWith("purchase")?"Alış":"Satış";
+      setNotice(kind+" belgesi "+(print?"yazdırılmak üzere açıldı":"PDF olarak indirildi")+": "+invoice.invoice_no);
+    }catch(e){
+      viewer?.close();
+      setError("Belge hazırlanamadı: "+(e as Error).message);
+    }finally{setPdfBusyId(null);}
   };
   const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
@@ -597,11 +608,33 @@ export default function Dukkan() {
             <p className="mt-3 text-xs text-slate-500">Excel sütunları: Cari No, Hesap Kodu, Cari Adı, İl, Telefon, Cari Tipi, Vergi No, E-posta, Özel Kod ve Bakiye (TL).</p>
           </section>}
           {section==="reports"&&<div className={softCard+" mb-4"}><h2 className="font-bold">Vadesi geçmiş çek ve senetler</h2><p className="mt-2 text-sm">Belge: {fmt(report?.overdue?.count)} · Toplam: {currency(report?.overdue?.amount)}</p><p className="mt-2 text-xs text-slate-500">Raporlar kayıtlı işlemlerden üretilir; resmî mali tablo veya GİB e-Fatura yerine geçmez.</p></div>}
-          {section==="settings"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
-          {section==="settings"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
+          {section==="settings"&&<div className={softCard+" mb-5"}>
+            <div className="mb-4">
+              <h2 className="text-lg font-black text-[#173758]">Ayarlar</h2>
+              <p className="mt-1 text-xs text-slate-500">Mağaza yönetimi ve yazdırılabilir belge şablonları</p>
+            </div>
+            <nav aria-label="Ayarlar bölümleri" className="flex flex-wrap gap-2">
+              <button type="button" onClick={()=>setSettingsView("general")} aria-pressed={settingsView==="general"}
+                className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition "+
+                  (settingsView==="general"?"bg-[#123d70] text-white":"border border-[#d8e5f3] bg-white text-[#365a7f] hover:bg-sky-50")}>
+                <Building2 size={17}/> Genel Ayarlar
+              </button>
+              <button type="button" onClick={()=>setSettingsView("forms")} aria-pressed={settingsView==="forms"}
+                className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition "+
+                  (settingsView==="forms"?"bg-[#123d70] text-white":"border border-[#d8e5f3] bg-white text-[#365a7f] hover:bg-sky-50")}>
+                <FileText size={17}/> Formlar
+              </button>
+            </nav>
+          </div>}
+          {section==="settings"&&settingsView==="forms"&&<DukkanInvoiceFormSettings
+            key={storeId} base={base} storeId={storeId}
+            storeName={String(currentStore?.name||"Çalışkan Dükkân")}
+            canEdit={canManage}/>}
+          {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
+          {section==="settings"&&settingsView==="general"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
             onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
             onError={setError}/>}
-          {section==="settings"&&<div className="mb-5">
+          {section==="settings"&&settingsView==="general"&&<div className="mb-5">
             <div className={softCard}>
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-[#e6f2ff] p-3 text-[#124b85]"><Building2 size={22}/></div>
@@ -770,7 +803,7 @@ export default function Dukkan() {
                     section==="instruments"?["Belge No","Cari","Tür","Tutar","Vade","Durum"]:
                     section==="banks"?["Tarih","Banka","İşlem","Tutar"]:
                     ["Tarih","Cari","Borç","Alacak","Açıklama"]).map(h=><th key={h} className="px-4 py-4 font-semibold">{h}</th>)}
-                  {(section==="sales"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
+                  {(section==="sales"||section==="purchases"||section==="instruments"||(section==="products"&&canManage))&&<th className="px-3 py-3">İşlem</th>}
                 </tr></thead>
                 <tbody>{tableRows.map(r=><tr key={String(r._source||section)+":"+String(r.id)}
                   className={"border-t border-[#edf1f7] hover:bg-[#f7faff] "+((section==="products"&&canManage&&(r._source!=="b2b"||(isAdmin&&!r.linked_to_store)))||(isCariSection&&isWriter&&canAccount)?"cursor-pointer":"")}
@@ -842,12 +875,19 @@ export default function Dukkan() {
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
                     [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]
                   ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
-                  {section==="sales"&&<td className="px-3 py-3">
-                    <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
-                      title="Dahili satış belgesini PDF indir" aria-label={"PDF indir: "+r.invoice_no}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
-                      <Download size={15}/>{pdfBusyId===String(r.id)?"Hazırlanıyor...":"PDF İndir"}
-                    </button>
+                  {(section==="sales"||section==="purchases")&&<td className="px-3 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
+                        title="Belgenin kaydedilmiş şablonla PDF çıktısını indir" aria-label={"PDF indir: "+r.invoice_no}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
+                        <Download size={15}/>{pdfBusyId===String(r.id)?"Hazırlanıyor...":"PDF İndir"}
+                      </button>
+                      <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r,true)}
+                        title="Kaydedilmiş form şablonuyla yazdır" aria-label={"Yazdır: "+r.invoice_no}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-[#235780] hover:bg-slate-50 disabled:opacity-40">
+                        <FileText size={15}/> Yazdır
+                      </button>
+                    </div>
                   </td>}
                   {section==="products"&&canManage&&<td className="px-3 py-3">
                     <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-100"
