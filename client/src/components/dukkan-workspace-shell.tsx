@@ -1,7 +1,7 @@
-import {Activity, ArrowUpRight, BarChart3, Boxes, Building2, ChevronRight, Clock3, FileText, Landmark, LayoutDashboard, LockKeyhole, Package, Plus, ReceiptText, RefreshCw, Settings2, ShieldCheck, Store, Users, Wallet} from "lucide-react";
+import {Activity, ArrowUpRight, BarChart3, Boxes, Building2, ChevronRight, Clock3, FileText, Landmark, LayoutDashboard, LockKeyhole, Package, Plus, ReceiptText, RefreshCw, Settings2, ShieldCheck, Store, Users, Wallet, Truck} from "lucide-react";
 import type {ReactNode} from "react";
 
-export type DukkanSection="overview"|"sales"|"purchases"|"products"|"stock"|"orders"|"instruments"|"banks"|"parties"|"reports"|"settings";
+export type DukkanSection="overview"|"sales"|"purchases"|"products"|"stock"|"orders"|"instruments"|"banks"|"parties"|"suppliers"|"reports"|"settings";
 const sections:Array<{key:DukkanSection;label:string;icon:typeof Store}>=[
  {key:"overview",label:"Genel Bakış",icon:LayoutDashboard},
  {key:"sales",label:"Satış Faturaları",icon:ReceiptText},
@@ -12,6 +12,7 @@ const sections:Array<{key:DukkanSection;label:string;icon:typeof Store}>=[
  {key:"instruments",label:"Çek ve Senetler",icon:Wallet},
  {key:"banks",label:"Bankalar",icon:Landmark},
  {key:"parties",label:"Cari Hesaplar",icon:Users},
+ {key:"suppliers",label:"Tedarikçi Firmalar",icon:Truck},
  {key:"reports",label:"Raporlar",icon:BarChart3}
 ];
 
@@ -52,7 +53,7 @@ export function DukkanWorkspaceLayout({selected,onSelect,cashier,showSettings,ch
  return <div className="grid items-start gap-5 lg:grid-cols-[218px_minmax(0,1fr)]">
   <nav aria-label="Çalışkan Dükkan modülleri" className="flex gap-1.5 overflow-x-auto rounded-[22px] border border-[#e6edf6] bg-white p-2.5 shadow-sm lg:sticky lg:top-4 lg:flex-col lg:overflow-visible lg:p-3">
    <div className="hidden px-3 pb-3 pt-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-400 lg:block">ÇALIŞMA ALANI</div>
-   {sections.filter(t=>!cashier||!["purchases","instruments","banks","reports","stock","products"].includes(t.key)).map(item=>{
+   {sections.filter(t=>!cashier||!["purchases","instruments","banks","reports","stock","products","suppliers"].includes(t.key)).map(item=>{
     const Icon=item.icon;
     return <button key={item.key} onClick={()=>onSelect(item.key)} aria-current={selected===item.key?"page":undefined}
       className={"flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3.5 py-3 text-left text-[13px] font-semibold transition lg:w-full "+
