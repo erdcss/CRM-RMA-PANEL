@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultInvoiceForm, invoiceFormSchema, resolveInvoiceForm } from "./dukkan-invoice-forms";
+import { defaultInvoiceForm, invoiceFormSchema, resolveInvoiceForm,resolveInvoiceFormForStore } from "./dukkan-invoice-forms";
 
 test("sales and purchase forms use independent titles and defaults",()=>{
   const sale=defaultInvoiceForm("sale"),purchase=defaultInvoiceForm("purchase");
@@ -9,8 +9,12 @@ test("sales and purchase forms use independent titles and defaults",()=>{
   assert.equal(sale.paperSize,"a4");
   assert.equal(sale.layout,"classic");
   assert.equal(purchase.layout,"modern");
-  assert.equal(sale.companyName,"ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ");
-  assert.equal(sale.companyEmail,"calisganelektronik@gmail.com");
+  assert.equal(sale.companyName,"");
+  const group=resolveInvoiceFormForStore("sale",null,"ÇALIŞKAN GROUP");
+  assert.equal(group.companyName,"ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ");
+  assert.equal(group.companyEmail,"calisganelektronik@gmail.com");
+  assert.equal(resolveInvoiceFormForStore("sale",null,"Diğer Mağaza").companyAddress,"");
+  assert.equal(resolveInvoiceFormForStore("sale",{companyName:"ÖZEL"}, "ÇALIŞKAN GROUP").companyName,"ÖZEL");
   assert.equal(sale.productHeader,"ÜRÜN AÇIKLAMASI");
   assert.equal(sale.amountHeader,"SATIR TOPLAMI");
   assert.equal(sale.unitHeader,"BİRİM");
