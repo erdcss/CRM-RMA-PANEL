@@ -1,6 +1,5 @@
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import type { ProductToolbarState } from "@/lib/dukkan-product-toolbar";
-import { DEFAULT_PRODUCT_TOOLBAR } from "@/lib/dukkan-product-toolbar";
 
 type Pagination = {
   page: number; pageSize: number; totalPages: number;
