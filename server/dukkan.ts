@@ -43,6 +43,8 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_instruments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('cheque','promissory')), direction TEXT NOT NULL CHECK(direction IN ('received','issued')), document_no TEXT NOT NULL, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), due_date DATE NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','settled','bounced','cancelled')), note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,direction,document_no))",
   "CREATE INDEX IF NOT EXISTS dukkan_invoice_store_idx ON dukkan_invoices(store_id,issued_at DESC)",
   "CREATE INDEX IF NOT EXISTS dukkan_stock_store_idx ON dukkan_stock_movements(store_id,created_at DESC)",
+  "CREATE INDEX IF NOT EXISTS dukkan_stock_product_history_idx ON dukkan_stock_movements(store_id,product_id,created_at DESC,id DESC)",
+  "CREATE INDEX IF NOT EXISTS dukkan_invoice_lines_product_history_idx ON dukkan_invoice_lines(product_id,invoice_id,id)",
   "CREATE INDEX IF NOT EXISTS dukkan_cari_store_idx ON dukkan_cari_entries(store_id,party_id,created_at DESC)"
 ].join(";\n") + ";";
 
@@ -204,6 +206,22 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const r=await db.query(sql,[store(req)]);
     const rows=cashier&&resource==="products"?r.rows.map(({purchase_price,...rest})=>rest):cashier&&resource==="parties"?r.rows.map(({balance,...rest})=>rest):r.rows;
     res.json(rows);
+  }));
+  // Small, read-only stock picker payload; avoids loading invoices, customer
+  // balances, reports and B2B bulk-import locks during stock-page navigation.
+  app.get("/api/dukkan/stores/:storeId/stock-products",safe(async(req,res)=>{
+    const sid=store(req),db=await ready();
+    const result=await db.query(
+      "SELECT id,COALESCE(b2b_source_sku,sku) AS sku,"+
+      "COALESCE(b2b_source_barcode,barcode) AS barcode,name,brand,unit,stock,"+
+      "CASE WHEN image_data LIKE 'data:image/%' THEN "+
+      "'/api/dukkan/stores/'||store_id||'/products/'||id||'/image' "+
+      "ELSE image_data END AS image_url "+
+      "FROM dukkan_products WHERE store_id=$1 ORDER BY name,id LIMIT 10000",
+      [sid],
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(result.rows);
   }));
   app.get("/api/dukkan/stores/:storeId/report",safe(async(req,res)=>{
     if(res.locals.dukkanRole==="cashier")deny("Rapor yetkisi gerekiyor");
