@@ -8,6 +8,8 @@ import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import { buildCariExcel } from "./dukkan-cari-excel";
+import {extractPositionedPdfWords,parsePositionedCariStatement,importedStatementSchema} from "./dukkan-cari-statement-parser";
+import {documentSha256,postImportedStatement,summarizeImportedStatement} from "./dukkan-cari-import";
 import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,resolveInvoiceFormForStore,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
@@ -53,6 +55,11 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_banks (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), name TEXT NOT NULL, iban TEXT, currency TEXT NOT NULL DEFAULT 'TRY', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_bank_movements (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), bank_id BIGINT NOT NULL, amount NUMERIC(18,2) NOT NULL CHECK(amount<>0), type TEXT NOT NULL, note TEXT, payment_id BIGINT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_entries (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, debit NUMERIC(18,2) NOT NULL DEFAULT 0, credit NUMERIC(18,2) NOT NULL DEFAULT 0, description TEXT NOT NULL, invoice_id BIGINT REFERENCES dukkan_invoices(id), payment_id BIGINT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
+  "CREATE TABLE IF NOT EXISTS dukkan_cari_import_batches (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),party_id BIGINT NOT NULL,source_sha256 TEXT NOT NULL,source_filename TEXT NOT NULL,source_company TEXT,source_currency TEXT,report_date TEXT,source_page_count INTEGER,entry_count INTEGER,reported_balance NUMERIC(18,2),imported_by INTEGER NOT NULL REFERENCES users(id),imported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(store_id,party_id,source_sha256),FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
+  "CREATE TABLE IF NOT EXISTS dukkan_cari_import_entries (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL,party_id BIGINT NOT NULL,batch_id BIGINT NOT NULL REFERENCES dukkan_cari_import_batches(id),entry_id BIGINT NOT NULL UNIQUE REFERENCES dukkan_cari_entries(id),document_date DATE NOT NULL,due_date DATE,kind TEXT NOT NULL,document_no TEXT NOT NULL,source_description TEXT,source_balance NUMERIC(18,2),source_page INTEGER NOT NULL,source_position INTEGER NOT NULL,FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id),UNIQUE(store_id,party_id,kind,document_date,document_no))",
+  "CREATE TABLE IF NOT EXISTS dukkan_cari_import_lines (id BIGSERIAL PRIMARY KEY,import_entry_id BIGINT NOT NULL REFERENCES dukkan_cari_import_entries(id),line_position INTEGER NOT NULL,product_name TEXT NOT NULL,quantity NUMERIC(16,3) NOT NULL,unit TEXT NOT NULL,unit_price NUMERIC(18,2) NOT NULL,discounted_unit_price NUMERIC(18,2),line_total NUMERIC(18,2) NOT NULL,UNIQUE(import_entry_id,line_position))",
+  "CREATE INDEX IF NOT EXISTS dukkan_cari_import_entries_store_lookup_idx ON dukkan_cari_import_entries(store_id,party_id,document_date,entry_id)",
+  "CREATE INDEX IF NOT EXISTS dukkan_cari_import_lines_entry_idx ON dukkan_cari_import_lines(import_entry_id,line_position)",
   "CREATE TABLE IF NOT EXISTS dukkan_payments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, direction TEXT NOT NULL CHECK(direction IN ('collection','payment')), method TEXT NOT NULL CHECK(method IN ('cash','bank')), bank_id BIGINT, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), note TEXT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
   "ALTER TABLE dukkan_payments DROP CONSTRAINT IF EXISTS dukkan_payments_method_check",
   "ALTER TABLE dukkan_payments ADD CONSTRAINT dukkan_payments_method_check CHECK(method IN ('cash','bank','card','other'))",
@@ -296,6 +303,57 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     return res.status(200).send(bytes);
   }));
 
+  // Multi-page customer statement preview. PDF text coordinates are preserved:
+  // no PDF screenshot/OCR guessing, no ledger writes during extraction.
+  app.post("/api/dukkan/stores/:storeId/ai-documents/preview-cari-statement",safe(async(req,res)=>{
+    accountant(res);
+    const payload=z.object({
+      filename:z.string().trim().min(1).max(180),
+      mimeType:z.literal("application/pdf"),
+      base64:z.string().min(20).max(11_000_000).regex(/^[a-zA-Z0-9+/]+={0,2}$/),
+    }).parse(req.body);
+    const sid=store(req);
+    const bytes=Buffer.from(payload.base64,"base64");
+    if(bytes.length<64||bytes.length>8_000_000||bytes.subarray(0,5).toString()!=="%PDF-")
+      return res.status(400).json({error:"Geçerli, en fazla 8 MB büyüklüğünde PDF yükleyin."});
+    const pages=await extractPositionedPdfWords(bytes);
+    const statement=parsePositionedCariStatement(pages);
+    const summary=summarizeImportedStatement(statement);
+    const db=await ready();
+    const existing=await db.query(
+      "SELECT id,name,source_cari_no FROM dukkan_parties "+
+      "WHERE store_id=$1 AND source_cari_no=$2",
+      [sid,statement.party.sourceCariNo],
+    );
+    const alreadyImported=existing.rows[0]?await db.query(
+      "SELECT id,imported_at FROM dukkan_cari_import_batches "+
+      "WHERE store_id=$1 AND party_id=$2 AND source_sha256=$3",
+      [sid,existing.rows[0].id,documentSha256(bytes)],
+    ):{rows:unknown[]}={rows:[]};
+    res.setHeader("Cache-Control","private,no-store");
+    res.json({
+      statement,summary,sha256:documentSha256(bytes),filename:payload.filename,
+      existingParty:existing.rows[0]||null,
+      duplicate:alreadyImported.rows.length>0,
+    });
+  }));
+  app.post("/api/dukkan/stores/:storeId/ai-documents/import-cari-statement",safe(async(req,res)=>{
+    accountant(res);
+    const input=z.object({
+      sha256:z.string().regex(/^[a-f0-9]{64}$/),
+      filename:z.string().trim().min(1).max(180),
+      partyId:z.number().int().positive().optional(),
+      statement:importedStatementSchema,
+      confirmed:z.literal(true),
+    }).strict().parse(req.body);
+    const sid=store(req);
+    const saved=await transaction(async c=>postImportedStatement(c,{
+      storeId:sid,actor:user(res),sha256:input.sha256,filename:input.filename,
+      partyId:input.partyId,statement:input.statement,
+    }));
+    res.setHeader("Cache-Control","no-store");
+    res.status(201).json(saved);
+  }));
   // Financial documents are interpreted by AI only after an authenticated member uploads them.
   // This route NEVER posts a ledger entry. All extracted fields require explicit review.
   app.post("/api/dukkan/stores/:storeId/ai-documents/extract", safe(async(req,res)=>{
