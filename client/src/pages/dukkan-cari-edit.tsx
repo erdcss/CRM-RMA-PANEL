@@ -80,6 +80,25 @@ export default function DukkanCariEdit({id}:{id:string}){
   const path="/api/dukkan/stores/"+encodeURIComponent(storeId)+"/parties/"+encodeURIComponent(id);
   const edit=(key:keyof CariForm,value:string)=>{setForm(old=>({...old,[key]:value}));setSaved(false);};
 
+  useEffect(()=>{
+    if(!isNew)return;
+    try{
+      const raw=sessionStorage.getItem("dukkan:new-cari-ai-draft");
+      if(!raw)return;
+      sessionStorage.removeItem("dukkan:new-cari-ai-draft");
+      const saved=JSON.parse(raw);
+      if(saved.storeId!==storeId||!saved.profile)return;
+      const data=saved.profile as Record<string,unknown>;
+      const next={...empty,type:origin==="suppliers"?"supplier" as const:"customer" as const};
+      const keys=(Object.keys(next) as Array<keyof CariForm>);
+      for(const key of keys){
+        if(typeof data[key]==="string"&&key!=="type")
+          (next as Record<string,string>)[key]=String(data[key]).slice(0,key==="notes"?8000:key==="address"?1000:200);
+      }
+      setForm(next);
+      setError("");
+    }catch{/* Ignore malformed browser-side draft data. */}
+  },[isNew,storeId,origin]);
   const goBack=()=>{
     const target=cari ? (cari.type==="supplier"?"suppliers":"parties") : origin;
     const route="/dukkan?tab="+target+"&storeId="+encodeURIComponent(storeId);
