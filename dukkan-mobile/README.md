@@ -1,5 +1,16 @@
 # Çalışkan Dükkan Mobil — Bağlantılı Mağaza Sürümü
 
+## 4 Kasım 2026 — TestFlight 1.0.1 aday sürümü
+
+Bu aday sürüm, mevcut `dukkan-mobile/App.tsx` React Native istemcisinin bağlı mağaza API'si ile çalışan özelliklerini paketler: güvenli kullanıcı ve mağaza seçimi, rol bazlı menü, dashboard, ürün ve stok, satış/alış/iade, cari, çek/senet, AI ile belge analizi ve dahili satış PDF paylaşımı.
+
+- Expo bundle ID: `com.caliskan.dukkan`; EAS project: `21b3de7c-763f-4c25-87aa-66e818498d6e`; ASC app: `6826848065`.
+- App sürümü `1.0.1`; iOS build numarası EAS uzaktan otomatik artar.
+- `server/dukkan-cari-import.ts` ve web cari PDF ekstre önizlemesi farklı kod parçalarıdır. Webdeki yeni ayrıntılı cari PDF ekstresi içe aktarma arayüzü native mobil istemciye otomatik eklenmiş sayılmaz.
+- Bu sürümde tüm kayıtlar aktif mağazanın merkezi API'sinde tutulur. Çevrimdışı SQLite yedeklerinin otomatik birleştirilmesi yoktur.
+- Apple imzalama ve App Store Connect Submit kimlik bilgileri Expo projesinde doğrulanmadan ücretli iOS derlemesi başlatılmamalıdır.
+
+
 **26 Ekim 2026 geliştirme:** iOS/Android uygulaması artık `https://admin.ecalisgan.com/dukkan` üzerinden yönetilen mağaza hesabını güvenli bir WebView içinde açar. İlk açılışta Çalışkan Dükkan'a özel giriş sayfası sunulur. Kullanıcı adı/şifre, Çalışkan Admin'de tanımlanmış aktif kullanıcıdan doğrulanır; bu kullanıcının `dukkan_members` tablosunda mağazaya atanması şarttır. Web oturumu sunucu çereziyle; mobil oturum ise imzalı yetkilendirme anahtarı ve cihazın güvenli SecureStore alanıyla korunur. Mobil cihaz işletmenin merkezi PostgreSQL ürün ve fatura kayıtlarına bağlıdır.
 
 **Önemli geçiş:** Önceki sürümdeki React Native/SQLite çevrimdışı hesap sistemi `local-db.ts` içinde korunmuştur ancak bağlantılı sürüm merkezi API üzerinden işlem yapar. Mevcut mobil veya Windows yerel SQLite kayıtları sunucuya otomatik aktarılmaz; iki veri kaynağı karıştırılmaz. Önceki mobil sürümde yerel kayıtlar varsa yeni sürüme geçmeden önce yedeklenmelidir. Çevrimdışı çalışma bu bağlantılı sürümde desteklenmez.
