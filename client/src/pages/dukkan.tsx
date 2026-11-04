@@ -76,6 +76,7 @@ export default function Dukkan() {
   const [rows,setRows]=useState<Entry[]>([]);
   const [parties,setParties]=useState<Entry[]>([]);
   const [products,setProducts]=useState<Entry[]>([]);
+  const [productCounts,setProductCounts]=useState<{storeId:string;publishedB2B:number;dukkanTotal:number}|null>(null);
   const [b2bCatalog,setB2bCatalog]=useState<Entry[]>([]);
   const [productImages,setProductImages]=useState<string[]>([]);
   const [publishToB2B,setPublishToB2B]=useState(false);
@@ -141,7 +142,7 @@ export default function Dukkan() {
     try{
       // One atomic list update: never briefly replace the full product list with
       // only local products during the 10-second background refresh.
-      const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome]=await Promise.all([
+      const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome,summaryOutcome]=await Promise.all([
         productPage?Promise.resolve(null):api(base+"/data/parties"),
         api(base+"/data/products"),
         productPage||cashier?Promise.resolve(null):api(base+"/data/banks"),
@@ -150,6 +151,7 @@ export default function Dukkan() {
           ? api(base+"/catalog/b2b").then(value=>({value,error:""}))
             .catch(error=>({value:null,error:(error as Error).message}))
           : Promise.resolve({value:[],error:""}),
+        productPage?api(base+"/catalog/summary").catch(()=>null):Promise.resolve(null),
       ]);
       if(!isCurrent())return;
       const catalog=Array.isArray(catalogOutcome.value)?catalogOutcome.value:[] as Entry[];
@@ -170,6 +172,9 @@ export default function Dukkan() {
         setParties(partiesResult);setBanks(banksResult);setReport(reportResult);
       }
       setProducts(productsResult);
+      if(summaryOutcome && Number.isFinite(summaryOutcome.publishedB2B) && Number.isFinite(summaryOutcome.dukkanTotal)){
+        setProductCounts({storeId,publishedB2B:summaryOutcome.publishedB2B,dukkanTotal:summaryOutcome.dukkanTotal});
+      }
       setB2bCatalog(current=>warning&&sameStore?current:catalog);
       setRows(current=>{
         if(section!=="products")return result;
@@ -537,9 +542,23 @@ export default function Dukkan() {
               {draft.paymentMethod==="bank"&&<input className={inputClass} type="number" min="0.01" step="0.01" required placeholder="Tutar" value={draft.paymentAmount||""} onChange={e=>put("paymentAmount",e.target.value)}/>}
               <button disabled={busy} className={buttonClass}>İşle</button>
             </form>}
-            {section==="products"&&<div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-100 bg-[#f1f8ff] px-4 py-3 text-xs text-[#235681]">
-              <span className="flex items-center gap-2"><Link2 size={16}/> B2B ürünleri otomatik olarak Çalışkan Dükkân stoklarına bağlanır. Tek tek aktarma gerekmez.</span>
-              <span className="font-bold">{products.filter(p=>p.b2b_product_id).length} B2B bağlantılı · {products.length} mağaza ürünü</span>
+            {section==="products"&&<div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-100 bg-[#f1f8ff] px-4 py-3 text-xs text-[#235681]">
+              <span className="flex items-center gap-2 font-semibold">
+                <CheckCircle2 size={16} className="shrink-0 text-emerald-600"/>
+                Çalışkan B2B'de Yayında:
+                <strong className="text-sm font-extrabold tabular-nums">
+                  {productCounts?.storeId===storeId?productCounts.publishedB2B.toLocaleString("tr-TR"):"—"}
+                </strong>
+                ürün
+              </span>
+              <span className="flex items-center gap-2 font-semibold sm:ml-auto">
+                <Package size={16} className="shrink-0 text-[#17649f]"/>
+                Çalışkan Dükkân:
+                <strong className="text-sm font-extrabold tabular-nums">
+                  {productCounts?.storeId===storeId?productCounts.dukkanTotal.toLocaleString("tr-TR"):"—"}
+                </strong>
+                ürün
+              </span>
             </div>}
             {section==="products"&&<DukkanProductToolbar value={productToolbar} onChange={changeToolbar}
               onClear={()=>setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR})}
