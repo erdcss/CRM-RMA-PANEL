@@ -1,0 +1,24 @@
+Çalışkan Dükkan iOS TestFlight 1.0.3 – 4 Kasım 2026
+
+PR: https://github.com/erdcss/CRM-RMA-PANEL/pull/35
+Merged main commit: 5d0135b95f84891eba8f8d9902b0b0d8f16947e7
+Railway backend deployment: SUCCESS
+Bundle ID: com.caliskan.dukkan
+Expo EAS project ID: 21b3de7c-763f-4c25-87aa-66e818498d6e
+App Store Connect application ID: 6826848065
+Version: 1.0.3
+
+Changes: compact yet readable native dashboard/header/cards; normal letter spacing,
+lighter font weights in native/mobile-embedded management screens;
+native product images retained; tap a cari card to view newest-first,
+paginated scoped movements with debit, credit, running balance and invoice items.
+Role limits: only accountant/manager/owner may open detailed cari ledger;
+server rechecks store membership. Web statement default ordering remains intact.
+
+Verification: GitHub Actions mobile typecheck, iOS and Android JS export, image
+authorization regression, Expo dependency compatibility and web integration
+(including latest movement order and cross-store access) successful.
+No automatic accounting writes. Existing approved branding/Apple credentials
+only; EAS freezes credentials and auto-increments remote iOS build number.
+
+Release workflow: EAS TestFlight iOS build followed by App Store Connect submit.
