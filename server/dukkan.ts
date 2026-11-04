@@ -8,12 +8,14 @@ import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import { buildCariExcel } from "./dukkan-cari-excel";
+import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
 // Monetary values stay NUMERIC in PostgreSQL, never FLOAT. All postings use transactions.
 const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_stores (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, owner_user_id INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
   "CREATE TABLE IF NOT EXISTS dukkan_members (store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), user_id INTEGER NOT NULL REFERENCES users(id), role TEXT NOT NULL CHECK(role IN ('owner','manager','accountant','cashier','viewer')), PRIMARY KEY(store_id,user_id))",
+  "CREATE TABLE IF NOT EXISTS dukkan_invoice_form_templates (store_id BIGINT NOT NULL REFERENCES dukkan_stores(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('sale','purchase')),settings JSONB NOT NULL DEFAULT '{}'::jsonb,updated_by INTEGER REFERENCES users(id),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),PRIMARY KEY(store_id,kind))",
   "CREATE TABLE IF NOT EXISTS dukkan_parties (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), type TEXT NOT NULL CHECK(type IN ('customer','supplier','both')), name TEXT NOT NULL, tax_number TEXT, phone TEXT, email TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,id))",
   "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS source_cari_no TEXT",
   "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS account_code TEXT",
@@ -867,6 +869,38 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       totalPages:Math.max(1,Math.ceil(Number(historyCount.rows[0]?.total||0)/paging.pageSize)),
     });
   }));
+  // Only presentation settings can be edited. Financial values remain immutable.
+  app.get("/api/dukkan/stores/:storeId/print-forms",safe(async(req,res)=>{
+    const sid=store(req),db=await ready();
+    const saved=await db.query(
+      "SELECT kind,settings FROM dukkan_invoice_form_templates WHERE store_id=$1",[sid],
+    );
+    const config:Record<InvoiceFormKind,ReturnType<typeof defaultInvoiceForm>>={
+      sale:defaultInvoiceForm("sale"),purchase:defaultInvoiceForm("purchase"),
+    };
+    for(const item of saved.rows){
+      if(item.kind==="sale"||item.kind==="purchase")
+        config[item.kind]=resolveInvoiceForm(item.kind,item.settings);
+    }
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(config);
+  }));
+  app.put("/api/dukkan/stores/:storeId/print-forms/:kind",safe(async(req,res)=>{
+    manager(res);
+    const kind=z.enum(["sale","purchase"]).parse(req.params.kind);
+    const config=invoiceFormSchema.parse(req.body);
+    const sid=store(req),db=await ready();
+    const saved=await db.query(
+      "INSERT INTO dukkan_invoice_form_templates(store_id,kind,settings,updated_by) "+
+      "VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(store_id,kind) "+
+      "DO UPDATE SET settings=EXCLUDED.settings,updated_by=EXCLUDED.updated_by,updated_at=NOW() "+
+      "RETURNING settings,updated_at",
+      [sid,kind,JSON.stringify(config),user(res)],
+    );
+    res.setHeader("Cache-Control","no-store");
+    res.json({kind,template:resolveInvoiceForm(kind,saved.rows[0].settings),
+      updatedAt:saved.rows[0].updated_at});
+  }));
   // Read an immutable posted invoice amount from the user's authorized store.
   // The PDF renderer receives only the requested invoice and its product lines.
   // Cashiers may export sales documents only; purchases remain accountant-only.
@@ -879,15 +913,25 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     );
     if(!invoice.rowCount)return res.status(404).json({error:"Bu mağazada fatura bulunamadı"});
     const doc=invoice.rows[0];
-    if(!["sale","sale_return"].includes(doc.kind))
-      return res.status(400).json({error:"PDF dışa aktarımı yalnız satış belgeleri içindir"});
+    const purchaseDocument=["purchase","purchase_return"].includes(doc.kind);
+    if(!purchaseDocument&&!["sale","sale_return"].includes(doc.kind))
+      return res.status(400).json({error:"Desteklenmeyen belge türü"});
+    if(purchaseDocument)accountant(res);
     const lines=await db.query(
       "SELECT l.id,l.quantity,l.unit_price,l.tax_rate,l.line_total,p.sku,p.name AS product_name,p.unit FROM dukkan_invoice_lines l JOIN dukkan_products p ON p.id=l.product_id AND p.store_id=$2 WHERE l.invoice_id=$1 ORDER BY l.id",
       [invoiceId,sid]
     );
     res.setHeader("Cache-Control","private, no-store");
     res.setHeader("X-Content-Type-Options","nosniff");
-    res.json({invoice:doc,lines:lines.rows,officialInvoice:false,disclaimer:"Dahili satış belgesidir; GİB e-Fatura veya e-Arşiv faturası değildir."});
+    const templateKind:InvoiceFormKind=purchaseDocument?"purchase":"sale";
+    const templateRows=await db.query(
+      "SELECT settings FROM dukkan_invoice_form_templates WHERE store_id=$1 AND kind=$2",
+      [sid,templateKind],
+    );
+    res.json({invoice:doc,lines:lines.rows,
+      template:resolveInvoiceForm(templateKind,templateRows.rows[0]?.settings),
+      officialInvoice:false,
+      disclaimer:"Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez."});
   }));
 
   app.post("/api/dukkan/stores/:storeId/invoices",safe(async(req,res)=>{
