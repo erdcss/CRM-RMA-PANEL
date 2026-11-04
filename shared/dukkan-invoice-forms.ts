@@ -81,13 +81,13 @@ export function resolveInvoiceFormForStore(
 ):DukkanInvoiceForm{
   const config=resolveInvoiceForm(kind,saved);
   const company=storeName.normalize("NFKC").toLocaleLowerCase("tr-TR").trim();
-  if(kind!=="sale"||company!=="çalışkan group"||saved!=null)return config;
+  if(kind!=="sale"||company!=="çalışkan group")return config;
   return {
     ...config,
-    companyName:"ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ",
-    companyAddress:"19. ada 23 numara İstoç toptan ticaret merkezi Bağcılar/İstanbul 34218 TR",
-    companyPhone:"05340432878",
-    companyEmail:"calisganelektronik@gmail.com",
+    companyName:config.companyName||"ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ",
+    companyAddress:config.companyAddress||"19. ada 23 numara İstoç toptan ticaret merkezi Bağcılar/İstanbul 34218 TR",
+    companyPhone:config.companyPhone||"05340432878",
+    companyEmail:config.companyEmail||"calisganelektronik@gmail.com",
   };
 }
 
