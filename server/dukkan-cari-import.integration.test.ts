@@ -33,7 +33,7 @@ test("import is atomic, keyed by source, and stores complete dated invoice lines
       "CREATE TABLE dukkan_products(id BIGINT PRIMARY KEY,store_id BIGINT,stock NUMERIC(16,3))",
       "INSERT INTO dukkan_products(id,store_id,stock) VALUES(1,1,55)",
       "CREATE TABLE dukkan_invoices(id BIGSERIAL PRIMARY KEY,store_id BIGINT,party_id BIGINT,invoice_no TEXT)",
-      "CREATE TABLE dukkan_cari_entries(id BIGSERIAL PRIMARY KEY,store_id BIGINT,party_id BIGINT,debit NUMERIC(18,2),credit NUMERIC(18,2),description TEXT,created_at TIMESTAMP)",
+      "CREATE TABLE dukkan_cari_entries(id BIGSERIAL PRIMARY KEY,store_id BIGINT,party_id BIGINT,debit NUMERIC(18,2),credit NUMERIC(18,2),description TEXT,invoice_id BIGINT,payment_id BIGINT,created_at TIMESTAMP)",
       "CREATE TABLE dukkan_cari_import_batches(id BIGSERIAL PRIMARY KEY,store_id BIGINT,party_id BIGINT,source_sha256 TEXT,source_filename TEXT,source_company TEXT,source_currency TEXT,report_date TEXT,source_page_count INT,entry_count INT,reported_balance NUMERIC(18,2),imported_by INT,imported_at TIMESTAMPTZ DEFAULT NOW(),UNIQUE(store_id,party_id,source_sha256))",
       "CREATE TABLE dukkan_cari_import_entries(id BIGSERIAL PRIMARY KEY,store_id BIGINT,party_id BIGINT,batch_id BIGINT,entry_id BIGINT UNIQUE,document_date DATE,due_date DATE,kind TEXT,document_no TEXT,source_description TEXT,source_balance NUMERIC(18,2),source_page INT,source_position INT,UNIQUE(store_id,party_id,kind,document_date,document_no))",
       "CREATE TABLE dukkan_cari_import_lines(id BIGSERIAL PRIMARY KEY,import_entry_id BIGINT,line_position INT,product_name TEXT,quantity NUMERIC(16,3),unit TEXT,unit_price NUMERIC(18,2),discounted_unit_price NUMERIC(18,2),line_total NUMERIC(18,2))",
