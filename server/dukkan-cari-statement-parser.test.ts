@@ -45,3 +45,29 @@ test("Turkish thousand separators and exact balance sum",()=>{
   assert.equal(trMoney("1.650,00 TL"),1650);
   assert.equal(trMoney("0,00"),0);
 });
+
+
+test("merged monetary cells do not turn running balance into credit",()=>{
+  const page=[
+    w(114,50,"ÖRNEK FİRMA"),w(114,72,"0000077"),w(114,87,"ÖRNEK MÜŞTERİ"),w(114,104,"TL"),
+    w(33,160,"01.01.2025"),w(147,160,"Açılış Kartı"),w(217,160,"00001"),
+    w(440,160,"100,00"),w(490,160,"0,00"),w(530,160,"100,00"),w(570,160,"[B]"),
+    w(33,175,"02.01.2025"),w(147,175,"Satış Faturası"),w(217,175,"00002"),
+    w(440,175,"300,00400,00"),w(570,175,"[B]"),
+    w(87,189,"Kettle"),w(254,189,"3"),w(273,189,"ADET"),
+    w(317,189,"100,00"),w(390,189,"100,00"),w(440,189,"300,00"),
+    w(87,203,"Toplam"),w(254,203,"3"),w(273,203,"ADET"),
+    w(317,203,"100,00"),w(390,203,"100,00"),w(440,203,"300,00"),
+    w(33,218,"03.01.2025"),w(147,218,"Virman"),w(217,218,"00003"),
+    w(440,218,"0,00"),w(490,218,"50,00"),w(530,218,"350,00"),w(570,218,"[B]"),
+  ];
+  const doc=parsePositionedCariStatement([page]);
+  assert.equal(doc.entries.length,3);
+  assert.equal(doc.entries[1].debit,300);
+  assert.equal(doc.entries[1].credit,0);
+  assert.equal(doc.entries[1].sourceBalance,400);
+  assert.equal(doc.entries[1].lines.length,1);
+  assert.equal(doc.entries[2].kind,"other");
+  assert.equal(doc.entries[2].credit,50);
+  assert.equal(doc.declaredClosingBalance,350);
+});
