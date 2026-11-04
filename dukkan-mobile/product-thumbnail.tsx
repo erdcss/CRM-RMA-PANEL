@@ -8,7 +8,7 @@ export function ProductThumbnail({item,storeId,token,size=60}:{
 }){
   const [failed,setFailed]=useState(false);
   const source=useMemo(()=>productImageSource(item,storeId,token),
-    [item.id,item.image_url,item.image_count,storeId,token]);
+    [item.id,item.image_url,item.image_external_url,item.image_count,storeId,token]);
   useEffect(()=>setFailed(false),[source?.uri]);
   return <View style={{height:size,width:size,borderRadius:12,backgroundColor:"#f5f8fc",
     borderWidth:1,borderColor:"#e0e7f0",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
