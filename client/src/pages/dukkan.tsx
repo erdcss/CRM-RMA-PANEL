@@ -15,13 +15,13 @@ import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Do
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
 type DocLine = { productId: string; quantity: string; unitPrice: string; taxRate: string };
-type Section = "overview" | "sales" | "purchases" | "products" | "stock" | "orders" | "instruments" | "banks" | "parties" | "reports" | "settings";
+type Section = "overview" | "sales" | "purchases" | "products" | "stock" | "orders" | "instruments" | "banks" | "parties" | "suppliers" | "reports" | "settings";
 const SECTIONS: Array<{ key: Section; label: string }> = [
   { key:"overview",label:"Genel Bakış" },{key:"sales",label:"Satış Faturaları"},
   {key:"purchases",label:"Satın Alma Faturaları"},{key:"products",label:"Ürünler"},
   {key:"stock",label:"Stok Hareketleri"},{key:"orders",label:"Siparişler"},
   {key:"instruments",label:"Çek ve Senetler"},{key:"banks",label:"Bankalar"},
-  {key:"parties",label:"Cari Hesaplar"},{key:"reports",label:"Raporlar"},{key:"settings",label:"Ayarlar"}
+  {key:"parties",label:"Cari Hesaplar"},{key:"suppliers",label:"Tedarikçi Firmalar"},{key:"reports",label:"Raporlar"},{key:"settings",label:"Ayarlar"}
 ];
 const NEW_LINE: DocLine = { productId:"",quantity:"1",unitPrice:"0",taxRate:"20" };
 const currency=(v: unknown)=>Number(v||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
@@ -93,6 +93,9 @@ export default function Dukkan() {
   const [exportingCari,setExportingCari]=useState<"debt"|"credit"|null>(null);
   const [showForm,setShowForm]=useState(false);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
+  const [editingPartyId,setEditingPartyId]=useState<string|null>(null);
+  const [cariSearch,setCariSearch]=useState("");
+  const [cariFilter,setCariFilter]=useState<"az"|"debtor"|"creditor"|"recent">("az");
   const [editingCatalogId,setEditingCatalogId]=useState<string|null>(null);
   const [publishingId,setPublishingId]=useState<string|null>(null);
   const requestVersion=useRef(0);
@@ -166,7 +169,7 @@ export default function Dukkan() {
       if(section==="settings"&&canManage)setMembers(await api(base+"/members"));else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:null,
-        orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements",settings:null
+        orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",suppliers:"parties",reports:"cari-movements",settings:null
       };
       if(section!=="products"&&resource[section])result=await api(base+"/data/"+resource[section]);
       if(!isCurrent())return;
@@ -199,7 +202,8 @@ export default function Dukkan() {
     return()=>{ requestVersion.current++; };
   },[load,refresh]);
   useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
-    setEditingProductId(null);setEditingCatalogId(null);
+    setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
+    setCariSearch("");setCariFilter("az");
     setProductImages([]);setPublishToB2B(false);},[section,storeId]);
   // The database bridge writes synchronously; refresh open catalog views so changes
   // made on a second device or in B2B appear without a full page reload.
