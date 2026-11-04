@@ -710,9 +710,10 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       [sid,productId],
     );
     if(!p.rows[0])return res.status(404).json({error:"Bu mağazada ürün bulunamadı"});
-    const [totals,history]=await Promise.all([
+    const [totals,history,historyCount]=await Promise.all([
       db.query(dukkanStockTotalsSql,[sid,productId]),
       db.query(dukkanStockHistorySql,[sid,productId,paging.pageSize,(paging.page-1)*paging.pageSize]),
+      db.query("SELECT COUNT(*)::integer AS total FROM dukkan_stock_movements WHERE store_id=$1 AND product_id=$2",[sid,productId]),
     ]);
     const stats=totals.rows[0];
     const canSeePurchasePrices=["owner","manager","accountant"].includes(String(res.locals.dukkanRole));
@@ -740,7 +741,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       },
       page:paging.page,
       pageSize:paging.pageSize,
-      totalPages:Math.max(1,Math.ceil(Number(stats.total)/paging.pageSize)),
+      historyTotal:Number(historyCount.rows[0]?.total||0),
+      totalPages:Math.max(1,Math.ceil(Number(historyCount.rows[0]?.total||0)/paging.pageSize)),
     });
   }));
   // Read an immutable posted invoice amount from the user's authorized store.
