@@ -22,6 +22,7 @@ type StatementEntry = {
 };
 type Statement = { party: Party; storeName: string; mode: "standard" | "detailed"; entries: StatementEntry[] };
 type View = "menu" | "statement-select" | "statement" | "collection" | "payment" | "opening" | "delete";
+type PaymentMethod = "cash" | "bank" | "card" | "cheque" | "promissory" | "other";
 const formatMoney = (v: unknown) => Number(v || 0).toLocaleString("tr-TR", {minimumFractionDigits:2, maximumFractionDigits:2});
 const money = (v: unknown) => formatMoney(v) + " ₺";
 const today = () => new Date().toLocaleDateString("sv-SE");
@@ -208,10 +209,11 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
   const [statementBusy,setStatementBusy]=useState(false);
   const [pdfBusy,setPdfBusy]=useState(false);
   const [direction,setDirection]=useState<"debit"|"credit">("debit");
-  const [method,setMethod]=useState<"cash"|"bank">("cash");
+  const [method,setMethod]=useState<PaymentMethod>("cash");
   const [bankId,setBankId]=useState("");
   const [amount,setAmount]=useState("");
   const [date,setDate]=useState(today);
+  const [dueDate,setDueDate]=useState("");
   const [documentNo,setDocumentNo]=useState("");
   const [note,setNote]=useState("");
   const [confirmName,setConfirmName]=useState("");
@@ -242,7 +244,7 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
   const changeView=(next:View)=>{
     setError("");setSuccess("");setView(next);
     setAmount("");setNote("");setDocumentNo("");setMethod("cash");setBankId("");
-    setDate(today());setDirection("debit");setConfirmName("");setConfirmChecked(false);
+    setDate(today());setDueDate("");setDirection("debit");setConfirmName("");setConfirmChecked(false);
   };
   const refreshBalance=async()=>{
     const next=await jsonRequest(base+"/parties/"+encodeURIComponent(partyId));
@@ -260,6 +262,15 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
         await jsonRequest(base+"/parties/"+encodeURIComponent(partyId)+"/opening",{
           method:"POST",body:JSON.stringify({amount:value,type:direction,date,note})
         });
+      }else if(method==="cheque"||method==="promissory"){
+        if(!documentNo.trim()||!dueDate)throw new Error("Çek/senet numarası ve vade tarihi zorunludur.");
+        await jsonRequest(base+"/instruments",{
+          method:"POST",body:JSON.stringify({
+            partyId:Number(partyId),kind:method,
+            direction:view==="collection"?"received":"issued",
+            number:documentNo.trim(),amount:value,dueDate,date,note
+          })
+        });
       }else{
         if(method==="bank"&&!bankId)throw new Error("Lütfen banka seçin.");
         await jsonRequest(base+"/parties/"+encodeURIComponent(partyId)+"/payments",{
@@ -272,7 +283,10 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
       }
       await refreshBalance();
       setAmount("");setNote("");setDocumentNo("");
-      setSuccess(view==="opening"?"Açılış bakiyesi kaydedildi.":"Ödeme/tahsilat cari hesaba işlendi.");
+      setSuccess(view==="opening"?"Açılış bakiyesi kaydedildi.":
+        method==="cheque"||method==="promissory"?
+        "Çek/senet kaydı vade takibine alındı. Tahsil/ödeme gerçekleşmediği için cari bakiye değişmedi.":
+        "Ödeme/tahsilat cari hesaba işlendi.");
       setView("menu");
     }catch(e){setError((e as Error).message);}
     finally{inFlight.current=false;setBusy(false);}
@@ -422,8 +436,10 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
               <option value="debit">Borç Açılışı</option><option value="credit">Alacak Açılışı</option>
             </select>
           </label>:<label className="block text-xs font-bold text-slate-600">Ödeme Yöntemi
-            <select className={inputStyle+" mt-2"} value={method} onChange={e=>{setMethod(e.target.value as "cash"|"bank");setBankId("");}}>
+            <select className={inputStyle+" mt-2"} value={method} onChange={e=>{setMethod(e.target.value as PaymentMethod);setBankId("");}}>
               <option value="cash">Nakit</option><option value="bank">Havale / EFT (Banka)</option>
+              <option value="card">Kredi Kartı / POS</option><option value="cheque">Çek</option>
+              <option value="promissory">Senet</option><option value="other">Diğer</option>
             </select>
           </label>}
           {view!=="opening"&&method==="bank"&&<label className="block text-xs font-bold text-slate-600">Banka
@@ -433,6 +449,10 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
             </select>
             {!banks.length&&<span className="mt-2 block text-amber-700">Önce Bankalar bölümünden bir banka hesabı ekleyin.</span>}
           </label>}
+          {view!=="opening"&&(method==="cheque"||method==="promissory")&&<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            Çek veya senet vadesi gelmeden tahsilat olarak işlenmez; yalnızca Çek ve Senetler modülüne bekleyen belge olarak kaydedilir. Tahsil edildiğinde ayrı bir ödeme kaydı oluşturmalısınız.
+          </div>}
+          {view!=="opening"&&method==="card"&&<p className="rounded-xl bg-sky-50 p-3 text-xs text-sky-800">Kart tahsilatı cari hesaba işlenir. POS tahsilatının banka hesabına geçişi ayrıca mutabakat gerektirir.</p>}
           <label className="block text-xs font-bold text-slate-600">İşlem Tarihi
             <input type="date" required className={inputStyle+" mt-2"} value={date} onChange={e=>setDate(e.target.value)}/>
           </label>
@@ -440,8 +460,11 @@ export function DukkanCariActionsDrawer({party,storeId,banks,onClose,onUpdated,o
             <input className={inputStyle+" mt-2"} type="number" required min="0.01" max="999999999999" step="0.01"
               placeholder="0,00" value={amount} onChange={e=>setAmount(e.target.value)}/>
           </label>
-          {view!=="opening"&&<label className="block text-xs font-bold text-slate-600">Belge / Makbuz No (isteğe bağlı)
-            <input className={inputStyle+" mt-2"} maxLength={80} value={documentNo} onChange={e=>setDocumentNo(e.target.value)}/>
+          {view!=="opening"&&(method==="cheque"||method==="promissory")&&<label className="block text-xs font-bold text-slate-600">Vade Tarihi
+            <input type="date" required value={dueDate} onChange={e=>setDueDate(e.target.value)} className={inputStyle+" mt-2"}/>
+          </label>}
+          {view!=="opening"&&<label className="block text-xs font-bold text-slate-600">{method==="cheque"||method==="promissory"?"Çek / Senet No (zorunlu)":"Belge / Makbuz No (isteğe bağlı)"}
+            <input className={inputStyle+" mt-2"} required={method==="cheque"||method==="promissory"} maxLength={80} value={documentNo} onChange={e=>setDocumentNo(e.target.value)}/>
           </label>}
           <label className="block text-xs font-bold text-slate-600">Açıklama
             <textarea className={inputStyle+" mt-2 min-h-24 resize-y"} maxLength={500} value={note}
