@@ -70,9 +70,10 @@ export default function DukkanCariEdit({id}:{id:string}){
   const query=new URLSearchParams(window.location.search);
   const storeId=query.get("storeId")||"";
   const origin=query.get("from")==="suppliers"?"suppliers":"parties";
+  const isNew=id==="new";
   const [cari,setCari]=useState<Cari|null>(null);
-  const [form,setForm]=useState<CariForm>(empty);
-  const [loading,setLoading]=useState(true);
+  const [form,setForm]=useState<CariForm>({...empty,type:origin==="suppliers"?"supplier":"customer"});
+  const [loading,setLoading]=useState(!isNew);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
   const [saved,setSaved]=useState(false);
@@ -96,6 +97,10 @@ export default function DukkanCariEdit({id}:{id:string}){
 
   useEffect(()=>{
     let live=true;
+    if(isNew){
+      setLoading(false);
+      return;
+    }
     if(!storeId||!Number.isSafeInteger(Number(id))||Number(id)<1){
       setError("Cari hesap veya mağaza kimliği geçersiz.");
       setLoading(false);
@@ -134,14 +139,20 @@ export default function DukkanCariEdit({id}:{id:string}){
       .catch((reason:Error)=>{if(live)setError(reason.message);})
       .finally(()=>{if(live)setLoading(false);});
     return()=>{live=false;};
-  },[path,id,storeId]);
+  },[path,id,storeId,isNew]);
 
   const submit=async(event:FormEvent)=>{
     event.preventDefault();
-    if(!cari||saving)return;
+    if((!isNew&&!cari)||saving)return;
     setSaving(true);setError("");setSaved(false);
     try{
-      const updated=await request(path,{method:"PATCH",body:JSON.stringify(form)});
+      const updated=await request(isNew?"/api/dukkan/stores/"+encodeURIComponent(storeId)+"/parties":path,
+        {method:isNew?"POST":"PATCH",body:JSON.stringify(form)});
+      if(isNew){
+        navigate("/dukkan/cariler/"+encodeURIComponent(String(updated.id))+
+          "?storeId="+encodeURIComponent(storeId)+"&from="+origin);
+        return;
+      }
       setCari(old=>old?{...old,...updated}:null);
       setSaved(true);
       // The account's financial ledger is not part of this profile form.
@@ -178,7 +189,7 @@ export default function DukkanCariEdit({id}:{id:string}){
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-extrabold uppercase tracking-wider text-sky-700">Cari Hesap Kartı</p>
-            <h1 className="mt-1 break-words text-xl font-black sm:text-2xl">{cari?.name||"Cari hesap bilgileri"}</h1>
+            <h1 className="mt-1 break-words text-xl font-black sm:text-2xl">{isNew?"Yeni Cari Hesap Oluştur":cari?.name||"Cari hesap bilgileri"}</h1>
             <p className="mt-1 text-xs text-slate-500">
               Cari No: {cari?.source_cari_no||"—"} · Hesap Kodu: {cari?.account_code||"—"}
             </p>
@@ -197,11 +208,11 @@ export default function DukkanCariEdit({id}:{id:string}){
       {saved&&<div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
         <CheckCircle2 size={18}/> Cari hesap bilgileri kaydedildi.
       </div>}
-      {loading?<div className="rounded-2xl bg-white p-10 text-center text-slate-500">Cari hesap bilgileri yükleniyor…</div>:cari?(
+      {loading?<div className="rounded-2xl bg-white p-10 text-center text-slate-500">Cari hesap bilgileri yükleniyor…</div>:(cari||isNew)?(
         <div className="space-y-5">
           <form onSubmit={submit} className="rounded-[24px] border border-[#dce6f3] bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-5">
-              <h2 className="text-base font-black">Cari Bilgilerini Düzenle</h2>
+              <h2 className="text-base font-black">{isNew?"Yeni Cari Hesap Bilgileri":"Cari Bilgilerini Düzenle"}</h2>
               <p className="mt-1 text-xs text-slate-500">Kimlik ve iletişim bilgilerini güncelleyebilirsiniz. Borç/alacak bakiyesi bu alandan değiştirilemez.</p>
             </div>
             <div className="space-y-7">
@@ -264,19 +275,19 @@ export default function DukkanCariEdit({id}:{id:string}){
                 </label>
               </section>
             </div>
-            {form.type!==cari.type&&<div className="mt-5 flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-[#204e81]">
+            {!isNew&&cari&&form.type!==cari.type&&<div className="mt-5 flex items-start gap-2 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-[#204e81]">
               <Users size={19} className="mt-0.5 shrink-0"/>
               Kaydedildiğinde bu hesap {form.type==="supplier"?"Tedarikçi Firmalar":"Cari Hesaplar"} listesinde görünecek. Mevcut cari hareketleri ve bakiyesi korunacak.
             </div>}
             <div className="mt-6 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
               <button type="button" onClick={goBack} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold hover:bg-slate-50">Geri Dön</button>
               <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-[#122a51] px-6 py-3 text-sm font-bold text-white hover:bg-[#1c4b83] disabled:opacity-50">
-                <Save size={17}/> {saving?"Kaydediliyor…":"Değişiklikleri Kaydet"}
+                <Save size={17}/> {saving?"Kaydediliyor…":isNew?"Cari Hesabı Oluştur":"Değişiklikleri Kaydet"}
               </button>
             </div>
           </form>
 
-          <section className="rounded-[24px] border border-[#dce6f3] bg-white p-5 shadow-sm sm:p-7">
+          {!isNew&&<section className="rounded-[24px] border border-[#dce6f3] bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-4 flex flex-wrap items-center gap-2">
               <ClipboardList size={20} className="text-[#215b92]"/>
               <h2 className="text-base font-black">Son Cari Hareketleri</h2>
