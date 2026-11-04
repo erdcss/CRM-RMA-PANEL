@@ -3,7 +3,7 @@ import { pool } from "./db";
 import { storage } from "./storage";
 import { z, ZodError } from "zod";
 import type { PoolClient } from "pg";
-import { ensureDukkanB2BBridge, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
+import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
@@ -33,7 +33,7 @@ const SCHEMA = [
 let schemaPromise: Promise<void> | undefined;
 async function ready() {
   if (!pool) throw Object.assign(new Error("PostgreSQL bağlantısı gerekli"), { status: 503 });
-  if (!schemaPromise) schemaPromise = pool.query(SCHEMA).then(() => ensureDukkanB2BBridge(pool!)).then(() => undefined).catch((error) => { schemaPromise = undefined; throw error; });
+  if (!schemaPromise) schemaPromise = pool.query(SCHEMA).then(() => ensureDukkanB2BBridge(pool!)).then(() => backfillExistingDukkanProducts(pool!)).then(() => undefined).catch((error) => { schemaPromise = undefined; throw error; });
   await schemaPromise;
   return pool;
 }
