@@ -39,6 +39,7 @@ import AdminPaymentSettingsPage from "@/pages/admin-payment-settings";
 import AdminReels from "@/pages/admin-reels";
 import AdminNotifications from "@/pages/admin-notifications";
 import Dukkan from "@/pages/dukkan";
+import DukkanProductEdit from "@/pages/dukkan-product-edit";
 import DukkanLogin from "@/pages/dukkan-login";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BCategoryPage, { B2BCategoriesDirectory } from "@/pages/b2b-categories";
@@ -93,6 +94,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/pazaryeri" component={AdminMarketplace} />
+      <Route path="/dukkan/urunler/:id">{(params)=><DukkanProductEdit id={params.id}/>}</Route>
       <Route path="/dukkan" component={Dukkan} />
       <Route path="/kayitlar" component={Kayitlar} />
       <Route path="/kayit/:id" component={KayitDetay} />
@@ -150,7 +152,9 @@ function AppContent() {
   return (
     <>
       {isLoading ? null : user && typeof window !== "undefined" && window.location.pathname.startsWith("/dukkan") && !["super_admin", "admin"].includes(user.role) ? (
-          <Dukkan />
+          /^\/dukkan\/urunler\/\d+$/.test(window.location.pathname)
+            ? <DukkanProductEdit id={window.location.pathname.split("/").pop()||""}/>
+            : <Dukkan />
         ) : user && ["super_admin", "admin"].includes(user.role) ? (
           <SidebarProvider defaultOpen={typeof document === "undefined" || !document.cookie.split(";").some(item => item.trim() === "sidebar_state=false")} style={style as React.CSSProperties}>
             <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
