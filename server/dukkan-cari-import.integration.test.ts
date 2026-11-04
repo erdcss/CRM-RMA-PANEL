@@ -72,6 +72,37 @@ test("import is atomic, keyed by source, and stores complete dated invoice lines
       /zaten içe aktarılmış|Çift bakiye/);
     const counts=await db.query<{total:number}>("SELECT COUNT(*)::integer AS total FROM dukkan_cari_entries");
     assert.equal(counts.rows[0].total,3);
+    // Replacing a single Excel opening balance with its full historical
+    // statement must not double the customer balance.
+    const party=await db.query<{id:string}>(
+      "INSERT INTO dukkan_parties(store_id,type,name,source_cari_no,account_code) "+
+      "VALUES(1,'customer','Örnek Cari Test','0000099','0000099') RETURNING id");
+    const alternate=Number(party.rows[0].id);
+    await db.query(
+      "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description,created_at) "+
+      "VALUES(1,$1,250,0,'Excel açılış bakiyesi',CURRENT_DATE)",
+      [alternate],
+    );
+    const incoming={...document,party:{...document.party,sourceCariNo:"0000099"}};
+    await assert.rejects(()=>tx(()=>postImportedStatement(c,{
+      ...args,sha256:"c".repeat(64),partyId:alternate,statement:incoming,
+    })),/Mevcut cari bakiyesi/);
+    await tx(()=>postImportedStatement(c,{
+      ...args,sha256:"c".repeat(64),partyId:alternate,statement:incoming,
+      confirmExisting:true,replaceOpening:true,
+    }));
+    const secondBalance=await db.query<{balance:string}>(
+      "SELECT SUM(debit-credit)::text AS balance FROM dukkan_cari_entries WHERE store_id=1 AND party_id=$1",
+      [alternate],
+    );
+    assert.equal(Number(secondBalance.rows[0].balance),250);
+    const secondMovements=await db.query<{total:number}>(
+      "SELECT COUNT(*)::integer AS total FROM dukkan_cari_entries WHERE store_id=1 AND party_id=$1",
+      [alternate],
+    );
+    assert.equal(secondMovements.rows[0].total,5,
+      "one original opening, one audited offset, and three historical entries");
+
   }finally{await db.close();}
 });
 test("unbalanced invoice lines block writes and missing VAT is not inferred",()=>{
