@@ -88,15 +88,16 @@ export default function Dukkan() {
     if(!storeId)return;
     const request=++requestVersion.current;
     const isCurrent=()=>request===requestVersion.current;
-    const wantsCatalog=section==="products"&&!cashier;
+    const productPage=section==="products";
+    const wantsCatalog=productPage&&!cashier;
     try{
       // One atomic list update: never briefly replace the full product list with
       // only local products during the 10-second background refresh.
       const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome]=await Promise.all([
-        api(base+"/data/parties"),
+        productPage?Promise.resolve(null):api(base+"/data/parties"),
         api(base+"/data/products"),
-        cashier?Promise.resolve([]):api(base+"/data/banks"),
-        cashier?Promise.resolve(null):api(base+"/report"),
+        productPage||cashier?Promise.resolve(null):api(base+"/data/banks"),
+        productPage||cashier?Promise.resolve(null):api(base+"/report"),
         wantsCatalog
           ? api(base+"/catalog/b2b").then(value=>({value,error:""}))
             .catch(error=>({value:null,error:(error as Error).message}))
@@ -117,7 +118,10 @@ export default function Dukkan() {
       if(section!=="products"&&resource[section])result=await api(base+"/data/"+resource[section]);
       if(!isCurrent())return;
       const sameStore=lastLoadedStore.current===storeId;
-      setParties(partiesResult);setProducts(productsResult);setBanks(banksResult);setReport(reportResult);
+      if(!productPage){
+        setParties(partiesResult);setBanks(banksResult);setReport(reportResult);
+      }
+      setProducts(productsResult);
       setB2bCatalog(current=>warning&&sameStore?current:catalog);
       setRows(current=>{
         if(section!=="products")return result;
