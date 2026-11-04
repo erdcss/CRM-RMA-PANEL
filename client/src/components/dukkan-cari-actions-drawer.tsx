@@ -8,9 +8,10 @@ type Party = {
 };
 type Bank = { id: string | number; name: string };
 type InvoiceLine = {
-  product_name: string; sku: string; unit: string;
+  product_name: string; sku?: string|null; unit: string;
   quantity: string | number; unit_price: string | number;
-  tax_rate: string | number; line_total: string | number;
+  tax_rate: string | number | null; line_total: string | number;
+  discounted_unit_price?: string|number|null;
 };
 type StatementEntry = {
   id: string | number; created_at: string; document_date: string;
@@ -18,6 +19,7 @@ type StatementEntry = {
   running_balance: string | number; invoice_no?: string | null;
   invoice_kind?: string | null; payment_direction?: string | null;
   payment_method?: string | null; document_no?: string | null;
+  due_date?:string|null; archived_kind?:string|null; import_entry_id?:number|string|null;
   invoice_lines?: InvoiceLine[];
 };
 type Statement = { party: Party; storeName: string; mode: "standard" | "detailed"; entries: StatementEntry[] };
@@ -41,7 +43,9 @@ const entryLabel = (entry: StatementEntry) => {
     sale:"Satış Faturası",purchase:"Alış Faturası",
     sale_return:"Satış İadesi",purchase_return:"Alış İadesi"
   };
-  return entry.invoice_kind?names[entry.invoice_kind]||"Fatura":
+  return entry.archived_kind==="opening"?"Açılış Bakiyesi":
+    entry.archived_kind==="other"?"Arşiv Hareketi":
+    entry.invoice_kind?names[entry.invoice_kind]||"Fatura":
     entry.payment_direction==="collection"?"Tahsilat":
     entry.payment_direction==="payment"?"Ödeme":
     entry.description?.toLocaleLowerCase("tr-TR").includes("açılış")?"Açılış Bakiyesi":"Cari Hareket";
@@ -77,19 +81,22 @@ function StatementTable({statement}:{statement:Statement}) {
   return <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
     <table className="min-w-[720px] w-full border-collapse text-left text-[12px]">
       <thead className="bg-[#eaf0fa] text-[#375476]"><tr>
-        {["Tarih","İşlem","Belge No","Açıklama","Borç","Alacak","Bakiye"].map(label=>
+        {["Tarih","Vade","İşlem","Belge No","Açıklama","Borç","Alacak","Bakiye"].map(label=>
           <th key={label} className="whitespace-nowrap border-b border-slate-200 px-3 py-3 font-bold">{label}</th>)}
       </tr></thead>
       <tbody>{statement.entries.map(item=><tr key={String(item.id)} className="align-top border-t border-[#e8edf5]">
         <td className="whitespace-nowrap px-3 py-3">{dateText(item.document_date)}</td>
+        <td className="whitespace-nowrap px-3 py-3">{item.due_date?dateText(item.due_date):"—"}</td>
         <td className="whitespace-nowrap px-3 py-3">{entryLabel(item)}</td>
         <td className="px-3 py-3">{item.invoice_no||item.document_no||"—"}</td>
         <td className="min-w-40 px-3 py-3">{item.description||"—"}
           {statement.mode==="detailed"&&item.invoice_lines?.length?
             <div className="mt-2 space-y-1 rounded-lg bg-[#f5f8fc] p-2 text-[11px] text-slate-600">
               {item.invoice_lines.map((line,index)=><div key={index} className="border-b border-slate-200 pb-1 last:border-0 last:pb-0">
-                <span className="font-bold text-slate-700">{line.product_name} ({line.sku})</span>
-                <span className="block">{line.quantity} {line.unit} × {money(line.unit_price)} · KDV %{line.tax_rate} · {money(line.line_total)}</span>
+                <span className="font-bold text-slate-700">{line.product_name}{line.sku?" ("+line.sku+")":""}</span>
+                <span className="block">{line.quantity} {line.unit} × {money(line.unit_price)} ·
+                  {line.tax_rate==null?"Kaynak belgede KDV belirtilmedi":" KDV %"+line.tax_rate} · {money(line.line_total)}
+                </span>
               </div>)}
             </div>:null}
         </td>
@@ -107,13 +114,16 @@ function statementPageHtml(statement:Statement,items:StatementEntry[],index:numb
   const rows=items.map(entry=>{
     const details=statement.mode==="detailed"&&entry.invoice_lines?.length?
       "<div style='margin-top:5px;padding:5px;background:#f3f6fa;font-size:10px'>"+
-      entry.invoice_lines.map(line=>"<div>"+escapeHtml(line.product_name)+" ("+escapeHtml(line.sku)+") "+
+      entry.invoice_lines.map(line=>"<div>"+escapeHtml(line.product_name)+
+        (line.sku?" ("+escapeHtml(line.sku)+")":"")+" "+
         escapeHtml(line.quantity)+" "+escapeHtml(line.unit)+" x "+formatMoney(line.unit_price)+
-        " TL · KDV %"+escapeHtml(line.tax_rate)+" · "+formatMoney(line.line_total)+" TL</div>").join("")+
+        " TL · "+(line.tax_rate==null?"KDV belirtilmedi":"KDV %"+escapeHtml(line.tax_rate))+
+        " · "+formatMoney(line.line_total)+" TL</div>").join("")+
       "</div>":"";
     const continued=(entry as StatementEntry & {_continuation?:boolean})._continuation===true;
     return "<tr>"+
-      "<td>"+escapeHtml(dateText(entry.document_date))+"</td>"+
+      "<td>"+escapeHtml(dateText(entry.document_date))+
+      (entry.due_date?"<div style=\'color:#64748b;font-size:9px\'>Vade: "+escapeHtml(dateText(entry.due_date))+"</div>":"")+"</td>"+
       "<td>"+escapeHtml(continued?"Fatura Devamı":entryLabel(entry))+"</td>"+
       "<td>"+escapeHtml(entry.invoice_no||entry.document_no||"—")+"</td>"+
       "<td>"+escapeHtml(entry.description||"—")+details+"</td>"+
