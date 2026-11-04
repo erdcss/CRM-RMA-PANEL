@@ -224,7 +224,7 @@ export default function Dukkan() {
     }catch(e){setError((e as Error).message);}
   };
   const importB2BProduct=async(item:Entry)=>{
-    if(!canManage||!item._b2bId)return;
+    if(!canManage||!isAdmin||!item._b2bId)return;
     setBusy(true);setError("");setNotice("");
     try{
       await api(base+"/catalog/b2b/"+encodeURIComponent(item._b2bId)+"/import",
@@ -468,9 +468,9 @@ export default function Dukkan() {
                     </button>
                   </td>}
                   {section==="products"&&canManage&&<td className="px-3 py-3">
-                    {r._source==="b2b"?
+                    {r._source==="b2b" ? (!isAdmin ? <span className="text-xs text-slate-400">Yalnızca yönetici aktarabilir</span> :
                       <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40"
-                        onClick={()=>void importB2BProduct(r)}><Plus size={14}/> Mağazaya Ekle</button>:
+                        onClick={()=>void importB2BProduct(r)}><Plus size={14}/> Mağazaya Ekle</button>):
                       <button type="button" disabled={editingLoading} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 disabled:opacity-40"
                         onClick={()=>void editProduct(r)}>{editingLoading?"Yükleniyor...":"Düzenle"}</button>}
                   </td>}
