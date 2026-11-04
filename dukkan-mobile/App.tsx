@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import {pickAiDocument} from "./ai-document";
 import {Image} from "react-native";
 import {ProductThumbnail} from "./product-thumbnail";
+import {CariMovements} from "./cari-movements";
 import {DukkanWebWorkspace,type WebModule} from "./dukkan-web-workspace";
 import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,importAiProducts,type AiDocumentSection,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
@@ -72,6 +73,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
  const [refresh,setRefresh]=useState(0);
  const [pdfBusy,setPdfBusy]=useState<number|null>(null);
  const [aiBusy,setAiBusy]=useState(false);
+ const [selectedParty,setSelectedParty]=useState<RecordRow|null>(null);
  const openInvoicePdf=async(invoice:RecordRow)=>{
    const invoiceId=Number(invoice.id);
    if(!Number.isSafeInteger(invoiceId)||invoiceId<1||pdfBusy!==null)return;
@@ -312,7 +314,16 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
    {!["settings","report"].includes(tab)&&<View>
     {tab!=="dashboard"&&<TextInput placeholder="Kayıtlarda ara..." placeholderTextColor={f.muted} value={filter} onChangeText={setFilter} style={[styles.input,{marginBottom:14}]}/>}
     <Text style={styles.groupTitle}>{tab==="dashboard"?"Son İşlemler":"Kayıtlar"} <Text style={{color:f.blue}}>({shown.length})</Text></Text>
-    {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{if(tab==="products"){editProduct(r);return;}if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);}}
+    {shown.length===0?<View style={styles.empty}><Text style={styles.emptyTitle}>Henüz kayıt yok</Text><Text style={styles.hint}>Yeni bir kayıt oluşturarak başlayabilirsiniz.</Text></View>:shown.slice(0,250).map((r,i)=><Pressable onPress={()=>{
+      if(tab==="parties"){
+        if(!["owner","manager","accountant"].includes(session.store.role)){
+          Alert.alert("İşlem yetkisi","Cari hareketleri yalnızca yetkili muhasebe kullanıcılarına açıktır.");return;
+        }
+        setSelectedParty(r);return;
+      }
+      if(tab==="products"){editProduct(r);return;}
+      if("status" in r&&tab==="instruments"&&String(r.status)==="pending")statusAction("instrument",r);
+    }}
       key={String(r.id||i)} style={styles.row}>
        {tab==="products"&&<ProductThumbnail item={r} storeId={session.store.id}
          token={session.token} size={62}/>}
@@ -326,6 +337,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
    </View>}
   </ScrollView>}
   <DukkanBottomNavigation selected={tab} cashier={cashier} onChange={navigate}/>
+  <CariMovements party={selectedParty} onClose={()=>setSelectedParty(null)}/>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
    <View style={styles.modal}><View style={styles.modalHead}><Text style={styles.modalTitle}>{formType==="productEdit"?"Ürünü Düzenle":ACTIONS[tab].find(a=>a.kind===formType)?.label||"Yeni İşlem"}</Text><Pressable onPress={()=>setFormType(null)}><Text style={{fontSize:22,color:f.ink}}>×</Text></Pressable></View>
     <ScrollView contentContainerStyle={{padding:20,paddingBottom:35}} keyboardShouldPersistTaps="always">
