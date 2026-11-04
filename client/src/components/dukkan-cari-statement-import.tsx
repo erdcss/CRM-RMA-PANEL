@@ -19,6 +19,7 @@ export type LegacyStatement={
 type Preview={
   sha256:string;filename:string;statement:LegacyStatement;duplicate:boolean;
   existingParty:{id:number;name:string;source_cari_no:string}|null;
+  existingLedger:{count:number;balance:number;canReplaceOpening:boolean};
   summary:{entryCount:number;invoiceCount:number;invoiceLineCount:number;
     debit:number;credit:number;balance:number;reportedBalance:number|null;
     warnings:string[];blockingMismatches:string[];earliest:string;latest:string};
@@ -56,6 +57,8 @@ export function DukkanCariStatementImport({base,onImported}:Props){
   const [error,setError]=useState("");
   const [success,setSuccess]=useState("");
   const [confirmed,setConfirmed]=useState(false);
+  const [confirmExisting,setConfirmExisting]=useState(false);
+  const [replaceOpening,setReplaceOpening]=useState(false);
   const [expandAll,setExpandAll]=useState(false);
   useEffect(()=>{
     if(!file){setUrl("");return;}
@@ -89,6 +92,7 @@ export function DukkanCariStatementImport({base,onImported}:Props){
       setError("PDF seçin; dosya 8 MB sınırını aşmamalıdır.");return;
     }
     setBusy(true);setError("");setSuccess("");setPreview(null);setConfirmed(false);
+    setConfirmExisting(false);setReplaceOpening(false);
     try{
       const data=await request(base+"/ai-documents/preview-cari-statement",{
         filename:file.name,mimeType:"application/pdf",base64:await asBase64(file),
@@ -116,6 +120,9 @@ export function DukkanCariStatementImport({base,onImported}:Props){
   const importData=async()=>{
     if(!preview||!document||!summary||busy||preview.duplicate||summary.mismatches.length)return;
     if(!confirmed){setError("İçe aktarmadan önce kontrol ve onay kutusunu işaretleyin.");return;}
+    if(preview.existingLedger.count>0&&!confirmExisting){
+      setError("Mevcut cari hareketlerinin etkileneceğini ayrıca onaylamalısınız.");return;
+    }
     if(document.entries.some(e=>!valid(e.debit)||!valid(e.credit)||((e.debit===0)===(e.credit===0))))
       {setError("Borç / alacak alanları geçerli ve yalnızca bir tanesi dolu olmalı.");return;}
     if(!window.confirm(document.entries.length+" tarihli cari hareket ve "+summary.lineCount+
@@ -125,6 +132,7 @@ export function DukkanCariStatementImport({base,onImported}:Props){
       const result=await request(base+"/ai-documents/import-cari-statement",{
         filename:preview.filename,sha256:preview.sha256,statement:document,
         partyId:preview.existingParty?.id,confirmed:true,
+        confirmExisting:confirmExisting,replaceOpening,
       });
       setSuccess("İçe aktarıldı: "+result.entryCount+" hareket, "+
         result.invoiceLineCount+" ürün satırı. Bakiye "+fmt(Number(result.balance))+".");
@@ -209,6 +217,34 @@ export function DukkanCariStatementImport({base,onImported}:Props){
         {!sameParty&&<p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
           Belgedeki cari adı, aynı cari numarasına sahip kayıtlı firmayla farklı. Aktarım öncesi cari bilgilerini doğrulayın.
         </p>}
+        {preview.existingLedger.count>0&&summary&&<div className="space-y-3 rounded-xl border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">
+          <h5 className="flex items-center gap-2 font-extrabold">
+            <AlertTriangle size={16}/> Bu cari hesapta mevcut finansal kayıtlar var
+          </h5>
+          <p>Mevcut {preview.existingLedger.count} hareketin cari bakiyesi: <strong>{fmt(preview.existingLedger.balance)}</strong>.
+            Yeni belgenin net tutarı: <strong>{fmt(summary.balance)}</strong>.
+          </p>
+          <p className="font-semibold">
+            {replaceOpening?
+              "Önceki açılış kaydı silinmeden mahsup edilecek; yeni belge hareketleri tarihleriyle kaydedilecek.":
+              "Mahsup seçilmezse aktarım sonrası tahmini bakiye: "+
+              fmt(preview.existingLedger.balance+summary.balance)+
+              ". Önceki bakiye de aynı hareketleri kapsıyorsa çift kayıt oluşabilir."}
+          </p>
+          {preview.existingLedger.canReplaceOpening&&<label className="flex cursor-pointer gap-2 rounded-lg border border-amber-200 bg-white p-3">
+            <input type="checkbox" checked={replaceOpening}
+              onChange={e=>{setReplaceOpening(e.target.checked);setConfirmExisting(false);setConfirmed(false);}}
+              className="mt-0.5 accent-orange-700"/>
+            <span><strong>Önceki tek açılış bakiyesini mahsup et.</strong>
+              Orijinal kayıt denetim için saklanır, ancak yeni ayrıntılı ekstre bu bakiyenin yerine geçer.</span>
+          </label>}
+          <label className="flex cursor-pointer gap-2">
+            <input type="checkbox" checked={confirmExisting}
+              onChange={e=>setConfirmExisting(e.target.checked)}
+              className="mt-0.5 accent-orange-700"/>
+            <span>Mevcut hareket ve yeni ekstre arasındaki bakiye etkisini inceledim; bu işlem sonucunu onaylıyorum.</span>
+          </label>
+        </div>}
         {!!summary?.mismatches.length&&<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
           <h5 className="flex items-center gap-2 font-black"><AlertTriangle size={16}/> Tutar kontrolü – kayıt öncesi düzeltme gerekli</h5>
           {summary.mismatches.map((x,i)=><p key={i} className="mt-1">{x}</p>)}
@@ -293,7 +329,7 @@ export function DukkanCariStatementImport({base,onImported}:Props){
             cari bakiyeyi etkileyeceğini biliyorum.</span>
         </label>
         <button type="button" onClick={()=>void importData()}
-          disabled={busy||!confirmed||preview.duplicate||!sameParty||Boolean(summary?.mismatches.length)}
+          disabled={busy||!confirmed||(preview.existingLedger.count>0&&!confirmExisting)||preview.duplicate||!sameParty||Boolean(summary?.mismatches.length)}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0e426c] p-3 text-sm font-bold text-white disabled:opacity-40">
           {busy?<Loader2 size={16} className="animate-spin"/>:<ShieldCheck size={17}/>}
           Onayla · {document?.entries.length||0} Hareketi ve {summary?.lineCount||0} Fatura Kalemini İçe Aktar
