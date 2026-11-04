@@ -6,6 +6,7 @@ import type { PoolClient } from "pg";
 import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
+import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import { buildCariExcel } from "./dukkan-cari-excel";
 
 // Store records stay owner-scoped. B2B integration is an explicit mapped catalog bridge.
@@ -25,6 +26,14 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_invoices (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sale','purchase','sale_return','purchase_return')), invoice_no TEXT NOT NULL, issued_at DATE NOT NULL DEFAULT CURRENT_DATE, subtotal NUMERIC(18,2) NOT NULL, tax_total NUMERIC(18,2) NOT NULL, grand_total NUMERIC(18,2) NOT NULL, status TEXT NOT NULL DEFAULT 'posted', request_key UUID NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,invoice_no), UNIQUE(store_id,request_key))",
   "CREATE TABLE IF NOT EXISTS dukkan_invoice_lines (id BIGSERIAL PRIMARY KEY, invoice_id BIGINT NOT NULL REFERENCES dukkan_invoices(id), product_id BIGINT NOT NULL REFERENCES dukkan_products(id), quantity NUMERIC(16,3) NOT NULL CHECK(quantity>0), unit_price NUMERIC(18,2) NOT NULL CHECK(unit_price>=0), tax_rate NUMERIC(5,2) NOT NULL CHECK(tax_rate>=0 AND tax_rate<=100), line_total NUMERIC(18,2) NOT NULL)",
   "CREATE TABLE IF NOT EXISTS dukkan_stock_movements (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), product_id BIGINT NOT NULL, delta NUMERIC(16,3) NOT NULL CHECK(delta<>0), reason TEXT NOT NULL, invoice_id BIGINT REFERENCES dukkan_invoices(id), note TEXT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,product_id) REFERENCES dukkan_products(store_id,id))",
+  "ALTER TABLE dukkan_stock_movements ADD COLUMN IF NOT EXISTS request_key UUID",
+  "ALTER TABLE dukkan_stock_movements ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ",
+  "ALTER TABLE dukkan_stock_movements ADD COLUMN IF NOT EXISTS edited_by INTEGER REFERENCES users(id)",
+  "ALTER TABLE dukkan_stock_movements ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ",
+  "ALTER TABLE dukkan_stock_movements ADD COLUMN IF NOT EXISTS voided_by INTEGER REFERENCES users(id)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_stock_request_key_unique ON dukkan_stock_movements(store_id,request_key) WHERE request_key IS NOT NULL",
+  "CREATE TABLE IF NOT EXISTS dukkan_stock_movement_audit (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL, movement_id BIGINT NOT NULL REFERENCES dukkan_stock_movements(id),action TEXT NOT NULL CHECK(action IN ('edit','delete')),previous_delta NUMERIC(16,3) NOT NULL,new_delta NUMERIC(16,3) NOT NULL,previous_note TEXT,new_note TEXT,stock_before NUMERIC(16,3) NOT NULL,stock_after NUMERIC(16,3) NOT NULL,changed_by INTEGER NOT NULL REFERENCES users(id),changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+  "CREATE INDEX IF NOT EXISTS dukkan_stock_audit_store_movement_idx ON dukkan_stock_movement_audit(store_id,movement_id,changed_at DESC)",
   "CREATE TABLE IF NOT EXISTS dukkan_orders (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sale','purchase')), order_no TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,order_no))",
   "CREATE TABLE IF NOT EXISTS dukkan_order_lines (id BIGSERIAL PRIMARY KEY, order_id BIGINT NOT NULL REFERENCES dukkan_orders(id), product_id BIGINT NOT NULL REFERENCES dukkan_products(id), quantity NUMERIC(16,3) NOT NULL CHECK(quantity>0), unit_price NUMERIC(18,2) NOT NULL CHECK(unit_price>=0))",
   "CREATE TABLE IF NOT EXISTS dukkan_banks (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), name TEXT NOT NULL, iban TEXT, currency TEXT NOT NULL DEFAULT 'TRY', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,id))",
@@ -630,15 +639,60 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
   app.post("/api/dukkan/stores/:storeId/stock-movements",safe(async(req,res)=>{
     manager(res);
-    const p=z.object({productId:id,delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),note:z.string().max(500).optional()}).parse(req.body);
-    const sid=store(req);
-    const r=await transaction(async c=>{
-      const updated=await c.query("UPDATE dukkan_products SET stock=stock+$3 WHERE store_id=$1 AND id=$2 AND stock+$3>=0 RETURNING stock",[sid,p.productId,p.delta]);
-      if(!updated.rowCount) throw Object.assign(new Error("Ürün bulunamadı veya stok eksiye düşüyor"),{status:409});
-      const created=await c.query("INSERT INTO dukkan_stock_movements(store_id,product_id,delta,reason,note,created_by) VALUES($1,$2,$3,'adjustment',$4,$5) RETURNING *",[sid,p.productId,p.delta,p.note||null,user(res)]);
-      return {...created.rows[0],stock:updated.rows[0].stock};
-    });
-    res.status(201).json(r);
+    const p=z.object({
+      productId:id,
+      delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),
+      note:z.string().trim().min(3).max(500),
+      requestKey:z.string().uuid().optional(),
+    }).parse(req.body);
+    const saved=await transaction(async c=>createManualStockMovement(c,{
+      storeId:store(req),productId:p.productId,delta:p.delta,
+      note:p.note,actor:user(res),requestKey:p.requestKey,
+    }));
+    res.setHeader("Cache-Control","no-store");
+    res.status(saved.replayed?200:201).json(saved);
+  }));
+  app.patch("/api/dukkan/stores/:storeId/stock-movements/:movementId",safe(async(req,res)=>{
+    manager(res);
+    const p=z.object({
+      delta:z.coerce.number().finite().refine(v=>v!==0&&threeDecimals(v)),
+      note:z.string().trim().min(3).max(500),
+    }).parse(req.body);
+    const changed=await transaction(async c=>changeManualStockMovement(c,{
+      storeId:store(req),movementId:id.parse(req.params.movementId),
+      actor:user(res),action:"edit",delta:p.delta,note:p.note,
+    }));
+    res.setHeader("Cache-Control","no-store");
+    res.json(changed);
+  }));
+  app.delete("/api/dukkan/stores/:storeId/stock-movements/:movementId",safe(async(req,res)=>{
+    manager(res);
+    const changed=await transaction(async c=>changeManualStockMovement(c,{
+      storeId:store(req),movementId:id.parse(req.params.movementId),
+      actor:user(res),action:"delete",
+    }));
+    res.setHeader("Cache-Control","no-store");
+    res.json(changed);
+  }));
+  app.get("/api/dukkan/stores/:storeId/stock-movements/:movementId/audit",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req),movementId=id.parse(req.params.movementId);
+    const db=await ready();
+    const exists=await db.query(
+      "SELECT id FROM dukkan_stock_movements WHERE store_id=$1 AND id=$2 LIMIT 1",
+      [sid,movementId],
+    );
+    if(!exists.rows[0])return res.status(404).json({error:"Stok hareketi bulunamadı"});
+    const audit=await db.query(
+      "SELECT a.id,a.action,a.previous_delta,a.new_delta,a.previous_note,a.new_note,"+
+      "a.stock_before,a.stock_after,a.changed_at,u.username AS actor "+
+      "FROM dukkan_stock_movement_audit a "+
+      "LEFT JOIN users u ON u.id=a.changed_by "+
+      "WHERE a.store_id=$1 AND a.movement_id=$2 ORDER BY a.id DESC LIMIT 100",
+      [sid,movementId],
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(audit.rows);
   }));
   // Detailed product ledger is store-scoped and combines immutable invoice line prices
   // with their matching inventory entries. A manual adjustment has no sales/purchase
