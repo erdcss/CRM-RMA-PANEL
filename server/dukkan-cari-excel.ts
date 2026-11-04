@@ -122,8 +122,8 @@ export function buildCariExcel(
   <sheetFormatPr defaultRowHeight="19"/>
   <cols>${widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("")}</cols>
   <sheetData>${rows.join("")}</sheetData>
-  <mergeCells count="1"><mergeCell ref="A1:J1"/></mergeCells>
   <autoFilter ref="A5:J${Math.max(5,totalRow-1)}"/>
+  <mergeCells count="1"><mergeCell ref="A1:J1"/></mergeCells>
 </worksheet>`;
 
   const styles=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
