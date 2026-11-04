@@ -37,10 +37,10 @@ export type DukkanInvoiceForm = z.infer<typeof invoiceFormSchema>;
 export function defaultInvoiceForm(kind: InvoiceFormKind): DukkanInvoiceForm {
   return {
     documentTitle: kind === "sale" ? "SATIŞ BELGESİ" : "ALIŞ BELGESİ",
-    companyName: kind === "sale" ? "ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ" : "",
-    companyAddress: kind === "sale" ? "19. ada 23 numara İstoç toptan ticaret merkezi Bağcılar/İstanbul 34218 TR" : "",
-    companyPhone: kind === "sale" ? "05340432878" : "",
-    companyEmail: kind === "sale" ? "calisganelektronik@gmail.com" : "",
+    companyName: "",
+    companyAddress: "",
+    companyPhone: "",
+    companyEmail: "",
     companyTaxOffice: "",
     companyTaxNumber: "",
     headerNote: "",
@@ -71,6 +71,24 @@ export function resolveInvoiceForm(kind: InvoiceFormKind, saved: unknown): Dukka
   if (!saved || typeof saved !== "object" || Array.isArray(saved)) return defaultInvoiceForm(kind);
   const parsed = invoiceFormSchema.safeParse({...defaultInvoiceForm(kind), ...saved});
   return parsed.success ? parsed.data : defaultInvoiceForm(kind);
+}
+
+/** The supplied reference is company-specific. Apply its letterhead only
+ * to the matching store; other stores must never receive another firm's
+ * address or contact details. Existing saved templates are preserved. */
+export function resolveInvoiceFormForStore(
+  kind: InvoiceFormKind,saved:unknown,storeName:string,
+):DukkanInvoiceForm{
+  const config=resolveInvoiceForm(kind,saved);
+  const company=storeName.normalize("NFKC").toLocaleLowerCase("tr-TR").trim();
+  if(kind!=="sale"||company!=="çalışkan group"||saved!=null)return config;
+  return {
+    ...config,
+    companyName:"ÇALIŞKAN GROUP ELEKTRONİK EV ALETLERİ",
+    companyAddress:"19. ada 23 numara İstoç toptan ticaret merkezi Bağcılar/İstanbul 34218 TR",
+    companyPhone:"05340432878",
+    companyEmail:"calisganelektronik@gmail.com",
+  };
 }
 
 export const invoiceColors: Record<DukkanInvoiceForm["color"], {main:string;accent:string}> = {
