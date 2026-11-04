@@ -4,7 +4,8 @@ import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
-import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock } from "lucide-react";
+import {fileToCompressedDataUrl} from "@/lib/compress-image";
+import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
@@ -42,6 +43,10 @@ export default function Dukkan() {
   const [rows,setRows]=useState<Entry[]>([]);
   const [parties,setParties]=useState<Entry[]>([]);
   const [products,setProducts]=useState<Entry[]>([]);
+  const [b2bCatalog,setB2bCatalog]=useState<Entry[]>([]);
+  const [productImages,setProductImages]=useState<string[]>([]);
+  const [publishToB2B,setPublishToB2B]=useState(false);
+  const [editingLoading,setEditingLoading]=useState(false);
   const [banks,setBanks]=useState<Entry[]>([]);
   const [report,setReport]=useState<Entry|null>(null);
   const [draft,setDraft]=useState<Record<string,string>>({});
@@ -82,18 +87,40 @@ export default function Dukkan() {
         api(base+"/data/parties"),api(base+"/data/products"),cashier?Promise.resolve([]):api(base+"/data/banks"),cashier?Promise.resolve(null):api(base+"/report")
       ]);
       setParties(p);setProducts(pr);setBanks(b);setReport(summary);
+      if(section==="products"&&!cashier){
+        const catalog=await api(base+"/catalog/b2b") as Entry[];
+        setB2bCatalog(catalog);
+      }else setB2bCatalog([]);
       if(section==="settings"&&canManage){setMembers(await api(base+"/members"));}else setMembers([]);
       const resource:Record<Section,string|null>={
         overview:"invoices",sales:"invoices",purchases:"invoices",products:"products",stock:"stock-movements",
         orders:"orders",instruments:"instruments",banks:"bank-movements",parties:"parties",reports:"cari-movements",settings:null
       };
       const result=resource[section]?await api(base+"/data/"+resource[section]):[];
-      setRows(result);
+      setRows(section==="products"
+        ? [...result.map((item:Entry)=>({...item,_source:"dukkan"})),
+           ...(section==="products"&&!cashier
+             ? (await api(base+"/catalog/b2b") as Entry[]).map((item:Entry)=>({
+               ...item,id:"b2b-"+item.id,_b2bId:String(item.id),_source:"b2b",
+               sale_price:item.price,stock:item.stock,
+             }))
+             : [])]
+        : result);
       setError("");
     }catch(e){setError((e as Error).message);}
   },[base,storeId,section,cashier,canManage]);
   useEffect(()=>{void load();},[load,refresh]);
-  useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);setEditingProductId(null);},[section,storeId]);
+  useEffect(()=>{setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
+    setEditingProductId(null);setProductImages([]);setPublishToB2B(false);},[section,storeId]);
+  // The database bridge writes synchronously; refresh open catalog views so changes
+  // made on a second device or in B2B appear without a full page reload.
+  useEffect(()=>{
+    if(section!=="products"||!storeId||showForm)return;
+    const timer=window.setInterval(()=>setRefresh(value=>value+1),10000);
+    const onFocus=()=>setRefresh(value=>value+1);
+    window.addEventListener("focus",onFocus);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",onFocus);};
+  },[section,storeId,showForm]);
 
   const partyOpts=parties.map(v=>({value:String(v.id),label:v.name+" (#"+v.id+")"}));
   const productOpts=products.map(v=>({value:String(v.id),label:v.name+" · "+v.sku+" · stok "+v.stock}));
@@ -103,7 +130,13 @@ export default function Dukkan() {
     const product={key:"productId",label:"Ürün",type:"select" as const,options:productOpts,required:true};
     const bank={key:"bankId",label:"Banka",type:"select" as const,options:bankOpts,required:true};
     switch(section){
-      case "products":return [{key:"name",label:"Ürün Adı",required:true},{key:"sku",label:"Stok Kodu",required:true},{key:"barcode",label:"Barkod"},{key:"unit",label:"Birim"},{key:"purchasePrice",label:"Alış Fiyatı",type:"number"},{key:"salePrice",label:"Satış Fiyatı",type:"number"}];
+      case "products":return [{key:"name",label:"Ürün Adı",required:true},{key:"sku",label:"Stok Kodu",required:true},
+        {key:"barcode",label:"Barkod"},{key:"brand",label:"Marka"},{key:"category",label:"Kategori"},
+        {key:"unit",label:"Birim"},{key:"purchasePrice",label:"Alış Fiyatı",type:"number"},
+        {key:"salePrice",label:"Satış Fiyatı",type:"number"},
+        {key:"unitsPerBox",label:"Koli İçi Adet",type:"number"},
+        {key:"minOrderQty",label:"Minimum Koli",type:"number"},
+        {key:"description",label:"Ürün Açıklaması"}];
       case "parties":return [{key:"name",label:"Firma / Kişi Adı",required:true},{key:"type",label:"Cari Tipi",type:"select",options:[{value:"customer",label:"Müşteri"},{value:"supplier",label:"Tedarikçi"},{value:"both",label:"Her ikisi"}]},{key:"taxNumber",label:"Vergi Numarası"},{key:"phone",label:"Telefon"},{key:"email",label:"E-posta"}];
       case "stock":return [product,{key:"delta",label:"Stok Değişimi (+/-)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       case "sales":case "purchases":return [party,{key:"date",label:"Fatura Tarihi",type:"date"},{key:"kind",label:"İşlem Türü",type:"select",options:section==="sales"?(cashier?[{value:"sale",label:"Satış faturası"}]:[{value:"sale",label:"Satış faturası"},{value:"sale_return",label:"Satış iadesi"}]):[{value:"purchase",label:"Alış faturası"},{value:"purchase_return",label:"Alış iadesi"}]}];
@@ -127,6 +160,7 @@ export default function Dukkan() {
       })):[{...NEW_LINE}]);
     }
     setEditingProductId(null);
+    if(section==="products"){setProductImages([]);setPublishToB2B(false);}
     setShowForm(true);
     setNotice("AI taslağı hazır. Belge alanlarını ve eşleşmeyen kayıtları kontrol edip Kaydet ve İşle düğmesine basın.");
     setError("");
@@ -145,7 +179,11 @@ export default function Dukkan() {
       }else if(section==="orders"){
         path="/orders";body.kind=body.kind||"sale";
         body.lines=lines.map(l=>({productId:Number(l.productId),quantity:Number(l.quantity),unitPrice:Number(l.unitPrice),taxRate:0}));
-      }else if(section==="products")path="/products";
+      }else if(section==="products"){
+        path="/products";body.images=productImages;body.publishB2B=publishToB2B;
+        body.unitsPerBox=Number(draft.unitsPerBox||1);body.minOrderQty=Number(draft.minOrderQty||1);
+        if(publishToB2B&&!productImages.length)throw new Error("B2B'de yayınlamak için önce ürün görseli ekleyin.");
+      }
       else if(section==="parties"){path="/parties";body.type=body.type||"customer";}
       else if(section==="stock")path="/stock-movements";
       else if(section==="instruments"){path="/instruments";body.kind=body.kind||"cheque";body.direction=body.direction||"received";}
@@ -153,18 +191,52 @@ export default function Dukkan() {
       else return;
       const editing=section==="products"&&Boolean(editingProductId);
       const saved=await api(base+path+(editing?"/"+editingProductId:""),{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
-      setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
+      setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
+        (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
+        ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
       setEditingProductId(null);
-      setShowForm(false);setDraft({});setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
+      setShowForm(false);setDraft({});setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
-  const editProduct=(item:Entry)=>{
-    if(!canManage)return;
-    setEditingProductId(String(item.id));setShowForm(true);
-    setDraft({name:String(item.name||""),sku:String(item.sku||""),barcode:String(item.barcode||""),unit:String(item.unit||"adet"),
-      purchasePrice:String(item.purchase_price||0),salePrice:String(item.sale_price||0)});
-    setNotice("");setError("");
+  const editProduct=async(item:Entry)=>{
+    if(!canManage||item._source==="b2b")return;
+    setEditingLoading(true);setError("");
+    try{
+      const details=await api(base+"/products/"+item.id);
+      setEditingProductId(String(details.id));
+      setDraft({name:String(details.name||""),sku:String(details.sku||""),
+        barcode:String(details.barcode||""),unit:String(details.unit||"adet"),
+        purchasePrice:String(details.purchase_price||0),salePrice:String(details.sale_price||0),
+        brand:String(details.brand||""),category:String(details.category||""),
+        description:String(details.description||""),
+        unitsPerBox:String(details.units_per_box||1),minOrderQty:String(details.min_order_qty||1)});
+      setProductImages(Array.isArray(details.images)&&details.images.length
+        ? details.images : details.image_data?[details.image_data]:[]);
+      setPublishToB2B(Boolean(details.publish_b2b));
+      setShowForm(true);setNotice("");
+    }catch(e){setError((e as Error).message);}
+    finally{setEditingLoading(false);}
+  };
+  const addProductImages=async(files:File[])=>{
+    try{
+      const accepted=files.filter(f=>["image/jpeg","image/png","image/webp"].includes(f.type));
+      if(accepted.length!==files.length)throw new Error("Yalnızca PNG, JPG ve WebP görseller desteklenir.");
+      if(productImages.length+accepted.length>6)throw new Error("En fazla 6 ürün görseli yükleyebilirsiniz.");
+      const images=await Promise.all(accepted.map(fileToCompressedDataUrl));
+      setProductImages(current=>[...current,...images].slice(0,6));
+    }catch(e){setError((e as Error).message);}
+  };
+  const importB2BProduct=async(item:Entry)=>{
+    if(!canManage||!item._b2bId)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      await api(base+"/catalog/b2b/"+encodeURIComponent(item._b2bId)+"/import",
+        {method:"POST",body:"{}"});
+      setNotice("B2B ürünü bu mağazanın stoklarına eklendi ve iki sistem birbirine bağlandı.");
+      setRefresh(v=>v+1);
+    }catch(e){setError((e as Error).message);}
+    finally{setBusy(false);}
   };
   const exportPdf=async(invoice:Entry)=>{
     if(pdfBusyId)return;
