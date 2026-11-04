@@ -336,6 +336,21 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     publishB2B:z.boolean().default(false),
     images:z.unknown().optional(),
   });
+  // Dashboard product counts must come from canonical database records,
+  // not from the number of linked/imported catalog rows.
+  app.get("/api/dukkan/stores/:storeId/catalog/summary",safe(async(req,res)=>{
+    const db=await ready();
+    const counts=await db.query(
+      "SELECT (SELECT COUNT(*)::integer FROM b2b_products WHERE is_active IS DISTINCT FROM FALSE) AS published_b2b, "+
+      "(SELECT COUNT(*)::integer FROM dukkan_products WHERE store_id=$1) AS dukkan_total",
+      [store(req)],
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.json({
+      publishedB2B:Number(counts.rows[0]?.published_b2b||0),
+      dukkanTotal:Number(counts.rows[0]?.dukkan_total||0),
+    });
+  }));
   // The B2B catalog is visible here without granting access to other stores' private costs.
   // Linked products are excluded: their current Dükkan row already appears in /data/products.
   app.get("/api/dukkan/stores/:storeId/catalog/b2b",safe(async(req,res)=>{
