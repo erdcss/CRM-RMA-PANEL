@@ -73,6 +73,18 @@ async function ready() {
   await schemaPromise;
   return pool;
 }
+// Full B2B reconciliation must not block the product-list HTTP response.
+const catalogImportRunning=new Map<number,Promise<void>>();
+const catalogImportCheckedAt=new Map<number,number>();
+function syncMissingB2BWithoutBlocking(db:Parameters<typeof importAllB2BToDukkan>[0],sid:number){
+  if(catalogImportRunning.has(sid)||Date.now()-(catalogImportCheckedAt.get(sid)||0)<15000)return;
+  catalogImportCheckedAt.set(sid,Date.now());
+  const task=importAllB2BToDukkan(db,sid).then(r=>{
+    if(r.imported||r.skipped)console.info("Dukkan catalog sync:",{sid,...r});
+  }).catch(err=>console.error("Dukkan catalog sync failed:",err))
+    .finally(()=>{catalogImportRunning.delete(sid);});
+  catalogImportRunning.set(sid,task);
+}
 const id = z.coerce.number().int().positive();
 const twoDecimals=(n:number)=>Math.abs(n*100-Math.round(n*100))<0.00001;
 const threeDecimals=(n:number)=>Math.abs(n*1000-Math.round(n*1000))<0.00001;
@@ -196,11 +208,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const cashier=res.locals.dukkanRole==="cashier";
     if(cashier && ["banks","bank-movements","instruments","payments","cari-movements"].includes(resource))deny("Bu bölüm için muhasebe yetkisi gerekiyor");
     const db=await ready();
-    if(resource==="products"){
-      const imported=await importAllB2BToDukkan(db,store(req));
-      if(imported.imported)console.info("Dukkan B2B auto-import:",{storeId:store(req),imported:imported.imported,total:imported.total});
-      if(imported.skipped)console.warn("Dukkan B2B auto-import:",{storeId:store(req),skipped:imported.skipped,assignedElsewhere:imported.assignedElsewhere});
-    }
+    if(resource==="products")syncMissingB2BWithoutBlocking(db,store(req));
     res.setHeader("Cache-Control","private, no-store");
     const sql=cashier&&resource==="invoices"?query.replace("ORDER BY i.id DESC","AND i.kind IN (\'sale\',\'sale_return\') ORDER BY i.id DESC"):query;
     const r=await db.query(sql,[store(req)]);
