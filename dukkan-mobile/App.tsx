@@ -88,12 +88,13 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
    const cashier=session.store.role==="cashier";
    const [p,pr,b,s,sets]=await Promise.all([list("parties"),list("products"),cashier?Promise.resolve([]):list("banks"),cashier?Promise.resolve({}):summary(),settings()]);
    setParties(p);setProducts(pr);setBanks(b);
+   const finance={...s,receivables:0,payables:0};
    if(!cashier){
      const balances=p.map(row=>Number(row.balance)||0);
-     s.receivables=balances.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
-     s.payables=-balances.filter(value=>value<0).reduce((sum,value)=>sum+value,0);
+     finance.receivables=balances.filter(value=>value>0).reduce((sum,value)=>sum+value,0);
+     finance.payables=-balances.filter(value=>value<0).reduce((sum,value)=>sum+value,0);
    }
-   setSums(s);setExistingSettings(sets);setCompany(sets.company||"İşletmem");
+   setSums(finance);setExistingSettings(sets);setCompany(sets.company||"İşletmem");
    if(tab==="report")setMonthly((await report()).monthly);
    else if(tab==="dashboard")setRecords((await list("invoices")).slice(0,10));
    else if(tab==="settings"||tab==="web")setRecords([]);
