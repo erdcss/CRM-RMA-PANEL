@@ -12,6 +12,11 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_stores (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, owner_user_id INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
   "CREATE TABLE IF NOT EXISTS dukkan_members (store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), user_id INTEGER NOT NULL REFERENCES users(id), role TEXT NOT NULL CHECK(role IN ('owner','manager','accountant','cashier','viewer')), PRIMARY KEY(store_id,user_id))",
   "CREATE TABLE IF NOT EXISTS dukkan_parties (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), type TEXT NOT NULL CHECK(type IN ('customer','supplier','both')), name TEXT NOT NULL, tax_number TEXT, phone TEXT, email TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,id))",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS source_cari_no TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS account_code TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS city TEXT",
+  "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS special_code TEXT",
+  "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_parties_source_cari_unique ON dukkan_parties(store_id,source_cari_no) WHERE source_cari_no IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_products (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), sku TEXT NOT NULL, barcode TEXT, name TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'adet', stock NUMERIC(16,3) NOT NULL DEFAULT 0 CHECK(stock>=0), purchase_price NUMERIC(18,2) NOT NULL DEFAULT 0, sale_price NUMERIC(18,2) NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,sku), UNIQUE(store_id,id))",
   "CREATE SEQUENCE IF NOT EXISTS dukkan_invoice_number_seq AS BIGINT START WITH 10000000000000 MINVALUE 10000000000000 MAXVALUE 99999999999999 NO CYCLE",
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_products_barcode_unique ON dukkan_products(store_id,barcode) WHERE barcode IS NOT NULL",
@@ -154,7 +159,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
 
   const listQueries: Record<string,string> = {
-    parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 500",
+    parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
     products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 ORDER BY id DESC LIMIT 5000",
     invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 ORDER BY i.id DESC LIMIT 500",
     orders:"SELECT o.*,p.name AS party_name FROM dukkan_orders o JOIN dukkan_parties p ON p.id=o.party_id AND p.store_id=o.store_id WHERE o.store_id=$1 ORDER BY o.id DESC LIMIT 500",
@@ -314,8 +319,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
 
   app.post("/api/dukkan/stores/:storeId/parties",safe(async(req,res)=>{
-    const p=z.object({name:string,type:z.enum(["customer","supplier","both"]),taxNumber:z.string().max(30).optional(),phone:z.string().max(40).optional(),email:z.string().max(200).optional()}).parse(req.body);
-    const db=await ready();const r=await db.query("INSERT INTO dukkan_parties(store_id,name,type,tax_number,phone,email) VALUES($1,$2,$3,$4,$5,$6) RETURNING *",[store(req),p.name,p.type,p.taxNumber||null,p.phone||null,p.email||null]);res.status(201).json(r.rows[0]);
+    const p=z.object({name:string,type:z.enum(["customer","supplier","both"]),taxNumber:z.string().max(30).optional(),phone:z.string().max(40).optional(),email:z.string().max(200).optional(),accountCode:z.string().trim().max(80).optional(),city:z.string().trim().max(120).optional(),specialCode:z.string().trim().max(200).optional()}).parse(req.body);
+    const db=await ready();const r=await db.query("INSERT INTO dukkan_parties(store_id,name,type,tax_number,phone,email,account_code,city,special_code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *",[store(req),p.name,p.type,p.taxNumber||null,p.phone||null,p.email||null,p.accountCode||null,p.city||null,p.specialCode||null]);res.status(201).json(r.rows[0]);
   }));
   const productPayload = z.object({
     name:string,sku:string,
