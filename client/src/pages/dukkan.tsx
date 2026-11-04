@@ -102,6 +102,8 @@ export default function Dukkan() {
   const [selectedCariAction,setSelectedCariAction]=useState<Entry|null>(null);
   const [editingCatalogId,setEditingCatalogId]=useState<string|null>(null);
   const [publishingId,setPublishingId]=useState<string|null>(null);
+  const [selectedProductIds,setSelectedProductIds]=useState<Set<string>>(()=>new Set());
+  const [bulkProductBusy,setBulkProductBusy]=useState(false);
   const requestVersion=useRef(0);
   const lastLoadedStore=useRef("");
   const lastCariContext=useRef("");
@@ -179,7 +181,7 @@ export default function Dukkan() {
       const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome,summaryOutcome,
         resourceResult,membersResult]=await Promise.all([
         needsParties?api(base+"/data/parties"):Promise.resolve(null),
-        needsProducts?api(base+"/data/products"):Promise.resolve(null),
+        needsProducts?api(base+"/data/products"+(section==="products"?"?includeArchived=1":"")):Promise.resolve(null),
         needsBanks?api(base+"/data/banks"):Promise.resolve(null),
         needsReport?api(base+"/report"):Promise.resolve(null),
         wantsCatalog
@@ -445,6 +447,34 @@ export default function Dukkan() {
       setRefresh(value=>value+1);
     }catch(e){setError((e as Error).message);}
     finally{setPublishingId(null);}
+  };
+  // Selections are scoped to the visible page and reset on navigation/filter changes.
+  useEffect(()=>setSelectedProductIds(new Set()),[
+    storeId,section,productToolbar.search,productToolbar.source,productToolbar.stock,
+    productToolbar.publication,productToolbar.visibility,productToolbar.sort,
+    productToolbar.page,productToolbar.pageSize
+  ]);
+  const bulkProductAction=async(action:"publish"|"archive"|"restore"|"delete")=>{
+    if(!canManage||bulkProductBusy||!selectedProductIds.size)return;
+    const ids=[...selectedProductIds].map(Number);
+    if(ids.some(x=>!Number.isSafeInteger(x)||x<=0)||ids.length>100){
+      setError("Bir seferde en fazla 100 mağaza ürünü seçebilirsiniz.");return;
+    }
+    const explanations={
+      publish:"B2B'de yayınla",archive:"arşivle ve B2B'de yayından kaldır",
+      restore:"arşivden çıkar (yayınlamadan)",delete:"sil"
+    };
+    if(!window.confirm(ids.length+" ürünü "+explanations[action]+
+      "?"+(action==="delete"?" Stok veya işlem geçmişi olan ürünler silinmez.":"")))return;
+    setBulkProductBusy(true);setError("");setNotice("");
+    try{
+      const result=await api(base+"/products/bulk",{method:"POST",body:JSON.stringify({ids,action})});
+      const results={publish:"B2B'de yayınlandı",archive:"arşivlendi",restore:"arşivden çıkarıldı",delete:"silindi"};
+      setSelectedProductIds(new Set());
+      setNotice(String(result.affected)+" ürün "+results[action]+".");
+      setRefresh(v=>v+1);
+    }catch(e){setError((e as Error).message);}
+    finally{setBulkProductBusy(false);}
   };
   const addProductImages=async(files:File[])=>{
     try{
@@ -787,6 +817,28 @@ export default function Dukkan() {
             {section==="products"&&<DukkanProductToolbar value={productToolbar} onChange={changeToolbar}
               onClear={()=>setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR})}
               page={pagedProducts} totalProducts={rows.length}/>}
+            {section==="products"&&canManage&&<div aria-label="Toplu ürün işlemleri"
+              className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-sky-100 bg-[#f5f9ff] p-3">
+              <span className="mr-2 text-xs font-bold text-[#1c4a7d]">
+                {selectedProductIds.size?selectedProductIds.size+" ürün seçildi":"İşlem için ürün seçin"}
+              </span>
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+                onClick={()=>void bulkProductAction("publish")}
+                className="rounded-lg bg-[#122a51] px-3 py-2 text-xs font-bold text-white hover:bg-[#21518e] disabled:opacity-40">
+                B2B'de Yayınla</button>
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+                onClick={()=>void bulkProductAction("archive")}
+                className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50 disabled:opacity-40">Arşivle</button>
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+                onClick={()=>void bulkProductAction("restore")}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40">Arşivden Çıkar</button>
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+                onClick={()=>void bulkProductAction("delete")}
+                className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-40">Sil</button>
+              {selectedProductIds.size>0&&<button type="button" onClick={()=>setSelectedProductIds(new Set())}
+                className="ml-auto text-xs font-semibold text-sky-800 underline">Seçimi Temizle</button>}
+              {bulkProductBusy&&<span role="status" className="text-xs text-slate-500">İşleniyor...</span>}
+            </div>}
             {section==="stock"&&<DukkanStockWorkspace
               key={storeId}
               storeId={storeId}
@@ -796,8 +848,16 @@ export default function Dukkan() {
               onChanged={()=>setRefresh(value=>value+1)}
             />}
             {section!=="stock"&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
-              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1010px]":isCariSection?"min-w-[1120px]":"min-w-[650px]")}>
+              <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1120px]":isCariSection?"min-w-[1120px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
+                  {section==="products"&&canManage&&<th className="w-10 px-2 py-3 text-center">
+                    <input type="checkbox" className="h-4 w-4 accent-[#174b83]"
+                      aria-label="Görünen sayfadaki tüm ürünleri seç"
+                      checked={pagedProducts.rows.length>0&&pagedProducts.rows.every(v=>selectedProductIds.has(String(v.id)))}
+                      disabled={!pagedProducts.rows.length||bulkProductBusy}
+                      onChange={event=>setSelectedProductIds(event.target.checked
+                        ?new Set(pagedProducts.rows.filter(v=>v._source!=="b2b").map(v=>String(v.id))):new Set())}/>
+                  </th>}
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
                     isCariSection?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
                     ["sales","purchases","overview"].includes(section)?["Fatura No","Cari","Tür","Toplam","Tarih"]:
@@ -823,6 +883,19 @@ export default function Dukkan() {
                     void editProduct(r);
                   }}>
                   {section==="products" ? <>
+                    {canManage&&<td className="w-10 px-2 py-2 text-center">
+                      {r._source!=="b2b"&&<input type="checkbox" className="h-4 w-4 accent-[#174b83]"
+                        aria-label={String(r.name||"Ürün")+" seç"}
+                        checked={selectedProductIds.has(String(r.id))}
+                        disabled={bulkProductBusy}
+                        onClick={event=>event.stopPropagation()}
+                        onChange={event=>setSelectedProductIds(previous=>{
+                          const next=new Set(previous);
+                          if(event.target.checked)next.add(String(r.id));
+                          else next.delete(String(r.id));
+                          return next;
+                        })}/>}
+                    </td>}
                     <td className="px-3 py-2">
                       {r.image_url ? <img src={r.image_url} alt={r.name||"Ürün"} loading="lazy"
                         className="h-14 w-14 rounded-xl border border-slate-100 bg-white object-contain"/> :
@@ -845,6 +918,7 @@ export default function Dukkan() {
                         const identity=(r._source==="b2b"?"b2b:":"dukkan:")+
                           (r._source==="b2b"?String(r._b2bId):String(r.id));
                         return <div className="flex flex-col items-start gap-1.5">
+                          {r.archived_at&&<span className="rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-900">Arşivlendi</span>}
                           {r._source==="b2b"?<span className="text-[10px] font-semibold text-sky-700">B2B Kataloğu</span>:null}
                           {allowed?
                             <button type="button" role="switch" aria-checked={published}
