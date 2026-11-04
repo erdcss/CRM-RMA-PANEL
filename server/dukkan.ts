@@ -37,6 +37,9 @@ const SCHEMA = [
   "ALTER TABLE dukkan_parties ADD COLUMN IF NOT EXISTS notes TEXT",
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_parties_source_cari_unique ON dukkan_parties(store_id,source_cari_no) WHERE source_cari_no IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_products (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), sku TEXT NOT NULL, barcode TEXT, name TEXT NOT NULL, unit TEXT NOT NULL DEFAULT 'adet', stock NUMERIC(16,3) NOT NULL DEFAULT 0 CHECK(stock>=0), purchase_price NUMERIC(18,2) NOT NULL DEFAULT 0, sale_price NUMERIC(18,2) NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE(store_id,sku), UNIQUE(store_id,id))",
+  "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ",
+  "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
+  "CREATE INDEX IF NOT EXISTS dukkan_products_store_visibility_idx ON dukkan_products(store_id,archived_at,deleted_at)",
   "CREATE SEQUENCE IF NOT EXISTS dukkan_invoice_number_seq AS BIGINT START WITH 10000000000000 MINVALUE 10000000000000 MAXVALUE 99999999999999 NO CYCLE",
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_products_barcode_unique ON dukkan_products(store_id,barcode) WHERE barcode IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_invoices (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sale','purchase','sale_return','purchase_return')), invoice_no TEXT NOT NULL, issued_at DATE NOT NULL DEFAULT CURRENT_DATE, subtotal NUMERIC(18,2) NOT NULL, tax_total NUMERIC(18,2) NOT NULL, grand_total NUMERIC(18,2) NOT NULL, status TEXT NOT NULL DEFAULT 'posted', request_key UUID NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,invoice_no), UNIQUE(store_id,request_key))",
@@ -220,7 +223,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
 
   const listQueries: Record<string,string> = {
     parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance,MAX(e.created_at) AS last_transaction_at FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
-    products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 ORDER BY id DESC LIMIT 5000",
+    products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,archived_at,deleted_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL AND ($2::boolean OR archived_at IS NULL) ORDER BY id DESC LIMIT 5000",
     invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 ORDER BY i.id DESC LIMIT 500",
     orders:"SELECT o.*,p.name AS party_name FROM dukkan_orders o JOIN dukkan_parties p ON p.id=o.party_id AND p.store_id=o.store_id WHERE o.store_id=$1 ORDER BY o.id DESC LIMIT 500",
     "stock-movements":"SELECT m.*,p.name AS product_name FROM dukkan_stock_movements m JOIN dukkan_products p ON p.id=m.product_id AND p.store_id=m.store_id WHERE m.store_id=$1 ORDER BY m.id DESC LIMIT 500",
@@ -240,7 +243,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if(resource==="products")syncMissingB2BWithoutBlocking(db,store(req));
     res.setHeader("Cache-Control","private, no-store");
     const sql=cashier&&resource==="invoices"?query.replace("ORDER BY i.id DESC","AND i.kind IN (\'sale\',\'sale_return\') ORDER BY i.id DESC"):query;
-    const r=await db.query(sql,[store(req)]);
+    const values=resource==="products"?[store(req),!cashier&&req.query.includeArchived==="1"]:[store(req)];
+    const r=await db.query(sql,values);
     const rows=cashier&&resource==="products"?r.rows.map(({purchase_price,...rest})=>rest):cashier&&resource==="parties"?r.rows.map(({balance,...rest})=>rest):r.rows;
     res.json(rows);
   }));
@@ -254,7 +258,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "CASE WHEN image_data LIKE 'data:image/%' THEN "+
       "'/api/dukkan/stores/'||store_id||'/products/'||id||'/image' "+
       "ELSE image_data END AS image_url "+
-      "FROM dukkan_products WHERE store_id=$1 ORDER BY name,id LIMIT 10000",
+      "FROM dukkan_products WHERE store_id=$1 AND archived_at IS NULL AND deleted_at IS NULL ORDER BY name,id LIMIT 10000",
       [sid],
     );
     res.setHeader("Cache-Control","private, no-store");
@@ -865,6 +869,65 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     notifyMetaCatalogChange();
     res.json(updated);
   }));
+  // Atomic store-scoped operations: validate every selected product before writing.
+  app.post("/api/dukkan/stores/:storeId/products/bulk",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req);
+    const body=z.object({action:z.enum(["publish","archive","restore","delete"]),
+      ids:z.array(id).min(1).max(100)}).parse(req.body);
+    const ids=[...new Set(body.ids)];
+    if(ids.length!==body.ids.length)
+      return res.status(400).json({error:"Aynı ürün birden fazla kez seçilemez."});
+    const outcome=await transaction(async c=>{
+      const selected=await c.query(
+        "SELECT * FROM dukkan_products WHERE store_id=$1 AND id=ANY($2::bigint[]) "+
+        "AND deleted_at IS NULL ORDER BY id FOR UPDATE",[sid,ids]);
+      if(selected.rows.length!==ids.length)
+        throw Object.assign(new Error("Bazı ürünler bulunamadı veya silinmiş. Listeyi yenileyin."),{status:409});
+      for(const product of selected.rows){
+        const label=String(product.name||product.sku||product.id);
+        if(body.action==="publish"){
+          if(product.archived_at)
+            throw Object.assign(new Error("Arşivdeki ürün yayınlanamaz: "+label+". Önce arşivden çıkarın."),{status:409});
+          if(!product.image_data&&(!Array.isArray(product.images)||!product.images.length))
+            throw Object.assign(new Error("B2B yayını için ürün görseli eksik: "+label),{status:409});
+        }
+        if(body.action==="delete"){
+          if(Number(product.stock)!==0)
+            throw Object.assign(new Error("Stok miktarı sıfır olmayan ürün silinemez: "+label+". Arşivleyebilirsiniz."),{status:409});
+          const history=await c.query(
+            "SELECT EXISTS(SELECT 1 FROM dukkan_stock_movements WHERE store_id=$1 AND product_id=$2) "+
+            "OR EXISTS(SELECT 1 FROM dukkan_invoice_lines WHERE product_id=$2) "+
+            "OR EXISTS(SELECT 1 FROM dukkan_order_lines WHERE product_id=$2) AS referenced",
+            [sid,product.id]);
+          if(history.rows[0]?.referenced)
+            throw Object.assign(new Error("İşlem geçmişi olan ürün silinemez: "+label+". Arşivleyebilirsiniz."),{status:409});
+        }
+      }
+      for(const product of selected.rows){
+        if(body.action==="publish"){
+          const saved=await c.query("UPDATE dukkan_products SET publish_b2b=TRUE WHERE store_id=$1 AND id=$2 RETURNING *",[sid,product.id]);
+          await syncDukkanToB2B(c,saved.rows[0]);
+        }else if(body.action==="archive"||body.action==="delete"){
+          const saved=await c.query(
+            "UPDATE dukkan_products SET archived_at=COALESCE(archived_at,NOW()),"+
+            "deleted_at=CASE WHEN $3::boolean THEN NOW() ELSE deleted_at END,"+
+            "publish_b2b=FALSE WHERE store_id=$1 AND id=$2 RETURNING *",
+            [sid,product.id,body.action==="delete"]);
+          if(saved.rows[0].b2b_product_id)await syncDukkanToB2B(c,saved.rows[0]);
+        }else{
+          const saved=await c.query("UPDATE dukkan_products SET archived_at=NULL WHERE store_id=$1 AND id=$2 RETURNING *",[sid,product.id]);
+          // Restore never changes publication from false to true.
+          if(saved.rows[0].b2b_product_id)await syncDukkanToB2B(c,saved.rows[0]);
+        }
+      }
+      return {action:body.action,affected:ids.length,ids};
+    });
+    notifyMetaCatalogChange();
+    res.setHeader("Cache-Control","private,no-store");
+    res.json(outcome);
+  }));
+
   app.patch("/api/dukkan/stores/:storeId/products/:productId/publication",safe(async(req,res)=>{
     manager(res);
     const sid=store(req),productId=id.parse(req.params.productId);
@@ -872,6 +935,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const updated=await transaction(async c=>{
       const found=await c.query("SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,productId]);
       if(!found.rows[0])throw Object.assign(new Error("Mağaza ürünü bulunamadı"),{status:404});
+      if(found.rows[0].deleted_at||Boolean(found.rows[0].archived_at))
+        throw Object.assign(new Error("Silinmiş veya arşivlenmiş ürünün yayını değiştirilemez."),{status:409});
       if(published&&!found.rows[0].image_data&&(!Array.isArray(found.rows[0].images)||!found.rows[0].images.length))
         throw Object.assign(new Error("Yayınlamak için ürün görseli ekleyin"),{status:400});
       const result=await c.query(
