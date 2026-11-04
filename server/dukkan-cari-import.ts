@@ -24,6 +24,19 @@ export function summarizeImportedStatement(raw:ImportedStatement){
     if(!x.lines.length)return [x.documentNo+": faturanın ürün kalemleri belgede okunamadı."];
     return [];
   });
+  // A correct final balance does not guarantee correct individual movements.
+  // Compare every printed running balance to its immediately preceding one.
+  let previousBalance=0;
+  for(const movement of document.entries){
+    const expected=round(previousBalance+movement.debit-movement.credit);
+    if(movement.sourceBalance!==null){
+      if(Math.abs(expected-movement.sourceBalance)>0.02)
+        mismatches.push(movement.documentNo+" (sayfa "+movement.sourcePage+
+          "): hesaplanan hareket bakiyesi "+fixed(expected)+" TL, PDF satır bakiyesi "+
+          fixed(movement.sourceBalance)+" TL.");
+      previousBalance=movement.sourceBalance;
+    }else previousBalance=expected;
+  }
   if(document.declaredClosingBalance!==null&&
     Math.abs(net-document.declaredClosingBalance)>0.02)
     mismatches.push("Ekstre net bakiyesi ("+net.toFixed(2)+
