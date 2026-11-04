@@ -315,7 +315,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const r=await db.query(
       "SELECT p.id,p.sku,p.name,p.barcode,p.brand,p.category,p.price,p.stock,p.image_data,p.units_per_box,p.min_order_qty,p.updated_at " +
       "FROM b2b_products p WHERE p.is_active IS DISTINCT FROM FALSE AND NOT EXISTS(" +
-      "SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.b2b_product_id=p.id) ORDER BY p.updated_at DESC LIMIT 500",
+      "SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.b2b_product_id=p.id::text) ORDER BY p.updated_at DESC LIMIT 500",
       [store(req)],
     );
     // No sensitive internal purchase cost; clients use a lightweight public thumbnail endpoint.
@@ -333,11 +333,11 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     // A local store manager may sell its own products, but taking over an
     // existing global B2B product requires verified platform-admin authority.
     if(!res.locals.dukkanAdmin)deny("B2B ürününü mağazaya bağlamak için Çalışkan Admin yetkisi gerekiyor");
-    const sid=store(req),b2bId=id.parse(req.params.b2bId);
+    const sid=store(req),b2bId=z.string().trim().min(1).max(128).parse(req.params.b2bId);
     const item=await transaction(async c=>{
       const result=await c.query(
         "SELECT id,sku,name,barcode,brand,category,description,price,stock,image_data,images,units_per_box,min_order_qty " +
-        "FROM b2b_products WHERE id=$1 AND is_active IS DISTINCT FROM FALSE FOR UPDATE",
+        "FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE FOR UPDATE",
         [b2bId],
       );
       const row=result.rows[0];
