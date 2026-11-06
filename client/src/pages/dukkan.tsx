@@ -12,7 +12,7 @@ import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
-import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
+import { Building2, Plus, Copy, Pencil, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
@@ -97,6 +97,9 @@ export default function Dukkan() {
   const [showForm,setShowForm]=useState(false);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
   const [editingPartyId,setEditingPartyId]=useState<string|null>(null);
+  const [editingInvoiceId,setEditingInvoiceId]=useState<string|null>(null);
+  const [editingInvoiceRevision,setEditingInvoiceRevision]=useState<number|null>(null);
+  const [invoiceCopySource,setInvoiceCopySource]=useState<string|null>(null);
   const [cariSearch,setCariSearch]=useState("");
   const [cariFilter,setCariFilter]=useState<"az"|"debtor"|"creditor"|"recent">("az");
   const [selectedCariAction,setSelectedCariAction]=useState<Entry|null>(null);
@@ -376,7 +379,8 @@ export default function Dukkan() {
       let path="";
       if(section==="sales"||section==="purchases"){
         path="/invoices";body.kind=body.kind||(section==="sales"?"sale":"purchase");
-        body.requestKey=globalThis.crypto.randomUUID();
+        if(section==="sales"&&editingInvoiceId)body.expectedRevision=editingInvoiceRevision;
+        else body.requestKey=globalThis.crypto.randomUUID();
         body.lines=lines.map(l=>({productId:Number(l.productId),quantity:Number(l.quantity),unitPrice:Number(l.unitPrice),taxRate:Number(l.taxRate)}));
       }else if(section==="orders"){
         path="/orders";body.kind=body.kind||"sale";
@@ -393,15 +397,19 @@ export default function Dukkan() {
       else if(section==="banks"){path="/bank-movements";body.type=body.type||"deposit";}
       else return;
       const editing=(section==="products"&&Boolean(editingProductId||editingCatalogId))||
-        ((section==="parties"||section==="suppliers")&&Boolean(editingPartyId));
+        ((section==="parties"||section==="suppliers")&&Boolean(editingPartyId))||
+        (section==="sales"&&Boolean(editingInvoiceId));
       const url=editingCatalogId
         ? base+"/catalog/b2b/"+encodeURIComponent(editingCatalogId)
-        : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
+        : section==="sales"&&editingInvoiceId
+          ? base+"/invoices/"+encodeURIComponent(editingInvoiceId)
+          : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
       const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
       setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
         (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
       setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
+      setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
       setShowForm(false);setDraft({});setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
@@ -522,6 +530,58 @@ export default function Dukkan() {
       viewer?.close();
       setError("Belge hazırlanamadı: "+(e as Error).message);
     }finally{setPdfBusyId(null);}
+  };
+  const openSalesInvoice=async(invoice:Entry,mode:"edit"|"copy")=>{
+    if(invoice.imported_archive||!["sale","sale_return"].includes(String(invoice.kind)))return;
+    if(mode==="edit"&&!canAccount)return;
+    if(busy)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      const detail=await api(base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data");
+      const invoiceLines=detail.lines as Array<Entry>;
+      if(!invoiceLines.length)throw new Error("Faturada ürün kalemi bulunamadı.");
+      const missing=invoiceLines.filter(line=>!products.some(p=>String(p.id)===String(line.product_id)));
+      if(missing.length)throw new Error("Bu faturadaki bazı ürünler artık aktif stok listesinde yok. İşlemden önce ilgili ürünleri arşivden çıkarın.");
+      const doc=detail.invoice as Entry;
+      const today=new Date();
+      const todayLocal=[today.getFullYear(),String(today.getMonth()+1).padStart(2,"0"),String(today.getDate()).padStart(2,"0")].join("-");
+      setDraft({
+        partyId:String(doc.party_id),
+        kind:String(doc.kind),
+        date:mode==="edit"?String(doc.issued_at).slice(0,10):todayLocal,
+      });
+      setLines(invoiceLines.map(line=>({
+        productId:String(line.product_id),
+        quantity:String(line.quantity),
+        unitPrice:String(line.unit_price),
+        taxRate:String(line.tax_rate??20)
+      })));
+      setEditingInvoiceId(mode==="edit"?String(invoice.id):null);
+      setEditingInvoiceRevision(mode==="edit"?Number(doc.revision):null);
+      setInvoiceCopySource(mode==="copy"?String(invoice.invoice_no):null);
+      setShowForm(true);
+      setNotice(mode==="copy"
+        ?"Fatura kopyalandı. Kaydedildiğinde yeni bir fatura numarası oluşturulacak."
+        :"Fatura düzenlemeye açıldı. Stok ve cari hareketleri kaydettiğinizde güncellenecek.");
+      window.requestAnimationFrame(()=>document.getElementById("dukkan-product-editor")?.scrollIntoView({behavior:"smooth",block:"start"}));
+    }catch(e){setError((e as Error).message);}
+    finally{setBusy(false);}
+  };
+  const deleteSalesInvoice=async(invoice:Entry)=>{
+    if(!canAccount||!isWriter||invoice.imported_archive||busy)return;
+    if(!window.confirm("Fatura "+invoice.invoice_no+" silinsin mi? Stok ve cari hareketleri geri alınacaktır. Bu işlem kayda alınır."))return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      await api(base+"/invoices/"+encodeURIComponent(String(invoice.id)),{
+        method:"DELETE",body:JSON.stringify({expectedRevision:Number(invoice.revision)})
+      });
+      if(editingInvoiceId===String(invoice.id)){
+        setShowForm(false);setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
+      }
+      setNotice("Fatura "+invoice.invoice_no+" silindi. İlgili stok ve cari kayıtları geri alındı; işlem geçmişi saklandı.");
+      setRefresh(value=>value+1);
+    }catch(e){setError((e as Error).message);}
+    finally{setBusy(false);}
   };
   const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
@@ -712,6 +772,7 @@ export default function Dukkan() {
                   return;
                 }
                 setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);setDraft({});
+                setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);setLines([{...NEW_LINE}]);
                 setProductImages([]);setPublishToB2B(false);
               }} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{isCariSection?"Yeni Cari":showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
@@ -720,11 +781,11 @@ export default function Dukkan() {
                  onApply={applyAiDocument} onImported={()=>{setNotice(isCariSection?"Cari hareketleri ve fatura kalemleri içe aktarıldı.":"Belgedeki ürünler kaydedildi.");setRefresh(v=>v+1);}}/></div>}
              {section!=="stock"&&!isCariSection&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">
-                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":"Yeni kayıt oluştur"}
+                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":editingInvoiceId?"Satış faturasını düzenle":invoiceCopySource?"Fatura kopyası oluştur · "+invoiceCopySource:"Yeni kayıt oluştur"}
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
-                  {f.type==="select"?<select className={inputClass} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
+                  {f.type==="select"?<select className={inputClass} required={f.required} disabled={section==="sales"&&f.key==="kind"&&Boolean(editingInvoiceId)} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
                     <option value="">Seçiniz</option>{f.options?.map(opt=><option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>:<input className={inputClass} type={f.type||"text"} step={f.type==="number"?"any":undefined} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
                 </label>)}
@@ -768,7 +829,7 @@ export default function Dukkan() {
                   </span>
                 </label>
               </div>}
-              {["sales","purchases"].includes(section)&&<p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">Fatura Numarası: Kaydettiğinizde sistem tarafından benzersiz 14 haneli rakam atanacaktır.</p>}
+              {["sales","purchases"].includes(section)&&<p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">{editingInvoiceId?"Mevcut fatura numarası korunur. Düzenleme stok ve cari hareketlerine yansır.":"Fatura Numarası: Kaydettiğinizde sistem tarafından benzersiz 14 haneli rakam atanacaktır."}</p>}
               {["sales","purchases","orders"].includes(section)&&<div className="mt-5">
                 <h4 className="mb-2 text-sm font-bold">Ürün Kalemleri</h4>
                 <div className="mb-1 hidden grid-cols-12 gap-2 px-3 text-xs font-bold text-slate-500 md:grid">
@@ -797,7 +858,7 @@ export default function Dukkan() {
                 </div>)}
                 <div className="mt-2 flex items-center justify-between gap-3"><button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold" onClick={()=>setLines(old=>[...old,{...NEW_LINE}])}>+ Ürün satırı</button><strong className="text-sm">Toplam: {currency(total)}</strong></div>
               </div>}
-              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy} className={buttonClass}>{busy?"Kaydediliyor...":"Kaydet ve İşle"}</button></div>
+              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy} className={buttonClass}>{busy?"Kaydediliyor...":editingInvoiceId?"Değişiklikleri Kaydet":"Kaydet ve İşle"}</button></div>
             </form>}
             {section==="banks"&&isWriter&&<div className="mb-4 grid gap-3 md:grid-cols-2">
               <form className="rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void submitSpecial("banks",{name:draft.newBank,iban:draft.newIban});}}><h3 className="mb-2 text-sm font-bold">Yeni banka hesabı</h3><input className={inputClass+" mb-2"} placeholder="Banka adı" required value={draft.newBank||""} onChange={e=>put("newBank",e.target.value)}/><input className={inputClass+" mb-2"} placeholder="IBAN (opsiyonel)" value={draft.newIban||""} onChange={e=>put("newIban",e.target.value)}/><button disabled={busy} className={buttonClass}>Banka Ekle</button></form>
