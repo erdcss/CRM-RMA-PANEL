@@ -240,6 +240,45 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const cashier=res.locals.dukkanRole==="cashier";
     if(cashier && ["banks","bank-movements","instruments","payments","cari-movements"].includes(resource))deny("Bu bölüm için muhasebe yetkisi gerekiyor");
     const db=await ready();
+    if(resource==="invoices"){
+      // Imported cari statements already posted their ledger movements. Expose
+      // their invoice evidence as READ-ONLY archive documents; do not insert
+      // into dukkan_invoices or repost stock, KDV or cari balances.
+      const sid=store(req);
+      const standardSql=cashier
+        ?query.replace("ORDER BY i.id DESC","AND i.kind IN ('sale','sale_return') ORDER BY i.id DESC")
+        :query;
+      const [standard,archived]=await Promise.all([
+        db.query(standardSql,[sid]),
+        db.query(
+          "SELECT ('archive-'||ie.id::text) AS id,ie.store_id,ie.party_id,"+
+          "ie.document_no AS invoice_no,ie.kind,ie.document_date AS issued_at,"+
+          "NULL::numeric AS subtotal,NULL::numeric AS tax_total,"+
+          "(e.debit+e.credit) AS grand_total,'archived_import' AS status,"+
+          "TRUE AS imported_archive,b.imported_at AS created_at,"+
+          "b.source_filename AS source_filename,ie.source_page AS source_page,"+
+          "p.name AS party_name "+
+          "FROM dukkan_cari_import_entries ie "+
+          "JOIN dukkan_cari_entries e ON e.id=ie.entry_id AND e.store_id=ie.store_id AND e.party_id=ie.party_id "+
+          "JOIN dukkan_parties p ON p.id=ie.party_id AND p.store_id=ie.store_id "+
+          "JOIN dukkan_cari_import_batches b ON b.id=ie.batch_id AND b.store_id=ie.store_id "+
+          "WHERE ie.store_id=$1 AND ie.kind IN ('sale','purchase') "+
+          (cashier?"AND ie.kind='sale' ":"")+
+          "AND NOT EXISTS(SELECT 1 FROM dukkan_invoices i "+
+          "WHERE i.store_id=ie.store_id AND i.party_id=ie.party_id "+
+          "AND i.kind=ie.kind AND i.invoice_no=ie.document_no) "+
+          "ORDER BY ie.document_date DESC,ie.id DESC LIMIT 5000",
+          [sid]
+        ),
+      ]);
+      const records=[...standard.rows,...archived.rows].sort((a,b)=>{
+        const aDate=String(a.issued_at||"").slice(0,10);
+        const bDate=String(b.issued_at||"").slice(0,10);
+        return bDate.localeCompare(aDate)||String(b.id).localeCompare(String(a.id));
+      }).slice(0,5000);
+      res.setHeader("Cache-Control","private,no-store");
+      return res.json(records);
+    }
     if(resource==="products")syncMissingB2BWithoutBlocking(db,store(req));
     res.setHeader("Cache-Control","private, no-store");
     const sql=cashier&&resource==="invoices"?query.replace("ORDER BY i.id DESC","AND i.kind IN (\'sale\',\'sale_return\') ORDER BY i.id DESC"):query;
@@ -1264,6 +1303,57 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   // Read an immutable posted invoice amount from the user's authorized store.
   // The PDF renderer receives only the requested invoice and its product lines.
   // Cashiers may export sales documents only; purchases remain accountant-only.
+  // Historical invoice snapshots from imported cari statements. These are
+  // evidence of the source PDF, not newly posted invoices or GİB documents.
+  app.get("/api/dukkan/stores/:storeId/invoices/archived/:importId/pdf-data",safe(async(req,res)=>{
+    const sid=store(req),importId=id.parse(req.params.importId);
+    const db=await ready();
+    const row=await db.query(
+      "SELECT ie.id,ie.store_id,ie.party_id,ie.document_no AS invoice_no,"+
+      "ie.kind,ie.document_date AS issued_at,ie.source_description,"+
+      "ie.source_page,b.source_filename,(e.debit+e.credit) AS grand_total,"+
+      "NULL::numeric AS subtotal,NULL::numeric AS tax_total,"+
+      "p.name AS party_name,p.tax_number AS party_tax_number,"+
+      "p.phone AS party_phone,s.name AS store_name "+
+      "FROM dukkan_cari_import_entries ie "+
+      "JOIN dukkan_cari_entries e ON e.id=ie.entry_id AND e.store_id=ie.store_id AND e.party_id=ie.party_id "+
+      "JOIN dukkan_cari_import_batches b ON b.id=ie.batch_id AND b.store_id=ie.store_id "+
+      "JOIN dukkan_parties p ON p.id=ie.party_id AND p.store_id=ie.store_id "+
+      "JOIN dukkan_stores s ON s.id=ie.store_id "+
+      "WHERE ie.id=$1 AND ie.store_id=$2 AND ie.kind IN ('sale','purchase') LIMIT 1",
+      [importId,sid]
+    );
+    if(!row.rowCount)return res.status(404).json({error:"Bu mağazaya ait arşiv fatura kaydı bulunamadı."});
+    const document=row.rows[0];
+    if(document.kind==="purchase")accountant(res);
+    const details=await db.query(
+      "SELECT l.id,l.product_name,l.quantity,l.unit,l.line_total,"+
+      "COALESCE(l.discounted_unit_price,l.unit_price) AS unit_price,"+
+      "NULL::numeric AS tax_rate,''::text AS sku "+
+      "FROM dukkan_cari_import_lines l WHERE l.import_entry_id=$1 "+
+      "ORDER BY l.line_position,l.id",[importId]
+    );
+    const type:InvoiceFormKind=document.kind==="purchase"?"purchase":"sale";
+    const template=await db.query(
+      "SELECT settings FROM dukkan_invoice_form_templates WHERE store_id=$1 AND kind=$2",
+      [sid,type]
+    );
+    const canSeeBalance=["owner","manager","accountant"].includes(String(res.locals.dukkanRole));
+    const balance=canSeeBalance?await db.query(
+      "SELECT COALESCE(SUM(debit-credit),0) AS total FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=$2",
+      [sid,document.party_id]
+    ):null;
+    res.setHeader("Cache-Control","private,no-store");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    res.json({
+      invoice:{...document,party_balance:balance?.rows[0]?.total??null},
+      lines:details.rows,
+      template:resolveInvoiceFormForStore(type,template.rows[0]?.settings,document.store_name),
+      importedArchive:true,officialInvoice:false,
+      disclaimer:"Kaynak cari ekstresinden aktarılan arşiv belgesidir; resmî fatura, e-Fatura veya e-Arşiv değildir. KDV dağılımı kaynakta belirtilmiyorsa doğrulanamaz."
+    });
+  }));
+
   app.get("/api/dukkan/stores/:storeId/invoices/:invoiceId/pdf-data",safe(async(req,res)=>{
     const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
     const db=await ready();
