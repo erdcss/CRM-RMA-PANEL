@@ -162,7 +162,9 @@ export function DukkanCariStatementImport({base,onImported}:Props){
         confirmExisting:confirmExisting,replaceOpening,
       });
       setSuccess("İçe aktarıldı: "+result.entryCount+" hareket, "+
-        result.invoiceLineCount+" ürün satırı. Bakiye "+fmt(Number(result.balance))+".");
+        result.invoiceCount+" arşiv faturası ve "+result.invoiceLineCount+
+        " ürün satırı. Bakiye "+fmt(Number(result.balance))+
+        ". Satış/alış faturaları orijinal tarihleriyle ilgili fatura listelerine eklendi; stok ve cari hareketleri ikinci kez işlenmedi.");
       onImported({partyId:Number(result.partyId),
         entryCount:Number(result.entryCount),invoiceLineCount:Number(result.invoiceLineCount)});
     }catch(e){setError((e as Error).message);}
