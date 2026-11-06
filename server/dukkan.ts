@@ -9,6 +9,7 @@ import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledg
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import { buildCariExcel } from "./dukkan-cari-excel";
 import {reviseDukkanSalesInvoice} from "./dukkan-sales-invoice-revisions";
+import {correctArchivedSalesInvoice} from "./dukkan-archive-sales-corrections";
 import {extractPositionedPdfWords,parsePositionedCariStatement,importedStatementSchema} from "./dukkan-cari-statement-parser";
 import {documentSha256,postImportedStatement,summarizeImportedStatement} from "./dukkan-cari-import";
 import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,resolveInvoiceFormForStore,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
@@ -64,6 +65,12 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_cari_entries (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, debit NUMERIC(18,2) NOT NULL DEFAULT 0, credit NUMERIC(18,2) NOT NULL DEFAULT 0, description TEXT NOT NULL, invoice_id BIGINT REFERENCES dukkan_invoices(id), payment_id BIGINT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_import_batches (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),party_id BIGINT NOT NULL,source_sha256 TEXT NOT NULL,source_filename TEXT NOT NULL,source_company TEXT,source_currency TEXT,report_date TEXT,source_page_count INTEGER,entry_count INTEGER,reported_balance NUMERIC(18,2),imported_by INTEGER NOT NULL REFERENCES users(id),imported_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(store_id,party_id,source_sha256),FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id))",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_import_entries (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL,party_id BIGINT NOT NULL,batch_id BIGINT NOT NULL REFERENCES dukkan_cari_import_batches(id),entry_id BIGINT NOT NULL UNIQUE REFERENCES dukkan_cari_entries(id),document_date DATE NOT NULL,due_date DATE,kind TEXT NOT NULL,document_no TEXT NOT NULL,source_description TEXT,source_balance NUMERIC(18,2),source_page INTEGER NOT NULL,source_position INTEGER NOT NULL,FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id),UNIQUE(store_id,party_id,kind,document_date,document_no))",
+  "ALTER TABLE dukkan_cari_import_entries ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ",
+  "ALTER TABLE dukkan_cari_import_entries ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 0",
+  "ALTER TABLE dukkan_cari_import_entries ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ",
+  "ALTER TABLE dukkan_cari_import_entries ADD COLUMN IF NOT EXISTS edited_by INTEGER REFERENCES users(id)",
+  "CREATE TABLE IF NOT EXISTS dukkan_archive_invoice_audit (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),import_entry_id BIGINT NOT NULL REFERENCES dukkan_cari_import_entries(id),action TEXT NOT NULL CHECK(action IN ('edit','delete')),previous_data JSONB NOT NULL,next_data JSONB NOT NULL,changed_by INTEGER NOT NULL REFERENCES users(id),changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+  "CREATE INDEX IF NOT EXISTS dukkan_archive_invoice_audit_lookup ON dukkan_archive_invoice_audit(store_id,import_entry_id,changed_at DESC)",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_import_lines (id BIGSERIAL PRIMARY KEY,import_entry_id BIGINT NOT NULL REFERENCES dukkan_cari_import_entries(id),line_position INTEGER NOT NULL,product_name TEXT NOT NULL,quantity NUMERIC(16,3) NOT NULL,unit TEXT NOT NULL,unit_price NUMERIC(18,2) NOT NULL,discounted_unit_price NUMERIC(18,2),line_total NUMERIC(18,2) NOT NULL,UNIQUE(import_entry_id,line_position))",
   "CREATE INDEX IF NOT EXISTS dukkan_cari_import_entries_store_lookup_idx ON dukkan_cari_import_entries(store_id,party_id,document_date,entry_id)",
   "CREATE INDEX IF NOT EXISTS dukkan_cari_import_lines_entry_idx ON dukkan_cari_import_lines(import_entry_id,line_position)",
@@ -132,6 +139,20 @@ const lineSchema = z.object({ productId: id, quantity: qty, unitPrice: z.coerce.
 const docSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase", "sale_return", "purchase_return"]), number: z.string().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), requestKey: z.string().uuid(), lines: z.array(lineSchema).min(1).max(200) });
 const salesEditSchema = docSchema.omit({requestKey:true}).extend({kind:z.enum(["sale","sale_return"]),expectedRevision:z.coerce.number().int().nonnegative()});
 const deleteInvoiceSchema = z.object({expectedRevision:z.coerce.number().int().nonnegative()});
+const archivedSalesLineSchema=z.object({
+  productName:z.string().trim().min(1).max(500),
+  quantity:qty,
+  unit:z.string().trim().min(1).max(50),
+  unitPrice:z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals),
+  lineTotal:z.coerce.number().finite().min(0).max(999999999999).refine(twoDecimals)
+});
+const archivedSalesEditSchema=z.object({
+  expectedRevision:z.coerce.number().int().nonnegative(),
+  date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amount:z.coerce.number().finite().min(0).max(999999999999).refine(twoDecimals),
+  description:z.string().trim().max(800).default(""),
+  lines:z.array(archivedSalesLineSchema).max(200)
+});
 const orderSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase"]), number: string, lines: z.array(lineSchema).min(1).max(200) });
 
 type SafeHandler = (req: Request, res: Response) => Promise<unknown>;
@@ -258,7 +279,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
         db.query(standardSql,[sid]),
         db.query(
           "SELECT ('archive-'||ie.id::text) AS id,ie.store_id,ie.party_id,"+
-          "ie.document_no AS invoice_no,ie.kind,ie.document_date AS issued_at,"+
+          "ie.document_no AS invoice_no,ie.kind,ie.document_date AS issued_at,ie.revision,"+
           "NULL::numeric AS subtotal,NULL::numeric AS tax_total,"+
           "(e.debit+e.credit) AS grand_total,'archived_import' AS status,"+
           "TRUE AS imported_archive,b.imported_at AS created_at,"+
@@ -268,7 +289,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
           "JOIN dukkan_cari_entries e ON e.id=ie.entry_id AND e.store_id=ie.store_id AND e.party_id=ie.party_id "+
           "JOIN dukkan_parties p ON p.id=ie.party_id AND p.store_id=ie.store_id "+
           "JOIN dukkan_cari_import_batches b ON b.id=ie.batch_id AND b.store_id=ie.store_id "+
-          "WHERE ie.store_id=$1 AND ie.kind IN ('sale','purchase') "+
+          "WHERE ie.store_id=$1 AND ie.voided_at IS NULL AND ie.kind IN ('sale','purchase') "+
           (cashier?"AND ie.kind='sale' ":"")+
           "AND NOT EXISTS(SELECT 1 FROM dukkan_invoices i "+
           "WHERE i.store_id=ie.store_id AND i.status=\'posted\' AND i.party_id=ie.party_id "+
@@ -1318,7 +1339,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const db=await ready();
     const row=await db.query(
       "SELECT ie.id,ie.store_id,ie.party_id,ie.document_no AS invoice_no,"+
-      "ie.kind,ie.document_date AS issued_at,ie.source_description,"+
+      "ie.kind,ie.document_date AS issued_at,ie.source_description,ie.revision,"+
       "ie.source_page,b.source_filename,(e.debit+e.credit) AS grand_total,"+
       "NULL::numeric AS subtotal,NULL::numeric AS tax_total,"+
       "p.name AS party_name,p.tax_number AS party_tax_number,"+
@@ -1328,7 +1349,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "JOIN dukkan_cari_import_batches b ON b.id=ie.batch_id AND b.store_id=ie.store_id "+
       "JOIN dukkan_parties p ON p.id=ie.party_id AND p.store_id=ie.store_id "+
       "JOIN dukkan_stores s ON s.id=ie.store_id "+
-      "WHERE ie.id=$1 AND ie.store_id=$2 AND ie.kind IN ('sale','purchase') LIMIT 1",
+      "WHERE ie.id=$1 AND ie.store_id=$2 AND ie.voided_at IS NULL AND ie.kind IN ('sale','purchase') LIMIT 1",
       [importId,sid]
     );
     if(!row.rowCount)return res.status(404).json({error:"Bu mağazaya ait arşiv fatura kaydı bulunamadı."});
@@ -1362,6 +1383,28 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     });
   }));
 
+  // Archival sales are source-statement evidence, NOT posted inventory invoices.
+  // A correction updates their existing cari entry; never post stock or KDV.
+  app.patch("/api/dukkan/stores/:storeId/invoices/archived/:importId",safe(async(req,res)=>{
+    accountant(res);
+    const p=archivedSalesEditSchema.parse(req.body);
+    const sid=store(req),importId=id.parse(req.params.importId);
+    const saved=await transaction(c=>correctArchivedSalesInvoice(c,{
+      storeId:sid,importId,actorId:user(res),expectedRevision:p.expectedRevision,
+      action:"edit",changes:{date:p.date,amount:p.amount,description:p.description,lines:p.lines}
+    }));
+    res.json({id:saved.id,revision:saved.revision,invoice_no:saved.document_no});
+  }));
+  app.delete("/api/dukkan/stores/:storeId/invoices/archived/:importId",safe(async(req,res)=>{
+    accountant(res);
+    const p=deleteInvoiceSchema.parse(req.body);
+    const sid=store(req),importId=id.parse(req.params.importId);
+    const saved=await transaction(c=>correctArchivedSalesInvoice(c,{
+      storeId:sid,importId,actorId:user(res),expectedRevision:p.expectedRevision,action:"delete"
+    }));
+    res.json({id:saved.id,invoice_no:saved.document_no,status:"voided"});
+  }));
+  
   app.get("/api/dukkan/stores/:storeId/invoices/:invoiceId/pdf-data",safe(async(req,res)=>{
     const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
     const db=await ready();
