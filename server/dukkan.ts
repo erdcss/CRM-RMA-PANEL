@@ -8,6 +8,7 @@ import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import { buildCariExcel } from "./dukkan-cari-excel";
+import {reviseDukkanSalesInvoice} from "./dukkan-sales-invoice-revisions";
 import {extractPositionedPdfWords,parsePositionedCariStatement,importedStatementSchema} from "./dukkan-cari-statement-parser";
 import {documentSha256,postImportedStatement,summarizeImportedStatement} from "./dukkan-cari-import";
 import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,resolveInvoiceFormForStore,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
@@ -43,6 +44,9 @@ const SCHEMA = [
   "CREATE SEQUENCE IF NOT EXISTS dukkan_invoice_number_seq AS BIGINT START WITH 10000000000000 MINVALUE 10000000000000 MAXVALUE 99999999999999 NO CYCLE",
   "CREATE UNIQUE INDEX IF NOT EXISTS dukkan_products_barcode_unique ON dukkan_products(store_id,barcode) WHERE barcode IS NOT NULL",
   "CREATE TABLE IF NOT EXISTS dukkan_invoices (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, kind TEXT NOT NULL CHECK(kind IN ('sale','purchase','sale_return','purchase_return')), invoice_no TEXT NOT NULL, issued_at DATE NOT NULL DEFAULT CURRENT_DATE, subtotal NUMERIC(18,2) NOT NULL, tax_total NUMERIC(18,2) NOT NULL, grand_total NUMERIC(18,2) NOT NULL, status TEXT NOT NULL DEFAULT 'posted', request_key UUID NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), UNIQUE(store_id,kind,invoice_no), UNIQUE(store_id,request_key))",
+  "ALTER TABLE dukkan_invoices ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 0",
+  "CREATE TABLE IF NOT EXISTS dukkan_invoice_audit (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),invoice_id BIGINT NOT NULL REFERENCES dukkan_invoices(id),action TEXT NOT NULL CHECK(action IN (\'edit\',\'delete\')),previous_data JSONB NOT NULL,next_data JSONB NOT NULL,changed_by INTEGER NOT NULL REFERENCES users(id),changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+  "CREATE INDEX IF NOT EXISTS dukkan_invoice_audit_lookup ON dukkan_invoice_audit(store_id,invoice_id,changed_at DESC)",
   "CREATE TABLE IF NOT EXISTS dukkan_invoice_lines (id BIGSERIAL PRIMARY KEY, invoice_id BIGINT NOT NULL REFERENCES dukkan_invoices(id), product_id BIGINT NOT NULL REFERENCES dukkan_products(id), quantity NUMERIC(16,3) NOT NULL CHECK(quantity>0), unit_price NUMERIC(18,2) NOT NULL CHECK(unit_price>=0), tax_rate NUMERIC(5,2) NOT NULL CHECK(tax_rate>=0 AND tax_rate<=100), line_total NUMERIC(18,2) NOT NULL)",
   "CREATE TABLE IF NOT EXISTS dukkan_stock_movements (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), product_id BIGINT NOT NULL, delta NUMERIC(16,3) NOT NULL CHECK(delta<>0), reason TEXT NOT NULL, invoice_id BIGINT REFERENCES dukkan_invoices(id), note TEXT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,product_id) REFERENCES dukkan_products(store_id,id))",
   "ALTER TABLE dukkan_stock_movements ADD COLUMN IF NOT EXISTS request_key UUID",
@@ -126,6 +130,8 @@ const string = z.string().trim().min(1).max(200);
 const money = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const lineSchema = z.object({ productId: id, quantity: qty, unitPrice: z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals), taxRate: z.coerce.number().min(0).max(100).default(20) });
 const docSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase", "sale_return", "purchase_return"]), number: z.string().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), requestKey: z.string().uuid(), lines: z.array(lineSchema).min(1).max(200) });
+const salesEditSchema = docSchema.omit({requestKey:true}).extend({kind:z.enum(["sale","sale_return"]),expectedRevision:z.coerce.number().int().nonnegative()});
+const deleteInvoiceSchema = z.object({expectedRevision:z.coerce.number().int().nonnegative()});
 const orderSchema = z.object({ partyId: id, kind: z.enum(["sale", "purchase"]), number: string, lines: z.array(lineSchema).min(1).max(200) });
 
 type SafeHandler = (req: Request, res: Response) => Promise<unknown>;
@@ -224,7 +230,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   const listQueries: Record<string,string> = {
     parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance,MAX(e.created_at) AS last_transaction_at FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
     products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,archived_at,deleted_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' AND COALESCE(images->>0,'') LIKE 'https://%' THEN images->>0 ELSE NULL END AS image_external_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL AND ($2::boolean OR archived_at IS NULL) ORDER BY id DESC LIMIT 5000",
-    invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 ORDER BY i.id DESC LIMIT 500",
+    invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 AND i.status='posted' ORDER BY i.id DESC LIMIT 500",
     orders:"SELECT o.*,p.name AS party_name FROM dukkan_orders o JOIN dukkan_parties p ON p.id=o.party_id AND p.store_id=o.store_id WHERE o.store_id=$1 ORDER BY o.id DESC LIMIT 500",
     "stock-movements":"SELECT m.*,p.name AS product_name FROM dukkan_stock_movements m JOIN dukkan_products p ON p.id=m.product_id AND p.store_id=m.store_id WHERE m.store_id=$1 ORDER BY m.id DESC LIMIT 500",
     banks:"SELECT b.*, COALESCE(SUM(m.amount),0) AS balance FROM dukkan_banks b LEFT JOIN dukkan_bank_movements m ON m.store_id=b.store_id AND m.bank_id=b.id WHERE b.store_id=$1 GROUP BY b.id ORDER BY b.id DESC",
@@ -265,7 +271,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
           "WHERE ie.store_id=$1 AND ie.kind IN ('sale','purchase') "+
           (cashier?"AND ie.kind='sale' ":"")+
           "AND NOT EXISTS(SELECT 1 FROM dukkan_invoices i "+
-          "WHERE i.store_id=ie.store_id AND i.party_id=ie.party_id "+
+          "WHERE i.store_id=ie.store_id AND i.status=\'posted\' AND i.party_id=ie.party_id "+
           "AND i.kind=ie.kind AND i.invoice_no=ie.document_no) "+
           "ORDER BY ie.document_date DESC,ie.id DESC LIMIT 5000",
           [sid]
@@ -309,7 +315,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if(res.locals.dukkanRole==="cashier")deny("Rapor yetkisi gerekiyor");
     const db=await ready();const sid=store(req);
     const [sales,purchases,stock,receivables,banks,overdue]=await Promise.all([
-      db.query("SELECT COALESCE(SUM(CASE WHEN kind='sale' THEN grand_total WHEN kind='sale_return' THEN -grand_total ELSE 0 END),0) AS total FROM dukkan_invoices WHERE store_id=$1",[sid]),
+      db.query("SELECT COALESCE(SUM(CASE WHEN kind='sale' THEN grand_total WHEN kind='sale_return' THEN -grand_total ELSE 0 END),0) AS total FROM dukkan_invoices WHERE store_id=$1 AND status='posted'",[sid]),
       db.query("SELECT COALESCE(SUM(CASE WHEN kind='purchase' THEN grand_total WHEN kind='purchase_return' THEN -grand_total ELSE 0 END),0) AS total FROM dukkan_invoices WHERE store_id=$1",[sid]),
       db.query("SELECT COUNT(*)::int AS product_count,COALESCE(SUM(stock*purchase_price),0) AS stock_cost FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL",[sid]),
       db.query("SELECT COALESCE(SUM(debit-credit),0) AS net_balance FROM dukkan_cari_entries WHERE store_id=$1",[sid]),
@@ -1360,7 +1366,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
     const db=await ready();
     const invoice=await db.query(
-      "SELECT i.id,i.store_id,i.party_id,i.invoice_no,i.kind,i.issued_at,i.subtotal,i.tax_total,i.grand_total,i.status,p.name AS party_name,p.tax_number AS party_tax_number,p.phone AS party_phone,s.name AS store_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id JOIN dukkan_stores s ON s.id=i.store_id WHERE i.id=$1 AND i.store_id=$2",
+      "SELECT i.id,i.store_id,i.party_id,i.invoice_no,i.kind,i.issued_at,i.subtotal,i.tax_total,i.grand_total,i.status,i.revision,p.name AS party_name,p.tax_number AS party_tax_number,p.phone AS party_phone,s.name AS store_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id JOIN dukkan_stores s ON s.id=i.store_id WHERE i.id=$1 AND i.store_id=$2 AND i.status='posted'",
       [invoiceId,sid]
     );
     if(!invoice.rowCount)return res.status(404).json({error:"Bu mağazada fatura bulunamadı"});
@@ -1370,7 +1376,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       return res.status(400).json({error:"Desteklenmeyen belge türü"});
     if(purchaseDocument)accountant(res);
     const lines=await db.query(
-      "SELECT l.id,l.quantity,l.unit_price,l.tax_rate,l.line_total,p.sku,p.name AS product_name,p.unit FROM dukkan_invoice_lines l JOIN dukkan_products p ON p.id=l.product_id AND p.store_id=$2 WHERE l.invoice_id=$1 ORDER BY l.id",
+      "SELECT l.id,l.product_id,l.quantity,l.unit_price,l.tax_rate,l.line_total,COALESCE(NULLIF(p.b2b_source_sku,''),p.sku) AS sku,p.name AS product_name,p.unit FROM dukkan_invoice_lines l JOIN dukkan_products p ON p.id=l.product_id AND p.store_id=$2 WHERE l.invoice_id=$1 ORDER BY l.id",
       [invoiceId,sid]
     );
     res.setHeader("Cache-Control","private, no-store");
@@ -1390,6 +1396,28 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       template:resolveInvoiceFormForStore(templateKind,templateRows.rows[0]?.settings,doc.store_name),
       officialInvoice:false,
       disclaimer:"Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez."});
+  }));
+
+  // Internal sales documents only. Financial/stock edits require the accountant role;
+  // archived statement evidence and posted purchases remain read-only here.
+  app.patch("/api/dukkan/stores/:storeId/invoices/:invoiceId",safe(async(req,res)=>{
+    accountant(res);
+    const p=salesEditSchema.parse(req.body);
+    const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
+    const result=await transaction(c=>reviseDukkanSalesInvoice(c,{
+      storeId:sid,invoiceId,actorId:user(res),action:"edit",expectedRevision:p.expectedRevision,
+      payload:{partyId:p.partyId,date:p.date,kind:p.kind,lines:p.lines}
+    }));
+    res.json(result);
+  }));
+  app.delete("/api/dukkan/stores/:storeId/invoices/:invoiceId",safe(async(req,res)=>{
+    accountant(res);
+    const p=deleteInvoiceSchema.parse(req.body);
+    const sid=store(req),invoiceId=id.parse(req.params.invoiceId);
+    const result=await transaction(c=>reviseDukkanSalesInvoice(c,{
+      storeId:sid,invoiceId,actorId:user(res),action:"delete",expectedRevision:p.expectedRevision
+    }));
+    res.json({id:result.id,invoice_no:result.invoice_no,status:result.status});
   }));
 
   app.post("/api/dukkan/stores/:storeId/invoices",safe(async(req,res)=>{
