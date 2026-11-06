@@ -233,7 +233,7 @@ try {
   assert.ok(!(await call("GET",base+"/data/invoices")).some((x:any)=>String(x.id)==="archive-"+archiveId));
   const voidedEntry=await pool.query("SELECT debit,credit FROM dukkan_cari_entries WHERE id=$1",[archiveLedger.rows[0].id]);
   assert.equal(Number(voidedEntry.rows[0].debit)-Number(voidedEntry.rows[0].credit),0);
-  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),stockBeforeArchive);
+  assert.equal(Number((await call("GET",base+"/data/products")).find((p:any)=>p.id===product.id).stock),stockBeforeArchive);
   const auditRows=await pool.query("SELECT action FROM dukkan_archive_invoice_audit WHERE import_entry_id=$1 ORDER BY id",[archiveId]);
   assert.deepEqual(auditRows.rows.map((x:any)=>x.action),["edit","edit","delete"]);
   activeUser=outsider;
