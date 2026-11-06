@@ -211,6 +211,8 @@ function MarketplaceDomainRedirect() {
 function B2BWebsite() {
   const [routePath] = useLocation();
   const isPaymentPage = routePath === "/odeme" || routePath.startsWith("/odeme/");
+  const isRegistrationPage = routePath === "/kayit-ol" || routePath.startsWith("/kayit-ol/");
+  const hideBottomNav = isPaymentPage || isRegistrationPage;
   const reduceMotion = useReducedMotion();
   useEffect(() => {
     const scroller = document.querySelector<HTMLElement>(".b2b-site");
@@ -226,7 +228,7 @@ function B2BWebsite() {
   }, []);
 
   return (
-    <div className={`b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain ${isPaymentPage ? "pb-0" : "pb-[calc(106px+env(safe-area-inset-bottom,0px))] md:pb-[116px]"}`}>
+    <div className={`b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain ${hideBottomNav ? "pb-0" : "pb-[calc(106px+env(safe-area-inset-bottom,0px))] md:pb-[116px]"}`}>
       <B2BMetaPixelConsent />
       <B2BMobilePullToRefresh />
       <AnimatePresence mode="wait" initial={false}>
@@ -271,7 +273,7 @@ function B2BWebsite() {
       </Switch>
         </motion.div>
       </AnimatePresence>
-      {!isPaymentPage && <B2BBottomNav />}
+      {!hideBottomNav && <B2BBottomNav />}
     </div>
   );
 }
