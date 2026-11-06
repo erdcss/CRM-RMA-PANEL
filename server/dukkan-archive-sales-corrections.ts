@@ -5,7 +5,7 @@ import type {PoolClient} from "pg";
  * lines. Edits and soft-voids retain before/after JSON audit evidence.
  */
 export type ArchivedSalesLine={
-  productName:string; quantity:number; unit:string; unitPrice:number; lineTotal:number;
+  productName:string; quantity:number; unit:string; unitPrice:number; lineTotal:number;productId?:number|null;
 };
 export type ArchivedSalesCorrection={
   storeId:number; importId:number; actorId:number; expectedRevision:number;
@@ -64,12 +64,20 @@ export async function correctArchivedSalesInvoice(c:PoolClient,input:ArchivedSal
       "revision=revision+1,edited_at=NOW(),edited_by=$5 WHERE store_id=$1 AND id=$2",
       [storeId,importId,changes.date,changes.description,actorId]
     );
+    const linkedIds=[...new Set(changes.lines.map(line=>line.productId).filter((value):value is number=>value!=null))];
+    if(linkedIds.length){
+      const available=await c.query(
+        "SELECT id FROM dukkan_products WHERE store_id=$1 AND id=ANY($2::bigint[]) AND deleted_at IS NULL",
+        [storeId,linkedIds]
+      );
+      if(available.rowCount!==linkedIds.length)error("Stok kodu eşleştirmelerinden biri bu mağazaya ait değil",400);
+    }
     await c.query("DELETE FROM dukkan_cari_import_lines WHERE import_entry_id=$1",[importId]);
     for(const [position,item] of changes.lines.entries()){
       await c.query(
-        "INSERT INTO dukkan_cari_import_lines(import_entry_id,line_position,product_name,quantity,unit,unit_price,discounted_unit_price,line_total) "+
-        "VALUES($1,$2,$3,$4,$5,$6,NULL,$7)",
-        [importId,position,item.productName,item.quantity,item.unit,fixed(item.unitPrice),fixed(item.lineTotal)]
+        "INSERT INTO dukkan_cari_import_lines(import_entry_id,line_position,product_name,quantity,unit,unit_price,discounted_unit_price,line_total,product_id) "+
+        "VALUES($1,$2,$3,$4,$5,$6,NULL,$7,$8)",
+        [importId,position,item.productName,item.quantity,item.unit,fixed(item.unitPrice),fixed(item.lineTotal),item.productId??null]
       );
     }
   }
