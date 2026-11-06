@@ -119,6 +119,52 @@ try {
   assert.equal(chronological.sort,"chronological","Existing web statement order must not change");
   assert.equal(Number(chronological.entries[chronological.entries.length-1].running_balance),-30);
 
+  // Existing posted sales documents can be edited/voided without leaving
+  // phantom stock or double-posting cari entries; copies get their own number.
+  assert.equal(exportable.invoice.revision,0);
+  assert.equal(Number(exportable.lines[0].product_id),Number(product.id));
+  assert.equal(exportable.lines[0].sku,"TEST-001");
+  const editedSale=await call("PATCH",base+"/invoices/"+first.id,{
+    partyId:buyer.id,kind:"sale",expectedRevision:0,
+    lines:[{productId:product.id,quantity:2,unitPrice:100,taxRate:20}]
+  });
+  assert.equal(editedSale.invoice_no,first.invoice_no,"Editing must preserve invoice number");
+  assert.equal(editedSale.revision,1);
+  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),1);
+  assert.equal(Number((await call("GET",base+"/data/parties")).find((p:any)=>p.id===buyer.id).balance),90);
+  await call("PATCH",base+"/invoices/"+first.id,{
+    partyId:buyer.id,kind:"sale",expectedRevision:0,
+    lines:[{productId:product.id,quantity:1,unitPrice:100,taxRate:20}]
+  },409);
+  await call("PATCH",base+"/invoices/"+first.id,{
+    partyId:buyer.id,kind:"sale",expectedRevision:1,
+    lines:[{productId:product.id,quantity:100,unitPrice:100,taxRate:20}]
+  },409);
+  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),1,
+    "Rejected edits must not change stock");
+  const voided=await call("DELETE",base+"/invoices/"+first.id,{expectedRevision:1});
+  assert.equal(voided.status,"voided");
+  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),3,
+    "Voiding returns sold inventory");
+  assert.equal(Number((await call("GET",base+"/data/parties")).find((p:any)=>p.id===buyer.id).balance),-150,
+    "Voiding reverses only the invoice, not a separate collection");
+  await call("GET",base+"/invoices/"+first.id+"/pdf-data",undefined,404);
+  const visibleInvoices=await call("GET",base+"/data/invoices");
+  assert.ok(!visibleInvoices.some((v:any)=>v.id===first.id),"Voided documents must not appear as active");
+  await call("DELETE",base+"/invoices/"+first.id,{expectedRevision:2},409);
+  const copied=await call("POST",base+"/invoices",{
+    partyId:buyer.id,kind:"sale",requestKey:randomUUID(),
+    lines:[{productId:product.id,quantity:1,unitPrice:80,taxRate:20}]
+  },201);
+  assert.notEqual(copied.invoice_no,first.invoice_no);
+  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),2);
+  assert.equal(Number((await call("GET",base+"/report")).sales),-24,
+    "Sales reports exclude voided documents and include copied ones");
+  const audit=await pool.query(
+    "SELECT action FROM dukkan_invoice_audit WHERE store_id=$1 AND invoice_id=$2 ORDER BY id",
+    [store.id,first.id]
+  );
+  assert.deepEqual(audit.rows.map((x:any)=>x.action),["edit","delete"]);
   activeUser=outsider;
   await call("GET",base+"/parties/"+buyer.id+"/statement?sort=latest",undefined,403);
   await call("GET",base+"/data/products",undefined,403);
