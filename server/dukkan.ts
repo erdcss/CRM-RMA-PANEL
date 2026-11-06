@@ -1408,7 +1408,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
         "SELECT * FROM dukkan_cari_import_entries WHERE store_id=$1 AND id=$2 FOR UPDATE",
         [sid,importId]
       );
-      if(!selected.rowCount)return res.status(404).json({error:"Arşiv faturası bulunamadı"});
+      if(!selected.rowCount)
+        throw Object.assign(new Error("Arşiv faturası bulunamadı"),{status:404});
       const invoice=selected.rows[0];
       if(invoice.voided_at||invoice.kind!=="sale")
         throw Object.assign(new Error("Sadece aktif satış arşivindeki stok kodları eşleştirilebilir"),{status:403});
@@ -1453,7 +1454,6 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       );
       return updated.rows[0];
     });
-    if(res.headersSent)return;
     res.json(saved);
   }));
   // Archival sales are source-statement evidence, NOT posted inventory invoices.
