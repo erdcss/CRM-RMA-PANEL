@@ -137,14 +137,21 @@ export function paintClassicSalesPage(
   if(config.deliveredPackages)wrapped(config.deliveredPackages,X+345,footerY+76,300,17,2);
 
   if(page===pages-1){
-    text("Şimdi Alınan Mal",872,footerY+17,17,true);
-    text(":",1065,footerY+17,17);
-    right(num(data.invoice.grand_total),RIGHT,footerY+17,21,true);
-    text("Toplam Bakiye",887,footerY+59,17,true);
-    text(":",1065,footerY+59,17);
-    const balance=data.invoice.party_balance;
-    right(balance===undefined||balance===null?"—":num(balance),
-      RIGHT,footerY+59,21,true);
+    if(data.importedArchive){
+      text("Arşiv Ekstre Tutarı",838,footerY+17,17,true);
+      text(":",1065,footerY+17,17);
+      right(num(data.invoice.grand_total),RIGHT,footerY+17,21,true);
+      text("Belge kaynağı: Cari ekstre",838,footerY+59,14,false,355);
+    }else{
+      text("Şimdi Alınan Mal",872,footerY+17,17,true);
+      text(":",1065,footerY+17,17);
+      right(num(data.invoice.grand_total),RIGHT,footerY+17,21,true);
+      text("Toplam Bakiye",887,footerY+59,17,true);
+      text(":",1065,footerY+59,17);
+      const balance=data.invoice.party_balance;
+      right(balance===undefined||balance===null?"—":num(balance),
+        RIGHT,footerY+59,21,true);
+    }
   }else{
     text("Belgenin devamı sonraki sayfadadır.",865,footerY+34,17,true,315);
   }
@@ -152,7 +159,9 @@ export function paintClassicSalesPage(
   if(config.headerNote)wrapped(config.headerNote,X+10,footerY+112,1090,16,2);
   if(config.footerNote)wrapped(config.footerNote,X+10,footerY+180,1090,16,3);
   line(X,1701,RIGHT,1701);
-  text(config.documentTitle+" · Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez.",
+  text(data.importedArchive?
+    config.documentTitle+" · ARŞİV / CARİ EKSTRE KAYDI · Resmî fatura değildir.":
+    config.documentTitle+" · Dahili ön muhasebe belgesidir; GİB e-Fatura veya e-Arşiv yerine geçmez.",
     X+3,1724,13,false,1020);
   right(String(page+1)+" / "+String(pages),RIGHT,1724,14);
   return canvas;
