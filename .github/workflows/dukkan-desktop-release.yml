@@ -1,0 +1,71 @@
+name: Çalışkan Dükkan Güncel Windows Kurulumu
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# En yeni koddan hazırlanan paket geçerli olur; eski derlemeler yayınlanmaz.
+concurrency:
+  group: caliskan-dukkan-desktop-latest
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    name: Windows x64 kurulum ve yayın
+    runs-on: windows-latest
+    timeout-minutes: 50
+    defaults:
+      run:
+        working-directory: dukkan-desktop
+        shell: pwsh
+    steps:
+      - name: Kaynak kodu al
+        uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Masaüstü paketi için benzersiz sürüm ver
+        run: |
+          npm pkg set "version=0.3.$env:GITHUB_RUN_NUMBER"
+          node -p "require('./package.json').version"
+
+      - name: Bağımlılıkları yükle
+        run: npm install --no-audit --no-fund
+
+      - name: Windows kurulumunu oluştur
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run build:win
+
+      - name: Sabit isimli ve doğrulanmış kurulum dosyası hazırla
+        run: |
+          $installer = Get-ChildItem -Path dist -Filter 'Caliskan-Dukkan-Setup-*.exe' | Select-Object -First 1
+          if (!$installer) { throw 'Windows kurulum dosyası üretilmedi.' }
+          if ($installer.Length -lt 1000000) { throw 'Windows kurulum dosyası beklenenden küçük.' }
+          Copy-Item -Path $installer.FullName -Destination 'dist/Caliskan-Dukkan-Setup.exe' -Force
+          Get-FileHash 'dist/Caliskan-Dukkan-Setup.exe' -Algorithm SHA256
+
+      - name: Actions yedeğini sakla
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caliskan-Dukkan-Setup-Windows-x64
+          path: dukkan-desktop/dist/Caliskan-Dukkan-Setup.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Her başarılı değişiklikte kalıcı GitHub sürümü yayımla
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = "dukkan-desktop-v$version"
+          $sha = "$env:GITHUB_SHA"
+          $notes = "Çalışkan Dükkan Windows x64 masaüstü kurulumu. Bu sürüm, $sha commit'indeki uygulama kabuğundan oluşturulmuştur. Yönetim ekranları canlı admin.ecalisgan.com adresinden yüklenir; internet gereklidir. Windows kurulum dosyası henüz kod imzası taşımamaktadır."
+          gh release create $tag './dist/Caliskan-Dukkan-Setup.exe' --title "Çalışkan Dükkan Windows v$version" --notes $notes --target $sha --latest --verify-tag=false
