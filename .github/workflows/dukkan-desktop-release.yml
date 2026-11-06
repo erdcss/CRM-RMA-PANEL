@@ -68,4 +68,4 @@ jobs:
           $tag = "dukkan-desktop-v$version"
           $sha = "$env:GITHUB_SHA"
           $notes = "Çalışkan Dükkan Windows x64 masaüstü kurulumu. Bu sürüm, $sha commit'indeki uygulama kabuğundan oluşturulmuştur. Yönetim ekranları canlı admin.ecalisgan.com adresinden yüklenir; internet gereklidir. Windows kurulum dosyası henüz kod imzası taşımamaktadır."
-          gh release create $tag './dist/Caliskan-Dukkan-Setup.exe' --title "Çalışkan Dükkan Windows v$version" --notes $notes --target $sha --latest --verify-tag=false
+          gh release create $tag './dist/Caliskan-Dukkan-Setup.exe' --title "Çalışkan Dükkan Windows v$version" --notes $notes --target $sha --latest
