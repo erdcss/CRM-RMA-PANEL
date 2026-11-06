@@ -46,6 +46,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
   const [amount,setAmount]=useState("");
   const [description,setDescription]=useState("");
   const [lines,setLines]=useState<InvoiceLine[]>([]);
+  const [stockCodeMappings,setStockCodeMappings]=useState<Record<string,string>>({});
   const [taxReviewed,setTaxReviewed]=useState(false);
   const base="/api/dukkan/stores/"+encodeURIComponent(storeId);
   const canWrite=role!==""&&role!=="viewer";
@@ -71,9 +72,10 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
     setDescription(str(inv.source_description||""));
     setTaxReviewed(false);
     const normalized=(v:unknown)=>str(v).trim().toLocaleLowerCase("tr-TR");
+    setStockCodeMappings(Object.fromEntries(doc.lines.map(row=>[str(row.id),str(row.product_id||"")])));
     const converted=doc.lines.map(row=>{
       const prod=doc.importedArchive?productRows.filter(p=>normalized(p.name)===normalized(row.product_name)):productRows.filter(p=>str(p.id)===str(row.product_id));
-      const productId=prod.length===1?str(prod[0].id):"";
+      const productId=doc.importedArchive&&row.product_id?str(row.product_id):prod.length===1?str(prod[0].id):"";
       return {
         productId,productName:str(row.product_name),quantity:str(row.quantity),
         unitPrice:str(row.unit_price),taxRate:doc.importedArchive?"0":str(row.tax_rate??20),
@@ -116,6 +118,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
           if(mode==="copy")changed.unitPrice=str(product.sale_price||0);
         }
       }
+      if(isArchiveEdit&&key==="productName")changed.productId="";
       if(isArchiveEdit&&(key==="quantity"||key==="unitPrice")){
         changed.lineTotal=(Math.round(number(changed.quantity)*number(changed.unitPrice)*100)/100).toFixed(2);
       }
@@ -135,7 +138,8 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
           expectedRevision:Number(current.revision),date,amount:Number(amount),description,
           lines:lines.filter(l=>l.productName.trim()).map(l=>({
             productName:l.productName.trim(),quantity:number(l.quantity),unit:l.unit.trim(),
-            unitPrice:number(l.unitPrice),lineTotal:number(l.lineTotal)
+            unitPrice:number(l.unitPrice),lineTotal:number(l.lineTotal),
+            productId:l.productId?Number(l.productId):null
           }))
         })});
       }else{
@@ -163,6 +167,24 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
+  const saveStockCodeMappings=async()=>{
+    if(!details||!archived||!canEdit||busy)return;
+    setBusy(true);setError("");setNotice("");
+    try{
+      await api(archivePath+"/stock-codes",{
+        method:"PATCH",body:JSON.stringify({
+          expectedRevision:Number(current.revision),
+          mappings:details.lines.map(line=>({
+            lineId:Number(line.id),
+            productId:stockCodeMappings[str(line.id)]?Number(stockCodeMappings[str(line.id)]):null
+          }))
+        })
+      });
+      await load();
+      setNotice("Stok kodu eşleştirmeleri kaydedildi. Yeni PDF ve yazdırma çıktısında görünecek.");
+    }catch(e){setError((e as Error).message);}
+    finally{setBusy(false);}
+  };
   const remove=async()=>{
     if(!canEdit||!details||busy)return;
     if(!window.confirm("Belge "+current.invoice_no+" silinsin mi? Cari etkisi geri alınacak, işlemin denetim kaydı korunacaktır."))return;
@@ -180,14 +202,15 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
     const win=print?window.open("","_blank"):null;
     try{
       const module=await import("@/lib/dukkan-invoice-pdf");
-      if(print)module.showDukkanInvoicePrint(module.renderDukkanInvoicePdf(details as any),win);
-      else await module.exportDukkanInvoicePdf(details as any);
+      const fresh=await api(pdfPath);
+      if(print)module.showDukkanInvoicePrint(module.renderDukkanInvoicePdf(fresh),win);
+      else await module.exportDukkanInvoicePdf(fresh);
     }catch(e){win?.close();setError("PDF oluşturulamadı: "+(e as Error).message);}
   };
   const viewLine=(l:InvoiceLine,i:number)=>(
     <tr key={i} className="border-b border-slate-100">
       <td className="px-3 py-3 font-medium">{l.productName||"—"}</td>
-      <td className="px-3 py-3">{archived?"—":products.find(p=>str(p.id)===l.productId)?.sku||"—"}</td>
+      <td className="px-3 py-3">{str(details?.lines[i]?.sku)||"—"}</td>
       <td className="px-3 py-3 text-right">{l.quantity}</td>
       <td className="px-3 py-3 text-right">{money(l.unitPrice)}</td>
       <td className="px-3 py-3 text-right">{archived?"Bilinmiyor":"%"+l.taxRate}</td>
@@ -240,7 +263,38 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
         <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="bg-slate-100 text-xs text-slate-600"><tr>
           {["Ürün","Stok Kodu","Miktar","Birim Fiyat","KDV","Tutar"].map(x=><th key={x} className="px-3 py-3">{x}</th>)}
         </tr></thead><tbody>{details.lines.length?lines.map(viewLine):<tr><td colSpan={6} className="p-6 text-center text-slate-500">Kaynak belgede ürün satırı bulunmuyor.</td></tr>}</tbody></table></div>
-      </section>:<form onSubmit={submit} className="space-y-5">
+      </section>        {archived&&details.lines.length>0&&<section className="mt-5 rounded-2xl border border-sky-200 bg-white p-5">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-black">Arşiv ürünlerinin stok kodları</h2>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Ürün adı mağaza kataloğunda tek bir kayıtla eşleşirse stok kodu otomatik gösterilir.
+                Eşleşmeyenleri aşağıdan stok kaydına bağlayın; PDF ve yazdırma şablonu bu kodları kullanır.
+              </p>
+            </div>
+            {canEdit&&<button className={primary} type="button" disabled={busy} onClick={()=>void saveStockCodeMappings()}>
+              <Save size={15}/>{busy?"Kaydediliyor...":"Stok Kodlarını Kaydet"}
+            </button>}
+          </div>
+          <div className="grid gap-2">
+            {details.lines.map((line:Entry,index:number)=><label key={str(line.id)} className="grid items-center gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <span className="min-w-0 text-xs font-semibold">{index+1}. {line.product_name}
+                <span className="mt-1 block font-normal text-slate-500">Mevcut kod: {line.sku||"Eşleştirilmedi"}</span>
+              </span>
+              <select className={field} disabled={!canEdit||busy}
+                value={stockCodeMappings[str(line.id)]||""}
+                onChange={event=>setStockCodeMappings(current=>({...current,[str(line.id)]:event.target.value}))}
+                aria-label={str(line.product_name)+" stok kodu eşleştirmesi"}>
+                <option value="">Stok kodu bulunamadı / eşleştirme yok</option>
+                {products.map(product=><option key={str(product.id)} value={str(product.id)}>
+                  {str(product.sku)} · {str(product.name)}
+                </option>)}
+              </select>
+            </label>)}
+          </div>
+          <p className="mt-3 text-xs text-slate-500">Bu eşleştirme yalnız ürün kodunu bağlar. Cari bakiye, stok adedi ve fiyat değiştirilmez.</p>
+        </section>}
+:<form onSubmit={submit} className="space-y-5">
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="mb-4 text-base font-black">{mode==="copy"?"Yeni fatura taslağı":"Faturayı düzenle"}</h2>
           <div className="grid gap-4 md:grid-cols-3">
