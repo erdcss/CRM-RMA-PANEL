@@ -58,12 +58,15 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
   const urlFor=(value:Mode)=>"/dukkan/faturalar/"+encodeURIComponent(id)+"?storeId="+encodeURIComponent(storeId)+"&mode="+value;
   const switchMode=(value:Mode)=>{
     setMode(value);setError("");setNotice("");setTaxReviewed(false);
+    if(details)fromDoc(details,products,value);
     navigate(urlFor(value));
   };
   const fromDoc=useCallback((doc:DocumentData,productRows:Entry[],target:Mode)=>{
     const inv=doc.invoice;
     setPartyId(str(inv.party_id));
-    setDate(target==="copy"?new Date().toLocaleDateString("en-CA"):str(inv.issued_at).slice(0,10));
+    const now=new Date();
+    const localToday=[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
+    setDate(target==="copy"?localToday:str(inv.issued_at).slice(0,10));
     setAmount(str(inv.grand_total));
     setDescription(str(inv.source_description||""));
     setTaxReviewed(false);
@@ -77,7 +80,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
         unit:str(row.unit||"adet"),lineTotal:str(row.line_total)
       };
     });
-    setLines(converted.length?converted:[blank()]);
+    setLines(converted.length?converted:doc.importedArchive&&target==="edit"?[]:[blank()]);
   },[]);
   const load=useCallback(async()=>{
     if(!storeId||!/^\d+$/.test(numericId)){setError("Geçerli mağaza ve fatura numarası gerekli.");setLoading(false);return;}
