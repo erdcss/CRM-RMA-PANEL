@@ -165,6 +165,55 @@ try {
     [store.id,first.id]
   );
   assert.deepEqual(audit.rows.map((x:any)=>x.action),["edit","delete"]);
+  // A legacy source-statement invoice is not a posted stock invoice.
+  // Editing or soft-voiding must rebalance the linked cari entry without
+  // moving stock, and must record immutable before/after evidence.
+  const archivedBatch=await pool.query(
+    "INSERT INTO dukkan_cari_import_batches(store_id,party_id,source_sha256,source_filename,entry_count,imported_by) "+
+    "VALUES($1,$2,$3,$4,1,$5) RETURNING id",
+    [store.id,buyer.id,"verify-dukkan-archive-"+randomUUID(),"sample-archive.pdf",activeUser]
+  );
+  const archiveLedger=await pool.query(
+    "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description) "+
+    "VALUES($1,$2,125,0,'Arşiv satış · 000793') RETURNING id",[store.id,buyer.id]
+  );
+  const archive=await pool.query(
+    "INSERT INTO dukkan_cari_import_entries(store_id,party_id,batch_id,entry_id,document_date,kind,document_no,source_page,source_position) "+
+    "VALUES($1,$2,$3,$4,'2026-10-22','sale','000793',1,0) RETURNING id",
+    [store.id,buyer.id,archivedBatch.rows[0].id,archiveLedger.rows[0].id]
+  );
+  const archiveId=archive.rows[0].id;
+  await pool.query(
+    "INSERT INTO dukkan_cari_import_lines(import_entry_id,line_position,product_name,quantity,unit,unit_price,line_total) "+
+    "VALUES($1,0,'Test Ürünü Düzenlendi',1,'adet',125,125)",[archiveId]
+  );
+  const archPdf=await call("GET",base+"/invoices/archived/"+archiveId+"/pdf-data");
+  assert.equal(archPdf.invoice.revision,0);
+  assert.equal(archPdf.invoice.invoice_no,"000793");
+  assert.equal(archPdf.lines.length,1);
+  const stockBeforeArchive=Number((await call("GET",base+"/data/products"))[0].stock);
+  const patchedArchive=await call("PATCH",base+"/invoices/archived/"+archiveId,{
+    expectedRevision:0,date:"2026-10-23",amount:150,description:"Düzeltilmiş kaynak belge",
+    lines:[{productName:"Test Ürünü Düzenlendi",quantity:1,unit:"adet",unitPrice:150,lineTotal:150}]
+  });
+  assert.equal(patchedArchive.revision,1);
+  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),stockBeforeArchive);
+  const changedArchive=await call("GET",base+"/invoices/archived/"+archiveId+"/pdf-data");
+  assert.equal(Number(changedArchive.invoice.grand_total),150);
+  assert.equal(String(changedArchive.invoice.issued_at).slice(0,10),"2026-10-23");
+  assert.equal(Number(changedArchive.lines[0].line_total),150);
+  await call("PATCH",base+"/invoices/archived/"+archiveId,{
+    expectedRevision:0,date:"2026-10-23",amount:200,description:"Geçersiz",lines:[]
+  },409);
+  const archivedDeleted=await call("DELETE",base+"/invoices/archived/"+archiveId,{expectedRevision:1});
+  assert.equal(archivedDeleted.status,"voided");
+  await call("GET",base+"/invoices/archived/"+archiveId+"/pdf-data",undefined,404);
+  assert.ok(!(await call("GET",base+"/data/invoices")).some((x:any)=>String(x.id)==="archive-"+archiveId));
+  const voidedEntry=await pool.query("SELECT debit,credit FROM dukkan_cari_entries WHERE id=$1",[archiveLedger.rows[0].id]);
+  assert.equal(Number(voidedEntry.rows[0].debit)-Number(voidedEntry.rows[0].credit),0);
+  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),stockBeforeArchive);
+  const auditRows=await pool.query("SELECT action FROM dukkan_archive_invoice_audit WHERE import_entry_id=$1 ORDER BY id",[archiveId]);
+  assert.deepEqual(auditRows.rows.map((x:any)=>x.action),["edit","delete"]);
   activeUser=outsider;
   await call("GET",base+"/parties/"+buyer.id+"/statement?sort=latest",undefined,403);
   await call("GET",base+"/data/products",undefined,403);
