@@ -254,7 +254,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
           <button className={btn} onClick={()=>switchMode("view")}>Vazgeç</button>
           {canEdit&&<button className={primary+" bg-red-700 hover:bg-red-800"} disabled={busy} onClick={()=>void remove()}><Trash2 size={16}/>{busy?"İşleniyor":"Silmeyi Onayla"}</button>}
         </div>
-      </section>:readOnly?<section className="rounded-2xl border border-slate-200 bg-white p-5">
+      </section>:readOnly?<><section className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div><div className="text-xs text-slate-500">Cari hesap</div><strong>{current.party_name}</strong></div>
           <div><div className="text-xs text-slate-500">Tarih</div><strong>{str(current.issued_at).slice(0,10)}</strong></div>
@@ -293,8 +293,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
             </label>)}
           </div>
           <p className="mt-3 text-xs text-slate-500">Bu eşleştirme yalnız ürün kodunu bağlar. Cari bakiye, stok adedi ve fiyat değiştirilmez.</p>
-        </section>}
-:<form onSubmit={submit} className="space-y-5">
+        </section>}</>:<form onSubmit={submit} className="space-y-5">
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="mb-4 text-base font-black">{mode==="copy"?"Yeni fatura taslağı":"Faturayı düzenle"}</h2>
           <div className="grid gap-4 md:grid-cols-3">
