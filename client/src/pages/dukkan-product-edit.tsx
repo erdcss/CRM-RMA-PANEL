@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Check, ImagePlus, Package, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ImagePlus, Loader2, Package, Plus, Save, ShieldCheck, Trash2, UploadCloud } from "lucide-react";
 import { fileToCompressedDataUrl } from "@/lib/compress-image";
 
 type Product = {
@@ -46,6 +46,16 @@ export default function DukkanProductEdit({id}:{id:string}){
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
+  const [stockToAdd,setStockToAdd]=useState("");
+  const [stockNote,setStockNote]=useState("Ürün kartından stok girişi");
+  const [addingStock,setAddingStock]=useState(false);
+  const stockInFlight=useRef(false);
+  const stockRequestKey=useRef<string|null>(null);
+  const [draggingImages,setDraggingImages]=useState(false);
+  const [processingImages,setProcessingImages]=useState(false);
+  const imageInFlight=useRef(false);
+  const dragDepth=useRef(0);
+  const imageFileInput=useRef<HTMLInputElement|null>(null);
 
   const back=()=>{
     let previous="";
@@ -95,20 +105,92 @@ export default function DukkanProductEdit({id}:{id:string}){
   const update=(key:keyof Fields,value:string)=>setFields(old=>({...old,[key]:value}));
 
   const addImages=async(files:File[])=>{
+    if(!files.length||imageInFlight.current)return;
+    imageInFlight.current=true;
+    setProcessingImages(true);
     setError("");
     try{
-      if(images.length+files.length>6)throw new Error("En fazla 6 görsel ekleyebilirsiniz.");
+      if(files.length+images.length>6)
+        throw new Error("Toplam en fazla 6 görsel ekleyebilirsiniz. Önce mevcut görsellerden bazılarını kaldırın.");
       if(files.some(file=>!["image/png","image/jpeg","image/webp"].includes(file.type)))
         throw new Error("Yalnızca PNG, JPG ve WebP görseller desteklenir.");
-      const uploaded=await Promise.all(files.map(fileToCompressedDataUrl));
+      const uploaded:string[]=[];
+      for(const file of files)uploaded.push(await fileToCompressedDataUrl(file));
       setImages(current=>[...current,...uploaded].slice(0,6));
+      setNotice(files.length+" görsel eklendi. Kalıcı olması için Değişiklikleri Kaydet'e basın.");
     }catch(e){setError((e as Error).message);}
+    finally{imageInFlight.current=false;setProcessingImages(false);}
+  };
+
+  const imagesDragEnter=(event:DragEvent<HTMLDivElement>)=>{
+    if(!event.dataTransfer.types.includes("Files"))return;
+    event.preventDefault();
+    dragDepth.current+=1;
+    setDraggingImages(true);
+  };
+  const imagesDragOver=(event:DragEvent<HTMLDivElement>)=>{
+    if(!event.dataTransfer.types.includes("Files"))return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect=processingImages||saving||images.length>=6?"none":"copy";
+  };
+  const imagesDragLeave=(event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();
+    dragDepth.current=Math.max(0,dragDepth.current-1);
+    if(dragDepth.current===0)setDraggingImages(false);
+  };
+  const imagesDrop=(event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();
+    dragDepth.current=0;
+    setDraggingImages(false);
+    if(!processingImages&&!saving)void addImages(Array.from(event.dataTransfer.files));
+  };
+
+  // A stock addition is its own auditable, idempotent transaction; it doesn't
+  // overwrite product.stock in the product detail PATCH request.
+  const addStock=async()=>{
+    if(!data||addingStock||stockInFlight.current)return;
+    const quantity=Number(stockToAdd);
+    if(!Number.isFinite(quantity)||quantity<=0||quantity>999999999||
+       Math.abs(quantity*1000-Math.round(quantity*1000))>0.00001){
+      setError("Eklenecek stok 0'dan büyük ve en fazla 3 ondalıklı olmalıdır.");
+      return;
+    }
+    const note=stockNote.trim();
+    if(note.length<3||note.length>500){
+      setError("Stok giriş açıklaması 3–500 karakter olmalıdır.");
+      return;
+    }
+    if(!window.confirm(quantity.toLocaleString("tr-TR")+" "+(data.unit||"adet")+
+       " stok, "+data.name+" ürününe eklensin mi?"))return;
+    stockInFlight.current=true;
+    setAddingStock(true);
+    setError("");setNotice("");
+    try{
+      if(!stockRequestKey.current)stockRequestKey.current=crypto.randomUUID();
+      const saved=await request(
+        "/api/dukkan/stores/"+encodeURIComponent(storeId)+"/stock-movements",{
+          method:"POST",
+          body:JSON.stringify({
+            productId:Number(id),delta:quantity,note,
+            requestKey:stockRequestKey.current
+          }),
+        }
+      );
+      setData(current=>current?{...current,stock:saved.stock}:current);
+      setStockToAdd("");
+      stockRequestKey.current=null;
+      setNotice(saved.replayed
+        ?"Stok girişi daha önce kaydedilmiş; tekrar eklenmedi. Güncel stok yenilendi."
+        :"Stok başarıyla eklendi ve Stok Hareketleri'ne kaydedildi.");
+    }catch(e){setError((e as Error).message);}
+    finally{stockInFlight.current=false;setAddingStock(false);}
   };
 
   const submit=async(e:FormEvent)=>{
     e.preventDefault();if(!data||saving)return;
     setSaving(true);setError("");setNotice("");
     try{
+      if(processingImages||imageInFlight.current)throw new Error("Görseller yüklenirken ürün kaydedilemez.");
       if(published&&!images.length)throw new Error("B2B yayını için önce bir görsel ekleyin.");
       if(Number(fields.unitsPerBox)<1||Number(fields.minOrderQty)<1)
         throw new Error("Koli içeriği ve minimum adet en az 1 olmalıdır.");
@@ -175,10 +257,38 @@ export default function DukkanProductEdit({id}:{id:string}){
               {field("salePrice","Satış Fiyatı (TL)","number",true)}
               {field("unitsPerBox","Koli İçi Adet","number",true)}
               {field("minOrderQty","Minimum Sipariş Adedi","number",true)}
-              <div>
-                <span className={labelStyle}>Güncel Stok</span>
-                <div className={fieldStyle+" bg-slate-50 text-slate-500"}>{Number(data.stock||0).toLocaleString("tr-TR")}</div>
-                <p className="mt-1 text-[11px] text-slate-500">Stok değişiklikleri Stok Hareketleri ekranından yapılır.</p>
+              <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-[#d9e6f6] bg-[#f7faff] p-4 sm:p-5">
+                <div className="grid gap-4 sm:grid-cols-[minmax(150px,1fr)_minmax(160px,1fr)_minmax(210px,2fr)_auto] sm:items-end">
+                  <div>
+                    <span className={labelStyle}>Güncel Stok</span>
+                    <div className={fieldStyle+" bg-white font-extrabold tabular-nums"}>
+                      {Number(data.stock||0).toLocaleString("tr-TR",{maximumFractionDigits:3})} {data.unit||"adet"}
+                    </div>
+                  </div>
+                  <label className="block min-w-0">
+                    <span className={labelStyle}>Eklenecek Stok</span>
+                    <input className={fieldStyle} type="number" inputMode="decimal"
+                      min="0.001" max="999999999" step="0.001" placeholder="Örn: 12"
+                      value={stockToAdd} disabled={addingStock}
+                      onChange={e=>{setStockToAdd(e.target.value);stockRequestKey.current=null;}}/>
+                  </label>
+                  <label className="block min-w-0">
+                    <span className={labelStyle}>Stok Giriş Açıklaması</span>
+                    <input className={fieldStyle} type="text" maxLength={500}
+                      value={stockNote} disabled={addingStock}
+                      onChange={e=>{setStockNote(e.target.value);stockRequestKey.current=null;}}/>
+                  </label>
+                  <button type="button" disabled={addingStock||!stockToAdd}
+                    onClick={()=>void addStock()}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#122a51] px-5 py-3 text-sm font-bold text-white hover:bg-[#1c4b83] disabled:opacity-50">
+                    {addingStock?<Loader2 size={17} className="animate-spin"/>:<Plus size={18}/>}
+                    {addingStock?"Ekleniyor…":"Stok Ekle"}
+                  </button>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Stok Ekle işlemi anında kaydedilir ve Stok Hareketleri'nde görünür.
+                  Diğer ürün bilgilerini kaydetmek için Değişiklikleri Kaydet'i kullanın.
+                </p>
               </div>
             </div>
             <label className="mt-5 block">
@@ -188,21 +298,38 @@ export default function DukkanProductEdit({id}:{id:string}){
             </label>
           </section>
           <section className="rounded-[24px] border border-[#dce6f3] bg-white p-5 shadow-sm sm:p-7">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-black">Ürün Görselleri</h2>
-                <p className="mt-1 text-xs text-slate-500">En fazla 6 fotoğraf. İlk görsel kapak olarak kullanılır.</p>
-              </div>
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-sky-800">
-                <ImagePlus size={17}/> Görsel Ekle
-                <input className="sr-only" type="file" multiple accept="image/jpeg,image/png,image/webp"
-                  onChange={e=>{void addImages(Array.from(e.target.files||[]));e.target.value="";}}/>
-              </label>
+            <div className="mb-4">
+              <h2 className="text-base font-black">Ürün Görselleri</h2>
+              <p className="mt-1 text-xs text-slate-500">En fazla 6 fotoğraf · PNG, JPG, WebP · Dosya başına en fazla 15 MB. İlk görsel kapaktır.</p>
+            </div>
+            <div
+              onDragEnter={imagesDragEnter} onDragOver={imagesDragOver}
+              onDragLeave={imagesDragLeave} onDrop={imagesDrop}
+              className={"mb-4 rounded-2xl border-2 border-dashed p-6 text-center transition-colors duration-200 "+
+                (draggingImages?"border-sky-500 bg-sky-100 ring-2 ring-sky-200":
+                "border-[#c6d9ef] bg-[#f7faff] hover:border-sky-400 hover:bg-sky-50")}>
+              <input ref={imageFileInput} type="file" multiple accept="image/jpeg,image/png,image/webp"
+                className="sr-only" aria-label="Ürün görsellerini seç"
+                onChange={e=>{void addImages(Array.from(e.target.files||[]));e.target.value="";}}/>
+              {processingImages?<Loader2 size={30} className="mx-auto animate-spin text-[#205a93]"/>:
+                <UploadCloud size={30} className="mx-auto text-[#205a93]"/>}
+              <p className="mt-2 text-sm font-bold text-[#17385f]">
+                {processingImages?"Görseller hazırlanıyor…":
+                 draggingImages?"Görselleri buraya bırakın":
+                 "Görselleri sürükleyip buraya bırakın"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">veya bilgisayarınızdan bir ya da birden fazla görsel seçin</p>
+              <button type="button" onClick={()=>imageFileInput.current?.click()}
+                disabled={processingImages||saving||images.length>=6}
+                className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-[#122a51] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#1c4b83] disabled:opacity-40">
+                <ImagePlus size={17}/> {images.length>=6?"Görsel sınırına ulaşıldı":"Görsel Seç"}
+              </button>
+              <p className="mt-2 text-[11px] text-slate-500">{images.length} / 6 görsel eklendi</p>
             </div>
             <div className="flex flex-wrap gap-3">
               {images.length?images.map((url,i)=><div key={i} className="relative h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                 <img src={url} alt={"Ürün görseli "+(i+1)} className="h-full w-full object-contain"/>
-                <button type="button" onClick={()=>setImages(old=>old.filter((_,n)=>n!==i))}
+                <button type="button" disabled={processingImages} onClick={()=>setImages(old=>old.filter((_,n)=>n!==i))}
                   className="absolute right-1 top-1 rounded-lg bg-white p-1.5 text-red-600 shadow" aria-label={"Görseli sil "+(i+1)}>
                   <Trash2 size={15}/></button>
                 {i===0?<span className="absolute bottom-1 left-1 rounded bg-[#122a51] px-2 py-1 text-[10px] font-bold text-white">Kapak</span>:null}
@@ -221,7 +348,7 @@ export default function DukkanProductEdit({id}:{id:string}){
           </section>
           <div className="flex flex-wrap justify-end gap-3 pb-12">
             <button type="button" onClick={back} className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold">Vazgeç</button>
-            <button disabled={saving} type="submit"
+            <button disabled={saving||processingImages||addingStock} type="submit"
               className="inline-flex items-center gap-2 rounded-xl bg-[#122a51] px-6 py-3 text-sm font-bold text-white hover:bg-[#1c4b83] disabled:opacity-50">
               {saving?<Save size={18}/>:<Check size={18}/>} {saving?"Kaydediliyor…":"Değişiklikleri Kaydet"}
             </button>
