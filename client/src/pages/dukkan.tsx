@@ -5,6 +5,7 @@ import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import {DukkanInvoiceFormSettings} from "@/components/dukkan-invoice-form-settings";
+import {DukkanDesktopDownload} from "@/components/dukkan-desktop-download";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
@@ -698,6 +699,7 @@ export default function Dukkan() {
             key={storeId} base={base} storeId={storeId}
             storeName={String(currentStore?.name||"Çalışkan Dükkân")}
             canEdit={canManage}/>}
+          {section==="settings"&&settingsView==="general"&&<DukkanDesktopDownload/>}
           {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
           {section==="settings"&&settingsView==="general"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
             onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
