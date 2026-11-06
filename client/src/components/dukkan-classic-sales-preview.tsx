@@ -35,7 +35,7 @@ export function DukkanClassicSalesPreview({form,storeName}:{form:DukkanInvoiceFo
           <col style={{width:"10%"}}/><col style={{width:"12%"}}/><col style={{width:"12%"}}/>
         </colgroup>
         <thead><tr>
-          <th className={TH}>ÜRÜN KODU</th>
+          <th className={TH}>STOK KODU</th>
           <th className={TH}>{form.productHeader}</th>
           <th className={TH}>{form.quantityHeader}</th>
           <th className={TH}>{form.unitHeader}</th>
