@@ -10,6 +10,7 @@ import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stoc
 import { buildCariExcel } from "./dukkan-cari-excel";
 import {reviseDukkanSalesInvoice} from "./dukkan-sales-invoice-revisions";
 import {correctArchivedSalesInvoice} from "./dukkan-archive-sales-corrections";
+import {resolveArchiveStockCodes} from "./dukkan-archive-stock-codes";
 import {extractPositionedPdfWords,parsePositionedCariStatement,importedStatementSchema} from "./dukkan-cari-statement-parser";
 import {documentSha256,postImportedStatement,summarizeImportedStatement} from "./dukkan-cari-import";
 import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,resolveInvoiceFormForStore,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
@@ -72,6 +73,7 @@ const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS dukkan_archive_invoice_audit (id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),import_entry_id BIGINT NOT NULL REFERENCES dukkan_cari_import_entries(id),action TEXT NOT NULL CHECK(action IN ('edit','delete')),previous_data JSONB NOT NULL,next_data JSONB NOT NULL,changed_by INTEGER NOT NULL REFERENCES users(id),changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
   "CREATE INDEX IF NOT EXISTS dukkan_archive_invoice_audit_lookup ON dukkan_archive_invoice_audit(store_id,import_entry_id,changed_at DESC)",
   "CREATE TABLE IF NOT EXISTS dukkan_cari_import_lines (id BIGSERIAL PRIMARY KEY,import_entry_id BIGINT NOT NULL REFERENCES dukkan_cari_import_entries(id),line_position INTEGER NOT NULL,product_name TEXT NOT NULL,quantity NUMERIC(16,3) NOT NULL,unit TEXT NOT NULL,unit_price NUMERIC(18,2) NOT NULL,discounted_unit_price NUMERIC(18,2),line_total NUMERIC(18,2) NOT NULL,UNIQUE(import_entry_id,line_position))",
+  "ALTER TABLE dukkan_cari_import_lines ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES dukkan_products(id)",
   "CREATE INDEX IF NOT EXISTS dukkan_cari_import_entries_store_lookup_idx ON dukkan_cari_import_entries(store_id,party_id,document_date,entry_id)",
   "CREATE INDEX IF NOT EXISTS dukkan_cari_import_lines_entry_idx ON dukkan_cari_import_lines(import_entry_id,line_position)",
   "CREATE TABLE IF NOT EXISTS dukkan_payments (id BIGSERIAL PRIMARY KEY, store_id BIGINT NOT NULL REFERENCES dukkan_stores(id), party_id BIGINT NOT NULL, direction TEXT NOT NULL CHECK(direction IN ('collection','payment')), method TEXT NOT NULL CHECK(method IN ('cash','bank')), bank_id BIGINT, amount NUMERIC(18,2) NOT NULL CHECK(amount>0), note TEXT, created_by INTEGER NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), FOREIGN KEY(store_id,party_id) REFERENCES dukkan_parties(store_id,id), FOREIGN KEY(store_id,bank_id) REFERENCES dukkan_banks(store_id,id))",
@@ -144,7 +146,8 @@ const archivedSalesLineSchema=z.object({
   quantity:qty,
   unit:z.string().trim().min(1).max(50),
   unitPrice:z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals),
-  lineTotal:z.coerce.number().finite().min(0).max(999999999999).refine(twoDecimals)
+  lineTotal:z.coerce.number().finite().min(0).max(999999999999).refine(twoDecimals),
+  productId:id.nullable().optional()
 });
 const archivedSalesEditSchema=z.object({
   expectedRevision:z.coerce.number().int().nonnegative(),
@@ -1356,12 +1359,20 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const document=row.rows[0];
     if(document.kind==="purchase")accountant(res);
     const details=await db.query(
-      "SELECT l.id,l.product_name,l.quantity,l.unit,l.line_total,"+
+      "SELECT l.id,l.product_id,l.product_name,l.quantity,l.unit,l.line_total,"+
       "COALESCE(l.discounted_unit_price,l.unit_price) AS unit_price,"+
       "NULL::numeric AS tax_rate,''::text AS sku "+
       "FROM dukkan_cari_import_lines l WHERE l.import_entry_id=$1 "+
       "ORDER BY l.line_position,l.id",[importId]
     );
+    // Statement imports store only product names. A link chosen by the user
+    // wins; otherwise resolve only a UNIQUE exact normalized catalog name.
+    // Unmatched archive rows stay unresolved instead of displaying a false SKU.
+    const catalog=await db.query(
+      "SELECT id,name,sku,b2b_source_sku FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL",
+      [sid]
+    );
+    const archiveLines=resolveArchiveStockCodes(details.rows,catalog.rows);
     const type:InvoiceFormKind=document.kind==="purchase"?"purchase":"sale";
     const template=await db.query(
       "SELECT settings FROM dukkan_invoice_form_templates WHERE store_id=$1 AND kind=$2",
@@ -1376,13 +1387,75 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.setHeader("X-Content-Type-Options","nosniff");
     res.json({
       invoice:{...document,party_balance:balance?.rows[0]?.total??null},
-      lines:details.rows,
+      lines:archiveLines,
       template:resolveInvoiceFormForStore(type,template.rows[0]?.settings,document.store_name),
       importedArchive:true,officialInvoice:false,
       disclaimer:"Kaynak cari ekstresinden aktarılan arşiv belgesidir; resmî fatura, e-Fatura veya e-Arşiv değildir. KDV dağılımı kaynakta belirtilmiyorsa doğrulanamaz."
     });
   }));
 
+  // SKU mapping is metadata on historical evidence. It MUST NOT change
+  // inventory, VAT, cari balances or the imported source file.
+  app.patch("/api/dukkan/stores/:storeId/invoices/archived/:importId/stock-codes",safe(async(req,res)=>{
+    accountant(res);
+    const payload=z.object({
+      expectedRevision:z.coerce.number().int().nonnegative(),
+      mappings:z.array(z.object({lineId:id,productId:id.nullable()})).max(200)
+    }).parse(req.body);
+    const sid=store(req),importId=id.parse(req.params.importId);
+    const saved=await transaction(async c=>{
+      const selected=await c.query(
+        "SELECT * FROM dukkan_cari_import_entries WHERE store_id=$1 AND id=$2 FOR UPDATE",
+        [sid,importId]
+      );
+      if(!selected.rowCount)
+        throw Object.assign(new Error("Arşiv faturası bulunamadı"),{status:404});
+      const invoice=selected.rows[0];
+      if(invoice.voided_at||invoice.kind!=="sale")
+        throw Object.assign(new Error("Sadece aktif satış arşivindeki stok kodları eşleştirilebilir"),{status:403});
+      if(Number(invoice.revision)!==payload.expectedRevision)
+        throw Object.assign(new Error("Arşiv faturası başka bir kullanıcı tarafından değiştirildi. Sayfayı yenileyin."),{status:409});
+      const previous=await c.query(
+        "SELECT id,product_id,product_name FROM dukkan_cari_import_lines WHERE import_entry_id=$1 ORDER BY id",
+        [importId]
+      );
+      const available=new Set(previous.rows.map(row=>String(row.id)));
+      if(new Set(payload.mappings.map(m=>m.lineId)).size!==payload.mappings.length ||
+          payload.mappings.some(m=>!available.has(String(m.lineId))))
+        throw Object.assign(new Error("Ürün kalemleri fatura ile uyuşmuyor"),{status:400});
+      const productIds=[...new Set(payload.mappings.map(m=>m.productId).filter((n):n is number=>n!==null))];
+      if(productIds.length){
+        const found=await c.query(
+          "SELECT id FROM dukkan_products WHERE store_id=$1 AND id=ANY($2::bigint[]) AND deleted_at IS NULL",
+          [sid,productIds]
+        );
+        if(found.rowCount!==productIds.length)
+          throw Object.assign(new Error("Seçilen stok kodlarından biri bu mağazaya ait değil"),{status:400});
+      }
+      for(const mapping of payload.mappings){
+        await c.query(
+          "UPDATE dukkan_cari_import_lines SET product_id=$3 WHERE import_entry_id=$1 AND id=$2",
+          [importId,mapping.lineId,mapping.productId]
+        );
+      }
+      const next=await c.query(
+        "SELECT id,product_id,product_name FROM dukkan_cari_import_lines WHERE import_entry_id=$1 ORDER BY id",
+        [importId]
+      );
+      const updated=await c.query(
+        "UPDATE dukkan_cari_import_entries SET revision=revision+1,edited_at=NOW(),edited_by=$3 "+
+        "WHERE store_id=$1 AND id=$2 RETURNING id,revision",
+        [sid,importId,user(res)]
+      );
+      await c.query(
+        "INSERT INTO dukkan_archive_invoice_audit(store_id,import_entry_id,action,previous_data,next_data,changed_by) "+
+        "VALUES($1,$2,'edit',$3::jsonb,$4::jsonb,$5)",
+        [sid,importId,JSON.stringify({skuMapping:previous.rows}),JSON.stringify({skuMapping:next.rows}),user(res)]
+      );
+      return updated.rows[0];
+    });
+    res.json(saved);
+  }));
   // Archival sales are source-statement evidence, NOT posted inventory invoices.
   // A correction updates their existing cari entry; never post stock or KDV.
   app.patch("/api/dukkan/stores/:storeId/invoices/archived/:importId",safe(async(req,res)=>{

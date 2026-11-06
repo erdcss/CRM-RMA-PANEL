@@ -191,6 +191,8 @@ try {
   assert.equal(archPdf.invoice.revision,0);
   assert.equal(archPdf.invoice.invoice_no,"000793");
   assert.equal(archPdf.lines.length,1);
+  assert.equal(archPdf.lines[0].sku,"TEST-001","Archived PDF should resolve the matching catalog product stock code");
+  assert.equal(String(archPdf.lines[0].product_id),String(product.id));
   const stockBeforeArchive=Number((await call("GET",base+"/data/products"))[0].stock);
   const patchedArchive=await call("PATCH",base+"/invoices/archived/"+archiveId,{
     expectedRevision:0,date:"2026-10-23",amount:150,description:"Düzeltilmiş kaynak belge",
@@ -202,18 +204,38 @@ try {
   assert.equal(Number(changedArchive.invoice.grand_total),150);
   assert.equal(String(changedArchive.invoice.issued_at).slice(0,10),"2026-10-23");
   assert.equal(Number(changedArchive.lines[0].line_total),150);
+  assert.equal(changedArchive.lines[0].sku,"TEST-001","Archive edits must keep known stock codes");
+  const alternate=await call("POST",base+"/products",{
+    name:"Alternatif Stok Ürünü",sku:"ALT-002",purchasePrice:10,salePrice:50
+  },201);
+  const originalStock=Number((await call("GET",base+"/data/products")).find((p:any)=>p.id===product.id).stock);
+  await call("PATCH",base+"/invoices/archived/"+archiveId+"/stock-codes",{
+    expectedRevision:1,mappings:[{
+      lineId:changedArchive.lines[0].id,productId:alternate.id
+    }]
+  });
+  const matchedArchive=await call("GET",base+"/invoices/archived/"+archiveId+"/pdf-data");
+  assert.equal(matchedArchive.invoice.revision,2);
+  assert.equal(matchedArchive.lines[0].sku,"ALT-002","Explicit stock code mapping must print the chosen actual SKU");
+  assert.equal(matchedArchive.lines[0].stock_code_match,"linked");
+  assert.equal(Number((await call("GET",base+"/data/products")).find((p:any)=>p.id===product.id).stock),
+    originalStock,"Mapping must not change inventory");
+  await call("PATCH",base+"/invoices/archived/"+archiveId+"/stock-codes",{
+    expectedRevision:2,mappings:[{lineId:matchedArchive.lines[0].id,productId:99999999}]
+  },400);
+  assert.equal((await call("GET",base+"/invoices/archived/"+archiveId+"/pdf-data")).lines[0].sku,"ALT-002");
   await call("PATCH",base+"/invoices/archived/"+archiveId,{
     expectedRevision:0,date:"2026-10-23",amount:200,description:"Geçersiz",lines:[]
   },409);
-  const archivedDeleted=await call("DELETE",base+"/invoices/archived/"+archiveId,{expectedRevision:1});
+  const archivedDeleted=await call("DELETE",base+"/invoices/archived/"+archiveId,{expectedRevision:2});
   assert.equal(archivedDeleted.status,"voided");
   await call("GET",base+"/invoices/archived/"+archiveId+"/pdf-data",undefined,404);
   assert.ok(!(await call("GET",base+"/data/invoices")).some((x:any)=>String(x.id)==="archive-"+archiveId));
   const voidedEntry=await pool.query("SELECT debit,credit FROM dukkan_cari_entries WHERE id=$1",[archiveLedger.rows[0].id]);
   assert.equal(Number(voidedEntry.rows[0].debit)-Number(voidedEntry.rows[0].credit),0);
-  assert.equal(Number((await call("GET",base+"/data/products"))[0].stock),stockBeforeArchive);
+  assert.equal(Number((await call("GET",base+"/data/products")).find((p:any)=>p.id===product.id).stock),stockBeforeArchive);
   const auditRows=await pool.query("SELECT action FROM dukkan_archive_invoice_audit WHERE import_entry_id=$1 ORDER BY id",[archiveId]);
-  assert.deepEqual(auditRows.rows.map((x:any)=>x.action),["edit","delete"]);
+  assert.deepEqual(auditRows.rows.map((x:any)=>x.action),["edit","edit","delete"]);
   activeUser=outsider;
   await call("GET",base+"/parties/"+buyer.id+"/statement?sort=latest",undefined,403);
   await call("GET",base+"/data/products",undefined,403);
