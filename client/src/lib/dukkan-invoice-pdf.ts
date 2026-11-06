@@ -71,7 +71,7 @@ function paintPage(data:SalesInvoicePdfData,page:number,pages:number,items:Sales
     const y=583+i*58;
     if(i%2===1)rect(74,y-34,1092,56,"#f7faff");
     text(norm(item.product_name),90,y,18,ink,600,510);
-    if(config.showProductCode&&item.sku)text("Kod: "+norm(item.sku),90,y+21,13,subtle,400,515);
+    if(config.showProductCode&&item.sku)text("Stok Kodu: "+norm(item.sku),90,y+21,13,subtle,400,515);
     text(number(item.quantity)+" "+norm(item.unit),660,y,17,ink,400,140);
     if(config.showUnitPrice)text(money(item.unit_price),807,y,17,ink,400,166);
     if(config.showTaxRate)text(item.tax_rate===null?"—":"%"+number(item.tax_rate).replace(",00",""),985,y,17,ink);
@@ -170,7 +170,7 @@ function paintPlainPurchasePage(
     const y=594+i*54;
     text(item.product_name,left+8,y,18,true,535);
     if(config.showProductCode&&item.sku)
-      text("Kod: "+item.sku,left+8,y+19,12,false,500);
+      text("Stok Kodu: "+item.sku,left+8,y+19,12,false,500);
     text(number(item.quantity)+" "+(item.unit||"adet"),663,y,17,false,130);
     if(config.showUnitPrice)text(money(item.unit_price),802,y,17,false,170);
     if(config.showTaxRate)

@@ -12,7 +12,7 @@ import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
-import { Building2, Plus, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
+import { Building2, Plus, Copy, Pencil, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
@@ -97,6 +97,9 @@ export default function Dukkan() {
   const [showForm,setShowForm]=useState(false);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
   const [editingPartyId,setEditingPartyId]=useState<string|null>(null);
+  const [editingInvoiceId,setEditingInvoiceId]=useState<string|null>(null);
+  const [editingInvoiceRevision,setEditingInvoiceRevision]=useState<number|null>(null);
+  const [invoiceCopySource,setInvoiceCopySource]=useState<string|null>(null);
   const [cariSearch,setCariSearch]=useState("");
   const [cariFilter,setCariFilter]=useState<"az"|"debtor"|"creditor"|"recent">("az");
   const [selectedCariAction,setSelectedCariAction]=useState<Entry|null>(null);
@@ -362,6 +365,7 @@ export default function Dukkan() {
       })):[{...NEW_LINE}]);
     }
     setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
+    setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
     if(section==="products"){setProductImages([]);setPublishToB2B(false);}
     setShowForm(true);
     setNotice("AI taslağı hazır. Belge alanlarını ve eşleşmeyen kayıtları kontrol edip Kaydet ve İşle düğmesine basın.");
@@ -376,7 +380,8 @@ export default function Dukkan() {
       let path="";
       if(section==="sales"||section==="purchases"){
         path="/invoices";body.kind=body.kind||(section==="sales"?"sale":"purchase");
-        body.requestKey=globalThis.crypto.randomUUID();
+        if(section==="sales"&&editingInvoiceId)body.expectedRevision=editingInvoiceRevision;
+        else body.requestKey=globalThis.crypto.randomUUID();
         body.lines=lines.map(l=>({productId:Number(l.productId),quantity:Number(l.quantity),unitPrice:Number(l.unitPrice),taxRate:Number(l.taxRate)}));
       }else if(section==="orders"){
         path="/orders";body.kind=body.kind||"sale";
@@ -393,15 +398,19 @@ export default function Dukkan() {
       else if(section==="banks"){path="/bank-movements";body.type=body.type||"deposit";}
       else return;
       const editing=(section==="products"&&Boolean(editingProductId||editingCatalogId))||
-        ((section==="parties"||section==="suppliers")&&Boolean(editingPartyId));
+        ((section==="parties"||section==="suppliers")&&Boolean(editingPartyId))||
+        (section==="sales"&&Boolean(editingInvoiceId));
       const url=editingCatalogId
         ? base+"/catalog/b2b/"+encodeURIComponent(editingCatalogId)
-        : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
+        : section==="sales"&&editingInvoiceId
+          ? base+"/invoices/"+encodeURIComponent(editingInvoiceId)
+          : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
       const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
       setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
         (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
       setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
+      setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
       setShowForm(false);setDraft({});setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
@@ -523,6 +532,9 @@ export default function Dukkan() {
       setError("Belge hazırlanamadı: "+(e as Error).message);
     }finally{setPdfBusyId(null);}
   };
+  const invoiceRoute=(invoice:Entry,mode:"view"|"edit"|"copy"|"delete")=>
+    "/dukkan/faturalar/"+encodeURIComponent(String(invoice.id))+
+    "?storeId="+encodeURIComponent(storeId)+"&mode="+mode;
   const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
     try{await api("/api/dukkan/stores",{method:"POST",body:JSON.stringify({name:newStoreName})});setNewStoreName("");setShowNewStore(false);await loadStores();}
@@ -712,6 +724,7 @@ export default function Dukkan() {
                   return;
                 }
                 setShowForm(v=>!v);setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);setDraft({});
+                setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);setLines([{...NEW_LINE}]);
                 setProductImages([]);setPublishToB2B(false);
               }} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{isCariSection?"Yeni Cari":showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
@@ -720,11 +733,11 @@ export default function Dukkan() {
                  onApply={applyAiDocument} onImported={()=>{setNotice(isCariSection?"Cari hareketleri ve fatura kalemleri içe aktarıldı.":"Belgedeki ürünler kaydedildi.");setRefresh(v=>v+1);}}/></div>}
              {section!=="stock"&&!isCariSection&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">
-                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":"Yeni kayıt oluştur"}
+                {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":editingInvoiceId?"Satış faturasını düzenle":invoiceCopySource?"Fatura kopyası oluştur · "+invoiceCopySource:"Yeni kayıt oluştur"}
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
-                  {f.type==="select"?<select className={inputClass} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
+                  {f.type==="select"?<select className={inputClass} required={f.required} disabled={section==="sales"&&f.key==="kind"&&Boolean(editingInvoiceId)} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
                     <option value="">Seçiniz</option>{f.options?.map(opt=><option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>:<input className={inputClass} type={f.type||"text"} step={f.type==="number"?"any":undefined} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
                 </label>)}
@@ -768,7 +781,7 @@ export default function Dukkan() {
                   </span>
                 </label>
               </div>}
-              {["sales","purchases"].includes(section)&&<p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">Fatura Numarası: Kaydettiğinizde sistem tarafından benzersiz 14 haneli rakam atanacaktır.</p>}
+              {["sales","purchases"].includes(section)&&<p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">{editingInvoiceId?"Mevcut fatura numarası korunur. Düzenleme stok ve cari hareketlerine yansır.":"Fatura Numarası: Kaydettiğinizde sistem tarafından benzersiz 14 haneli rakam atanacaktır."}</p>}
               {["sales","purchases","orders"].includes(section)&&<div className="mt-5">
                 <h4 className="mb-2 text-sm font-bold">Ürün Kalemleri</h4>
                 <div className="mb-1 hidden grid-cols-12 gap-2 px-3 text-xs font-bold text-slate-500 md:grid">
@@ -797,7 +810,7 @@ export default function Dukkan() {
                 </div>)}
                 <div className="mt-2 flex items-center justify-between gap-3"><button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold" onClick={()=>setLines(old=>[...old,{...NEW_LINE}])}>+ Ürün satırı</button><strong className="text-sm">Toplam: {currency(total)}</strong></div>
               </div>}
-              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy} className={buttonClass}>{busy?"Kaydediliyor...":"Kaydet ve İşle"}</button></div>
+              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy} className={buttonClass}>{busy?"Kaydediliyor...":editingInvoiceId?"Değişiklikleri Kaydet":"Kaydet ve İşle"}</button></div>
             </form>}
             {section==="banks"&&isWriter&&<div className="mb-4 grid gap-3 md:grid-cols-2">
               <form className="rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void submitSpecial("banks",{name:draft.newBank,iban:draft.newIban});}}><h3 className="mb-2 text-sm font-bold">Yeni banka hesabı</h3><input className={inputClass+" mb-2"} placeholder="Banka adı" required value={draft.newBank||""} onChange={e=>put("newBank",e.target.value)}/><input className={inputClass+" mb-2"} placeholder="IBAN (opsiyonel)" value={draft.newIban||""} onChange={e=>put("newIban",e.target.value)}/><button disabled={busy} className={buttonClass}>Banka Ekle</button></form>
@@ -984,9 +997,31 @@ export default function Dukkan() {
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
                     [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]
-                  ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
+                  ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">
+                    {section==="sales"&&i===0?
+                      <button type="button" onClick={()=>navigate(invoiceRoute(r,"view"))}
+                        className="text-left font-semibold text-blue-800 hover:underline"
+                        aria-label={"Faturayı aç: "+r.invoice_no}>{fmt(v)}</button>:fmt(v)}
+                  </td>)}
                   {(section==="sales"||section==="purchases")&&<td className="px-3 py-3">
                     <div className="flex flex-wrap gap-2">
+                      {section==="sales"&&<>
+                        {isWriter&&canAccount&&<button type="button" onClick={()=>navigate(invoiceRoute(r,"edit"))}
+                          aria-label={"Düzenle: "+r.invoice_no}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100">
+                          <Pencil size={14}/> Düzenle
+                        </button>}
+                        {isWriter&&(!cashier||r.kind==="sale")&&<button type="button" onClick={()=>navigate(invoiceRoute(r,"copy"))}
+                          aria-label={"Kopyala: "+r.invoice_no}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
+                          <Copy size={14}/> Kopyala
+                        </button>}
+                        {isWriter&&canAccount&&<button type="button" onClick={()=>navigate(invoiceRoute(r,"delete"))}
+                          aria-label={"Sil: "+r.invoice_no}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100">
+                          <Trash2 size={14}/> Sil
+                        </button>}
+                      </>}
                       <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
                         title="Belgenin kaydedilmiş şablonla PDF çıktısını indir" aria-label={"PDF indir: "+r.invoice_no}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">

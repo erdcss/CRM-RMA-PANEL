@@ -41,6 +41,7 @@ import AdminNotifications from "@/pages/admin-notifications";
 import Dukkan from "@/pages/dukkan";
 import DukkanProductEdit from "@/pages/dukkan-product-edit";
 import DukkanCariEdit from "@/pages/dukkan-cari-edit";
+import DukkanSalesInvoiceEdit from "@/pages/dukkan-sales-invoice-edit";
 import DukkanLogin from "@/pages/dukkan-login";
 import B2BStorefront from "@/pages/b2b-storefront";
 import B2BCategoryPage, { B2BCategoriesDirectory } from "@/pages/b2b-categories";
@@ -97,6 +98,7 @@ function Router() {
       <Route path="/pazaryeri" component={AdminMarketplace} />
       <Route path="/dukkan/urunler/:id">{(params)=><DukkanProductEdit id={params.id}/>}</Route>
       <Route path="/dukkan/cariler/:id">{(params)=><DukkanCariEdit id={params.id}/>}</Route>
+      <Route path="/dukkan/faturalar/:id">{(params)=><DukkanSalesInvoiceEdit id={params.id}/>}</Route>
       <Route path="/dukkan" component={Dukkan} />
       <Route path="/kayitlar" component={Kayitlar} />
       <Route path="/kayit/:id" component={KayitDetay} />
@@ -159,7 +161,9 @@ function AppContent() {
       {isLoading ? null : user && dukkanPath.startsWith("/dukkan") && !["super_admin", "admin"].includes(user.role) ? (
           /^\/dukkan\/urunler\/\d+$/.test(dukkanPath)
             ? <DukkanProductEdit id={dukkanPath.split("/").pop()||""}/>
-            : <Dukkan />
+            : /^\/dukkan\/faturalar\/(?:archive-)?\d+$/.test(dukkanPath)
+              ? <DukkanSalesInvoiceEdit id={dukkanPath.split("/").pop()||""}/>
+              : <Dukkan />
         ) : user && ["super_admin", "admin"].includes(user.role) ? (
           <SidebarProvider defaultOpen={typeof document === "undefined" || !document.cookie.split(";").some(item => item.trim() === "sidebar_state=false")} style={style as React.CSSProperties}>
             <div className="flex h-dvh max-h-dvh w-full overflow-hidden">
