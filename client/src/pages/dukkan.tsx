@@ -1048,6 +1048,23 @@ export default function Dukkan() {
                   ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
                   {(section==="sales"||section==="purchases")&&<td className="px-3 py-3">
                     <div className="flex flex-wrap gap-2">
+                      {section==="sales"&&!r.imported_archive&&isWriter&&<>
+                        {canAccount&&<button type="button" disabled={busy} onClick={()=>void openSalesInvoice(r,"edit")}
+                          aria-label={"Düzenle: "+r.invoice_no}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-40">
+                          <Pencil size={14}/> Düzenle
+                        </button>}
+                        <button type="button" disabled={busy} onClick={()=>void openSalesInvoice(r,"copy")}
+                          aria-label={"Kopyala: "+r.invoice_no}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40">
+                          <Copy size={14}/> Kopyala
+                        </button>
+                        {canAccount&&<button type="button" disabled={busy} onClick={()=>void deleteSalesInvoice(r)}
+                          aria-label={"Sil: "+r.invoice_no}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-40">
+                          <Trash2 size={14}/> Sil
+                        </button>}
+                      </>}
                       <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
                         title="Belgenin kaydedilmiş şablonla PDF çıktısını indir" aria-label={"PDF indir: "+r.invoice_no}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
