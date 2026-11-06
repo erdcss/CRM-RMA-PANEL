@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { LogIn, PackageSearch, UserRound, Menu, X, ChevronRight } from "lucide-react";
+import { LogIn, UserPlus, PackageSearch, UserRound, Menu, X, ChevronRight } from "lucide-react";
 import { footerGroups, B2BSocialAndStores, B2BMobileDownloadHeader } from "@/components/b2b-footer";
 
 import { Button } from "@/components/ui/button";
@@ -99,10 +99,10 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
   return (
     <>
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-3 px-4">
+      <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4">
         <button type="button" onClick={()=>setDrawerOpen(true)} aria-label="Menüyü aç" aria-expanded={drawerOpen} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#111] transition hover:bg-[#fff1ae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00] md:hidden"><Menu className="h-6 w-6"/></button>
-        <Link href="/" className="flex shrink-0 items-center">
-          <B2BWebLogo logo={branding?.b2b_logo} />
+        <Link href="/" className="flex min-w-0 shrink items-center sm:shrink-0">
+          <span className="block max-w-[88px] sm:max-w-none"><B2BWebLogo logo={branding?.b2b_logo} /></span>
         </Link>
 
         {middle ? <div className="mx-auto hidden w-full max-w-xl md:block">{middle}</div> : <div className="flex-1" />}
@@ -132,12 +132,20 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
             </Button>
           </div>
         ) : (
-          <Button asChild className="ml-auto shrink-0 bg-slate-950 hover:bg-slate-800">
-            <Link href="/uye-girisi">
-              <LogIn className="mr-2 h-4 w-4" />
-              Giriş Yap
-            </Link>
-          </Button>
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            <Button asChild className="h-9 shrink-0 bg-slate-950 px-2 text-[11px] font-bold hover:bg-slate-800 sm:px-4 sm:text-sm">
+              <Link href="/uye-girisi" aria-label="Bayi Girişi">
+                <LogIn className="mr-2 hidden h-4 w-4 sm:inline-flex" />
+                Bayi Girişi
+              </Link>
+            </Button>
+            <Button asChild className="h-9 shrink-0 bg-[#ffcc00] px-2 text-[11px] font-bold text-slate-950 hover:bg-[#f3c000] sm:px-4 sm:text-sm">
+              <Link href="/kayit-ol" aria-label="Kayıt Ol">
+                <UserPlus className="mr-2 hidden h-4 w-4 sm:inline-flex" />
+                Kayıt Ol
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
       <B2BMobileDownloadHeader />
@@ -170,6 +178,10 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
             <Link href="/" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Ana Sayfa<ChevronRight className="h-4 w-4"/></Link>
             <Link href="/kategoriler" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Kategoriler<ChevronRight className="h-4 w-4"/></Link>
             {loggedIn ? <Link href="/siparislerim" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Siparişlerim<ChevronRight className="h-4 w-4"/></Link> : null}
+            {!loggedIn && <>
+              <Link href="/uye-girisi" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Bayi Girişi<ChevronRight className="h-4 w-4"/></Link>
+              <Link href="/kayit-ol" onClick={()=>setDrawerOpen(false)} className="flex min-h-12 items-center justify-between border-b border-slate-100 font-bold">Kayıt Ol<ChevronRight className="h-4 w-4"/></Link>
+            </>}
             {footerGroups.map(group=><div key={group.title} className="border-b border-slate-100 py-3"><h3 className="mb-2 text-sm font-black text-slate-950">{group.title}</h3>{group.links.map(([label,href])=>href.startsWith("https://")?
               <a key={label} href={href} onClick={()=>setDrawerOpen(false)} className="block py-2 pl-3 text-sm text-slate-600 hover:text-yellow-700">{label}</a>:
               <Link key={label} href={href} onClick={()=>setDrawerOpen(false)} className="block py-2 pl-3 text-sm text-slate-600 hover:text-yellow-700">{label}</Link>)}</div>)}
