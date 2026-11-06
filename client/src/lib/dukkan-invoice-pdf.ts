@@ -102,6 +102,109 @@ function paintPage(data:SalesInvoicePdfData,page:number,pages:number,items:Sales
   return canvas;
 }
 
+
+/** Purchase documents are intentionally ink-only, regardless of saved theme.
+ * Sales documents continue using the custom form selected in Settings.
+ * Historical imports are presented as source-statement evidence, not tax invoices. */
+function paintPlainPurchasePage(
+  data:SalesInvoicePdfData,page:number,pages:number,items:SalesInvoicePdfData["lines"],
+):HTMLCanvasElement{
+  const config=resolveInvoiceForm("purchase",data.template);
+  const archived=Boolean(data.importedArchive);
+  const canvas=document.createElement("canvas");
+  canvas.width=1240;canvas.height=1754;
+  const ctx=canvas.getContext("2d");
+  if(!ctx)throw Error("Alış belgesi çizim alanı açılamadı");
+  const black="#000000";
+  ctx.fillStyle="#ffffff";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle=black;
+  ctx.lineWidth=1.5;
+  const text=(value:unknown,x:number,y:number,size:number,bold=false,width?:number)=>{
+    ctx.fillStyle=black;
+    ctx.font=(bold?"700 ":"400 ")+size+"px Arial, sans-serif";
+    const label=norm(value);
+    if(width)ctx.fillText(label,x,y,width);else ctx.fillText(label,x,y);
+  };
+  const right=(value:unknown,x:number,y:number,size:number,bold=false)=>{
+    ctx.font=(bold?"700 ":"400 ")+size+"px Arial, sans-serif";
+    const label=norm(value);
+    text(label,x-ctx.measureText(label).width,y,size,bold);
+  };
+  const line=(x1:number,y1:number,x2:number,y2:number)=>{
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  };
+  const left=74,rightEdge=1166;
+  text(config.companyName||data.invoice.store_name,left,86,35,true,970);
+  text(archived?"ARŞİV / CARİ EKSTRE ALIŞ KAYDI":config.documentTitle,left,143,24,true,760);
+  text(archived?"Kaynak ekstreden aktarılmıştır; resmî fatura değildir.":
+    "Dahili ön muhasebe belgesidir; resmî fatura değildir.",left,181,16);
+  right("BELGE NO: "+norm(data.invoice.invoice_no),rightEdge,125,19,true);
+  right(date(norm(data.invoice.issued_at)),rightEdge,163,18);
+  line(left,216,rightEdge,216);
+  text("İŞLETME",left,264,18,true);
+  text(config.companyName||data.invoice.store_name,left,303,22,true,490);
+  if(config.showCompanyDetails){
+    if(config.companyAddress)text(config.companyAddress,left,339,16,false,505);
+    if(config.companyPhone)text("Tel: "+config.companyPhone,left,370,16,false,490);
+    if(config.companyTaxOffice||config.companyTaxNumber)
+      text([config.companyTaxOffice,config.companyTaxNumber].filter(Boolean).join(" · "),
+        left,400,16,false,490);
+  }
+  text("TEDARİKÇİ / CARİ",655,264,18,true);
+  text(data.invoice.party_name,655,303,22,true,510);
+  if(config.showPartyTaxNumber&&data.invoice.party_tax_number)
+    text("VKN/TCKN: "+data.invoice.party_tax_number,655,340,16);
+  if(config.showPartyPhone&&data.invoice.party_phone)
+    text("Tel: "+data.invoice.party_phone,655,371,16);
+  line(left,444,rightEdge,444);
+  if(config.headerNote)text(config.headerNote,left,473,15,false,1060);
+  // Completely white table: only thin black dividers and black characters.
+  text(config.productHeader,left+8,545,17,true,500);
+  text(config.quantityHeader,663,545,17,true,116);
+  if(config.showUnitPrice)text(config.priceHeader,802,545,17,true,145);
+  if(config.showTaxRate)text(config.taxHeader,994,545,17,true,82);
+  right(config.amountHeader,rightEdge-5,545,17,true);
+  line(left,561,rightEdge,561);
+  items.forEach((item,i)=>{
+    const y=594+i*54;
+    text(item.product_name,left+8,y,18,true,535);
+    if(config.showProductCode&&item.sku)
+      text("Kod: "+item.sku,left+8,y+19,12,false,500);
+    text(number(item.quantity)+" "+(item.unit||"adet"),663,y,17,false,130);
+    if(config.showUnitPrice)text(money(item.unit_price),802,y,17,false,170);
+    if(config.showTaxRate)
+      text(item.tax_rate===null?"—":"%"+number(item.tax_rate).replace(",00",""),994,y,17);
+    right(money(item.line_total),rightEdge-5,y,17,true);
+    line(left,y+26,rightEdge,y+26);
+  });
+  if(!items.length)text(
+    archived?"Kaynak ekstresinde ürün kalemleri bulunamadı.":"Bu belgede ürün kalemi yok.",
+    left+8,620,17);
+  line(left,1490,rightEdge,1490);
+  if(page===pages-1){
+    if(archived){
+      text("KDV ve matrah kaynaktan doğrulanamadı.",670,1526,16);
+      text("EKSTRE BELGE TUTARI",670,1580,20,true);
+    }else{
+      text("Ara Toplam",750,1525,18);
+      right(money(data.invoice.subtotal),rightEdge,1525,18,true);
+      text("KDV Toplamı",750,1560,18);
+      right(money(data.invoice.tax_total),rightEdge,1560,18,true);
+      text("GENEL TOPLAM",750,1614,20,true);
+    }
+    right(money(data.invoice.grand_total),rightEdge,archived?1580:1614,22,true);
+  }else text("Belgenin diğer ürünleri sonraki sayfada devam eder.",left,1540,18);
+  if(config.footerNote)text(config.footerNote,left,1670,15,false,1060);
+  line(left,1700,rightEdge,1700);
+  text(archived?
+    "Ekstre kaynaklı arşiv kaydıdır; GİB e-Fatura / e-Arşiv yerine geçmez.":
+    "Dahili alış belgesidir; GİB e-Fatura / e-Arşiv yerine geçmez.",
+    left,1732,15);
+  right((page+1)+" / "+pages,rightEdge,1732,15);
+  return canvas;
+}
+
 export function renderDukkanInvoicePdf(data:SalesInvoicePdfData){
   if(!data?.invoice||!Array.isArray(data.lines)||
     !["sale","sale_return","purchase","purchase_return"].includes(data.invoice.kind))
@@ -109,14 +212,15 @@ export function renderDukkanInvoicePdf(data:SalesInvoicePdfData){
   const kind:InvoiceFormKind=data.invoice.kind.startsWith("purchase")?"purchase":"sale";
   const config=resolveInvoiceForm(kind,data.template);
   const pageSize=config.paperSize==="a5"?[148,210] as const:[210,297] as const;
-  const classic=!data.importedArchive&&kind==="sale"&&config.layout==="classic";
+  const classic=kind==="sale"&&config.layout==="classic";
   const perPage=classic?CLASSIC_SALES_LINES_PER_PAGE:16;
   const pages=Math.max(1,Math.ceil(data.lines.length/perPage));
   const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:config.paperSize,compress:true});
   for(let page=0;page<pages;page++){
     if(page)pdf.addPage();
     const items=data.lines.slice(page*perPage,(page+1)*perPage);
-    const canvas=classic?paintClassicSalesPage(data,page,pages,items):paintPage(data,page,pages,items);
+    const canvas=kind==="purchase"?paintPlainPurchasePage(data,page,pages,items):
+      classic?paintClassicSalesPage(data,page,pages,items):paintPage(data,page,pages,items);
     pdf.addImage(canvas.toDataURL("image/jpeg",0.9),"JPEG",0,0,pageSize[0],pageSize[1],undefined,"FAST");
   }
   return pdf;
