@@ -6,12 +6,13 @@ export type SalesInvoicePdfData={
   invoice:{
     id:number;invoice_no:string;kind:"sale"|"sale_return"|"purchase"|"purchase_return";issued_at:string;
     party_name:string;party_tax_number?:string|null;party_phone?:string|null;
-    store_name:string;subtotal:string|number;tax_total:string|number;grand_total:string|number;
+    store_name:string;subtotal:string|number|null;tax_total:string|number|null;grand_total:string|number;
     party_balance?:string|number|null;
   };
-  lines:Array<{id:number;quantity:string|number;unit_price:string|number;tax_rate:string|number;line_total:string|number;
+  lines:Array<{id:number;quantity:string|number;unit_price:string|number;tax_rate:string|number|null;line_total:string|number;
     sku:string;product_name:string;unit:string}>;
   disclaimer:string;officialInvoice:false;
+  importedArchive?:boolean;
   template?:DukkanInvoiceForm;
 };
 const ink="#101c34",subtle="#62748c",line="#e3eaf3";
@@ -22,6 +23,7 @@ const norm=(value:unknown)=>String(value??"").trim();
 
 function paintPage(data:SalesInvoicePdfData,page:number,pages:number,items:SalesInvoicePdfData["lines"]){
   const kind:InvoiceFormKind=data.invoice.kind.startsWith("purchase")?"purchase":"sale";
+  const archived=Boolean(data.importedArchive);
   const config=resolveInvoiceForm(kind,data.template);
   const palette=invoiceColors[config.color];
   const canvas=document.createElement("canvas");canvas.width=1240;canvas.height=1754;
@@ -39,8 +41,8 @@ function paintPage(data:SalesInvoicePdfData,page:number,pages:number,items:Sales
   rect(0,0,1240,18,palette.accent);
   rect(0,18,1240,260,palette.main);
   text(norm(config.companyName||data.invoice.store_name),75,92,43,"#ffffff",800,650);
-  text(config.documentTitle,75,155,23,"#7dd3fc",800,680);
-  text("Dahili ön muhasebe kaydı — Resmî e-Fatura değildir",75,207,19,"#b8c6db");
+  text(archived?"ARŞİV / CARİ EKSTRE FATURA KAYDI":config.documentTitle,75,155,23,"#7dd3fc",800,680);
+  text(archived?"Kaynak ekstreden aktarılmıştır — Resmî fatura değildir":"Dahili ön muhasebe kaydı — Resmî e-Fatura değildir",75,207,19,"#b8c6db");
   if(config.headerNote)text(config.headerNote,75,242,16,"#e2e8f0",400,1070);
   right("BELGE NO: "+norm(data.invoice.invoice_no),1150,112,22,"#ffffff",700);
   right(date(norm(data.invoice.issued_at)),1150,157,21,"#dce7f6");
@@ -72,23 +74,30 @@ function paintPage(data:SalesInvoicePdfData,page:number,pages:number,items:Sales
     if(config.showProductCode&&item.sku)text("Kod: "+norm(item.sku),90,y+21,13,subtle,400,515);
     text(number(item.quantity)+" "+norm(item.unit),660,y,17,ink,400,140);
     if(config.showUnitPrice)text(money(item.unit_price),807,y,17,ink,400,166);
-    if(config.showTaxRate)text("%"+number(item.tax_rate).replace(",00",""),985,y,17,ink);
+    if(config.showTaxRate)text(item.tax_rate===null?"—":"%"+number(item.tax_rate).replace(",00",""),985,y,17,ink);
     right(money(item.line_total),1152,y,17,ink,700);
   });
+  if(archived&&!items.length)text("Kaynak cari ekstresinde ürün kalemleri bulunamadı.",90,610,18,subtle);
   const footY=1535;
   rect(74,footY,1092,2,line);
   if(page===pages-1){
-    text("Ara Toplam",720,footY+42,19,subtle);
-    right(money(data.invoice.subtotal),1152,footY+42,21,ink,700);
-    text("KDV Toplamı",720,footY+80,19,subtle);
-    right(money(data.invoice.tax_total),1152,footY+80,21,ink,700);
-    rect(695,footY+97,470,63,palette.main);
-    text("GENEL TOPLAM",719,footY+138,21,"#ffffff",700);
+    if(archived){
+      text("KDV ve matrah kaynak ekstreden doğrulanamadı.",707,footY+55,15,subtle,400,450);
+      rect(695,footY+97,470,63,palette.main);
+      text("EKSTRE TUTARI",718,footY+138,21,"#ffffff",700);
+    }else{
+      text("Ara Toplam",720,footY+42,19,subtle);
+      right(money(data.invoice.subtotal),1152,footY+42,21,ink,700);
+      text("KDV Toplamı",720,footY+80,19,subtle);
+      right(money(data.invoice.tax_total),1152,footY+80,21,ink,700);
+      rect(695,footY+97,470,63,palette.main);
+      text("GENEL TOPLAM",719,footY+138,21,"#ffffff",700);
+    }
     right(money(data.invoice.grand_total),1151,footY+138,23,"#ffffff",800);
   }else text("Kalemler sonraki sayfada devam ediyor.",78,footY+44,19,subtle);
   if(config.footerNote)text(config.footerNote,75,1683,15,subtle,400,1070);
   rect(74,1706,1092,2,line);
-  text("Dahili ön muhasebe belgesi — GİB e-Fatura / e-Arşiv yerine geçmez.",75,1734,15,subtle);
+  text(archived?"Arşiv kaydı — cari ekstre kaynaklıdır; resmî fatura yerine geçmez.":"Dahili ön muhasebe belgesi — GİB e-Fatura / e-Arşiv yerine geçmez.",75,1734,15,subtle);
   right(`${page+1} / ${pages}`,1152,1734,15,subtle);
   return canvas;
 }
@@ -100,7 +109,7 @@ export function renderDukkanInvoicePdf(data:SalesInvoicePdfData){
   const kind:InvoiceFormKind=data.invoice.kind.startsWith("purchase")?"purchase":"sale";
   const config=resolveInvoiceForm(kind,data.template);
   const pageSize=config.paperSize==="a5"?[148,210] as const:[210,297] as const;
-  const classic=kind==="sale"&&config.layout==="classic";
+  const classic=!data.importedArchive&&kind==="sale"&&config.layout==="classic";
   const perPage=classic?CLASSIC_SALES_LINES_PER_PAGE:16;
   const pages=Math.max(1,Math.ceil(data.lines.length/perPage));
   const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:config.paperSize,compress:true});
@@ -116,7 +125,7 @@ export function renderDukkanInvoicePdf(data:SalesInvoicePdfData){
 export async function exportDukkanInvoicePdf(data:SalesInvoicePdfData){
   const pdf=renderDukkanInvoicePdf(data);
   const kind=data.invoice.kind.startsWith("purchase")?"Alis":"Satis";
-  pdf.save("Caliskan-Dukkan-"+kind+"-"+String(data.invoice.invoice_no).replace(/[^0-9]/g,"")+".pdf");
+  pdf.save("Caliskan-Dukkan-"+(data.importedArchive?"Arsiv-":"")+kind+"-"+String(data.invoice.invoice_no).replace(/[^a-zA-Z0-9_-]/g,"").slice(0,70)+".pdf");
 }
 
 /** Open a printable PDF in the browser viewer. Must be invoked from a user
