@@ -103,7 +103,7 @@ export function paintClassicSalesPage(
   const headY=267,headH=28;
   rule(X,headY,RIGHT-X,headH);
   cols.slice(1,-1).forEach(cx=>line(cx,headY,cx,headY+headH));
-  centered("ÜRÜN KODU",cols[0],cols[1],288,17,true);
+  centered("STOK KODU",cols[0],cols[1],288,17,true);
   centered(config.productHeader,cols[1],cols[2],288,17,true);
   centered(config.quantityHeader,cols[2],cols[3],288,16,true);
   centered(config.unitHeader,cols[3],cols[4],288,16,true);
