@@ -271,9 +271,11 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
           [sid]
         ),
       ]);
+      const asDay=(value:unknown)=>value instanceof Date
+        ?value.toISOString().slice(0,10):String(value||"").slice(0,10);
       const records=[...standard.rows,...archived.rows].sort((a,b)=>{
-        const aDate=String(a.issued_at||"").slice(0,10);
-        const bDate=String(b.issued_at||"").slice(0,10);
+        const aDate=asDay(a.issued_at);
+        const bDate=asDay(b.issued_at);
         return bDate.localeCompare(aDate)||String(b.id).localeCompare(String(a.id));
       }).slice(0,5000);
       res.setHeader("Cache-Control","private,no-store");
