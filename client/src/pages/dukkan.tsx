@@ -41,6 +41,8 @@ const softCard="rounded-[24px] border border-[#e6edf6] bg-white p-5 shadow-[0_8p
 export default function Dukkan() {
   const {data:branding}=useBranding();
   const [,navigate]=useLocation();
+  // Dedicated browser tab for creating a sale without showing the sales list.
+  const standaloneSalesCreate=useMemo(()=>new URLSearchParams(window.location.search).get("create")==="sale",[]);
   const [stores,setStores]=useState<Entry[]>([]);
   const [isAdmin,setIsAdmin]=useState(false);
   const [isSuperAdmin,setIsSuperAdmin]=useState(false);
@@ -60,6 +62,7 @@ export default function Dukkan() {
   const [section,setSection]=useState<Section>(()=>{
     const params=new URLSearchParams(window.location.search);
     const tab=params.get("tab");
+    if(standaloneSalesCreate)return "sales";
     try{
       const returning=sessionStorage.getItem("dukkan:return-to-products");
       const previous=JSON.parse(sessionStorage.getItem("dukkan:last-product-list")||"null");
@@ -94,7 +97,8 @@ export default function Dukkan() {
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
   const [exportingCari,setExportingCari]=useState<"debt"|"credit"|null>(null);
-  const [showForm,setShowForm]=useState(false);
+  const [showForm,setShowForm]=useState(()=>standaloneSalesCreate);
+  const [createdInvoiceNumber,setCreatedInvoiceNumber]=useState<string|null>(null);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
   const [editingPartyId,setEditingPartyId]=useState<string|null>(null);
   const [editingInvoiceId,setEditingInvoiceId]=useState<string|null>(null);
@@ -243,7 +247,8 @@ export default function Dukkan() {
     // React StrictMode may re-run mount effects: preserve restored filters on the second run.
     if(lastCariContext.current===context)return;
     lastCariContext.current=context;
-    setDraft({});setLines([{...NEW_LINE}]);setShowForm(false);
+    setDraft({});setLines([{...NEW_LINE}]);
+    setShowForm(standaloneSalesCreate&&section==="sales");setCreatedInvoiceNumber(null);
     setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
     // Restore the exact customer/supplier filter used before entering a cari card.
     let restored=false;
@@ -406,6 +411,7 @@ export default function Dukkan() {
           ? base+"/invoices/"+encodeURIComponent(editingInvoiceId)
           : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
       const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
+      if(standaloneSalesCreate&&section==="sales")setCreatedInvoiceNumber(String(saved.invoice_no||"Fatura"));
       setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
         (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
@@ -708,8 +714,29 @@ export default function Dukkan() {
           </div>}
           {section!=="settings"&&<div className={softCard}>
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div><span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span><h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">{SECTIONS.find(t=>t.key===section)?.label}</h2><p className="mt-1 text-xs text-slate-500">{section==="stock"?products.length:displayed.length} kayıt · {currentStore?.name}</p></div>
-              {isWriter&&(!cashier||["sales","orders"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock"].includes(section)&&<button onClick={()=>{
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#277ab5]">YÖNETİM MODÜLÜ</span>
+                <h2 className="mt-1 text-xl font-black tracking-tight text-[#122b4f]">
+                  {standaloneSalesCreate&&section==="sales"?"Yeni Satış Faturası":SECTIONS.find(t=>t.key===section)?.label}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {standaloneSalesCreate&&section==="sales"?"Fatura oluşturma · "+String(currentStore?.name||"Mağaza"):
+                    (section==="stock"?products.length:displayed.length)+" kayıt · "+currentStore?.name}
+                </p>
+              </div>
+              {standaloneSalesCreate&&section==="sales"&&<a
+                href={"/dukkan?tab=sales&storeId="+encodeURIComponent(storeId)}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-[#183c6c] transition hover:bg-slate-50">
+                Satış Faturalarına Dön
+              </a>}
+              {!standaloneSalesCreate&&section==="sales"&&isWriter&&<a
+                href={"/dukkan?tab=sales&storeId="+encodeURIComponent(storeId)+"&create=sale"}
+                target="_blank" rel="noopener noreferrer"
+                className={buttonClass+" inline-flex items-center justify-center gap-1.5"}
+                aria-label="Yeni satış faturası oluşturma ekranını yeni sekmede aç">
+                <Plus size={15}/> Yeni Satış Faturası
+              </a>}
+              {isWriter&&(!cashier||["sales","orders"].includes(section))&&(section!=="products"||canManage)&&!["overview","reports","stock","sales"].includes(section)&&<button onClick={()=>{
                 if(isCariSection){
                   const route="/dukkan?tab="+section+"&storeId="+encodeURIComponent(storeId);
                   const scroll=document.querySelector<HTMLElement>("[data-dukkan-scroll]")?.scrollTop||0;
@@ -728,9 +755,24 @@ export default function Dukkan() {
                 setProductImages([]);setPublishToB2B(false);
               }} className={buttonClass}><Plus size={15} className="mr-1 inline"/>{isCariSection?"Yeni Cari":showForm?"Formu Kapat":"Yeni İşlem"}</button>}
             </div>
-            {isWriter&&(["products","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
+            {!standaloneSalesCreate&&isWriter&&(["products","instruments","parties","sales","purchases"] as string[]).includes(section)&&(!cashier||["parties","sales"].includes(section))&&(!["products","stock"].includes(section)||canManage)&&
                <div className="mb-4"><DukkanAiDocumentImport key={storeId+section} section={section as AiDocumentDraft["section"]} base={base}
                  onApply={applyAiDocument} onImported={()=>{setNotice(isCariSection?"Cari hareketleri ve fatura kalemleri içe aktarıldı.":"Belgedeki ürünler kaydedildi.");setRefresh(v=>v+1);}}/></div>}
+             {standaloneSalesCreate&&section==="sales"&&!showForm&&createdInvoiceNumber&&<div role="status"
+               className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 sm:p-7">
+               <div className="flex items-center gap-3 text-emerald-800">
+                 <CheckCircle2 size={27}/>
+                 <h3 className="text-lg font-extrabold">Satış faturası kaydedildi</h3>
+               </div>
+               <p className="mt-3 text-sm text-emerald-800">Fatura No: <strong>{createdInvoiceNumber}</strong> · Fatura kayıtlarınız merkezi veritabanına işlendi.</p>
+               <div className="mt-5 flex flex-wrap gap-3">
+                 <button type="button" onClick={()=>{setCreatedInvoiceNumber(null);setShowForm(true);setDraft({});setLines([{...NEW_LINE}]);}}
+                   className={buttonClass+" inline-flex items-center gap-2"}><Plus size={16}/> Başka Fatura Oluştur</button>
+                 <a href={"/dukkan?tab=sales&storeId="+encodeURIComponent(storeId)}
+                   className="inline-flex items-center rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-900 hover:bg-emerald-100">
+                   Satış Faturalarına Dön</a>
+               </div>
+             </div>}
              {section!=="stock"&&!isCariSection&&showForm&&fields.length>0&&<form id="dukkan-product-editor" onSubmit={onSubmit} className="mb-5 scroll-mt-8 rounded-[22px] border border-[#cae3fb] bg-gradient-to-br from-[#f2f8ff] via-white to-white p-5">
               <h3 className="mb-4 text-base font-black text-[#122b4f]">
                 {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":editingInvoiceId?"Satış faturasını düzenle":invoiceCopySource?"Fatura kopyası oluştur · "+invoiceCopySource:"Yeni kayıt oluştur"}
@@ -893,7 +935,7 @@ export default function Dukkan() {
               canManage={canManageStock}
               onChanged={()=>setRefresh(value=>value+1)}
             />}
-            {section!=="stock"&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
+            {section!=="stock"&&!(standaloneSalesCreate&&section==="sales")&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1120px]":isCariSection?"min-w-[1120px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
                   {section==="products"&&canManage&&<th className="w-10 px-2 py-3 text-center">
