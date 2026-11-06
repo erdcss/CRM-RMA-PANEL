@@ -116,7 +116,7 @@ export function paintClassicSalesPage(
     rule(X,y,RIGHT-X,rowH);
     cols.slice(1,-1).forEach(cx=>line(cx,y,cx,y+rowH));
     rule(X+8,y+7,15,15);
-    if(config.showProductCode)text(item.sku,X+29,baseline,17,false,cols[1]-X-37);
+    if(config.showProductCode)text(item.sku||"—",X+29,baseline,17,false,cols[1]-X-37);
     text(item.product_name,cols[1]+8,baseline,17,false,cols[2]-cols[1]-16);
     right(quantity(item.quantity),cols[3]-8,baseline,17);
     centered(item.unit||"Adet",cols[3],cols[4],baseline,16);
