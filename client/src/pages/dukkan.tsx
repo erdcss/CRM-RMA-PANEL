@@ -532,58 +532,9 @@ export default function Dukkan() {
       setError("Belge hazırlanamadı: "+(e as Error).message);
     }finally{setPdfBusyId(null);}
   };
-  const openSalesInvoice=async(invoice:Entry,mode:"edit"|"copy")=>{
-    if(invoice.imported_archive||!["sale","sale_return"].includes(String(invoice.kind)))return;
-    if(mode==="edit"&&!canAccount)return;
-    if(busy)return;
-    setBusy(true);setError("");setNotice("");
-    try{
-      const detail=await api(base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data");
-      const invoiceLines=detail.lines as Array<Entry>;
-      if(!invoiceLines.length)throw new Error("Faturada ürün kalemi bulunamadı.");
-      const missing=invoiceLines.filter(line=>!products.some(p=>String(p.id)===String(line.product_id)));
-      if(missing.length)throw new Error("Bu faturadaki bazı ürünler artık aktif stok listesinde yok. İşlemden önce ilgili ürünleri arşivden çıkarın.");
-      const doc=detail.invoice as Entry;
-      const today=new Date();
-      const todayLocal=[today.getFullYear(),String(today.getMonth()+1).padStart(2,"0"),String(today.getDate()).padStart(2,"0")].join("-");
-      setDraft({
-        partyId:String(doc.party_id),
-        kind:String(doc.kind),
-        date:mode==="edit"?String(doc.issued_at).slice(0,10):todayLocal,
-      });
-      setLines(invoiceLines.map(line=>({
-        productId:String(line.product_id),
-        quantity:String(line.quantity),
-        unitPrice:String(line.unit_price),
-        taxRate:String(line.tax_rate??20)
-      })));
-      setEditingInvoiceId(mode==="edit"?String(invoice.id):null);
-      setEditingInvoiceRevision(mode==="edit"?Number(doc.revision):null);
-      setInvoiceCopySource(mode==="copy"?String(invoice.invoice_no):null);
-      setShowForm(true);
-      setNotice(mode==="copy"
-        ?"Fatura kopyalandı. Kaydedildiğinde yeni bir fatura numarası oluşturulacak."
-        :"Fatura düzenlemeye açıldı. Stok ve cari hareketleri kaydettiğinizde güncellenecek.");
-      window.requestAnimationFrame(()=>document.getElementById("dukkan-product-editor")?.scrollIntoView({behavior:"smooth",block:"start"}));
-    }catch(e){setError((e as Error).message);}
-    finally{setBusy(false);}
-  };
-  const deleteSalesInvoice=async(invoice:Entry)=>{
-    if(!canAccount||!isWriter||invoice.imported_archive||busy)return;
-    if(!window.confirm("Fatura "+invoice.invoice_no+" silinsin mi? Stok ve cari hareketleri geri alınacaktır. Bu işlem kayda alınır."))return;
-    setBusy(true);setError("");setNotice("");
-    try{
-      await api(base+"/invoices/"+encodeURIComponent(String(invoice.id)),{
-        method:"DELETE",body:JSON.stringify({expectedRevision:Number(invoice.revision)})
-      });
-      if(editingInvoiceId===String(invoice.id)){
-        setShowForm(false);setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
-      }
-      setNotice("Fatura "+invoice.invoice_no+" silindi. İlgili stok ve cari kayıtları geri alındı; işlem geçmişi saklandı.");
-      setRefresh(value=>value+1);
-    }catch(e){setError((e as Error).message);}
-    finally{setBusy(false);}
-  };
+  const invoiceRoute=(invoice:Entry,mode:"view"|"edit"|"copy"|"delete")=>
+    "/dukkan/faturalar/"+encodeURIComponent(String(invoice.id))+
+    "?storeId="+encodeURIComponent(storeId)+"&mode="+mode;
   const createStore=async(e:FormEvent)=>{
     e.preventDefault();setBusy(true);
     try{await api("/api/dukkan/stores",{method:"POST",body:JSON.stringify({name:newStoreName})});setNewStoreName("");setShowNewStore(false);await loadStores();}
@@ -1046,23 +997,28 @@ export default function Dukkan() {
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
                     [String(r.created_at).slice(0,10),r.party_name,currency(r.debit),currency(r.credit),r.description]
-                  ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">{fmt(v)}</td>)}
+                  ).map((v,i)=><td key={i} className="whitespace-nowrap px-4 py-3.5">
+                    {section==="sales"&&i===0?
+                      <button type="button" onClick={()=>navigate(invoiceRoute(r,"view"))}
+                        className="text-left font-semibold text-blue-800 hover:underline"
+                        aria-label={"Faturayı aç: "+r.invoice_no}>{fmt(v)}</button>:fmt(v)}
+                  </td>)}
                   {(section==="sales"||section==="purchases")&&<td className="px-3 py-3">
                     <div className="flex flex-wrap gap-2">
-                      {section==="sales"&&!r.imported_archive&&isWriter&&<>
-                        {canAccount&&<button type="button" disabled={busy} onClick={()=>void openSalesInvoice(r,"edit")}
+                      {section==="sales"&&<>
+                        {isWriter&&canAccount&&<button type="button" onClick={()=>navigate(invoiceRoute(r,"edit"))}
                           aria-label={"Düzenle: "+r.invoice_no}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-40">
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 hover:bg-blue-100">
                           <Pencil size={14}/> Düzenle
                         </button>}
-                        {(!cashier||r.kind==="sale")&&<button type="button" disabled={busy} onClick={()=>void openSalesInvoice(r,"copy")}
+                        {isWriter&&(!cashier||r.kind==="sale")&&<button type="button" onClick={()=>navigate(invoiceRoute(r,"copy"))}
                           aria-label={"Kopyala: "+r.invoice_no}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40">
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">
                           <Copy size={14}/> Kopyala
                         </button>}
-                        {canAccount&&<button type="button" disabled={busy} onClick={()=>void deleteSalesInvoice(r)}
+                        {isWriter&&canAccount&&<button type="button" onClick={()=>navigate(invoiceRoute(r,"delete"))}
                           aria-label={"Sil: "+r.invoice_no}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-40">
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100">
                           <Trash2 size={14}/> Sil
                         </button>}
                       </>}
