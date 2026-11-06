@@ -509,7 +509,10 @@ export default function Dukkan() {
     }
     setPdfBusyId(String(invoice.id));setError("");
     try{
-      const detail=await api(base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data");
+      const path=invoice.imported_archive
+        ?base+"/invoices/archived/"+encodeURIComponent(String(invoice.id).replace(/^archive-/,""))+"/pdf-data"
+        :base+"/invoices/"+encodeURIComponent(String(invoice.id))+"/pdf-data";
+      const detail=await api(path);
       const pdf=await import("@/lib/dukkan-invoice-pdf");
       if(print)pdf.showDukkanInvoicePrint(pdf.renderDukkanInvoicePdf(detail),viewer);
       else await pdf.exportDukkanInvoicePdf(detail);
@@ -976,7 +979,7 @@ export default function Dukkan() {
                     </td>
                   </>:(
                     isCariSection?[r.source_cari_no||"—",r.account_code||"—",r.name,r.city||"—",r.type==="both"?"Müşteri / Tedarikçi":r.type==="supplier"?"Tedarikçi":"Müşteri",r.phone||"—",r.balance==null?"—":(Number(r.balance)<0?"Alacak ":Number(r.balance)>0?"Borç ":"Bakiye ")+currency(Math.abs(Number(r.balance)))]:
-                    ["sales","purchases","overview"].includes(section)?[r.invoice_no,r.party_name,typeLabel[r.kind]||r.kind,currency(r.grand_total),r.issued_at?.slice(0,10)]:
+                    ["sales","purchases","overview"].includes(section)?[r.imported_archive?String(r.invoice_no)+" · Arşiv (Ekstre)":r.invoice_no,r.party_name,typeLabel[r.kind]||r.kind,currency(r.grand_total),r.issued_at?.slice(0,10)]:
                     section==="orders"?[r.order_no,r.party_name,typeLabel[r.kind]||r.kind,r.status]:
                     section==="instruments"?[r.document_no,r.party_name,(r.kind==="cheque"?"Çek":"Senet")+" · "+(typeLabel[r.direction]||""),currency(r.amount),r.due_date?.slice(0,10),typeLabel[r.status]||r.status]:
                     section==="banks"?[String(r.created_at).slice(0,10),r.bank_name,r.type,currency(r.amount)]:
