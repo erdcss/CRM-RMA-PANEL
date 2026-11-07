@@ -1,0 +1,40 @@
+name: Generate B2B Meta SDK lockfile (temporary)
+on:
+  push:
+    branches:
+      - feature/b2b-meta-ios-app-events
+    paths:
+      - .github/workflows/b2b-meta-sdk-lockfile.yml
+permissions:
+  contents: write
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Generate npm dependency lockfile
+        working-directory: mobile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit lockfile to feature branch
+        shell: bash
+        run: |
+          if ! git diff --quiet -- mobile/package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add mobile/package-lock.json
+            git commit -m "chore(b2b): lock Meta SDK native dependency"
+            git push origin HEAD:feature/b2b-meta-ios-app-events
+          fi
+      - name: Install dependencies for TypeScript checks
+        working-directory: mobile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify TypeScript
+        working-directory: mobile
+        run: npm run typecheck
