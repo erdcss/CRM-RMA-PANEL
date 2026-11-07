@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { appAlert } from '@/lib/appAlert';
 import { enrollPendingB2BPush } from '@/lib/push';
+import { logMetaAppEvent } from '@/lib/meta-app-events';
 
 const COMPANY_CATEGORIES = [
   'Elektrik & Elektronik',
@@ -145,6 +146,7 @@ export default function SignupScreen() {
         taxNumber,
       });
       setCompleted(true);
+      void logMetaAppEvent('b2b_application_submitted');
       if(registration.enrollmentToken){
         Alert.alert('Çalışkan B2B bildirimleri',
           'Hesabınıza henüz giriş yapmasanız da yeni ürün ve kampanya duyurularını bu telefonda almak ister misiniz? Tamamen isteğe bağlıdır.',
