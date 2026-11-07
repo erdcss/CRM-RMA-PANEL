@@ -3,7 +3,8 @@ import OpenAI from "openai";
 import type { Express, Request, Response, RequestHandler } from "express";
 import { z } from "zod";
 import { pool } from "./db";
-import { sendBusinessPushToUsers } from "./push-notifications";
+import { sendBusinessPushToUsers, sendBusinessPushToSuperAdmins } from "./push-notifications";
+import { makeBusinessApplicationAlert } from "./business-application-alerts";
 import { redactCustomerPhones } from "./supplier-privacy";
 
 // Marketplace data is strictly separate from the original Çalışkan B2B catalogue.
@@ -475,6 +476,8 @@ export function registerMarketplaceRoutes(
       (owner_user_id,slug,company_name,tax_number,tax_office,contact_name,contact_phone,description,contact_email)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,slug,status`,
       [uid,slug,data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,data.contactEmail]);
+    void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"supplier",id:Number(r.rows[0].id),companyName:data.companyName}))
+      .catch(e => console.error("Business supplier application push", e));
     res.status(201).json(r.rows[0]);
   }));
   app.patch("/api/marketplace/apply",requireSeller,handle(async(req,res)=>{
@@ -486,6 +489,8 @@ export function registerMarketplaceRoutes(
       WHERE owner_user_id=$7 AND status='rejected' RETURNING id,slug,status`,
       [data.companyName,data.taxNumber,data.taxOffice,data.contactName,data.contactPhone,data.description,userId(res),data.contactEmail]);
     if(!q.rows[0])throw new ApiError(409,"Yalnızca reddedilen başvurular düzeltilerek yeniden gönderilebilir");
+    void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"supplier",id:Number(q.rows[0].id),companyName:data.companyName,reapplied:true}))
+      .catch(e => console.error("Business supplier reapplication push", e));
     res.json(q.rows[0]);
   }));
   app.post("/api/marketplace/seller/verification",requireSeller,handle(async(req,res)=>{

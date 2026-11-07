@@ -85,6 +85,16 @@ export async function unregisterBusinessPush() {
   }).catch(()=>undefined);
 }
 
+export async function getLastBusinessApplicationPress() {
+  const response = await Notifications.getLastNotificationResponseAsync();
+  if (!response) return null;
+  const data = (response.notification.request.content.data || {}) as Record<string, unknown>;
+  const type = typeof data.type === "string" ? data.type : "";
+  if (type !== "b2b_application" && type !== "supplier_application") return null;
+  await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+  return { type, data };
+}
+
 export function listenBusinessNotificationPress(
   handler: (type: string, data: Record<string, unknown>) => void,
 ) {

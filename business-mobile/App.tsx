@@ -13,7 +13,7 @@ import { GlassTabBar } from "./components/GlassTabBar";
 import { signOut, type BusinessAuthUser } from "./lib/auth";
 import { supplierBackAction } from "./lib/supplier-back";
 import { useMobileBranding } from "./lib/branding";
-import { listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
+import { getLastBusinessApplicationPress, listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
 
 import { CustomersScreen } from "./screens/CustomersScreen";
 import { DashboardScreen } from "./screens/DashboardScreen";
@@ -34,11 +34,38 @@ import { SupportScreen } from "./screens/SupportScreen";
 import type { MainTab, Screen } from "./types";
 import { C } from "./ui/theme";
 
+function applicationPushScreen(type: string, data: Record<string, unknown>): Screen | null {
+  if (type === "supplier_application") return {name:"marketplace",tab:"suppliers"};
+  if (type === "b2b_application") {
+    const id = String(data.applicationId ?? "");
+    return /^[1-9]\d*$/.test(id) ? {name:"applicationDetail",id} : {name:"applications"};
+  }
+  return null;
+}
+
 export default function App() {
   const branding = useMobileBranding();
   const [screen, setScreen] = useState<Screen>({ name: "login" });
   const [user, setUser] = useState<BusinessAuthUser | null>(null);
   const [showSplash, setShowSplash] = useState(true);
+  const [pendingApplicationPress, setPendingApplicationPress] = useState<{type:string;data:Record<string,unknown>} | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void getLastBusinessApplicationPress().then(press => {
+      if (mounted && press) setPendingApplicationPress(press);
+    }).catch(error => console.warn("Business initial notification read failed:",error));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!user || !pendingApplicationPress) return;
+    if (user.role === "super_admin") {
+      const target = applicationPushScreen(pendingApplicationPress.type,pendingApplicationPress.data);
+      if (target) setScreen(target);
+    }
+    setPendingApplicationPress(null);
+  }, [user,pendingApplicationPress]);
 
   useEffect(() => {
     // Load the current admin-managed splash at each startup, with an offline deadline.
@@ -75,6 +102,12 @@ export default function App() {
 
   useEffect(() => {
     const subscription = listenBusinessNotificationPress((type, data) => {
+      const target = applicationPushScreen(type,data);
+      if (target) {
+        if (user?.role === "super_admin") setScreen(target);
+        else if (!user) setPendingApplicationPress({type,data});
+        return;
+      }
       if (type === "order" && user?.role === "super_admin") {
         const orderId = typeof data.orderId === "string" ? data.orderId : "";
         if (orderId) setScreen({ name: "orderDetail", id: orderId });
