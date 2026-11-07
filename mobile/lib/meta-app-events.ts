@@ -73,6 +73,8 @@ export async function logMetaAppEvent(
   try {
     if (params) sdk.AppEventsLogger.logEvent(eventName, params);
     else sdk.AppEventsLogger.logEvent(eventName);
+    // Send manual events promptly so Test Events can verify the native connection.
+    sdk.AppEventsLogger.flush();
   } catch (error) {
     console.warn('[meta-app-events] Event skipped:', error);
   }
@@ -105,5 +107,21 @@ export async function requestMetaEventsConsentOnce(): Promise<void> {
     );
   } catch (error) {
     console.warn('[meta-app-events] Consent read failed:', error);
+  }
+}
+
+
+// Explicit, user-triggered, non-identifying test event. This only proves that
+// the native SDK accepted a send attempt, not that Meta received it.
+export async function runMetaConnectionTest(): Promise<'no_consent' | 'unavailable' | 'submitted'> {
+  if (!(await getMetaEventsConsent())) return 'no_consent';
+  if (!(await initializeMeta()) || !sdk) return 'unavailable';
+  try {
+    sdk.AppEventsLogger.logEvent('b2b_meta_connection_test');
+    sdk.AppEventsLogger.flush();
+    return 'submitted';
+  } catch (error) {
+    console.warn('[meta-app-events] Diagnostic event failed:', error);
+    return 'unavailable';
   }
 }
