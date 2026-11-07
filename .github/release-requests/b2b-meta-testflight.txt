@@ -1,6 +1,6 @@
-Çalışkan B2B Meta App Events SDK iOS TestFlight release request
+Çalışkan B2B Meta App Events diagnostic iOS TestFlight release request
 Meta App ID: 979770188524984
 Bundle ID: com.caliskangroup.rma
 Apple App ID: 6802286663
-Target branch: main
-Purpose: verify SDK install and app events on TestFlight; do not submit to public App Store review.
+Release code: b40021135764159f1798d97d67cd69725845bf3d
+Purpose: verify user-triggered b2b_meta_connection_test event and explicit SDK flush. TestFlight only; do not submit for public App Store review.
