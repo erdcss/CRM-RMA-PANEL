@@ -510,10 +510,17 @@ export function registerMarketplaceRoutes(
     const ibanDigits=input.iban.slice(4)+"2927"+input.iban.slice(2,4);
     if(BigInt(ibanDigits)%97n!==1n)throw new ApiError(400,"IBAN kontrol basamakları geçersiz");
     const db=await ready();
-    const supplier=await db.query("SELECT id,status FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
+    const supplier=await db.query("SELECT id,status,tax_number FROM mp_suppliers WHERE owner_user_id=$1",[userId(res)]);
     if(!supplier.rows[0]) throw new ApiError(404,"Önce satıcı kaydınızı oluşturun");
     if(supplier.rows[0].status==="approved") throw new ApiError(409,"Hesabınız zaten onaylı");
     await db.query("UPDATE mp_suppliers SET company_type=$1,iban=$2,tax_document=$3,tax_number=$5,tax_office=$6,contact_phone=$7,contact_email=$8,status='pending',review_note='' WHERE id=$4",[input.companyType,input.iban,input.taxDocument,supplier.rows[0].id,input.taxNumber,input.taxOffice,input.contactPhone,input.contactEmail]);
+    // Bootstrap creates a pending supplier workspace before company documents.
+    // Alert once when that workspace becomes a real, tax-verified application.
+    if(!String(supplier.rows[0].tax_number||"").trim()){
+      void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({
+        kind:"supplier",id:Number(supplier.rows[0].id),companyName:String((res.locals as any).b2bUser?.companyName||"Yeni tedarikçi"),
+      })).catch(e=>console.error("Business supplier verification push",e));
+    }
     res.json({message:"Doğrulama bilgileriniz yönetici incelemesine gönderildi."});
   }));
   app.get("/api/marketplace/seller/dashboard",requireSeller,handle(async(_req,res)=>{
