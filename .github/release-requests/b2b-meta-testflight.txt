@@ -1,0 +1,6 @@
+Çalışkan B2B Meta App Events SDK iOS TestFlight release request
+Meta App ID: 979770188524984
+Bundle ID: com.caliskangroup.rma
+Apple App ID: 6802286663
+Target branch: main
+Purpose: verify SDK install and app events on TestFlight; do not submit to public App Store review.
