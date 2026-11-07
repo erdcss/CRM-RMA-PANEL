@@ -65,7 +65,7 @@ export default function SettingsScreen() {
         <Text style={[styles.heading, { color: palette.text }]}>Gizlilik ve Ölçümleme</Text>
         <Text style={[styles.caption, { color: palette.textSecondary }]}>
           İzin verirseniz yalnızca uygulama kullanım olayları Meta ile paylaşılır.
-          Kimlik ve ödeme bilgileri paylaşılmaz. Bu seçeneği istediğiniz zaman kapatabilirsiniz.
+          Olaylara ad, telefon, vergi numarası veya ödeme detayları eklenmez. Meta teknik cihaz ve bağlantı verilerini işleyebilir. İzni istediğiniz zaman kapatabilirsiniz.
         </Text>
         <Pressable
           accessibilityRole="switch"
