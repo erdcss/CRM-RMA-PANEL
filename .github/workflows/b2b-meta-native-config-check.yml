@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/b2b-meta-native-config-check.yml'
+      - 'mobile/app.config.js'
+      - 'mobile/package.json'
+      - 'mobile/package-lock.json'
+      - 'mobile/lib/meta-app-events.ts'
 permissions:
   contents: read
 jobs:
