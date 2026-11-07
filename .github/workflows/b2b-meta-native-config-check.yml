@@ -1,0 +1,35 @@
+name: B2B Meta native-config smoke
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/b2b-meta-native-config-check.yml'
+permissions:
+  contents: read
+jobs:
+  expo-introspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        run: cd mobile && npm ci --ignore-scripts --no-audit --no-fund
+      - name: Introspect Expo native iOS configuration with dummy Client Token
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_META_CLIENT_TOKEN: expo-smoke-test-token
+        run: npx expo config --type introspect --json > /tmp/b2b-meta-config.json
+      - name: Assert Meta config plugin generated Facebook iOS plist keys
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const c = JSON.parse(fs.readFileSync('/tmp/b2b-meta-config.json','utf8'));
+          const asText = JSON.stringify(c);
+          for (const part of ['"FacebookAppID":"979770188524984"', '"FacebookDisplayName":"Çalışkan B2B"', 'fb979770188524984']) {
+            if (!asText.includes(part)) throw Error('Missing native Meta config: '+part);
+          }
+          console.log('Meta iOS native configuration fields present.');
+          NODE
