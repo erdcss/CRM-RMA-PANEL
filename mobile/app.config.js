@@ -12,6 +12,25 @@ module.exports = ({ config }) => {
     return plugin;
   });
 
+  // Compile the native SDK only when an EAS Client Token is configured.
+  // The client token is a public mobile-app configuration value, NOT the App Secret.
+  const metaClientToken = process.env.EXPO_PUBLIC_META_CLIENT_TOKEN?.trim();
+  if (metaClientToken && !isDevelopment) {
+    plugins.push([
+      "react-native-fbsdk-next",
+      {
+        appID: "979770188524984",
+        displayName: "Çalışkan B2B",
+        clientToken: metaClientToken,
+        scheme: "fb979770188524984",
+        advertiserIDCollectionEnabled: false,
+        autoLogAppEventsEnabled: false,
+        isAutoInitEnabled: false,
+        iosUserTrackingPermission: false,
+      },
+    ]);
+  }
+
   return {
     ...config,
     plugins,

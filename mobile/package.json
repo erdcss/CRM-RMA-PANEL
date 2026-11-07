@@ -63,7 +63,8 @@
     "react-native-view-shot": "4.0.3",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0",
-    "unimodules-app-loader": "~6.0.8"
+    "unimodules-app-loader": "~6.0.8",
+    "react-native-fbsdk-next": "13.4.3"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",

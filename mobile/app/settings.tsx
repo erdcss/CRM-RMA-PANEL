@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type ThemePreference } from '@/contexts/AppearanceContext';
+import { getMetaEventsConsent, setMetaEventsConsent } from '@/lib/meta-app-events';
 
 const choices: Array<{ mode: ThemePreference; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { mode: 'dark', label: 'Koyu Tema', subtitle: 'Karanlık arayüz', icon: 'moon-outline' },
@@ -14,6 +16,19 @@ const choices: Array<{ mode: ThemePreference; label: string; subtitle: string; i
 export default function SettingsScreen() {
   const router = useRouter();
   const { palette, preference, setPreference } = useAppearance();
+  const [metaConsent, setMetaConsent] = useState<boolean | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    void getMetaEventsConsent().then(value => { if (mounted) setMetaConsent(value); });
+    return () => { mounted = false; };
+  }, []);
+  const updateMetaConsent = () => {
+    if (metaConsent === null) return;
+    const previous = metaConsent;
+    const next = !previous;
+    setMetaConsent(next);
+    void setMetaEventsConsent(next).catch(() => setMetaConsent(previous));
+  };
   const sourceRevision = String(Constants.expoConfig?.extra?.sourceRevision || 'Eski / doğrulanmamış build');
   const buildDate = Constants.expoConfig?.extra?.sourceBuildDate;
   const appVersion = Constants.expoConfig?.version || '1.0.1';
@@ -45,6 +60,25 @@ export default function SettingsScreen() {
           </View>
           <Ionicons name={preference === item.mode ? 'radio-button-on' : 'radio-button-off'} size={23} color={preference === item.mode ? '#E9B600' : palette.muted} />
         </Pressable>)}
+      </View>
+      <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, marginTop: 15 }]}>
+        <Text style={[styles.heading, { color: palette.text }]}>Gizlilik ve Ölçümleme</Text>
+        <Text style={[styles.caption, { color: palette.textSecondary }]}>
+          İzin verirseniz yalnızca uygulama kullanım olayları Meta ile paylaşılır.
+          Olaylara ad, telefon, vergi numarası veya ödeme detayları eklenmez. Meta teknik cihaz ve bağlantı verilerini işleyebilir. İzni istediğiniz zaman kapatabilirsiniz.
+        </Text>
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityLabel="Meta uygulama olayları ölçüm izni"
+          accessibilityState={{ checked: metaConsent === true, disabled: metaConsent === null }}
+          disabled={metaConsent === null}
+          onPress={updateMetaConsent}
+          style={[styles.action, { marginTop: 10 }]}
+        >
+          <Ionicons name="analytics-outline" size={20} color={palette.text} />
+          <Text style={[styles.actionText, { color: palette.text }]}>Reklam ölçümüne izin ver</Text>
+          <Ionicons name={metaConsent ? 'toggle' : 'toggle-outline'} size={32} color={metaConsent ? '#FFCD00' : palette.muted} />
+        </Pressable>
       </View>
       <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, marginTop: 15 }]}>
         <Text style={[styles.heading, { color: palette.text }]}>Uygulama Sürümü</Text>

@@ -1,0 +1,108 @@
+name: Çalışkan B2B - Meta SDK iOS TestFlight doğrulaması
+
+on:
+  push:
+    branches:
+      - feature/b2b-meta-ios-app-events
+    paths:
+      - .github/workflows/b2b-meta-testflight.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b2b-meta-ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: B2B Meta iOS EAS Build ve TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+      CI: '1'
+    steps:
+      - name: Checkout isolated feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/b2b-meta-ios-app-events
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Check Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::EXPO_TOKEN is missing"; exit 1; fi
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies and check types
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          test -n "$(node -p "require('./package.json').dependencies['react-native-fbsdk-next']")"
+
+      - name: Validate production app IDs
+        run: |
+          node - <<'NODE'
+          const app=require('./app.json').expo;
+          const eas=require('./eas.json');
+          if(app.ios.bundleIdentifier!=='com.caliskangroup.rma')throw Error('Wrong iOS Bundle ID');
+          if(String(eas.submit.testflight.ios.ascAppId)!=='6802286663')throw Error('Wrong ASC app');
+          if(eas.build.testflight.environment!=='production')throw Error('Must use production EAS variables');
+          console.log('B2B iOS App Store target verified.');
+          NODE
+
+      - name: Prepare release assets
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+
+      - name: Verify Expo project authorization
+        run: |
+          eas whoami
+          eas project:info --non-interactive
+
+      - name: Build signed iOS app
+        run: |
+          eas build --platform ios --profile testflight --non-interactive --wait --json > "$RUNNER_TEMP/b2b-meta-ios.json"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const data=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/b2b-meta-ios.json','utf8'));
+          const builds=Array.isArray(data)?data:[data.build||data];
+          const b=builds.find(x=>String(x.platform||'').toLowerCase()==='ios');
+          if(!b?.id||String(b.status||'').toLowerCase()!=='finished')throw Error('iOS EAS build not completed');
+          if(b.appIdentifier && b.appIdentifier!=='com.caliskangroup.rma')throw Error('Unexpected iOS identifier');
+          fs.appendFileSync(process.env.GITHUB_ENV,'B2B_META_BUILD_ID='+b.id+'\n');
+          console.log('Signed iOS build finished:',b.id);
+          NODE
+
+      - name: Submit same signed build to Apple TestFlight
+        run: |
+          test -n "$B2B_META_BUILD_ID"
+          eas submit --platform ios --profile testflight --id "$B2B_META_BUILD_ID" --non-interactive --wait
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo '### Çalışkan B2B Meta SDK / TestFlight'
+            echo "EAS Build ID: $B2B_META_BUILD_ID"
+            echo 'iOS Bundle ID: com.caliskangroup.rma'
+            echo 'App Store Connect ID: 6802286663'
+            echo 'Submitted to TestFlight, not App Store public review'
+          } >> "$GITHUB_STEP_SUMMARY"
