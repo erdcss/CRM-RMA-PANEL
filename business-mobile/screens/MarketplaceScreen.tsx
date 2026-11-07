@@ -40,8 +40,8 @@ function Action({title,onPress,disabled=false}:{title:string;onPress:()=>void;di
 export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSupplierOrder,onAiProductAdd,initialTab,onTabChange}:{
   isSuper:boolean;onBack:()=>void;onLogout:()=>void|Promise<void>;
   onOpenOrder?:(id:string)=>void;onOpenSupplierOrder?:(id:number)=>void;
-  onAiProductAdd:()=>void;initialTab?:SupplierTab;
-  onTabChange?:(tab:SupplierTab)=>void;
+  onAiProductAdd:()=>void;initialTab?:Tab;
+  onTabChange?:(tab:Tab)=>void;
 }) {
  const [tab,setTab]=useState<Tab>(initialTab||"overview"),[overview,setOverview]=useState<AdminStats|SupplierStats|null>(null);
  const [drawerOpen,setDrawerOpen]=useState(false);

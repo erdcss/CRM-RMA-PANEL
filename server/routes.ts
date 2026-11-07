@@ -23,6 +23,7 @@ import {
 } from "./iyzico";
 import { getPaymentConfig, encryptStoredCardToken, decryptStoredCardToken } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins } from "./push-notifications";
+import { makeBusinessApplicationAlert } from "./business-application-alerts";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BLocationAdmin } from "./b2b-location-admin";
 import { createMobileSignupEnrollment, claimMobileSignupEnrollment } from "./b2b-push-enrollment";
@@ -2259,6 +2260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           approvedAt: null, credentialsSentAt: null,
         });
         if (!user) return res.status(404).json({ error: "Önceki başvuru bulunamadı." });
+        void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"b2b_customer",id:user.id,companyName:user.companyName,reapplied:true}))
+          .catch(error => console.error("Business B2B reapplication push", error));
         return res.status(201).json({
           id: user.id, username: user.username, status: "pending", reapplied: true,
           enrollmentToken: await createMobileSignupEnrollment(user.id).catch(error=>{console.error("Mobile signup push enrollment",error);return null;}),
@@ -2285,6 +2288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mustChangePassword: 0,
       });
 
+      void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"b2b_customer",id:user.id,companyName:user.companyName}))
+        .catch(error => console.error("Business B2B application push", error));
       return res.status(201).json({
         id: user.id,
         username: user.username,
