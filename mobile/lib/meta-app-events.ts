@@ -1,10 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { Alert, Platform } from 'react-native';
 
 // Only non-identifying app-event names are sent. No user IDs, names, tax data,
 // phone numbers, advertising ID, or order totals are passed to Meta here.
 const CONSENT_KEY = 'caliskan_b2b_meta_app_events_consent_v1';
-const isConfigured = () => Platform.OS === 'ios' && Boolean(process.env.EXPO_PUBLIC_META_CLIENT_TOKEN);
+const isConfigured = () =>
+  Platform.OS === 'ios' &&
+  Constants.executionEnvironment !== 'storeClient' &&
+  Constants.expoConfig?.extra?.appVariant !== 'development' &&
+  Boolean(process.env.EXPO_PUBLIC_META_CLIENT_TOKEN);
 
 type MetaSdk = typeof import('react-native-fbsdk-next');
 let sdk: MetaSdk | null = null;
