@@ -1,12 +1,12 @@
 name: Çalışkan B2B - Meta SDK iOS TestFlight doğrulaması
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - feature/b2b-meta-ios-app-events
+      - main
     paths:
-      - .github/workflows/b2b-meta-testflight.yml
-  workflow_dispatch:
+      - .github/release-requests/b2b-meta-testflight.txt
 
 permissions:
   contents: read
@@ -28,10 +28,10 @@ jobs:
       EAS_NO_VCS: '1'
       CI: '1'
     steps:
-      - name: Checkout isolated feature branch
+      - name: Checkout released main branch
         uses: actions/checkout@v4
         with:
-          ref: feature/b2b-meta-ios-app-events
+          ref: main
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
