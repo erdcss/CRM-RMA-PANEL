@@ -86,7 +86,7 @@ export async function requestMetaEventsConsentOnce(): Promise<void> {
 
     Alert.alert(
       'İsteğe bağlı kullanım ölçümü',
-      'Uygulama açılışı ve bazı ürün/başvuru işlemlerinin ölçüm bilgilerini Meta ile paylaşmamıza izin verir misiniz? Reklamlarımızı geliştirmek için kullanılır. Kişisel ve ödeme bilgileri gönderilmez. Tercihinizi Ayarlar bölümünden değiştirebilirsiniz.',
+      'Uygulama açılışı ve bazı ürün/başvuru işlemlerinin ölçüm bilgilerini Meta ile paylaşmamıza izin verir misiniz? Reklamlarımızı geliştirmek için kullanılır. Ad, telefon, vergi numarası ve ödeme detaylarını olaylara eklemiyoruz; Meta teknik cihaz ve bağlantı verilerini işleyebilir. Tercihinizi Ayarlar bölümünden değiştirebilirsiniz.',
       [
         { text: 'Şimdi Değil', style: 'cancel', onPress: () => { void setMetaEventsConsent(false); } },
         {
