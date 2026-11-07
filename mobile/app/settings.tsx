@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type ThemePreference } from '@/contexts/AppearanceContext';
-import { getMetaEventsConsent, setMetaEventsConsent } from '@/lib/meta-app-events';
+import { getMetaEventsConsent, runMetaConnectionTest, setMetaEventsConsent } from '@/lib/meta-app-events';
 
 const choices: Array<{ mode: ThemePreference; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { mode: 'dark', label: 'Koyu Tema', subtitle: 'Karanlık arayüz', icon: 'moon-outline' },
@@ -79,6 +79,29 @@ export default function SettingsScreen() {
           <Text style={[styles.actionText, { color: palette.text }]}>Reklam ölçümüne izin ver</Text>
           <Ionicons name={metaConsent ? 'toggle' : 'toggle-outline'} size={32} color={metaConsent ? '#FFCD00' : palette.muted} />
         </Pressable>
+        {metaConsent === true ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Meta bağlantı test olayı gönder"
+            onPress={() => {
+              void runMetaConnectionTest().then((result) => {
+                Alert.alert(
+                  'Meta bağlantı testi',
+                  result === 'submitted'
+                    ? 'Test olayı native SDK üzerinden gönderilmeye çalışıldı. Meta Olay Yöneticisi > Olayları test edin bölümünde b2b_meta_connection_test olayını kontrol edin. Bu mesaj Meta tarafından alındığını doğrulamaz.'
+                    : result === 'no_consent'
+                      ? 'Önce reklam ölçüm iznini açın.'
+                      : 'Meta SDK hazır değil veya olay gönderilemedi. Bu derlemenin Meta ayarları ve Expo Client Token bağlantısı kontrol edilmeli.',
+                );
+              });
+            }}
+            style={[styles.action, { marginTop: 6 }]}
+          >
+            <Ionicons name="pulse-outline" size={20} color={palette.text} />
+            <Text style={[styles.actionText, { color: palette.text }]}>Meta bağlantısını test et</Text>
+            <Ionicons name="send-outline" size={20} color={palette.text} />
+          </Pressable>
+        ) : null}
       </View>
       <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, marginTop: 15 }]}>
         <Text style={[styles.heading, { color: palette.text }]}>Uygulama Sürümü</Text>
