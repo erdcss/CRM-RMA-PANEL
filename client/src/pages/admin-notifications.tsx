@@ -15,7 +15,7 @@ type ScheduledMessage={
   id:string;title:string;body:string;recipient_count:number;audience_all:boolean;include_logged_out:boolean;
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
-  repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;
+  repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;repeat_end_at:string|null;
   paused:boolean;sent_count:number;last_sent_at:string|null;
 };
 const scheduledStatus:Record<ScheduledMessage["status"],string>={
@@ -143,6 +143,7 @@ export default function AdminNotifications(){
   const [sending,setSending]=useState(false);
   const [deliveryMode,setDeliveryMode]=useState<"now"|"scheduled">("now");
   const [scheduledDate,setScheduledDate]=useState("");
+  const [repeatEndDate,setRepeatEndDate]=useState("");
   const [repeatEnabled,setRepeatEnabled]=useState(false);
   const [repeatUnit,setRepeatUnit]=useState<"day"|"week"|"month">("day");
   const [repeatEvery,setRepeatEvery]=useState(1);
@@ -196,6 +197,10 @@ export default function AdminNotifications(){
         return;
       }
       scheduledAt=date.toISOString();
+      if(repeatEnabled&&repeatEndDate&&repeatEndDate<value.slice(0,10)){
+        toast({title:"Bitiş tarihi başlangıçtan önce olamaz",variant:"destructive"});
+        return;
+      }
     }
     setSending(true);
     try{
@@ -203,16 +208,16 @@ export default function AdminNotifications(){
       const r=await apiRequest("POST",planning?"/api/admin/b2b-notifications/scheduled":"/api/admin/b2b-notifications/send",{
         title:title.trim(),body:message.trim(),all,userIds:selected,customSound,includeLoggedOut,
         ...(planning?{scheduledAt}:{}),
-        ...(planning&&repeatEnabled?{repeatUnit,repeatEvery}:{}),
+        ...(planning&&repeatEnabled?{repeatUnit:repeatEndDate?repeatUnit:"day",repeatEvery:repeatEndDate?repeatEvery:1,repeatEndDate:repeatEndDate||undefined}:{}),
       });
       const result=await r.json();
       if(!r.ok)throw new Error(result.error||(planning?"Bildirim planlanamadı":"Bildirim gönderilemedi"));
       toast(planning
         ? {title:repeatEnabled?"Yinelenen bildirim planlandı":"Bildirim planlandı",
            description:formatTurkeyDate(result.scheduled_at)+" · "+result.recipient_count+" müşteri"+
-             (repeatEnabled?" · "+repeatDescription({repeat_unit:repeatUnit,repeat_every:repeatEvery}):"")}
+             (repeatEnabled?" · "+repeatDescription({repeat_unit:result.repeat_unit,repeat_every:result.repeat_every})+(repeatEndDate?" · Bitiş: "+repeatEndDate:" · Süresiz"):"")}
         : {title:"Bildirim kaydedildi",description:`${result.saved} müşteri · ${result.tokens} kayıtlı cihaz · Expo kabul: ${result.accepted}`});
-      setTitle("");setMessage("");setScheduledDate("");setRepeatEnabled(false);setRepeatUnit("day");setRepeatEvery(1);
+      setTitle("");setMessage("");setScheduledDate("");setRepeatEndDate("");setRepeatEnabled(false);setRepeatUnit("day");setRepeatEvery(1);
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]}),
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]}),
@@ -365,7 +370,7 @@ export default function AdminNotifications(){
               </div>
               {deliveryMode==="scheduled" && <div className="space-y-2">
                 <label htmlFor="notification-scheduled-date" className="block text-xs font-semibold">
-                  Gönderim tarihi ve saati (Türkiye saati)
+                  {repeatEnabled?"Başlangıç tarihi ve saati (Türkiye saati)":"Gönderim tarihi ve saati (Türkiye saati)"}
                 </label>
                 <Input id="notification-scheduled-date" type="datetime-local"
                   min={turkeyNowInput()} value={scheduledDate}
@@ -374,9 +379,19 @@ export default function AdminNotifications(){
                   <input type="checkbox" checked={repeatEnabled} onChange={event=>setRepeatEnabled(event.target.checked)}/>
                   <RefreshCw className="h-4 w-4"/> Bildirimi yinele
                 </label>
-                {repeatEnabled?<div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                {repeatEnabled?<div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-semibold" htmlFor="notification-repeat-end">Bitiş tarihi (isteğe bağlı)</label>
+                    <Input id="notification-repeat-end" type="date" className="w-full"
+                      min={scheduledDate.slice(0,10)||turkeyNowInput().slice(0,10)}
+                      value={repeatEndDate} onChange={event=>setRepeatEndDate(event.target.value)}/>
+                    <p className="text-xs text-muted-foreground">
+                      Bitiş tarihi seçilirse o günün sonuna kadar uygun saatlerde gönderim yapılır.
+                      Boş bırakılırsa her gün seçilen saatte süresiz tekrarlanır.
+                    </p>
+                  </div>
                   <label className="block text-xs font-semibold" htmlFor="notification-repeat-unit">Tekrarlama sıklığı</label>
-                  <div className="flex flex-wrap items-center gap-2">
+                  {repeatEndDate?<div className="flex flex-wrap items-center gap-2">
                     <select id="notification-repeat-unit" className="h-10 min-w-32 flex-1 rounded-md border bg-background px-3 text-sm"
                       value={repeatUnit} onChange={event=>setRepeatUnit(event.target.value as "day"|"week"|"month")}>
                       <option value="day">Günlük</option>
@@ -389,17 +404,21 @@ export default function AdminNotifications(){
                         onChange={event=>setRepeatEvery(Number(event.target.value))}/>
                       {repeatUnit==="day"?"günde":repeatUnit==="week"?"haftada":"ayda"} bir
                     </label>
-                  </div>
+                  </div>:<div className="rounded-lg border border-dashed px-3 py-2.5 text-sm">
+                    <strong>Günlük, süresiz</strong>
+                    <p className="mt-1 text-xs text-muted-foreground">Bitiş tarihi eklenmezse günlük tekrarlama otomatik uygulanır.</p>
+                  </div>}
                   <p className="text-xs text-muted-foreground">
-                    İlk gönderim seçilen tarih ve saatte yapılır. {repeatDescription({repeat_unit:repeatUnit,repeat_every:repeatEvery})} aynı saatte tekrarlanır.
-                    {repeatUnit==="month"?" Ayın seçilen günü yoksa o ayın son günü kullanılır.":""}
-                    {" "}Pasife alana kadar devam eder.
+                    İlk gönderim başlangıç tarihinde yapılır.{" "}
+                    {repeatEndDate?repeatDescription({repeat_unit:repeatUnit,repeat_every:repeatEvery}):"Her gün"} aynı saatte yinelenir.
+                    {repeatEndDate&&repeatUnit==="month"?" Ayın seçilen günü yoksa o ayın son günü kullanılır.":""}
+                    {" "}{repeatEndDate?"Bitiş tarihi dahilinde devam eder.":"Pasife alınana kadar devam eder."}
                   </p>
                 </div>:null}
                 <p className="text-xs text-muted-foreground">Türkiye saatine göre otomatik gönderilir. Seçilen mevcut müşteriler planlama sırasında kaydedilir.</p>
               </div>}
             </div>
-            <Button disabled={sending || (deliveryMode==="scheduled"&&(!scheduledDate||(repeatEnabled&&(!Number.isInteger(repeatEvery)||repeatEvery<1||repeatEvery>30))))}
+            <Button disabled={sending || (deliveryMode==="scheduled"&&(!scheduledDate||(repeatEnabled&&repeatEndDate&&(!Number.isInteger(repeatEvery)||repeatEvery<1||repeatEvery>30))||(repeatEnabled&&!!repeatEndDate&&!!scheduledDate&&repeatEndDate<scheduledDate.slice(0,10))))}
               className="w-full" onClick={()=>void send()}>
               {deliveryMode==="scheduled"?<CalendarClock className="mr-2 h-4 w-4"/>:<Send className="mr-2 h-4 w-4"/>}
               {sending?(deliveryMode==="scheduled"?"Planlanıyor…":"Gönderiliyor…"):
@@ -427,19 +446,21 @@ export default function AdminNotifications(){
                        item.paused?"bg-amber-100 text-amber-800":
                        item.status==="pending"?"bg-blue-100 text-blue-800":
                        item.status==="failed"?"bg-red-100 text-red-800":
-                       "bg-muted text-muted-foreground")}>{item.paused?"Pasif":scheduledStatus[item.status]}</span>
+                       "bg-muted text-muted-foreground")}>{item.status==="sent"&&item.repeat_unit?"Tamamlandı":item.paused?"Pasif":scheduledStatus[item.status]}</span>
                     {item.repeat_unit?<span className="rounded-full border px-2 py-0.5 text-xs font-semibold">
                       <RefreshCw className="mr-1 inline h-3 w-3"/>{repeatDescription(item)}
                     </span>:null}
                   </div>
                   <p className="text-sm text-muted-foreground break-words">{item.body}</p>
                   <p className="text-xs text-muted-foreground">
-                    {item.repeat_unit?(item.paused?"Planlanan saat: ":"Sonraki gönderim: "):"Gönderim: "}
+                    {item.repeat_unit?(item.status==="sent"?"Son planlanan: ":item.paused?"Planlanan saat: ":"Sonraki gönderim: "):"Gönderim: "}
                     {formatTurkeyDate(item.scheduled_at)} · {item.recipient_count} müşteri
                     {item.status==="sent"?" · "+item.accepted_count+" Expo kabul":""}
                   </p>
                   {item.repeat_unit?<p className="text-xs text-muted-foreground">
-                    {item.sent_count} kez gönderim yapıldı
+                    Başlangıç: {formatTurkeyDate(item.repeat_start_at||item.scheduled_at)}
+                    {" · "}{item.repeat_end_at?"Bitiş: "+formatTurkeyDate(item.repeat_end_at).split(" ")[0]:"Süresiz"}
+                    {" · "}{item.sent_count} kez gönderim yapıldı
                     {item.last_sent_at?" · Son gönderim: "+formatTurkeyDate(item.last_sent_at):""}
                     {" · "}Toplam Expo kabul: {item.accepted_count}
                   </p>:null}
