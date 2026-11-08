@@ -185,7 +185,7 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
         // An occurrence can fail independently; later repeats remain enabled
         // unless the administrator explicitly disables the series.
         const nextAt = job.repeat_unit
-          ? nextNotificationOccurrence(job.repeat_start_at || job.scheduled_at, job.repeat_unit, job.repeat_every, new Date())
+          ? nextNotificationOccurrenceBeforeEnd(job.repeat_start_at || job.scheduled_at, job.repeat_unit, job.repeat_every, new Date(), job.repeat_end_at)
           : null;
         await pool.query(`
           UPDATE b2b_scheduled_notifications
