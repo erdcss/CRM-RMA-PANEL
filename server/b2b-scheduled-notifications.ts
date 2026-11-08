@@ -294,7 +294,7 @@ export function registerB2BScheduledNotifications(
   app.put("/api/admin/b2b-notifications/scheduled/:id/details",requireAdmin,async(req,res)=>{
     if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
     const id=String(req.params.id||"");
-    if(!/^\\d{1,20}$/.test(id))return res.status(400).json({error:"Geçersiz bildirim kimliği"});
+    if(!/^\d{1,20}$/.test(id))return res.status(400).json({error:"Geçersiz bildirim kimliği"});
     const title=typeof req.body?.title==="string"?req.body.title.trim():"";
     const body=typeof req.body?.body==="string"?req.body.body.trim():"";
     if(!title||title.length>180||!body||body.length>800)
