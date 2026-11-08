@@ -12,7 +12,7 @@ type Rule={event_key:string;enabled:boolean;title_template:string;body_template:
 type Message={id:number;title:string;body:string;source:string;event_key:string|null;email:string;created_at:string};
 type Dashboard={customers:Customer[];rules:Rule[];recent:Message[];soundConfigured:boolean};
 type ScheduledMessage={
-  id:string;title:string;body:string;recipient_ids:number[];recipient_count:number;audience_all:boolean;include_logged_out:boolean;
+  id:string;title:string;body:string;recipient_ids:number[];recipient_count:number;audience_all:boolean;include_logged_out:boolean;sound:"default"|"custom";
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
   repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;repeat_end_at:string|null;
