@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { LogIn, UserPlus, PackageSearch, UserRound, Menu, X, ChevronRight } from "lucide-react";
-import { footerGroups, B2BSocialAndStores, B2BMobileDownloadHeader } from "@/components/b2b-footer";
+import { footerGroups, B2BSocialAndStores } from "@/components/b2b-footer";
 
 import { Button } from "@/components/ui/button";
 import { useBranding } from "@/hooks/use-branding";
@@ -98,7 +98,6 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
 
   return (
     <>
-    <B2BMobileDownloadHeader />
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4">
         <button type="button" onClick={()=>setDrawerOpen(true)} aria-label="Menüyü aç" aria-expanded={drawerOpen} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#111] transition hover:bg-[#fff1ae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00] md:hidden"><Menu className="h-6 w-6"/></button>
