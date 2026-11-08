@@ -98,6 +98,7 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
 
   return (
     <>
+    <B2BMobileDownloadHeader />
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4">
         <button type="button" onClick={()=>setDrawerOpen(true)} aria-label="Menüyü aç" aria-expanded={drawerOpen} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#111] transition hover:bg-[#fff1ae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00] md:hidden"><Menu className="h-6 w-6"/></button>
@@ -148,7 +149,6 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
           </div>
         )}
       </div>
-      <B2BMobileDownloadHeader />
     </header>
     {typeof document !== "undefined" ? createPortal(
       <div
