@@ -152,7 +152,7 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
           SELECT id FROM users
           WHERE role='b2b_customer' AND is_active=1
             AND ($1::boolean OR id=ANY($2::int[]))
-          ORDER BY id LIMIT 5000
+          ORDER BY id
         `, [job.audience_all,job.recipient_ids]);
         const ids = recipients.rows.map(row => Number(row.id));
         let saved = 0;
@@ -224,7 +224,7 @@ export function registerB2BScheduledNotifications(
     try {
       await ensureScheduledTable(ensureInbox);
       const items = await pool.query(`
-        SELECT id,title,body,recipient_count,audience_all,include_logged_out,sound,scheduled_at,
+        SELECT id,title,body,recipient_ids,recipient_count,audience_all,include_logged_out,sound,scheduled_at,
                status,created_at,completed_at,saved_count,accepted_count,token_count,last_error,
                repeat_unit,repeat_every,repeat_start_at,repeat_end_at,paused,sent_count,last_sent_at
         FROM b2b_scheduled_notifications ORDER BY
@@ -285,6 +285,83 @@ export function registerB2BScheduledNotifications(
     } catch(error) {
       console.error("B2B notification scheduling",error);
       return res.status(500).json({error:"Bildirim planlanamadı"});
+    }
+  });
+
+  // Edit an unsent occurrence without losing delivered history. Only the
+  // admin can change recipients and future dates; a processing send cannot be
+  // edited mid-flight or accidentally sent twice.
+  app.put("/api/admin/b2b-notifications/scheduled/:id/details",requireAdmin,async(req,res)=>{
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const id=String(req.params.id||"");
+    if(!/^\\d{1,20}$/.test(id))return res.status(400).json({error:"Geçersiz bildirim kimliği"});
+    const title=typeof req.body?.title==="string"?req.body.title.trim():"";
+    const body=typeof req.body?.body==="string"?req.body.body.trim():"";
+    if(!title||title.length>180||!body||body.length>800)
+      return res.status(400).json({error:"Başlık 1–180, mesaj 1–800 karakter olmalı"});
+    const parsed=parseNotificationSchedule(req.body?.scheduledAt);
+    if(parsed.error)return res.status(400).json({error:parsed.error});
+    const repeat=parseNotificationRepeat(req.body?.repeatUnit,req.body?.repeatEvery);
+    if(repeat.error)return res.status(400).json({error:repeat.error});
+    const end=parseNotificationRepeatEnd(req.body?.repeatEndDate,parsed.date!);
+    if(end.error)return res.status(400).json({error:end.error});
+    if(end.date&&!repeat.unit)return res.status(400).json({error:"Bitiş tarihi için yinelenen bildirim seçin"});
+    const effective=effectiveNotificationRepeat(repeat,end.date??null);
+    const audienceAll=req.body?.all===true;
+    const includeLoggedOut=req.body?.includeLoggedOut===true;
+    const sound=req.body?.customSound===true?"custom":"default";
+    const supplied=Array.isArray(req.body?.userIds)?req.body.userIds:null;
+    if(supplied&&supplied.length>5000)
+      return res.status(400).json({error:"En fazla 5000 müşteri seçebilirsiniz"});
+    const requestedIds=supplied?[...new Set(supplied.map((v:unknown)=>Number(v))
+      .filter((n:number)=>Number.isSafeInteger(n)&&n>0))]:null;
+    try {
+      await ensureScheduledTable(ensureInbox);
+      const old=await pool.query<{
+        id:string;status:string;scheduled_at:Date;repeat_start_at:Date|null;
+        repeat_unit:NotificationRepeatUnit|null;repeat_every:number;recipient_ids:number[];
+      }>(`
+        SELECT id,status,scheduled_at,repeat_start_at,repeat_unit,repeat_every,recipient_ids
+        FROM b2b_scheduled_notifications WHERE id::text=$1 AND status='pending'
+      `,[id]);
+      const existing=old.rows[0];
+      if(!existing)return res.status(409).json({error:"Bildirim bulunamadı veya gönderim başladığı için düzenlenemiyor"});
+      const ids=audienceAll?[]:(requestedIds??existing.recipient_ids);
+      if(!audienceAll&&!ids.length)return res.status(400).json({error:"En az bir müşteri seçin"});
+      const recipients=await pool.query<{id:number}>(`
+        SELECT id FROM users WHERE role='b2b_customer' AND is_active=1
+          AND ($1::boolean OR id=ANY($2::int[]))
+        ORDER BY id
+        ${audienceAll?"":"LIMIT 5000"}
+      `,[audienceAll,ids]);
+      const valid=recipients.rows.map(x=>Number(x.id));
+      if(!valid.length)return res.status(404).json({error:"Bildirim için aktif müşteri bulunamadı"});
+      const next=parsed.date!;
+      const sameClock=next.getTime()===new Date(existing.scheduled_at).getTime();
+      const sameRepeat=existing.repeat_unit===effective.unit&&existing.repeat_every===effective.every;
+      const anchor=effective.unit
+        ? sameClock&&sameRepeat&&existing.repeat_start_at
+          ? new Date(existing.repeat_start_at)
+          : next
+        : null;
+      const changed=await pool.query(`
+        UPDATE b2b_scheduled_notifications
+        SET title=$2,body=$3,recipient_ids=$4,recipient_count=$5,
+            audience_all=$6,include_logged_out=$7,sound=$8,
+            scheduled_at=$9,repeat_unit=$10,repeat_every=$11,
+            repeat_start_at=$12,repeat_end_at=$13,last_error=NULL
+        WHERE id::text=$1 AND status='pending'
+        RETURNING id,title,body,recipient_count,audience_all,include_logged_out,sound,
+          scheduled_at,status,repeat_unit,repeat_every,repeat_start_at,repeat_end_at,paused,
+          saved_count,accepted_count,token_count,sent_count,last_sent_at
+      `,[id,title,body,valid,valid.length,audienceAll,includeLoggedOut,sound,
+         next.toISOString(),effective.unit,effective.every,anchor?.toISOString()??null,
+         end.date?.toISOString()??null]);
+      return changed.rows[0]?res.json(changed.rows[0]):
+        res.status(409).json({error:"Gönderim başladı; bu bildirim artık düzenlenemez"});
+    }catch(error){
+      console.error("Edit scheduled B2B notification",error);
+      return res.status(500).json({error:"Zamanlı bildirim düzenlenemedi"});
     }
   });
 
