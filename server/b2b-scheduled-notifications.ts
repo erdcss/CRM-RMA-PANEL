@@ -1,6 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { sendPushToUsers } from "./push-notifications";
+import { b2bScheduledDailyKey, upgradeRequestedMorningCampaign } from "./b2b-morning-campaign";
 import { parseNotificationSchedule } from "./b2b-scheduled-time";
 import { effectiveNotificationRepeat, nextNotificationOccurrenceBeforeEnd, parseNotificationRepeat, parseNotificationRepeatEnd, type NotificationRepeatUnit } from "./b2b-notification-repeat";
 
@@ -9,6 +10,7 @@ type SchedulerRow = {
   title: string;
   body: string;
   recipient_ids: number[];
+  audience_all: boolean;
   sound: "default" | "custom";
   include_logged_out: boolean;
   scheduled_at: Date;
@@ -62,6 +64,8 @@ function ensureScheduledTable(ensureInbox: () => Promise<void>): Promise<void> {
           ON b2b_scheduled_notifications(scheduled_at, id)
           WHERE status = 'pending';
       `);
+      const migrated=await upgradeRequestedMorningCampaign(sql=>pool!.query(sql));
+      if(migrated)console.info("Existing 08:00 B2B campaign upgraded to live daily all-customer audience",migrated);
     })().catch(error => { schemaReady = null; throw error; });
   }
   return schemaReady;
@@ -125,7 +129,7 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
         ORDER BY scheduled_at, id LIMIT 5 FOR UPDATE SKIP LOCKED
       ) due
       WHERE s.id=due.id
-      RETURNING s.id,s.title,s.body,s.recipient_ids,s.sound,s.include_logged_out,
+      RETURNING s.id,s.title,s.body,s.recipient_ids,s.audience_all,s.sound,s.include_logged_out,
                 s.scheduled_at,s.repeat_start_at,s.repeat_end_at,s.repeat_unit,s.repeat_every
     `);
     for (const job of claimed.rows) {
@@ -142,27 +146,32 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
           `,[job.id]);
           continue;
         }
+        // Resolve all-customer campaigns at SEND time, not creation time:
+        // new approved users automatically join the next 08:00 broadcast.
         const recipients = await pool.query<{ id: number }>(`
           SELECT id FROM users
-          WHERE role='b2b_customer' AND is_active=1 AND id=ANY($1::int[])
+          WHERE role='b2b_customer' AND is_active=1
+            AND ($1::boolean OR id=ANY($2::int[]))
           ORDER BY id LIMIT 5000
-        `, [job.recipient_ids]);
+        `, [job.audience_all,job.recipient_ids]);
         const ids = recipients.rows.map(row => Number(row.id));
         let saved = 0;
+        let newlyNotifiedUserIds:number[] = [];
         if (ids.length) {
-          const inserted = await pool.query(`
+          const inserted = await pool.query<{user_id:number}>(`
             INSERT INTO b2b_notifications
               (user_id,title,body,source,event_key,dedupe_key,sound)
             SELECT id,$2,$3,'scheduled',NULL,$4,$5
             FROM users WHERE id=ANY($1::int[])
             ON CONFLICT (user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
-            RETURNING id
-          `, [ids,job.title,job.body,"scheduled:"+job.id+":"+new Date(job.scheduled_at).toISOString(),job.sound]);
-          saved = inserted.rowCount || 0;
+            RETURNING user_id
+          `, [ids,job.title,job.body,b2bScheduledDailyKey(job.id,job.scheduled_at),job.sound]);
+          newlyNotifiedUserIds=inserted.rows.map(row=>Number(row.user_id));
+          saved=newlyNotifiedUserIds.length;
         }
         const soundEnabled = job.sound === "custom" &&
           (await pool.query("SELECT 1 FROM b2b_notification_custom_sound WHERE id=1")).rowCount === 1;
-        const push = ids.length ? await sendPushToUsers(ids, {
+        const push = newlyNotifiedUserIds.length ? await sendPushToUsers(newlyNotifiedUserIds, {
           title: job.title,
           body: job.body,
           sound: soundEnabled ? "b2b-custom.wav" : "default",
@@ -177,9 +186,10 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
               scheduled_at=COALESCE($5::timestamptz,scheduled_at),
               completed_at=NOW(),claimed_at=NULL,last_sent_at=NOW(),
               sent_count=sent_count+1,last_error=NULL,
-              saved_count=saved_count+$2,accepted_count=accepted_count+$3,token_count=token_count+$4
+              saved_count=saved_count+$2,accepted_count=accepted_count+$3,token_count=token_count+$4,
+              recipient_count=CASE WHEN audience_all THEN $6 ELSE recipient_count END
           WHERE id=$1 AND status='processing'
-        `, [job.id,saved,push.sent,push.tokenCount,nextAt?.toISOString() || null]);
+        `, [job.id,saved,push.sent,push.tokenCount,nextAt?.toISOString() || null,ids.length]);
       } catch (error) {
         console.error("Scheduled B2B notification failed", job.id, error);
         // An occurrence can fail independently; later repeats remain enabled
