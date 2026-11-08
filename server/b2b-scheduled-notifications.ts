@@ -246,7 +246,7 @@ export function registerB2BScheduledNotifications(
     if(end.date && !repeat.unit)return res.status(400).json({error:"Bitiş tarihi için yinelenen bildirim seçin"});
     // No end date intentionally means daily forever, regardless of a stale
     // weekly/monthly value sent by another client.
-    const effectiveRepeat=effectiveNotificationRepeat(repeat,end.date);
+    const effectiveRepeat=effectiveNotificationRepeat(repeat,end.date ?? null);
     const includeLoggedOut=req.body?.includeLoggedOut===true;
     const all=req.body?.all===true;
     const supplied=Array.isArray(req.body?.userIds)?req.body.userIds:[];
