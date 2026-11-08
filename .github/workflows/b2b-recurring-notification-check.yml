@@ -1,0 +1,41 @@
+name: B2B recurring notification QA
+on:
+  push:
+    paths:
+      - 'server/b2b-notification-repeat.ts'
+      - 'server/b2b-notification-repeat.test.ts'
+      - 'server/b2b-scheduled-notifications.ts'
+      - 'server/b2b-scheduled-time.ts'
+      - 'server/b2b-scheduled-time.test.ts'
+      - 'client/src/pages/admin-notifications.tsx'
+      - '.github/workflows/b2b-recurring-notification-check.yml'
+  pull_request:
+    paths:
+      - 'server/b2b-notification-repeat.ts'
+      - 'server/b2b-notification-repeat.test.ts'
+      - 'server/b2b-scheduled-notifications.ts'
+      - 'client/src/pages/admin-notifications.tsx'
+      - '.github/workflows/b2b-recurring-notification-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Recurrence tests, TypeScript and web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Test Turkey-time scheduling, repeats and month-end
+        run: npx tsx --test server/b2b-scheduled-time.test.ts server/b2b-notification-repeat.test.ts
+      - name: Check TypeScript
+        run: npm run check
+      - name: Compile admin UI and server
+        run: npm run build

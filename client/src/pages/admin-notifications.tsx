@@ -15,10 +15,19 @@ type ScheduledMessage={
   id:string;title:string;body:string;recipient_count:number;audience_all:boolean;include_logged_out:boolean;
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
+  repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;
+  paused:boolean;sent_count:number;last_sent_at:string|null;
 };
 const scheduledStatus:Record<ScheduledMessage["status"],string>={
   pending:"Planlandı",processing:"Gönderiliyor",sent:"Gönderildi",failed:"Hata",cancelled:"İptal edildi",
 };
+function repeatDescription(item:{repeat_unit:"day"|"week"|"month"|null;repeat_every:number}) {
+  if(!item.repeat_unit)return "";
+  const suffix=item.repeat_unit==="day"?"günde":item.repeat_unit==="week"?"haftada":"ayda";
+  return item.repeat_every===1
+    ? (item.repeat_unit==="day"?"Her gün":item.repeat_unit==="week"?"Her hafta":"Her ay")
+    : "Her "+item.repeat_every+" "+suffix;
+}
 function formatTurkeyDate(date: string) {
   return new Date(date).toLocaleString("tr-TR",{timeZone:"Europe/Istanbul",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
 }
@@ -134,6 +143,10 @@ export default function AdminNotifications(){
   const [sending,setSending]=useState(false);
   const [deliveryMode,setDeliveryMode]=useState<"now"|"scheduled">("now");
   const [scheduledDate,setScheduledDate]=useState("");
+  const [repeatEnabled,setRepeatEnabled]=useState(false);
+  const [repeatUnit,setRepeatUnit]=useState<"day"|"week"|"month">("day");
+  const [repeatEvery,setRepeatEvery]=useState(1);
+  const [togglingRepeat,setTogglingRepeat]=useState<string|null>(null);
   const [cancelling,setCancelling]=useState<string|null>(null);
   const [uploadingSound,setUploadingSound]=useState(false);
   const [rules,setRules]=useState<Rule[]>([]);
@@ -190,19 +203,39 @@ export default function AdminNotifications(){
       const r=await apiRequest("POST",planning?"/api/admin/b2b-notifications/scheduled":"/api/admin/b2b-notifications/send",{
         title:title.trim(),body:message.trim(),all,userIds:selected,customSound,includeLoggedOut,
         ...(planning?{scheduledAt}:{}),
+        ...(planning&&repeatEnabled?{repeatUnit,repeatEvery}:{}),
       });
       const result=await r.json();
       if(!r.ok)throw new Error(result.error||(planning?"Bildirim planlanamadı":"Bildirim gönderilemedi"));
       toast(planning
-        ? {title:"Bildirim planlandı",description:formatTurkeyDate(result.scheduled_at)+" · "+result.recipient_count+" müşteri"}
+        ? {title:repeatEnabled?"Yinelenen bildirim planlandı":"Bildirim planlandı",
+           description:formatTurkeyDate(result.scheduled_at)+" · "+result.recipient_count+" müşteri"+
+             (repeatEnabled?" · "+repeatDescription({repeat_unit:repeatUnit,repeat_every:repeatEvery}):"")}
         : {title:"Bildirim kaydedildi",description:`${result.saved} müşteri · ${result.tokens} kayıtlı cihaz · Expo kabul: ${result.accepted}`});
-      setTitle("");setMessage("");setScheduledDate("");
+      setTitle("");setMessage("");setScheduledDate("");setRepeatEnabled(false);setRepeatUnit("day");setRepeatEvery(1);
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]}),
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]}),
       ]);
     }catch(e){toast({title:deliveryMode==="scheduled"?"Bildirim planlanamadı":"Bildirim gönderilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
     finally{setSending(false);}
+  }
+  async function toggleRepeat(id:string,enabled:boolean){
+    setTogglingRepeat(id);
+    try{
+      const response=await fetch("/api/admin/b2b-notifications/scheduled/"+encodeURIComponent(id),{
+        method:"PATCH",credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({enabled}),
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"Tekrarlama ayarı güncellenemedi");
+      toast({title:enabled?"Yinelenen bildirim aktifleştirildi":"Yinelenen bildirim pasife alındı",
+        description:enabled?"Sonraki planlı gönderimden itibaren devam edecek.":"Yeni bildirimler gönderilmeyecek."});
+      await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]});
+    }catch(error){
+      toast({title:"İşlem başarısız",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});
+    }finally{setTogglingRepeat(null);}
   }
   async function cancelScheduled(id:string){
     if(!window.confirm("Planlanan bildirim iptal edilsin mi?")) return;
@@ -337,10 +370,36 @@ export default function AdminNotifications(){
                 <Input id="notification-scheduled-date" type="datetime-local"
                   min={turkeyNowInput()} value={scheduledDate}
                   onChange={event=>setScheduledDate(event.target.value)}/>
-                <p className="text-xs text-muted-foreground">Belirttiğiniz saatte otomatik gönderilir. Seçilen mevcut müşteriler planlama sırasında kaydedilir.</p>
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold">
+                  <input type="checkbox" checked={repeatEnabled} onChange={event=>setRepeatEnabled(event.target.checked)}/>
+                  <RefreshCw className="h-4 w-4"/> Bildirimi yinele
+                </label>
+                {repeatEnabled?<div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                  <label className="block text-xs font-semibold" htmlFor="notification-repeat-unit">Tekrarlama sıklığı</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select id="notification-repeat-unit" className="h-10 min-w-32 flex-1 rounded-md border bg-background px-3 text-sm"
+                      value={repeatUnit} onChange={event=>setRepeatUnit(event.target.value as "day"|"week"|"month")}>
+                      <option value="day">Günlük</option>
+                      <option value="week">Haftalık</option>
+                      <option value="month">Aylık</option>
+                    </select>
+                    <label className="flex items-center gap-2 text-xs">
+                      Her
+                      <Input type="number" className="w-20" min={1} max={30} step={1} value={repeatEvery}
+                        onChange={event=>setRepeatEvery(Number(event.target.value))}/>
+                      {repeatUnit==="day"?"günde":repeatUnit==="week"?"haftada":"ayda"} bir
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    İlk gönderim seçilen tarih ve saatte yapılır. {repeatDescription({repeat_unit:repeatUnit,repeat_every:repeatEvery})} aynı saatte tekrarlanır.
+                    {repeatUnit==="month"?" Ayın seçilen günü yoksa o ayın son günü kullanılır.":""}
+                    {" "}Pasife alana kadar devam eder.
+                  </p>
+                </div>:null}
+                <p className="text-xs text-muted-foreground">Türkiye saatine göre otomatik gönderilir. Seçilen mevcut müşteriler planlama sırasında kaydedilir.</p>
               </div>}
             </div>
-            <Button disabled={sending || (deliveryMode==="scheduled"&&!scheduledDate)}
+            <Button disabled={sending || (deliveryMode==="scheduled"&&(!scheduledDate||(repeatEnabled&&(!Number.isInteger(repeatEvery)||repeatEvery<1||repeatEvery>30))))}
               className="w-full" onClick={()=>void send()}>
               {deliveryMode==="scheduled"?<CalendarClock className="mr-2 h-4 w-4"/>:<Send className="mr-2 h-4 w-4"/>}
               {sending?(deliveryMode==="scheduled"?"Planlanıyor…":"Gönderiliyor…"):
@@ -354,7 +413,7 @@ export default function AdminNotifications(){
           <h2 className="flex items-center gap-2 text-lg font-bold"><CalendarClock className="h-5 w-5"/> Zamanlı Bildirimler</h2>
           <span className="text-xs text-muted-foreground">Türkiye saatine göre gösterilir</span>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">Planlanan bildirimleri takip edin; henüz gönderilmemiş olanları iptal edebilirsiniz.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Tek seferlik gönderimleri iptal edin; yinelenen bildirimleri dilediğiniz zaman pasife alın veya yeniden aktifleştirin.</p>
         <div className="mt-4 space-y-2">
           {loadingSchedules?<p className="text-sm text-muted-foreground">Planlı bildirimler yükleniyor…</p>:
             scheduled.length===0?<p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Henüz planlanmış bir bildirim bulunmuyor.</p>:
@@ -365,22 +424,38 @@ export default function AdminNotifications(){
                     <span className="font-semibold text-sm">{item.title}</span>
                     <span className={"rounded-full px-2 py-0.5 text-xs font-semibold "+
                       (item.status==="sent"?"bg-emerald-100 text-emerald-800":
+                       item.paused?"bg-amber-100 text-amber-800":
                        item.status==="pending"?"bg-blue-100 text-blue-800":
                        item.status==="failed"?"bg-red-100 text-red-800":
-                       "bg-muted text-muted-foreground")}>{scheduledStatus[item.status]}</span>
+                       "bg-muted text-muted-foreground")}>{item.paused?"Pasif":scheduledStatus[item.status]}</span>
+                    {item.repeat_unit?<span className="rounded-full border px-2 py-0.5 text-xs font-semibold">
+                      <RefreshCw className="mr-1 inline h-3 w-3"/>{repeatDescription(item)}
+                    </span>:null}
                   </div>
                   <p className="text-sm text-muted-foreground break-words">{item.body}</p>
                   <p className="text-xs text-muted-foreground">
+                    {item.repeat_unit?(item.paused?"Planlanan saat: ":"Sonraki gönderim: "):"Gönderim: "}
                     {formatTurkeyDate(item.scheduled_at)} · {item.recipient_count} müşteri
                     {item.status==="sent"?" · "+item.accepted_count+" Expo kabul":""}
                   </p>
+                  {item.repeat_unit?<p className="text-xs text-muted-foreground">
+                    {item.sent_count} kez gönderim yapıldı
+                    {item.last_sent_at?" · Son gönderim: "+formatTurkeyDate(item.last_sent_at):""}
+                    {" · "}Toplam Expo kabul: {item.accepted_count}
+                  </p>:null}
                   {item.last_error?<p className="text-xs text-destructive">{item.last_error}</p>:null}
                 </div>
-                {item.status==="pending"?
-                  <Button size="sm" variant="outline" disabled={cancelling===item.id}
-                    onClick={()=>void cancelScheduled(item.id)}>
-                    <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
-                  </Button>:null}
+                {item.repeat_unit&&["pending","processing"].includes(item.status)?
+                  <Button size="sm" variant="outline" disabled={togglingRepeat===item.id}
+                    onClick={()=>void toggleRepeat(item.id,item.paused)}>
+                    {item.paused?<RefreshCw className="mr-1 h-4 w-4"/>:<XCircle className="mr-1 h-4 w-4"/>}
+                    {togglingRepeat===item.id?"Güncelleniyor…":item.paused?"Aktifleştir":"Pasife al"}
+                  </Button>:
+                  item.status==="pending"?
+                    <Button size="sm" variant="outline" disabled={cancelling===item.id}
+                      onClick={()=>void cancelScheduled(item.id)}>
+                      <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
+                    </Button>:null}
               </div>
             </div>)}
         </div>
