@@ -32,15 +32,27 @@ async function loadSession(): Promise<SessionUser | null> {
 
 /** The mobile drawer and the public site's navigation share the exact same branding asset. */
 function B2BWebLogo({ logo }: { logo?: string | null }) {
-  return logo ? (
+  const [failed, setFailed] = useState<string[]>([]);
+  // Start with the real asset endpoint so the textual placeholder is not flashed
+  // during an asynchronous branding request on every page refresh.
+  const sources = Array.from(new Set([
+    logo,
+    "/api/public/branding-asset/b2b_logo",
+    "/api/public/branding-asset/b2b_mobile_logo",
+  ].filter((value): value is string => Boolean(value))));
+  const source = sources.find(value => !failed.includes(value));
+
+  return source ? (
     <img
-      src={logo}
+      src={source}
+      onError={() => setFailed(prev => [...prev, source])}
       alt="Çalışkan B2B"
-      className="h-9 w-auto max-w-[150px] object-contain object-left sm:h-10 sm:max-w-[175px]"
+      loading="eager"
+      className="h-9 w-auto max-w-full object-contain object-left sm:h-10"
     />
   ) : (
-    <span className="text-sm font-black tracking-tight text-slate-950 sm:text-base">
-      ÇALIŞKAN <span className="text-[10px] align-top">B2B</span>
+    <span className="block whitespace-nowrap text-xs font-black tracking-tight text-slate-950 sm:text-base">
+      ÇALIŞKAN B2B
     </span>
   );
 }
@@ -99,20 +111,20 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
   return (
     <>
     <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[60px] max-w-6xl items-center gap-1.5 px-2 sm:gap-3 sm:px-4">
+      <div className="mx-auto flex h-[60px] w-full min-w-0 max-w-6xl items-center gap-1.5 overflow-hidden px-2 sm:gap-3 sm:px-4">
         <button type="button" onClick={()=>setDrawerOpen(true)} aria-label="Menüyü aç" aria-expanded={drawerOpen} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#111] transition hover:bg-[#fff1ae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00] md:hidden"><Menu className="h-6 w-6"/></button>
-        <Link href="/" className="flex min-w-0 shrink items-center sm:shrink-0">
-          <span className="block max-w-[88px] sm:max-w-none"><B2BWebLogo logo={branding?.b2b_logo} /></span>
+        <Link href="/" className="flex min-w-0 flex-1 items-center overflow-hidden sm:flex-none">
+          <span className="block min-w-0 max-w-[124px] sm:max-w-none"><B2BWebLogo logo={branding?.b2b_logo} /></span>
         </Link>
 
-        {middle ? <div className="mx-auto hidden w-full max-w-xl md:block">{middle}</div> : <div className="flex-1" />}
+        {middle ? <div className="mx-auto hidden w-full max-w-xl md:block">{middle}</div> : <div className="hidden flex-1 sm:block" />}
 
         {loggedIn ? (
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <Button
               asChild
               variant="ghost"
-              className="border border-slate-200 bg-slate-100 px-2 text-slate-800 hover:bg-slate-200 sm:px-4"
+              className="h-9 w-9 border border-slate-200 bg-slate-100 px-0 text-slate-800 hover:bg-slate-200 sm:w-auto sm:px-4"
             >
               <Link href="/siparislerim" aria-label="Siparişler" className="relative">
                 <PackageSearch className="h-4 w-4 sm:mr-2" />
@@ -124,7 +136,7 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
                 ) : null}
               </Link>
             </Button>
-            <Button asChild className="bg-slate-950 px-2 hover:bg-slate-800 sm:px-4">
+            <Button asChild className="h-9 w-9 bg-slate-950 px-0 hover:bg-slate-800 sm:w-auto sm:px-4">
               <Link href="/hesabim" aria-label="Hesabım">
                 <UserRound className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Hesabım</span>
@@ -133,16 +145,16 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
           </div>
         ) : (
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-            <Button asChild className="h-9 shrink-0 bg-slate-950 px-2 text-[11px] font-bold hover:bg-slate-800 sm:px-4 sm:text-sm">
+            <Button asChild className="h-9 w-9 shrink-0 bg-slate-950 px-0 text-[11px] font-bold hover:bg-slate-800 sm:w-auto sm:px-4 sm:text-sm">
               <Link href="/uye-girisi" aria-label="Bayi Girişi">
-                <LogIn className="mr-2 hidden h-4 w-4 sm:inline-flex" />
-                Bayi Girişi
+                <LogIn className="h-4 w-4 sm:mr-2" />
+                <span className="sr-only sm:not-sr-only">Bayi Girişi</span>
               </Link>
             </Button>
-            <Button asChild className="h-9 shrink-0 bg-[#ffcc00] px-2 text-[11px] font-bold text-slate-950 hover:bg-[#f3c000] sm:px-4 sm:text-sm">
+            <Button asChild className="h-9 w-9 shrink-0 bg-[#ffcc00] px-0 text-[11px] font-bold text-slate-950 hover:bg-[#f3c000] sm:w-auto sm:px-4 sm:text-sm">
               <Link href="/kayit-ol" aria-label="Kayıt Ol">
-                <UserPlus className="mr-2 hidden h-4 w-4 sm:inline-flex" />
-                Kayıt Ol
+                <UserPlus className="h-4 w-4 sm:mr-2" />
+                <span className="sr-only sm:not-sr-only">Kayıt Ol</span>
               </Link>
             </Button>
           </div>
