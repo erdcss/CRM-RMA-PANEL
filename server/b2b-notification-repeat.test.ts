@@ -28,9 +28,9 @@ test("monthly anchors the 31st and clamps only short months", () => {
   assert.equal(nextNotificationOccurrence(anchor, "month", 1, new Date("2027-02-28T18:00:00.000Z")).toISOString(), "2027-03-31T17:45:00.000Z");
 });
 test("monthly leap year and a paused schedule are computed from their original anchor", () => {
-  const anchor = "2028-01-31T21:30:00.000Z"; // 00:30 local, next calendar date
-  assert.equal(nextNotificationOccurrence(anchor, "month", 1, new Date(anchor)).toISOString(), "2028-02-29T21:30:00.000Z");
-  assert.equal(nextNotificationOccurrence(anchor, "month", 2, new Date("2028-04-15T12:00:00Z")).toISOString(), "2028-05-31T21:30:00.000Z");
+  const anchor = "2028-01-31T20:30:00.000Z"; // 23:30 Istanbul
+  assert.equal(nextNotificationOccurrence(anchor, "month", 1, new Date(anchor)).toISOString(), "2028-02-29T20:30:00.000Z");
+  assert.equal(nextNotificationOccurrence(anchor, "month", 2, new Date("2028-04-15T12:00:00Z")).toISOString(), "2028-05-31T20:30:00.000Z");
 });
 test("when activation happens before the first run, keep the original run", () => {
   const anchor = new Date("2027-01-01T10:00:00Z");
