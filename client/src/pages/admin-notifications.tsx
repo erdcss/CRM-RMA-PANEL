@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus, CalendarClock, XCircle } from "lucide-react";
+import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus, CalendarClock, XCircle, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -12,11 +12,16 @@ type Rule={event_key:string;enabled:boolean;title_template:string;body_template:
 type Message={id:number;title:string;body:string;source:string;event_key:string|null;email:string;created_at:string};
 type Dashboard={customers:Customer[];rules:Rule[];recent:Message[];soundConfigured:boolean};
 type ScheduledMessage={
-  id:string;title:string;body:string;recipient_count:number;audience_all:boolean;include_logged_out:boolean;
+  id:string;title:string;body:string;recipient_ids:number[];recipient_count:number;audience_all:boolean;include_logged_out:boolean;
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
   repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;repeat_end_at:string|null;
   paused:boolean;sent_count:number;last_sent_at:string|null;
+};
+type ScheduleEditDraft={
+  id:string;title:string;body:string;scheduledDate:string;repeatEnabled:boolean;
+  repeatUnit:"day"|"week"|"month";repeatEvery:number;repeatEndDate:string;
+  all:boolean;includeLoggedOut:boolean;customSound:boolean;userIds:number[];
 };
 const scheduledStatus:Record<ScheduledMessage["status"],string>={
   pending:"Planlandı",processing:"Gönderiliyor",sent:"Gönderildi",failed:"Hata",cancelled:"İptal edildi",
@@ -31,14 +36,15 @@ function repeatDescription(item:{repeat_unit:"day"|"week"|"month"|null;repeat_ev
 function formatTurkeyDate(date: string) {
   return new Date(date).toLocaleString("tr-TR",{timeZone:"Europe/Istanbul",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
 }
-function turkeyNowInput() {
+function turkeyInput(date:Date) {
   const formatter=new Intl.DateTimeFormat("en-CA",{
     timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit",
-    hour:"2-digit",minute:"2-digit",hour12:false,
+    hour:"2-digit",minute:"2-digit",hourCycle:"h23",
   });
-  const parts=Object.fromEntries(formatter.formatToParts(new Date()).map(part=>[part.type,part.value]));
+  const parts=Object.fromEntries(formatter.formatToParts(date).map(part=>[part.type,part.value]));
   return parts.year+"-"+parts.month+"-"+parts.day+"T"+parts.hour+":"+parts.minute;
 }
+function turkeyNowInput(){return turkeyInput(new Date());}
 const titles:Record<string,string>={
   membership_approved:"Üyelik onayı",
   order_created:"Sipariş oluşturuldu",
@@ -149,6 +155,9 @@ export default function AdminNotifications(){
   const [repeatEvery,setRepeatEvery]=useState(1);
   const [togglingRepeat,setTogglingRepeat]=useState<string|null>(null);
   const [cancelling,setCancelling]=useState<string|null>(null);
+  const [editingSchedule,setEditingSchedule]=useState<ScheduleEditDraft|null>(null);
+  const [savingSchedule,setSavingSchedule]=useState(false);
+  const [editingRule,setEditingRule]=useState<string|null>(null);
   const [uploadingSound,setUploadingSound]=useState(false);
   const [rules,setRules]=useState<Rule[]>([]);
   const [savingRule,setSavingRule]=useState<string|null>(null);
@@ -225,6 +234,63 @@ export default function AdminNotifications(){
     }catch(e){toast({title:deliveryMode==="scheduled"?"Bildirim planlanamadı":"Bildirim gönderilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
     finally{setSending(false);}
   }
+  function openScheduleEditor(item:ScheduledMessage){
+    setEditingSchedule({
+      id:item.id,title:item.title,body:item.body,
+      scheduledDate:turkeyInput(new Date(item.scheduled_at)),
+      repeatEnabled:!!item.repeat_unit,
+      repeatUnit:item.repeat_unit||"day",repeatEvery:item.repeat_every||1,
+      repeatEndDate:item.repeat_end_at?turkeyInput(new Date(item.repeat_end_at)).slice(0,10):"",
+      all:item.audience_all,includeLoggedOut:item.include_logged_out,
+      customSound:item.sound==="custom",userIds:item.recipient_ids||[],
+    });
+  }
+  function changeScheduleDraft(patch:Partial<ScheduleEditDraft>){
+    setEditingSchedule(prev=>prev?{...prev,...patch}:null);
+  }
+  async function saveScheduleEdit(){
+    const draft=editingSchedule;
+    if(!draft)return;
+    if(!draft.title.trim()||!draft.body.trim()){
+      toast({title:"Başlık ve mesaj gerekli",variant:"destructive"});return;
+    }
+    if(!draft.scheduledDate||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(draft.scheduledDate)){
+      toast({title:"Geçerli tarih ve saat seçin",variant:"destructive"});return;
+    }
+    const start=new Date(draft.scheduledDate+":00+03:00");
+    if(!Number.isFinite(start.getTime())||start.getTime()<Date.now()+30_000){
+      toast({title:"Gelecekte bir gönderim tarihi seçin",variant:"destructive"});return;
+    }
+    if(draft.repeatEnabled&&draft.repeatEndDate&&draft.repeatEndDate<draft.scheduledDate.slice(0,10)){
+      toast({title:"Bitiş tarihi başlangıçtan önce olamaz",variant:"destructive"});return;
+    }
+    if(!draft.all&&!draft.userIds.length){
+      toast({title:"En az bir müşteri seçin",variant:"destructive"});return;
+    }
+    if(draft.repeatEnabled&&draft.repeatEndDate&&(!Number.isInteger(draft.repeatEvery)||draft.repeatEvery<1||draft.repeatEvery>30)){
+      toast({title:"Tekrar aralığı 1–30 olmalı",variant:"destructive"});return;
+    }
+    setSavingSchedule(true);
+    try{
+      const response=await apiRequest("PUT","/api/admin/b2b-notifications/scheduled/"+encodeURIComponent(draft.id)+"/details",{
+        title:draft.title.trim(),body:draft.body.trim(),scheduledAt:start.toISOString(),
+        all:draft.all,userIds:draft.all?[]:draft.userIds,includeLoggedOut:draft.includeLoggedOut,
+        customSound:draft.customSound,
+        ...(draft.repeatEnabled?{
+          repeatUnit:draft.repeatEndDate?draft.repeatUnit:"day",
+          repeatEvery:draft.repeatEndDate?draft.repeatEvery:1,
+          repeatEndDate:draft.repeatEndDate||undefined,
+        }:{repeatEndDate:undefined}),
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"Zamanlı bildirim kaydedilemedi");
+      toast({title:"Zamanlı bildirim güncellendi"});
+      setEditingSchedule(null);
+      await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]});
+    }catch(error){
+      toast({title:"Düzenleme başarısız",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});
+    }finally{setSavingSchedule(false);}
+  }
   async function toggleRepeat(id:string,enabled:boolean){
     setTogglingRepeat(id);
     try{
@@ -264,6 +330,7 @@ export default function AdminNotifications(){
       if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Kaydedilemedi");}
       await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]});
       toast({title:"Otomatik bildirim kuralı kaydedildi"});
+      setEditingRule(null);
     }catch(e){toast({title:"Kural kaydedilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
     finally{setSavingRule(null);}
   }
