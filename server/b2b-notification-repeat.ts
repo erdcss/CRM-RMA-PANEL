@@ -79,7 +79,7 @@ export function parseNotificationRepeatEnd(
   start: Date | string,
 ): {date: Date | null;error?: never} | {date?: never;error: string} {
   if (value === undefined || value === null || value === "") return {date:null};
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value))
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value))
     return {error:"Bitiş tarihini gün/ay/yıl olarak seçin"};
   const [year, month, day] = value.split("-").map(Number);
   if (year < 2000 || year > 9999) return {error:"Geçerli bir bitiş tarihi seçin"};
