@@ -636,18 +636,34 @@ export default function AdminNotifications(){
         <div className="mt-4 space-y-3">{rules.map(rule=><div key={rule.event_key} className="rounded-xl border p-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-bold">{titles[rule.event_key]||rule.event_key}</h3>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rule.enabled} onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,enabled:e.target.checked}:x))}/> Aktif</label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" disabled={editingRule!==rule.event_key}
+                  checked={rule.enabled} onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,enabled:e.target.checked}:x))}/> Aktif
+              </label>
+              {editingRule!==rule.event_key?<Button size="sm" variant="outline" onClick={()=>setEditingRule(rule.event_key)}>
+                <Pencil className="mr-1 h-4 w-4"/> Düzenle
+              </Button>:null}
+            </div>
           </div>
-          <Input className="mt-3" maxLength={180} value={rule.title_template}
+          <Input className="mt-3" disabled={editingRule!==rule.event_key} maxLength={180} value={rule.title_template}
             onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,title_template:e.target.value}:x))}/>
-          <textarea className="mt-2 w-full rounded-lg border bg-background p-3 text-sm" maxLength={800} rows={2}
+          <textarea disabled={editingRule!==rule.event_key} className="mt-2 w-full rounded-lg border bg-background p-3 text-sm" maxLength={800} rows={2}
             value={rule.body_template}
             onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,body_template:e.target.value}:x))}/>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Değişkenler: {"{orderNumber}"} · {"{date}"} · {"{amount}"}</span>
-            <Button size="sm" variant="outline" disabled={savingRule===rule.event_key} onClick={()=>void saveRule(rule)}>
-              {savingRule===rule.event_key?"Kaydediliyor…":"Kuralı Kaydet"}
-            </Button>
+            {editingRule===rule.event_key?<div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={savingRule===rule.event_key}
+                onClick={()=>{
+                  const original=data?.rules.find(x=>x.event_key===rule.event_key);
+                  if(original)setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...original}:x));
+                  setEditingRule(null);
+                }}>Vazgeç</Button>
+              <Button size="sm" disabled={savingRule===rule.event_key} onClick={()=>void saveRule(rule)}>
+                <Save className="mr-1 h-4 w-4"/> {savingRule===rule.event_key?"Kaydediliyor…":"Kaydet"}
+              </Button>
+            </div>:null}
           </div>
         </div>)}</div>
       </section>
