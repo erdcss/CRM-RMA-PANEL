@@ -69,47 +69,50 @@ export function B2BFooter() {
   </footer>;
 }
 
-/** The mobile web smart banner uses only the official app icon and store URLs saved in Admin.
- * The platform is detected on the device; never send an Android user to the App Store
- * (or an iOS user to Google Play) when that platform's link is missing.
+/** Mobile install prompt. Kept visible even when store configuration is unavailable,
+ * so a missing API response cannot silently remove the entire banner.
  */
+function detectMobileStore(): "ios" | "android" | null {
+  if (typeof navigator === "undefined") return null;
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod/i.test(ua) ||
+      (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  return null;
+}
+
 export function B2BMobileDownloadHeader() {
-  const { data: links } = useStoreLinks();
+  const { data: links, isLoading } = useStoreLinks();
   const { data: branding } = useBranding();
-  const [platform, setPlatform] = useState<"ios" | "android" | null>(null);
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try { return window.sessionStorage.getItem("b2b-mobile-install-banner-dismissed") === "1"; }
-    catch { return false; }
-  });
+  const [platform, setPlatform] = useState<"ios" | "android" | null>(detectMobileStore);
+  const [dismissed, setDismissed] = useState(false);
 
-  useEffect(() => {
-    const ua = navigator.userAgent || "";
-    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
-      (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
-    setPlatform(isIOS ? "ios" : /Android/i.test(ua) ? "android" : null);
-  }, []);
+  useEffect(() => { setPlatform(detectMobileStore()); }, []);
 
-  const storeUrl = platform === "ios" ? links?.appStoreUrl :
-    platform === "android" ? links?.googlePlayUrl : null;
-  if (dismissed || !storeUrl) return null;
+  // This is the verified public Çalışkan B2B iOS listing, used only if the
+  // admin-configured URL was not returned. Android has no invented fallback.
+  const officialIosStore = "https://apps.apple.com/tr/app/%C3%A7al%C4%B1%C5%9Fkan-b2b/id6802286663";
+  const iosUrl = links?.appStoreUrl || officialIosStore;
+  const androidUrl = links?.googlePlayUrl || "";
+  const storeUrl = platform === "ios" ? iosUrl :
+    platform === "android" ? androidUrl : "";
+  const appIcon = branding?.b2b_mobile_logo ||
+    (platform === "android" ? branding?.b2b_mobile_android_icon : null) ||
+    branding?.b2b_favicon || branding?.b2b_logo;
 
-  const appIcon = branding?.b2b_mobile_android_icon ||
-    branding?.b2b_mobile_logo || branding?.b2b_favicon;
-  const closeBanner = () => {
-    setDismissed(true);
-    try { window.sessionStorage.setItem("b2b-mobile-install-banner-dismissed", "1"); }
-    catch { /* Private browsing may block storage; in-page dismissal still works. */ }
-  };
+  if (dismissed) return null;
+
+  const storeName = platform === "ios" ? "App Store" :
+    platform === "android" ? "Google Play" : "uygulama mağazası";
 
   return (
     <aside
-      aria-label="Çalışkan B2B mobil uygulamasını indir"
-      className="flex min-h-[88px] w-full items-center gap-2 border-b border-[#e8e8e8] bg-white px-2.5 py-2 text-[#171717] shadow-sm md:hidden"
+      aria-label="Çalışkan B2B uygulamasını indir"
+      className="flex min-h-[84px] w-full items-center gap-2 border-b border-[#e7e7e7] bg-white px-2 py-2 text-[#171717] shadow-sm md:hidden"
     >
       <button
         type="button"
-        onClick={closeBanner}
+        onClick={() => setDismissed(true)}
         aria-label="Uygulama indirme bannerını kapat"
         className="flex h-10 w-6 shrink-0 items-center justify-center rounded-md text-[#333] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00]"
       >
@@ -118,32 +121,46 @@ export function B2BMobileDownloadHeader() {
       {appIcon ? (
         <img
           src={appIcon}
-          alt="Çalışkan B2B uygulama logosu"
-          className="h-14 w-14 shrink-0 rounded-[14px] bg-[#ffcc00] object-contain shadow-sm"
+          alt="Çalışkan B2B resmi uygulama logosu"
+          className="h-[54px] w-[54px] shrink-0 rounded-[13px] bg-[#ffcc00] object-contain shadow-sm"
         />
       ) : (
-        <span aria-label="Çalışkan B2B" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-[#ffcc00] text-center text-[13px] font-black leading-4 text-[#111]">Çalışkan<br/>B2B</span>
+        <span className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[13px] bg-[#ffcc00] text-center text-[12px] font-black leading-4 text-[#111]">
+          Çalışkan<br/>B2B
+        </span>
       )}
-      <div className="min-w-0 flex-1 pl-0.5">
-        <p className="truncate text-[13px] font-extrabold leading-5 text-[#171717]">
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] font-extrabold leading-4 text-[#171717]">
           {links?.downloadHeaderTitle || "Hızlı. Kolay. Avantajlı."}
         </p>
-        <p className="line-clamp-2 text-[11px] leading-[15px] text-[#444]">
-          {links?.downloadHeaderText || "Çalışkan B2B ile toptan alışveriş cebinde."}
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-[14px] text-[#444]">
+          {links?.downloadHeaderText || "Çalışkan B2B uygulamasını indir, toptan alışverişi kolaylaştır."}
         </p>
-        <p className="mt-0.5 truncate text-[10px] font-semibold text-[#6d6d6d]">
-          {platform === "ios" ? "iPhone için App Store" : "Android için Google Play"}
+        <p className="mt-0.5 truncate text-[10px] font-semibold text-[#666]">
+          {platform === null ? "iPhone ve Android için" : storeName}
         </p>
       </div>
-      <a
-        href={storeUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={platform === "ios" ? "Çalışkan B2B uygulamasını App Store'dan indir" : "Çalışkan B2B uygulamasını Google Play'den indir"}
-        className="flex min-h-10 shrink-0 items-center justify-center rounded-full bg-[#ffcc00] px-3.5 text-[13px] font-black text-[#111] shadow-sm transition hover:bg-[#f3bf00] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111]"
-      >
-        İndir
-      </a>
+      {storeUrl ? (
+        <a
+          href={storeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Çalışkan B2B uygulamasını ${storeName} üzerinden indir`}
+          className="flex min-h-10 shrink-0 items-center justify-center rounded-full bg-[#ffcc00] px-3 text-[13px] font-black text-[#111] shadow-sm transition hover:bg-[#f3bf00] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111]"
+        >
+          İndir
+        </a>
+      ) : platform === null ? (
+        <div className="flex shrink-0 flex-col gap-1 text-[10px] font-bold">
+          {links?.appStoreUrl && <a className="rounded-lg bg-[#ffcc00] px-2 py-1 text-center text-[#111]" href={links.appStoreUrl} target="_blank" rel="noopener noreferrer">App Store</a>}
+          {links?.googlePlayUrl && <a className="rounded-lg bg-[#ffcc00] px-2 py-1 text-center text-[#111]" href={links.googlePlayUrl} target="_blank" rel="noopener noreferrer">Google Play</a>}
+          {!links?.appStoreUrl && !links?.googlePlayUrl && <span className="text-[#777]">Mağaza seç</span>}
+        </div>
+      ) : (
+        <span aria-live="polite" className="max-w-[72px] shrink-0 text-center text-[10px] font-semibold leading-3 text-[#777]">
+          {isLoading ? "Bağlantı yükleniyor" : "Mağaza bağlantısı ayarlanıyor"}
+        </span>
+      )}
     </aside>
   );
 }
