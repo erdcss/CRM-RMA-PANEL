@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus, CalendarClock, XCircle } from "lucide-react";
+import { Bell, Send, Upload, Volume2, RefreshCw, CheckCircle2, SmilePlus, CalendarClock, XCircle, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -12,11 +12,16 @@ type Rule={event_key:string;enabled:boolean;title_template:string;body_template:
 type Message={id:number;title:string;body:string;source:string;event_key:string|null;email:string;created_at:string};
 type Dashboard={customers:Customer[];rules:Rule[];recent:Message[];soundConfigured:boolean};
 type ScheduledMessage={
-  id:string;title:string;body:string;recipient_count:number;audience_all:boolean;include_logged_out:boolean;
+  id:string;title:string;body:string;recipient_ids:number[];recipient_count:number;audience_all:boolean;include_logged_out:boolean;sound:"default"|"custom";
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
   repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;repeat_end_at:string|null;
   paused:boolean;sent_count:number;last_sent_at:string|null;
+};
+type ScheduleEditDraft={
+  id:string;title:string;body:string;scheduledDate:string;repeatEnabled:boolean;
+  repeatUnit:"day"|"week"|"month";repeatEvery:number;repeatEndDate:string;
+  all:boolean;includeLoggedOut:boolean;customSound:boolean;userIds:number[];
 };
 const scheduledStatus:Record<ScheduledMessage["status"],string>={
   pending:"Planlandı",processing:"Gönderiliyor",sent:"Gönderildi",failed:"Hata",cancelled:"İptal edildi",
@@ -31,14 +36,15 @@ function repeatDescription(item:{repeat_unit:"day"|"week"|"month"|null;repeat_ev
 function formatTurkeyDate(date: string) {
   return new Date(date).toLocaleString("tr-TR",{timeZone:"Europe/Istanbul",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
 }
-function turkeyNowInput() {
+function turkeyInput(date:Date) {
   const formatter=new Intl.DateTimeFormat("en-CA",{
     timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit",
-    hour:"2-digit",minute:"2-digit",hour12:false,
+    hour:"2-digit",minute:"2-digit",hourCycle:"h23",
   });
-  const parts=Object.fromEntries(formatter.formatToParts(new Date()).map(part=>[part.type,part.value]));
+  const parts=Object.fromEntries(formatter.formatToParts(date).map(part=>[part.type,part.value]));
   return parts.year+"-"+parts.month+"-"+parts.day+"T"+parts.hour+":"+parts.minute;
 }
+function turkeyNowInput(){return turkeyInput(new Date());}
 const titles:Record<string,string>={
   membership_approved:"Üyelik onayı",
   order_created:"Sipariş oluşturuldu",
@@ -149,6 +155,9 @@ export default function AdminNotifications(){
   const [repeatEvery,setRepeatEvery]=useState(1);
   const [togglingRepeat,setTogglingRepeat]=useState<string|null>(null);
   const [cancelling,setCancelling]=useState<string|null>(null);
+  const [editingSchedule,setEditingSchedule]=useState<ScheduleEditDraft|null>(null);
+  const [savingSchedule,setSavingSchedule]=useState(false);
+  const [editingRule,setEditingRule]=useState<string|null>(null);
   const [uploadingSound,setUploadingSound]=useState(false);
   const [rules,setRules]=useState<Rule[]>([]);
   const [savingRule,setSavingRule]=useState<string|null>(null);
@@ -225,6 +234,63 @@ export default function AdminNotifications(){
     }catch(e){toast({title:deliveryMode==="scheduled"?"Bildirim planlanamadı":"Bildirim gönderilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
     finally{setSending(false);}
   }
+  function openScheduleEditor(item:ScheduledMessage){
+    setEditingSchedule({
+      id:item.id,title:item.title,body:item.body,
+      scheduledDate:turkeyInput(new Date(item.scheduled_at)),
+      repeatEnabled:!!item.repeat_unit,
+      repeatUnit:item.repeat_unit||"day",repeatEvery:item.repeat_every||1,
+      repeatEndDate:item.repeat_end_at?turkeyInput(new Date(item.repeat_end_at)).slice(0,10):"",
+      all:item.audience_all,includeLoggedOut:item.include_logged_out,
+      customSound:item.sound==="custom",userIds:item.recipient_ids||[],
+    });
+  }
+  function changeScheduleDraft(patch:Partial<ScheduleEditDraft>){
+    setEditingSchedule(prev=>prev?{...prev,...patch}:null);
+  }
+  async function saveScheduleEdit(){
+    const draft=editingSchedule;
+    if(!draft)return;
+    if(!draft.title.trim()||!draft.body.trim()){
+      toast({title:"Başlık ve mesaj gerekli",variant:"destructive"});return;
+    }
+    if(!draft.scheduledDate||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draft.scheduledDate)){
+      toast({title:"Geçerli tarih ve saat seçin",variant:"destructive"});return;
+    }
+    const start=new Date(draft.scheduledDate+":00+03:00");
+    if(!Number.isFinite(start.getTime())||start.getTime()<Date.now()+30_000){
+      toast({title:"Gelecekte bir gönderim tarihi seçin",variant:"destructive"});return;
+    }
+    if(draft.repeatEnabled&&draft.repeatEndDate&&draft.repeatEndDate<draft.scheduledDate.slice(0,10)){
+      toast({title:"Bitiş tarihi başlangıçtan önce olamaz",variant:"destructive"});return;
+    }
+    if(!draft.all&&!draft.userIds.length){
+      toast({title:"En az bir müşteri seçin",variant:"destructive"});return;
+    }
+    if(draft.repeatEnabled&&draft.repeatEndDate&&(!Number.isInteger(draft.repeatEvery)||draft.repeatEvery<1||draft.repeatEvery>30)){
+      toast({title:"Tekrar aralığı 1–30 olmalı",variant:"destructive"});return;
+    }
+    setSavingSchedule(true);
+    try{
+      const response=await apiRequest("PUT","/api/admin/b2b-notifications/scheduled/"+encodeURIComponent(draft.id)+"/details",{
+        title:draft.title.trim(),body:draft.body.trim(),scheduledAt:start.toISOString(),
+        all:draft.all,userIds:draft.all?[]:draft.userIds,includeLoggedOut:draft.includeLoggedOut,
+        customSound:draft.customSound,
+        ...(draft.repeatEnabled?{
+          repeatUnit:draft.repeatEndDate?draft.repeatUnit:"day",
+          repeatEvery:draft.repeatEndDate?draft.repeatEvery:1,
+          repeatEndDate:draft.repeatEndDate||undefined,
+        }:{repeatEndDate:undefined}),
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||"Zamanlı bildirim kaydedilemedi");
+      toast({title:"Zamanlı bildirim güncellendi"});
+      setEditingSchedule(null);
+      await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]});
+    }catch(error){
+      toast({title:"Düzenleme başarısız",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});
+    }finally{setSavingSchedule(false);}
+  }
   async function toggleRepeat(id:string,enabled:boolean){
     setTogglingRepeat(id);
     try{
@@ -264,6 +330,7 @@ export default function AdminNotifications(){
       if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||"Kaydedilemedi");}
       await queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]});
       toast({title:"Otomatik bildirim kuralı kaydedildi"});
+      setEditingRule(null);
     }catch(e){toast({title:"Kural kaydedilemedi",description:e instanceof Error?e.message:"Tekrar deneyin",variant:"destructive"});}
     finally{setSavingRule(null);}
   }
@@ -298,7 +365,7 @@ export default function AdminNotifications(){
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold">
-              <input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)} /> Tüm aktif B2B müşterileri
+              <input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)} /> Tüm aktif B2B müşterileri (yeni kayıtlar dahil)
             </label>
             <label className="flex cursor-pointer items-start gap-2 rounded-xl border px-3 py-3 text-sm">
               <input type="checkbox" className="mt-1" checked={includeLoggedOut}
@@ -454,7 +521,8 @@ export default function AdminNotifications(){
                   <p className="text-sm text-muted-foreground break-words">{item.body}</p>
                   <p className="text-xs text-muted-foreground">
                     {item.repeat_unit?(item.status==="sent"?"Son planlanan: ":item.paused?"Planlanan saat: ":"Sonraki gönderim: "):"Gönderim: "}
-                    {formatTurkeyDate(item.scheduled_at)} · {item.recipient_count} müşteri
+                    {formatTurkeyDate(item.scheduled_at)} · {item.audience_all?"Tüm aktif müşteriler (yeniler dahil)":item.recipient_count+" müşteri"}
+                    {item.include_logged_out?" · Oturumu kapalı cihazlar dahil":""}
                     {item.status==="sent"?" · "+item.accepted_count+" Expo kabul":""}
                   </p>
                   {item.repeat_unit?<p className="text-xs text-muted-foreground">
@@ -466,6 +534,11 @@ export default function AdminNotifications(){
                   </p>:null}
                   {item.last_error?<p className="text-xs text-destructive">{item.last_error}</p>:null}
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                {item.status==="pending"?<Button size="sm" variant="outline" disabled={savingSchedule}
+                  onClick={()=>editingSchedule?.id===item.id?setEditingSchedule(null):openScheduleEditor(item)}>
+                  <Pencil className="mr-1 h-4 w-4"/> {editingSchedule?.id===item.id?"Kapat":"Düzenle"}
+                </Button>:null}
                 {item.repeat_unit&&["pending","processing"].includes(item.status)?
                   <Button size="sm" variant="outline" disabled={togglingRepeat===item.id}
                     onClick={()=>void toggleRepeat(item.id,item.paused)}>
@@ -477,7 +550,83 @@ export default function AdminNotifications(){
                       onClick={()=>void cancelScheduled(item.id)}>
                       <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
                     </Button>:null}
+                </div>
               </div>
+              {editingSchedule?.id===item.id?<div className="mt-3 space-y-3 rounded-xl border bg-muted/20 p-3">
+                <div className="flex items-center gap-2 font-semibold text-sm"><Pencil className="h-4 w-4"/> Bildirimi Düzenle</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block space-y-1 text-xs font-semibold">Bildirim başlığı
+                    <Input value={editingSchedule.title} maxLength={180} onChange={e=>changeScheduleDraft({title:e.target.value})}/>
+                  </label>
+                  <label className="block space-y-1 text-xs font-semibold">Sonraki gönderim (Türkiye saati)
+                    <Input type="datetime-local" min={turkeyNowInput()} value={editingSchedule.scheduledDate}
+                      onChange={e=>changeScheduleDraft({scheduledDate:e.target.value})}/>
+                  </label>
+                </div>
+                <label className="block space-y-1 text-xs font-semibold">Bildirim mesajı
+                  <textarea rows={3} maxLength={800} className="w-full rounded-lg border bg-background p-3 text-sm font-normal"
+                    value={editingSchedule.body} onChange={e=>changeScheduleDraft({body:e.target.value})}/>
+                </label>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={editingSchedule.all}
+                      onChange={e=>changeScheduleDraft({all:e.target.checked})}/>
+                    Tüm aktif müşteriler (gelecekte kayıt olanlar dahil)
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={editingSchedule.includeLoggedOut}
+                      onChange={e=>changeScheduleDraft({includeLoggedOut:e.target.checked})}/>
+                    Oturumu kapalı cihazlara da gönder
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={editingSchedule.customSound}
+                      onChange={e=>changeScheduleDraft({customSound:e.target.checked})}/>
+                    Özel ses
+                  </label>
+                </div>
+                {!editingSchedule.all?<div className="rounded-lg border bg-background p-3">
+                  <p className="mb-2 text-xs font-semibold">Gönderilecek müşteriler</p>
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {(data?.customers||[]).map(customer=><label key={customer.id} className="flex cursor-pointer gap-2 py-1 text-sm">
+                      <input type="checkbox" checked={editingSchedule.userIds.includes(customer.id)}
+                        onChange={e=>changeScheduleDraft({
+                          userIds:e.target.checked?[...editingSchedule.userIds,customer.id]:
+                            editingSchedule.userIds.filter(id=>id!==customer.id)
+                        })}/>
+                      {customer.company_name||customer.email}
+                    </label>)}
+                  </div>
+                </div>:null}
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" checked={editingSchedule.repeatEnabled}
+                    onChange={e=>changeScheduleDraft({repeatEnabled:e.target.checked})}/>
+                  <RefreshCw className="h-4 w-4"/> Bildirimi yinele
+                </label>
+                {editingSchedule.repeatEnabled?<div className="space-y-2 rounded-lg border bg-background p-3">
+                  <label className="block space-y-1 text-xs font-semibold">Bitiş tarihi (boşsa her gün süresiz)
+                    <Input type="date" min={editingSchedule.scheduledDate.slice(0,10)}
+                      value={editingSchedule.repeatEndDate}
+                      onChange={e=>changeScheduleDraft({repeatEndDate:e.target.value})}/>
+                  </label>
+                  {editingSchedule.repeatEndDate?<div className="flex flex-wrap items-center gap-2">
+                    <select className="h-10 flex-1 rounded-md border bg-background px-3 text-sm"
+                      value={editingSchedule.repeatUnit}
+                      onChange={e=>changeScheduleDraft({repeatUnit:e.target.value as "day"|"week"|"month"})}>
+                      <option value="day">Günlük</option><option value="week">Haftalık</option><option value="month">Aylık</option>
+                    </select>
+                    <label className="text-xs">Her <Input className="inline-flex w-20" type="number" min={1} max={30}
+                      value={editingSchedule.repeatEvery}
+                      onChange={e=>changeScheduleDraft({repeatEvery:Number(e.target.value)})}/>
+                    </label>
+                  </div>:<p className="text-xs text-muted-foreground">Her gün, seçilen saatte süresiz.</p>}
+                </div>:null}
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" disabled={savingSchedule} onClick={()=>setEditingSchedule(null)}>Vazgeç</Button>
+                  <Button size="sm" disabled={savingSchedule} onClick={()=>void saveScheduleEdit()}>
+                    <Save className="mr-1 h-4 w-4"/> {savingSchedule?"Kaydediliyor…":"Değişiklikleri Kaydet"}
+                  </Button>
+                </div>
+              </div>:null}
             </div>)}
         </div>
       </section>
@@ -487,18 +636,34 @@ export default function AdminNotifications(){
         <div className="mt-4 space-y-3">{rules.map(rule=><div key={rule.event_key} className="rounded-xl border p-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="font-bold">{titles[rule.event_key]||rule.event_key}</h3>
-            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rule.enabled} onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,enabled:e.target.checked}:x))}/> Aktif</label>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" disabled={editingRule!==rule.event_key}
+                  checked={rule.enabled} onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,enabled:e.target.checked}:x))}/> Aktif
+              </label>
+              {editingRule!==rule.event_key?<Button size="sm" variant="outline" onClick={()=>setEditingRule(rule.event_key)}>
+                <Pencil className="mr-1 h-4 w-4"/> Düzenle
+              </Button>:null}
+            </div>
           </div>
-          <Input className="mt-3" maxLength={180} value={rule.title_template}
+          <Input className="mt-3" disabled={editingRule!==rule.event_key} maxLength={180} value={rule.title_template}
             onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,title_template:e.target.value}:x))}/>
-          <textarea className="mt-2 w-full rounded-lg border bg-background p-3 text-sm" maxLength={800} rows={2}
+          <textarea disabled={editingRule!==rule.event_key} className="mt-2 w-full rounded-lg border bg-background p-3 text-sm" maxLength={800} rows={2}
             value={rule.body_template}
             onChange={e=>setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...x,body_template:e.target.value}:x))}/>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Değişkenler: {"{orderNumber}"} · {"{date}"} · {"{amount}"}</span>
-            <Button size="sm" variant="outline" disabled={savingRule===rule.event_key} onClick={()=>void saveRule(rule)}>
-              {savingRule===rule.event_key?"Kaydediliyor…":"Kuralı Kaydet"}
-            </Button>
+            {editingRule===rule.event_key?<div className="flex gap-2">
+              <Button size="sm" variant="outline" disabled={savingRule===rule.event_key}
+                onClick={()=>{
+                  const original=data?.rules.find(x=>x.event_key===rule.event_key);
+                  if(original)setRules(prev=>prev.map(x=>x.event_key===rule.event_key?{...original}:x));
+                  setEditingRule(null);
+                }}>Vazgeç</Button>
+              <Button size="sm" disabled={savingRule===rule.event_key} onClick={()=>void saveRule(rule)}>
+                <Save className="mr-1 h-4 w-4"/> {savingRule===rule.event_key?"Kaydediliyor…":"Kaydet"}
+              </Button>
+            </div>:null}
           </div>
         </div>)}</div>
       </section>
