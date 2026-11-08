@@ -68,3 +68,49 @@ export function nextNotificationOccurrence(
     index += 1;
   }
 }
+
+/**
+ * A blank end date means indefinite repetition. A supplied date is inclusive
+ * of the entire calendar day in Turkey, not the browser/server time zone.
+ * Example: 2026-11-08 ends at 2026-11-08 23:59:59.999 Europe/Istanbul.
+ */
+export function parseNotificationRepeatEnd(
+  value: unknown,
+  start: Date | string,
+): {date: Date | null;error?: never} | {date?: never;error: string} {
+  if (value === undefined || value === null || value === "") return {date:null};
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value))
+    return {error:"Bitiş tarihini gün/ay/yıl olarak seçin"};
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 2000 || year > 9999) return {error:"Geçerli bir bitiş tarihi seçin"};
+  const midnight = Date.UTC(year,month-1,day);
+  const checked = new Date(midnight);
+  if (checked.getUTCFullYear() !== year || checked.getUTCMonth() !== month-1 || checked.getUTCDate() !== day)
+    return {error:"Bitiş tarihi geçersiz"};
+  const end = new Date(midnight + DAY_MS - 1 - ISTANBUL_OFFSET_MS);
+  const begin = new Date(start);
+  if (!Number.isFinite(begin.getTime()) || end.getTime() < begin.getTime())
+    return {error:"Bitiş tarihi başlangıç tarihinden önce olamaz"};
+  return {date:end};
+}
+
+/** A series must not be scheduled after its inclusive Turkey end date. */
+export function nextNotificationOccurrenceBeforeEnd(
+  anchor: Date | string,
+  unit: NotificationRepeatUnit,
+  every: number,
+  after: Date,
+  end: Date | string | null,
+): Date | null {
+  const next = nextNotificationOccurrence(anchor,unit,every,after);
+  if (end !== null && next.getTime() > new Date(end).getTime()) return null;
+  return next;
+}
+
+/** A series without an end date always repeats once each day. */
+export function effectiveNotificationRepeat(
+  repeat: {unit: NotificationRepeatUnit | null;every:number},
+  end: Date | null,
+): {unit: NotificationRepeatUnit | null;every:number} {
+  return repeat.unit && !end ? {unit:"day",every:1} : repeat;
+}
