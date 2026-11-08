@@ -254,7 +254,7 @@ export default function AdminNotifications(){
     if(!draft.title.trim()||!draft.body.trim()){
       toast({title:"Başlık ve mesaj gerekli",variant:"destructive"});return;
     }
-    if(!draft.scheduledDate||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(draft.scheduledDate)){
+    if(!draft.scheduledDate||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draft.scheduledDate)){
       toast({title:"Geçerli tarih ve saat seçin",variant:"destructive"});return;
     }
     const start=new Date(draft.scheduledDate+":00+03:00");
@@ -365,7 +365,7 @@ export default function AdminNotifications(){
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
             <label className="flex items-center gap-2 text-sm font-semibold">
-              <input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)} /> Tüm aktif B2B müşterileri
+              <input type="checkbox" checked={all} onChange={e=>setAll(e.target.checked)} /> Tüm aktif B2B müşterileri (yeni kayıtlar dahil)
             </label>
             <label className="flex cursor-pointer items-start gap-2 rounded-xl border px-3 py-3 text-sm">
               <input type="checkbox" className="mt-1" checked={includeLoggedOut}
@@ -521,7 +521,8 @@ export default function AdminNotifications(){
                   <p className="text-sm text-muted-foreground break-words">{item.body}</p>
                   <p className="text-xs text-muted-foreground">
                     {item.repeat_unit?(item.status==="sent"?"Son planlanan: ":item.paused?"Planlanan saat: ":"Sonraki gönderim: "):"Gönderim: "}
-                    {formatTurkeyDate(item.scheduled_at)} · {item.recipient_count} müşteri
+                    {formatTurkeyDate(item.scheduled_at)} · {item.audience_all?"Tüm aktif müşteriler (yeniler dahil)":item.recipient_count+" müşteri"}
+                    {item.include_logged_out?" · Oturumu kapalı cihazlar dahil":""}
                     {item.status==="sent"?" · "+item.accepted_count+" Expo kabul":""}
                   </p>
                   {item.repeat_unit?<p className="text-xs text-muted-foreground">
@@ -533,6 +534,11 @@ export default function AdminNotifications(){
                   </p>:null}
                   {item.last_error?<p className="text-xs text-destructive">{item.last_error}</p>:null}
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                {item.status==="pending"?<Button size="sm" variant="outline" disabled={savingSchedule}
+                  onClick={()=>editingSchedule?.id===item.id?setEditingSchedule(null):openScheduleEditor(item)}>
+                  <Pencil className="mr-1 h-4 w-4"/> {editingSchedule?.id===item.id?"Kapat":"Düzenle"}
+                </Button>:null}
                 {item.repeat_unit&&["pending","processing"].includes(item.status)?
                   <Button size="sm" variant="outline" disabled={togglingRepeat===item.id}
                     onClick={()=>void toggleRepeat(item.id,item.paused)}>
@@ -544,7 +550,83 @@ export default function AdminNotifications(){
                       onClick={()=>void cancelScheduled(item.id)}>
                       <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
                     </Button>:null}
+                </div>
               </div>
+              {editingSchedule?.id===item.id?<div className="mt-3 space-y-3 rounded-xl border bg-muted/20 p-3">
+                <div className="flex items-center gap-2 font-semibold text-sm"><Pencil className="h-4 w-4"/> Bildirimi Düzenle</div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block space-y-1 text-xs font-semibold">Bildirim başlığı
+                    <Input value={editingSchedule.title} maxLength={180} onChange={e=>changeScheduleDraft({title:e.target.value})}/>
+                  </label>
+                  <label className="block space-y-1 text-xs font-semibold">Sonraki gönderim (Türkiye saati)
+                    <Input type="datetime-local" min={turkeyNowInput()} value={editingSchedule.scheduledDate}
+                      onChange={e=>changeScheduleDraft({scheduledDate:e.target.value})}/>
+                  </label>
+                </div>
+                <label className="block space-y-1 text-xs font-semibold">Bildirim mesajı
+                  <textarea rows={3} maxLength={800} className="w-full rounded-lg border bg-background p-3 text-sm font-normal"
+                    value={editingSchedule.body} onChange={e=>changeScheduleDraft({body:e.target.value})}/>
+                </label>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={editingSchedule.all}
+                      onChange={e=>changeScheduleDraft({all:e.target.checked})}/>
+                    Tüm aktif müşteriler (gelecekte kayıt olanlar dahil)
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={editingSchedule.includeLoggedOut}
+                      onChange={e=>changeScheduleDraft({includeLoggedOut:e.target.checked})}/>
+                    Oturumu kapalı cihazlara da gönder
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={editingSchedule.customSound}
+                      onChange={e=>changeScheduleDraft({customSound:e.target.checked})}/>
+                    Özel ses
+                  </label>
+                </div>
+                {!editingSchedule.all?<div className="rounded-lg border bg-background p-3">
+                  <p className="mb-2 text-xs font-semibold">Gönderilecek müşteriler</p>
+                  <div className="max-h-40 space-y-1 overflow-y-auto">
+                    {(data?.customers||[]).map(customer=><label key={customer.id} className="flex cursor-pointer gap-2 py-1 text-sm">
+                      <input type="checkbox" checked={editingSchedule.userIds.includes(customer.id)}
+                        onChange={e=>changeScheduleDraft({
+                          userIds:e.target.checked?[...editingSchedule.userIds,customer.id]:
+                            editingSchedule.userIds.filter(id=>id!==customer.id)
+                        })}/>
+                      {customer.company_name||customer.email}
+                    </label>)}
+                  </div>
+                </div>:null}
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold">
+                  <input type="checkbox" checked={editingSchedule.repeatEnabled}
+                    onChange={e=>changeScheduleDraft({repeatEnabled:e.target.checked})}/>
+                  <RefreshCw className="h-4 w-4"/> Bildirimi yinele
+                </label>
+                {editingSchedule.repeatEnabled?<div className="space-y-2 rounded-lg border bg-background p-3">
+                  <label className="block space-y-1 text-xs font-semibold">Bitiş tarihi (boşsa her gün süresiz)
+                    <Input type="date" min={editingSchedule.scheduledDate.slice(0,10)}
+                      value={editingSchedule.repeatEndDate}
+                      onChange={e=>changeScheduleDraft({repeatEndDate:e.target.value})}/>
+                  </label>
+                  {editingSchedule.repeatEndDate?<div className="flex flex-wrap items-center gap-2">
+                    <select className="h-10 flex-1 rounded-md border bg-background px-3 text-sm"
+                      value={editingSchedule.repeatUnit}
+                      onChange={e=>changeScheduleDraft({repeatUnit:e.target.value as "day"|"week"|"month"})}>
+                      <option value="day">Günlük</option><option value="week">Haftalık</option><option value="month">Aylık</option>
+                    </select>
+                    <label className="text-xs">Her <Input className="inline-flex w-20" type="number" min={1} max={30}
+                      value={editingSchedule.repeatEvery}
+                      onChange={e=>changeScheduleDraft({repeatEvery:Number(e.target.value)})}/>
+                    </label>
+                  </div>:<p className="text-xs text-muted-foreground">Her gün, seçilen saatte süresiz.</p>}
+                </div>:null}
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" variant="outline" disabled={savingSchedule} onClick={()=>setEditingSchedule(null)}>Vazgeç</Button>
+                  <Button size="sm" disabled={savingSchedule} onClick={()=>void saveScheduleEdit()}>
+                    <Save className="mr-1 h-4 w-4"/> {savingSchedule?"Kaydediliyor…":"Değişiklikleri Kaydet"}
+                  </Button>
+                </div>
+              </div>:null}
             </div>)}
         </div>
       </section>
