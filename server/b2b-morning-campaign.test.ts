@@ -36,7 +36,7 @@ test("the specifically requested existing campaign upgrades once and keeps tomor
               '2026-11-09 05:00:00+00','day',1,NULL,FALSE,FALSE,'2026-11-09 05:00:00+00');
     `);
     const result=await upgradeRequestedMorningCampaign(sql=>db.query(sql));
-    assert.equal(result,"1");
+    assert.equal(String(result),"1");
     const rows=await db.query<{
       scheduled_at:Date;repeat_start_at:Date;audience_all:boolean;include_logged_out:boolean;
     }>("SELECT scheduled_at,repeat_start_at,audience_all,include_logged_out FROM b2b_scheduled_notifications");
