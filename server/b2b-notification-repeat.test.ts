@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nextNotificationOccurrence, parseNotificationRepeat } from "./b2b-notification-repeat";
+import { nextNotificationOccurrence, parseNotificationRepeat, parseNotificationRepeatEnd, effectiveNotificationRepeat, nextNotificationOccurrenceBeforeEnd } from "./b2b-notification-repeat";
 
 test("one-time messages have no recurrence", () => {
   assert.deepEqual(parseNotificationRepeat(undefined, undefined), { unit: null, every: 1 });
@@ -35,4 +35,35 @@ test("monthly leap year and a paused schedule are computed from their original a
 test("when activation happens before the first run, keep the original run", () => {
   const anchor = new Date("2027-01-01T10:00:00Z");
   assert.equal(nextNotificationOccurrence(anchor, "day", 1, new Date("2026-12-31T10:00:00Z")).toISOString(), anchor.toISOString());
+});
+
+test("an absent end date selects daily recurrence regardless of optional interval", () => {
+  const repeat=parseNotificationRepeat("week",2);
+  assert.deepEqual(effectiveNotificationRepeat(repeat,null),{unit:"day",every:1});
+  const bounded=parseNotificationRepeatEnd("2026-11-30",new Date("2026-11-08T20:00:00Z"));
+  assert.deepEqual(effectiveNotificationRepeat(repeat,bounded.date || null),repeat);
+});
+test("validates date only as an inclusive Istanbul calendar day", () => {
+  const begin="2026-11-08T20:00:00.000Z"; // 23:00 Turkey
+  const parsed=parseNotificationRepeatEnd("2026-11-08",begin);
+  assert.equal(parsed.date?.toISOString(),"2026-11-08T20:59:59.999Z");
+  assert.deepEqual(parseNotificationRepeatEnd("",begin),{date:null});
+  assert.ok(parseNotificationRepeatEnd("2026-11-07",begin).error);
+  assert.ok(parseNotificationRepeatEnd("2026-02-30",begin).error);
+  assert.ok(parseNotificationRepeatEnd("2026-11-08T12:00",begin).error);
+  assert.ok(parseNotificationRepeatEnd(20261108,begin).error);
+});
+test("ends just after the last eligible 23:00 Turkey occurrence", () => {
+  const anchor="2026-11-08T20:00:00.000Z";
+  const end=parseNotificationRepeatEnd("2026-11-10",anchor).date!;
+  assert.equal(nextNotificationOccurrenceBeforeEnd(anchor,"day",1,new Date(anchor),end)?.toISOString(),"2026-11-09T20:00:00.000Z");
+  assert.equal(nextNotificationOccurrenceBeforeEnd(anchor,"day",1,new Date("2026-11-09T20:00:00.000Z"),end)?.toISOString(),"2026-11-10T20:00:00.000Z");
+  assert.equal(nextNotificationOccurrenceBeforeEnd(anchor,"day",1,new Date("2026-11-10T20:00:00.000Z"),end),null);
+});
+test("a weekly/monthly repeat stops when its next date is beyond the end", () => {
+  const anchor="2026-11-08T18:00:00.000Z";
+  const end=parseNotificationRepeatEnd("2026-11-20",anchor).date!;
+  assert.equal(nextNotificationOccurrenceBeforeEnd(anchor,"week",1,new Date(anchor),end)?.toISOString(),"2026-11-15T18:00:00.000Z");
+  assert.equal(nextNotificationOccurrenceBeforeEnd(anchor,"week",1,new Date("2026-11-15T18:00:00.000Z"),end),null);
+  assert.equal(nextNotificationOccurrenceBeforeEnd(anchor,"month",1,new Date(anchor),end),null);
 });
