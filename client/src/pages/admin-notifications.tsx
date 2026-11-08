@@ -424,22 +424,38 @@ export default function AdminNotifications(){
                     <span className="font-semibold text-sm">{item.title}</span>
                     <span className={"rounded-full px-2 py-0.5 text-xs font-semibold "+
                       (item.status==="sent"?"bg-emerald-100 text-emerald-800":
+                       item.paused?"bg-amber-100 text-amber-800":
                        item.status==="pending"?"bg-blue-100 text-blue-800":
                        item.status==="failed"?"bg-red-100 text-red-800":
-                       "bg-muted text-muted-foreground")}>{scheduledStatus[item.status]}</span>
+                       "bg-muted text-muted-foreground")}>{item.paused?"Pasif":scheduledStatus[item.status]}</span>
+                    {item.repeat_unit?<span className="rounded-full border px-2 py-0.5 text-xs font-semibold">
+                      <RefreshCw className="mr-1 inline h-3 w-3"/>{repeatDescription(item)}
+                    </span>:null}
                   </div>
                   <p className="text-sm text-muted-foreground break-words">{item.body}</p>
                   <p className="text-xs text-muted-foreground">
+                    {item.repeat_unit?(item.paused?"Planlanan saat: ":"Sonraki gönderim: "):"Gönderim: "}
                     {formatTurkeyDate(item.scheduled_at)} · {item.recipient_count} müşteri
                     {item.status==="sent"?" · "+item.accepted_count+" Expo kabul":""}
                   </p>
+                  {item.repeat_unit?<p className="text-xs text-muted-foreground">
+                    {item.sent_count} kez gönderim yapıldı
+                    {item.last_sent_at?" · Son gönderim: "+formatTurkeyDate(item.last_sent_at):""}
+                    {" · "}Toplam Expo kabul: {item.accepted_count}
+                  </p>:null}
                   {item.last_error?<p className="text-xs text-destructive">{item.last_error}</p>:null}
                 </div>
-                {item.status==="pending"?
-                  <Button size="sm" variant="outline" disabled={cancelling===item.id}
-                    onClick={()=>void cancelScheduled(item.id)}>
-                    <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
-                  </Button>:null}
+                {item.repeat_unit&&["pending","processing"].includes(item.status)?
+                  <Button size="sm" variant="outline" disabled={togglingRepeat===item.id}
+                    onClick={()=>void toggleRepeat(item.id,item.paused)}>
+                    {item.paused?<RefreshCw className="mr-1 h-4 w-4"/>:<XCircle className="mr-1 h-4 w-4"/>}
+                    {togglingRepeat===item.id?"Güncelleniyor…":item.paused?"Aktifleştir":"Pasife al"}
+                  </Button>:
+                  item.status==="pending"?
+                    <Button size="sm" variant="outline" disabled={cancelling===item.id}
+                      onClick={()=>void cancelScheduled(item.id)}>
+                      <XCircle className="mr-1 h-4 w-4"/> {cancelling===item.id?"İptal ediliyor…":"İptal et"}
+                    </Button>:null}
               </div>
             </div>)}
         </div>
