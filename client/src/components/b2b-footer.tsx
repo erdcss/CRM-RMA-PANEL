@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ChevronDown, Instagram, Facebook, Youtube, Music2, ExternalLink } from "lucide-react";
+import { ChevronDown, Instagram, Facebook, Youtube, Music2, ExternalLink, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useBranding } from "@/hooks/use-branding";
 
 export type StoreLinks = Record<
   "instagram" | "facebook" | "youtube" | "tiktok" |
@@ -68,18 +69,83 @@ export function B2BFooter() {
   </footer>;
 }
 
-/** Compact mobile-web app download strip under the store header. Hidden if no links configured. */
+/** The mobile web smart banner uses only the official app icon and store URLs saved in Admin.
+ * The platform is detected on the device; never send an Android user to the App Store
+ * (or an iOS user to Google Play) when that platform's link is missing.
+ */
 export function B2BMobileDownloadHeader() {
-  const { data:links } = useStoreLinks();
-  if (!links?.appStoreUrl && !links?.googlePlayUrl) return null;
-  return <div className="flex items-center gap-2 border-t border-slate-200 bg-[#111827] px-3 py-2 text-white md:hidden">
-    <div className="min-w-0 flex-1">
-      <div className="text-xs font-extrabold">{links.downloadHeaderTitle || "Çalışkan B2B Mobil"}</div>
-      <div className="truncate text-[10px] text-slate-300">{links.downloadHeaderText || "Uygulamayı indir, toptan alışverişe devam et."}</div>
-    </div>
-    {links.appStoreUrl ? <a href={links.appStoreUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg bg-[#ffcd00] px-2.5 py-2 text-[11px] font-black text-slate-950">App Store</a> : null}
-    {links.googlePlayUrl ? <a href={links.googlePlayUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg border border-white/30 px-2.5 py-2 text-[11px] font-black">Google Play</a> : null}
-  </div>;
+  const { data: links } = useStoreLinks();
+  const { data: branding } = useBranding();
+  const [platform, setPlatform] = useState<"ios" | "android" | null>(null);
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try { return window.sessionStorage.getItem("b2b-mobile-install-banner-dismissed") === "1"; }
+    catch { return false; }
+  });
+
+  useEffect(() => {
+    const ua = navigator.userAgent || "";
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+      (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+    setPlatform(isIOS ? "ios" : /Android/i.test(ua) ? "android" : null);
+  }, []);
+
+  const storeUrl = platform === "ios" ? links?.appStoreUrl :
+    platform === "android" ? links?.googlePlayUrl : null;
+  if (dismissed || !storeUrl) return null;
+
+  const appIcon = branding?.b2b_mobile_android_icon ||
+    branding?.b2b_mobile_logo || branding?.b2b_favicon;
+  const closeBanner = () => {
+    setDismissed(true);
+    try { window.sessionStorage.setItem("b2b-mobile-install-banner-dismissed", "1"); }
+    catch { /* Private browsing may block storage; in-page dismissal still works. */ }
+  };
+
+  return (
+    <aside
+      aria-label="Çalışkan B2B mobil uygulamasını indir"
+      className="flex min-h-[88px] w-full items-center gap-2 border-b border-[#e8e8e8] bg-white px-2.5 py-2 text-[#171717] shadow-sm md:hidden"
+    >
+      <button
+        type="button"
+        onClick={closeBanner}
+        aria-label="Uygulama indirme bannerını kapat"
+        className="flex h-10 w-6 shrink-0 items-center justify-center rounded-md text-[#333] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00]"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {appIcon ? (
+        <img
+          src={appIcon}
+          alt="Çalışkan B2B uygulama logosu"
+          className="h-14 w-14 shrink-0 rounded-[14px] bg-[#ffcc00] object-contain shadow-sm"
+        />
+      ) : (
+        <span aria-label="Çalışkan B2B" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[14px] bg-[#ffcc00] text-center text-[13px] font-black leading-4 text-[#111]">Çalışkan<br/>B2B</span>
+      )}
+      <div className="min-w-0 flex-1 pl-0.5">
+        <p className="truncate text-[13px] font-extrabold leading-5 text-[#171717]">
+          {links?.downloadHeaderTitle || "Hızlı. Kolay. Avantajlı."}
+        </p>
+        <p className="line-clamp-2 text-[11px] leading-[15px] text-[#444]">
+          {links?.downloadHeaderText || "Çalışkan B2B ile toptan alışveriş cebinde."}
+        </p>
+        <p className="mt-0.5 truncate text-[10px] font-semibold text-[#6d6d6d]">
+          {platform === "ios" ? "iPhone için App Store" : "Android için Google Play"}
+        </p>
+      </div>
+      <a
+        href={storeUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={platform === "ios" ? "Çalışkan B2B uygulamasını App Store'dan indir" : "Çalışkan B2B uygulamasını Google Play'den indir"}
+        className="flex min-h-10 shrink-0 items-center justify-center rounded-full bg-[#ffcc00] px-3.5 text-[13px] font-black text-[#111] shadow-sm transition hover:bg-[#f3bf00] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111]"
+      >
+        İndir
+      </a>
+    </aside>
+  );
 }
 
 /** Narrow, fixed right-hand promotions, designed for wide desktop viewports. */
