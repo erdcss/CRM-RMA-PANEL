@@ -115,7 +115,7 @@ export function B2BMetaPixelConsent(){
         className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">
         Tümünü reddet
       </button>
-      <button type="button" onClick={()=>applyPreferences(config?.enabled===true&&draftMeta,draftTiktok)}
+      <button type="button" onClick={()=>applyPreferences(config?.enabled===true?draftMeta:consent==="granted",draftTiktok)}
         className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">
         Seçimlerimi kaydet
       </button>
