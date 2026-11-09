@@ -37,8 +37,8 @@ test("real legacy B2B TEXT and UUID IDs export without being silently removed",(
     {id:"X".repeat(101)},
   ];
   const contents=metaContentIdsText(list);
-  assert.equal(contents,[md5,uuid,mixed,"mp-38","178"].join("\\n")+"\\n");
-  const actualLines=contents.trim().split("\\n");
+  assert.equal(contents,[md5,uuid,mixed,"mp-38","178"].join("\n")+"\n");
+  const actualLines=contents.trim().split("\n");
   assert.equal(actualLines.length,5);
   assert.ok(actualLines.every(id=>!id.includes('"')));
   assert.equal(contents.charCodeAt(0),md5.charCodeAt(0));
