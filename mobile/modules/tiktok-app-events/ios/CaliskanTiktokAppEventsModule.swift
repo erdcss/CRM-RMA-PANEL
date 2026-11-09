@@ -102,7 +102,7 @@ public class CaliskanTiktokAppEventsModule: Module {
         event = TikTokPurchaseEvent(eventId: eventId)
       default: return false
       }
-      event.setCurrency(TTCurrencyTRY)
+      event.setCurrency(TTCurrency.TRY)
       event.setValue(String(format: "%.2f", value))
       event.setContentType("product")
       event.setContents(products)
