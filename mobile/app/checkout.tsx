@@ -38,7 +38,7 @@ import {
 } from '@/lib/api';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { clearOrderList, getOrderList } from '@/lib/b2b-order-list';
-import {trackTikTokCheckout} from '@/lib/tiktok-commerce-events';
+import {rememberTikTokPendingBankOrder,trackTikTokCheckout} from '@/lib/tiktok-commerce-events';
 
 type PaymentMethod = 'card' | 'bank_transfer';
 type ShippingMethod = 'cargo' | 'freight' | 'pickup';
@@ -524,6 +524,7 @@ export default function CheckoutScreen() {
 
       // Customer claim only: the bank transfer is NOT considered verified here.
       await rmaApi.confirmB2BBankTransfer(order.orderNumber);
+      void rememberTikTokPendingBankOrder(order.orderNumber);
       // This is a checkout attempt only. A bank transfer notification is not a
       // verified payment and must NEVER produce a Purchase conversion here.
       void trackTikTokCheckout(preview);
