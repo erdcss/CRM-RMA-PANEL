@@ -59,6 +59,13 @@ export async function initializeTikTokIfConsented():Promise<void>{
   try{await native.trackEvent('LaunchAPP');}
   catch{startupEventSent=false;}
 }
+/** Separate OS permission. Call from a tap only after TikTok opt-in. */
+export async function requestTikTokAppleTrackingAuthorization():Promise<number|null>{
+  if(!(await getTikTokAppEventsConsent()))return null;
+  if(!(await startTikTokSDK()))return null;
+  try{return await getTikTokEventsModule()?.requestAppleTrackingAuthorization()??null;}
+  catch{return null;}
+}
 /** Explicit diagnostic after opt-in; SDK acceptance is not proof of TikTok receipt. */
 export async function runTikTokConnectionTest():Promise<'no_consent'|'not_configured'|'submitted'|'error'>{
   if(!(await getTikTokAppEventsConsent()))return 'no_consent';
