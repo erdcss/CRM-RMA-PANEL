@@ -2,6 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { createHash } from "node:crypto";
 import { pool } from "./db";
 import { loadMetaCatalogItems, type MetaCatalogItem } from "./meta-catalog";
+import { metaCatalogCsv,metaContentIdsCsv } from "./meta-catalog-export";
 
 const GRAPH = "https://graph.facebook.com/v24.0";
 const KEY = "b2b_meta_catalog_config";
@@ -164,6 +165,38 @@ export function notifyMetaCatalogChange(){
   scheduled.unref();
 }
 export function registerMetaCatalogAdmin(app:Express,requireAdmin:RequestHandler){
+  // Price-bearing Meta CSV and content IDs must never be served publicly.
+  // Admin session cookies are required; the public storefront hides B2B prices.
+  app.get("/api/admin/meta/export/catalog.csv",requireAdmin,async(_req,res)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("X-Robots-Tag","noindex, nofollow");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    try{
+      const {items}=await loadMetaCatalogItems();
+      if(!items.length)return res.status(422).json({error:"Meta'ya aktarılabilecek görselli, fiyatlı ürün bulunamadı"});
+      res.setHeader("Content-Type","text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition",'attachment; filename="caliskan-b2b-meta-katalog.csv"');
+      return res.status(200).send(metaCatalogCsv(items));
+    }catch(error){
+      console.error("Admin Meta catalog CSV download",errorText(error));
+      return res.status(503).json({error:"Ürün kataloğu indirilemedi"});
+    }
+  });
+  app.get("/api/admin/meta/export/content-ids.csv",requireAdmin,async(_req,res)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("X-Robots-Tag","noindex, nofollow");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    try{
+      const {items}=await loadMetaCatalogItems();
+      if(!items.length)return res.status(422).json({error:"Meta'ya aktarılabilecek ürün kodu bulunamadı"});
+      res.setHeader("Content-Type","text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition",'attachment; filename="caliskan-b2b-meta-icerik-kodlari.csv"');
+      return res.status(200).send(metaContentIdsCsv(items));
+    }catch(error){
+      console.error("Admin Meta content ID CSV download",errorText(error));
+      return res.status(503).json({error:"Meta içerik kodları indirilemedi"});
+    }
+  });
   app.get("/api/admin/meta/catalog-status",requireAdmin,async(_req,res)=>{
     try{res.setHeader("Cache-Control","no-store");return res.json(await readStatus());}
     catch(error){return res.status(503).json({error:errorText(error)});}
