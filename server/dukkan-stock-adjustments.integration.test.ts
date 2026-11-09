@@ -9,7 +9,7 @@ test("manual stock add, edit, remove, retry and audit stay transactional",async(
   const db=new PGlite();
   try {
     await db.exec([
-      "CREATE TABLE dukkan_products(id BIGINT PRIMARY KEY,store_id BIGINT NOT NULL,stock NUMERIC(16,3) NOT NULL CHECK(stock>=0))",
+      "CREATE TABLE dukkan_products(id BIGINT PRIMARY KEY,store_id BIGINT NOT NULL,stock NUMERIC(16,3) NOT NULL CHECK(stock>=0),archived_at TIMESTAMPTZ,deleted_at TIMESTAMPTZ)",
       "CREATE TABLE dukkan_stock_movements("+
         "id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL,product_id BIGINT NOT NULL,"+
         "delta NUMERIC(16,3) NOT NULL CHECK(delta<>0),reason TEXT,invoice_id BIGINT,note TEXT,"+
