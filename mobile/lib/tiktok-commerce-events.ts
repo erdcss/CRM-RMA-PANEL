@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { B2BProduct, B2BCheckoutPreview, B2BCheckoutCartPreview, B2BOrderSummary, B2BOrderDetail } from './api';
 import {rmaApi} from './api';
-import {sendTikTokNativeCommerceEvent} from './tiktok-app-events';
+import {getTikTokAppEventsConsent,sendTikTokNativeCommerceEvent} from './tiktok-app-events';
 
 type EventName='ViewContent'|'Search'|'AddToCart'|'Checkout'|'Purchase';
 type CommerceLine={contentId:string;contentName:string;brand?:string;contentCategory?:string;price:number;quantity:number};
@@ -16,6 +16,7 @@ const rules=require('./tiktok-commerce-rules.cjs') as {
 const deliverPurchaseOnce=rules.createPurchaseGuard();
 const searchHistory=new Map<string,number>();
 const orderPrefix='caliskan_tiktok_paid_order_v1_';
+const pendingBankKey='caliskan_tiktok_pending_bank_orders_v1';
 function safePositive(value:unknown):number|null{
   const n=Number(value);
   return Number.isFinite(n)&&n>0?n:null;
@@ -113,4 +114,44 @@ export async function trackTikTokVerifiedPurchase(orderNumber:string):Promise<bo
       return dispatch('Purchase',lines,amount,id);
     });
   }catch{return false;}
+}
+
+/** Record only a user-consented, completed bank-transfer notification. This is
+ * NOT a Purchase; it becomes eligible only after the server independently
+ * confirms a paid/bank_confirmed payment status.
+ */
+export async function rememberTikTokPendingBankOrder(orderNumber:string):Promise<void>{
+  if(!(await getTikTokAppEventsConsent()))return;
+  const order=String(orderNumber||'').trim();
+  if(!order || order.length>100)return;
+  try{
+    const saved=await AsyncStorage.getItem(pendingBankKey);
+    const previous:unknown= saved?JSON.parse(saved):[];
+    const existing=Array.isArray(previous)?previous.filter((s):s is string=>typeof s==='string'):[];
+    await AsyncStorage.setItem(pendingBankKey,JSON.stringify([...new Set([...existing,order])].slice(-30)));
+  }catch{ /* Do not block the customer's bank payment acknowledgment. */ }
+}
+
+export async function trackTikTokConfirmedBankPurchases(orders:B2BOrderSummary[]):Promise<void>{
+  if(!(await getTikTokAppEventsConsent()))return;
+  try{
+    const saved=await AsyncStorage.getItem(pendingBankKey);
+    const values:unknown=saved?JSON.parse(saved):[];
+    if(!Array.isArray(values)||!values.length)return;
+    const pending=values.filter((v):v is string=>typeof v==='string');
+    const remaining:string[]=[];
+    for(const number of pending){
+      const order=orders.find(row=>String(row.order_number||'')===number);
+      if(!order||!rules.isVerifiedPaidOrder(order)){
+        remaining.push(number);
+        continue;
+      }
+      const succeeded=await trackTikTokVerifiedPurchase(number);
+      const eventId=rules.verifiedPurchaseEventId(order);
+      const previouslySent=eventId?
+        await AsyncStorage.getItem(orderPrefix+eventId)==='sent':false;
+      if(!succeeded&&!previouslySent)remaining.push(number);
+    }
+    await AsyncStorage.setItem(pendingBankKey,JSON.stringify(remaining));
+  }catch{ /* Analytics cannot change order history or inventory. */ }
 }
