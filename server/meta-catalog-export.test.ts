@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { META_FEED_COLUMNS,metaCatalogCsv,metaContentIdsCsv,type MetaFeedEntry } from "./meta-catalog-export";
+import { META_FEED_COLUMNS,metaCatalogCsv,metaContentIdsCsv,metaContentIdsText,type MetaFeedEntry } from "./meta-catalog-export";
 
 const base:MetaFeedEntry={
   id:"145",title:'Çay Makinesi "Deluxe"',description:"Elektrikli çay makinesi, koli içi 6.",
@@ -21,9 +21,12 @@ test("full Meta feed contains strict English headers and correct values",()=>{
 });
 test("content IDs file is headerless, deduped and includes supplier IDs",()=>{
   assert.equal(metaContentIdsCsv([{id:"145"},{id:"145"},{id:"mp-12"},{id:"id"},{id:"=cmd"},{id:"231"}]),
-    '"145"\r\n"mp-12"\r\n"231"\r\n');
+    '145\nmp-12\n231\n');
+  assert.equal(metaContentIdsText([{id:"145"},{id:"mp-12"}]),'145\nmp-12\n');
+  assert.equal(metaContentIdsText([{id:" 145 "},{id:"145"}]),'145\n');
+  assert.equal(metaContentIdsText([{id:"=1+1"},{id:"x,y"},{id:"10\n11"}]),'');
 });
 test("empty exports keep their format",()=>{
-  assert.equal(metaContentIdsCsv([]),"\r\n");
+  assert.equal(metaContentIdsCsv([]),"");
   assert.equal(metaCatalogCsv([]),META_FEED_COLUMNS.join(",")+"\r\n");
 });
