@@ -48,7 +48,14 @@ export async function setTikTokAppEventsConsent(value:boolean):Promise<boolean>{
     if(native)await native.stopTracking().catch(()=>{});
     return true;
   }
-  return startTikTokSDK();
+  const ready=await startTikTokSDK();
+  if(!ready){
+    // Consent must match the visible toggle; never leave 'granted' stored
+    // after the app tells the user that initialization was rejected.
+    await AsyncStorage.setItem(CONSENT_KEY,'denied');
+    started=false;
+  }
+  return ready;
 }
 export async function initializeTikTokIfConsented():Promise<void>{
   if(!(await getTikTokAppEventsConsent()))return;
