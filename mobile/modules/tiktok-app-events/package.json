@@ -1,0 +1,12 @@
+{
+  "name": "caliskan-tiktok-app-events",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Consent-gated TikTok Business App Events bridge for Çalışkan B2B iOS",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}
