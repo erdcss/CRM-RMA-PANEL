@@ -1,7 +1,9 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { b2bBottomActiveTab } from "@/lib/b2b-bottom-nav-routes";
+import { initialB2BBottomNavScroll, updateB2BBottomNavScroll } from "@/lib/b2b-bottom-nav-scroll";
 import { Grid2X2, House, ShoppingCart, UserRound } from "lucide-react";
 import { useB2BCart } from "@/lib/b2b-cart";
 
@@ -29,6 +31,41 @@ export function B2BBottomNav() {
   const [location] = useLocation();
   const reduceMotion = useReducedMotion();
   const current = b2bBottomActiveTab(location, window.location.search);
+  const [compact,setCompact] = useState(false);
+  const scrollTrack = useRef(initialB2BBottomNavScroll());
+
+  function revealNav() {
+    scrollTrack.current={...scrollTrack.current,travel:0,compact:false};
+    setCompact(false);
+  }
+
+  useEffect(()=>{
+    // The B2B web storefront scrolls inside .b2b-site, not window.
+    const scroller=document.querySelector<HTMLElement>(".b2b-site");
+    if(!scroller)return;
+    const mobile=window.matchMedia("(max-width: 767px)");
+    scrollTrack.current=initialB2BBottomNavScroll(scroller.scrollTop);
+    setCompact(false);
+
+    const onScroll=()=>{
+      if(!mobile.matches)return;
+      // Clamp Safari overscroll so rubber-band bounces don't toggle the bar.
+      const maxY=Math.max(0,scroller.scrollHeight-scroller.clientHeight);
+      const position=Math.max(0,Math.min(scroller.scrollTop,maxY));
+      scrollTrack.current=updateB2BBottomNavScroll(scrollTrack.current,position);
+      setCompact(scrollTrack.current.compact);
+    };
+    const onViewportChange=()=>{
+      scrollTrack.current=initialB2BBottomNavScroll(scroller.scrollTop);
+      setCompact(false);
+    };
+    scroller.addEventListener("scroll",onScroll,{passive:true});
+    mobile.addEventListener("change",onViewportChange);
+    return ()=>{
+      scroller.removeEventListener("scroll",onScroll);
+      mobile.removeEventListener("change",onViewportChange);
+    };
+  },[location]);
 
   const { itemCount } = useB2BCart();
   const { data: session } = useQuery<SessionUser>({
@@ -44,8 +81,16 @@ export function B2BBottomNav() {
       className="pointer-events-none fixed inset-x-0 z-[65] flex justify-center px-3 md:px-6"
       style={{ bottom: "max(10px, env(safe-area-inset-bottom, 0px))" }}>
       <LayoutGroup id="caliskan-b2b-nav">
-      <div
-        className="pointer-events-auto grid min-h-[70px] w-full max-w-[660px] grid-cols-4 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 opacity-100 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/95 md:min-h-[78px] md:p-2">
+      <motion.div
+        data-compact={compact ? "true" : "false"}
+        onPointerDownCapture={revealNav}
+        onFocusCapture={revealNav}
+        onMouseEnter={revealNav}
+        initial={false}
+        animate={{scale:compact?0.84:1,opacity:compact?0.46:1}}
+        transition={reduceMotion?{duration:0}:{duration:0.24,ease:[0.22,1,0.36,1]}}
+        style={{transformOrigin:"center bottom"}}
+        className="pointer-events-auto grid min-h-[70px] w-full max-w-[660px] grid-cols-4 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/95 md:min-h-[78px] md:p-2">
         {tabs.map(({ key, label, href, icon: Icon }) => {
           const selected = current === key;
           // Orders are also a guest cart; account asks for login without losing the
@@ -98,7 +143,7 @@ export function B2BBottomNav() {
             </Link>
           );
         })}
-      </div>
+      </motion.div>
       </LayoutGroup>
     </nav>
   );
