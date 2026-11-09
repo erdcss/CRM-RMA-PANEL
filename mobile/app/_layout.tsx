@@ -13,6 +13,7 @@ import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext'
 import { useMobileBranding } from '@/lib/branding';
 import { registerB2BPush } from '@/lib/push';
 import { requestMetaEventsConsentOnce } from '@/lib/meta-app-events';
+import { initializeTikTokIfConsented } from '@/lib/tiktok-app-events';
 import { configureStoreNearby, stopStoreNearby } from '@/lib/store-geofence';
 
 // Prevent the native iOS launch artwork from being dismissed before the
@@ -86,7 +87,12 @@ function AppContent() {
   // This optional consent prompt is shown only after the first usable screen is visible.
   useEffect(() => {
     if (showSplash || !initialRoutePainted || loading) return;
-    const t = setTimeout(() => { void requestMetaEventsConsentOnce(); }, 900);
+    const t = setTimeout(() => {
+      void requestMetaEventsConsentOnce();
+      // Never show a second consent modal automatically; TikTok can only
+      // initialize after its separate opt-in in Settings.
+      void initializeTikTokIfConsented();
+    }, 900);
     return () => clearTimeout(t);
   }, [showSplash, initialRoutePainted, loading]);
 
