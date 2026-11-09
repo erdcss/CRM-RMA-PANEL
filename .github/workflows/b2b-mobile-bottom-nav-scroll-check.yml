@@ -1,0 +1,36 @@
+name: B2B mobile bottom navigation scroll checks
+on:
+  push:
+    paths:
+      - 'client/src/components/b2b-bottom-nav.tsx'
+      - 'client/src/lib/b2b-bottom-nav-scroll.ts'
+      - 'client/src/lib/b2b-bottom-nav-scroll.test.ts'
+      - '.github/workflows/b2b-mobile-bottom-nav-scroll-check.yml'
+  pull_request:
+    paths:
+      - 'client/src/components/b2b-bottom-nav.tsx'
+      - 'client/src/lib/b2b-bottom-nav-scroll.ts'
+      - 'client/src/lib/b2b-bottom-nav-scroll.test.ts'
+      - '.github/workflows/b2b-mobile-bottom-nav-scroll-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: B2B scroll behavior, TypeScript and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Validate scroll behavior and tab routes
+        run: npx tsx --test client/src/lib/b2b-bottom-nav-scroll.test.ts client/src/lib/b2b-bottom-nav-routes.test.ts
+      - name: Check TypeScript
+        run: npm run check
+      - name: Build B2B web
+        run: npm run build
