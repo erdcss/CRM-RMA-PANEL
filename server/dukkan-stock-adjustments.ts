@@ -49,7 +49,7 @@ export async function createManualStockMovement(
   }
   const product=await client.query(
     "UPDATE dukkan_products SET stock=stock+$3 "+
-    "WHERE store_id=$1 AND id=$2 AND stock+$3>=0 RETURNING stock",
+    "WHERE store_id=$1 AND id=$2 AND deleted_at IS NULL AND archived_at IS NULL AND stock+$3>=0 RETURNING stock",
     [storeId,productId,delta],
   );
   if(!product.rows[0])throw error("Ürün bulunamadı veya stok eksiye düşüyor.",409);
