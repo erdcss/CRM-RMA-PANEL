@@ -26,6 +26,23 @@ test("content IDs file is headerless, deduped and includes supplier IDs",()=>{
   assert.equal(metaContentIdsText([{id:" 145 "},{id:"145"}]),'145\n');
   assert.equal(metaContentIdsText([{id:"=1+1"},{id:"x,y"},{id:"10\n11"}]),'');
 });
+test("real legacy B2B TEXT and UUID IDs export without being silently removed",()=>{
+  const md5="8a7be2fc0d98f04ea417d6bf013ca629";
+  const uuid="4c73039f-80bb-4f5a-9c91-12ab3cd456ef";
+  const mixed="MC-0373_xA.12";
+  const list=[
+    {id:md5},{id:uuid},{id:mixed},{id:"mp-38"},{id:"178"},
+    {id:md5},{id:"../../path"},{id:"=HYPERLINK(1)"},{id:"-1"},
+    {id:"leading whitespace"},{id:"abc,def"},{id:"abc\\ndef"},
+    {id:"X".repeat(101)},
+  ];
+  const contents=metaContentIdsText(list);
+  assert.equal(contents,[md5,uuid,mixed,"mp-38","178"].join("\\n")+"\\n");
+  const actualLines=contents.trim().split("\\n");
+  assert.equal(actualLines.length,5);
+  assert.ok(actualLines.every(id=>!id.includes('"')));
+  assert.equal(contents.charCodeAt(0),md5.charCodeAt(0));
+});
 test("empty exports keep their format",()=>{
   assert.equal(metaContentIdsCsv([]),"");
   assert.equal(metaCatalogCsv([]),META_FEED_COLUMNS.join(",")+"\r\n");
