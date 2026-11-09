@@ -5,6 +5,7 @@ type NativeTikTokEvents = {
   isConfigured():Promise<boolean>;
   initializeWithConsent():Promise<boolean>;
   stopTracking():Promise<void>;
+  requestAppleTrackingAuthorization():Promise<number>;
   trackEvent(name:string):Promise<boolean>;
 };
 
