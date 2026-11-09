@@ -1,6 +1,6 @@
 {
   "name": "caliskan-dukkan-mobile",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -11,7 +11,8 @@
     "build:ios": "eas build --platform ios --profile production",
     "check": "tsc --noEmit",
     "submit:ios": "eas submit --platform ios --profile production",
-    "prepare:branding": "node scripts/prepare-branding.cjs"
+    "prepare:branding": "node scripts/prepare-branding.cjs",
+    "test:images": "tsx --test product-images.test.ts"
   },
   "dependencies": {
     "expo": "~54.0.0",
@@ -33,7 +34,8 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "tsx": "^4.20.5"
   },
   "description": "Çalışkan Dükkan native iOS Android authenticated shared-store accounting (offline migration preserved)"
 }
