@@ -1,0 +1,15 @@
+ÇALIŞKAN B2B iOS 1.3.9 TIKTOK COMMERCE TESTFLIGHT
+Date: 2026-11-09
+User explicitly requested real commerce event tracking, regression tests and TestFlight submission.
+Bundle com.caliskangroup.rma
+ASC 6802286663
+SDK TikTokBusinessSDK 1.7.2
+Events: ViewContent (product loaded), Search (submitted query, PII filter),
+AddToCart (successful list write), Checkout (server-initialized card or bank checkout),
+Purchase (only server-verified paid card order, or later bank-confirmed order).
+Consent: separate TikTok opt-in mandatory, revoke disables native dispatch.
+Purchase dedup: stable b2b_paid_order_<numeric id> eventId, stored in AsyncStorage;
+in-flight and persisted guards prevent duplicate events on retry or navigation.
+No bank-transfer claim counted as payment, no payment card data transmitted.
+Tests: node --test scripts/tiktok-commerce.test.cjs; npm run typecheck.
+Build signed 1.3.9 iOS IPA via Expo EAS production/testflight and submit to Apple TestFlight.
