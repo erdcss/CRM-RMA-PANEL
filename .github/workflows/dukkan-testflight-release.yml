@@ -12,6 +12,7 @@ on:
       - '.github/release-requests/dukkan-testflight-20261104-ios-1-0-1.txt'
       - '.github/release-requests/dukkan-testflight-20261104-web-parity-images-v1-0-2.txt'
       - '.github/release-requests/dukkan-testflight-20261104-compact-cari-v1-0-3.txt'
+      - '.github/release-requests/dukkan-testflight-20261109-native-no-web-buttons.txt'
 permissions:
   contents: read
 concurrency:
