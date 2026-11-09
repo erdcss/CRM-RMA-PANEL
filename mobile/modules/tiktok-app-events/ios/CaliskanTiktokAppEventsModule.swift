@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import TikTokBusinessSDK
+import AppTrackingTransparency
 
 /// The SDK is never initialized until the user expressly opts into TikTok measurement.
 /// App Secret is sourced from EAS environment -> Info.plist, never from JS or GitHub.
@@ -37,6 +38,19 @@ public class CaliskanTiktokAppEventsModule: Module {
         self.initialized = success
         if success { TikTokBusiness.setTrackingEnabled(self.consentActive) }
         promise.resolve(success)
+      }
+    }
+
+    // The OS tracking request is separate from the in-app TikTok consent.
+    // It is triggered only by an explicit tap in Settings, never automatically.
+    AsyncFunction("requestAppleTrackingAuthorization") { (promise: Promise) in
+      guard self.initialized, self.consentActive else { promise.resolve(-1); return }
+      if #available(iOS 14.0, *) {
+        ATTrackingManager.requestTrackingAuthorization { status in
+          promise.resolve(Int(status.rawValue))
+        }
+      } else {
+        promise.resolve(-1)
       }
     }
 
