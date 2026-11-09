@@ -73,6 +73,18 @@ export async function requestTikTokAppleTrackingAuthorization():Promise<number|n
   try{return await getTikTokEventsModule()?.requestAppleTrackingAuthorization()??null;}
   catch{return null;}
 }
+/** All commerce events route through the same separate TikTok consent check. */
+export async function sendTikTokNativeCommerceEvent(
+  name:'ViewContent'|'Search'|'AddToCart'|'Checkout'|'Purchase',
+  payload:{eventId:string;value?:number;currency?:string;query?:string;
+    contents?:Array<{contentId:string;price:number;quantity:number;
+      contentName?:string;brand?:string;contentCategory?:string}>}
+):Promise<boolean>{
+  if(!(await getTikTokAppEventsConsent()))return false;
+  if(!(await startTikTokSDK()))return false;
+  try{return (await getTikTokEventsModule()?.trackCommerceEvent(name,payload))===true;}
+  catch{return false;}
+}
 /** Explicit diagnostic after opt-in; SDK acceptance is not proof of TikTok receipt. */
 export async function runTikTokConnectionTest():Promise<'no_consent'|'not_configured'|'submitted'|'error'>{
   if(!(await getTikTokAppEventsConsent()))return 'no_consent';
