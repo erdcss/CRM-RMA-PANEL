@@ -38,6 +38,7 @@ import {
 } from '@/lib/api';
 import { colors, minTouchTarget, radius, spacing, typography } from '@/constants/theme';
 import { clearOrderList, getOrderList } from '@/lib/b2b-order-list';
+import {trackTikTokCheckout} from '@/lib/tiktok-commerce-events';
 
 type PaymentMethod = 'card' | 'bank_transfer';
 type ShippingMethod = 'cargo' | 'freight' | 'pickup';
@@ -451,6 +452,9 @@ export default function CheckoutScreen() {
       if (!html.trim()) {
         throw new Error('3D Secure doğrulama ekranı hazırlanamadı.');
       }
+      // Checkout is only measured after the server accepts a valid 3DS session.
+      // No cardholder, PAN, CVC or address information is sent to TikTok.
+      void trackTikTokCheckout(preview);
 
       const storageKey = `caliskan_3ds_html_${result.orderNumber}`;
       await AsyncStorage.setItem(storageKey, html);
@@ -520,6 +524,9 @@ export default function CheckoutScreen() {
 
       // Customer claim only: the bank transfer is NOT considered verified here.
       await rmaApi.confirmB2BBankTransfer(order.orderNumber);
+      // This is a checkout attempt only. A bank transfer notification is not a
+      // verified payment and must NEVER produce a Purchase conversion here.
+      void trackTikTokCheckout(preview);
       if (listMode) await clearOrderList();
       router.replace({
         pathname: '/payment-result',
