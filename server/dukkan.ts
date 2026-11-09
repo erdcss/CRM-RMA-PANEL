@@ -11,6 +11,7 @@ import { buildCariExcel } from "./dukkan-cari-excel";
 import {reviseDukkanSalesInvoice} from "./dukkan-sales-invoice-revisions";
 import {correctArchivedSalesInvoice} from "./dukkan-archive-sales-corrections";
 import {resolveArchiveStockCodes} from "./dukkan-archive-stock-codes";
+import {dukkanPhotoAt} from "./dukkan-product-images";
 import {extractPositionedPdfWords,parsePositionedCariStatement,importedStatementSchema} from "./dukkan-cari-statement-parser";
 import {documentSha256,postImportedStatement,summarizeImportedStatement} from "./dukkan-cari-import";
 import {defaultInvoiceForm,invoiceFormSchema,resolveInvoiceForm,resolveInvoiceFormForStore,type InvoiceFormKind} from "../shared/dukkan-invoice-forms";
@@ -253,7 +254,21 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
 
   const listQueries: Record<string,string> = {
     parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance,MAX(e.created_at) AS last_transaction_at FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
-    products:"SELECT id,store_id,COALESCE(b2b_source_sku,sku) AS sku,COALESCE(b2b_source_barcode,barcode) AS barcode,name,unit,stock,purchase_price,sale_price,brand,category,description,publish_b2b,b2b_product_id,units_per_box,min_order_qty,created_at,archived_at,deleted_at,CASE WHEN image_data LIKE 'data:image/%' THEN '/api/dukkan/stores/'||store_id||'/products/'||id||'/image' ELSE image_data END AS image_url,CASE WHEN jsonb_typeof(images)='array' AND COALESCE(images->>0,'') LIKE 'https://%' THEN images->>0 ELSE NULL END AS image_external_url,CASE WHEN jsonb_typeof(images)='array' THEN jsonb_array_length(images) ELSE 0 END AS image_count FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL AND ($2::boolean OR archived_at IS NULL) ORDER BY id DESC LIMIT 5000",
+    products:"SELECT p.id,p.store_id,COALESCE(p.b2b_source_sku,p.sku) AS sku,COALESCE(p.b2b_source_barcode,p.barcode) AS barcode,"+
+      "p.name,p.unit,p.stock,p.purchase_price,p.sale_price,p.brand,p.category,p.description,p.publish_b2b,"+
+      "p.b2b_product_id,p.units_per_box,p.min_order_qty,p.created_at,p.archived_at,p.deleted_at,"+
+      "CASE WHEN cover.photo ~* '^https://' THEN cover.photo "+
+      "WHEN cover.photo IS NOT NULL THEN '/api/dukkan/stores/'||p.store_id||'/products/'||p.id||'/image' "+
+      "ELSE NULL END AS image_url,"+
+      "NULL::text AS image_external_url,CASE WHEN cover.photo IS NULL THEN 0 ELSE 1 END AS image_count "+
+      "FROM dukkan_products p LEFT JOIN b2b_products b ON b.id::text=p.b2b_product_id "+
+      "LEFT JOIN LATERAL (SELECT COALESCE("+
+      "CASE WHEN p.images->>0 ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN p.images->>0 END,"+
+      "CASE WHEN p.image_data ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN p.image_data END,"+
+      "CASE WHEN b.images->>0 ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN b.images->>0 END,"+
+      "CASE WHEN b.image_data ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN b.image_data END"+
+      ") AS photo) cover ON TRUE "+
+      "WHERE p.store_id=$1 AND p.deleted_at IS NULL AND ($2::boolean OR p.archived_at IS NULL) ORDER BY p.id DESC LIMIT 5000",
     invoices:"SELECT i.*,p.name AS party_name FROM dukkan_invoices i JOIN dukkan_parties p ON p.id=i.party_id AND p.store_id=i.store_id WHERE i.store_id=$1 AND i.status='posted' ORDER BY i.id DESC LIMIT 500",
     orders:"SELECT o.*,p.name AS party_name FROM dukkan_orders o JOIN dukkan_parties p ON p.id=o.party_id AND p.store_id=o.store_id WHERE o.store_id=$1 ORDER BY o.id DESC LIMIT 500",
     "stock-movements":"SELECT m.*,p.name AS product_name FROM dukkan_stock_movements m JOIN dukkan_products p ON p.id=m.product_id AND p.store_id=m.store_id WHERE m.store_id=$1 ORDER BY m.id DESC LIMIT 500",
@@ -1104,10 +1119,11 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if(!Number.isInteger(index)||index<0||index>5) return res.status(400).end();
     const db=await ready();
     const found=await db.query(
-      "SELECT image_data,images FROM dukkan_products WHERE store_id=$1 AND id=$2 LIMIT 1",[sid,productId]);
+      "SELECT p.image_data,p.images,b.image_data AS b2b_image_data,b.images AS b2b_images "+
+      "FROM dukkan_products p LEFT JOIN b2b_products b ON b.id::text=p.b2b_product_id "+
+      "WHERE p.store_id=$1 AND p.id=$2 LIMIT 1",[sid,productId]);
     if(!found.rows[0]) return res.status(404).end();
-    const arr=Array.isArray(found.rows[0].images)?found.rows[0].images:[];
-    const image=arr[index]||(index===0?found.rows[0].image_data:null);
+    const image=dukkanPhotoAt(found.rows[0],index);
     if(typeof image!=="string")return res.status(404).end();
     const match=/^data:(image\/(?:png|jpeg|webp));base64,([a-z0-9+/=]+)$/i.exec(image);
     if(match){
