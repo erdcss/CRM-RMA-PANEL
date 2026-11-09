@@ -7,6 +7,7 @@ type NativeTikTokEvents = {
   stopTracking():Promise<void>;
   requestAppleTrackingAuthorization():Promise<number>;
   trackEvent(name:string):Promise<boolean>;
+  trackCommerceEvent(name:'ViewContent'|'Search'|'AddToCart'|'Checkout'|'Purchase',data:{eventId:string;value?:number;currency?:string;query?:string;contents?:Array<{contentId:string;price:number;quantity:number;contentName?:string;brand?:string;contentCategory?:string}>}):Promise<boolean>;
 };
 
 let cached:NativeTikTokEvents|null=null;
