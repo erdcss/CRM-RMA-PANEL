@@ -14,7 +14,7 @@ public class CaliskanTiktokAppEventsModule: Module {
     }
 
     AsyncFunction("initializeWithConsent") { (promise: Promise) in
-      guard !self.initialized else { promise.resolve(true); return }
+      guard !self.initialized else { TikTokBusiness.setTrackingEnabled(true); promise.resolve(true); return }
       guard let (appleId, tiktokId, accessToken) = self.configuration() else {
         promise.resolve(false)
         return
