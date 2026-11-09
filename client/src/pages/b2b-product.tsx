@@ -13,6 +13,7 @@ import { addB2BCartItem, refreshB2BCart } from "@/lib/b2b-cart";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { loadApprovedSupplierProduct, loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
+import { collectB2BProductImages, galleryIndexAfterMove } from "@/lib/b2b-product-gallery";
 
 type SessionUser = {
   role?: string;
@@ -57,7 +58,10 @@ export default function B2BProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [added,setAdded] = useState(false);
+  const [imageIndex,setImageIndex] = useState(0);
+  const swipeStart = useRef<{ x:number; y:number } | null>(null);
   const arrivalsRailRef = useRef<HTMLDivElement>(null);
+  useEffect(()=>setImageIndex(0),[id]);
   useEffect(()=>{if(!added)return;const t=window.setTimeout(()=>setAdded(false),2400);return ()=>window.clearTimeout(t);},[added]);
 
   const { data: product, isLoading, error } = useQuery({
@@ -77,6 +81,26 @@ export default function B2BProductPage() {
     queryFn: loadApprovedSupplierProducts,
     staleTime: 30_000,
   });
+  const productImages = useMemo(()=>collectB2BProductImages(product),[product]);
+  const currentImageIndex=Math.min(imageIndex,Math.max(0,productImages.length-1));
+  const currentImage=productImages[currentImageIndex]||null;
+  const goToImage=(direction:-1|1)=>{
+    setImageIndex(prev=>galleryIndexAfterMove(prev,productImages.length,direction));
+  };
+  const onGalleryTouchStart=(event:React.TouchEvent<HTMLDivElement>)=>{
+    const touch=event.touches[0];
+    if(touch)swipeStart.current={x:touch.clientX,y:touch.clientY};
+  };
+  const onGalleryTouchEnd=(event:React.TouchEvent<HTMLDivElement>)=>{
+    const start=swipeStart.current;
+    swipeStart.current=null;
+    const touch=event.changedTouches[0];
+    if(!start||!touch||productImages.length<=1)return;
+    const dx=touch.clientX-start.x;
+    const dy=touch.clientY-start.y;
+    if(Math.abs(dx)<45||Math.abs(dx)<=Math.abs(dy)*1.2)return;
+    goToImage(dx<0?1:-1);
+  };
 
   // Include only live, approved listings returned by the public catalog APIs.
   // Use actual creation time rather than array position or unrelated product IDs.
@@ -139,7 +163,7 @@ export default function B2BProductPage() {
     );
   }
 
-  const image = product.image_data || product.image_url;
+  const image = productImages[0] || null;
   const isSupplier = product.marketplace === true && Boolean(product.marketplace_product_id && product.seller_slug);
   const pack = Math.max(1, Number(product.units_per_box || 1));
   const min = Math.max(1, Number(product.min_order_qty || 1));
@@ -164,14 +188,49 @@ export default function B2BProductPage() {
           {/* Keep the image card compact rather than stretching it to the details column.
               On desktop it follows the product details while scrolling, then stops at
               the end of this grid row. Mobile keeps the natural document flow. */}
-          <section className="self-start overflow-hidden rounded-2xl border bg-white lg:sticky lg:top-20">
-            <div className="flex aspect-[5/4] w-full items-center justify-center bg-white">
-              {image ? (
-                <img src={image} alt={product.name || "Ürün"} className="h-full w-full object-contain p-4 sm:p-5" />
+          <section className="min-w-0 self-start overflow-hidden rounded-2xl border bg-white lg:sticky lg:top-20"
+            aria-label="Ürün görsel galerisi">
+            <div className="relative flex aspect-[5/4] w-full items-center justify-center overflow-hidden bg-white"
+              onTouchStart={onGalleryTouchStart} onTouchEnd={onGalleryTouchEnd}>
+              {currentImage ? (
+                <img key={currentImage}
+                  src={currentImage}
+                  alt={`${product.name || "Ürün"} - ${currentImageIndex+1}. görsel`}
+                  className="h-full w-full select-none object-contain p-4 sm:p-5"
+                  loading={currentImageIndex===0?"eager":"lazy"}
+                  decoding="async" draggable={false}/>
               ) : (
-                <Package className="h-24 w-24 text-slate-200" />
+                <Package className="h-24 w-24 text-slate-200" aria-label="Ürün görseli yok"/>
               )}
+              {productImages.length>1?<>
+                <button type="button" aria-label="Önceki ürün görseli"
+                  onClick={()=>goToImage(-1)}
+                  className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-800 shadow-sm backdrop-blur hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 sm:left-3">
+                  <ChevronLeft className="h-5 w-5"/>
+                </button>
+                <button type="button" aria-label="Sonraki ürün görseli"
+                  onClick={()=>goToImage(1)}
+                  className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white/90 text-slate-800 shadow-sm backdrop-blur hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 sm:right-3">
+                  <ChevronRight className="h-5 w-5"/>
+                </button>
+              </>:null}
+              {productImages.length>0?
+                <span aria-live="polite" className="absolute bottom-3 right-3 rounded-full bg-slate-950/85 px-3 py-1.5 text-xs font-bold tabular-nums text-white shadow-sm">
+                  {currentImageIndex+1} / {productImages.length}
+                </span>:null}
             </div>
+            {productImages.length>1?
+              <div className="flex gap-2 overflow-x-auto border-t border-slate-100 p-2.5 [-webkit-overflow-scrolling:touch] sm:p-3"
+                aria-label="Ürün görselleri, küçük önizlemeler">
+                {productImages.map((src,index)=>
+                  <button key={index} type="button" onClick={()=>setImageIndex(index)}
+                    aria-label={`${index+1}. ürün görselini göster`}
+                    aria-current={index===currentImageIndex?"true":undefined}
+                    className={`h-[65px] w-[65px] shrink-0 overflow-hidden rounded-xl border-2 bg-white p-1 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500 sm:h-[72px] sm:w-[72px] ${index===currentImageIndex?"border-amber-400":"border-slate-100 hover:border-slate-300"}`}>
+                    <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="h-full w-full object-contain"/>
+                  </button>
+                )}
+              </div>:null}
           </section>
 
           <section className="rounded-xl border bg-white p-4 sm:p-5">
