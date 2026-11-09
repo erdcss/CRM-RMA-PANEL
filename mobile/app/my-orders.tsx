@@ -6,6 +6,7 @@ import { Screen } from '@/components/ui/Screen';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BOrderSummary } from '@/lib/api';
 import { orderStatusTR, paymentStatusTR } from '@/lib/b2b-order-labels';
+import {trackTikTokConfirmedBankPurchases} from '@/lib/tiktok-commerce-events';
 
 // A bank transfer notification is not proof of payment. Only confirmed
 // provider/bank statuses are eligible for the customer's paid-order history.
@@ -25,6 +26,7 @@ export default function MyOrdersScreen() {
   const load = useCallback(async () => {
     const own = await rmaApi.listB2BOrders();
     setOrders(Array.isArray(own) ? own.filter(isPaymentCompleted) : []);
+    if(Array.isArray(own))void trackTikTokConfirmedBankPurchases(own);
   }, []);
   useEffect(() => { let mounted = true; void load().catch(() => undefined).finally(() => { if (mounted) setLoading(false); }); return () => { mounted = false; }; }, [load]);
   const refresh = async () => { setRefreshing(true); try { await load(); } catch {} finally { setRefreshing(false); } };
