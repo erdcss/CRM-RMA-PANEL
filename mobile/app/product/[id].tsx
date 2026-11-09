@@ -19,6 +19,7 @@ import { colors, minTouchTarget, radius, spacing, typography } from '@/constants
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
 import { asCatalogProduct, isMarketplaceProduct } from '@/lib/marketplace-products';
 import { addToOrderList } from '@/lib/b2b-order-list';
+import {trackTikTokAddToCart,trackTikTokProductView} from '@/lib/tiktok-commerce-events';
 import { appAlert } from '@/lib/appAlert';
 import { ProductShareSheet } from '@/components/products/ProductShareSheet';
 import { monitorMobileProduct } from '@/lib/customer-insights';
@@ -115,6 +116,12 @@ export default function ProductDetailScreen() {
     if (!product?.id || session?.user?.role !== 'b2b_customer' || session.user.isActive !== true) return;
     return monitorMobileProduct(String(product.id), String(product.name || 'Ürün'));
   }, [product?.id, product?.name, session?.access_token]);
+
+  useEffect(()=>{
+    if(!product||String(product.id)!==id)return;
+    // Consent and SDK availability are checked inside the tracking bridge.
+    void trackTikTokProductView(product);
+  },[product,id]);
 
   const pack = Math.max(1, Number(product?.units_per_box || 1));
   const min = Math.max(1, Number(product?.min_order_qty || 1));
@@ -470,6 +477,9 @@ export default function ProductDetailScreen() {
                     sellerName: product.seller_name,
                   } : {}),
                 });
+                // Emit only after the native order-list write has actually succeeded.
+                // Keep advertising analytics independent from the purchase flow.
+                void trackTikTokAddToCart(product,effectiveQuantity);
                 setAdded(true);
                 if(successTimer.current)clearTimeout(successTimer.current);
                 successTimer.current=setTimeout(()=>setAdded(false),2400);
