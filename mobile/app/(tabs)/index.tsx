@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { appAlert } from '@/lib/appAlert';
+import {trackTikTokProductSearch} from '@/lib/tiktok-commerce-events';
 
 import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
@@ -294,6 +295,7 @@ export default function HomeScreen() {
               placeholderTextColor={palette.muted}
               style={styles.searchInput}
               returnKeyType="search"
+              onSubmitEditing={()=>{void trackTikTokProductSearch(query);}}
             />
             {query ? (
               <Pressable onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
