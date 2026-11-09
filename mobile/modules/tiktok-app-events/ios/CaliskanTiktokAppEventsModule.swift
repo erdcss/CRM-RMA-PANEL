@@ -5,6 +5,7 @@ import TikTokBusinessSDK
 /// App Secret is sourced from EAS environment -> Info.plist, never from JS or GitHub.
 public class CaliskanTiktokAppEventsModule: Module {
   private var initialized = false
+  private var consentActive = false
 
   public func definition() -> ModuleDefinition {
     Name("CaliskanTiktokAppEvents")
@@ -14,7 +15,8 @@ public class CaliskanTiktokAppEventsModule: Module {
     }
 
     AsyncFunction("initializeWithConsent") { (promise: Promise) in
-      guard !self.initialized else { TikTokBusiness.setTrackingEnabled(true); promise.resolve(true); return }
+      self.consentActive = true
+      guard !self.initialized else { TikTokBusiness.setTrackingEnabled(self.consentActive); promise.resolve(true); return }
       guard let (appleId, tiktokId, accessToken) = self.configuration() else {
         promise.resolve(false)
         return
@@ -33,18 +35,19 @@ public class CaliskanTiktokAppEventsModule: Module {
       config.disableAutoEnhancedDataPostbackEvent()
       TikTokBusiness.initializeSdk(config) { success, _ in
         self.initialized = success
-        if success { TikTokBusiness.setTrackingEnabled(true) }
+        if success { TikTokBusiness.setTrackingEnabled(self.consentActive) }
         promise.resolve(success)
       }
     }
 
     AsyncFunction("stopTracking") { () in
+      self.consentActive = false
       TikTokBusiness.setTrackingEnabled(false)
       // The SDK cannot be un-initialized; sending events is disabled here.
     }
 
     AsyncFunction("trackEvent") { (name: String) -> Bool in
-      guard self.initialized, !name.isEmpty,
+      guard self.initialized, self.consentActive, !name.isEmpty,
         ["LaunchAPP", "ViewContent", "Search", "AddToCart", "Checkout", "Purchase"].contains(name) else { return false }
       TikTokBusiness.trackEvent(name)
       return true
