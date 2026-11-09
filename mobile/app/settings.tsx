@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type ThemePreference } from '@/contexts/AppearanceContext';
 import { getMetaEventsConsent, runMetaConnectionTest, setMetaEventsConsent } from '@/lib/meta-app-events';
-import {getTikTokAppEventsConsent,isTikTokAppEventsConfigured,runTikTokConnectionTest,setTikTokAppEventsConsent} from '@/lib/tiktok-app-events';
+import {getTikTokAppEventsConsent,isTikTokAppEventsConfigured,requestTikTokAppleTrackingAuthorization,runTikTokConnectionTest,setTikTokAppEventsConsent} from '@/lib/tiktok-app-events';
 
 const choices: Array<{ mode: ThemePreference; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { mode: 'dark', label: 'Koyu Tema', subtitle: 'Karanlık arayüz', icon: 'moon-outline' },
@@ -145,6 +145,21 @@ export default function SettingsScreen() {
           <Ionicons name={tiktokConsent?'toggle':'toggle-outline'} size={32}
             color={tiktokConsent?'#FFCD00':palette.muted}/>
         </Pressable>
+        {tiktokConsent===true&&tiktokConfigured&&<Pressable accessibilityRole="button"
+          accessibilityLabel="Apple uygulamalar arası takip iznini iste"
+          onPress={()=>{void requestTikTokAppleTrackingAuthorization().then(status=>{
+            Alert.alert('Apple Takip İzni',
+              status===3?'Apple tarafından izin verildi.'
+              :status===2?'Apple takip izni reddedildi. Uygulama kullanılmaya devam edebilir.'
+              :status===1?'Takip izni kısıtlandı.'
+              :status===0?'Apple izni henüz belirlenmedi.'
+              :'Apple takip izni bu cihazda veya derlemede kullanılamıyor.');
+          });}}
+          style={[styles.action,{marginTop:6}]}>
+          <Ionicons name="shield-checkmark-outline" size={20} color={palette.text}/>
+          <Text style={[styles.actionText,{color:palette.text}]}>Apple takip iznini yönet</Text>
+          <Ionicons name="chevron-forward" size={20} color={palette.muted}/>
+        </Pressable>}
         {tiktokConsent===true&&tiktokConfigured&&<Pressable accessibilityRole="button"
           accessibilityLabel="TikTok SDK bağlantısını test et"
           style={[styles.action,{marginTop:6}]}
