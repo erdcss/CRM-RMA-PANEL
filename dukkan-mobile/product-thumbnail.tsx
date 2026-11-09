@@ -4,7 +4,7 @@ import {Package} from "lucide-react-native";
 import {productImageSource,type ProductPicture} from "./product-images";
 
 export function ProductThumbnail({item,storeId,token,size=60}:{
-  item:ProductPicture;storeId:number;token:string;size?:number;
+  item:ProductPicture;storeId:number|string;token:string;size?:number;
 }){
   const [failed,setFailed]=useState(false);
   const source=useMemo(()=>productImageSource(item,storeId,token),
