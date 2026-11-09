@@ -1,0 +1,14 @@
+ÇALIŞKAN DÜKKAN · iOS TESTFLIGHT RELEASE REQUEST
+Date: 2026-11-09
+Target app: Çalışkan Dükkan
+Bundle identifier: com.caliskan.dukkan
+Expo EAS project: 21b3de7c-763f-4c25-87aa-66e818498d6e
+Apple Store Connect app ID: 6826848065
+Release version: 1.0.3 (remote iOS build number increments automatically)
+Scope:
+- Remove native Ürün ve Stok / Cari etc 'Web'deki ayrıntılı işlemleri...' shortcut.
+- Remove native sidebar 'Tüm Web İşlemleri' entry.
+- Remove Genel Bakış 'Web Panelindeki Tüm İşlemler ve Yetkiler' shortcut.
+- Keep native workflows and existing product-image server fix.
+Trigger: one-off push workflow, validate → EAS iOS build → App Store Connect TestFlight submit.
+Do not change B2B or Business app identifiers. No secrets stored in this request.
