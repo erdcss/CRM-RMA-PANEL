@@ -3,19 +3,19 @@ import {Alert,Modal,Pressable,ScrollView,StyleSheet,Text,View,useWindowDimension
 import {LinearGradient} from "expo-linear-gradient";
 import {
  ArrowRight,ArrowUpRight,BarChart3,BookOpen,Box,Boxes,CalendarDays,ChevronDown,ChevronRight,
- CircleCheck,ClipboardList,Cloud,FileText,House,Landmark,Layers,LogOut,Package,Menu,X,Globe2,
+ CircleCheck,ClipboardList,Cloud,FileText,House,Landmark,Layers,LogOut,Package,Menu,X,
  PackagePlus,Receipt,RefreshCw,Settings2,ShieldCheck,ShoppingCart,Store,TrendingUp,
  UsersRound,Wallet,CreditCard,HandCoins, type LucideIcon
 } from "lucide-react-native";
 
 export type DukkanTab="dashboard"|"invoices"|"products"|"movements"|"parties"|"ledger"|"orders"|
- "banks"|"cash_movements"|"payments"|"instruments"|"report"|"settings"|"web";
+ "banks"|"cash_movements"|"payments"|"instruments"|"report"|"settings";
 
 const navy="#0d2142",ink="#13284b",muted="#7186a3",blue="#1868d0";
 const tabIcons:Record<DukkanTab,LucideIcon>={
  dashboard:House,invoices:FileText,products:Package,movements:Layers,parties:UsersRound,
  ledger:BookOpen,orders:ClipboardList,banks:Landmark,cash_movements:Wallet,payments:HandCoins,
- instruments:CreditCard,report:BarChart3,settings:Settings2,web:Globe2
+ instruments:CreditCard,report:BarChart3,settings:Settings2
 };
 type StoreChoice={id:number;name:string;role:string};
 type HeaderProps={
