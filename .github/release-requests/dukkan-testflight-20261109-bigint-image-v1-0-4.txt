@@ -1,0 +1,12 @@
+ÇALIŞKAN DÜKKAN — iOS 1.0.4 TESTFLIGHT RELEASE
+Date: 2026-11-09
+User requested product photos from Çalışkan Dükkan web administration to render in the native iOS inventory list.
+Root cause: PostgreSQL BIGINT store IDs from the authorized stores endpoint can be strings; the existing mobile image resolver rejected string store IDs before constructing an image source.
+Changes: coerce and strictly validate store IDs (string/number) for store-scoped thumbnail URLs; preserve bearer Authorization only on matching admin.ecalisgan.com private endpoints; add unit regression tests.
+Verified before release: product-image resolver tests succeeded, native TypeScript check succeeded, admin branding check succeeded, Expo iOS JS export succeeded.
+Native package / Expo app version: 1.0.4
+Expo project: 21b3de7c-763f-4c25-87aa-66e818498d6e
+iOS bundle: com.caliskan.dukkan
+App Store Connect app: 6826848065
+Release request automatically runs validation, EAS IPA build, and App Store Connect TestFlight submission.
+No data migration; no warehouse stock mutations; no B2B or Business app changes.
