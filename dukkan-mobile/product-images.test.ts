@@ -23,3 +23,21 @@ test("invalid product URLs cannot be rendered",()=>{
   assert.equal(productImageSource({id:0,image_url:"https://cdn.example.org/a.jpg"},store,token),null);
   assert.equal(productImageSource({id:42,image_url:"/api/dukkan/stores/8/products/42/image"},store,token),null);
 });
+
+test("string PostgreSQL BIGINT store id keeps authenticated product thumbnails visible",()=>{
+  // node-postgres serializes BIGINT columns to strings in JSON responses.
+  const src=productImageSource({id:"42",image_url:"/api/dukkan/stores/7/products/42/image",image_count:1},"7",token);
+  assert.deepEqual(src,{
+    uri:"https://admin.ecalisgan.com/api/dukkan/stores/7/products/42/image?index=0",
+    headers:{Authorization:"Bearer "+token},
+  });
+});
+test("string BIGINT store id also works with a bare private image path",()=>{
+  const src=productImageSource({id:"42",image_url:"/api/dukkan/stores/7/products/42/image"},"7",token);
+  assert.equal(src?.uri,"https://admin.ecalisgan.com/api/dukkan/stores/7/products/42/image");
+});
+test("missing or unsafe store identity cannot expose a private thumbnail",()=>{
+  assert.equal(productImageSource({id:"42",image_count:1},"not-a-store",token),null);
+  assert.equal(productImageSource({id:"42",image_count:1},"0",token),null);
+  assert.equal(productImageSource({id:"42",image_count:1},"7.5",token),null);
+});
