@@ -6,6 +6,7 @@ import Constants from 'expo-constants';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type ThemePreference } from '@/contexts/AppearanceContext';
 import { getMetaEventsConsent, runMetaConnectionTest, setMetaEventsConsent } from '@/lib/meta-app-events';
+import {getTikTokAppEventsConsent,isTikTokAppEventsConfigured,runTikTokConnectionTest,setTikTokAppEventsConsent} from '@/lib/tiktok-app-events';
 
 const choices: Array<{ mode: ThemePreference; label: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { mode: 'dark', label: 'Koyu Tema', subtitle: 'Karanlık arayüz', icon: 'moon-outline' },
@@ -17,9 +18,13 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { palette, preference, setPreference } = useAppearance();
   const [metaConsent, setMetaConsent] = useState<boolean | null>(null);
+  const [tiktokConsent,setTiktokConsent]=useState<boolean|null>(null);
+  const [tiktokConfigured,setTiktokConfigured]=useState(false);
   useEffect(() => {
     let mounted = true;
     void getMetaEventsConsent().then(value => { if (mounted) setMetaConsent(value); });
+    void getTikTokAppEventsConsent().then(value=>{if(mounted)setTiktokConsent(value);});
+    void isTikTokAppEventsConfigured().then(value=>{if(mounted)setTiktokConfigured(value);});
     return () => { mounted = false; };
   }, []);
   const updateMetaConsent = () => {
@@ -28,6 +33,21 @@ export default function SettingsScreen() {
     const next = !previous;
     setMetaConsent(next);
     void setMetaEventsConsent(next).catch(() => setMetaConsent(previous));
+  };
+  const updateTikTokConsent=()=>{
+    if(tiktokConsent===null||!tiktokConfigured)return;
+    const previous=tiktokConsent;
+    const next=!previous;
+    setTiktokConsent(next);
+    void setTikTokAppEventsConsent(next).then(ok=>{
+      if(next&&!ok){
+        setTiktokConsent(previous);
+        Alert.alert('TikTok bağlantısı kurulamadı','Bu sürümde TikTok SDK başlatılamadı. Uygulama kimliği ve EAS SDK yapılandırmasını kontrol edin.');
+      }
+    }).catch(()=>{
+      setTiktokConsent(previous);
+      Alert.alert('TikTok izni kaydedilemedi','Bağlantı tercihleri şu anda güncellenemedi.');
+    });
   };
   const sourceRevision = String(Constants.expoConfig?.extra?.sourceRevision || 'Eski / doğrulanmamış build');
   const buildDate = Constants.expoConfig?.extra?.sourceBuildDate;
@@ -102,6 +122,44 @@ export default function SettingsScreen() {
             <Ionicons name="send-outline" size={20} color={palette.text} />
           </Pressable>
         ) : null}
+      </View>
+      <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, marginTop: 15 }]}>
+        <Text style={[styles.heading, { color: palette.text }]}>TikTok Uygulama Ölçümü</Text>
+        <Text style={[styles.caption, { color: palette.textSecondary }]}>
+          Meta izninden bağımsızdır. İzin verirseniz Çalışkan B2B açılışları TikTok reklam performansını
+          ölçmek için paylaşılabilir. İsim, telefon, vergi numarası ve ödeme detayları gönderilmez.
+          TikTok cihaz ve bağlantı verilerini işleyebilir. İstediğiniz zaman kapatabilirsiniz.
+        </Text>
+        {!tiktokConfigured&&<Text style={[styles.caption,{color:palette.textSecondary,marginTop:8}]}>
+          TikTok uygulama SDK bağlantısı henüz yapılandırılmadı. EAS App Secret ayarı gereklidir.
+        </Text>}
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityLabel="TikTok uygulama reklam ölçümüne izin ver"
+          accessibilityState={{checked:tiktokConsent===true,disabled:tiktokConsent===null||!tiktokConfigured}}
+          disabled={tiktokConsent===null||!tiktokConfigured}
+          onPress={updateTikTokConsent}
+          style={[styles.action,{marginTop:10}]}>
+          <Ionicons name="analytics-outline" size={20} color={palette.text}/>
+          <Text style={[styles.actionText,{color:palette.text}]}>TikTok ölçümüne izin ver</Text>
+          <Ionicons name={tiktokConsent?'toggle':'toggle-outline'} size={32}
+            color={tiktokConsent?'#FFCD00':palette.muted}/>
+        </Pressable>
+        {tiktokConsent===true&&tiktokConfigured&&<Pressable accessibilityRole="button"
+          accessibilityLabel="TikTok SDK bağlantısını test et"
+          style={[styles.action,{marginTop:6}]}
+          onPress={()=>{void runTikTokConnectionTest().then(result=>{
+            Alert.alert('TikTok SDK bağlantı testi',
+              result==='submitted'
+                ?'LaunchAPP test olayı SDK tarafından kabul edildi. TikTok Olay Yöneticisi > Test Events bölümünden alınışını ayrıca doğrulayın.'
+                :result==='no_consent'?'Önce TikTok ölçüm iznini etkinleştirin.'
+                :result==='not_configured'?'TikTok App Secret EAS derlemesinde henüz tanımlı değil.'
+                :'TikTok SDK olay gönderimini başlatamadı. Derleme ve uygulama kimliğini kontrol edin.');
+          });}}>
+          <Ionicons name="pulse-outline" size={20} color={palette.text}/>
+          <Text style={[styles.actionText,{color:palette.text}]}>TikTok bağlantısını test et</Text>
+          <Ionicons name="send-outline" size={20} color={palette.text}/>
+        </Pressable>}
       </View>
       <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border, marginTop: 15 }]}>
         <Text style={[styles.heading, { color: palette.text }]}>Uygulama Sürümü</Text>
