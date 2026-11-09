@@ -495,14 +495,21 @@ export default function Dukkan() {
       publish:"B2B'de yayınla",archive:"arşivle ve B2B'de yayından kaldır",
       restore:"arşivden çıkar (yayınlamadan)",delete:"sil"
     };
-    if(!window.confirm(ids.length+" ürünü "+explanations[action]+
-      "?"+(action==="delete"?" Stok veya işlem geçmişi olan ürünler silinmez.":"")))return;
+    const selectedProducts=rows.filter(item=>item._source!=="b2b"&&selectedProductIds.has(String(item.id)));
+    const withStock=selectedProducts.filter(item=>Number(item.stock||0)!==0).length;
+    const prompt=action==="delete"
+      ?ids.length+" ürünü aktif katalogdan kaldırmak istiyor musunuz?"+
+        " Ürün kartları gizlenir, B2B yayını kapatılır. Faturalar, stok hareketleri ve geçmiş kayıtlar korunur."+
+        (withStock?" DİKKAT: "+withStock+" seçili ürünün stok miktarı sıfır değil; miktar silinmeyecek ancak ürün aktif stok listesinde görünmeyecektir.":"")
+      :ids.length+" ürünü "+explanations[action]+"?";
+    if(!window.confirm(prompt))return;
     setBulkProductBusy(true);setError("");setNotice("");
     try{
       const result=await api(base+"/products/bulk",{method:"POST",body:JSON.stringify({ids,action})});
       const results={publish:"B2B'de yayınlandı",archive:"arşivlendi",restore:"arşivden çıkarıldı",delete:"silindi"};
       setSelectedProductIds(new Set());
-      setNotice(String(result.affected)+" ürün "+results[action]+".");
+      setNotice(String(result.affected)+" ürün "+results[action]+
+        (action==="delete"?" (geçmiş fatura ve stok kayıtları korundu).":""));
       setRefresh(v=>v+1);
     }catch(e){setError((e as Error).message);}
     finally{setBulkProductBusy(false);}
@@ -943,10 +950,11 @@ export default function Dukkan() {
                   {section==="products"&&canManage&&<th className="w-10 px-2 py-3 text-center">
                     <input type="checkbox" className="h-4 w-4 accent-[#174b83]"
                       aria-label="Görünen sayfadaki tüm ürünleri seç"
-                      checked={pagedProducts.rows.length>0&&pagedProducts.rows.every(v=>selectedProductIds.has(String(v.id)))}
-                      disabled={!pagedProducts.rows.length||bulkProductBusy}
+                      checked={pagedProducts.rows.some(v=>v._source!=="b2b")&&
+                        pagedProducts.rows.filter(v=>v._source!=="b2b").every(v=>selectedProductIds.has(String(v.id)))}
+                      disabled={!pagedProducts.rows.some(v=>v._source!=="b2b")||bulkProductBusy}
                       onChange={event=>setSelectedProductIds(event.target.checked
-                        ?new Set(pagedProducts.rows.filter(v=>v._source!=="b2b").map(v=>String(v.id))):new Set())}/>
+                        ?new Set(pagedProducts.rows.filter(v=>v._source!=="b2b").slice(0,100).map(v=>String(v.id))):new Set())}/>
                   </th>}
                   {(section==="products"?["Görsel","Stok Kodu","Ürün","Barkod","Miktar","Alış","Satış","B2B Durumu"]:
                     isCariSection?["Cari No","Hesap Kodu","Cari Adı","İl","Türü","Telefon","Bakiye"]:
