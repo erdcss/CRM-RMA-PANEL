@@ -60,6 +60,56 @@ public class CaliskanTiktokAppEventsModule: Module {
       // The SDK cannot be un-initialized; sending events is disabled here.
     }
 
+    // Only standard TikTok commerce properties. No email, phone, user ID,
+    // address, payment method, or financial-account identifiers are accepted.
+    AsyncFunction("trackCommerceEvent") { (name: String, data: [String: Any]) -> Bool in
+      guard self.initialized, self.consentActive else { return false }
+      guard ["ViewContent", "Search", "AddToCart", "Checkout", "Purchase"].contains(name) else { return false }
+      let eventId = data["eventId"] as? String ?? ""
+      let query = data["query"] as? String ?? ""
+      if name == "Search" {
+        guard !query.isEmpty, query.count <= 120 else { return false }
+        let search = TikTokBaseEvent(eventName: "Search")
+        search.addProperty(withKey: "query", value: query)
+        TikTokBusiness.trackTTEvent(search)
+        return true
+      }
+      let rawItems = data["contents"] as? [[String: Any]] ?? []
+      guard !rawItems.isEmpty, rawItems.count <= 50 else { return false }
+      var products: [TikTokContentParams] = []
+      for row in rawItems {
+        guard let id = row["contentId"] as? String, !id.isEmpty, id.count <= 128,
+              let price = row["price"] as? Double, price.isFinite, price >= 0,
+              let quantity = row["quantity"] as? Int, quantity > 0 else { return false }
+        let item = TikTokContentParams()
+        item.contentId = id
+        item.price = NSNumber(value: price)
+        item.quantity = quantity
+        if let title = row["contentName"] as? String { item.contentName = String(title.prefix(160)) }
+        if let brand = row["brand"] as? String { item.brand = String(brand.prefix(80)) }
+        if let category = row["contentCategory"] as? String { item.contentCategory = String(category.prefix(80)) }
+        products.append(item)
+      }
+      let value = data["value"] as? Double ?? 0
+      guard value.isFinite, value >= 0 else { return false }
+      let event: TikTokContentsEvent
+      switch name {
+      case "ViewContent": event = TikTokViewContentEvent()
+      case "AddToCart": event = TikTokAddToCartEvent()
+      case "Checkout": event = TikTokCheckoutEvent()
+      case "Purchase":
+        guard !eventId.isEmpty, eventId.count <= 128 else { return false }
+        event = TikTokPurchaseEvent(eventId: eventId)
+      default: return false
+      }
+      event.setCurrency(TTCurrencyTRY)
+      event.setValue(String(format: "%.2f", value))
+      event.setContentType("product")
+      event.setContents(products)
+      TikTokBusiness.trackTTEvent(event)
+      return true
+    }
+
     AsyncFunction("trackEvent") { (name: String) -> Bool in
       guard self.initialized, self.consentActive, !name.isEmpty,
         ["LaunchAPP", "ViewContent", "Search", "AddToCart", "Checkout", "Purchase"].contains(name) else { return false }
