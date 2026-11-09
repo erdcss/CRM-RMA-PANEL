@@ -318,7 +318,7 @@ function StoreApp({session,onLogout,onSwitch}:{session:ActiveSession;onLogout:()
         {r.status&&<Text style={styles.badge}>{val(r.status)}</Text>}</View></Pressable>)}
     {shown.length>250&&<Text style={styles.hint}>İlk 250 kayıt gösteriliyor. Arama ile filtreleyin.</Text>}
    </View>}
-  </ScrollView>}
+  </ScrollView>
   <DukkanBottomNavigation selected={tab} cashier={cashier} onChange={navigate}/>
   <CariMovements party={selectedParty} onClose={()=>setSelectedParty(null)}/>
   {formType&&<KeyboardAvoidingView behavior={Platform.OS==="ios"?"padding":undefined} style={styles.overlay}>
