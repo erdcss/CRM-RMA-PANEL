@@ -31,6 +31,11 @@ module.exports = ({ config }) => {
     ]);
   }
 
+  // Native TikTok module is dormant until explicit in-app permission and EAS app secret.
+  if (!plugins.some(p => p === './plugins/withTikTokAppEvents.js')) {
+    plugins.push('./plugins/withTikTokAppEvents.js');
+  }
+
   return {
     ...config,
     plugins,
