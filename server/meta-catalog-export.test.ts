@@ -20,7 +20,7 @@ test("full Meta feed contains strict English headers and correct values",()=>{
   assert.ok(csv.endsWith("\r\n"));
 });
 test("content IDs file is headerless, deduped and includes supplier IDs",()=>{
-  assert.equal(metaContentIdsCsv([{id:"145"},{id:"145"},{id:"mp-12"},{id:"id"},{id:"=cmd"},{id:"231"}]),
+  assert.equal(metaContentIdsCsv([{id:"145"},{id:"145"},{id:"mp-12"},{id:"untrusted header"},{id:"=cmd"},{id:"231"}]),
     '145\nmp-12\n231\n');
   assert.equal(metaContentIdsText([{id:"145"},{id:"mp-12"}]),'145\nmp-12\n');
   assert.equal(metaContentIdsText([{id:" 145 "},{id:"145"}]),'145\n');
