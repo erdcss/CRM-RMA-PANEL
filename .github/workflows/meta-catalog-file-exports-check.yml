@@ -1,0 +1,41 @@
+name: Meta catalog file exports QA
+on:
+  push:
+    paths:
+      - 'server/meta-catalog-export.ts'
+      - 'server/meta-catalog-export.test.ts'
+      - 'server/meta-catalog.ts'
+      - 'server/meta-catalog-sync.ts'
+      - 'client/src/pages/admin-meta.tsx'
+      - '.github/workflows/meta-catalog-file-exports-check.yml'
+  pull_request:
+    paths:
+      - 'server/meta-catalog-export.ts'
+      - 'server/meta-catalog-export.test.ts'
+      - 'server/meta-catalog.ts'
+      - 'server/meta-catalog-sync.ts'
+      - 'client/src/pages/admin-meta.tsx'
+      - '.github/workflows/meta-catalog-file-exports-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Secure Meta exports, TypeScript and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Test complete Meta CSV and content IDs
+        run: npx tsx --test server/meta-catalog-export.test.ts
+      - name: TypeScript check
+        run: npm run check
+      - name: Production build
+        run: npm run build

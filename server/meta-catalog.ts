@@ -2,15 +2,12 @@ import type { Express, Request } from "express";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { pool } from "./db";
 import { ensureMarketplaceSchema } from "./marketplace";
+import { META_FEED_COLUMNS as HEADERS,metaCatalogCsv,type MetaFeedEntry } from "./meta-catalog-export";
 
 // The B2B storefront deliberately hides wholesale prices from anonymous users.
 // Do NOT expose this feed without the independent META_CATALOG_FEED_PASSWORD.
 const FEED_USER = "caliskan-meta";
 const SITE = "https://b2b.ecalisgan.com";
-const HEADERS = [
-  "id", "title", "description", "availability", "condition", "price",
-  "link", "image_link", "brand", "mpn", "gtin", "inventory", "product_type",
-] as const;
 type CatalogRow = Record<string, unknown>;
 
 function hasFeedAccess(req: Request, password: string): boolean {
@@ -112,7 +109,7 @@ const SUPPLIER_PRODUCTS = [
 ].join(" ");
 
 /** Single source of truth for feed exports and fast Graph API updates. */
-export type MetaCatalogItem = Record<(typeof HEADERS)[number], string>;
+export type MetaCatalogItem = MetaFeedEntry;
 export async function loadMetaCatalogItems(): Promise<{items: MetaCatalogItem[]; sourceCount: number; skipped: number}> {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
   await ensureMarketplaceSchema();
@@ -142,15 +139,13 @@ export function registerMetaCatalogFeed(app: Express): void {
     try {
       // An invalid/missing supplier schema must not result in an empty successful feed.
       const {items} = await loadMetaCatalogItems();
-      const lines: string[] = [HEADERS.join(",")];
-      for (const item of items) lines.push(HEADERS.map(key=>csvCell(item[key])).join(","));
-      if (lines.length === 1) {
+      if (items.length === 0) {
         console.warn("Meta catalog feed: no eligible products; refusing to replace existing catalog.");
         return res.status(503).send("Aktarılabilecek uygun ürün bulunamadı.");
       }
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
       res.setHeader("Content-Disposition", 'inline; filename="caliskan-b2b-meta-catalog.csv"');
-      return res.status(200).send(lines.join("\r\n") + "\r\n");
+      return res.status(200).send(metaCatalogCsv(items));
     } catch (error) {
       console.error("Meta catalog feed query failed:", error);
       return res.status(503).send("Meta katalog akışı şu anda kullanılamıyor.");

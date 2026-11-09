@@ -1,6 +1,6 @@
 import {useEffect,useState} from "react";
 import {useQuery,useQueryClient} from "@tanstack/react-query";
-import {AlertCircle,CheckCircle2,Clock3,ExternalLink,Link2,RefreshCw,Save,Settings2,ShoppingBag,UploadCloud,Database,PackageCheck,ShieldCheck} from "lucide-react";
+import {AlertCircle,CheckCircle2,Clock3,ExternalLink,Link2,RefreshCw,Save,Settings2,ShoppingBag,UploadCloud,Database,PackageCheck,ShieldCheck,Download} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Switch} from "@/components/ui/switch";
@@ -112,6 +112,34 @@ export default function AdminMeta(){
         </Panel>
       </div>
 
+      <Panel>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h2 className="flex items-center gap-2 text-lg font-black"><Download className="h-5 w-5 text-amber-600"/> Meta ürün dosyalarını indir</h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-600">Mevcut Çalışkan B2B ürünlerinden otomatik oluşturulur. Her indirilişte en güncel uygun ürünler ve gerçek fiyatlar alınır.</p></div>
+          <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">
+            {data?.source.eligible??"…"} ürün aktarılabilir
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-900">1. İçerik kodu listesi (CSV)</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Meta'da “Ürünleri içerik koduna göre toplu olarak ekleyin” penceresi içindir. Dosyada başlık olmadan her ürün kodu ayrı satırdadır.</p>
+            <a href="/api/admin/meta/export/content-ids.csv" download="caliskan-b2b-meta-icerik-kodlari.csv"
+              className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-amber-400 px-4 text-sm font-bold text-slate-950 hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
+              <Download className="h-4 w-4"/> İçerik kodlarını indir
+            </a>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-bold text-slate-900">2. Tam ürün kataloğu (CSV)</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Commerce Manager → Veri kaynakları için: ürün adı, açıklama, fiyat (TRY), stok, görsel, ürün bağlantısı ve marka bilgilerini içerir.</p>
+            <a href="/api/admin/meta/export/catalog.csv" download="caliskan-b2b-meta-katalog.csv"
+              className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
+              <Download className="h-4 w-4"/> Katalog dosyasını indir
+            </a>
+          </div>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-slate-500">Görseli veya geçerli fiyatı olmayan ürünler yanlış ya da eksik kayıt oluşmaması için aktarılmaz. Dosyalar yalnız giriş yapmış yöneticilere sunulur. İçerik kodu listesi yeni ürün oluşturmaz; Meta kataloğunda aynı ID'li ürünler önceden mevcut olmalıdır.</p>
+      </Panel>
       <Panel>
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-black">Ürün senkronizasyonu ve hata kayıtları</h2>
           <p className="mt-1 text-sm text-slate-600">Gönderim sonrası Meta'nın işleme onayı beklenir. Gönderilen ürünler hemen başarılı sayılmaz.</p></div>
