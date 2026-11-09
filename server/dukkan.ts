@@ -7,6 +7,7 @@ import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDu
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
+import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
 import { buildCariExcel } from "./dukkan-cari-excel";
 import {reviseDukkanSalesInvoice} from "./dukkan-sales-invoice-revisions";
 import {correctArchivedSalesInvoice} from "./dukkan-archive-sales-corrections";
@@ -186,7 +187,8 @@ async function transaction<T>(cb: (c: PoolClient) => Promise<T>): Promise<T> {
   catch (error) { await c.query("ROLLBACK"); throw error; } finally { c.release(); }
 }
 async function exists(c: PoolClient, table: "dukkan_parties" | "dukkan_products" | "dukkan_banks", sid: number, recordId: number) {
-  const r = await c.query("SELECT id FROM " + table + " WHERE store_id=$1 AND id=$2", [sid,recordId]);
+  const r = await c.query("SELECT id FROM " + table + " WHERE store_id=$1 AND id=$2" +
+    (table === "dukkan_products" ? " AND deleted_at IS NULL AND archived_at IS NULL" : ""), [sid,recordId]);
   if (!r.rowCount) throw Object.assign(new Error("Kayıt bu mağazada bulunamadı"),{status:404});
 }
 
@@ -1021,28 +1023,23 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
           if(!product.image_data&&(!Array.isArray(product.images)||!product.images.length))
             throw Object.assign(new Error("B2B yayını için ürün görseli eksik: "+label),{status:409});
         }
-        if(body.action==="delete"){
-          if(Number(product.stock)!==0)
-            throw Object.assign(new Error("Stok miktarı sıfır olmayan ürün silinemez: "+label+". Arşivleyebilirsiniz."),{status:409});
-          const history=await c.query(
-            "SELECT EXISTS(SELECT 1 FROM dukkan_stock_movements WHERE store_id=$1 AND product_id=$2) "+
-            "OR EXISTS(SELECT 1 FROM dukkan_invoice_lines WHERE product_id=$2) "+
-            "OR EXISTS(SELECT 1 FROM dukkan_order_lines WHERE product_id=$2) AS referenced",
-            [sid,product.id]);
-          if(history.rows[0]?.referenced)
-            throw Object.assign(new Error("İşlem geçmişi olan ürün silinemez: "+label+". Arşivleyebilirsiniz."),{status:409});
-        }
+        // Deletion is a soft-delete. Historical invoices, stock moves and order
+        // references must be preserved even when stock/history exists.
+      }
+      if(body.action==="delete"){
+        // Atomic, store-scoped soft delete keeps historical foreign keys intact.
+        const result=await softDeleteDukkanProducts(c,sid,ids);
+        return {action:body.action,ids,...result};
       }
       for(const product of selected.rows){
         if(body.action==="publish"){
           const saved=await c.query("UPDATE dukkan_products SET publish_b2b=TRUE WHERE store_id=$1 AND id=$2 RETURNING *",[sid,product.id]);
           await syncDukkanToB2B(c,saved.rows[0]);
-        }else if(body.action==="archive"||body.action==="delete"){
+        }else if(body.action==="archive"){
           const saved=await c.query(
             "UPDATE dukkan_products SET archived_at=COALESCE(archived_at,NOW()),"+
-            "deleted_at=CASE WHEN $3::boolean THEN NOW() ELSE deleted_at END,"+
             "publish_b2b=FALSE WHERE store_id=$1 AND id=$2 RETURNING *",
-            [sid,product.id,body.action==="delete"]);
+            [sid,product.id]);
           if(saved.rows[0].b2b_product_id)await syncDukkanToB2B(c,saved.rows[0]);
         }else{
           const saved=await c.query("UPDATE dukkan_products SET archived_at=NULL WHERE store_id=$1 AND id=$2 RETURNING *",[sid,product.id]);
@@ -1572,7 +1569,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       const doc=inserted.rows[0];
       const sign=(p.kind==="purchase" || p.kind==="sale_return")?1:-1;
       for(const l of lines){
-        const updated=await c.query("UPDATE dukkan_products SET stock=stock+$3 WHERE store_id=$1 AND id=$2 AND stock+$3>=0 RETURNING id",[sid,l.productId,sign*l.quantity]);
+        const updated=await c.query("UPDATE dukkan_products SET stock=stock+$3 WHERE store_id=$1 AND id=$2 AND deleted_at IS NULL AND archived_at IS NULL AND stock+$3>=0 RETURNING id",[sid,l.productId,sign*l.quantity]);
         if(!updated.rowCount) throw Object.assign(new Error("Stok yetersiz veya ürün başka mağazaya ait: "+l.productId),{status:409});
         await c.query("INSERT INTO dukkan_invoice_lines(invoice_id,product_id,quantity,unit_price,tax_rate,line_total) VALUES($1,$2,$3,$4,$5,$6)",[doc.id,l.productId,l.quantity,money(l.unitPrice),l.taxRate,l.total]);
         await c.query("INSERT INTO dukkan_stock_movements(store_id,product_id,delta,reason,invoice_id,created_by) VALUES($1,$2,$3,$4,$5,$6)",[sid,l.productId,sign*l.quantity,p.kind,doc.id,user(res)]);
