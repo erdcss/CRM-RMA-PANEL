@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {trackTikTokProductSearch} from '@/lib/tiktok-commerce-events';
 import {
   ActivityIndicator,
   FlatList,
@@ -198,6 +199,7 @@ export default function CollectionScreen() {
                 accessibilityLabel="Bu kategoride ürün ara"
                 autoCorrect={false}
                 returnKeyType="search"
+                onSubmitEditing={()=>{void trackTikTokProductSearch(search);}}
                 style={styles.searchInput}
               />
               {search.length > 0 ? (
