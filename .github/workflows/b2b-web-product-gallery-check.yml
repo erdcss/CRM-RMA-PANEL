@@ -1,0 +1,39 @@
+name: B2B web product gallery
+on:
+  push:
+    paths:
+      - 'client/src/pages/b2b-product.tsx'
+      - 'client/src/lib/b2b-marketplace-products.ts'
+      - 'client/src/lib/b2b-product-gallery.ts'
+      - 'client/src/lib/b2b-product-gallery.test.ts'
+      - '.github/workflows/b2b-web-product-gallery-check.yml'
+  pull_request:
+    paths:
+      - 'client/src/pages/b2b-product.tsx'
+      - 'client/src/lib/b2b-marketplace-products.ts'
+      - 'client/src/lib/b2b-product-gallery.ts'
+      - 'client/src/lib/b2b-product-gallery.test.ts'
+      - '.github/workflows/b2b-web-product-gallery-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Gallery image tests, TypeScript and web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Test gallery image collection and counter navigation
+        run: npx tsx --test client/src/lib/b2b-product-gallery.test.ts
+      - name: Check TypeScript
+        run: npm run check
+      - name: Build B2B storefront
+        run: npm run build

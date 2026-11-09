@@ -14,6 +14,7 @@ export type UnifiedB2BProduct = {
   units_per_box?: number | null;
   image_data?: string | null;
   image_url?: string | null;
+  images?: string[] | null;
   seller_slug?: string;
   seller_name?: string;
   seller_logo_url?: string | null;
@@ -33,6 +34,7 @@ export type ApprovedSupplierProduct = {
     name: string;
     description?: string;
     imageUrl?: string;
+    images?: string[];
     category?: string;
     tags?: string[];
     brand?: string;
@@ -60,6 +62,7 @@ export function toUnifiedProduct(row: ApprovedSupplierProduct): UnifiedB2BProduc
     category: row.content.category || null,
     tags: Array.isArray(row.content.tags) ? row.content.tags : [],
     image_url: row.content.imageUrl || null,
+    images: Array.isArray(row.content.images) ? row.content.images : null,
     price: row.content.price ?? null,
     units_per_box: Math.max(1, Number(row.content.unitsPerBox) || 1),
     min_order_qty: Math.max(1, Number(row.content.minBoxes) || 1),
