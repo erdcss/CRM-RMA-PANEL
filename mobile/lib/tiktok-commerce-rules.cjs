@@ -52,4 +52,24 @@ function verifiedPurchaseEventId(order) {
   if (!/^[0-9]{1,18}$/.test(id)) return '';
   return 'b2b_paid_order_'+id;
 }
-module.exports={amount,normalizeItem,buildCommercePayload,sanitizeProductSearch,isVerifiedPaidOrder,verifiedPurchaseEventId};
+function createPurchaseGuard() {
+  const inFlight=new Set();
+  const delivered=new Set();
+  return async function deliverOnce(eventId,storage,send) {
+    if(!eventId||inFlight.has(eventId)||delivered.has(eventId))return false;
+    inFlight.add(eventId);
+    try{
+      if((await storage.getItem(eventId))==='sent') {
+        delivered.add(eventId);
+        return false;
+      }
+      const ok=await send();
+      if(!ok)return false;
+      delivered.add(eventId);
+      // A temporary disk write error must not cause duplicate sends in this session.
+      await storage.setItem(eventId,'sent').catch(()=>undefined);
+      return true;
+    }finally{inFlight.delete(eventId);}
+  };
+}
+module.exports={amount,normalizeItem,buildCommercePayload,sanitizeProductSearch,isVerifiedPaidOrder,verifiedPurchaseEventId,createPurchaseGuard};
