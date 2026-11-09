@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
+import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
 import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import {
@@ -2042,6 +2043,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         liveUsers: 0,
         conversionRate: 0,
         orderCount: 0,
+        approvedTodayOrderCount: 0,
         activeReturns: 0,
         recentOrders: [],
         recentApprovedOrders: [],
@@ -2060,6 +2062,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         orders,
         recentOrders,
         recentApprovedOrders,
+        approvedTodayOrders,
         returns,
         recentReturns,
         support,
@@ -2104,11 +2107,16 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           SELECT id, order_number, customer_email, status, item_count, total_amount,
                  payment_method, payment_provider, payment_status, created_at
           FROM b2b_orders
-          WHERE LOWER(COALESCE(status, '')) IN ('approved', 'confirmed', 'paid', 'onaylandi')
-            AND COALESCE(payment_status, '') NOT IN ('FAILURE', 'initialize_failed')
-            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+          WHERE ${APPROVED_B2B_ORDER_SQL}
           ORDER BY created_at DESC
           LIMIT 6
+        `),
+        pool.query(`
+          SELECT COUNT(*)::int AS count
+          FROM b2b_orders
+          WHERE ${APPROVED_B2B_ORDER_SQL}
+            AND (created_at AT TIME ZONE 'Europe/Istanbul')::date =
+                (NOW() AT TIME ZONE 'Europe/Istanbul')::date
         `),
         pool.query(`
           SELECT COUNT(*)::int AS count
@@ -2175,6 +2183,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         liveUsers: Number(liveUsers.rows[0]?.count || 0),
         conversionRate,
         orderCount: todayOrders,
+        approvedTodayOrderCount: Number(approvedTodayOrders.rows[0]?.count || 0),
         activeReturns: Number(returns.rows[0]?.count || 0),
         openSupport: Number(support.rows[0]?.count || 0),
         lowStock: Number(lowStock.rows[0]?.count || 0),

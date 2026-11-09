@@ -23,6 +23,7 @@ type DashboardOverview = {
   liveUsers: number;
   conversionRate: number;
   orderCount: number;
+  approvedTodayOrderCount: number;
   activeReturns: number;
   recentOrders: Array<{
     id: string | number;
@@ -33,6 +34,7 @@ type DashboardOverview = {
     total_amount: string | number;
     created_at: string;
   }>;
+  recentApprovedOrders: DashboardOverview["recentOrders"];
   recentReturns: Array<{
     id: number;
     name?: string | null;
@@ -49,6 +51,11 @@ async function getOverview(): Promise<DashboardOverview> {
   const response = await fetch("/api/admin/dashboard-overview", { credentials: "include" });
   if (!response.ok) throw new Error("Dashboard verileri alınamadı");
   return response.json();
+}
+
+function approvedStatusLabel(status: string) {
+  const normalized = status.trim().toLowerCase();
+  return normalized === "paid" ? "Ödeme onaylandı" : "Onaylandı";
 }
 
 export default function Dashboard() {
@@ -68,6 +75,9 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
     retry: 2,
   });
+
+  // Never fall back to recentOrders: it includes unpaid/awaiting-bank orders.
+  const approvedOrders = data?.recentApprovedOrders ?? [];
 
   return (
     <div className="h-full overflow-y-auto bg-muted/20">
@@ -145,25 +155,25 @@ export default function Dashboard() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <ShoppingCart className="h-5 w-5" />
-                    Son Siparişler
+                    Son Onaylanan Siparişler
                   </CardTitle>
-                  <CardDescription className="mt-1">En yeni B2B sipariş hareketleri</CardDescription>
+                  <CardDescription className="mt-1">Ödeme veya sipariş onayı tamamlanan gerçek B2B siparişleri</CardDescription>
                 </div>
-                <Badge variant="outline">{data?.orderCount ?? 0} bugün</Badge>
+                <Badge variant="outline">{data?.approvedTodayOrderCount ?? 0} bugün onaylandı</Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               {isLoading ? (
                 <LoadingRows />
-              ) : (data?.recentOrders?.length ?? 0) === 0 ? (
+              ) : approvedOrders.length === 0 ? (
                 <EmptyState
                   icon={<PackageCheck className="h-8 w-8" />}
-                  title="Henüz sipariş yok"
-                  text="B2B siparişleri oluştuğunda burada anlık listelenecek."
+                  title="Henüz onaylanan sipariş yok"
+                  text="Ödeme veya sipariş onayı tamamlanan B2B siparişleri burada listelenecek."
                 />
               ) : (
                 <div className="divide-y">
-                  {data?.recentOrders.map((order) => (
+                  {approvedOrders.map((order) => (
                     <div key={order.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[1.1fr_1fr_auto] sm:items-center">
                       <div>
                         <div className="font-semibold">#{order.order_number || order.id}</div>
@@ -175,8 +185,8 @@ export default function Dashboard() {
                           {new Date(order.created_at).toLocaleString("tr-TR")}
                         </div>
                       </div>
-                      <Badge variant={order.status === "completed" ? "default" : "secondary"}>
-                        {order.status}
+                      <Badge variant="default">
+                        {approvedStatusLabel(order.status)}
                       </Badge>
                     </div>
                   ))}
