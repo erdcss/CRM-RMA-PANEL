@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { radius, spacing, typography } from '@/constants/theme';
 import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
+import {trackTikTokProductSearch} from '@/lib/tiktok-commerce-events';
 
 const SORT_OPTIONS = [
   { id: 'newest', label: 'Yeni' },
@@ -190,6 +191,7 @@ export default function ProductsScreen() {
                 placeholderTextColor={palette.muted}
                 style={styles.searchInput}
                 returnKeyType="search"
+                onSubmitEditing={()=>{void trackTikTokProductSearch(query);}}
                 accessibilityLabel="Ürün ara"
               />
               {query.length > 0 ? (
