@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import {trackTikTokVerifiedPurchase} from '@/lib/tiktok-commerce-events';
 
 export default function PaymentResultScreen() {
   const { palette } = useAppearance();
@@ -20,6 +21,20 @@ export default function PaymentResultScreen() {
 
   const success = params.result === 'success';
   const bankTransfer = params.method === 'bank_transfer';
+  useEffect(()=>{
+    if(!success || bankTransfer || !params.order)return;
+    // Deep link success is untrusted: the tracker independently asks the server
+    // for an authenticated, confirmed-paid order before emitting Purchase.
+    // Small retries cover eventual consistency after the iyzico callback.
+    let cancelled=false;
+    const timers:Array<ReturnType<typeof setTimeout>>=[];
+    [500,2500,6000,12000].forEach(delay=>{
+      timers.push(setTimeout(()=>{
+        if(!cancelled)void trackTikTokVerifiedPurchase(String(params.order));
+      },delay));
+    });
+    return()=>{cancelled=true;timers.forEach(clearTimeout);};
+  },[success,bankTransfer,params.order]);
 
   return (
     <Screen style={{ backgroundColor: palette.background }}>
