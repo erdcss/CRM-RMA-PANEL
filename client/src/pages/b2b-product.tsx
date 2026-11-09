@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
 import { trackProductView, trackCustomerProductVisit, trackCustomerProductDuration } from "@/lib/analytics";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
@@ -87,11 +87,11 @@ export default function B2BProductPage() {
   const goToImage=(direction:-1|1)=>{
     setImageIndex(prev=>galleryIndexAfterMove(prev,productImages.length,direction));
   };
-  const onGalleryTouchStart=(event:React.TouchEvent<HTMLDivElement>)=>{
+  const onGalleryTouchStart=(event:TouchEvent<HTMLDivElement>)=>{
     const touch=event.touches[0];
     if(touch)swipeStart.current={x:touch.clientX,y:touch.clientY};
   };
-  const onGalleryTouchEnd=(event:React.TouchEvent<HTMLDivElement>)=>{
+  const onGalleryTouchEnd=(event:TouchEvent<HTMLDivElement>)=>{
     const start=swipeStart.current;
     swipeStart.current=null;
     const touch=event.changedTouches[0];
@@ -190,7 +190,7 @@ export default function B2BProductPage() {
               the end of this grid row. Mobile keeps the natural document flow. */}
           <section className="min-w-0 self-start overflow-hidden rounded-2xl border bg-white lg:sticky lg:top-20"
             aria-label="Ürün görsel galerisi">
-            <div className="relative flex aspect-[5/4] w-full items-center justify-center overflow-hidden bg-white"
+            <div className="relative flex aspect-[5/4] w-full items-center justify-center overflow-hidden bg-white touch-pan-y"
               onTouchStart={onGalleryTouchStart} onTouchEnd={onGalleryTouchEnd}>
               {currentImage ? (
                 <img key={currentImage}
