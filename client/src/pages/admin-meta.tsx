@@ -34,6 +34,7 @@ export default function AdminMeta(){
   const [dirty,setDirty]=useState(false);
   const [busy,setBusy]=useState("");
   const [copyingIds,setCopyingIds]=useState(false);
+  const [downloadingIds,setDownloadingIds]=useState(false);
   const [message,setMessage]=useState<{ok:boolean;text:string}|null>(null);
   useEffect(()=>{if(data&&!dirty){setCatalogId(data.catalogId||"");setEnabled(Boolean(data.enabled));}},[data?.catalogId,data?.enabled,dirty]);
   async function action(type:"save"|"sync"|"check"){
@@ -53,11 +54,46 @@ export default function AdminMeta(){
     }catch(e){setMessage({ok:false,text:e instanceof Error?e.message:"İstek başarısız"});}
     finally{setBusy("");}
   }
+  async function downloadContentIds(){
+    setDownloadingIds(true);setMessage(null);
+    try{
+      const response=await fetch("/api/admin/meta/export/content-ids.txt",{
+        credentials:"include",cache:"no-store",
+      });
+      if(!response.ok){
+        const details=await response.json().catch(()=>({}));
+        throw new Error(details.error||(
+          response.status===401||response.status===403
+            ?"Yönetici oturumunuz sona ermiş. Tekrar giriş yapın."
+            :"İçerik kodları oluşturulamadı. Meta katalog ürün verilerini kontrol edin."
+        ));
+      }
+      const contents=await response.text();
+      if(!contents.trim())throw new Error("İçerik kodu listesi boş; tam katalog CSV dosyasını kontrol edin.");
+      const blob=new Blob([contents],{type:"text/plain;charset=utf-8"});
+      const objectUrl=URL.createObjectURL(blob);
+      const link=document.createElement("a");
+      link.href=objectUrl;
+      link.download="caliskan-b2b-meta-icerik-kodlari.txt";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(objectUrl),30_000);
+      const count=contents.trim().split("\n").length;
+      setMessage({ok:true,text:count+" ürün kodu TXT dosyasına hazırlandı."});
+    }catch(error){
+      setMessage({ok:false,text:error instanceof Error?error.message:"Dosya indirilemedi"});
+    }finally{setDownloadingIds(false);}
+  }
+
   async function copyContentIds(){
     setCopyingIds(true);setMessage(null);
     try{
       const response=await fetch("/api/admin/meta/export/content-ids.txt",{credentials:"include",cache:"no-store"});
-      if(!response.ok)throw new Error("Kodlar alınamadı; yönetici girişini ve ürünlerin uygunluğunu kontrol edin");
+      if(!response.ok){
+        const details=await response.json().catch(()=>({}));
+        throw new Error(details.error||"Kodlar alınamadı; yönetici girişini ve ürünlerin uygunluğunu kontrol edin");
+      }
       const contents=await response.text();
       if(!contents.trim())throw new Error("Kopyalanacak ürün kodu bulunamadı");
       if(!navigator.clipboard?.writeText)throw new Error("Tarayıcı kopyalamayı desteklemiyor. TXT dosyasını indirin.");
@@ -141,10 +177,10 @@ export default function AdminMeta(){
             <p className="text-sm font-bold text-slate-900">1. İçerik kodu listesi (TXT)</p>
             <p className="mt-1 text-xs leading-5 text-slate-600">Meta'da “Ürünleri içerik koduna göre toplu olarak ekleyin” penceresi içindir. Ürün kodları tırnaksız, başlıksız ve her satırda bir tane olacak şekilde hazırlanır.</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <a href="/api/admin/meta/export/content-ids.txt" download="caliskan-b2b-meta-icerik-kodlari.txt"
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-amber-400 px-4 text-sm font-bold text-slate-950 hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
-                <Download className="h-4 w-4"/> TXT dosyasını indir
-              </a>
+              <Button type="button" onClick={()=>void downloadContentIds()} disabled={downloadingIds}
+                className="bg-amber-400 font-bold text-slate-950 hover:bg-amber-300">
+                <Download className="mr-2 h-4 w-4"/> {downloadingIds?"Hazırlanıyor…":"TXT dosyasını indir"}
+              </Button>
               <Button type="button" variant="outline" disabled={copyingIds} onClick={()=>void copyContentIds()}>
                 <Copy className="mr-2 h-4 w-4"/> {copyingIds?"Kopyalanıyor…":"Kodları kopyala"}
               </Button>
