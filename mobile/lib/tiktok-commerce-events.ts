@@ -11,8 +11,9 @@ const rules=require('./tiktok-commerce-rules.cjs') as {
   sanitizeProductSearch:(query:string)=>string;
   isVerifiedPaidOrder:(order:B2BOrderSummary)=>boolean;
   verifiedPurchaseEventId:(order:B2BOrderSummary)=>string;
+  createPurchaseGuard:()=> (eventId:string,storage:{getItem:(key:string)=>Promise<string|null>;setItem:(key:string,value:string)=>Promise<void>},send:()=>Promise<boolean>)=>Promise<boolean>;
 };
-const purchaseLocks=new Set<string>();
+const deliverPurchaseOnce=rules.createPurchaseGuard();
 const searchHistory=new Map<string,number>();
 const orderPrefix='caliskan_tiktok_paid_order_v1_';
 function safePositive(value:unknown):number|null{
@@ -98,20 +99,18 @@ export async function trackTikTokVerifiedPurchase(orderNumber:string):Promise<bo
     const summary=orders.find(o=>String(o.order_number||'')===number);
     if(!summary||!rules.isVerifiedPaidOrder(summary))return false;
     const id=rules.verifiedPurchaseEventId(summary);
-    if(!id||purchaseLocks.has(id))return false;
-    purchaseLocks.add(id);
-    try{
-      const storageKey=orderPrefix+id;
-      const existing=await AsyncStorage.getItem(storageKey);
-      if(existing==='sent')return false;
+    if(!id)return false;
+    const storageKey=orderPrefix+id;
+    return deliverPurchaseOnce(storageKey,{
+      getItem:key=>AsyncStorage.getItem(key),
+      setItem:(key,value)=>AsyncStorage.setItem(key,value)
+    },async()=>{
       const details=await rmaApi.getB2BOrderDetail(summary.id);
       if(String(details.order_number||'')!==number||!rules.isVerifiedPaidOrder(details))return false;
       const lines=detailsToContents(details);
       const amount=safePositive(details.total_amount);
       if(!lines||!amount)return false;
-      const ok=await dispatch('Purchase',lines,amount,id);
-      if(ok)await AsyncStorage.setItem(storageKey,'sent');
-      return ok;
-    }finally{purchaseLocks.delete(id);}
+      return dispatch('Purchase',lines,amount,id);
+    });
   }catch{return false;}
 }
