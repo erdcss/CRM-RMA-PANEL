@@ -193,7 +193,7 @@ export async function backfillExistingDukkanProducts(pool: Pool): Promise<void> 
     await c.query("BEGIN");
     await c.query("SELECT pg_advisory_xact_lock(hashtext('dukkan_b2b_backfill_v1'))");
     const rows=await c.query(
-      "SELECT * FROM dukkan_products WHERE b2b_product_id IS NULL ORDER BY id LIMIT 500 FOR UPDATE",
+      "SELECT * FROM dukkan_products WHERE b2b_product_id IS NULL AND deleted_at IS NULL ORDER BY id LIMIT 500 FOR UPDATE",
     );
     for(const row of rows.rows){
       await c.query("SAVEPOINT dukkan_backfill_row");
