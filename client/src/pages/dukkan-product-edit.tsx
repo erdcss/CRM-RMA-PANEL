@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "rea
 import { useLocation } from "wouter";
 import { ArrowLeft, Check, ImagePlus, Loader2, Package, Plus, Save, ShieldCheck, Trash2, UploadCloud } from "lucide-react";
 import { fileToCompressedDataUrl } from "@/lib/compress-image";
+import { parseMarkupPercent, parsePriceInput, productProfitPreview, suggestedSaleFromMarkup } from "@/lib/dukkan-profit-price";
 
 type Product = {
   id: string | number; name: string; sku: string; barcode?: string | null;
@@ -22,6 +23,11 @@ const EMPTY: Fields = {
 };
 const fieldStyle="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-[#172945] outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 const labelStyle="block text-xs font-bold text-slate-600 mb-1.5";
+type MarkupSelection="10"|"20"|"30"|"custom";
+const formatTRY=(value:number)=>new Intl.NumberFormat("tr-TR",{
+  style:"currency",currency:"TRY",minimumFractionDigits:2,maximumFractionDigits:2,
+}).format(value);
+const formatRate=(value:number)=>"%"+value.toLocaleString("tr-TR",{maximumFractionDigits:2});
 
 async function request(path:string, options?:RequestInit){
   const response=await fetch(path,{
@@ -41,6 +47,8 @@ export default function DukkanProductEdit({id}:{id:string}){
   const [data,setData]=useState<Product|null>(null);
   const [fields,setFields]=useState<Fields>(EMPTY);
   const [images,setImages]=useState<string[]>([]);
+  const [selectedMarkup,setSelectedMarkup]=useState<MarkupSelection|null>(null);
+  const [customMarkup,setCustomMarkup]=useState("");
   const [published,setPublished]=useState(false);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
@@ -83,6 +91,8 @@ export default function DukkanProductEdit({id}:{id:string}){
       .then((product:Product)=>{
         if(!live)return;
         setData(product);
+        setSelectedMarkup(null);
+        setCustomMarkup("");
         setFields({
           name:String(product.name||""),sku:String(product.sku||""),
           barcode:String(product.barcode||""),brand:String(product.brand||""),
@@ -102,7 +112,33 @@ export default function DukkanProductEdit({id}:{id:string}){
     return()=>{live=false;};
   },[id,storeId]);
 
-  const update=(key:keyof Fields,value:string)=>setFields(old=>({...old,[key]:value}));
+  // Selecting a markup rate calculates a proposed sale price. Manual edits
+  // to sale price exit preset mode while continuing to show actual profit.
+  // A purchase-price change recalculates the proposal only while a preset
+  // remains selected.
+  const update=(key:keyof Fields,value:string)=>{
+    if(key==="salePrice")setSelectedMarkup(null);
+    setFields(old=>{
+      const next={...old,[key]:value};
+      if(key==="purchasePrice"&&selectedMarkup!==null){
+        const rate=selectedMarkup==="custom"?customMarkup:selectedMarkup;
+        const proposed=suggestedSaleFromMarkup(value,rate);
+        if(proposed!==null)next.salePrice=proposed.toFixed(2);
+      }
+      return next;
+    });
+  };
+  const chooseMarkup=(selection:MarkupSelection,manualValue=customMarkup)=>{
+    setSelectedMarkup(selection);
+    const rate=selection==="custom"?manualValue:selection;
+    setFields(old=>{
+      const proposed=suggestedSaleFromMarkup(old.purchasePrice,rate);
+      return proposed===null?old:{...old,salePrice:proposed.toFixed(2)};
+    });
+  };
+  const profitPreview=productProfitPreview(fields.purchasePrice,fields.salePrice);
+  const canApplyMarkup=(parsePriceInput(fields.purchasePrice)||0)>0;
+  const invalidCustomMarkup=selectedMarkup==="custom"&&customMarkup.trim()!==""&&parseMarkupPercent(customMarkup)===null;
 
   const addImages=async(files:File[])=>{
     if(!files.length||imageInFlight.current)return;
@@ -254,7 +290,74 @@ export default function DukkanProductEdit({id}:{id:string}){
               {field("category","Kategori")}
               {field("unit","Birim","text",true)}
               {field("purchasePrice","Alış Fiyatı (TL)","number",true)}
-              {field("salePrice","Satış Fiyatı (TL)","number",true)}
+              <div className="min-w-0">
+                {field("salePrice","Satış Fiyatı (TL)","number",true)}
+                <div className="mt-2 rounded-xl border border-[#d9e6f6] bg-[#f7faff] p-3"
+                  aria-label="Ürün kâr oranı ve kâr hesabı">
+                  <p className="mb-2 text-xs font-bold text-[#17385f]">Alış fiyatına göre kâr ekle</p>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {(["10","20","30"] as const).map(rate=>
+                      <button type="button" key={rate} onClick={()=>chooseMarkup(rate)}
+                        aria-pressed={selectedMarkup===rate}
+                        disabled={!canApplyMarkup||saving}
+                        className={"min-h-9 rounded-lg border px-1 text-xs font-bold transition-colors disabled:opacity-40 "+
+                          (selectedMarkup===rate?"border-sky-700 bg-[#17385f] text-white":
+                          "border-slate-200 bg-white text-[#17385f] hover:border-sky-400")}>
+                        %{rate}
+                      </button>
+                    )}
+                    <button type="button" onClick={()=>chooseMarkup("custom")}
+                      aria-pressed={selectedMarkup==="custom"}
+                      disabled={!canApplyMarkup||saving}
+                      className={"min-h-9 rounded-lg border px-1 text-xs font-bold transition-colors disabled:opacity-40 "+
+                        (selectedMarkup==="custom"?"border-sky-700 bg-[#17385f] text-white":
+                        "border-slate-200 bg-white text-[#17385f] hover:border-sky-400")}>
+                      Manuel
+                    </button>
+                  </div>
+                  {selectedMarkup==="custom"?<label className="mt-3 block">
+                    <span className={labelStyle}>Manuel kâr oranı (%)</span>
+                    <input type="text" inputMode="decimal" value={customMarkup}
+                      aria-label="Manuel kâr oranı"
+                      placeholder="Örn. 17,5" disabled={saving}
+                      onChange={event=>{
+                        const value=event.target.value;
+                        setCustomMarkup(value);
+                        chooseMarkup("custom",value);
+                      }}
+                      className={fieldStyle+" py-2.5"}/>
+                    {invalidCustomMarkup?<p role="alert" className="mt-1 text-xs text-red-600">
+                      0 ile 1000 arasında geçerli bir oran girin.
+                    </p>:null}
+                  </label>:null}
+                  {!canApplyMarkup?<p className="mt-2 text-xs text-amber-700">
+                    Oran uygulamak için önce alış fiyatını 0'dan büyük girin.
+                  </p>:null}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-slate-200 bg-white p-2">
+                      <p className="text-[11px] text-slate-500">Alışa göre kâr oranı</p>
+                      <strong className={"mt-1 block text-sm tabular-nums "+
+                        (profitPreview?.profit!=null&&profitPreview.profit<0?"text-red-700":"text-emerald-700")}>
+                        {profitPreview?formatRate(profitPreview.markupPercent):"—"}
+                      </strong>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white p-2">
+                      <p className="text-[11px] text-slate-500">Birim kâr tutarı</p>
+                      <strong className={"mt-1 block text-sm tabular-nums "+
+                        (profitPreview?.profit!=null&&profitPreview.profit<0?"text-red-700":"text-emerald-700")}>
+                        {profitPreview?formatTRY(profitPreview.profit):"—"}
+                      </strong>
+                    </div>
+                  </div>
+                  {profitPreview?<p className="mt-2 text-xs text-slate-600">
+                    Satış fiyatındaki kâr marjı: <strong>{formatRate(profitPreview.marginPercent)}</strong>
+                  </p>:null}
+                  <p className="mt-2 text-[11px] leading-4 text-slate-500">
+                    Hesap alış ve satış fiyatı farkıdır. KDV, komisyon, kargo ve diğer
+                    giderler düşülmediğinden muhasebesel net kâr değildir.
+                  </p>
+                </div>
+              </div>
               {field("unitsPerBox","Koli İçi Adet","number",true)}
               {field("minOrderQty","Minimum Sipariş Adedi","number",true)}
               <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-[#d9e6f6] bg-[#f7faff] p-4 sm:p-5">
