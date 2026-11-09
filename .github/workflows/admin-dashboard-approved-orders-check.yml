@@ -1,0 +1,39 @@
+name: Admin dashboard approved orders QA
+on:
+  push:
+    paths:
+      - 'client/src/pages/dashboard.tsx'
+      - 'server/admin-platform.ts'
+      - 'server/b2b-approved-order-filter.ts'
+      - 'server/b2b-approved-order-filter.test.ts'
+      - '.github/workflows/admin-dashboard-approved-orders-check.yml'
+  pull_request:
+    paths:
+      - 'client/src/pages/dashboard.tsx'
+      - 'server/admin-platform.ts'
+      - 'server/b2b-approved-order-filter.ts'
+      - 'server/b2b-approved-order-filter.test.ts'
+      - '.github/workflows/admin-dashboard-approved-orders-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Approval filter, TypeScript and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Verify only approved orders pass the dashboard filter
+        run: npx tsx --test server/b2b-approved-order-filter.test.ts
+      - name: TypeScript check
+        run: npm run check
+      - name: Build web and backend
+        run: npm run build
