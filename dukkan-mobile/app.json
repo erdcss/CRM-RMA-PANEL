@@ -3,7 +3,7 @@
     "name": "Çalışkan Dükkan",
     "slug": "caliskan-dukkan",
     "scheme": "caliskandukkan",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": {
@@ -26,7 +26,7 @@
       "expo-sqlite",
       "expo-document-picker"
     ],
-    "description": "Daha kompakt ana ekran, ince tipografi, görselli ürünler ve cari karta dokunarak tüm hareketlerin görüntülenmesi.",
+    "description": "Çalışkan Dükkan 1.0.4: ürün görsellerinde PostgreSQL BIGINT mağaza kimliği uyumluluğu, TestFlight görsel düzeltmesi.",
     "owner": "erdcls",
     "extra": {
       "releaseChannel": "testflight",
