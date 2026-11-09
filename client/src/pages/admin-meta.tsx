@@ -1,6 +1,6 @@
 import {useEffect,useState} from "react";
 import {useQuery,useQueryClient} from "@tanstack/react-query";
-import {AlertCircle,CheckCircle2,Clock3,ExternalLink,Link2,RefreshCw,Save,Settings2,ShoppingBag,UploadCloud,Database,PackageCheck,ShieldCheck,Download} from "lucide-react";
+import {AlertCircle,CheckCircle2,Clock3,ExternalLink,Link2,RefreshCw,Save,Settings2,ShoppingBag,UploadCloud,Database,PackageCheck,ShieldCheck,Download,Copy} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Switch} from "@/components/ui/switch";
@@ -33,6 +33,7 @@ export default function AdminMeta(){
   const [enabled,setEnabled]=useState(false);
   const [dirty,setDirty]=useState(false);
   const [busy,setBusy]=useState("");
+  const [copyingIds,setCopyingIds]=useState(false);
   const [message,setMessage]=useState<{ok:boolean;text:string}|null>(null);
   useEffect(()=>{if(data&&!dirty){setCatalogId(data.catalogId||"");setEnabled(Boolean(data.enabled));}},[data?.catalogId,data?.enabled,dirty]);
   async function action(type:"save"|"sync"|"check"){
@@ -51,6 +52,21 @@ export default function AdminMeta(){
       await client.invalidateQueries({queryKey:["/api/admin/meta/catalog-status"]});
     }catch(e){setMessage({ok:false,text:e instanceof Error?e.message:"İstek başarısız"});}
     finally{setBusy("");}
+  }
+  async function copyContentIds(){
+    setCopyingIds(true);setMessage(null);
+    try{
+      const response=await fetch("/api/admin/meta/export/content-ids.txt",{credentials:"include",cache:"no-store"});
+      if(!response.ok)throw new Error("Kodlar alınamadı; yönetici girişini ve ürünlerin uygunluğunu kontrol edin");
+      const contents=await response.text();
+      if(!contents.trim())throw new Error("Kopyalanacak ürün kodu bulunamadı");
+      if(!navigator.clipboard?.writeText)throw new Error("Tarayıcı kopyalamayı desteklemiyor. TXT dosyasını indirin.");
+      await navigator.clipboard.writeText(contents);
+      const count=contents.trim().split("\n").length;
+      setMessage({ok:true,text:count+" ürün içerik kodu kopyalandı. Meta'da ‘Bir değer listesi yapıştırın’ seçeneğine yapıştırabilirsiniz."});
+    }catch(error){
+      setMessage({ok:false,text:error instanceof Error?error.message:"Kodlar kopyalanamadı"});
+    }finally{setCopyingIds(false);}
   }
   const summary=data?.batches||[];
   const pending=summary.find(s=>s.state==="pending")?.n||0;
@@ -122,12 +138,18 @@ export default function AdminMeta(){
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-bold text-slate-900">1. İçerik kodu listesi (CSV)</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">Meta'da “Ürünleri içerik koduna göre toplu olarak ekleyin” penceresi içindir. Dosyada başlık olmadan her ürün kodu ayrı satırdadır.</p>
-            <a href="/api/admin/meta/export/content-ids.csv" download="caliskan-b2b-meta-icerik-kodlari.csv"
-              className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg bg-amber-400 px-4 text-sm font-bold text-slate-950 hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
-              <Download className="h-4 w-4"/> İçerik kodlarını indir
-            </a>
+            <p className="text-sm font-bold text-slate-900">1. İçerik kodu listesi (TXT)</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">Meta'da “Ürünleri içerik koduna göre toplu olarak ekleyin” penceresi içindir. Ürün kodları tırnaksız, başlıksız ve her satırda bir tane olacak şekilde hazırlanır.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a href="/api/admin/meta/export/content-ids.txt" download="caliskan-b2b-meta-icerik-kodlari.txt"
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-amber-400 px-4 text-sm font-bold text-slate-950 hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
+                <Download className="h-4 w-4"/> TXT dosyasını indir
+              </a>
+              <Button type="button" variant="outline" disabled={copyingIds} onClick={()=>void copyContentIds()}>
+                <Copy className="mr-2 h-4 w-4"/> {copyingIds?"Kopyalanıyor…":"Kodları kopyala"}
+              </Button>
+            </div>
+            <p className="mt-2 text-xs text-slate-600">Dosya yine okunmazsa kodları kopyalayıp Meta'da “Bir değer listesi yapıştırın” alanına yapıştırın.</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-bold text-slate-900">2. Tam ürün kataloğu (CSV)</p>
@@ -138,7 +160,7 @@ export default function AdminMeta(){
             </a>
           </div>
         </div>
-        <p className="mt-3 text-xs leading-5 text-slate-500">Görseli veya geçerli fiyatı olmayan ürünler yanlış ya da eksik kayıt oluşmaması için aktarılmaz. Dosyalar yalnız giriş yapmış yöneticilere sunulur. İçerik kodu listesi yeni ürün oluşturmaz; Meta kataloğunda aynı ID'li ürünler önceden mevcut olmalıdır.</p>
+        <p className="mt-3 text-xs leading-5 text-slate-500">Görseli veya geçerli fiyatı olmayan ürünler yanlış ya da eksik kayıt oluşmaması için aktarılmaz. Dosyalar yalnız giriş yapmış yöneticilere sunulur. İçerik kodu listesi yeni ürün oluşturmaz; Meta kataloğunda aynı ID'li ürünler önceden mevcut olmalıdır. Katalog boşsa önce tam CSV dosyasını Meta Commerce Manager → Veri kaynakları bölümüne yükleyin.</p>
       </Panel>
       <Panel>
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-black">Ürün senkronizasyonu ve hata kayıtları</h2>

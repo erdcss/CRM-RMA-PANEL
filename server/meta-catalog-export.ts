@@ -1,7 +1,7 @@
 /**
  * Meta Commerce Manager exports:
  * - Full product feed for Catalog > Data sources.
- * - A headerless one-column file of content IDs for "Add items in bulk".
+ * - Plain UTF-8 content IDs (one ID per line) for "Add items in bulk".
  *
  * These exports must only be served from authenticated admin endpoints:
  * B2B wholesale pricing is hidden on the public storefront.
@@ -27,17 +27,27 @@ export function metaCatalogCsv(items:readonly MetaFeedEntry[]):string{
 }
 
 /**
- * This is NOT a feed. Commerce Manager's "bulk add by content ID" picker
- * expects one existing Meta content ID per line, without a header.
+ * Meta's "Add by content ID" uploader parses raw IDs, not a full product
+ * feed. A quoted CSV field can be treated as a literal ID with quotes.
+ * Emit ASCII-safe, unquoted IDs, one per line, no column header or BOM.
+ * These IDs must already exist in the target Meta catalog.
  */
-export function metaContentIdsCsv(items:readonly Pick<MetaFeedEntry,"id">[]):string{
+export function metaContentIdsText(items:readonly Pick<MetaFeedEntry,"id">[]):string{
   const seen=new Set<string>();
   for(const item of items){
     const id=String(item.id||"").trim();
-    // Product IDs in our catalog are numeric or "mp-"+numeric.
-    // Reject arbitrary CSV/Excel formula input or line breaks.
+    // Our own product IDs are numeric; supplier IDs are "mp-" + numeric.
+    // Reject CSV formula characters, spaces, and newlines.
     if(!/^(?:mp-)?[0-9]+$/.test(id))continue;
     seen.add(id);
   }
-  return [...seen].map(csvField).join("\r\n")+"\r\n";
+  return seen.size ? [...seen].join("\n")+"\n" : "";
+}
+
+/**
+ * Backward-compatible CSV route: a single-column CSV does not require
+ * quotation marks when IDs contain only digits or letters and hyphens.
+ */
+export function metaContentIdsCsv(items:readonly Pick<MetaFeedEntry,"id">[]):string{
+  return metaContentIdsText(items);
 }

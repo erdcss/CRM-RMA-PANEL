@@ -2,7 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { createHash } from "node:crypto";
 import { pool } from "./db";
 import { loadMetaCatalogItems, type MetaCatalogItem } from "./meta-catalog";
-import { metaCatalogCsv,metaContentIdsCsv } from "./meta-catalog-export";
+import { metaCatalogCsv,metaContentIdsText } from "./meta-catalog-export";
 
 const GRAPH = "https://graph.facebook.com/v24.0";
 const KEY = "b2b_meta_catalog_config";
@@ -182,16 +182,20 @@ export function registerMetaCatalogAdmin(app:Express,requireAdmin:RequestHandler
       return res.status(503).json({error:"Ürün kataloğu indirilemedi"});
     }
   });
-  app.get("/api/admin/meta/export/content-ids.csv",requireAdmin,async(_req,res)=>{
+  app.get(["/api/admin/meta/export/content-ids.txt","/api/admin/meta/export/content-ids.csv"],requireAdmin,async(req,res)=>{
     res.setHeader("Cache-Control","private, no-store");
     res.setHeader("X-Robots-Tag","noindex, nofollow");
     res.setHeader("X-Content-Type-Options","nosniff");
     try{
       const {items}=await loadMetaCatalogItems();
-      if(!items.length)return res.status(422).json({error:"Meta'ya aktarılabilecek ürün kodu bulunamadı"});
-      res.setHeader("Content-Type","text/csv; charset=utf-8");
-      res.setHeader("Content-Disposition",'attachment; filename="caliskan-b2b-meta-icerik-kodlari.csv"');
-      return res.status(200).send(metaContentIdsCsv(items));
+      const content=metaContentIdsText(items);
+      if(!content)return res.status(422).json({error:"Meta'ya aktarılabilecek geçerli ürün kodu bulunamadı"});
+      const txt=req.path.endsWith(".txt");
+      res.setHeader("Content-Type",txt?"text/plain; charset=utf-8":"text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition",txt
+        ? 'attachment; filename="caliskan-b2b-meta-icerik-kodlari.txt"'
+        : 'attachment; filename="caliskan-b2b-meta-icerik-kodlari.csv"');
+      return res.status(200).send(content);
     }catch(error){
       console.error("Admin Meta content ID CSV download",errorText(error));
       return res.status(503).json({error:"Meta içerik kodları indirilemedi"});
