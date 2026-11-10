@@ -8,12 +8,13 @@ export type RoundBottomBanner = {
   circleSize:number;bottomOffset:number;productIds:string[];
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
   heroImageMode?:'full'|'background';
+  heroCropPercent?:number;
 };
 export const DEFAULT_ROUND_BOTTOM_BANNER:RoundBottomBanner={
   enabled:false,imageId:'',heroImageId:'',title:'Flash Ürünler',
   subtitle:'Çalışkan B2B özel fırsatlarını keşfedin.',badgeText:'ÖZEL KAMPANYA',
   buttonText:'Fırsatları İncele',backgroundColor:'#0B1225',accentColor:'#FFCD00',
-  textColor:'#FFFFFF',circleSize:84,bottomOffset:112,productIds:[],heroImageMode:'background',
+  textColor:'#FFFFFF',circleSize:84,bottomOffset:112,productIds:[],heroImageMode:'background',heroCropPercent:12,
   showPrices:true,showCountdown:false,endAt:'',cardStyle:'standard'
 };
 type ProductOption=CampaignProductOption;
@@ -110,6 +111,14 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
                 <option value="background">Arka plan görseli — başlık ve canlı sayaç kodla gösterilir</option>
               </select>
             </label>
+            <label className={label+" mt-3"}>Banner üst-alt beyaz boşluk kırpma (%)
+              <div className="mt-1 flex items-center gap-3">
+                <input type="range" min={0} max={20} step={1} className="w-full accent-amber-500"
+                  value={value.heroCropPercent??12} onChange={e=>edit({heroCropPercent:Number(e.target.value)})}/>
+                <output className="min-w-10 rounded-lg bg-slate-100 px-2 py-1 text-center text-xs font-black text-slate-800">{value.heroCropPercent??12}%</output>
+              </div>
+            </label>
+            <p className="mt-1 text-xs text-slate-500">Mevcut şemsiye görselinde üst ve alttaki beyaz bantları kaldırmak için %12 uygundur. Boşluksuz yeni banner yüklerseniz %0 seçebilirsiniz. Banner masaüstünde daha dar ve kısa gösterilir.</p>
             <p className="mt-2 text-xs text-slate-500">Referanstaki gibi üzerinde yazı bulunan banner için Tam görsel seçin; sayfa başlığı iki kez görünmez. Görselin içindeki sayaç sabittir; gerçek zamanlı geri sayım istiyorsanız yazısız görsel yükleyip Arka plan modunu seçin.</p>
           </div>
         </div>
