@@ -20,6 +20,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
     "expo": "~57.0.27",
+    "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.21",
     "expo-notifications": "~57.0.21",
     "expo-secure-store": "~57.0.4",
