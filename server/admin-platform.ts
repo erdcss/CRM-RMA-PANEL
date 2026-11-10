@@ -4,6 +4,25 @@ import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
 import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
+
+// Dashboard must count placed, non-test orders only. Payment initialization
+// records are checkout drafts, not sales. Bank transfers count as placed orders
+// but do not contribute to paid revenue until approved.
+const LIVE_PLACED_B2B_ORDER_SQL = `
+  LOWER(TRIM(COALESCE(status, ''))) IN
+    ('awaiting_bank_transfer', 'paid', 'paid_stock_review', 'approved', 'confirmed', 'onaylandi')
+  AND COALESCE(total_amount, 0) > 0
+  AND NULLIF(TRIM(COALESCE(order_number, '')), '') IS NOT NULL
+  AND COALESCE(order_number, '') NOT ILIKE 'DEMO-%'
+  AND COALESCE(order_number, '') NOT ILIKE 'TEST-%'
+  AND LOWER(TRIM(COALESCE(payment_status, ''))) NOT IN ('failure', 'initialize_failed')
+  AND LOWER(TRIM(COALESCE(payment_status, ''))) NOT LIKE '3ds_failed%'
+`;
+const LIVE_PAID_B2B_ORDER_SQL = `
+  ${LIVE_PLACED_B2B_ORDER_SQL}
+  AND LOWER(TRIM(COALESCE(status, ''))) IN
+    ('paid', 'paid_stock_review', 'approved', 'confirmed', 'onaylandi')
+`;
 import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import {
@@ -2100,9 +2119,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           FROM b2b_orders
           WHERE (created_at AT TIME ZONE 'Europe/Istanbul')::date =
                 (NOW() AT TIME ZONE 'Europe/Istanbul')::date
-            AND COALESCE(status, '') <> 'payment_failed'
-            AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
-            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+            AND ${LIVE_PLACED_B2B_ORDER_SQL}
+            AND created_at <= NOW()
         `),
         pool.query(`
           SELECT id, order_number, customer_email, status, item_count, total_amount,
@@ -2160,9 +2178,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           FROM b2b_orders
           WHERE (created_at AT TIME ZONE 'Europe/Istanbul')::date =
                 (NOW() AT TIME ZONE 'Europe/Istanbul')::date
-            AND COALESCE(status, '') <> 'payment_failed'
-            AND COALESCE(payment_status, '') NOT IN ('FAILURE','initialize_failed')
-            AND COALESCE(payment_status, '') NOT LIKE '3ds_failed%'
+            AND ${LIVE_PAID_B2B_ORDER_SQL}
+            AND created_at <= NOW()
         `),
         pool.query(`
           SELECT event_value AS query, COUNT(*)::int AS count
