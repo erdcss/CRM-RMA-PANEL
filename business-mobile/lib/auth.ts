@@ -1,3 +1,6 @@
+import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
+
 const API = (process.env.EXPO_PUBLIC_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
 
 export type BusinessAuthUser = {
@@ -15,6 +18,85 @@ type BusinessSession = {
 };
 
 let currentSession: BusinessSession | null = null;
+const BUSINESS_SESSION_KEY = "caliskan.business.session.v1";
+
+async function forgetStoredSession() {
+  if (Platform.OS !== "web") {
+    await SecureStore.deleteItemAsync(BUSINESS_SESSION_KEY).catch((error) => {
+      console.warn("Business secure session cleanup failed:", error);
+    });
+  }
+}
+
+/** Restore the signed mobile token from the device's encrypted storage.
+ * Never interpret a network outage as a logout; server 401/403 invalidates it.
+ */
+export async function restoreBusinessSession(): Promise<BusinessSession | null> {
+  if (currentSession) return currentSession;
+  if (Platform.OS === "web") return null;
+
+  let stored: string | null = null;
+  try {
+    stored = await SecureStore.getItemAsync(BUSINESS_SESSION_KEY);
+  } catch (error) {
+    console.warn("Business secure session read failed:", error);
+    return null;
+  }
+  if (!stored) return null;
+
+  let session: BusinessSession;
+  try {
+    session = JSON.parse(stored) as BusinessSession;
+    if (!session?.token || typeof session.token !== "string" ||
+        !session.user || !Number.isSafeInteger(session.user.id) ||
+        session.user.id <= 0 || !session.user.isActive) {
+      throw new Error("Invalid stored Business session");
+    }
+  } catch {
+    await forgetStoredSession();
+    return null;
+  }
+
+  const controller = new AbortController();
+  const deadline = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(`${API}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${session.token}`, Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (response.status === 401 || response.status === 403) {
+      await forgetStoredSession();
+      return null;
+    }
+    if (response.ok) {
+      const profile = await response.json() as BusinessAuthUser & { mustChangePassword?: boolean };
+      const permitted = profile.id === session.user.id && profile.isActive &&
+        !profile.mustChangePassword &&
+        (["admin", "super_admin", "b2b_seller", "business_reviewer"].includes(profile.role) ||
+          profile.appAccess === "business");
+      if (!permitted) {
+        await forgetStoredSession();
+        return null;
+      }
+      session.user = {
+        id: profile.id,
+        username: profile.username,
+        email: profile.email,
+        role: profile.role,
+        appAccess: profile.appAccess,
+        isActive: profile.isActive,
+      };
+    }
+  } catch {
+    // Keep a validly shaped local session during temporary network failures.
+    // Subsequent API calls still require the server to authorize the bearer token.
+  } finally {
+    clearTimeout(deadline);
+  }
+
+  currentSession = session;
+  return session;
+}
 
 export async function signIn(email: string, password: string): Promise<BusinessSession> {
   let response: Response;
@@ -104,6 +186,13 @@ export async function signIn(email: string, password: string): Promise<BusinessS
   }
 
   currentSession = { user, token };
+  if (Platform.OS !== "web") {
+    try {
+      await SecureStore.setItemAsync(BUSINESS_SESSION_KEY, JSON.stringify(currentSession));
+    } catch (error) {
+      console.warn("Business session could not be saved securely:", error);
+    }
+  }
   return currentSession;
 }
 
@@ -118,6 +207,7 @@ export function getBusinessToken() {
 export async function signOut() {
   const token = currentSession?.token;
   currentSession = null;
+  await forgetStoredSession();
 
   if (token) {
     await fetch(`${API}/api/auth/logout`, {
