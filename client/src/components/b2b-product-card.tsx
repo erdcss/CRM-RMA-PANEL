@@ -11,7 +11,7 @@ export function B2BProductCard({
   loggedIn: boolean;
   showPrice?: boolean;
 }) {
-  const image = product.image_data || product.image_url;
+  const image = product.image_data || product.image_url || (Array.isArray(product.images) ? product.images[0] : null);
   const visiblePrice = showPrice && loggedIn && product.price !== null && product.price !== undefined;
   // Company-owned products have no seller_name in the catalog response.
   // Supplier names always come from their verified marketplace listing.
