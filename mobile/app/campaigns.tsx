@@ -7,6 +7,10 @@ import {Screen} from '@/components/ui/Screen';
 import {useAppearance} from '@/contexts/AppearanceContext';
 import {useAuth} from '@/contexts/AuthContext';
 import {absoluteMediaUrl,homepageMediaUrl,rmaApi,type B2BHomepage,type B2BProduct} from '@/lib/api';
+const heroRules=require('@/lib/campaign-hero-layout.cjs') as {
+  campaignHeroLayout:(width:number,sourceWidth:number,sourceHeight:number,cropPercent:number)=>{width:number;imageHeight:number;frameHeight:number;top:number;cropPercent:number};
+  showOnlyCampaignArtwork:(imageId:unknown)=>boolean;
+};
 
 function photo(product:B2BProduct):string|null {
   const image=(typeof product.image_data==='string'&&product.image_data.trim()
@@ -40,6 +44,7 @@ export default function CampaignsScreen(){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [now,setNow]=useState(Date.now());
+  const [heroDimensions,setHeroDimensions]=useState<{width:number;height:number}|null>(null);
   const load=useCallback(async()=>{
     const [homeResult,productResult]=await Promise.allSettled([
       rmaApi.getB2BHomepage(),rmaApi.listB2BProducts(true)
@@ -64,16 +69,23 @@ export default function CampaignsScreen(){
   const background=config?.backgroundColor||'#0B1225';
   const accent=config?.accentColor||'#FFCD00';
   const heroText=config?.textColor||'#FFFFFF';
+  const heroImageId=config?.heroMobileImageId||config?.heroImageId||'';
+  const heroUrl=homepageMediaUrl(heroImageId);
+  const hasArtwork=heroRules.showOnlyCampaignArtwork(heroImageId)&&Boolean(heroUrl);
+  const crop= config?.heroMobileImageId?0:(config?.heroCropPercent??12);
+  const heroFrame=heroRules.campaignHeroLayout(width,heroDimensions?.width||1448,heroDimensions?.height||378,crop);
+  useEffect(()=>{setHeroDimensions(null);},[heroUrl]);
   const cardWidth=Math.max(140,Math.floor((width-44)/2));
   const back=()=>{if(router.canGoBack())router.back();else router.replace('/(tabs)' as never);};
 
-  return <Screen style={{backgroundColor:palette.background}}>
-    <View style={[styles.topBar,{borderBottomColor:palette.border,backgroundColor:palette.surface}]}>
+  return <Screen style={{backgroundColor:'#081226'}}>
+    <View style={[styles.topBar,{borderBottomColor:'#253449',backgroundColor:'#0D1422'}]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Geri dön" onPress={back}
-        style={styles.goBack}><Ionicons name="arrow-back" color={palette.text} size={22}/></Pressable>
-      <Text style={[styles.topTitle,{color:palette.text}]} numberOfLines={1}>Flash Ürünler / Kampanyalar</Text>
+        style={styles.goBack}><Ionicons name="arrow-back" color="#FFFFFF" size={22}/></Pressable>
+      <Text style={[styles.topTitle,{color:'#FFFFFF'}]} numberOfLines={1}>Flash Ürünler / Kampanyalar</Text>
     </View>
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}
+      style={{backgroundColor:'#081226'}}>
       {loading?<View style={styles.loading}><ActivityIndicator color={accent}/><Text style={{color:palette.textSecondary,marginTop:12}}>Kampanya yükleniyor…</Text></View>:
         !active?<View style={styles.loading}>
           <Ionicons name="megaphone-outline" size={44} color={palette.muted}/>
@@ -81,26 +93,44 @@ export default function CampaignsScreen(){
           <Text style={{color:palette.textSecondary,textAlign:'center',marginTop:8}}>Yeni fırsatlar için ana sayfayı ziyaret edin.</Text>
           <Pressable onPress={back} style={[styles.returnButton,{backgroundColor:accent}]}><Text style={styles.returnText}>Ana Sayfaya Dön</Text></Pressable>
         </View>:<>
-          <View style={[styles.hero,{backgroundColor:background}]}>
-            {config!.heroImageId&&homepageMediaUrl(config!.heroImageId)?<Image
-              source={{uri:homepageMediaUrl(config!.heroImageId)!}}
-              style={StyleSheet.absoluteFillObject} contentFit="cover"/>:null}
-            {config!.heroImageId?<View style={[StyleSheet.absoluteFillObject,{backgroundColor:background,opacity:0.65}]}/>:null}
-            <View style={styles.heroBody}>
-              <View style={[styles.badge,{borderColor:accent}]}><Ionicons name="flash" size={14} color={accent}/>
-                <Text style={[styles.badgeText,{color:accent}]}>{config!.badgeText}</Text></View>
-              <Text style={[styles.heroTitle,{color:heroText}]}>{config!.title}</Text>
-              <Text style={[styles.heroDescription,{color:heroText}]}>{config!.subtitle}</Text>
-              {config!.showCountdown&&config!.endAt?<View style={styles.timer}>
-                <Ionicons name="time-outline" color={accent} size={18}/>
-                <Text style={[styles.timerText,{color:heroText}]}>Kalan süre: {remaining(config!.endAt,now)}</Text>
-              </View>:null}
-              <Text style={[styles.productCount,{color:accent}]}>{ordered.length} fırsat ürünü</Text>
+          {hasArtwork ? (
+            <View style={{width,height:heroFrame.frameHeight,overflow:'hidden',backgroundColor:'#081226'}}>
+              <Image key={heroUrl||undefined} source={{uri:heroUrl!}}
+                style={{position:'absolute',left:0,top:heroFrame.top,width:heroFrame.width,height:heroFrame.imageHeight}}
+                contentFit="fill" cachePolicy="memory-disk" transition={120}
+                onLoad={({source})=>{
+                  if(source.width>0&&source.height>0){
+                    setHeroDimensions(previous=>previous?.width===source.width&&previous?.height===source.height
+                      ?previous:{width:source.width,height:source.height});
+                  }
+                }}
+                accessibilityLabel={config?.title||'Kampanya üst görseli'}
+              />
             </View>
-          </View>
+          ) : (
+            <View style={[styles.hero,{backgroundColor:background}]}>
+              <View style={styles.heroBody}>
+                <View style={[styles.badge,{borderColor:accent}]}>
+                  <Ionicons name="flash" size={14} color={accent}/>
+                  <Text style={[styles.badgeText,{color:accent}]}>{config!.badgeText}</Text>
+                </View>
+                <Text style={[styles.heroTitle,{color:heroText}]}>{config!.title}</Text>
+                <Text style={[styles.heroDescription,{color:heroText}]}>{config!.subtitle}</Text>
+                {config!.showCountdown&&config!.endAt?
+                  <View style={styles.timer}>
+                    <Ionicons name="time-outline" color={accent} size={18}/>
+                    <Text style={[styles.timerText,{color:heroText}]}>Kalan süre: {remaining(config!.endAt,now)}</Text>
+                  </View>:null}
+                <Text style={[styles.productCount,{color:accent}]}>{ordered.length} fırsat ürünü</Text>
+              </View>
+            </View>
+          )}
           <View style={styles.listHeader}>
-            <Text style={[styles.listTitle,{color:palette.text}]}>Kampanya Ürünleri</Text>
-            <Text style={[styles.count,{color:palette.muted}]}>{ordered.length} ürün</Text>
+            <View style={styles.listHeading}>
+              <View style={[styles.listAccent,{backgroundColor:accent}]}/>
+              <Text style={[styles.listTitle,{color:'#FFFFFF'}]}>Kampanya Ürünleri</Text>
+            </View>
+            <Text style={[styles.count,{color:'#D8E0EB'}]}>{ordered.length} ürün</Text>
           </View>
           {error?<Text style={[styles.alert,{color:'#EF4444'}]}>{error}</Text>:null}
           {!ordered.length?<View style={styles.loading}>
@@ -113,23 +143,23 @@ export default function CampaignsScreen(){
               return <Pressable key={String(item.id)} accessibilityRole="button"
                 accessibilityLabel={item.name+' ürün detayını aç'}
                 onPress={()=>router.push({pathname:'/product/[id]',params:{id:String(item.id)}} as never)}
-                style={[styles.card,{width:cardWidth,backgroundColor:palette.surface,borderColor:palette.border}]}>
-                <View style={[styles.imageFrame,{backgroundColor:palette.surfaceSecondary,
-                  height:config!.cardStyle==='compact'?cardWidth*0.7:cardWidth*0.93}]}>
+                style={[styles.card,{width:cardWidth,backgroundColor:'#152033',borderColor:'#45556F'}]}>
+                <View style={[styles.imageFrame,{backgroundColor:'#FFFFFF',
+                  height:config!.cardStyle==='compact'?cardWidth*0.75:cardWidth*1.04}]}>
                   {image?<Image source={{uri:image}} style={{width:'100%',height:'100%'}} contentFit="contain"
                     cachePolicy="memory-disk"/>:
                     <Ionicons name="cube-outline" size={38} color={palette.muted}/>}
                   <View style={[styles.flashBadge,{backgroundColor:accent}]}><Text style={styles.flashText}>FIRSAT</Text></View>
                 </View>
                 <View style={styles.cardBody}>
-                  <Text numberOfLines={1} style={[styles.sku,{color:palette.muted}]}>{item.sku||'ÜRÜN'}</Text>
-                  <Text numberOfLines={2} style={[styles.itemTitle,{color:palette.text}]}>{item.name}</Text>
-                  {hasPrice?<Text style={[styles.price,{color:palette.text}]}>{currency(item.price)}</Text>:
-                    <Text style={[styles.priceHidden,{color:palette.textSecondary}]}>
+                  <Text numberOfLines={1} style={[styles.sku,{color:'#B6C4D5'}]}>{item.sku||'ÜRÜN'}</Text>
+                  <Text numberOfLines={2} style={[styles.itemTitle,{color:'#FFFFFF'}]}>{item.name}</Text>
+                  {hasPrice?<Text style={[styles.price,{color:'#FFFFFF'}]}>{currency(item.price)}</Text>:
+                    <Text style={[styles.priceHidden,{color:'#D6DFE9'}]}>
                       {config!.showPrices&&!session?'Fiyat için giriş yapın':'Fiyat bilgisi gizli'}
                     </Text>}
-                  {config!.cardStyle==='standard'&&<View style={[styles.pack,{backgroundColor:palette.surfaceSecondary}]}>
-                    <Text style={[styles.packText,{color:palette.textSecondary}]}>Koli: {Math.max(1,Number(item.units_per_box)||1)} adet · Min: {Math.max(1,Number(item.min_order_qty)||1)} koli</Text>
+                  {config!.cardStyle==='standard'&&<View style={[styles.pack,{backgroundColor:'#222F40'}]}>
+                    <Text style={[styles.packText,{color:'#D6DFE9'}]}>Koli: {Math.max(1,Number(item.units_per_box)||1)} adet · Min: {Math.max(1,Number(item.min_order_qty)||1)} koli</Text>
                   </View>}
                 </View>
               </Pressable>;
@@ -144,7 +174,7 @@ const styles=StyleSheet.create({
   topBar:{height:58,flexDirection:'row',alignItems:'center',paddingHorizontal:15,borderBottomWidth:1,gap:10},
   goBack:{width:40,height:40,alignItems:'center',justifyContent:'center',borderRadius:12},
   topTitle:{fontSize:16,fontWeight:'800',flex:1},
-  container:{paddingBottom:55},
+  container:{paddingBottom:55,backgroundColor:'#081226'},
   loading:{minHeight:270,alignItems:'center',justifyContent:'center',padding:24},
   emptyTitle:{fontSize:18,fontWeight:'800',textAlign:'center',marginTop:15},
   returnButton:{marginTop:24,borderRadius:12,paddingHorizontal:24,paddingVertical:14},
@@ -159,7 +189,9 @@ const styles=StyleSheet.create({
   timerText:{fontSize:13,fontWeight:'800',fontVariant:['tabular-nums']},
   productCount:{fontSize:12,fontWeight:'800',marginTop:18},
   listHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:16,paddingTop:23,paddingBottom:14},
-  listTitle:{fontSize:18,fontWeight:'900'},
+  listHeading:{flexDirection:'row',alignItems:'center',gap:10,flexShrink:1},
+  listAccent:{width:4,height:24,borderRadius:3,shadowColor:'#FFCD00',shadowOpacity:.4,shadowRadius:8},
+  listTitle:{fontSize:19,fontWeight:'900'},
   count:{fontSize:12,fontWeight:'700'},
   alert:{paddingHorizontal:16,marginBottom:14},
   cards:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',gap:12,paddingHorizontal:16},
