@@ -1,0 +1,14 @@
+ÇALIŞKAN B2B iOS TestFlight 1.3.12
+Tarih: 2026-11-10
+GitHub main üzerinde başarılı şekilde birleştirilmiş bildirim ürün/sayfa yönlendirmesini imzalı EAS iOS build olarak üret ve App Store Connect TestFlight'a gönder.
+
+Hedef uygulama: com.caliskangroup.rma
+ASC App ID: 6802286663
+
+Kapsam:
+- Yönetici panelinde anlık ve zamanlı B2B bildirim bağlantısı
+- Kullanıcı bildirim kutusu ürün ve sayfa navigasyonu
+- iOS bildirim dokunma, arka plan ve cold-start hedefi, oturum açma sonrası güvenli yönlendirme
+- Sadece resmi Çalışkan B2B URL'leri
+
+Bu iş akışı yalnız TestFlight gönderimidir; App Store herkese açık yayın talebi değildir.
