@@ -3,7 +3,7 @@ import {AdminCampaignProductPicker} from "@/components/admin-campaign-product-pi
 import type {CampaignProductOption} from "@/lib/campaign-product-picker";
 
 export type RoundBottomBanner = {
-  enabled:boolean;imageId:string;heroImageId:string;title:string;subtitle:string;
+  enabled:boolean;imageId:string;heroImageId:string;heroMobileImageId?:string;title:string;subtitle:string;
   badgeText:string;buttonText:string;backgroundColor:string;accentColor:string;textColor:string;
   circleSize:number;bottomOffset:number;productIds:string[];
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
@@ -11,7 +11,7 @@ export type RoundBottomBanner = {
   heroCropPercent?:number;
 };
 export const DEFAULT_ROUND_BOTTOM_BANNER:RoundBottomBanner={
-  enabled:false,imageId:'',heroImageId:'',title:'Flash Ürünler',
+  enabled:false,imageId:'',heroImageId:'',heroMobileImageId:'',title:'Flash Ürünler',
   subtitle:'Çalışkan B2B özel fırsatlarını keşfedin.',badgeText:'ÖZEL KAMPANYA',
   buttonText:'Fırsatları İncele',backgroundColor:'#0B1225',accentColor:'#FFCD00',
   textColor:'#FFFFFF',circleSize:84,bottomOffset:112,productIds:[],heroImageMode:'background',heroCropPercent:12,
@@ -101,9 +101,15 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
                 <input type="file" accept={uploadAccept} className="hidden" disabled={uploading}
                   onChange={e=>{const file=e.target.files?.[0];if(file)void upload(file,id=>edit({heroImageId:id,heroImageMode:'full'}));e.target.value='';}}/>
               </label>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">
+                <ImagePlus className="h-4 w-4"/>{value.heroMobileImageId?'Mobil Bannerı Değiştir':'Mobil Üst Banner Yükle (Önerilir)'}
+                <input type="file" accept={uploadAccept} className="hidden" disabled={uploading}
+                  onChange={e=>{const file=e.target.files?.[0];if(file)void upload(file,id=>edit({heroMobileImageId:id}));e.target.value='';}}/>
+              </label>
               {value.heroImageId&&<button type="button" onClick={()=>edit({heroImageId:''})} className="text-xs text-rose-600 underline">Kapak görselini kaldır</button>}
+              {value.heroMobileImageId&&<button type="button" onClick={()=>edit({heroMobileImageId:''})} className="text-xs text-rose-600 underline">Mobil bannerı kaldır</button>}
             </div>
-            <p className="text-xs text-slate-500">PNG / JPG / WebP / GIF, en fazla 3 MB. Yuvarlak görselde kare/şeffaf arka plan; üst flash banner için yaklaşık 1448×378 px önerilir. Banner resmini istediğiniz zaman değiştirip kaydedebilirsiniz.</p>
+            <p className="text-xs text-slate-500">PNG / JPG / WebP / GIF, en fazla 3 MB. Masaüstü banner yaklaşık 1448×378 px; mobil üst banner için 1200×900 px (4:3) önerilir. Mobil banner yüklü değilse mevcut masaüstü görseli kullanılır. Mobilde görsel üzerindeki başlık/açıklama tekrar yazılmaz.</p>
             <label className={label+" mt-3"}>Üst Banner Gösterim Biçimi
               <select className={FIELD} value={value.heroImageMode||'background'}
                 onChange={e=>edit({heroImageMode:e.target.value as 'full'|'background'})}>
