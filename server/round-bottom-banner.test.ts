@@ -32,6 +32,15 @@ test('uploaded flash banner may render as full artwork or as a background',()=>{
  assert.equal(normalizeRoundBottomBanner({...main,heroImageMode:'script:unsafe'}).heroImageMode,'background');
 });
 
+test('full image mode trims white banner bands with a bounded editable value',()=>{
+ const legacy=normalizeRoundBottomBanner({...main,heroImageMode:'full'});
+ assert.equal(legacy.heroCropPercent,12);
+ assert.equal(normalizeRoundBottomBanner({...main,heroCropPercent:0}).heroCropPercent,0);
+ assert.equal(normalizeRoundBottomBanner({...main,heroCropPercent:25}).heroCropPercent,20);
+ assert.equal(normalizeRoundBottomBanner({...main,heroCropPercent:-10}).heroCropPercent,0);
+ assert.equal(normalizeHomeLayout({roundBottomBanner:{...main,heroCropPercent:14}}).roundBottomBanner.heroCropPercent,14);
+});
+
 test('published banner only displays with image, assigned products and unexpired schedule',()=>{
  assert.equal(isActiveRoundBottomBanner(normalizeRoundBottomBanner(main),new Date('2027-03-01')),true);
  assert.equal(isActiveRoundBottomBanner(normalizeRoundBottomBanner(main),new Date('2027-04-02')),false);
