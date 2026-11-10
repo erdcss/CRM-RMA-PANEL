@@ -41,11 +41,11 @@ const softCard="rounded-[24px] border border-[#e6edf6] bg-white p-5 shadow-[0_8p
 
 export default function Dukkan() {
   const {data:branding}=useBranding();
-  const [,navigate]=useLocation();
+  const [routePath,navigate]=useLocation();
   // Dedicated browser tab for creating a sale without showing the sales list.
   const standaloneSalesCreate=useMemo(()=>new URLSearchParams(window.location.search).get("create")==="sale",[]);
   // A dedicated URL keeps new-product entry separate from the catalog listing.
-  const standaloneProductCreate=useMemo(()=>window.location.pathname==="/dukkan/urunler/yeni",[]);
+  const standaloneProductCreate=routePath.split("?")[0]==="/dukkan/urunler/yeni";
   const [stores,setStores]=useState<Entry[]>([]);
   const [isAdmin,setIsAdmin]=useState(false);
   const [isSuperAdmin,setIsSuperAdmin]=useState(false);
@@ -273,6 +273,21 @@ export default function Dukkan() {
     if(!restored){setCariSearch("");setCariFilter("az");}
     setProductImages([]);setPublishToB2B(false);
   },[section,storeId]);
+  // Store-manager accounts reuse the same Dukkan component across SPA paths.
+  // React to route changes instead of relying solely on mount-time state.
+  useEffect(()=>{
+    if(standaloneProductCreate){
+      setSection("products");
+      setShowForm(true);
+      setCreatedProductName(null);
+      setDraft({});
+      setProductImages([]);
+      setPublishToB2B(false);
+      setError("");setNotice("");
+    }else if(section==="products"){
+      setShowForm(false);
+    }
+  },[standaloneProductCreate]);
   useEffect(()=>{
     if(!standaloneProductCreate||!storeId)return;
     try{
@@ -667,6 +682,7 @@ export default function Dukkan() {
           <DukkanWorkspaceLayout selected={section}
             onSelect={next=>{
               if(standaloneProductCreate){
+                setSection(next);
                 navigate("/dukkan?tab="+next+"&storeId="+encodeURIComponent(storeId));
               }else setSection(next);
             }}
