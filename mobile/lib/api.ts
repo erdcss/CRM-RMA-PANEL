@@ -213,7 +213,7 @@ export type RoundBottomBanner = {
   enabled:boolean;imageId:string;heroImageId:string;
   title:string;subtitle:string;badgeText:string;buttonText:string;
   backgroundColor:string;accentColor:string;textColor:string;
-  circleSize:number;bottomOffset:number;productIds:number[];
+  circleSize:number;bottomOffset:number;productIds:string[];
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
 };
 export type B2BHomepage = {
