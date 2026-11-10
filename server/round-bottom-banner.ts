@@ -6,7 +6,7 @@ export type RoundBottomBanner = {
   title:string; subtitle:string; badgeText:string; buttonText:string;
   backgroundColor:string; accentColor:string; textColor:string;
   circleSize:number; bottomOffset:number;
-  productIds:number[]; showPrices:boolean; showCountdown:boolean;
+  productIds:string[]; showPrices:boolean; showCountdown:boolean;
   endAt:string; cardStyle:'standard'|'compact';
 };
 
@@ -21,10 +21,15 @@ const pickColor=(v:unknown,defaultColor:string)=>typeof v==='string'&&color.test
 export function normalizeRoundBottomBanner(raw:unknown):RoundBottomBanner {
   const p:Record<string,unknown>=raw&&typeof raw==='object'&&!Array.isArray(raw)
     ? raw as Record<string,unknown> : {};
-  const unique=new Set<number>();
-  for(const id of Array.isArray(p.productIds)?p.productIds:[]){
-    const n=Number(id);
-    if(Number.isSafeInteger(n)&&n>0&&unique.size<60)unique.add(n);
+  const unique=new Set<string>();
+  for(const rawId of Array.isArray(p.productIds)?p.productIds:[]){
+    // Catalog primary keys may be numbers, UUIDs, or opaque text tokens.
+    // Keep their exact string representation across admin, web and iOS.
+    if(typeof rawId!=="string"&&typeof rawId!=="number")continue;
+    if(typeof rawId==="number"&&(!Number.isSafeInteger(rawId)||rawId<=0))continue;
+    const id=String(rawId).trim();
+    if(!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(id)||/^0+$/.test(id))continue;
+    if(unique.size<60)unique.add(id);
   }
   const endAtRaw=text(p.endAt,40);
   const endDate=endAtRaw?new Date(endAtRaw):null;
