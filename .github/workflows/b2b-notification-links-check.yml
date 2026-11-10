@@ -1,0 +1,67 @@
+name: B2B notification product and page deep links
+on:
+  push:
+    paths:
+      - 'client/src/pages/admin-notifications.tsx'
+      - 'server/b2b-notification-center.ts'
+      - 'server/b2b-scheduled-notifications.ts'
+      - 'server/b2b-notification-target.ts'
+      - 'server/b2b-notification-target.test.ts'
+      - 'mobile/lib/notification-link.ts'
+      - 'mobile/lib/notification-link.test.ts'
+      - 'mobile/lib/notification-navigation.ts'
+      - 'mobile/app/_layout.tsx'
+      - 'mobile/app/notifications.tsx'
+      - 'mobile/lib/api.ts'
+      - '.github/workflows/b2b-notification-links-check.yml'
+  pull_request:
+    paths:
+      - 'client/src/pages/admin-notifications.tsx'
+      - 'server/b2b-notification-center.ts'
+      - 'server/b2b-scheduled-notifications.ts'
+      - 'server/b2b-notification-target.ts'
+      - 'server/b2b-notification-target.test.ts'
+      - 'mobile/lib/notification-link.ts'
+      - 'mobile/lib/notification-link.test.ts'
+      - 'mobile/lib/notification-navigation.ts'
+      - 'mobile/app/_layout.tsx'
+      - 'mobile/app/notifications.tsx'
+      - 'mobile/lib/api.ts'
+      - '.github/workflows/b2b-notification-links-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  web-and-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate B2B notification destination allowlist and mobile deep links
+        run: npx tsx --test server/b2b-notification-target.test.ts mobile/lib/notification-link.test.ts
+      - name: Verify server and admin panel TypeScript
+        run: npm run check
+      - name: Build web and API
+        run: npm run build
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify iOS and Android deep link TypeScript
+        working-directory: mobile
+        run: npm run typecheck
