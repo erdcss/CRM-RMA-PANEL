@@ -19,23 +19,29 @@ type ProductOption=CampaignProductOption;
 type Props={
   value:RoundBottomBanner;onChange:(value:RoundBottomBanner)=>void;products:ProductOption[];
   uploading:boolean;upload:(file:File,ready:(id:string)=>void)=>Promise<void>;
+  inDrawer?:boolean;
 };
 const uploadAccept="image/png,image/jpeg,image/webp,image/gif";
 const media=(id:string)=>id?`/api/public/homepage/media/${id}`:'';
 const FIELD="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900";
 const label="block space-y-1.5 text-xs font-semibold text-slate-700";
 
-export function AdminRoundBottomBanner({value,onChange,products,uploading,upload}:Props){
+export function AdminRoundBottomBanner({value,onChange,products,uploading,upload,inDrawer=false}:Props){
   const edit=(change:Partial<RoundBottomBanner>)=>onChange({...value,...change});
   const dateLocal=value.endAt?new Date(value.endAt):null;
   const displayDate=dateLocal&&!Number.isNaN(dateLocal.getTime())
     ? new Date(dateLocal.getTime()-dateLocal.getTimezoneOffset()*60000).toISOString().slice(0,16):'';
-  return <section className="mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm" aria-labelledby="round-bottom-banner-title">
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
-      <div>
-        <h2 id="round-bottom-banner-title" className="text-lg font-black">Yuvarlak Alt Banner</h2>
-        <p className="mt-1 max-w-2xl text-sm text-slate-500">Web ve iOS ana sayfasının sağ altındaki yuvarlak görsel ile açılan Flash Ürünler / Kampanyalar sayfasını tek yerden yönetin. Sıra, metin, tasarım ve ürün seçimleri ortak yayınlanır.</p>
-      </div>
+  return <section
+    className={inDrawer?"bg-white":"mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm"}
+    aria-label={inDrawer?"Yuvarlak Alt Banner ayarları":undefined}
+    aria-labelledby={!inDrawer?"round-bottom-banner-title":undefined}>
+    <header className="flex flex-wrap items-center justify-between gap-4 border-b p-4 sm:px-5">
+      {inDrawer?
+        <p className="max-w-xl text-xs text-slate-500">Görsel, kampanya tasarımı ve atanacak ürünleri buradan yönetin. Değişiklikleri üstteki Kaydet butonuyla yayınlayın.</p>:
+        <div>
+          <h2 id="round-bottom-banner-title" className="text-lg font-black">Yuvarlak Alt Banner</h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">Web ve iOS ana sayfasının sağ altındaki yuvarlak görsel ile açılan Flash Ürünler / Kampanyalar sayfasını tek yerden yönetin. Sıra, metin, tasarım ve ürün seçimleri ortak yayınlanır.</p>
+        </div>}
       <label className="flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold">
         <input type="checkbox" checked={value.enabled} onChange={e=>edit({enabled:e.target.checked})}/>
         {value.enabled?'Yayına açık':'Yayın kapalı'}
