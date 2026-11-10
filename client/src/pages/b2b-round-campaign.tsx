@@ -65,6 +65,7 @@ export default function B2BRoundCampaign(){
     queryKey:["/api/auth/me","campaign"],queryFn:loadSession,staleTime:10000
   });
   const [now,setNow]=useState(()=>Date.now());
+  const [heroImageDimensions,setHeroImageDimensions]=useState<{width:number;height:number}|null>(null);
   useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer);},[]);
   const config=homepage?.roundBottomBanner;
   const active=campaignIsVisible(config)&&(!config?.endAt||new Date(config.endAt).getTime()>now);
@@ -76,6 +77,13 @@ export default function B2BRoundCampaign(){
   const text=config?.textColor||"#FFFFFF";
   const image=config?.heroImageId?b2bCategoryImage(config.heroImageId):null;
   const fullHero=Boolean(image&&config?.heroImageMode==="full");
+  // The original flash art has white bands baked into the top and bottom.
+  // Trim a configurable percentage from both ends while preserving the full
+  // banner width (and its embedded text) across desktop and mobile screens.
+  const heroCropPercent=Math.max(0,Math.min(20,Number(config?.heroCropPercent??12)));
+  const visibleRatio=heroImageDimensions
+    ?heroImageDimensions.width/(heroImageDimensions.height*(1-2*heroCropPercent/100))
+    :3.9;
   const liveTimer=Boolean(config?.showCountdown&&config.endAt);
   return <div className="min-h-screen bg-[#081226] text-white">
     <B2BHeader/>
@@ -89,16 +97,22 @@ export default function B2BRoundCampaign(){
         </Link>
       </main>:<>
       <div className="relative overflow-hidden border-b border-[#5a6a83]/50" style={{backgroundColor:background}}>
-        {fullHero?<div className="mx-auto max-w-[1800px]">
-          <div className="relative">
+        {fullHero?<div className="mx-auto w-full max-w-[1380px] overflow-hidden bg-[#081226]">
+          <div className="relative w-full overflow-hidden" style={{aspectRatio:visibleRatio}}>
             <img src={image!} alt={config!.title+" kampanya bannerı"}
-              className="block h-auto w-full" fetchPriority="high"/>
+              className="absolute left-0 top-1/2 block h-auto w-full max-w-none -translate-y-1/2"
+              onLoad={event=>{
+                const {naturalWidth,naturalHeight}=event.currentTarget;
+                if(naturalWidth>0&&naturalHeight>0)
+                  setHeroImageDimensions({width:naturalWidth,height:naturalHeight});
+              }}
+              fetchPriority="high"/>
             <Link href="/" aria-label="Ana sayfaya dön"
-              className="absolute left-2 top-2 inline-flex h-[24%] max-h-16 w-[15%] min-w-14 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-yellow-300">
+              className="absolute left-1 top-1 inline-flex h-[22%] max-h-14 w-[14%] min-w-12 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-yellow-300">
               <span className="sr-only">Ana sayfaya dön</span>
             </Link>
           </div>
-        </div>:<section className="relative mx-auto max-w-[1800px] overflow-hidden">
+        </div>:<section className="relative mx-auto max-w-[1380px] overflow-hidden">
           {image&&<img src={image} alt="" className="absolute inset-0 h-full w-full object-cover object-center"/>}
           <div className="absolute inset-0 bg-gradient-to-r from-[#071325]/95 via-[#071325]/78 to-[#071325]/30"/>
           <div className="pointer-events-none absolute -right-20 -top-40 h-[450px] w-[430px] rotate-45 bg-gradient-to-br from-yellow-300/55 via-amber-400/30 to-transparent blur-3xl" aria-hidden="true"/>
