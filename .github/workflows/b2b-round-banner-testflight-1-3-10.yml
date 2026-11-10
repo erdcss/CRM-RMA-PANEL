@@ -1,0 +1,175 @@
+name: Çalışkan B2B - Yuvarlak Alt Banner Flash Kampanya iOS 1.3.10 TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/release-requests/b2b-round-banner-1-3-10-20261109.txt
+      - .github/release-requests/b2b-round-banner-1-3-10-retry-20261109.txt
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b2b-round-banner-ios-testflight-1-3-10
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    name: B2B Flash Campaign 1.3.10 iOS EAS Build ve TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_NO_VCS: '1'
+      CI: '1'
+    steps:
+      - name: Checkout released main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Check Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then echo "::error::EXPO_TOKEN is missing"; exit 1; fi
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies and check types
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          test -n "$(node -p "require('./package.json').dependencies['caliskan-tiktok-app-events']")"
+
+      - name: Test real e-commerce conversion payloads and paid-order dedup
+        run: |
+          node --test scripts/tiktok-commerce.test.cjs
+          node --test scripts/b2b-share-crash.test.cjs
+
+      - name: Verify circle artwork, shared products and route are wired
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          for(const file of ['app/campaigns.tsx','lib/api.ts','app/(tabs)/index.tsx',
+             'components/auth/AuthGate.tsx'])if(!fs.existsSync(file))throw Error('Missing campaign component: '+file);
+          const home=fs.readFileSync('app/(tabs)/index.tsx','utf8');
+          if(!home.includes('roundBottomBanner')||!home.includes("router.push('/campaigns'"))
+            throw Error('Floating campaign icon is not linked');
+          const page=fs.readFileSync('app/campaigns.tsx','utf8');
+          for(const value of ['getB2BHomepage','listB2BProducts','productIds','showPrices','showCountdown'])
+            if(!page.includes(value))throw Error('Campaign binding is missing: '+value);
+          console.log('Mobile flash campaign route and dynamic admin configuration verified');
+          NODE
+
+      - name: Validate production app IDs
+        run: |
+          node - <<'NODE'
+          const app=require('./app.json').expo;
+          const eas=require('./eas.json');
+          if(app.version!=='1.3.10')throw Error('Wrong iOS app version');
+          if(app.ios.bundleIdentifier!=='com.caliskangroup.rma')throw Error('Wrong iOS Bundle ID');
+          if(String(eas.submit.testflight.ios.ascAppId)!=='6802286663')throw Error('Wrong ASC app');
+          if(eas.build.testflight.environment!=='production')throw Error('Must use production EAS variables');
+          console.log('B2B iOS App Store target verified.');
+          NODE
+
+      - name: Prepare release assets
+        run: |
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+
+      - name: Verify Expo project authorization
+        run: |
+          eas whoami
+          eas project:info --non-interactive
+
+      - name: Verify TikTok SDK secret name exists in EAS production
+        run: |
+          set -euo pipefail
+          # Keep the environment listing out of CI logs; only test variable presence.
+          eas env:list --environment production --format short > "$RUNNER_TEMP/eas-production-variables.txt"
+          if ! grep -Eq '(^|[^A-Za-z0-9_])TIKTOK_APP_EVENTS_SECRET([^A-Za-z0-9_]|$)' "$RUNNER_TEMP/eas-production-variables.txt"; then
+            echo "::error::TikTok App Secret is not configured as TIKTOK_APP_EVENTS_SECRET in EAS production. No unusable TestFlight build will be submitted."
+            exit 1
+          fi
+          echo "TikTok SDK secret name is present in EAS production (value never printed)."
+
+      - name: Assert TikTok conversion hooks are connected
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const rules=fs.readFileSync('lib/tiktok-commerce-events.ts','utf8');
+          for(const name of ['trackTikTokProductView','trackTikTokProductSearch','trackTikTokAddToCart','trackTikTokCheckout','trackTikTokVerifiedPurchase']) {
+            if(!rules.includes(name))throw Error('Missing commerce hook: '+name);
+          }
+          const result=fs.readFileSync('app/payment-result.tsx','utf8');
+          if(!result.includes('trackTikTokVerifiedPurchase')||!result.includes('bankTransfer'))
+            throw Error('Purchase does not verify paid status or exclude unconfirmed bank transfers');
+          console.log('Product, search, cart, checkout, server-verified payment tracking hooks found');
+          NODE
+
+      - name: Ensure native SDK bridge and consent controls are included
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const files=[
+            'modules/tiktok-app-events/ios/CaliskanTiktokAppEventsModule.swift',
+            'modules/tiktok-app-events/ios/CaliskanTiktokAppEvents.podspec',
+            'modules/tiktok-app-events/expo-module.config.json',
+            'lib/tiktok-app-events.ts',
+            'plugins/withTikTokAppEvents.js'
+          ];
+          for(const file of files)if(!fs.existsSync(file))throw Error('Missing TikTok native component: '+file);
+          const pod=fs.readFileSync(files[1],'utf8');
+          if(!pod.includes("'TikTokBusinessSDK', '1.7.2'"))throw Error('Incorrect native TikTok SDK version');
+          const config=require('./app.config.js');
+          if(typeof config!=='function')throw Error('Expo app.config invalid');
+          console.log('TikTok 1.7.2 native bridge and consent control source present.');
+          NODE
+
+      - name: Build signed iOS app
+        run: |
+          eas build --platform ios --profile testflight --clear-cache --non-interactive --wait --json > "$RUNNER_TEMP/b2b-round-banner-ios.json"
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const data=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/b2b-round-banner-ios.json','utf8'));
+          const builds=Array.isArray(data)?data:[data.build||data];
+          const b=builds.find(x=>String(x.platform||'').toLowerCase()==='ios');
+          if(!b?.id||String(b.status||'').toLowerCase()!=='finished')throw Error('iOS EAS build not completed');
+          if(b.appIdentifier && b.appIdentifier!=='com.caliskangroup.rma')throw Error('Unexpected iOS identifier');
+          if(b.appVersion && b.appVersion!=='1.3.10')throw Error('Unexpected app version');
+          fs.appendFileSync(process.env.GITHUB_ENV,'B2B_ROUND_BANNER_BUILD_ID='+b.id+'\n');
+          console.log('Signed iOS build finished:',b.id);
+          NODE
+
+      - name: Submit same signed build to Apple TestFlight
+        run: |
+          test -n "$B2B_ROUND_BANNER_BUILD_ID"
+          eas submit --platform ios --profile testflight --id "$B2B_ROUND_BANNER_BUILD_ID" --non-interactive --wait
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo '### Çalışkan B2B Flash Campaign / TestFlight 1.3.10'
+            echo "EAS Build ID: $B2B_ROUND_BANNER_BUILD_ID"
+            echo 'iOS Bundle ID: com.caliskangroup.rma'
+            echo 'App Store Connect ID: 6802286663'
+            echo 'Submitted to TestFlight, not App Store public review'
+          } >> "$GITHUB_STEP_SUMMARY"
