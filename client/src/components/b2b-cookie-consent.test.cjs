@@ -10,8 +10,8 @@ test('public B2B only shows a cookie consent box, no provider toggle fields',()=
   assert.match(component,/>Çerez Kullanımı<\/h2>/);
   assert.doesNotMatch(component,/type="checkbox"/);
   assert.doesNotMatch(component,/>Reklam ve ölçüm tercihiniz</);
-  assert.match(component,/>Kabul Et\s*<\/button>/);
-  assert.match(component,/>Reddet\s*<\/button>/);
+  assert.match(component,/>\s*Kabul Et\s*<\/button>/);
+  assert.match(component,/>\s*Reddet\s*<\/button>/);
   assert.match(component,/href="\/privacy"/);
   assert.match(footer,/>Çerez izni<\/button>/);
 });
