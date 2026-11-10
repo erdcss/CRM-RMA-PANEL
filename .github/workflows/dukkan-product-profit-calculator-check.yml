@@ -5,12 +5,20 @@ on:
       - 'client/src/pages/dukkan-product-edit.tsx'
       - 'client/src/lib/dukkan-profit-price.ts'
       - 'client/src/lib/dukkan-profit-price.test.ts'
+      - 'client/src/pages/dukkan.tsx'
+      - 'client/src/components/dukkan-new-product-profit-panel.tsx'
+      - 'client/src/lib/dukkan-product-create-markup.ts'
+      - 'client/src/lib/dukkan-product-create-markup.test.ts'
       - '.github/workflows/dukkan-product-profit-calculator-check.yml'
   pull_request:
     paths:
       - 'client/src/pages/dukkan-product-edit.tsx'
       - 'client/src/lib/dukkan-profit-price.ts'
       - 'client/src/lib/dukkan-profit-price.test.ts'
+      - 'client/src/pages/dukkan.tsx'
+      - 'client/src/components/dukkan-new-product-profit-panel.tsx'
+      - 'client/src/lib/dukkan-product-create-markup.ts'
+      - 'client/src/lib/dukkan-product-create-markup.test.ts'
       - '.github/workflows/dukkan-product-profit-calculator-check.yml'
   workflow_dispatch:
 permissions:
@@ -30,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Validate percentage selection, currency rounding and profit preview
-        run: npx tsx --test client/src/lib/dukkan-profit-price.test.ts
+        run: npx tsx --test client/src/lib/dukkan-profit-price.test.ts client/src/lib/dukkan-product-create-markup.test.ts
       - name: Validate TypeScript
         run: npm run check
       - name: Build production application
