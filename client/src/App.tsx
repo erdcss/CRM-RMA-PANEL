@@ -98,6 +98,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/pazaryeri" component={AdminMarketplace} />
+      <Route path="/dukkan/urunler/yeni" component={Dukkan} />
       <Route path="/dukkan/urunler/:id">{(params)=><DukkanProductEdit id={params.id}/>}</Route>
       <Route path="/dukkan/cariler/:id">{(params)=><DukkanCariEdit id={params.id}/>}</Route>
       <Route path="/dukkan/faturalar/:id">{(params)=><DukkanSalesInvoiceEdit id={params.id}/>}</Route>
