@@ -5,6 +5,23 @@ import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
 import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
 
+import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
+import { notifyMetaCatalogChange } from "./meta-catalog-sync";
+import {
+  getAdminPaymentSettings,
+  getPublicPaymentSettings,
+  savePaymentSettings,
+  saveCheckoutVisibility,
+} from "./payment-config";
+import { retrieveIyzicoCheckout } from "./iyzico";
+import {
+  ensureReelVideoCompatibility,
+  saveVideoDataUrl,
+} from "./image-storage";
+import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
+import { registerReelMediaRoutes, saveCompatibleReelVideo, migrateLegacyReelVideo } from "./reels-media";
+import {activateCaliskanMetaDataset,CALISKAN_META_PIXEL_ID} from "./b2b-meta-dataset";
+
 // Dashboard must count placed, non-test orders only. Payment initialization
 // records are checkout drafts, not sales. Bank transfers count as placed orders
 // but do not contribute to paid revenue until approved.
@@ -23,23 +40,6 @@ const LIVE_PAID_B2B_ORDER_SQL = `
   AND LOWER(TRIM(COALESCE(status, ''))) IN
     ('paid', 'paid_stock_review', 'approved', 'confirmed', 'onaylandi')
 `;
-import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
-import { notifyMetaCatalogChange } from "./meta-catalog-sync";
-import {
-  getAdminPaymentSettings,
-  getPublicPaymentSettings,
-  savePaymentSettings,
-  saveCheckoutVisibility,
-} from "./payment-config";
-import { retrieveIyzicoCheckout } from "./iyzico";
-import {
-  ensureReelVideoCompatibility,
-  saveVideoDataUrl,
-} from "./image-storage";
-import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
-import { registerReelMediaRoutes, saveCompatibleReelVideo, migrateLegacyReelVideo } from "./reels-media";
-import {activateCaliskanMetaDataset,CALISKAN_META_PIXEL_ID} from "./b2b-meta-dataset";
-
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
@@ -2137,6 +2137,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
                  payment_method, payment_provider, payment_status, created_at
           FROM b2b_orders
           WHERE ${APPROVED_B2B_ORDER_SQL}
+            AND ${LIVE_PLACED_B2B_ORDER_SQL}
           ORDER BY created_at DESC
           LIMIT 6
         `),
@@ -2144,6 +2145,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           SELECT COUNT(*)::int AS count
           FROM b2b_orders
           WHERE ${APPROVED_B2B_ORDER_SQL}
+            AND ${LIVE_PLACED_B2B_ORDER_SQL}
             AND (created_at AT TIME ZONE 'Europe/Istanbul')::date =
                 (NOW() AT TIME ZONE 'Europe/Istanbul')::date
         `),
