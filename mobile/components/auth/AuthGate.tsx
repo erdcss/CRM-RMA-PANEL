@@ -64,6 +64,7 @@ export function RootStack() {
       <Stack.Screen name="ledger/import" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="ledger/wallet/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="campaigns" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="account/[section]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="forgot-password" options={{ animation: 'slide_from_right' }} />
