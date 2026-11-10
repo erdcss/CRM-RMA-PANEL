@@ -11,6 +11,7 @@ import { B2BProductRail } from "@/components/b2b-product-rail";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
+import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
 
 type SessionUser = {
   role?: string;
@@ -226,6 +227,7 @@ export default function B2BStorefront() {
           </div>
         )}
       </main>
+      <B2BRoundCampaignButton config={homepage.roundBottomBanner}/>
       <B2BDesktopAppBanners />
       <B2BFooter />
     </div>
