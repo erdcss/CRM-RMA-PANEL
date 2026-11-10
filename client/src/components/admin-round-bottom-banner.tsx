@@ -110,7 +110,7 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
                 <option value="background">Arka plan görseli — başlık ve canlı sayaç kodla gösterilir</option>
               </select>
             </label>
-            <p className="mt-2 text-xs text-slate-500">Referanstaki gibi üzerinde yazı bulunan banner için Tam görsel seçin; sayfa başlığı iki kez görünmez. Başlıksız fotoğrafta Arka plan seçimi kullanılabilir.</p>
+            <p className="mt-2 text-xs text-slate-500">Referanstaki gibi üzerinde yazı bulunan banner için Tam görsel seçin; sayfa başlığı iki kez görünmez. Görselin içindeki sayaç sabittir; gerçek zamanlı geri sayım istiyorsanız yazısız görsel yükleyip Arka plan modunu seçin.</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-4 rounded-xl border bg-slate-50 p-4">
