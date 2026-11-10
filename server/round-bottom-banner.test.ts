@@ -23,6 +23,15 @@ test('homepage round campaign keeps sorted unique products and full design',()=>
  assert.equal(config.cardStyle,'compact');
  assert.equal(config.endAt,'2027-04-01T10:00:00.000Z');
 });
+test('uploaded flash banner may render as full artwork or as a background',()=>{
+ const full=normalizeHomeLayout({roundBottomBanner:{...main,heroImageMode:'full'}}).roundBottomBanner;
+ assert.equal(full.heroImageMode,'full');
+ assert.equal(full.heroImageId,'b'.repeat(32));
+ assert.equal(normalizeHomeLayout({roundBottomBanner:full}).roundBottomBanner.heroImageMode,'full');
+ assert.equal(normalizeRoundBottomBanner({...main,heroImageMode:'background'}).heroImageMode,'background');
+ assert.equal(normalizeRoundBottomBanner({...main,heroImageMode:'script:unsafe'}).heroImageMode,'background');
+});
+
 test('published banner only displays with image, assigned products and unexpired schedule',()=>{
  assert.equal(isActiveRoundBottomBanner(normalizeRoundBottomBanner(main),new Date('2027-03-01')),true);
  assert.equal(isActiveRoundBottomBanner(normalizeRoundBottomBanner(main),new Date('2027-04-02')),false);
