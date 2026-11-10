@@ -98,9 +98,6 @@ export default function B2BRoundCampaign(){
               <span className="sr-only">Ana sayfaya dön</span>
             </Link>
           </div>
-          {liveTimer&&<div className="mx-auto flex max-w-7xl justify-center px-4 pb-5 pt-4 sm:justify-end">
-            <LiveCountdown endAt={config!.endAt} now={now} accent={accent}/>
-          </div>}
         </div>:<section className="relative mx-auto max-w-[1800px] overflow-hidden">
           {image&&<img src={image} alt="" className="absolute inset-0 h-full w-full object-cover object-center"/>}
           <div className="absolute inset-0 bg-gradient-to-r from-[#071325]/95 via-[#071325]/78 to-[#071325]/30"/>
