@@ -49,8 +49,9 @@ const customers = [
 ];
 
 const dashboard:DashboardOverview = {
-  sessionUsers:3,liveUsers:1,conversionRate:25,orderCount:orders.length,
-  activeReturns:0,openSupport:1,lowStock:1,todayRevenue:3630,
+  sessionUsers:3,liveUsers:1,conversionRate:0,orderCount:0,
+  approvedTodayOrderCount:0,
+  activeReturns:0,openSupport:1,lowStock:1,todayRevenue:0,
   recentOrders:orders,recentApprovedOrders:orders,recentReturns:[],
 };
 
