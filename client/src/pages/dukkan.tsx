@@ -163,7 +163,7 @@ export default function Dukkan() {
     if(!storeId)return;
     const request=++requestVersion.current;
     const isCurrent=()=>request===requestVersion.current;
-    const productPage=section==="products";
+    const productPage=section==="products"&&!standaloneProductCreate;
     // The B2B catalog is auto-imported by /data/products; one source of truth.
     const wantsCatalog=false;
     try{
@@ -179,7 +179,7 @@ export default function Dukkan() {
       }
       // One atomic list update: never briefly replace the full product list with
       // only local products during the 10-second background refresh.
-      const needsProducts=["products","sales","purchases","orders"].includes(section);
+      const needsProducts=["sales","purchases","orders"].includes(section)||productPage;
       const needsParties=["parties","suppliers","sales","purchases","orders","instruments","reports"].includes(section);
       const needsBanks=!cashier&&["banks","parties","suppliers"].includes(section);
       const needsReport=!cashier&&["overview","reports"].includes(section);
@@ -193,7 +193,7 @@ export default function Dukkan() {
       const [partiesResult,productsResult,banksResult,reportResult,catalogOutcome,summaryOutcome,
         resourceResult,membersResult]=await Promise.all([
         needsParties?api(base+"/data/parties"):Promise.resolve(null),
-        needsProducts?api(base+"/data/products"+(section==="products"?"?includeArchived=1":"")):Promise.resolve(null),
+        needsProducts?api(base+"/data/products"+(productPage?"?includeArchived=1":"")):Promise.resolve(null),
         needsBanks?api(base+"/data/banks"):Promise.resolve(null),
         needsReport?api(base+"/report"):Promise.resolve(null),
         wantsCatalog
