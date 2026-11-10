@@ -37,7 +37,10 @@ import { C } from "./ui/theme";
 
 function applicationPushScreen(type: string, data: Record<string, unknown>): Screen | null {
   if (type === "supplier_application") return {name:"marketplace",tab:"suppliers"};
-  if (type === "order") return { name: "orders" };
+  if (type === "order") {
+    const orderId = String(data.orderId ?? "");
+    return /^[1-9]\\d*$/.test(orderId) ? { name: "orderDetail", id: orderId } : { name: "orders" };
+  }
   if (type === "support" || type === "order_cancelled") return { name: "support" };
   if (type === "b2b_application") {
     const id = String(data.applicationId ?? "");
