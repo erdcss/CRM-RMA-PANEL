@@ -14,6 +14,7 @@ on:
       - 'client/src/lib/campaign-product-picker.test.ts'
       - 'client/src/components/b2b-round-campaign-button.tsx'
       - 'client/src/components/b2b-product-card.tsx'
+      - 'client/src/components/b2b-flash-campaign-card.tsx'
       - 'client/src/lib/b2b-categories.ts'
       - 'client/src/pages/b2b-storefront.tsx'
       - 'client/src/pages/b2b-round-campaign.tsx'
