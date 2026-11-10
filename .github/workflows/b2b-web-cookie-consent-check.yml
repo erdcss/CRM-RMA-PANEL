@@ -1,0 +1,28 @@
+name: B2B Web Cookie Consent Check
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/src/components/meta-pixel-consent.tsx'
+      - 'client/src/components/b2b-footer.tsx'
+      - 'client/src/pages/b2b-privacy.tsx'
+      - 'client/src/components/b2b-cookie-consent.test.cjs'
+      - '.github/workflows/b2b-web-cookie-consent-check.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify single consent box, no tracking before accept
+        run: node --test client/src/components/b2b-cookie-consent.test.cjs
+      - name: TypeScript check
+        run: npm run check
+      - name: Production web build
+        run: npm run build
