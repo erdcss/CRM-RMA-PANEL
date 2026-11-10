@@ -39,7 +39,7 @@ function applicationPushScreen(type: string, data: Record<string, unknown>): Scr
   if (type === "supplier_application") return {name:"marketplace",tab:"suppliers"};
   if (type === "order") {
     const orderId = String(data.orderId ?? "");
-    return /^[1-9]\\d*$/.test(orderId) ? { name: "orderDetail", id: orderId } : { name: "orders" };
+    return /^[1-9]\d*$/.test(orderId) ? { name: "orderDetail", id: orderId } : { name: "orders" };
   }
   if (type === "support" || type === "order_cancelled") return { name: "support" };
   if (type === "b2b_application") {
