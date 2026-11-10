@@ -5,12 +5,14 @@ import { type UnifiedB2BProduct, unifiedProductHref } from "@/lib/b2b-marketplac
 export function B2BProductCard({
   product,
   loggedIn,
+  showPrice = true,
 }: {
   product: UnifiedB2BProduct;
   loggedIn: boolean;
+  showPrice?: boolean;
 }) {
   const image = product.image_data || product.image_url;
-  const visiblePrice = loggedIn && product.price !== null && product.price !== undefined;
+  const visiblePrice = showPrice && loggedIn && product.price !== null && product.price !== undefined;
   // Company-owned products have no seller_name in the catalog response.
   // Supplier names always come from their verified marketplace listing.
   const sellerName = product.marketplace || product.seller_slug
@@ -42,7 +44,7 @@ export function B2BProductCard({
           <div className="mt-2 min-w-0 break-words text-xs font-semibold leading-5 text-slate-700 sm:mt-3 sm:text-sm">
             {visiblePrice
               ? Number(product.price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺"
-              : "Fiyat için giriş yapın"}
+              : showPrice ? "Fiyat için giriş yapın" : "Fiyat bilgisi gizli"}
           </div>
           <div className="mt-2 grid min-w-0 grid-cols-2 gap-1 text-[10px] leading-snug sm:mt-3 sm:gap-2 sm:text-[11px]">
             <div className="min-w-0 break-words rounded-md bg-slate-100 p-1.5 sm:rounded-lg sm:p-2">Koli içi<br /><b>{product.units_per_box || 1} adet</b></div>
