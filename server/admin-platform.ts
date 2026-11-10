@@ -19,6 +19,7 @@ import {
 } from "./image-storage";
 import { getMobileHomeLayout, saveMobileHomeLayout, registerHomepageMediaRoutes } from "./homepage-media";
 import { registerReelMediaRoutes, saveCompatibleReelVideo, migrateLegacyReelVideo } from "./reels-media";
+import {activateCaliskanMetaDataset,CALISKAN_META_PIXEL_ID} from "./b2b-meta-dataset";
 
 const PLATFORM_SQL = `
 CREATE TABLE IF NOT EXISTS platform_settings (
@@ -672,6 +673,11 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   await ensurePlatformTables().catch((error) => {
     console.error("Platform tables could not be prepared:", error);
   });
+  // One-time transition to the Çalışkan dataset supplied in Meta Events Manager.
+  // Preserve disabled tracking and do not touch site visitors' cookie consent.
+  if(pool)await activateCaliskanMetaDataset(pool).catch(error=>{
+    console.error("Çalışkan Meta dataset activation could not be verified:",error);
+  });
   registerHomepageMediaRoutes(app, requireAdmin);
   registerReelMediaRoutes(app, requireAdmin);
 
@@ -699,7 +705,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   });
 
   // Only the numeric Pixel ID is public; never place Meta API tokens here.
-  const metaDefaults={enabled:true,pixelId:"949840147857568"};
+  const metaDefaults={enabled:true,pixelId:CALISKAN_META_PIXEL_ID};
   const readMetaConfig=async()=>{
     if(!pool)return metaDefaults;
     const rows=await pool.query("SELECT value FROM platform_settings WHERE key='b2b_meta_tracking' LIMIT 1");
