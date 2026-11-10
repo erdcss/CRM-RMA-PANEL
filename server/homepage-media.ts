@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
+import {normalizeRoundBottomBanner, type RoundBottomBanner} from "./round-bottom-banner";
 
 // Images live in Postgres rather than Railway's ephemeral filesystem. The mobile
 // feed receives only small image URLs and never downloads base64 in the JSON.
@@ -77,6 +78,7 @@ function normalizeSubcategories(raw: unknown): Subcategory[] {
 }
 
 export type MobileHomeLayout = {
+  roundBottomBanner:RoundBottomBanner;
   banners: Banner[];
   categoryCards: CategoryCard[];
   ledgerTileImageId: string;
@@ -105,6 +107,7 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
   })).filter((item: CategoryCard) => item.category);
   const n = Number(input.sliderIntervalMs);
   return {
+    roundBottomBanner:normalizeRoundBottomBanner(input.roundBottomBanner),
     banners,
     categoryCards,
     ledgerTileImageId: validId.test(String(input.ledgerTileImageId || '')) ? String(input.ledgerTileImageId) : '',
