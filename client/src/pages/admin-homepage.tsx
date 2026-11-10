@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin-subcategory-drawer";
+import { AdminRoundBottomBanner, DEFAULT_ROUND_BOTTOM_BANNER, type RoundBottomBanner } from "@/components/admin-round-bottom-banner";
 
 type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
@@ -31,6 +32,7 @@ type HomepageConfig = {
   ledgerTileImageId?: string;
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
+  roundBottomBanner?: RoundBottomBanner;
 };
 
 async function loadHomepageConfig(): Promise<HomepageConfig> {
@@ -59,6 +61,7 @@ export default function AdminHomepage() {
   const [ledgerTileImageId, setLedgerTileImageId] = useState('');
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
+  const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner>(DEFAULT_ROUND_BOTTOM_BANNER);
 
   useEffect(() => {
     if (!data) return;
@@ -68,6 +71,7 @@ export default function AdminHomepage() {
     setLedgerTileImageId(data.ledgerTileImageId || '');
     setSliderAutoPlay(data.sliderAutoPlay !== false);
     setSliderIntervalMs(data.sliderIntervalMs || 5000);
+    setRoundBottomBanner(data.roundBottomBanner||DEFAULT_ROUND_BOTTOM_BANNER);
   }, [data]);
 
   const suggestions = useMemo(() => {
@@ -173,13 +177,24 @@ export default function AdminHomepage() {
         description:"Ürün, uygulama sayfası veya HTTPS adresini kontrol edin.",variant:"destructive"});
       return;
     }
+    if(roundBottomBanner.enabled){
+      if(!roundBottomBanner.imageId||!roundBottomBanner.productIds.length){
+        toast({title:"Yuvarlak Alt Banner tamamlanmadı",description:"Yayın için yuvarlak görsel ve en az bir ürün atayın.",variant:"destructive"});
+        return;
+      }
+      if(roundBottomBanner.endAt&&new Date(roundBottomBanner.endAt).getTime()<=Date.now()){
+        toast({title:"Kampanya bitiş tarihi geçmiş",description:"Gelecekte bir tarih seçin veya bitiş tarihini temizleyin.",variant:"destructive"});
+        return;
+      }
+    }
     setSaving(true);
     try {
-      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs });
+      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs, roundBottomBanner });
       const result = await response.json() as HomepageConfig;
       setCategories(result.categories || []);
       setBanners(result.banners || []);
       setLedgerTileImageId(result.ledgerTileImageId || '');
+      setRoundBottomBanner(result.roundBottomBanner||DEFAULT_ROUND_BOTTOM_BANNER);
       setCategoryCards(result.categoryCards || []);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage"] }),
@@ -187,7 +202,7 @@ export default function AdminHomepage() {
       ]);
       toast({
         title: "Ana sayfa güncellendi",
-        description: "Kategori alanı B2B ana sayfasında yayınlandı.",
+        description: "Banner, kampanya ürünleri ve ana sayfa tasarımı web ve mobil için kaydedildi.",
       });
     } catch (error) {
       toast({
@@ -345,6 +360,14 @@ export default function AdminHomepage() {
             </div>
           </div>
         </section>
+
+        <AdminRoundBottomBanner
+          value={roundBottomBanner}
+          onChange={setRoundBottomBanner}
+          products={productOptions}
+          uploading={uploading}
+          upload={(file,ready)=>uploadMedia(file,ready)}
+        />
 
         <section className="mt-6 rounded-2xl border bg-background shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
