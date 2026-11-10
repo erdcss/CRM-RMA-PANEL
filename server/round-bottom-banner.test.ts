@@ -12,7 +12,7 @@ const main={enabled:true,imageId:picture,heroImageId:'b'.repeat(32),
  endAt:'2027-04-01T10:00:00.000Z',circleSize:96,bottomOffset:124,cardStyle:'compact'};
 test('homepage round campaign keeps sorted unique products and full design',()=>{
  const config=normalizeHomeLayout({banners:[],roundBottomBanner:main}).roundBottomBanner;
- assert.deepEqual(config.productIds,[18,3,10]);
+ assert.deepEqual(config.productIds,['18','3','10']);
  assert.equal(config.imageId,picture);
  assert.equal(config.heroImageId,'b'.repeat(32));
  assert.equal(config.title,'Haftanın Fırsatları');
@@ -34,13 +34,13 @@ test('backend discards malformed colors, unsafe images and invalid product IDs',
  const c=normalizeRoundBottomBanner({...main,
  imageId:'../unsafe',heroImageId:'http://untrusted.example/file',
  backgroundColor:'red;url(javascript:alert(1))',accentColor:'rgba(0,0,0,0)',
- productIds:[1,-1,0,'2','3a',2.5,NaN,1,null],
+ productIds:[1,-1,0,'2','bad id',2.5,NaN,1,null],
  circleSize:999,bottomOffset:-80,cardStyle:'danger',endAt:'not a date'});
  assert.equal(c.imageId,'');
  assert.equal(c.heroImageId,'');
  assert.equal(c.backgroundColor,'#0B1225');
  assert.equal(c.accentColor,'#FFCD00');
- assert.deepEqual(c.productIds,[1,2]);
+ assert.deepEqual(c.productIds,['1','2']);
  assert.equal(c.circleSize,128);
  assert.equal(c.bottomOffset,90);
  assert.equal(c.cardStyle,'standard');
@@ -55,5 +55,16 @@ test('old layouts remain backward compatible and hidden by default',()=>{
 test('banner is bounded to 60 distinct product IDs',()=>{
  const c=normalizeRoundBottomBanner({productIds:Array.from({length:100},(_,i)=>i+1)});
  assert.equal(c.productIds.length,60);
- assert.equal(c.productIds[59],60);
+ assert.equal(c.productIds[59],'60');
+});
+
+test('keeps UUID and opaque catalog product ids without numeric coercion',()=>{
+  const uuid='aecb8367-d1d7-48df-9baa-4f60786b1123';
+  const stored=normalizeRoundBottomBanner({
+    ...main,productIds:[uuid,'8f3c9aa1b4c2',17,'17',uuid,'bad id','../evil'],
+  });
+  assert.deepEqual(stored.productIds,[uuid,'8f3c9aa1b4c2','17']);
+  const restored=normalizeHomeLayout({roundBottomBanner:stored}).roundBottomBanner;
+  assert.deepEqual(restored.productIds,[uuid,'8f3c9aa1b4c2','17']);
+  assert.equal(isActiveRoundBottomBanner(restored,new Date('2027-03-01')),true);
 });
