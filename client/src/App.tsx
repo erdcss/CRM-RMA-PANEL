@@ -44,6 +44,7 @@ import DukkanCariEdit from "@/pages/dukkan-cari-edit";
 import DukkanSalesInvoiceEdit from "@/pages/dukkan-sales-invoice-edit";
 import DukkanLogin from "@/pages/dukkan-login";
 import B2BStorefront from "@/pages/b2b-storefront";
+import B2BRoundCampaign from "@/pages/b2b-round-campaign";
 import B2BCategoryPage, { B2BCategoriesDirectory } from "@/pages/b2b-categories";
 import B2BProductPage from "@/pages/b2b-product";
 import B2BLogin from "@/pages/b2b-login";
@@ -265,7 +266,7 @@ function B2BWebsite() {
         <Route path="/destek" component={B2BSupport} />
         <Route path="/hakkimizda" component={B2BInfoPage} />
         <Route path="/iletisim" component={B2BInfoPage} />
-        <Route path="/kampanyalar" component={B2BInfoPage} />
+        <Route path="/kampanyalar" component={B2BRoundCampaign} />
         <Route path="/akademi" component={B2BInfoPage} />
         <Route path="/support" component={B2BSupport} />
         <Route path="/privacy" component={B2BPrivacyPage} />
