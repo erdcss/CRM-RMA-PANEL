@@ -38,24 +38,31 @@ export function campaignProductPrice(value:unknown):string {
   return amount.toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})+" ₺";
 }
 
-export function findCampaignProducts(products:CampaignProductOption[],query:string,assigned:number[],limit=18){
+/** Product IDs are database keys: integer, UUID or text/hex, not always numbers. */
+export function campaignProductId(value:unknown):string{
+  if(typeof value==="number"&&(!Number.isSafeInteger(value)||value<=0))return "";
+  if(typeof value!=="number"&&typeof value!=="string")return "";
+  const id=String(value).trim();
+  if(!/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(id)||/^0+$/.test(id))return "";
+  return id;
+}
+
+export function findCampaignProducts(products:CampaignProductOption[],query:string,assigned:readonly (string|number)[],limit=18){
   const phrase=query.replace(/\s+/g," ").trim().toLocaleLowerCase("tr-TR");
   if(phrase.length<2)return [];
   const terms=phrase.split(" ").filter(Boolean);
-  const selected=new Set(assigned);
+  const selected=new Set(assigned.map(campaignProductId).filter(Boolean));
   return products.filter(product=>{
-    const id=Number(product.id);
-    if(!Number.isSafeInteger(id)||id<=0||selected.has(id)||product.is_active===false)return false;
+    const id=campaignProductId(product.id);
+    if(!id||selected.has(id)||product.is_active===false)return false;
     const haystack=[product.name,product.sku,product.brand,product.category,product.collection_name]
       .map(v=>String(v||"")).join(" ").toLocaleLowerCase("tr-TR");
     return terms.every(term=>haystack.includes(term));
   }).slice(0,Math.min(60,Math.max(1,limit)));
 }
 
-export function appendCampaignProduct(assigned:number[],id:unknown,max=60):number[]{
-  const candidate=Number(id);
-  if(!Number.isSafeInteger(candidate)||candidate<=0||assigned.length>=max||assigned.includes(candidate)){
-    return assigned;
-  }
+export function appendCampaignProduct(assigned:string[],id:unknown,max=60):string[]{
+  const candidate=campaignProductId(id);
+  if(!candidate||assigned.length>=max||assigned.includes(candidate))return assigned;
   return [...assigned,candidate];
 }
