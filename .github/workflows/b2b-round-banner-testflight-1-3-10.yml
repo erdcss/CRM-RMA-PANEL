@@ -6,8 +6,8 @@ on:
     branches:
       - main
     paths:
-      - .github/release-requests/b2b-round-banner-1-3-10-20261109.txt
-      - .github/release-requests/b2b-round-banner-1-3-10-retry-20261109.txt
+      - .github/release-requests/b2b-round-banner-1-3-10-20261110.txt
+      - .github/release-requests/b2b-round-banner-1-3-10-retry-20261110.txt
 
 permissions:
   contents: read
