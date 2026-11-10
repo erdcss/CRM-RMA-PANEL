@@ -181,6 +181,14 @@ export function DashboardScreen({
                     <View style={s.orderMain}>
                       <Text style={s.orderNo}>{order.order_number || `#${order.id}`}</Text>
                       <Text style={s.orderCustomer}>{order.customer_email || "Müşteri"}</Text>
+                      <Text style={s.orderDate}>
+                        {order.created_at && !Number.isNaN(Date.parse(order.created_at))
+                          ? new Date(order.created_at).toLocaleDateString("tr-TR", {
+                              timeZone: "Europe/Istanbul",
+                              day: "2-digit", month: "2-digit", year: "numeric",
+                            })
+                          : "Tarih bilgisi yok"}
+                      </Text>
                     </View>
                     <View style={s.orderSide}>
                       <Badge label={meta.label} fg={meta.fg} bg={meta.bg} />
@@ -410,6 +418,7 @@ const s = StyleSheet.create({
   orderMain: { flex: 1, paddingHorizontal: 12 },
   orderNo: { color: C.text, fontSize: 13, fontWeight: "600" },
   orderCustomer: { color: C.muted, fontSize: 10, marginTop: 5 },
+  orderDate: { color: C.muted, fontSize: 10, marginTop: 4 },
   orderSide: { alignItems: "flex-end", gap: 5 },
   orderAmount: { color: C.text, fontSize: 12, fontWeight: "600" },
 });
