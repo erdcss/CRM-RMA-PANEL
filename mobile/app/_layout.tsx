@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useSegments } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { ImageBackground, StyleSheet, View } from 'react-native';
+import { ImageBackground, Platform, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -12,6 +13,8 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { AppearanceProvider, useAppearance } from '@/contexts/AppearanceContext';
 import { useMobileBranding } from '@/lib/branding';
 import { registerB2BPush } from '@/lib/push';
+import {openB2BNotificationTarget} from '@/lib/notification-navigation';
+import {resolveB2BNotificationLink} from '@/lib/notification-link';
 import { requestMetaEventsConsentOnce } from '@/lib/meta-app-events';
 import { initializeTikTokIfConsented } from '@/lib/tiktok-app-events';
 import { configureStoreNearby, stopStoreNearby } from '@/lib/store-geofence';
@@ -26,11 +29,31 @@ const SPLASH_DURATION_MS = 5_000;
 function AppContent() {
   const branding = useMobileBranding();
   const segments = useSegments();
+  const router=useRouter();
+  const [pendingNotification,setPendingNotification]=useState<{key:string;target:string}|null>(null);
+  const handledNotification=useRef<string|null>(null);
   const { loading, session } = useAuth();
   const { mode } = useAppearance();
   const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
   const [paintedSplashUrl, setPaintedSplashUrl] = useState<string | null>(null);
   const [initialRoutePainted, setInitialRoutePainted] = useState(false);
+
+  useEffect(()=>{
+    if(Platform.OS==='web')return;
+    // Store the push tap until authentication is restored, including cold starts.
+    // Never open notification URLs before validating the official B2B origin.
+    const record=(response:Notifications.NotificationResponse)=>{
+      const data=response.notification.request.content.data as Record<string,unknown> | undefined;
+      const target=data?.targetPath;
+      if(typeof target!=='string'||!resolveB2BNotificationLink(target))return;
+      const key=response.notification.request.identifier;
+      setPendingNotification(current=>current?.key===key?current:{key,target});
+    };
+    const subscription=Notifications.addNotificationResponseReceivedListener(record);
+    void Notifications.getLastNotificationResponseAsync().then(response=>{if(response)record(response);})
+      .catch(error=>console.warn('[push] Previous tap unavailable',error));
+    return ()=>subscription.remove();
+  },[]);
 
   useEffect(()=>{
     // Isolated per user; never retain another account's active geofence.
@@ -95,6 +118,19 @@ function AppContent() {
     }, 900);
     return () => clearTimeout(t);
   }, [showSplash, initialRoutePainted, loading]);
+
+  useEffect(()=>{
+    if(!pendingNotification||!session?.user?.id||session.user.mustChangePassword||
+       loading||!routeReady||showSplash||!initialRoutePainted||Platform.OS==='web')return;
+    if(handledNotification.current===pendingNotification.key){
+      setPendingNotification(null);return;
+    }
+    handledNotification.current=pendingNotification.key;
+    setPendingNotification(null);
+    void openB2BNotificationTarget(router,pendingNotification.target)
+      .catch(error=>console.warn('[push] Notification target could not open',error));
+    void Notifications.clearLastNotificationResponseAsync().catch(()=>undefined);
+  },[pendingNotification,session?.user?.id,session?.user?.mustChangePassword,loading,routeReady,showSplash,initialRoutePainted,router]);
 
   const runtimeSplashReady = !liveSplashUrl || paintedSplashUrl === liveSplashUrl;
   useEffect(() => {
