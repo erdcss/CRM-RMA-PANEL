@@ -12,6 +12,8 @@ import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
+import {DukkanNewProductProfitPanel} from "@/components/dukkan-new-product-profit-panel";
+import {applyDukkanNewProductMarkup,updateDukkanNewProductPrice,type DukkanMarkupChoice} from "@/lib/dukkan-product-create-markup";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, Copy, Pencil, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
 
@@ -96,6 +98,8 @@ export default function Dukkan() {
   const [banks,setBanks]=useState<Entry[]>([]);
   const [report,setReport]=useState<Entry|null>(null);
   const [draft,setDraft]=useState<Record<string,string>>({});
+  const [newProductMarkup,setNewProductMarkup]=useState<DukkanMarkupChoice>(null);
+  const [newProductCustomMarkup,setNewProductCustomMarkup]=useState("");
   const [lines,setLines]=useState<DocLine[]>([{...NEW_LINE}]);
   const [notice,setNotice]=useState("");
   const [error,setError]=useState("");
@@ -252,7 +256,7 @@ export default function Dukkan() {
     // React StrictMode may re-run mount effects: preserve restored filters on the second run.
     if(lastCariContext.current===context)return;
     lastCariContext.current=context;
-    setDraft({});setLines([{...NEW_LINE}]);
+    setDraft({});setNewProductMarkup(null);setNewProductCustomMarkup("");setLines([{...NEW_LINE}]);
     setShowForm((standaloneSalesCreate&&section==="sales")||(standaloneProductCreate&&section==="products"));
     setCreatedInvoiceNumber(null);setCreatedProductName(null);
     setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
@@ -403,6 +407,7 @@ export default function Dukkan() {
       return;
     }
     setDraft(data);
+    if(section==="products"){setNewProductMarkup(null);setNewProductCustomMarkup("");}
     if(["sales","purchases"].includes(section)){
       setLines(extracted.lines.length?extracted.lines.map(item=>({
         productId:item.productId||"",quantity:item.quantity||"1",unitPrice:item.unitPrice||"0",taxRate:item.taxRate||"20"
@@ -415,7 +420,21 @@ export default function Dukkan() {
     setNotice("AI taslağı hazır. Belge alanlarını ve eşleşmeyen kayıtları kontrol edip Kaydet ve İşle düğmesine basın.");
     setError("");
   };
-  const put=(k:string,v:string)=>setDraft(d=>({...d,[k]:v}));
+  const put=(k:string,v:string)=>{
+    if(section==="products"&&k==="salePrice")setNewProductMarkup(null);
+    setDraft(d=>section==="products"
+      ?updateDukkanNewProductPrice(d,k,v,newProductMarkup,newProductCustomMarkup)
+      :{...d,[k]:v});
+  };
+  const selectNewProductMarkup=(selection:Exclude<DukkanMarkupChoice,null>)=>{
+    setNewProductMarkup(selection);
+    setDraft(d=>applyDukkanNewProductMarkup(d,selection,newProductCustomMarkup));
+  };
+  const changeNewProductCustomMarkup=(value:string)=>{
+    setNewProductCustomMarkup(value);
+    setNewProductMarkup("custom");
+    setDraft(d=>applyDukkanNewProductMarkup(d,"custom",value));
+  };
   const onSubmit=async(e:FormEvent)=>{
     e.preventDefault();if(!storeId)return;
     setBusy(true);setError("");setNotice("");
@@ -457,7 +476,7 @@ export default function Dukkan() {
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
       setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
       setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
-      setShowForm(false);setDraft({});setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
+      setShowForm(false);setDraft({});setNewProductMarkup(null);setNewProductCustomMarkup("");setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
@@ -863,11 +882,23 @@ export default function Dukkan() {
                 {editingCatalogId?"B2B ürün bilgilerini düzenle":editingProductId?"Ürün bilgilerini düzenle":editingPartyId?"Cari hesap bilgilerini düzenle":editingInvoiceId?"Satış faturasını düzenle":invoiceCopySource?"Fatura kopyası oluştur · "+invoiceCopySource:"Yeni kayıt oluştur"}
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {fields.map(f=><label key={f.key} className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
+                {fields.map(f=><div key={f.key} className="min-w-0">
+                  <label className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
                   {f.type==="select"?<select className={inputClass} required={f.required} disabled={section==="sales"&&f.key==="kind"&&Boolean(editingInvoiceId)} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
                     <option value="">Seçiniz</option>{f.options?.map(opt=><option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>:<input className={inputClass} type={f.type||"text"} step={f.type==="number"?"any":undefined} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
-                </label>)}
+                  </label>
+                  {section==="products"&&f.key==="salePrice"&&!editingCatalogId&&
+                    <DukkanNewProductProfitPanel
+                      purchasePrice={draft.purchasePrice||""}
+                      salePrice={draft.salePrice||""}
+                      selection={newProductMarkup}
+                      customMarkup={newProductCustomMarkup}
+                      disabled={busy}
+                      onSelect={selectNewProductMarkup}
+                      onManualRateChange={changeNewProductCustomMarkup}
+                    />}
+                </div>)}
               </div>
               {section==="products"&&<div className="mt-5 space-y-4">
                 <div className="rounded-2xl border border-[#d7e7fa] bg-white p-4">
