@@ -1091,7 +1091,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         [JSON.stringify(categories)],
       );
 
-      if (containsLayout) await saveMobileHomeLayout(req.body);
+      if (containsLayout) {
+        // Homepage/category editors may submit only the fields they manage.
+        // Preserve campaign artwork and assigned products on partial updates.
+        const previousLayout = await getMobileHomeLayout();
+        await saveMobileHomeLayout({...previousLayout,...req.body});
+      }
       return res.json({
         categories,
         detectedCategories: await detectedProductCategories(),
