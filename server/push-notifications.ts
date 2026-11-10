@@ -124,12 +124,22 @@ async function sendExpoMessages(tokens: string[], payload: PushPayload) {
       const result = await response.json() as { data?: Array<any> };
       const tickets = Array.isArray(result?.data) ? result.data : [];
 
+      if (tickets.length !== chunk.length) {
+        console.warn("Expo push ticket count mismatch", { requested: chunk.length, received: tickets.length });
+      }
+
       for (let index = 0; index < tickets.length; index += 1) {
         const ticket = tickets[index];
         const token = chunk[index];
         if (ticket?.status === "ok") {
           sent += 1;
           continue;
+        }
+        if (ticket?.status === "error") {
+          console.warn("Expo push ticket rejected:", {
+            code: String(ticket?.details?.error || "unknown"),
+            reason: String(ticket?.message || "").slice(0, 160),
+          });
         }
         if (ticket?.details?.error === "DeviceNotRegistered" && token) {
           await disableMobilePushToken(token);
@@ -172,7 +182,15 @@ export async function sendBusinessPushToUsers(userIds:number[],payload:PushPaylo
     JOIN users u ON u.id=t.user_id
     WHERE t.app='business' AND t.active=TRUE AND t.user_id=ANY($1::int[]) AND u.is_active=1`,[ids]);
   const tokens=response.rows.map(row=>String(row.expo_token||"")).filter(Boolean);
-  return {...await sendExpoMessages(tokens,payload),tokenCount:tokens.length};
+  if (!tokens.length) {
+    console.warn("Business push has no active registered device", { recipientCount: ids.length });
+    return { sent: 0, tokenCount: 0 };
+  }
+  const result = await sendExpoMessages(tokens, payload);
+  if (result.sent < tokens.length) {
+    console.warn("Business push not accepted for all devices", { registered: tokens.length, accepted: result.sent });
+  }
+  return { ...result, tokenCount: tokens.length };
 }
 export async function sendBusinessPushToSuperAdmins(payload:PushPayload){
   if(!pool)return {sent:0,tokenCount:0};
