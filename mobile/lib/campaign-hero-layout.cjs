@@ -15,7 +15,7 @@ function campaignHeroLayout(viewportWidth,sourceWidth,sourceHeight,cropSetting=1
     width,
     imageHeight:scaledHeight,
     frameHeight:Math.max(1,scaledHeight-2*cropPx),
-    top:-cropPx,
+    top:cropPx===0?0:-cropPx,
     cropPercent:crop,
   };
 }
