@@ -2,7 +2,7 @@
  * both website and native app consume exactly this normalized public shape.
  */
 export type RoundBottomBanner = {
-  enabled:boolean; imageId:string; heroImageId:string;
+  enabled:boolean; imageId:string; heroImageId:string; heroMobileImageId?:string;
   title:string; subtitle:string; badgeText:string; buttonText:string;
   backgroundColor:string; accentColor:string; textColor:string;
   circleSize:number; bottomOffset:number;
@@ -45,6 +45,7 @@ export function normalizeRoundBottomBanner(raw:unknown):RoundBottomBanner {
     enabled:p.enabled===true,
     imageId,
     heroImageId:image.test(String(p.heroImageId||''))?String(p.heroImageId):'',
+    heroMobileImageId:image.test(String(p.heroMobileImageId||''))?String(p.heroMobileImageId):'',
     heroImageMode:p.heroImageMode==='full'?'full':'background',
     // Legacy artwork contains white padding; allow trimming it without modifying stored media.
     heroCropPercent:bounded(p.heroCropPercent,0,20,12),
