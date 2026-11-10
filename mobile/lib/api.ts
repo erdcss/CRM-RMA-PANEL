@@ -209,7 +209,15 @@ export type HomeCategoryCard = {
   tags?: string[];
   subcategories?: HomeSubcategory[];
 };
+export type RoundBottomBanner = {
+  enabled:boolean;imageId:string;heroImageId:string;
+  title:string;subtitle:string;badgeText:string;buttonText:string;
+  backgroundColor:string;accentColor:string;textColor:string;
+  circleSize:number;bottomOffset:number;productIds:number[];
+  showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
+};
 export type B2BHomepage = {
+  roundBottomBanner?:RoundBottomBanner;
   categories: string[];
   banners?: HomeBanner[];
   categoryCards?: HomeCategoryCard[];
