@@ -1,5 +1,6 @@
-import {useMemo,useState} from "react";
-import {ArrowDown,ArrowUp,ImagePlus,Plus,Trash2} from "lucide-react";
+import {ImagePlus} from "lucide-react";
+import {AdminCampaignProductPicker} from "@/components/admin-campaign-product-picker";
+import type {CampaignProductOption} from "@/lib/campaign-product-picker";
 
 export type RoundBottomBanner = {
   enabled:boolean;imageId:string;heroImageId:string;title:string;subtitle:string;
@@ -14,7 +15,7 @@ export const DEFAULT_ROUND_BOTTOM_BANNER:RoundBottomBanner={
   textColor:'#FFFFFF',circleSize:84,bottomOffset:112,productIds:[],
   showPrices:true,showCountdown:false,endAt:'',cardStyle:'standard'
 };
-type ProductOption={id:string|number;name:string;sku?:string|null};
+type ProductOption=CampaignProductOption;
 type Props={
   value:RoundBottomBanner;onChange:(value:RoundBottomBanner)=>void;products:ProductOption[];
   uploading:boolean;upload:(file:File,ready:(id:string)=>void)=>Promise<void>;
@@ -25,22 +26,7 @@ const FIELD="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text
 const label="block space-y-1.5 text-xs font-semibold text-slate-700";
 
 export function AdminRoundBottomBanner({value,onChange,products,uploading,upload}:Props){
-  const [search,setSearch]=useState('');
-  const [candidate,setCandidate]=useState('');
   const edit=(change:Partial<RoundBottomBanner>)=>onChange({...value,...change});
-  const byId=useMemo(()=>new Map(products.map(p=>[Number(p.id),p])),[products]);
-  const choices=useMemo(()=>{
-    const q=search.trim().toLocaleLowerCase('tr-TR');
-    return products.filter(p=>!value.productIds.includes(Number(p.id))&&
-      (!q||(p.name+' '+(p.sku||'')).toLocaleLowerCase('tr-TR').includes(q)))
-      .slice(0,120);
-  },[products,value.productIds,search]);
-  const reorder=(index:number,direction:-1|1)=>{
-    const next=[...value.productIds],target=index+direction;
-    if(target<0||target>=next.length)return;
-    [next[index],next[target]]=[next[target],next[index]];
-    edit({productIds:next});
-  };
   const dateLocal=value.endAt?new Date(value.endAt):null;
   const displayDate=dateLocal&&!Number.isNaN(dateLocal.getTime())
     ? new Date(dateLocal.getTime()-dateLocal.getTimezoneOffset()*60000).toISOString().slice(0,16):'';
@@ -120,38 +106,11 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
           <p className="text-xs text-slate-500">Bitiş tarihi dolunca yuvarlak banner ve kampanya yayından otomatik kalkar; admin ayarlarınız saklanır.</p>
         </div>
 
-        <div className="rounded-xl border p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-black">Kampanyaya Atanan Ürünler <span className="text-amber-600">({value.productIds.length}/60)</span></h3>
-            <button type="button" onClick={()=>edit({productIds:[]})} disabled={!value.productIds.length} className="text-xs font-semibold text-rose-600 underline disabled:opacity-40">Listeyi temizle</button>
-          </div>
-          <label className={label}>Ürün / stok kodu ara
-            <input className={FIELD} placeholder="Katalogdan ürün ara..." value={search} onChange={e=>{setSearch(e.target.value);setCandidate('');}}/>
-          </label>
-          <div className="mt-2 flex gap-2">
-            <select aria-label="Kampanyaya eklenecek ürün" className={FIELD} value={candidate} onChange={e=>setCandidate(e.target.value)}>
-              <option value="">Ürün seç</option>
-              {choices.map(p=><option key={String(p.id)} value={String(p.id)}>{p.name} {p.sku?' · '+p.sku:''}</option>)}
-            </select>
-            <button type="button" disabled={!candidate||value.productIds.length>=60} className="flex shrink-0 items-center gap-1 rounded-lg bg-slate-950 px-3 text-sm font-semibold text-white disabled:opacity-40"
-              onClick={()=>{const id=Number(candidate);if(Number.isSafeInteger(id)&&id>0&&!value.productIds.includes(id)){edit({productIds:[...value.productIds,id]});setCandidate('');}}}>
-              <Plus className="h-4 w-4"/> Ekle
-            </button>
-          </div>
-          <div className="mt-4 space-y-2" aria-label="Kampanya ürün sıralaması">
-            {value.productIds.map((id,index)=>{
-              const item=byId.get(id);
-              return <div key={id} className="flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2">
-                <span className="w-5 shrink-0 text-xs font-bold text-slate-500">{index+1}</span>
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{item?.name||'Ürün katalogda bulunamadı'} <small className="text-slate-500">{item?.sku||id}</small></span>
-                <button type="button" aria-label="Ürünü yukarı taşı" disabled={!index} onClick={()=>reorder(index,-1)} className="rounded p-1 disabled:opacity-30"><ArrowUp className="h-4 w-4"/></button>
-                <button type="button" aria-label="Ürünü aşağı taşı" disabled={index===value.productIds.length-1} onClick={()=>reorder(index,1)} className="rounded p-1 disabled:opacity-30"><ArrowDown className="h-4 w-4"/></button>
-                <button type="button" aria-label="Ürünü kampanyadan çıkar" onClick={()=>edit({productIds:value.productIds.filter(v=>v!==id)})} className="rounded p-1 text-rose-600"><Trash2 className="h-4 w-4"/></button>
-              </div>;
-            })}
-            {!value.productIds.length&&<p className="py-5 text-center text-sm text-slate-500">Henüz ürün atanmamış. Yukarıdan ekleyin.</p>}
-          </div>
-        </div>
+        <AdminCampaignProductPicker
+          products={products}
+          assignedIds={value.productIds}
+          onChange={ids=>edit({productIds:ids})}
+        />
       </div>
       <aside className="min-w-0 space-y-3">
         <h3 className="text-sm font-bold">Canlı tasarım önizlemesi</h3>
