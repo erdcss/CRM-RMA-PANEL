@@ -41,6 +41,14 @@ test('full image mode trims white banner bands with a bounded editable value',()
  assert.equal(normalizeHomeLayout({roundBottomBanner:{...main,heroCropPercent:14}}).roundBottomBanner.heroCropPercent,14);
 });
 
+test('mobile-specific campaign banner is accepted and persists independently of desktop artwork',()=>{
+ const id='e'.repeat(32);
+ const data=normalizeHomeLayout({roundBottomBanner:{...main,heroMobileImageId:id}}).roundBottomBanner;
+ assert.equal(data.heroMobileImageId,id);
+ assert.equal(data.heroImageId,'b'.repeat(32));
+ assert.equal(normalizeRoundBottomBanner({...data,heroMobileImageId:'javascript:alert(1)'}).heroMobileImageId,'');
+});
+
 test('published banner only displays with image, assigned products and unexpired schedule',()=>{
  assert.equal(isActiveRoundBottomBanner(normalizeRoundBottomBanner(main),new Date('2027-03-01')),true);
  assert.equal(isActiveRoundBottomBanner(normalizeRoundBottomBanner(main),new Date('2027-04-02')),false);
