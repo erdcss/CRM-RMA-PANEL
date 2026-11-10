@@ -1,0 +1,12 @@
+ÇALIŞKAN B2B IOS 1.3.11 - MOBILE CAMPAIGN HERO FIX
+Date: 2026-11-10
+Requested: On the Çalışkan B2B iOS native campaign page, when admin uploads a hero banner, do not display another title, subtitle, badge, countdown, or product count over the image. Keep original artwork sharp with no gray/white border.
+Changes:
+- Mobile /campaigns detects uploaded artwork and renders the image only, free of duplicate overlay text.
+- expo-image onLoad reads natural image dimensions; layout preserves aspect ratio rather than cropping the left/right of large desktop graphics.
+- Top and bottom white bands are trimmed using admin-provided heroCropPercent; mobile-specific art is not trimmed by default.
+- Admin can upload separate 1200x900 portrait-friendly mobile banner. Desktop art remains unchanged; the saved banner remains fully controllable in Admin Home -> Yuvarlak Alt Banner.
+- Flash campaign product cards and page shell use consistent dark navy with yellow accents.
+- No changes to payment, product prices, user permissions, or TikTok consent.
+Verified: 3 campaign hero layout unit tests, Mobile Typecheck, homepage banner tests.
+Release: signed iOS 1.3.11 IPA via EAS TestFlight profile, submit to ASC app 6802286663 (com.caliskangroup.rma).
