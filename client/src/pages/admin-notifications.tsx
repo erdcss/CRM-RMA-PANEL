@@ -417,6 +417,7 @@ export default function AdminNotifications(){
                 {[
                   ["Ana sayfa","/"],["Ürünler","/urunler"],["Kategoriler","/kategoriler"],
                   ["Siparişlerim","/siparislerim"],["Hesabım","/hesabim"],
+                  ["Kampanyalar","/kampanyalar"],
                 ].map(([label,path])=><Button key={path} size="sm" type="button" variant="outline"
                   onClick={()=>setTargetPath(path)}>{label}</Button>)}
                 {targetPath?<Button size="sm" type="button" variant="ghost" onClick={()=>setTargetPath("")}>Temizle</Button>:null}
@@ -595,6 +596,10 @@ export default function AdminNotifications(){
                     placeholder="/urun/145 veya https://b2b.ecalisgan.com/urun/145"
                     onChange={e=>changeScheduleDraft({targetPath:e.target.value})}/>
                 </label>
+                <Button size="sm" type="button" variant="outline" className="w-fit"
+                  onClick={()=>changeScheduleDraft({targetPath:"/kampanyalar"})}>
+                  Kampanyalar sayfasına yönlendir
+                </Button>
                 <div className="flex flex-wrap gap-4 text-sm">
                   <label className="flex cursor-pointer items-center gap-2">
                     <input type="checkbox" checked={editingSchedule.all}
