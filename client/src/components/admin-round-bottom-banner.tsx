@@ -7,12 +7,13 @@ export type RoundBottomBanner = {
   badgeText:string;buttonText:string;backgroundColor:string;accentColor:string;textColor:string;
   circleSize:number;bottomOffset:number;productIds:string[];
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
+  heroImageMode?:'full'|'background';
 };
 export const DEFAULT_ROUND_BOTTOM_BANNER:RoundBottomBanner={
   enabled:false,imageId:'',heroImageId:'',title:'Flash Ürünler',
   subtitle:'Çalışkan B2B özel fırsatlarını keşfedin.',badgeText:'ÖZEL KAMPANYA',
   buttonText:'Fırsatları İncele',backgroundColor:'#0B1225',accentColor:'#FFCD00',
-  textColor:'#FFFFFF',circleSize:84,bottomOffset:112,productIds:[],
+  textColor:'#FFFFFF',circleSize:84,bottomOffset:112,productIds:[],heroImageMode:'background',
   showPrices:true,showCountdown:false,endAt:'',cardStyle:'standard'
 };
 type ProductOption=CampaignProductOption;
@@ -95,13 +96,21 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
                   onChange={e=>{const file=e.target.files?.[0];if(file)void upload(file,id=>edit({imageId:id}));e.target.value='';}}/>
               </label>
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50">
-                <ImagePlus className="h-4 w-4"/>{value.heroImageId?'Kapak Görselini Değiştir':'Sayfa Kapak Görseli Yükle'}
+                <ImagePlus className="h-4 w-4"/>{value.heroImageId?'Üst Bannerı Değiştir':'Üst Banner Görseli Yükle'}
                 <input type="file" accept={uploadAccept} className="hidden" disabled={uploading}
-                  onChange={e=>{const file=e.target.files?.[0];if(file)void upload(file,id=>edit({heroImageId:id}));e.target.value='';}}/>
+                  onChange={e=>{const file=e.target.files?.[0];if(file)void upload(file,id=>edit({heroImageId:id,heroImageMode:'full'}));e.target.value='';}}/>
               </label>
               {value.heroImageId&&<button type="button" onClick={()=>edit({heroImageId:''})} className="text-xs text-rose-600 underline">Kapak görselini kaldır</button>}
             </div>
-            <p className="text-xs text-slate-500">PNG / JPG / WebP / GIF, en fazla 3 MB. Yuvarlak görselde kare ve şeffaf arka plan önerilir. Başlatmak için görsel ve en az bir ürün gerekli.</p>
+            <p className="text-xs text-slate-500">PNG / JPG / WebP / GIF, en fazla 3 MB. Yuvarlak görselde kare/şeffaf arka plan; üst flash banner için yaklaşık 1448×378 px önerilir. Banner resmini istediğiniz zaman değiştirip kaydedebilirsiniz.</p>
+            <label className={label+" mt-3"}>Üst Banner Gösterim Biçimi
+              <select className={FIELD} value={value.heroImageMode||'background'}
+                onChange={e=>edit({heroImageMode:e.target.value as 'full'|'background'})}>
+                <option value="full">Tam görsel — yazılar ve sayaç resmin içinde (referans banner)</option>
+                <option value="background">Arka plan görseli — başlık ve canlı sayaç kodla gösterilir</option>
+              </select>
+            </label>
+            <p className="mt-2 text-xs text-slate-500">Referanstaki gibi üzerinde yazı bulunan banner için Tam görsel seçin; sayfa başlığı iki kez görünmez. Başlıksız fotoğrafta Arka plan seçimi kullanılabilir.</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-4 rounded-xl border bg-slate-50 p-4">
@@ -134,7 +143,8 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
           </div>
         </div>
         <div className="overflow-hidden rounded-2xl p-4" style={{background:value.backgroundColor,color:value.textColor}}>
-          {value.heroImageId&&<img src={media(value.heroImageId)} alt="Kampanya kapak önizleme" className="mb-3 h-28 w-full rounded-xl object-cover"/>}
+          {value.heroImageId&&<img src={media(value.heroImageId)} alt="Kampanya üst banner önizlemesi"
+            className={"mb-3 w-full rounded-xl "+(value.heroImageMode==='full'?"h-auto object-contain":"h-28 object-cover")}/>}<p className="mb-3 text-[10px] opacity-70">{value.heroImageMode==='full'?'Tam banner':'Görsel arka planı'} · Flash tasarım</p>
           <span className="rounded-full border px-2 py-1 text-[10px] font-bold" style={{borderColor:value.accentColor,color:value.accentColor}}>{value.badgeText}</span>
           <h3 className="mt-3 text-xl font-black">{value.title}</h3>
           <p className="mt-2 text-xs opacity-80">{value.subtitle}</p>
