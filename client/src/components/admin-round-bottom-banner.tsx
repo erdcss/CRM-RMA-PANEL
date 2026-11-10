@@ -5,7 +5,7 @@ import type {CampaignProductOption} from "@/lib/campaign-product-picker";
 export type RoundBottomBanner = {
   enabled:boolean;imageId:string;heroImageId:string;title:string;subtitle:string;
   badgeText:string;buttonText:string;backgroundColor:string;accentColor:string;textColor:string;
-  circleSize:number;bottomOffset:number;productIds:number[];
+  circleSize:number;bottomOffset:number;productIds:string[];
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
 };
 export const DEFAULT_ROUND_BOTTOM_BANNER:RoundBottomBanner={
@@ -19,6 +19,7 @@ type ProductOption=CampaignProductOption;
 type Props={
   value:RoundBottomBanner;onChange:(value:RoundBottomBanner)=>void;products:ProductOption[];
   uploading:boolean;upload:(file:File,ready:(id:string)=>void)=>Promise<void>;
+  productLoading?:boolean;productLoadError?:string;onRetryProducts?:()=>void;
   inDrawer?:boolean;
 };
 const uploadAccept="image/png,image/jpeg,image/webp,image/gif";
@@ -26,7 +27,7 @@ const media=(id:string)=>id?`/api/public/homepage/media/${id}`:'';
 const FIELD="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900";
 const label="block space-y-1.5 text-xs font-semibold text-slate-700";
 
-export function AdminRoundBottomBanner({value,onChange,products,uploading,upload,inDrawer=false}:Props){
+export function AdminRoundBottomBanner({value,onChange,products,uploading,upload,inDrawer=false,productLoading=false,productLoadError,onRetryProducts}:Props){
   const edit=(change:Partial<RoundBottomBanner>)=>onChange({...value,...change});
   const dateLocal=value.endAt?new Date(value.endAt):null;
   const displayDate=dateLocal&&!Number.isNaN(dateLocal.getTime())
@@ -116,6 +117,9 @@ export function AdminRoundBottomBanner({value,onChange,products,uploading,upload
           products={products}
           assignedIds={value.productIds}
           onChange={ids=>edit({productIds:ids})}
+          loading={productLoading}
+          loadError={productLoadError}
+          onRetry={onRetryProducts}
         />
       </div>
       <aside className="min-w-0 space-y-3">
