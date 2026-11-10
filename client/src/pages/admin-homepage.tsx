@@ -9,6 +9,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin-subcategory-drawer";
 import { AdminRoundBottomBanner, DEFAULT_ROUND_BOTTOM_BANNER, type RoundBottomBanner } from "@/components/admin-round-bottom-banner";
+import {AdminHomepageDrawer,loadHomepageDrawers,saveHomepageDrawers,type HomepageDrawerId,type HomepageDrawerState} from "@/components/admin-homepage-drawer";
 import type {CampaignProductOption} from "@/lib/campaign-product-picker";
 
 type HomeBanner = {
@@ -63,6 +64,10 @@ export default function AdminHomepage() {
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
   const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner>(DEFAULT_ROUND_BOTTOM_BANNER);
+  const [drawers,setDrawers]=useState<HomepageDrawerState>(()=>loadHomepageDrawers());
+  useEffect(()=>{saveHomepageDrawers(drawers);},[drawers]);
+  const toggleDrawer=(id:HomepageDrawerId)=>setDrawers(current=>({...current,[id]:!current[id]}));
+  const showAllDrawers=(open:boolean)=>setDrawers({categories:open,campaign:open,banners:open});
 
   useEffect(() => {
     if (!data) return;
@@ -232,19 +237,22 @@ export default function AdminHomepage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={()=>showAllDrawers(true)}
+              aria-label="Tüm ana sayfa bölümlerini aç">Tümünü Aç</Button>
+            <Button type="button" size="sm" variant="outline" onClick={()=>showAllDrawers(false)}
+              aria-label="Tüm ana sayfa bölümlerini kapat">Tümünü Kapat</Button>
           <Button onClick={save} disabled={saving || isLoading}>
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Kaydediliyor…" : "Değişiklikleri Kaydet"}
           </Button>
+          </div>
         </div>
 
-        <section className="rounded-2xl border bg-background shadow-sm">
-          <div className="border-b p-5">
-            <h2 className="font-bold">Kategoriler</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Buradaki sıralama B2B ana sayfasındaki ince kategori kutularına aynen yansır.
-            </p>
-          </div>
+        <AdminHomepageDrawer id="categories" title="Kategoriler"
+          description="Kategori kartlarını, görsellerini, alt kategorileri ve sıralamayı yönetin."
+          summary={categories.length+" kategori"} open={drawers.categories}
+          onToggle={()=>toggleDrawer("categories")}>
 
           <div className="p-5">
             <div className="flex max-w-xl gap-2">
@@ -360,24 +368,31 @@ export default function AdminHomepage() {
               </div>
             </div>
           </div>
-        </section>
+        </AdminHomepageDrawer>
 
-        <AdminRoundBottomBanner
+        <AdminHomepageDrawer id="campaign" title="Yuvarlak Alt Banner"
+          description="Flash ürünler ve kampanyalar için sağ alt görseli, sayfa tasarımı ve ürün atamalarını düzenleyin."
+          summary={roundBottomBanner.productIds.length+" ürün"}
+          open={drawers.campaign} onToggle={()=>toggleDrawer("campaign")}>
+          <AdminRoundBottomBanner
           value={roundBottomBanner}
           onChange={setRoundBottomBanner}
           products={productOptions}
           uploading={uploading}
           upload={(file,ready)=>uploadMedia(file,ready)}
+          inDrawer
         />
+        </AdminHomepageDrawer>
 
-        <section className="mt-6 rounded-2xl border bg-background shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
-            <div>
-              <h2 className="text-lg font-bold">Mobil Ana Sayfa Bannerları</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Yatay, dikey veya kare: Her en-boy oranındaki bannerı yükleyebilirsiniz. Görsel mobilde kesilmeden ölçeklenir.</p>
-            </div>
-            <Button type="button" variant="outline" onClick={addBanner} disabled={banners.length >= 12}><Plus className="mr-2 h-4 w-4" /> Banner Ekle</Button>
-          </div>
+        <AdminHomepageDrawer id="banners" title="Mobil Ana Sayfa Bannerları"
+          description="Mobil banner görsellerini, bağlantılarını, otomatik kaydırma ve süre ayarlarını yönetin."
+          summary={banners.length+" banner"} open={drawers.banners}
+          onToggle={()=>toggleDrawer("banners")}
+          actions={<Button type="button" size="sm" variant="outline"
+            onClick={()=>{addBanner();setDrawers(current=>({...current,banners:true}));}}
+            disabled={banners.length>=12}>
+            <Plus className="mr-2 h-4 w-4"/>Banner Ekle
+          </Button>}>
           <div className="space-y-4 p-5">
             <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-muted/20 p-4">
               <label className="flex items-center gap-2 text-sm font-semibold">
@@ -484,7 +499,7 @@ export default function AdminHomepage() {
               </div>
             )) : <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Banner bulunmuyor. Yeni bir banner ekleyerek başlayın.</p>}
           </div>
-        </section>
+        </AdminHomepageDrawer>
       </div>
     </div>
   );
