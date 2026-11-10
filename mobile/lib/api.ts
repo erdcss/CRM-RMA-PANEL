@@ -215,6 +215,7 @@ export type RoundBottomBanner = {
   backgroundColor:string;accentColor:string;textColor:string;
   circleSize:number;bottomOffset:number;productIds:string[];
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
+  heroImageMode?:'full'|'background';
 };
 export type B2BHomepage = {
   roundBottomBanner?:RoundBottomBanner;
