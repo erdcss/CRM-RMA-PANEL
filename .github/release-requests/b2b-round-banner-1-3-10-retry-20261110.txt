@@ -1,0 +1,1 @@
+RERUN: Build iOS 1.3.10 Flash Campaign with the current main checkout. Prior GitHub Actions job was blocked by a concurrent commit before prepare-native-release; all typechecks and conversion checks passed. Pull latest main and verify source immediately before EAS signed build. 2026-11-10.
