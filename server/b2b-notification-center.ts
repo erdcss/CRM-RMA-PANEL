@@ -2,6 +2,7 @@ import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { sendPushToUsers } from "./push-notifications";
 import { registerB2BScheduledNotifications } from "./b2b-scheduled-notifications";
+import {parseB2BNotificationTarget} from "./b2b-notification-target";
 
 const EVENT_KEYS = ["membership_approved","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid"] as const;
 export type NotificationEvent = typeof EVENT_KEYS[number];
@@ -61,6 +62,7 @@ export function ensureB2BNotificationTables(): Promise<void> {
           read_at TIMESTAMPTZ,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE b2b_notifications ADD COLUMN IF NOT EXISTS target_path TEXT;
         CREATE UNIQUE INDEX IF NOT EXISTS b2b_notifications_dedupe_idx
           ON b2b_notifications(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL;
         CREATE INDEX IF NOT EXISTS b2b_notifications_user_date_idx
@@ -161,7 +163,7 @@ export function registerB2BNotificationCenter(
           WHERE role='b2b_customer' AND is_active=1
           ORDER BY company_name NULLS LAST,email LIMIT 5000`),
         pool.query("SELECT * FROM b2b_notification_rules ORDER BY event_key"),
-        pool.query(`SELECT n.id,n.title,n.body,n.source,n.event_key,n.created_at,u.email
+        pool.query(`SELECT n.id,n.title,n.body,n.source,n.event_key,n.target_path,n.created_at,u.email
           FROM b2b_notifications n JOIN users u ON u.id=n.user_id
           ORDER BY n.created_at DESC LIMIT 100`),
         pool.query("SELECT updated_at FROM b2b_notification_custom_sound WHERE id=1"),
@@ -195,6 +197,8 @@ export function registerB2BNotificationCenter(
     if (!title || title.length>180 || !body || body.length>800) {
       return res.status(400).json({error:"Başlık ve mesaj zorunlu (en fazla 180/800 karakter)."});
     }
+    const target=parseB2BNotificationTarget(req.body?.targetPath);
+    if(!target.ok)return res.status(400).json({error:target.error});
     const custom=Boolean(req.body?.customSound);
     const includeLoggedOut=req.body?.includeLoggedOut===true;
     try {
@@ -209,15 +213,15 @@ export function registerB2BNotificationCenter(
       const valid=rows.rows.map(r=>Number(r.id));
       if (!valid.length) return res.status(404).json({error:"Bildirim gönderilecek aktif müşteri bulunamadı"});
       const saved=await pool.query(
-        `INSERT INTO b2b_notifications (user_id,title,body,source,event_key,sound)
-         SELECT id,$1,$2,'manual',NULL,$3 FROM users WHERE id=ANY($4::int[])
+        `INSERT INTO b2b_notifications (user_id,title,body,source,event_key,sound,target_path)
+         SELECT id,$1,$2,'manual',NULL,$3,$5 FROM users WHERE id=ANY($4::int[])
          RETURNING user_id`,
-        [title,body,custom?"custom":"default",valid],
+        [title,body,custom?"custom":"default",valid,target.path],
       );
       const soundExists=custom?(await pool.query("SELECT 1 FROM b2b_notification_custom_sound WHERE id=1")).rowCount===1:false;
       const sent=await sendPushToUsers(valid,{
         title,body,sound:custom&&soundExists?"b2b-custom.wav":"default",
-        data:{type:"manual"},
+        data:{type:"manual",...(target.path?{targetPath:target.path}:{})},
       },{includeLoggedOut}).catch(error=>{console.error("Manual push failure",error);return {sent:0,tokenCount:0};});
       return res.json({saved:saved.rowCount||0,accepted:sent.sent,tokens:sent.tokenCount,
         note:"Expo kabulü cihazda teslim edildiğinin kesin kanıtı değildir."});
@@ -259,7 +263,7 @@ export function registerB2BNotificationCenter(
       if(!pool)return res.json([]);
       const user=(res.locals as any).b2bUser;
       const rows=await pool.query(
-        `SELECT id,title,body,source,event_key,read_at,created_at
+        `SELECT id,title,body,source,event_key,target_path,read_at,created_at
           FROM b2b_notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 150`,[user.id]);
       res.setHeader("Cache-Control","no-store");return res.json(rows.rows);
     }catch(error){console.error("B2B inbox",error);return res.status(500).json({error:"Bildirimler yüklenemedi"});}
