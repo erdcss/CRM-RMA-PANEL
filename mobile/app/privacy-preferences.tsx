@@ -58,16 +58,16 @@ export default function PrivacyPreferencesScreen() {
   const changeTikTokConsent = async () => {
     if (tiktokConsent === null || saving || (!tiktokAvailable && !tiktokConsent)) return;
     const previous = tiktokConsent;
-    setTikTokConsent(!previous);
+    setTiktokConsent(!previous);
     setSaving(true);
     try {
       const accepted = await setTikTokAppEventsConsent(!previous);
       if (!accepted) {
-        setTikTokConsent(previous);
+        setTiktokConsent(previous);
         Alert.alert('Tercih kaydedilemedi', 'Bu sürümde isteğe bağlı ölçüm izni etkinleştirilemiyor.');
       }
     } catch {
-      setTikTokConsent(previous);
+      setTiktokConsent(previous);
       Alert.alert('Tercih kaydedilemedi', 'Gizlilik tercihinizi güncelleyemedik. Tekrar deneyin.');
     } finally {
       setSaving(false);
