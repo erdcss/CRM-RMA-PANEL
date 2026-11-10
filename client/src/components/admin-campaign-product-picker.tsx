@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {ArrowDown,ArrowUp,Check,ImageOff,Package,Plus,Search,Trash2,X} from "lucide-react";
 import {
-  appendCampaignProduct,campaignProductImage,campaignProductPrice,findCampaignProducts,
+  appendCampaignProduct,campaignProductId,campaignProductImage,campaignProductPrice,findCampaignProducts,
   type CampaignProductOption,
 } from "@/lib/campaign-product-picker";
 
@@ -20,18 +20,20 @@ function Thumbnail({product,large=false}:{product?:CampaignProductOption;large?:
 }
 type Props={
   products:CampaignProductOption[];
-  assignedIds:number[];
-  onChange:(ids:number[])=>void;
+  assignedIds:string[];
+  onChange:(ids:string[])=>void;
   loading?:boolean;
+  loadError?:string;
+  onRetry?:()=>void;
 };
-export function AdminCampaignProductPicker({products,assignedIds,onChange,loading=false}:Props){
+export function AdminCampaignProductPicker({products,assignedIds,onChange,loading=false,loadError,onRetry}:Props){
   const [search,setSearch]=useState("");
   const input=useRef<HTMLInputElement>(null);
   const candidates=useMemo(()=>findCampaignProducts(products,search,assignedIds,18),
     [products,search,assignedIds]);
-  const byId=useMemo(()=>new Map(products.map(p=>[Number(p.id),p])),[products]);
+  const byId=useMemo(()=>new Map(products.map(p=>[campaignProductId(p.id),p])),[products]);
   const canAdd=assignedIds.length<60;
-  const add=(id:number)=>{
+  const add=(id:string)=>{
     const next=appendCampaignProduct(assignedIds,id);
     if(next!==assignedIds)onChange(next);
     input.current?.focus();
@@ -74,9 +76,14 @@ export function AdminCampaignProductPicker({products,assignedIds,onChange,loadin
           {search&&<button type="button" aria-label="Aramayı temizle" onClick={()=>{setSearch("");input.current?.focus();}}
             className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-slate-500 hover:bg-slate-200"><X size={17}/></button>}
         </div>
+        {loadError&&<div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+          <span>Ürün kataloğu alınamadı: {loadError}</span>
+          {onRetry&&<button type="button" onClick={onRetry} className="rounded-md bg-rose-700 px-3 py-1.5 font-bold text-white">Tekrar Dene</button>}
+        </div>}
         <p className="mt-2 text-xs text-slate-500">
           {loading?"Ürün kataloğu yükleniyor…":
             search.trim().length<2?"Aramak için en az 2 karakter yazın.":
+            loadError?"Ürün kataloğu yüklenemedi: "+loadError:
             candidates.length?candidates.length+" sonuç gösteriliyor · Atanan ürünler sonuçlardan çıkarılır":
               "Eşleşen veya eklenebilir ürün bulunamadı."}
         </p>
@@ -88,11 +95,11 @@ export function AdminCampaignProductPicker({products,assignedIds,onChange,loadin
           {!canAdd&&<span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900">60 ürün sınırı</span>}
         </div>
         {!candidates.length?<div className="px-4 py-8 text-center text-sm text-slate-500">
-          {loading?"Ürünler yükleniyor…":"Başka bir ürün adı veya stok kodu deneyin."}
+          {loading?"Ürünler yükleniyor…":loadError?"Ürünler getirilemedi. Katalog bağlantısını kontrol edin.":"Başka bir ürün adı veya stok kodu deneyin."}
         </div>:
         <div className="max-h-[425px] divide-y divide-slate-100 overflow-y-auto">
           {candidates.map(product=>{
-            const id=Number(product.id);
+            const id=campaignProductId(product.id);
             return <div key={String(product.id)} className="group flex items-center gap-3 bg-white p-3 transition-colors hover:bg-amber-50/60 sm:gap-4 sm:p-4">
               <Thumbnail product={product}/>
               <div className="min-w-0 flex-1 space-y-1">
