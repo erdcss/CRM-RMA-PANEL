@@ -210,7 +210,7 @@ export type HomeCategoryCard = {
   subcategories?: HomeSubcategory[];
 };
 export type RoundBottomBanner = {
-  enabled:boolean;imageId:string;heroImageId:string;
+  enabled:boolean;imageId:string;heroImageId:string;heroMobileImageId?:string;
   title:string;subtitle:string;badgeText:string;buttonText:string;
   backgroundColor:string;accentColor:string;textColor:string;
   circleSize:number;bottomOffset:number;productIds:string[];
