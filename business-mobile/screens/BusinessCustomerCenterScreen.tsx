@@ -1,4 +1,6 @@
 import {useCallback,useEffect,useMemo,useState} from "react";
+import {Ionicons} from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import {ActivityIndicator,Alert,RefreshControl,ScrollView,StyleSheet,Text,
   TouchableOpacity,View,TextInput,Switch} from "react-native";
 import {apiFetch} from "../lib/api";
@@ -24,9 +26,45 @@ const tagStyle=(status:string)=>status==="approved"?
 const applyAmount=(v:CenterRecord,kind:Tab)=>kind==="ledger"
   ?moneyTR(Number(v.amount_cents||0)/100):moneyTR(v.total_amount);
 function ProfileLine({label,value}:{label:string;value:string|number|boolean|null|undefined}){
+  const [copied,setCopied]=useState(false);
+  const displayValue=value===undefined||value===null||value===""?"—":String(value);
+  const canCopy=displayValue!=="—";
+
+  useEffect(()=>{
+    if(!copied)return;
+    const reset=setTimeout(()=>setCopied(false),1800);
+    return ()=>clearTimeout(reset);
+  },[copied]);
+
+  const copyValue=async()=>{
+    if(!canCopy)return;
+    try{
+      await Clipboard.setStringAsync(displayValue);
+      setCopied(true);
+    }catch{
+      Alert.alert("Kopyalanamadı","Bilgi panoya kopyalanamadı. Lütfen tekrar deneyin.");
+    }
+  };
+
   return <View style={s.profileLine}>
     <Text style={s.profileLabel}>{label}</Text>
-    <Text style={s.profileValue}>{value===undefined||value===null||value===""?"—":String(value)}</Text>
+    <View style={s.profileRight}>
+      <Text style={s.profileValue} selectable>{displayValue}</Text>
+      <TouchableOpacity
+        style={[s.copyButton,copied&&s.copyButtonDone,!canCopy&&s.copyButtonDisabled]}
+        onPress={()=>void copyValue()}
+        disabled={!canCopy}
+        accessibilityRole="button"
+        accessibilityLabel={`${label} bilgisini kopyala`}
+        accessibilityHint={canCopy?"Değeri panoya kopyalar":"Kopyalanacak bilgi yok"}
+        accessibilityState={{disabled:!canCopy}}
+        hitSlop={{top:6,bottom:6,left:6,right:6}}
+      >
+        <Ionicons name={copied?"checkmark-outline":"copy-outline"}
+          size={18} color={copied?C.green:canCopy?"#9EC4FF":C.muted}/>
+      </TouchableOpacity>
+      {copied?<Text style={s.copiedLabel} accessibilityLiveRegion="polite">Kopyalandı</Text>:null}
+    </View>
   </View>;
 }
 function Stat({name,value,highlight=false}:{name:string;value:string|number;highlight?:boolean}){
@@ -358,9 +396,15 @@ const s=StyleSheet.create({
   profileCard:{borderRadius:19,borderWidth:1,borderColor:C.line,backgroundColor:C.panel,
     paddingHorizontal:15,paddingVertical:5},
   profileLine:{borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:C.line,
-    paddingVertical:12,flexDirection:"row",gap:12},
-  profileLabel:{color:C.muted,fontSize:11,width:"39%"},
-  profileValue:{color:C.text,fontSize:12,fontWeight:"600",flex:1,textAlign:"right",lineHeight:18},
+    paddingVertical:9,flexDirection:"row",gap:8,alignItems:"center"},
+  profileLabel:{color:C.muted,fontSize:11,width:"34%",flexShrink:0},
+  profileRight:{flex:1,minWidth:0,flexDirection:"row",alignItems:"center",justifyContent:"flex-end",gap:7},
+  profileValue:{color:C.text,fontSize:12,fontWeight:"600",flex:1,textAlign:"right",lineHeight:18,flexShrink:1},
+  copyButton:{width:34,height:34,borderWidth:1,borderColor:C.line,borderRadius:10,
+    backgroundColor:C.bg,justifyContent:"center",alignItems:"center",flexShrink:0},
+  copyButtonDone:{borderColor:C.green},
+  copyButtonDisabled:{opacity:0.35},
+  copiedLabel:{position:"absolute",right:0,bottom:-9,color:C.green,fontSize:9,fontWeight:"700"},
   hint:{color:C.muted,fontSize:11,lineHeight:18,marginTop:12,marginBottom:14},
   listHeading:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:8},
   count:{color:C.muted,fontSize:11},
