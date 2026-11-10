@@ -32,6 +32,7 @@ const LIVE_PLACED_B2B_ORDER_SQL = `
   AND NULLIF(TRIM(COALESCE(order_number, '')), '') IS NOT NULL
   AND COALESCE(order_number, '') NOT ILIKE 'DEMO-%'
   AND COALESCE(order_number, '') NOT ILIKE 'TEST-%'
+  AND COALESCE(order_number, '') NOT ILIKE 'SAMPLE-%'
   -- CLK order numbers include their UTC creation timestamp. Imported/re-dated
   -- historical orders must not be counted as newly placed today.
   AND (
