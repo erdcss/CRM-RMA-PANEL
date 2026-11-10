@@ -27,7 +27,7 @@ import {activateCaliskanMetaDataset,CALISKAN_META_PIXEL_ID} from "./b2b-meta-dat
 // but do not contribute to paid revenue until approved.
 const LIVE_PLACED_B2B_ORDER_SQL = `
   LOWER(TRIM(COALESCE(status, ''))) IN
-    ('awaiting_bank_transfer', 'paid', 'paid_stock_review', 'approved', 'confirmed', 'onaylandi')
+    ('awaiting_bank_transfer', 'awaiting_bank_confirmation', 'paid', 'paid_stock_review', 'approved', 'confirmed', 'onaylandi')
   AND COALESCE(total_amount, 0) > 0
   AND NULLIF(TRIM(COALESCE(order_number, '')), '') IS NOT NULL
   AND COALESCE(order_number, '') NOT ILIKE 'DEMO-%'
