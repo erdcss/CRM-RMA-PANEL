@@ -1,0 +1,9 @@
+ÇALIŞKAN B2B iOS 1.3.10 FLASH KAMPANYA RELEASE
+Date: 2026-11-10
+Requested: Admin → Ana Sayfa → Yuvarlak Alt Banner, a circular image linked to a dedicated flash products/campaign page in web and iOS.
+Shared source: /api/public/homepage, persisted by /api/admin/homepage.
+Admin designs: independent circular and hero artwork, title/description, badge, colors, button text, diameter, bottom offset, countdown expiry, card layout, price visibility, ordered product IDs.
+Safety: only images uploaded through admin, positive product IDs, no campaign prices for unauthenticated customers, expiry hides promotions, other homepage settings remain unchanged on partial saves.
+Web: /kampanyalar and homepage floating image.
+iOS: app/campaigns.tsx and home bottom-right circular image.
+Verified: B2B Flexible Home Banners CI, B2B Mobile Typecheck; build and submit iOS 1.3.10 to Apple TestFlight.
