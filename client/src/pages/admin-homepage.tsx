@@ -56,8 +56,16 @@ export default function AdminHomepage() {
   const [uploading, setUploading] = useState(false);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [productSearch,setProductSearch]=useState<Record<string,string>>({});
-  const {data:productOptions=[]}=useQuery<ProductOption[]>({
+  const {
+    data:productOptions=[],
+    isLoading:productsLoading,
+    isError:productsError,
+    error:productsErrorDetail,
+    refetch:refetchProducts,
+  }=useQuery<ProductOption[]>({
     queryKey:["/api/admin/b2b-products"],
+    staleTime:60_000,
+    retry:1,
   });
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
   const [ledgerTileImageId, setLedgerTileImageId] = useState('');
@@ -378,6 +386,11 @@ export default function AdminHomepage() {
           value={roundBottomBanner}
           onChange={setRoundBottomBanner}
           products={productOptions}
+          productLoading={productsLoading}
+          productLoadError={productsError
+            ? (productsErrorDetail instanceof Error?productsErrorDetail.message:"Katalog alınamadı")
+            : undefined}
+          onRetryProducts={()=>{void refetchProducts();}}
           uploading={uploading}
           upload={(file,ready)=>uploadMedia(file,ready)}
           inDrawer
