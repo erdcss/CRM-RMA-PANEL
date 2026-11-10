@@ -9,17 +9,17 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type Customer={id:number;email:string;company_name?:string|null};
 type Rule={event_key:string;enabled:boolean;title_template:string;body_template:string};
-type Message={id:number;title:string;body:string;source:string;event_key:string|null;email:string;created_at:string};
+type Message={id:number;title:string;body:string;source:string;event_key:string|null;target_path:string|null;email:string;created_at:string};
 type Dashboard={customers:Customer[];rules:Rule[];recent:Message[];soundConfigured:boolean};
 type ScheduledMessage={
-  id:string;title:string;body:string;recipient_ids:number[];recipient_count:number;audience_all:boolean;include_logged_out:boolean;sound:"default"|"custom";
+  id:string;title:string;body:string;target_path:string|null;recipient_ids:number[];recipient_count:number;audience_all:boolean;include_logged_out:boolean;sound:"default"|"custom";
   scheduled_at:string;status:"pending"|"processing"|"sent"|"failed"|"cancelled";
   saved_count:number;accepted_count:number;token_count:number;last_error:string|null;
   repeat_unit:"day"|"week"|"month"|null;repeat_every:number;repeat_start_at:string|null;repeat_end_at:string|null;
   paused:boolean;sent_count:number;last_sent_at:string|null;
 };
 type ScheduleEditDraft={
-  id:string;title:string;body:string;scheduledDate:string;repeatEnabled:boolean;
+  id:string;title:string;body:string;targetPath:string;scheduledDate:string;repeatEnabled:boolean;
   repeatUnit:"day"|"week"|"month";repeatEvery:number;repeatEndDate:string;
   all:boolean;includeLoggedOut:boolean;customSound:boolean;userIds:number[];
 };
@@ -143,6 +143,7 @@ export default function AdminNotifications(){
   const [search,setSearch]=useState("");
   const [title,setTitle]=useState("");
   const [message,setMessage]=useState("");
+  const [targetPath,setTargetPath]=useState("");
   const titleInputRef=useRef<HTMLInputElement>(null);
   const messageInputRef=useRef<HTMLTextAreaElement>(null);
   const [customSound,setCustomSound]=useState(false);
@@ -215,7 +216,7 @@ export default function AdminNotifications(){
     try{
       const planning=deliveryMode==="scheduled";
       const r=await apiRequest("POST",planning?"/api/admin/b2b-notifications/scheduled":"/api/admin/b2b-notifications/send",{
-        title:title.trim(),body:message.trim(),all,userIds:selected,customSound,includeLoggedOut,
+        title:title.trim(),body:message.trim(),targetPath:targetPath.trim(),all,userIds:selected,customSound,includeLoggedOut,
         ...(planning?{scheduledAt}:{}),
         ...(planning&&repeatEnabled?{repeatUnit:repeatEndDate?repeatUnit:"day",repeatEvery:repeatEndDate?repeatEvery:1,repeatEndDate:repeatEndDate||undefined}:{}),
       });
@@ -226,7 +227,7 @@ export default function AdminNotifications(){
            description:formatTurkeyDate(result.scheduled_at)+" · "+result.recipient_count+" müşteri"+
              (repeatEnabled?" · "+repeatDescription({repeat_unit:result.repeat_unit,repeat_every:result.repeat_every})+(repeatEndDate?" · Bitiş: "+repeatEndDate:" · Süresiz"):"")}
         : {title:"Bildirim kaydedildi",description:`${result.saved} müşteri · ${result.tokens} kayıtlı cihaz · Expo kabul: ${result.accepted}`});
-      setTitle("");setMessage("");setScheduledDate("");setRepeatEndDate("");setRepeatEnabled(false);setRepeatUnit("day");setRepeatEvery(1);
+      setTitle("");setMessage("");setTargetPath("");setScheduledDate("");setRepeatEndDate("");setRepeatEnabled(false);setRepeatUnit("day");setRepeatEvery(1);
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications"]}),
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-notifications/scheduled"]}),
@@ -236,7 +237,7 @@ export default function AdminNotifications(){
   }
   function openScheduleEditor(item:ScheduledMessage){
     setEditingSchedule({
-      id:item.id,title:item.title,body:item.body,
+      id:item.id,title:item.title,body:item.body,targetPath:item.target_path||"",
       scheduledDate:turkeyInput(new Date(item.scheduled_at)),
       repeatEnabled:!!item.repeat_unit,
       repeatUnit:item.repeat_unit||"day",repeatEvery:item.repeat_every||1,
@@ -273,7 +274,7 @@ export default function AdminNotifications(){
     setSavingSchedule(true);
     try{
       const response=await apiRequest("PUT","/api/admin/b2b-notifications/scheduled/"+encodeURIComponent(draft.id)+"/details",{
-        title:draft.title.trim(),body:draft.body.trim(),scheduledAt:start.toISOString(),
+        title:draft.title.trim(),body:draft.body.trim(),targetPath:draft.targetPath.trim(),scheduledAt:start.toISOString(),
         all:draft.all,userIds:draft.all?[]:draft.userIds,includeLoggedOut:draft.includeLoggedOut,
         customSound:draft.customSound,
         ...(draft.repeatEnabled?{
@@ -407,6 +408,24 @@ export default function AdminNotifications(){
                 value={message} maxLength={800} onChange={e=>setMessage(e.target.value)}
                 placeholder="Kullanıcının telefonunda ve uygulama bildirim kutusunda görünecek mesaj"/>
             </div>
+            <div className="space-y-2 rounded-xl border bg-background p-3">
+              <label htmlFor="notification-target" className="block text-sm font-semibold">Ürün veya sayfa bağlantısı (isteğe bağlı)</label>
+              <Input id="notification-target" type="text" inputMode="url" maxLength={500}
+                value={targetPath} onChange={event=>setTargetPath(event.target.value)}
+                placeholder="https://b2b.ecalisgan.com/urun/145"/>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["Ana sayfa","/"],["Ürünler","/urunler"],["Kategoriler","/kategoriler"],
+                  ["Siparişlerim","/siparislerim"],["Hesabım","/hesabim"],
+                ].map(([label,path])=><Button key={path} size="sm" type="button" variant="outline"
+                  onClick={()=>setTargetPath(path)}>{label}</Button>)}
+                {targetPath?<Button size="sm" type="button" variant="ghost" onClick={()=>setTargetPath("")}>Temizle</Button>:null}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Bildirime dokunulduğunda seçilen ürün veya sayfa açılır. Yalnızca b2b.ecalisgan.com
+                bağlantıları ya da /urun/145 gibi site içi yollar kabul edilir. Bağlantı boşsa mevcut davranış değişmez.
+              </p>
+            </div>
             <div className="rounded-xl border bg-muted/20 p-3">
               <div className="flex items-center gap-2 font-semibold"><Volume2 className="h-4 w-4"/> Bildirim sesi</div>
               <label className="mt-2 flex items-center gap-2 text-sm">
@@ -532,6 +551,9 @@ export default function AdminNotifications(){
                     {item.last_sent_at?" · Son gönderim: "+formatTurkeyDate(item.last_sent_at):""}
                     {" · "}Toplam Expo kabul: {item.accepted_count}
                   </p>:null}
+                  {item.target_path?<p className="text-xs text-blue-700 break-all">
+                    Yönlendirme: {item.target_path}
+                  </p>:null}
                   {item.last_error?<p className="text-xs text-destructive">{item.last_error}</p>:null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -566,6 +588,12 @@ export default function AdminNotifications(){
                 <label className="block space-y-1 text-xs font-semibold">Bildirim mesajı
                   <textarea rows={3} maxLength={800} className="w-full rounded-lg border bg-background p-3 text-sm font-normal"
                     value={editingSchedule.body} onChange={e=>changeScheduleDraft({body:e.target.value})}/>
+                </label>
+                <label className="block space-y-1 text-xs font-semibold">
+                  Ürün veya sayfa bağlantısı (isteğe bağlı)
+                  <Input type="text" inputMode="url" maxLength={500} value={editingSchedule.targetPath}
+                    placeholder="/urun/145 veya https://b2b.ecalisgan.com/urun/145"
+                    onChange={e=>changeScheduleDraft({targetPath:e.target.value})}/>
                 </label>
                 <div className="flex flex-wrap gap-4 text-sm">
                   <label className="flex cursor-pointer items-center gap-2">

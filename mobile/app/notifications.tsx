@@ -6,6 +6,7 @@ import { Screen } from '@/components/ui/Screen';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BNotification } from '@/lib/api';
 import { registerB2BPush } from '@/lib/push';
+import { openB2BNotificationTarget } from '@/lib/notification-navigation';
 import { isStoreNearbyEnabled,revokeStoreNearby } from '@/lib/store-geofence';
 import {useAuth} from '@/contexts/AuthContext';
 import { appAlert } from '@/lib/appAlert';
@@ -31,6 +32,7 @@ export default function NotificationsScreen() {
     if(!item.read_at){
       void rmaApi.markB2BNotificationRead(item.id).then(()=>setItems(prev=>prev.map(n=>n.id===item.id?{...n,read_at:new Date().toISOString()}:n))).catch(()=>undefined);
     }
+    if(item.target_path && await openB2BNotificationTarget(router,item.target_path))return;
     if(item.event_key==='invoice_issued')router.push({pathname:'/account/[section]',params:{section:'invoices'}} as never);
     else if(item.event_key==='order_created')router.push('/my-orders' as never);
     else if(item.event_key==='return_approved')router.push({pathname:'/account/[section]',params:{section:'returns'}} as never);
@@ -83,6 +85,7 @@ export default function NotificationsScreen() {
             <Text style={{color:palette.text,fontWeight:item.read_at?'600':'800',fontSize:14}}>{item.title}</Text>
             <Text style={{color:palette.textSecondary,fontSize:13,lineHeight:19,marginTop:4}}>{item.body}</Text>
             <Text style={{color:palette.muted,fontSize:11,marginTop:8}}>{new Date(item.created_at).toLocaleString('tr-TR')}</Text>
+            {item.target_path?<Text style={{color:palette.accent,fontSize:12,marginTop:5,fontWeight:'700'}}>Ürünü veya sayfayı aç</Text>:null}
           </View>
           {!item.read_at?<View style={{height:8,width:8,borderRadius:4,backgroundColor:palette.accent,marginTop:8}}/>:null}
        </Pressable>)}

@@ -1,6 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
 import { sendPushToUsers } from "./push-notifications";
+import {parseB2BNotificationTarget} from "./b2b-notification-target";
 import { b2bScheduledDailyKey, upgradeRequestedMorningCampaign } from "./b2b-morning-campaign";
 import { parseNotificationSchedule } from "./b2b-scheduled-time";
 import { effectiveNotificationRepeat, nextNotificationOccurrenceBeforeEnd, parseNotificationRepeat, parseNotificationRepeatEnd, type NotificationRepeatUnit } from "./b2b-notification-repeat";
@@ -9,6 +10,7 @@ type SchedulerRow = {
   id: string;
   title: string;
   body: string;
+  target_path: string | null;
   recipient_ids: number[];
   audience_all: boolean;
   sound: "default" | "custom";
@@ -52,6 +54,7 @@ function ensureScheduledTable(ensureInbox: () => Promise<void>): Promise<void> {
         );
         ALTER TABLE b2b_scheduled_notifications
           ADD COLUMN IF NOT EXISTS include_logged_out BOOLEAN NOT NULL DEFAULT FALSE;
+        ALTER TABLE b2b_scheduled_notifications ADD COLUMN IF NOT EXISTS target_path TEXT;
         ALTER TABLE b2b_scheduled_notifications
           ADD COLUMN IF NOT EXISTS repeat_unit TEXT,
           ADD COLUMN IF NOT EXISTS repeat_every INTEGER NOT NULL DEFAULT 1,
@@ -129,7 +132,7 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
         ORDER BY scheduled_at, id LIMIT 5 FOR UPDATE SKIP LOCKED
       ) due
       WHERE s.id=due.id
-      RETURNING s.id,s.title,s.body,s.recipient_ids,s.audience_all,s.sound,s.include_logged_out,
+      RETURNING s.id,s.title,s.body,s.target_path,s.recipient_ids,s.audience_all,s.sound,s.include_logged_out,
                 s.scheduled_at,s.repeat_start_at,s.repeat_end_at,s.repeat_unit,s.repeat_every
     `);
     for (const job of claimed.rows) {
@@ -160,12 +163,12 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
         if (ids.length) {
           const inserted = await pool.query<{user_id:number}>(`
             INSERT INTO b2b_notifications
-              (user_id,title,body,source,event_key,dedupe_key,sound)
-            SELECT id,$2,$3,'scheduled',NULL,$4,$5
+              (user_id,title,body,source,event_key,dedupe_key,sound,target_path)
+            SELECT id,$2,$3,'scheduled',NULL,$4,$5,$6
             FROM users WHERE id=ANY($1::int[])
             ON CONFLICT (user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
             RETURNING user_id
-          `, [ids,job.title,job.body,b2bScheduledDailyKey(job.id,job.scheduled_at),job.sound]);
+          `, [ids,job.title,job.body,b2bScheduledDailyKey(job.id,job.scheduled_at),job.sound,job.target_path]);
           newlyNotifiedUserIds=inserted.rows.map(row=>Number(row.user_id));
           saved=newlyNotifiedUserIds.length;
         }
@@ -175,7 +178,7 @@ async function processScheduledNotifications(ensureInbox: () => Promise<void>) {
           title: job.title,
           body: job.body,
           sound: soundEnabled ? "b2b-custom.wav" : "default",
-          data: { type: "scheduled", scheduleId: job.id },
+          data: { type: "scheduled", scheduleId: job.id,...(job.target_path?{targetPath:job.target_path}:{}) },
         },{ includeLoggedOut: job.include_logged_out }) : { sent: 0, tokenCount: 0 };
         const nextAt = job.repeat_unit
           ? nextNotificationOccurrenceBeforeEnd(job.repeat_start_at || job.scheduled_at, job.repeat_unit, job.repeat_every, new Date(), job.repeat_end_at)
@@ -224,7 +227,7 @@ export function registerB2BScheduledNotifications(
     try {
       await ensureScheduledTable(ensureInbox);
       const items = await pool.query(`
-        SELECT id,title,body,recipient_ids,recipient_count,audience_all,include_logged_out,sound,scheduled_at,
+        SELECT id,title,body,target_path,recipient_ids,recipient_count,audience_all,include_logged_out,sound,scheduled_at,
                status,created_at,completed_at,saved_count,accepted_count,token_count,last_error,
                repeat_unit,repeat_every,repeat_start_at,repeat_end_at,paused,sent_count,last_sent_at
         FROM b2b_scheduled_notifications ORDER BY
@@ -246,6 +249,8 @@ export function registerB2BScheduledNotifications(
     const body=typeof req.body?.body==="string"?req.body.body.trim():"";
     if(!title||title.length>180||!body||body.length>800)
       return res.status(400).json({error:"Başlık 1–180, mesaj 1–800 karakter olmalı"});
+    const target=parseB2BNotificationTarget(req.body?.targetPath);
+    if(!target.ok)return res.status(400).json({error:target.error});
     const parsedSchedule=parseNotificationSchedule(req.body?.scheduledAt);
     if(parsedSchedule.error)return res.status(400).json({error:parsedSchedule.error});
     const planned=parsedSchedule.date!;
@@ -275,12 +280,12 @@ export function registerB2BScheduledNotifications(
       const sound=req.body?.customSound===true?"custom":"default";
       const created=await pool.query(`
         INSERT INTO b2b_scheduled_notifications
-          (title,body,recipient_ids,recipient_count,audience_all,sound,scheduled_at,include_logged_out,
+          (title,body,target_path,recipient_ids,recipient_count,audience_all,sound,scheduled_at,include_logged_out,
            repeat_unit,repeat_every,repeat_start_at,repeat_end_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        VALUES ($1,$2,$13,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         RETURNING id,scheduled_at,recipient_count,status,repeat_unit,repeat_every,repeat_start_at,repeat_end_at,paused
       `,[title,body,valid,valid.length,all,sound,planned.toISOString(),includeLoggedOut,
-         effectiveRepeat.unit,effectiveRepeat.every,effectiveRepeat.unit?planned.toISOString():null,end.date?.toISOString()||null]);
+         effectiveRepeat.unit,effectiveRepeat.every,effectiveRepeat.unit?planned.toISOString():null,end.date?.toISOString()||null,target.path]);
       return res.status(201).json(created.rows[0]);
     } catch(error) {
       console.error("B2B notification scheduling",error);
@@ -299,6 +304,8 @@ export function registerB2BScheduledNotifications(
     const body=typeof req.body?.body==="string"?req.body.body.trim():"";
     if(!title||title.length>180||!body||body.length>800)
       return res.status(400).json({error:"Başlık 1–180, mesaj 1–800 karakter olmalı"});
+    const target=parseB2BNotificationTarget(req.body?.targetPath);
+    if(!target.ok)return res.status(400).json({error:target.error});
     const parsed=parseNotificationSchedule(req.body?.scheduledAt);
     if(parsed.error)return res.status(400).json({error:parsed.error});
     const repeat=parseNotificationRepeat(req.body?.repeatUnit,req.body?.repeatEvery);
@@ -346,17 +353,17 @@ export function registerB2BScheduledNotifications(
         : null;
       const changed=await pool.query(`
         UPDATE b2b_scheduled_notifications
-        SET title=$2,body=$3,recipient_ids=$4,recipient_count=$5,
+        SET title=$2,body=$3,target_path=$14,recipient_ids=$4,recipient_count=$5,
             audience_all=$6,include_logged_out=$7,sound=$8,
             scheduled_at=$9,repeat_unit=$10,repeat_every=$11,
             repeat_start_at=$12,repeat_end_at=$13,last_error=NULL
         WHERE id::text=$1 AND status='pending'
-        RETURNING id,title,body,recipient_count,audience_all,include_logged_out,sound,
+        RETURNING id,title,body,target_path,recipient_count,audience_all,include_logged_out,sound,
           scheduled_at,status,repeat_unit,repeat_every,repeat_start_at,repeat_end_at,paused,
           saved_count,accepted_count,token_count,sent_count,last_sent_at
       `,[id,title,body,valid,valid.length,audienceAll,includeLoggedOut,sound,
          next.toISOString(),effective.unit,effective.every,anchor?.toISOString()??null,
-         end.date?.toISOString()??null]);
+         end.date?.toISOString()??null,target.path]);
       return changed.rows[0]?res.json(changed.rows[0]):
         res.status(409).json({error:"Gönderim başladı; bu bildirim artık düzenlenemez"});
     }catch(error){

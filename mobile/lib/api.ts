@@ -540,6 +540,7 @@ export type B2BNotification = {
   body: string;
   source: 'manual' | 'automatic';
   event_key?: string | null;
+  target_path?: string | null;
   read_at?: string | null;
   created_at: string;
 };
