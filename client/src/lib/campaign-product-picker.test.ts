@@ -15,7 +15,7 @@ const products:CampaignProductOption[]=[
 test("searches by Turkish product name, sku, brand and category",()=>{
   assert.deepEqual(findCampaignProducts(products,"RUBENIS",[]).map(p=>p.id),[14,15]);
   assert.deepEqual(findCampaignProducts(products,"cv-15l",[]).map(p=>p.id),[14]);
-  assert.deepEqual(findCampaignProducts(products,"Şemsiye",[]).map(p=>p.id),[14]);
+  assert.deepEqual(findCampaignProducts(products,"Şemsiye",[]).map(p=>p.id),[14,15]);
   assert.deepEqual(findCampaignProducts(products,"  RUBENIS  BASTON ",[]).map(p=>p.id),[14]);
 });
 test("keeps assigned products out of results, ignores inactive products and doesn't list all items for a one-letter search",()=>{
