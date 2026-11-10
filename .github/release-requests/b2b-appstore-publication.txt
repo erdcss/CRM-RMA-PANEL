@@ -1,12 +1,14 @@
-ÇALIŞKAN B2B — APP STORE YENİ SÜRÜM İNCELEME TALEBİ
-Tarih: 2026-10-27
-Kullanıcı doğrudan güncel Çalışkan B2B sürümünün App Store'da yayımlanmasını istedi.
-Şu an görünen App Store sürümü: 1.0.2, Ready for Distribution.
-Hedef sürüm: 1.1.0 (mobile/app.json)
-Bundle ID: com.caliskangroup.rma
-ASC App ID: 6802286663
-Doğrulanan TestFlight yüklemesi: GitHub Actions run #40336654003, 2026-10-26, iOS 1.1.0, submit SUCCESS.
-Yalnızca B2B'yi incelemeye gönder; Business App'e dokunma.
-App Store Connect yetkilendirme anahtarlarını doğrula; varsa yeni derleme oluşturmadan 1.1.0 build'ini seçip incelemeye gönder.
-Apple onayından sonra automatic_release=true; mevcut sürüm 1.0.2 inceleme öncesi korunur.
-Uygulama API anahtarları yoksa dur ve eksik anahtarları iş raporunda belirt; gerçekte incelemeye gönderilmiş gibi rapor verme.
+ÇALIŞKAN B2B — APP STORE 1.3.12 GÜNCELLEME VE APP REVIEW TALEBİ
+Tarih: 2026-11-10
+Kullanıcı talebi: "apple store güncelleme gönderelim"
+Hedef YALNIZCA Çalışkan B2B. Çalışkan Business uygulamasına dokunma.
+Bundle: com.caliskangroup.rma
+Apple ASC App ID: 6802286663
+Hedef sürüm: 1.3.12 (mobile/app.json)
+İmzalı build ve TestFlight yüklemesi: GitHub Actions #42810671441, tüm adımlar SUCCESS.
+İçerik: iOS flash kampanya ve mobil banner görüntüleme düzeltmeleri, mobil bildirimden ürün/sayfa deep link.
+İstenen: App Store Connect API anahtarları varsa mevcut 1.3.12 işlenmiş build'i App Review'a gönder; derleme no boş bırak, Fastlane mevcut sürümün işlenmiş son build'ini seçsin.
+App Store onayından sonra otomatik yayın yetkisi kullanıcı talebiyle verilmiştir.
+Mağazadaki mevcut sürüm, inceleme onaylanana kadar korunacak.
+Gizli API anahtarlarını ifşa etme. Meta/TikTok ölçüm izinlerini değiştirme.
+Eksik GitHub API secret, işlenmemiş build, metadata eksikliği veya Apple inceleme engeli olursa başarısız adımı raporla; App Review'a gönderildiğini varsayma.
