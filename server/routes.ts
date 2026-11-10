@@ -11,6 +11,7 @@ import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
+import {CALISKAN_META_PIXEL_ID} from "./b2b-meta-dataset";
 import { registerDukkanRoutes } from "./dukkan";
 import {
   completeIyzico3DS,
@@ -4876,7 +4877,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const stored=await pool.query("SELECT value FROM platform_settings WHERE key='b2b_meta_tracking' LIMIT 1");
       const config=JSON.parse(String(stored.rows[0]?.value||"{}"));
       if(config.enabled===false)return res.json({configured:false,sent:false});
-      const pixelId=typeof config.pixelId==="string"&&/^[0-9]{10,20}$/.test(config.pixelId)?config.pixelId:"949840147857568";
+      const pixelId=typeof config.pixelId==="string"&&/^[0-9]{10,20}$/.test(config.pixelId)?config.pixelId:CALISKAN_META_PIXEL_ID;
       const b2bUser=(res.locals as any).b2bUser;
       const email=String(b2bUser?.email||b2bUser?.username||"").trim().toLowerCase();
       if(!email.includes("@"))return res.status(403).json({error:"E-posta doğrulanamadı"});
