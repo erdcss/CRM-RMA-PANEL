@@ -1375,7 +1375,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     try {
       const result = await pool.query(`
         SELECT
-          id,
+          id::text AS id,
           sku,
           name,
           brand,
