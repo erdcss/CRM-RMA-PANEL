@@ -21,7 +21,7 @@ test("manual sale price changes remain manual; invalid input never alters existi
   assert.equal(updateDukkanNewProductPrice(original,"salePrice","1650",null,"").salePrice,"1650");
   assert.equal(updateDukkanNewProductPrice(original,"purchasePrice","1500",null,"").salePrice,"1550");
   assert.strictEqual(applyDukkanNewProductMarkup(original,"custom","not-a-rate"),original);
-  assert.strictEqual(applyDukkanNewProductMarkup(original,"20",""),applyDukkanNewProductMarkup(original,"20","")===original?original:original);
+  assert.equal(applyDukkanNewProductMarkup(original,"20","").salePrice,"1500.00");
 });
 test("new product preview shows unit profit, cost mark-up, and sale margin separately",()=>{
   const result=productProfitPreview("1250","1550");
