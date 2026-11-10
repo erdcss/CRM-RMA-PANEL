@@ -90,7 +90,7 @@ export async function getLastBusinessApplicationPress() {
   if (!response) return null;
   const data = (response.notification.request.content.data || {}) as Record<string, unknown>;
   const type = typeof data.type === "string" ? data.type : "";
-  if (type !== "b2b_application" && type !== "supplier_application") return null;
+  if (!["b2b_application", "supplier_application", "order", "support", "order_cancelled"].includes(type)) return null;
   await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
   return { type, data };
 }
