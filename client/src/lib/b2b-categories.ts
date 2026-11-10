@@ -8,7 +8,15 @@ export type B2BCategoryCard = {
   tags?: string[];
   subcategories?: B2BSubcategory[];
 };
+export type RoundBottomBanner = {
+  enabled:boolean;imageId:string;heroImageId:string;
+  title:string;subtitle:string;badgeText:string;buttonText:string;
+  backgroundColor:string;accentColor:string;textColor:string;
+  circleSize:number;bottomOffset:number;productIds:number[];
+  showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
+};
 export type B2BHomepageCategories = {
+  roundBottomBanner?:RoundBottomBanner;
   categories: string[];
   categoryCards?: B2BCategoryCard[];
 };
@@ -25,6 +33,8 @@ export async function loadB2BHomepageCategories(): Promise<B2BHomepageCategories
       ? data.categories.filter((item: unknown): item is string => typeof item === "string" && Boolean(item.trim()))
       : [],
     categoryCards: Array.isArray(data?.categoryCards) ? data.categoryCards : [],
+    roundBottomBanner:data?.roundBottomBanner && typeof data.roundBottomBanner==='object'
+      ? data.roundBottomBanner as RoundBottomBanner:undefined,
   };
 }
 
