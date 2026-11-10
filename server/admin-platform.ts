@@ -1080,7 +1080,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
 
     const categories = normalizeHomepageCategories(req.body?.categories);
-    const containsLayout = ["banners", "categoryCards", "sliderAutoPlay", "sliderIntervalMs"].some(key => Object.prototype.hasOwnProperty.call(req.body || {}, key));
+    const containsLayout = ["banners", "categoryCards", "sliderAutoPlay", "sliderIntervalMs", "roundBottomBanner"].some(key => Object.prototype.hasOwnProperty.call(req.body || {}, key));
 
     try {
       await pool.query(
