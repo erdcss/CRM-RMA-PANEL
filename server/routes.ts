@@ -4186,11 +4186,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       void notifyVerifiedSupplierOrder(String(order.order_number),order.items,stockReview)
         .catch(e=>console.error("Verified supplier notification",e));
 
-      void sendBusinessPushToSuperAdmins( {
+      void sendBusinessPushToSuperAdmins({
         title: "Yeni sipariş",
         body: `${order.order_number} · Kart ödemesi başarılı`,
         data: { type: "order", orderNumber: order.order_number },
-      });
+      }).catch(error => console.error("Business event push failed:", error));
       if (order.user_id) void notifyB2BEvent(Number(order.user_id),"order_created", {
         orderNumber: String(order.order_number),
         amount: Number(order.total_amount||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
@@ -4543,11 +4543,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               .catch(e=>console.error("Supplier cart cleanup",e));
             void notifyVerifiedSupplierOrder(String(order.order_number),order.items,true)
               .catch(e=>console.error("Supplier payment stock review notice",e));
-            void sendBusinessPushToSuperAdmins( {
+            void sendBusinessPushToSuperAdmins({
               title: "Yeni sipariş",
               body: `${order.order_number} · Ödeme başarılı · Stok kontrolü gerekli`,
               data: { type: "order", orderNumber: order.order_number },
-            });
+            }).catch(error => console.error("Business event push failed:", error));
             if (order.user_id) void notifyB2BEvent(Number(order.user_id),"order_created",{
               orderNumber:String(order.order_number),
               amount:Number(order.total_amount||0).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
@@ -4608,11 +4608,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .catch(e=>console.error("Supplier cart cleanup",e));
         void notifyVerifiedSupplierOrder(String(order.order_number),order.items)
           .catch(e=>console.error("Supplier payment notification",e));
-        void sendBusinessPushToSuperAdmins( {
+        void sendBusinessPushToSuperAdmins({
           title: "Yeni sipariş",
           body: `${order.order_number} · Kart ödemesi başarılı`,
           data: { type: "order", orderNumber: order.order_number },
-        });
+        }).catch(error => console.error("Business event push failed:", error));
       }
 
       const mobileUrl = mobileResultUrl(
@@ -4776,11 +4776,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // supplier cart lines, but do NOT mark it paid or alert suppliers yet.
     void removePurchasedMarketplaceCartItems(Number(user.id),orderItems)
       .catch(e=>console.error("Pending EFT cart cleanup",e));
-    void sendBusinessPushToSuperAdmins( {
+    void sendBusinessPushToSuperAdmins({
       title: "Yeni sipariş",
       body: `${orderNumber} · ${Number(total).toLocaleString("tr-TR")} ₺ · Havale/EFT`,
       data: { type: "order", orderNumber },
-    });
+    }).catch(error => console.error("Business event push failed:", error));
     void notifyB2BEvent(user.id, "order_created", {
       orderNumber, amount: Number(total).toLocaleString("tr-TR",{style:"currency",currency:"TRY"}),
     }, `order_created:${orderNumber}`).catch(error => console.error("Bank order notification",error));
@@ -4819,11 +4819,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ error: "Havale/EFT siparişi bulunamadı" });
     }
 
-    void sendBusinessPushToSuperAdmins( {
+    void sendBusinessPushToSuperAdmins({
       title: "Havale bildirimi",
       body: `${result.rows[0].order_number} için müşteri ödeme yaptığını bildirdi.`,
       data: { type: "order", orderNumber: result.rows[0].order_number },
-    });
+    }).catch(error => console.error("Business event push failed:", error));
 
     return res.json(result.rows[0]);
   });
@@ -5002,11 +5002,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ],
     ).catch(() => undefined);
 
-    void sendBusinessPushToSuperAdmins( {
+    void sendBusinessPushToSuperAdmins({
       title: "Sipariş iptal talebi",
       body: `${result.rows[0].order_number} için müşteri iptal talebi oluşturdu.`,
       data: { type: "support", orderNumber: result.rows[0].order_number },
-    });
+    }).catch(error => console.error("Business event push failed:", error));
 
     return res.json(result.rows[0]);
   });
@@ -5068,11 +5068,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       [user.id, subject, message],
     );
 
-    void sendBusinessPushToSuperAdmins( {
+    void sendBusinessPushToSuperAdmins({
       title: "Yeni destek mesajı",
       body: subject,
       data: { type: "support", ticketId: result.rows[0]?.id },
-    });
+    }).catch(error => console.error("Business event push failed:", error));
 
     return res.status(201).json(result.rows[0]);
   });
