@@ -7,6 +7,9 @@ on:
       - 'client/src/components/b2b-footer.tsx'
       - 'client/src/pages/b2b-privacy.tsx'
       - 'client/src/components/b2b-cookie-consent.test.cjs'
+      - 'server/b2b-meta-dataset.ts'
+      - 'server/b2b-meta-dataset.test.ts'
+      - 'server/admin-platform.ts'
       - '.github/workflows/b2b-web-cookie-consent-check.yml'
   workflow_dispatch:
 jobs:
@@ -22,6 +25,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Verify single consent box, no tracking before accept
         run: node --test client/src/components/b2b-cookie-consent.test.cjs
+      - name: Verify new Meta dataset ID and one-time persisted migration
+        run: npx tsx --test server/b2b-meta-dataset.test.ts
       - name: TypeScript check
         run: npm run check
       - name: Production web build
