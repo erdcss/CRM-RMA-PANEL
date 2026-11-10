@@ -9,13 +9,14 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin-subcategory-drawer";
 import { AdminRoundBottomBanner, DEFAULT_ROUND_BOTTOM_BANNER, type RoundBottomBanner } from "@/components/admin-round-bottom-banner";
+import type {CampaignProductOption} from "@/lib/campaign-product-picker";
 
 type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
   imageWidth?:number;imageHeight?:number;
   linkType:'none'|'product'|'page'|'url';productId:number|null;pagePath:string;externalUrl:string;
 };
-type ProductOption={id:number|string;name:string;sku?:string|null};
+type ProductOption=CampaignProductOption;
 const pageDestinations=[
   {path:'/(tabs)',label:'Ana Sayfa'}, {path:'/(tabs)/products',label:'Ürünler'},
   {path:'/(tabs)/discover',label:'Keşfet'}, {path:'/(tabs)/menu',label:'Menü'},
