@@ -6,7 +6,7 @@ function check(condition: unknown, message: string) {
 const overview = getBusinessReviewFixture("/api/admin/dashboard-overview") as {
   orderCount:number; recentOrders:unknown[];
 };
-check(overview.orderCount===2, "demo dashboard metrics");
+check(overview.orderCount===0, "historical demo orders must not be counted today");
 check(Array.isArray(overview.recentOrders), "real dashboard data shape");
 
 const orders=getBusinessReviewFixture("/api/admin/orders") as {id:string;order_number:string}[];
