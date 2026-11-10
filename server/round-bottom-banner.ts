@@ -9,6 +9,7 @@ export type RoundBottomBanner = {
   productIds:string[]; showPrices:boolean; showCountdown:boolean;
   endAt:string; cardStyle:'standard'|'compact';
   heroImageMode?:'full'|'background';
+  heroCropPercent?:number;
 };
 
 const color=/^#[0-9a-fA-F]{6}$/;
@@ -45,6 +46,8 @@ export function normalizeRoundBottomBanner(raw:unknown):RoundBottomBanner {
     imageId,
     heroImageId:image.test(String(p.heroImageId||''))?String(p.heroImageId):'',
     heroImageMode:p.heroImageMode==='full'?'full':'background',
+    // Legacy artwork contains white padding; allow trimming it without modifying stored media.
+    heroCropPercent:bounded(p.heroCropPercent,0,20,12),
     title:text(p.title,90)||'Flash Ürünler',
     subtitle:text(p.subtitle,260)||'Çalışkan B2B özel fırsatlarını keşfedin.',
     badgeText:text(p.badgeText,55)||'ÖZEL KAMPANYA',
