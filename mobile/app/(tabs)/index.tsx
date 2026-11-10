@@ -31,6 +31,7 @@ import {
   type B2BReel,
   type HomeBanner,
   type HomeCategoryCard,
+  type RoundBottomBanner,
 } from '@/lib/api';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
   const [ledgerTileImageId, setLedgerTileImageId] = useState('');
   const [banners, setBanners] = useState<HomeBanner[]>([]);
+  const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner|undefined>();
   const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
@@ -141,6 +143,7 @@ export default function HomeScreen() {
     setCategoryCards(homepage.categoryCards || []);
     setLedgerTileImageId(homepage.ledgerTileImageId || '');
     setBanners(homepage.banners || []);
+    setRoundBottomBanner(homepage.roundBottomBanner);
     setSliderAutoPlay(homepage.sliderAutoPlay !== false);
     setSliderIntervalMs(homepage.sliderIntervalMs || 5000);
   }, []);
@@ -666,6 +669,32 @@ export default function HomeScreen() {
           </Pressable>
         ) : null}
       </ScrollView>
+      {roundBottomBanner?.enabled&&roundBottomBanner.imageId&&
+       roundBottomBanner.productIds?.length>0&&
+       (!roundBottomBanner.endAt||new Date(roundBottomBanner.endAt).getTime()>Date.now())&&
+       homepageMediaUrl(roundBottomBanner.imageId) ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={roundBottomBanner.buttonText||'Kampanyaları keşfet'}
+          onPress={()=>router.push('/campaigns' as never)}
+          style={{
+            position:'absolute',right:16,
+            bottom:Math.min(240,Math.max(90,Number(roundBottomBanner.bottomOffset)||112)),
+            width:Math.min(128,Math.max(56,Number(roundBottomBanner.circleSize)||84)),
+            height:Math.min(128,Math.max(56,Number(roundBottomBanner.circleSize)||84)),
+            borderRadius:999,overflow:'hidden',
+            borderWidth:3,borderColor:roundBottomBanner.accentColor||'#FFCD00',
+            backgroundColor:roundBottomBanner.backgroundColor||'#0B1225',
+            elevation:13,zIndex:60,
+            shadowColor:'#000000',shadowOpacity:0.27,shadowRadius:12,
+          }}
+        >
+          <Image source={{uri:homepageMediaUrl(roundBottomBanner.imageId)!}}
+            style={{width:'100%',height:'100%'}} contentFit="cover"
+            accessibilityIgnoresInvertColors
+          />
+        </Pressable>
+      ):null}
       <BarcodeScannerModal visible={scannerOpen} title="Ürün Barkodu Oku" scanMode="lookup"
         hint="Ürün barkodunu okutun. Eşleşme varsa ürün sayfasına yönlendirilirsiniz."
         onClose={() => setScannerOpen(false)}
