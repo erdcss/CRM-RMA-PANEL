@@ -1,0 +1,39 @@
+name: B2B privacy settings without customer SDK diagnostics
+on:
+  pull_request:
+    paths:
+      - 'mobile/app/settings.tsx'
+      - 'mobile/app/privacy-preferences.tsx'
+      - 'mobile/components/auth/AuthGate.tsx'
+      - 'mobile/scripts/check-privacy-settings.cjs'
+      - '.github/workflows/b2b-privacy-settings-check.yml'
+  push:
+    paths:
+      - 'mobile/app/settings.tsx'
+      - 'mobile/app/privacy-preferences.tsx'
+      - 'mobile/components/auth/AuthGate.tsx'
+      - 'mobile/scripts/check-privacy-settings.cjs'
+      - '.github/workflows/b2b-privacy-settings-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Privacy consent, hidden diagnostics and mobile TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Validate hidden SDK controls and accessible privacy opt-outs
+        run: node mobile/scripts/check-privacy-settings.cjs
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check B2B app TypeScript
+        working-directory: mobile
+        run: npm run typecheck
