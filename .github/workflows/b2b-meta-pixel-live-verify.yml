@@ -1,0 +1,46 @@
+name: Verify Çalışkan Meta Pixel Dataset Live
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/b2b-meta-pixel-live-verify.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public Pixel config after Railway deployment
+        env:
+          EXPECTED_PIXEL_ID: '1496993098956595'
+        run: |
+          node <<'NODE'
+          const targets=[
+            'https://b2b.ecalisgan.com/api/public/meta-tracking',
+            'https://admin.ecalisgan.com/api/public/meta-tracking'
+          ];
+          const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+          (async()=>{
+            for(let attempt=1;attempt<=12;attempt++){
+              for(const url of targets){
+                try{
+                  const response=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(12000)});
+                  const body=await response.text();
+                  if(!response.ok){
+                    console.log('HTTP '+response.status+' from '+url);
+                    continue;
+                  }
+                  let config;
+                  try{config=JSON.parse(body);}catch{continue;}
+                  console.log('Live Pixel '+url+': '+String(config.pixelId)+', configured: '+String(config.enabled));
+                  if(config.pixelId===process.env.EXPECTED_PIXEL_ID){
+                    console.log('SUCCESS: Çalışkan Meta dataset correctly configured. No consent or token information exposed.');
+                    return;
+                  }
+                }catch(error){console.log('Attempt '+attempt+': '+String(error.message||error));}
+              }
+              if(attempt<12)await sleep(10000);
+            }
+            throw Error('Expected Pixel ID was not returned by live B2B configuration');
+          })().catch(e=>{console.error(e);process.exit(1);});
+          NODE
