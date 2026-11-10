@@ -51,6 +51,7 @@ export type DashboardOverview = {
   liveUsers: number;
   conversionRate: number;
   orderCount: number;
+  approvedTodayOrderCount?: number;
   activeReturns: number;
   openSupport?: number;
   lowStock?: number;
