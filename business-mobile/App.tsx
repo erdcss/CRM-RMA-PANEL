@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Alert,
+  AppState,
   BackHandler,
   Image,
   StatusBar,
@@ -10,7 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { GlassTabBar } from "./components/GlassTabBar";
-import { signOut, type BusinessAuthUser } from "./lib/auth";
+import { restoreBusinessSession, signOut, type BusinessAuthUser } from "./lib/auth";
 import { supplierBackAction } from "./lib/supplier-back";
 import { useMobileBranding } from "./lib/branding";
 import { getLastBusinessApplicationPress, listenBusinessNotificationPress, registerBusinessPush, unregisterBusinessPush } from "./lib/push";
@@ -36,6 +37,8 @@ import { C } from "./ui/theme";
 
 function applicationPushScreen(type: string, data: Record<string, unknown>): Screen | null {
   if (type === "supplier_application") return {name:"marketplace",tab:"suppliers"};
+  if (type === "order") return { name: "orders" };
+  if (type === "support" || type === "order_cancelled") return { name: "support" };
   if (type === "b2b_application") {
     const id = String(data.applicationId ?? "");
     return /^[1-9]\d*$/.test(id) ? {name:"applicationDetail",id} : {name:"applications"};
@@ -48,7 +51,21 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: "login" });
   const [user, setUser] = useState<BusinessAuthUser | null>(null);
   const [showSplash, setShowSplash] = useState(true);
+  const [sessionReady, setSessionReady] = useState(false);
   const [pendingApplicationPress, setPendingApplicationPress] = useState<{type:string;data:Record<string,unknown>} | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    void restoreBusinessSession()
+      .then((session) => {
+        if (!mounted || !session) return;
+        setUser(session.user);
+        setScreen(session.user.role === "b2b_seller" ? { name: "marketplace" } : { name: "dashboard" });
+      })
+      .catch((error) => console.warn("Business session restoration failed:", error))
+      .finally(() => { if (mounted) setSessionReady(true); });
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -99,6 +116,18 @@ export default function App() {
       console.warn("Business push registration failed:", error);
     });
   }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role === "business_reviewer") return;
+    const listener = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        void registerBusinessPush().catch((error) =>
+          console.warn("Business push registration on resume failed:", error),
+        );
+      }
+    });
+    return () => listener.remove();
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     const subscription = listenBusinessNotificationPress((type, data) => {
@@ -295,7 +324,7 @@ export default function App() {
           </SafeAreaView>
         ) : null}
 
-        {showSplash ? (
+        {showSplash || !sessionReady ? (
           <View style={s.splash} pointerEvents="none">
             {branding.business_mobile_splash || branding.business_mobile_logo ? (
               <Image
