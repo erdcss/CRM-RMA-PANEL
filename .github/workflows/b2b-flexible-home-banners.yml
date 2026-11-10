@@ -3,6 +3,17 @@ on:
   push:
     paths:
       - 'server/homepage-media.ts'
+      - 'server/round-bottom-banner.ts'
+      - 'server/round-bottom-banner.test.ts'
+      - 'server/admin-platform.ts'
+      - 'client/src/components/admin-round-bottom-banner.tsx'
+      - 'client/src/components/b2b-round-campaign-button.tsx'
+      - 'client/src/components/b2b-product-card.tsx'
+      - 'client/src/lib/b2b-categories.ts'
+      - 'client/src/pages/b2b-storefront.tsx'
+      - 'client/src/pages/b2b-round-campaign.tsx'
+      - 'client/src/App.tsx'
+      - 'mobile/app/campaigns.tsx'
       - 'server/homepage-media.test.ts'
       - 'client/src/pages/admin-homepage.tsx'
       - 'mobile/lib/home-banner.ts'
@@ -22,5 +33,6 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
       - run: npx tsx --test server/homepage-media.test.ts
+      - run: npx tsx --test server/round-bottom-banner.test.ts
       - run: npx tsx --test mobile/lib/home-banner.test.ts
       - run: npm run build
