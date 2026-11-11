@@ -7,8 +7,14 @@ import {Button} from "@/components/ui/button";
 import type {B2BProfile} from "./admin-b2b-customer-detail";
 import {trDate} from "./admin-b2b-customer-detail";
 
+type CustomerQuickFilter="all"|"verified"|"pending-password";
+
 export default function AdminB2BCustomers(){
   const [query,setQuery]=useState("");
+  const [quickFilter,setQuickFilter]=useState<CustomerQuickFilter>("all");
+  const selectFilter=(next:CustomerQuickFilter)=>{
+    setQuickFilter(current=>current===next&&next!=="all"?"all":next);
+  };
   const {data=[],isLoading,isError,refetch}=useQuery<B2BProfile[]>({
     queryKey:["/api/admin/b2b-customers"],
     queryFn:async()=>{
@@ -18,12 +24,18 @@ export default function AdminB2BCustomers(){
       return result as B2BProfile[];
     },
   });
+  // These local filters only affect the company directory. Summary metrics
+  // always reflect the entire approved-customer dataset returned by the API.
   const list=useMemo(()=>{
+    const filtered=data.filter(u=>
+      quickFilter==="verified"?Boolean(u.taxVerified):
+      quickFilter==="pending-password"?Boolean(u.mustChangePassword):true
+    );
     const q=query.trim().toLocaleLowerCase("tr-TR");
-    return q?data.filter(u=>[
+    return q?filtered.filter(u=>[
       u.companyName,u.firstName,u.lastName,u.email,u.taxNumber,u.companyCategory
-    ].some(x=>String(x||"").toLocaleLowerCase("tr-TR").includes(q))):data;
-  },[data,query]);
+    ].some(x=>String(x||"").toLocaleLowerCase("tr-TR").includes(q))):filtered;
+  },[data,query,quickFilter]);
   const verified=data.filter(u=>u.taxVerified).length;
   const pendingPassword=data.filter(u=>u.mustChangePassword).length;
   return <div className="h-full overflow-y-auto bg-muted/20">
@@ -38,24 +50,35 @@ export default function AdminB2BCustomers(){
           <Button variant="outline" onClick={()=>void refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Yenile</Button>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
+      <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Firma rehberi hızlı filtreleri">
+        <button type="button" onClick={()=>selectFilter("all")} aria-pressed={quickFilter==="all"}
+          aria-controls="b2b-customer-directory"
+          className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickFilter==="all"?"border-primary bg-primary/5 ring-1 ring-primary":"bg-background hover:border-primary/60 hover:bg-muted/40"}`}>
           <div className="flex items-center justify-between text-sm text-muted-foreground">Aktif B2B müşterisi <Users className="h-5 w-5"/></div>
           <div className="mt-3 text-3xl font-black">{data.length}</div>
-        </div>
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
+        </button>
+        <button type="button" onClick={()=>selectFilter("verified")} aria-pressed={quickFilter==="verified"}
+          aria-controls="b2b-customer-directory"
+          className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickFilter==="verified"?"border-primary bg-primary/5 ring-1 ring-primary":"bg-background hover:border-primary/60 hover:bg-muted/40"}`}>
           <div className="flex items-center justify-between text-sm text-muted-foreground">Vergi doğrulanan <ShieldCheck className="h-5 w-5"/></div>
           <div className="mt-3 text-3xl font-black">{verified}</div>
-        </div>
-        <div className="rounded-2xl border bg-background p-4 shadow-sm">
+        </button>
+        <button type="button" onClick={()=>selectFilter("pending-password")} aria-pressed={quickFilter==="pending-password"}
+          aria-controls="b2b-customer-directory"
+          className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickFilter==="pending-password"?"border-primary bg-primary/5 ring-1 ring-primary":"bg-background hover:border-primary/60 hover:bg-muted/40"}`}>
           <div className="flex items-center justify-between text-sm text-muted-foreground">İlk şifresini belirlemeyen <Clock3 className="h-5 w-5"/></div>
           <div className="mt-3 text-3xl font-black">{pendingPassword}</div>
-        </div>
+        </button>
       </div>
-      <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
+      <div id="b2b-customer-directory" className="overflow-hidden rounded-2xl border bg-background shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b p-4">
           <div><h2 className="font-bold">Firma rehberi</h2>
-            <p className="text-xs text-muted-foreground">{list.length} müşteri listeleniyor · Detay için firmaya tıklayın</p></div>
+            <p className="text-xs text-muted-foreground" aria-live="polite">{list.length} müşteri listeleniyor · Detay için firmaya tıklayın</p>
+            {quickFilter!=="all"?<div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-medium text-primary">Filtre: {quickFilter==="verified"?"Vergi doğrulanan":"İlk şifresini belirlemeyen"}</span>
+              <button type="button" className="rounded px-1.5 py-1 text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={()=>setQuickFilter("all")}>Filtreyi temizle</button>
+            </div>:null}</div>
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/>
             <Input value={query} onChange={e=>setQuery(e.target.value)}
@@ -66,8 +89,8 @@ export default function AdminB2BCustomers(){
           :isError?<div className="p-8 text-sm text-destructive">Müşteriler yüklenemedi. Yenile ile yeniden deneyin.</div>
           :list.length===0?<div className="p-10 text-center">
             <Building2 className="mx-auto h-9 w-9 text-muted-foreground"/>
-            <h3 className="mt-3 font-bold">{query?"Aramanıza uygun müşteri yok":"Henüz onaylanmış B2B müşteri yok"}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">Başvuru onaylandığında firma otomatik olarak burada görünür.</p>
+            <h3 className="mt-3 font-bold">{query?"Aramanıza uygun müşteri yok":quickFilter!=="all"?"Bu filtreye uygun müşteri bulunamadı":"Henüz onaylanmış B2B müşteri yok"}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{quickFilter!=="all"?"Başka bir özet kutusuna dokunabilir veya filtreyi temizleyebilirsiniz.":"Başvuru onaylandığında firma otomatik olarak burada görünür."}</p>
           </div>
           :<div className="divide-y">
             {list.map(item=><Link key={item.id} href={`/b2b-musteriler/${item.id}`}
