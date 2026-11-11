@@ -36,7 +36,7 @@ import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
 import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
-import {registerB2BWhatsAppRoutes,saveB2BWhatsAppOptin,queueB2BWhatsAppWelcome,startB2BWhatsAppWelcomeWorker} from "./b2b-whatsapp-onboarding";
+import {registerMarketingRoutes,saveMarketingConsent,queueMarketingWelcome,startMarketingWorker} from "./b2b-whatsapp-marketing";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
 import { registerMetaCatalogFeed } from "./meta-catalog";
 import { registerMetaCatalogAdmin } from "./meta-catalog-sync";
@@ -1467,8 +1467,6 @@ async function sendTemporaryPasswordEmail(input: {
   const intro = reset
     ? "Çalışkan B2B hesabınız için yeni bir tek kullanımlık giriş şifresi oluşturuldu."
     : "Çalışkan B2B başvurunuz onaylandı.";
-  const supportUrl = "https://wa.me/905386983444?text=" +
-    encodeURIComponent("Merhaba Çalışkan B2B, üyeliğimle ilgili destek almak istiyorum.");
   const text = [
     greeting,
     "",
@@ -1477,7 +1475,6 @@ async function sendTemporaryPasswordEmail(input: {
     "",
     "Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan hemen sonra yeni şifrenizi oluşturmanız istenecektir.",
     `Giriş: ${loginUrl}`,
-    ...(!reset ? ["", "Bir sorun yaşarsanız doğrudan WhatsApp destek hattımıza yazabilirsiniz:", supportUrl] : []),
   ].join("\n");
 
   const html = `
@@ -1491,7 +1488,6 @@ async function sendTemporaryPasswordEmail(input: {
       </div>
       <p style="font-size:13px;color:#475569">Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan sonra yeni şifre oluşturma ekranı açılacaktır.</p>
       <p><a href="${escapeHtml(loginUrl)}">Çalışkan B2B giriş ekranını aç</a></p>
-      ${reset ? "" : `<p style="margin-top:22px">Üyeliğiniz veya siparişlerinizle ilgili sorularınız için WhatsApp destek hattımıza ulaşabilirsiniz.</p><p><a href="${escapeHtml(supportUrl)}" style="display:inline-block;background:#178b62;color:white;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:600">WhatsApp Destek Sohbetini Aç</a></p><p style="font-size:12px;color:#64748b">Bağlantı sohbeti açar. Mesaj gönderimi sizin onayınızla gerçekleşir.</p>`}
     </div>
   `;
 
@@ -1680,11 +1676,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     .then(async () => {
       await ensureB2BAccountTables();
       await ensureMobilePushTable();
-      startB2BWhatsAppWelcomeWorker();
+      startMarketingWorker();
     })
     .catch(err => console.error("DB/B2B account init error:", err));
 
-  registerB2BWhatsAppRoutes(app,requireAdmin);
+  registerMarketingRoutes(app,requireAdmin);
 
   // Fail closed: a newly approved B2B customer may hold a login cookie or
   // mobile bearer token, but cannot use ANY authenticated API before choosing
@@ -2206,7 +2202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const rawPhone = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
     const phoneDigits = rawPhone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, "");
     const phone = /^5\d{9}$/.test(phoneDigits) ? "+90" + phoneDigits : "";
-    const whatsAppConsent=req.body?.whatsappServiceOptIn===true;
+    const whatsAppConsent=req.body?.whatsappMarketingOptIn===true;
     const whatsAppSource=req.body?.whatsappSignupSource==="mobile"?"mobile_signup":"web_signup";
     const taxNumber = typeof req.body?.taxNumber === "string" ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10) : "";
 
@@ -2271,8 +2267,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           approvedAt: null, credentialsSentAt: null,
         });
         if (!user) return res.status(404).json({ error: "Önceki başvuru bulunamadı." });
-        await saveB2BWhatsAppOptin(user.id,whatsAppConsent,whatsAppSource)
+        await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource)
           .catch(error=>console.error("WhatsApp reapplication opt-in persistence:",error));
+        await queueMarketingWelcome(user.id).catch(error=>console.error("WhatsApp reapplication marketing welcome queue:",error));
         void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"b2b_customer",id:user.id,companyName:user.companyName,reapplied:true}))
           .catch(error => console.error("Business B2B reapplication push", error));
         return res.status(201).json({
@@ -2301,8 +2298,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mustChangePassword: 0,
       });
 
-      await saveB2BWhatsAppOptin(user.id,whatsAppConsent,whatsAppSource)
+      await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource)
         .catch(error=>console.error("WhatsApp signup opt-in persistence:",error));
+      await queueMarketingWelcome(user.id).catch(error=>console.error("WhatsApp marketing welcome queue:",error));
       void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"b2b_customer",id:user.id,companyName:user.companyName}))
         .catch(error => console.error("Business B2B application push", error));
       return res.status(201).json({
@@ -2643,8 +2641,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     void notifyB2BEvent(id, "membership_approved", {}, `membership_approved:${id}`)
       .catch(error => console.error("Membership approval notification", error));
-    void queueB2BWhatsAppWelcome(id)
-      .catch(error=>console.error("WhatsApp membership welcome queue failed:",error));
+    
     const { password, ...safeUser } = updated;
     res.setHeader("Cache-Control", "no-store");
     return res.json({
