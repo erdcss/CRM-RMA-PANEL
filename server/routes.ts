@@ -2267,9 +2267,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           approvedAt: null, credentialsSentAt: null,
         });
         if (!user) return res.status(404).json({ error: "Önceki başvuru bulunamadı." });
-        await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource)
-          .catch(error=>console.error("WhatsApp reapplication opt-in persistence:",error));
-        await queueMarketingWelcome(user.id).catch(error=>console.error("WhatsApp reapplication marketing welcome queue:",error));
+        let marketingConsentSaved=false;
+        try {
+          await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource);
+          marketingConsentSaved=true;
+        } catch(error) { console.error("Marketing reapplication consent save failed",error); }
+        if(marketingConsentSaved&&whatsAppConsent) {
+          await queueMarketingWelcome(user.id).catch(error=>console.error("Marketing welcome queue",error));
+        }
         void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"b2b_customer",id:user.id,companyName:user.companyName,reapplied:true}))
           .catch(error => console.error("Business B2B reapplication push", error));
         return res.status(201).json({
@@ -2298,9 +2303,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         mustChangePassword: 0,
       });
 
-      await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource)
-        .catch(error=>console.error("WhatsApp signup opt-in persistence:",error));
-      await queueMarketingWelcome(user.id).catch(error=>console.error("WhatsApp marketing welcome queue:",error));
+      let marketingConsentSaved=false;
+      try {
+        await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource);
+        marketingConsentSaved=true;
+      } catch(error) { console.error("Marketing signup consent save failed",error); }
+      if(marketingConsentSaved&&whatsAppConsent) {
+        await queueMarketingWelcome(user.id).catch(error=>console.error("Marketing welcome queue",error));
+      }
       void sendBusinessPushToSuperAdmins(makeBusinessApplicationAlert({kind:"b2b_customer",id:user.id,companyName:user.companyName}))
         .catch(error => console.error("Business B2B application push", error));
       return res.status(201).json({
