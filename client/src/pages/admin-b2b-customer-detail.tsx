@@ -13,6 +13,7 @@ import {Badge} from "@/components/ui/badge";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
 import {useToast} from "@/hooks/use-toast";
 import {apiRequest,queryClient} from "@/lib/queryClient";
+import {AdminB2BWhatsAppSupport} from "@/components/admin-b2b-whatsapp-support";
 
 export type B2BProfile={
   id:number;username:string;email?:string|null;phone?:string|null;companyName?:string|null;
@@ -276,6 +277,7 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
               <Field label="İlk şifre durumu" value={customer.mustChangePassword?"Yeni şifre bekleniyor":"Yeni şifre zorunluluğu yok"}/>
             </div>
           </div>
+          {approved?<AdminB2BWhatsAppSupport customerId={customer.id}/>:null}
           <div className="rounded-2xl border bg-background p-5 space-y-4">
             <div>
               <h2 className="font-bold">Vergi bilgileri ve manuel teyit</h2>
