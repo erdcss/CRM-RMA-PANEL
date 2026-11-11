@@ -15,7 +15,10 @@ module.exports = ({ config }) => {
   // Compile the native SDK only when an EAS Client Token is configured.
   // The client token is a public mobile-app configuration value, NOT the App Secret.
   const metaClientToken = process.env.EXPO_PUBLIC_META_CLIENT_TOKEN?.trim();
-  if (metaClientToken && !isDevelopment) {
+  const nativeAdTrackingEnabled = process.env.EXPO_PUBLIC_B2B_AD_TRACKING === "1";
+  // Apple App Privacy-safe release: do not configure the native Meta SDK.
+  // Website Meta Pixel and server integrations are unaffected.
+  if (metaClientToken && !isDevelopment && nativeAdTrackingEnabled) {
     plugins.push([
       "react-native-fbsdk-next",
       {
