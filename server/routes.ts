@@ -1467,6 +1467,8 @@ async function sendTemporaryPasswordEmail(input: {
   const intro = reset
     ? "Çalışkan B2B hesabınız için yeni bir tek kullanımlık giriş şifresi oluşturuldu."
     : "Çalışkan B2B başvurunuz onaylandı.";
+  const supportUrl = "https://wa.me/905386983444?text=" +
+    encodeURIComponent("Merhaba Çalışkan B2B, üyeliğimle ilgili destek almak istiyorum.");
   const text = [
     greeting,
     "",
@@ -1475,6 +1477,7 @@ async function sendTemporaryPasswordEmail(input: {
     "",
     "Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan hemen sonra yeni şifrenizi oluşturmanız istenecektir.",
     `Giriş: ${loginUrl}`,
+    ...(!reset ? ["", "Bir sorun yaşarsanız doğrudan WhatsApp destek hattımıza yazabilirsiniz:", supportUrl] : []),
   ].join("\n");
 
   const html = `
@@ -1488,6 +1491,7 @@ async function sendTemporaryPasswordEmail(input: {
       </div>
       <p style="font-size:13px;color:#475569">Bu şifre yalnızca ilk girişte kullanılabilir. Giriş yaptıktan sonra yeni şifre oluşturma ekranı açılacaktır.</p>
       <p><a href="${escapeHtml(loginUrl)}">Çalışkan B2B giriş ekranını aç</a></p>
+      ${reset ? "" : `<p style="margin-top:22px">Üyeliğiniz veya siparişlerinizle ilgili sorularınız için WhatsApp destek hattımıza ulaşabilirsiniz.</p><p><a href="${escapeHtml(supportUrl)}" style="display:inline-block;background:#178b62;color:white;padding:12px 16px;border-radius:8px;text-decoration:none;font-weight:600">WhatsApp Destek Sohbetini Aç</a></p><p style="font-size:12px;color:#64748b">Bağlantı sohbeti açar. Mesaj gönderimi sizin onayınızla gerçekleşir.</p>`}
     </div>
   `;
 
