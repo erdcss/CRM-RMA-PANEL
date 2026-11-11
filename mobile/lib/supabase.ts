@@ -51,6 +51,8 @@ export type RegistrationPayload = {
   phone: string;
   companyCategory: string;
   taxNumber: string;
+  whatsappServiceOptIn?: boolean;
+  whatsappSignupSource?: 'mobile';
 };
 
 export type RegistrationResult = {
