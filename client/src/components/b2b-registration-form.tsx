@@ -73,7 +73,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [done, setDone] = useState(false);
   const [reapplied, setReapplied] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [whatsAppServiceOptIn,setWhatsAppServiceOptIn] = useState(false);
+  const [whatsAppMarketingOptIn,setWhatsAppMarketingOptIn] = useState(false);
 
   useEffect(() => {
     const clean = taxNumber.replace(/\D/g, "").slice(0, 10);
@@ -186,7 +186,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         phone: phone.trim(),
         companyCategory,
         taxNumber,
-        whatsappServiceOptIn:whatsAppServiceOptIn,
+        whatsappMarketingOptIn:whatsAppMarketingOptIn,
         whatsappSignupSource:"web",
       });
       const result = await response.json() as { reapplied?: boolean };
@@ -343,11 +343,11 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
 
       <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
         <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-emerald-600"
-          checked={whatsAppServiceOptIn} onChange={event=>setWhatsAppServiceOptIn(event.target.checked)}/>
-        <span>Üyeliğim onaylandığında Çalışkan B2B'nin bu numarama WhatsApp üzerinden
-          üyelik ve müşteri desteği hakkında bilgilendirme mesajı göndermesine izin veriyorum.
+          checked={whatsAppMarketingOptIn} onChange={event=>setWhatsAppMarketingOptIn(event.target.checked)}/>
+        <span>Çalışkan B2B tarafından WhatsApp üzerinden başvuru sonrası tanıtım, yeni ürün,
+          indirim ve kampanya mesajları almayı kabul ediyorum.
           <strong className="ml-1">İsteğe bağlıdır.</strong>
-          İzni WhatsApp üzerinden DUR yazarak geri çekebilirim. Kampanya mesajlarına izin vermez.
+          İznimi WhatsApp üzerinden DUR yazarak geri çekebilirim.
         </span>
       </label>
 
