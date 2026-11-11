@@ -5,7 +5,7 @@ import {
   ArrowLeft,ArrowUpRight,Building2,CalendarDays,CheckCircle2,ClipboardList,
   CreditCard,FileText,Headphones,Home,Mail,MapPin,Package,ReceiptText,
   RefreshCw,ShieldCheck,UserRound,WalletCards,RotateCcw,Clock3,
-  Activity,AlertCircle,ChevronLeft,ChevronRight,MessageCircle
+  Activity,AlertCircle,ChevronLeft,ChevronRight
 } from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -13,7 +13,6 @@ import {Badge} from "@/components/ui/badge";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
 import {useToast} from "@/hooks/use-toast";
 import {apiRequest,queryClient} from "@/lib/queryClient";
-import {AdminB2BWhatsAppSupport} from "@/components/admin-b2b-whatsapp-support";
 
 export type B2BProfile={
   id:number;username:string;email?:string|null;phone?:string|null;companyName?:string|null;
@@ -175,11 +174,6 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
   const customer=data?.customer;
   const stats=data?.stats;
   const fullName=useMemo(()=>[customer?.firstName,customer?.lastName].filter(Boolean).join(" "),[customer]);
-  const customerWhatsApp=useMemo(()=>{
-    const digits=String(customer?.phone||"").replace(/\D/g,"");
-    const normalized=digits.startsWith("0")?"9"+digits:digits.startsWith("5")&&digits.length===10?"90"+digits:digits;
-    return /^905\d{9}$/.test(normalized)?normalized:null;
-  },[customer?.phone]);
   const back=source==="application"?"/basvurular":"/b2b-musteriler";
   if(isLoading)return <div className="p-8 text-muted-foreground">Firma bilgileri yükleniyor…</div>;
   if(isError||!data||!customer)return <div className="p-8"><div className="font-semibold text-destructive">
@@ -263,15 +257,7 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
         </TabsList>
         <TabsContent value="overview" className="space-y-4">
           <div className="rounded-2xl border bg-background p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-bold">Firma ve yetkili bilgileri</h2>
-              {customerWhatsApp?<Button variant="outline" size="sm" asChild>
-                <a href={`https://wa.me/${customerWhatsApp}?text=${encodeURIComponent("Merhaba "+(customer.companyName||"")+", Çalışkan B2B müşteri temsilcisiyim. Size nasıl yardımcı olabilirim?")}`}
-                  target="_blank" rel="noopener noreferrer" title="WhatsApp sohbetini açar; mesajı yönetici gönderir">
-                  <MessageCircle className="mr-2 h-4 w-4"/> WhatsApp'ta Yaz
-                </a>
-              </Button>:null}
-            </div>
+            <h2 className="mb-4 text-lg font-bold">Firma ve yetkili bilgileri</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Firma adı" value={customer.companyName}/>
               <Field label="Firma yetkilisi" value={fullName}/>
@@ -290,7 +276,6 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
               <Field label="İlk şifre durumu" value={customer.mustChangePassword?"Yeni şifre bekleniyor":"Yeni şifre zorunluluğu yok"}/>
             </div>
           </div>
-          {approved?<AdminB2BWhatsAppSupport customerId={customer.id}/>:null}
           <div className="rounded-2xl border bg-background p-5 space-y-4">
             <div>
               <h2 className="font-bold">Vergi bilgileri ve manuel teyit</h2>
