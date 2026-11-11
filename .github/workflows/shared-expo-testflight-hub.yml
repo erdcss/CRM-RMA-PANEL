@@ -120,6 +120,15 @@ jobs:
           npx expo config --type public > /dev/null
           echo "iOS app config validated."
 
+      - name: Block iOS tracking disclosure mismatches before signing
+        if: ${{ steps.target.outputs.app == 'b2b' || steps.target.outputs.app == 'business' }}
+        working-directory: ${{ steps.target.outputs.app_dir }}
+        env:
+          EXPO_PUBLIC_B2B_AD_TRACKING: "0"
+        run: |
+          npx expo config --type introspect --json > "$RUNNER_TEMP/app-privacy-introspect.json"
+          node ../.github/scripts/assert-ios-privacy-clean.mjs "$RUNNER_TEMP/app-privacy-introspect.json" "${{ steps.target.outputs.app }}"
+
       - name: Authenticate with existing shared Expo token
         uses: expo/expo-github-action@v8
         with:
