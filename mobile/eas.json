@@ -40,7 +40,8 @@
       "env": {
         "EAS_NO_VCS": "1",
         "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com",
-        "REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND": "1"
+        "REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND": "1",
+        "EXPO_PUBLIC_B2B_AD_TRACKING": "0"
       },
       "ios": {
         "resourceClass": "m-medium"
@@ -66,7 +67,8 @@
         "EAS_NO_VCS": "1",
         "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com",
         "EXPO_SKIP_NIIMBOT": "1",
-        "REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND": "1"
+        "REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND": "1",
+        "EXPO_PUBLIC_B2B_AD_TRACKING": "0"
       },
       "ios": {
         "resourceClass": "m-medium"
