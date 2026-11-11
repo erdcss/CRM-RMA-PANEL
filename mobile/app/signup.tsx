@@ -145,6 +145,8 @@ export default function SignupScreen() {
         phone: phone.trim(),
         companyCategory,
         taxNumber,
+        whatsappServiceOptIn:whatsAppServiceOptIn,
+        whatsappSignupSource:"mobile",
       });
       setCompleted(true);
       void logMetaAppEvent('b2b_application_submitted');
@@ -323,6 +325,17 @@ export default function SignupScreen() {
                 : taxOffice || (taxValid ? 'Dış servis doğrulaması bekleniyor' : 'VKN ile otomatik belirlenir')}
             </Text>
           </View>
+
+          <Pressable onPress={()=>setWhatsAppServiceOptIn(value=>!value)}
+            accessibilityRole="checkbox" accessibilityState={{checked:whatsAppServiceOptIn}}
+            style={styles.notice}>
+            <Ionicons name={whatsAppServiceOptIn?"checkbox":"square-outline"} size={23} color="#FFCC00"/>
+            <Text style={styles.noticeText}>
+              İsteğe bağlı: Çalışkan B2B üyeliğim onaylandığında WhatsApp üzerinden
+              üyelik ve destek mesajı gönderilmesine izin veriyorum.
+              Kampanya izni değildir. DUR yazarak vazgeçebilirim.
+            </Text>
+          </Pressable>
 
           <View style={styles.notice}>
             <Ionicons name="information-circle-outline" size={20} color="#FFCC00" />
