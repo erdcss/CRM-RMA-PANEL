@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
-const updatedAt = "30 Ekim 2026";
+const updatedAt = "11 Kasım 2026";
 
 const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] = [
   {
@@ -33,6 +33,13 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
       "Dolandırıcılığı önlemek, sistem güvenliğini sağlamak ve teknik sorunları gidermek.",
       "Mevzuattan doğan muhasebe, saklama ve resmi kurumlara karşı yükümlülükleri yerine getirmek.",
       "Uygulamanın kullanımını, performansını ve hizmet kalitesini ölçüp geliştirmek."
+    ]
+  },
+  {
+    title: "WhatsApp tanıtım ve kampanya mesajları",
+    paragraphs: [
+      "Başvuru formundaki ayrı ve isteğe bağlı WhatsApp pazarlama iznini veren kişiler, başvuru sonrası tanıtım, yeni ürün ve kampanya duyuruları alabilir. İzin vermeyenlere pazarlama mesajı gönderilmez; önceki destek/hizmet onayları pazarlama iznine dönüştürülmez.",
+      "İzin tarihi ve kanalı kayıt altına alınır. Alıcılar WhatsApp üzerinden DUR yazarak pazarlama iznini geri çekebilir. İleti gönderimi için Meta WhatsApp Business Platform kullanılabilir ve mesaj durumu (gönderildi/teslim edildi/okundu/hata) teknik amaçla işlenebilir. Gerekli aydınlatma ve varsa yurt dışı aktarım koşulları ayrıca değerlendirilmelidir."
     ]
   },
   {
