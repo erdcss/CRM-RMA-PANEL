@@ -110,10 +110,10 @@ export async function processMarketingQueue(){
       "UPDATE b2b_wa_marketing_deliveries SET status='sending',updated_at=now()",
       "WHERE id IN (SELECT d.id FROM b2b_wa_marketing_deliveries d",
       "LEFT JOIN b2b_wa_marketing_campaigns k ON k.id=d.campaign_id",
-      "WHERE d.status='pending' AND (d.kind='welcome' OR k.status='running')",
+      "WHERE d.status='pending' AND ((d.kind='welcome' AND $1::boolean) OR k.status='running')",
       "ORDER BY d.queued_at ASC LIMIT 10 FOR UPDATE OF d SKIP LOCKED)",
       "RETURNING id,user_id,phone,kind,campaign_id"
-    ].join(" "));
+    ].join(" "),[validTemplate((process.env.WHATSAPP_MARKETING_WELCOME_TEMPLATE||"").trim())]);
     for(const row of claimed.rows){
       try{
         // Recheck before every send, including campaign cancellation and opt-out.
@@ -267,12 +267,13 @@ export function registerMarketingRoutes(app:Express,requireAdmin:RequestHandler)
         const segment=campaign.rows[0].segment;
         const queued=await client.query([
           "INSERT INTO b2b_wa_marketing_deliveries(campaign_id,user_id,kind,phone)",
-          "SELECT $1,u.id,'campaign',regexp_replace(u.phone,'[^0-9]','','g')",
+          "SELECT DISTINCT ON (regexp_replace(u.phone,'[^0-9]','','g')) $1,u.id,'campaign',regexp_replace(u.phone,'[^0-9]','','g')",
           "FROM users u JOIN b2b_wa_marketing_consent c ON c.user_id=u.id",
           "WHERE u.role='b2b_customer' AND c.opted_in=TRUE",
           "AND u.company_name <> 'Çalışkan B2B - Apple İnceleme'",
           "AND regexp_replace(coalesce(u.phone,''),'[^0-9]','','g') ~ '^905[0-9]{9}$'",
           "AND ($2='all' OR u.application_status=$2)",
+          "ORDER BY regexp_replace(u.phone,'[^0-9]','','g'),u.id DESC",
           "ON CONFLICT DO NOTHING RETURNING id"
         ].join(" "),[id,segment]);
         if(!queued.rowCount)await client.query("UPDATE b2b_wa_marketing_campaigns SET status='completed' WHERE id=$1",[id]);
