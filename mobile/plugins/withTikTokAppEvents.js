@@ -15,7 +15,17 @@ module.exports = function withTikTokAppEvents(config) {
   return withInfoPlist(config, ios => {
     const secret = String(process.env.TIKTOK_APP_EVENTS_SECRET || '').trim();
     const isDevelopment = process.env.APP_VARIANT === 'development';
-    if (!secret || isDevelopment) return ios;
+    // App Store privacy-safe default: no native advertising measurement.
+    // Enable only for builds whose App Privacy declares tracking and whose
+    // users can grant ATT authorization before any tracking starts.
+    const trackingEnabled = process.env.EXPO_PUBLIC_B2B_AD_TRACKING === '1';
+    if (!trackingEnabled || !secret || isDevelopment) {
+      delete ios.modResults.NSUserTrackingUsageDescription;
+      delete ios.modResults.CaliskanTikTokAppleAppId;
+      delete ios.modResults.CaliskanTikTokAppId;
+      delete ios.modResults.CaliskanTikTokAppSecret;
+      return ios;
+    }
     ios.modResults.CaliskanTikTokAppleAppId = APPLE_APP_ID;
     ios.modResults.CaliskanTikTokAppId = TIKTOK_APP_ID;
     ios.modResults.CaliskanTikTokAppSecret = secret;
