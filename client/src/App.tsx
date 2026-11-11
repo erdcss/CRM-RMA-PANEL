@@ -32,6 +32,7 @@ import AdminOrders from "@/pages/admin-orders";
 import AdminOrderDetail from "@/pages/admin-order-detail";
 import AdminApplications from "@/pages/admin-applications";
 import AdminB2BCustomers from "@/pages/admin-b2b-customers";
+import AdminWhatsAppCampaigns from "@/pages/admin-whatsapp-campaigns";
 import AdminB2BCustomerDetail from "@/pages/admin-b2b-customer-detail";
 import AdminHomepage from "@/pages/admin-homepage";
 import AdminCategoryEdit from "@/pages/admin-category-edit";
@@ -127,6 +128,7 @@ function Router() {
       <Route path="/basvurular" component={AdminApplications} />
       <Route path="/b2b-musteriler/:id">{(params) => <AdminB2BCustomerDetail id={params.id} source="customer" />}</Route>
       <Route path="/b2b-musteriler" component={AdminB2BCustomers} />
+      <Route path="/whatsapp-kampanyalar" component={AdminWhatsAppCampaigns} />
       <Route path="/ana-sayfa/kategori/:category" component={AdminCategoryEdit} />
       <Route path="/ana-sayfa" component={AdminHomepage} />
       <Route path="/odeme-ekrani" component={AdminPaymentSettingsPage} />
