@@ -217,6 +217,40 @@ export function registerB2BWhatsAppRoutes(app:Express,requireAdmin:RequestHandle
       return res.json({configured:Boolean(config()),webhookConfigured:Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN&&process.env.WHATSAPP_APP_SECRET),delivery:counts.rows});
     }catch{return res.status(503).json({error:"WhatsApp durumu alınamadı"});}
   });
+  app.post("/api/admin/b2b-whatsapp/customer/:id/reply",requireAdmin,async(req,res)=>{
+    const id=Number(req.params.id);
+    const body=typeof req.body?.text==="string"?req.body.text.trim():"";
+    if(!Number.isSafeInteger(id)||id<=0||!body||body.length>1800){
+      return res.status(400).json({error:"Geçerli müşteri ve en fazla 1800 karakterlik mesaj gerekli"});
+    }
+    const cfg=config();
+    if(!cfg)return res.status(503).json({error:"Resmî WhatsApp Business bağlantısı henüz tamamlanmadı"});
+    try{
+      await ensureB2BWhatsAppTables();
+      const u=await pool!.query("SELECT phone FROM users WHERE id=$1 AND role='b2b_customer' AND application_status='approved' AND is_active=1",[id]);
+      if(!u.rows[0])return res.status(404).json({error:"Aktif müşteri bulunamadı"});
+      const to=phoneDigits(u.rows[0].phone);
+      if(!to)return res.status(422).json({error:"Müşteri telefon numarası geçersiz"});
+      const last=await pool!.query(
+        "SELECT received_at FROM b2b_whatsapp_messages WHERE user_id=$1 AND direction='inbound' ORDER BY received_at DESC LIMIT 1",[id]);
+      const lastTime=last.rows[0]?.received_at?new Date(last.rows[0].received_at).getTime():0;
+      if(!lastTime||Date.now()-lastTime>=24*60*60*1000){
+        return res.status(409).json({error:"WhatsApp 24 saatlik destek penceresi kapalı. Yeni görüşme için onaylı mesaj şablonu gerekir"});
+      }
+      const wamid=await sendViaCloud(cfg,{
+        messaging_product:"whatsapp",to,type:"text",text:{body,preview_url:false}
+      });
+      await pool!.query(`
+        INSERT INTO b2b_whatsapp_messages(wamid,user_id,phone,direction,body)
+        VALUES($1,$2,$3,'outbound',$4) ON CONFLICT(wamid) DO NOTHING
+      `,[wamid,id,to,body]);
+      return res.json({ok:true,status:"accepted",messageId:wamid});
+    }catch(error){
+      console.error("WhatsApp support reply failed",error instanceof Error?error.message:"unknown");
+      return res.status(502).json({error:"WhatsApp mesajı gönderilemedi, durumunu kontrol edin"});
+    }
+  });
+
   app.get("/api/admin/b2b-whatsapp/customer/:id",requireAdmin,async(req,res)=>{
     const id=Number(req.params.id);
     if(!Number.isSafeInteger(id)||id<=0)return res.status(400).json({error:"Geçersiz müşteri"});
