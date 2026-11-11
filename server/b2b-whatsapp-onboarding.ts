@@ -1,6 +1,7 @@
 import type {Express, Request, RequestHandler} from "express";
 import {createHmac, timingSafeEqual} from "node:crypto";
 import {pool} from "./db";
+import {sendBusinessPushToSuperAdmins} from "./push-notifications";
 
 type WelcomeConfig={token:string;phoneId:string;template:string;version:string};
 let ready:Promise<void>|null=null;
@@ -186,11 +187,18 @@ export function registerB2BWhatsAppRoutes(app:Express,requireAdmin:RequestHandle
           const wamid=String(m.id||"").slice(0,256);
           if(!from||!wamid)continue;
           const body=String(m.text?.body||("[WhatsApp "+String(m.type||"media").slice(0,30)+"]")).slice(0,4000);
-          await pool!.query(`
+          const inserted=await pool!.query(`
             INSERT INTO b2b_whatsapp_messages(wamid,user_id,phone,direction,body)
             VALUES($1,(SELECT id FROM users WHERE regexp_replace(COALESCE(phone,''),'[^0-9]','','g')=$2 ORDER BY id DESC LIMIT 1),$2,'inbound',$3)
-            ON CONFLICT(wamid) DO NOTHING
+            ON CONFLICT(wamid) DO NOTHING RETURNING user_id
           `,[wamid,from,body]);
+          if(inserted.rowCount){
+            void sendBusinessPushToSuperAdmins({
+              title:"Yeni WhatsApp destek mesajı",
+              body:"Müşteri WhatsApp üzerinden iletişime geçti.",
+              data:{type:"support",customerId:inserted.rows[0]?.user_id??null}
+            }).catch(error=>console.error("WhatsApp admin notification failed:",error));
+          }
           if(/^(STOP|DUR|IPTAL|İPTAL)$/iu.test(body.trim())){
             await pool!.query(`
               UPDATE b2b_whatsapp_optins SET opted_in=FALSE,updated_at=NOW()
