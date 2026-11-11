@@ -1,13 +1,13 @@
 import {useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {Link} from "wouter";
-import {Building2,CheckCircle2,ChevronRight,Mail,Search,ShieldCheck,Users,RefreshCw,Clock3,PackageSearch} from "lucide-react";
+import {Building2,CheckCircle2,ChevronRight,Mail,Search,ShieldCheck,Users,RefreshCw,Clock3,KeyRound,PackageSearch} from "lucide-react";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import type {B2BProfile} from "./admin-b2b-customer-detail";
 import {trDate} from "./admin-b2b-customer-detail";
 
-type CustomerQuickFilter="all"|"verified"|"pending-password";
+type CustomerQuickFilter="all"|"verified"|"pending-password"|"password-set";
 
 export default function AdminB2BCustomers(){
   const [query,setQuery]=useState("");
@@ -29,7 +29,8 @@ export default function AdminB2BCustomers(){
   const list=useMemo(()=>{
     const filtered=data.filter(u=>
       quickFilter==="verified"?Boolean(u.taxVerified):
-      quickFilter==="pending-password"?Boolean(u.mustChangePassword):true
+      quickFilter==="pending-password"?Boolean(u.mustChangePassword):
+      quickFilter==="password-set"?u.mustChangePassword===false:true
     );
     const q=query.trim().toLocaleLowerCase("tr-TR");
     return q?filtered.filter(u=>[
@@ -38,6 +39,7 @@ export default function AdminB2BCustomers(){
   },[data,query,quickFilter]);
   const verified=data.filter(u=>u.taxVerified).length;
   const pendingPassword=data.filter(u=>u.mustChangePassword).length;
+  const passwordSet=data.filter(u=>u.mustChangePassword===false).length;
   return <div className="h-full overflow-y-auto bg-muted/20">
     <div className="mx-auto max-w-7xl space-y-6 p-5 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -50,7 +52,7 @@ export default function AdminB2BCustomers(){
           <Button variant="outline" onClick={()=>void refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Yenile</Button>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Firma rehberi hızlı filtreleri">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Firma rehberi hızlı filtreleri">
         <button type="button" onClick={()=>selectFilter("all")} aria-pressed={quickFilter==="all"}
           aria-controls="b2b-customer-directory"
           className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickFilter==="all"?"border-primary bg-primary/5 ring-1 ring-primary":"bg-background hover:border-primary/60 hover:bg-muted/40"}`}>
@@ -69,13 +71,19 @@ export default function AdminB2BCustomers(){
           <div className="flex items-center justify-between text-sm text-muted-foreground">İlk şifresini belirlemeyen <Clock3 className="h-5 w-5"/></div>
           <div className="mt-3 text-3xl font-black">{pendingPassword}</div>
         </button>
+        <button type="button" onClick={()=>selectFilter("password-set")} aria-pressed={quickFilter==="password-set"}
+          aria-controls="b2b-customer-directory"
+          className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickFilter==="password-set"?"border-primary bg-primary/5 ring-1 ring-primary":"bg-background hover:border-primary/60 hover:bg-muted/40"}`}>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">Şifresini belirleyen kullanıcılar <KeyRound className="h-5 w-5 shrink-0"/></div>
+          <div className="mt-3 text-3xl font-black">{passwordSet}</div>
+        </button>
       </div>
       <div id="b2b-customer-directory" className="overflow-hidden rounded-2xl border bg-background shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b p-4">
           <div><h2 className="font-bold">Firma rehberi</h2>
             <p className="text-xs text-muted-foreground" aria-live="polite">{list.length} müşteri listeleniyor · Detay için firmaya tıklayın</p>
             {quickFilter!=="all"?<div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-medium text-primary">Filtre: {quickFilter==="verified"?"Vergi doğrulanan":"İlk şifresini belirlemeyen"}</span>
+              <span className="font-medium text-primary">Filtre: {quickFilter==="verified"?"Vergi doğrulanan":quickFilter==="password-set"?"Şifresini belirleyen kullanıcılar":"İlk şifresini belirlemeyen"}</span>
               <button type="button" className="rounded px-1.5 py-1 text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={()=>setQuickFilter("all")}>Filtreyi temizle</button>
             </div>:null}</div>
