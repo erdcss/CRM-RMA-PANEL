@@ -64,6 +64,7 @@ export default function SignupScreen() {
   const [taxChecking, setTaxChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [whatsAppServiceOptIn,setWhatsAppServiceOptIn] = useState(false);
 
   useEffect(() => {
     setTaxOffice('');
