@@ -7,6 +7,7 @@ import { Alert, Platform } from 'react-native';
 const CONSENT_KEY = 'caliskan_b2b_meta_app_events_consent_v1';
 const isConfigured = () =>
   Platform.OS === 'ios' &&
+  process.env.EXPO_PUBLIC_B2B_AD_TRACKING === '1' &&
   Constants.executionEnvironment !== 'storeClient' &&
   Constants.expoConfig?.extra?.appVariant !== 'development' &&
   Boolean(process.env.EXPO_PUBLIC_META_CLIENT_TOKEN);
