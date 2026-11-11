@@ -3,21 +3,25 @@ import {Platform} from 'react-native';
 import {getTikTokEventsModule} from '../modules/tiktok-app-events/src';
 
 const CONSENT_KEY='caliskan_b2b_tiktok_app_events_consent_v1';
+const nativeTrackingEnabled=process.env.EXPO_PUBLIC_B2B_AD_TRACKING === '1';
 let started=false;
 let startupEventSent=false;
 let initialising:Promise<boolean>|null=null;
 
 export async function getTikTokAppEventsConsent():Promise<boolean>{
+  if(!nativeTrackingEnabled)return false;
   try{return (await AsyncStorage.getItem(CONSENT_KEY))==='granted';}
   catch{return false;}
 }
 export async function isTikTokAppEventsConfigured():Promise<boolean>{
+  if(!nativeTrackingEnabled)return false;
   const native=Platform.OS==='ios'?getTikTokEventsModule():null;
   if(!native)return false;
   try{return await native.isConfigured();}
   catch{return false;}
 }
 async function startTikTokSDK():Promise<boolean>{
+  if(!nativeTrackingEnabled)return false;
   if(!(await getTikTokAppEventsConsent()))return false;
   const native=getTikTokEventsModule();
   if(!native)return false;
@@ -38,6 +42,10 @@ async function startTikTokSDK():Promise<boolean>{
   return initialising;
 }
 export async function setTikTokAppEventsConsent(value:boolean):Promise<boolean>{
+  if(!nativeTrackingEnabled){
+    await AsyncStorage.setItem(CONSENT_KEY,'denied');
+    return false;
+  }
   await AsyncStorage.setItem(CONSENT_KEY,value?'granted':'denied');
   const native=getTikTokEventsModule();
   if(!value){
