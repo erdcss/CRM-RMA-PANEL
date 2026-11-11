@@ -64,7 +64,7 @@ export default function SignupScreen() {
   const [taxChecking, setTaxChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const [whatsAppServiceOptIn,setWhatsAppServiceOptIn] = useState(false);
+  const [whatsAppMarketingOptIn,setWhatsAppMarketingOptIn] = useState(false);
 
   useEffect(() => {
     setTaxOffice('');
@@ -145,7 +145,7 @@ export default function SignupScreen() {
         phone: phone.trim(),
         companyCategory,
         taxNumber,
-        whatsappServiceOptIn:whatsAppServiceOptIn,
+        whatsappMarketingOptIn:whatsAppMarketingOptIn,
         whatsappSignupSource:"mobile",
       });
       setCompleted(true);
@@ -326,14 +326,14 @@ export default function SignupScreen() {
             </Text>
           </View>
 
-          <Pressable onPress={()=>setWhatsAppServiceOptIn(value=>!value)}
-            accessibilityRole="checkbox" accessibilityState={{checked:whatsAppServiceOptIn}}
+          <Pressable onPress={()=>setWhatsAppMarketingOptIn(value=>!value)}
+            accessibilityRole="checkbox" accessibilityState={{checked:whatsAppMarketingOptIn}}
             style={styles.notice}>
-            <Ionicons name={whatsAppServiceOptIn?"checkbox":"square-outline"} size={23} color="#FFCC00"/>
+            <Ionicons name={whatsAppMarketingOptIn?"checkbox":"square-outline"} size={23} color="#FFCC00"/>
             <Text style={styles.noticeText}>
-              İsteğe bağlı: Çalışkan B2B üyeliğim onaylandığında WhatsApp üzerinden
-              üyelik ve destek mesajı gönderilmesine izin veriyorum.
-              Kampanya izni değildir. DUR yazarak vazgeçebilirim.
+              İsteğe bağlı: Çalışkan B2B tarafından WhatsApp üzerinden
+              başvuru sonrası tanıtım, yeni ürün, indirim ve kampanya mesajları
+              almayı kabul ediyorum. DUR yazarak iznimi geri çekebilirim.
             </Text>
           </Pressable>
 
