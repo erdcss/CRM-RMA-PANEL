@@ -45,6 +45,7 @@ async function initializeMeta(): Promise<boolean> {
 }
 
 export async function getMetaEventsConsent(): Promise<boolean> {
+  if (process.env.EXPO_PUBLIC_B2B_AD_TRACKING !== '1') return false;
   try {
     return (await AsyncStorage.getItem(CONSENT_KEY)) === 'granted';
   } catch {
@@ -53,6 +54,11 @@ export async function getMetaEventsConsent(): Promise<boolean> {
 }
 
 export async function setMetaEventsConsent(value: boolean): Promise<void> {
+  if (process.env.EXPO_PUBLIC_B2B_AD_TRACKING !== '1') {
+    await AsyncStorage.setItem(CONSENT_KEY, 'denied');
+    enabled = false;
+    return;
+  }
   await AsyncStorage.setItem(CONSENT_KEY, value ? 'granted' : 'denied');
   if (value) {
     await initializeMeta();
