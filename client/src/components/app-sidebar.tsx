@@ -20,6 +20,7 @@ import {
   WalletCards,
   Film,
   Bell,
+  Megaphone,
   Network,
   Store,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const standaloneItems = [
   { title: "Çalışkan Dükkan", url: "/dukkan", icon: Store },
   { title: "Başvurular", url: "/basvurular", icon: ClipboardList },
   { title: "B2B Müşteriler", url: "/b2b-musteriler", icon: Users },
+  { title: "WhatsApp Kampanyalar", url: "/whatsapp-kampanyalar", icon: Megaphone },
   { title: "Ödeme Ekranı", url: "/odeme-ekrani", icon: WalletCards },
   { title: "Reelsler", url: "/reelsler", icon: Film },
   { title: "Bildirimler", url: "/bildirimler", icon: Bell },
