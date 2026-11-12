@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { DragEvent, FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useBranding } from "@/hooks/use-branding";
 import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-workspace-shell";
@@ -15,7 +15,7 @@ import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer
 import {DukkanNewProductProfitPanel} from "@/components/dukkan-new-product-profit-panel";
 import {applyDukkanNewProductMarkup,updateDukkanNewProductPrice,type DukkanMarkupChoice} from "@/lib/dukkan-product-create-markup";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
-import { Building2, Plus, Copy, Pencil, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2 } from "lucide-react";
+import { Building2, Plus, Copy, Pencil, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2, UploadCloud, Loader2 } from "lucide-react";
 
 type Entry = Record<string, any>;
 type Field = { key: string; label: string; type?: "text" | "number" | "date" | "select"; options?: Array<{ value: string; label: string }>; required?: boolean };
@@ -94,6 +94,16 @@ export default function Dukkan() {
   const [b2bCatalog,setB2bCatalog]=useState<Entry[]>([]);
   const [productImages,setProductImages]=useState<string[]>([]);
   const [publishToB2B,setPublishToB2B]=useState(false);
+  const [draggingProductImages,setDraggingProductImages]=useState(false);
+  const [processingProductImages,setProcessingProductImages]=useState(false);
+  const productImageDragDepth=useRef(0);
+  const productImagesInFlight=useRef(false);
+  const productImageFileInput=useRef<HTMLInputElement|null>(null);
+  const [savedProductSnapshot,setSavedProductSnapshot]=useState<{
+    fields:Record<string,string>;images:string[];publishToB2B:boolean;
+  }|null>(null);
+  const [showProductCopyDialog,setShowProductCopyDialog]=useState(false);
+  const [copyProductImages,setCopyProductImages]=useState(false);
   const [editingLoading,setEditingLoading]=useState(false);
   const [banks,setBanks]=useState<Entry[]>([]);
   const [report,setReport]=useState<Entry|null>(null);
@@ -276,6 +286,8 @@ export default function Dukkan() {
     }catch{ /* storage may be unavailable */ }
     if(!restored){setCariSearch("");setCariFilter("az");}
     setProductImages([]);setPublishToB2B(false);
+    setSavedProductSnapshot(null);setShowProductCopyDialog(false);setCopyProductImages(false);
+    setDraggingProductImages(false);productImageDragDepth.current=0;
   },[section,storeId]);
   // Store-manager accounts reuse the same Dukkan component across SPA paths.
   // React to route changes instead of relying solely on mount-time state.
@@ -284,6 +296,7 @@ export default function Dukkan() {
       setSection("products");
       setShowForm(true);
       setCreatedProductName(null);
+      setSavedProductSnapshot(null);setShowProductCopyDialog(false);
       setDraft({});
       setProductImages([]);
       setPublishToB2B(false);
@@ -450,6 +463,8 @@ export default function Dukkan() {
         path="/orders";body.kind=body.kind||"sale";
         body.lines=lines.map(l=>({productId:Number(l.productId),quantity:Number(l.quantity),unitPrice:Number(l.unitPrice),taxRate:0}));
       }else if(section==="products"){
+        if(productImagesInFlight.current||processingProductImages)
+          throw new Error("Görseller hazırlanırken ürün kaydedilemez. Lütfen yükleme bitsin.");
         path="/products";body.images=productImages;body.publishB2B=publishToB2B;
         body.unitsPerBox=Number(draft.unitsPerBox||1);body.minOrderQty=Number(draft.minOrderQty||1);
         if(editingCatalogId)body.stock=Number(draft.stock);
@@ -470,7 +485,10 @@ export default function Dukkan() {
           : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
       const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
       if(standaloneSalesCreate&&section==="sales")setCreatedInvoiceNumber(String(saved.invoice_no||"Fatura"));
-      if(standaloneProductCreate&&section==="products")setCreatedProductName(String(saved.name||draft.name||"Ürün"));
+      if(standaloneProductCreate&&section==="products"){
+        setCreatedProductName(String(saved.name||draft.name||"Ürün"));
+        setSavedProductSnapshot({fields:{...draft},images:[...productImages],publishToB2B});
+      }
       setNotice("İşlem başarıyla kaydedildi. Tüm cihazlardaki ortak veritabanına işlendi."+
         (section==="products"?(publishToB2B?" Ürün Çalışkan B2B'de yayına alındı.":" Ürün B2B taslağına kaydedildi; henüz yayında değil."):"")+
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
@@ -573,13 +591,59 @@ export default function Dukkan() {
     finally{setBulkProductBusy(false);}
   };
   const addProductImages=async(files:File[])=>{
+    if(!files.length||productImagesInFlight.current||busy)return;
+    productImagesInFlight.current=true;
+    setProcessingProductImages(true);setError("");
     try{
-      const accepted=files.filter(f=>["image/jpeg","image/png","image/webp"].includes(f.type));
-      if(accepted.length!==files.length)throw new Error("Yalnızca PNG, JPG ve WebP görseller desteklenir.");
-      if(productImages.length+accepted.length>6)throw new Error("En fazla 6 ürün görseli yükleyebilirsiniz.");
-      const images=await Promise.all(accepted.map(fileToCompressedDataUrl));
+      if(files.some(f=>!["image/jpeg","image/png","image/webp"].includes(f.type)))
+        throw new Error("Yalnızca PNG, JPG ve WebP görseller desteklenir.");
+      if(productImages.length+files.length>6)
+        throw new Error("En fazla 6 ürün görseli yükleyebilirsiniz.");
+      const images=await Promise.all(files.map(fileToCompressedDataUrl));
       setProductImages(current=>[...current,...images].slice(0,6));
     }catch(e){setError((e as Error).message);}
+    finally{productImagesInFlight.current=false;setProcessingProductImages(false);}
+  };
+  const productImagesDragEnter=(event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();event.stopPropagation();
+    if(!Array.from(event.dataTransfer.types).includes("Files"))return;
+    productImageDragDepth.current+=1;setDraggingProductImages(true);
+  };
+  const productImagesDragOver=(event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();event.stopPropagation();
+    event.dataTransfer.dropEffect=processingProductImages||busy||productImages.length>=6?"none":"copy";
+  };
+  const productImagesDragLeave=(event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();event.stopPropagation();
+    productImageDragDepth.current=Math.max(0,productImageDragDepth.current-1);
+    if(!productImageDragDepth.current)setDraggingProductImages(false);
+  };
+  const productImagesDrop=(event:DragEvent<HTMLDivElement>)=>{
+    event.preventDefault();event.stopPropagation();
+    productImageDragDepth.current=0;setDraggingProductImages(false);
+    if(!processingProductImages&&!busy)void addProductImages(Array.from(event.dataTransfer.files));
+  };
+  const openFreshProduct=()=>{
+    setCreatedProductName(null);setShowProductCopyDialog(false);setShowForm(true);
+    setSavedProductSnapshot(null);setDraft({});setProductImages([]);setPublishToB2B(false);
+    setNewProductMarkup(null);setNewProductCustomMarkup("");setError("");setNotice("");
+  };
+  const openProductCopyDialog=()=>{
+    if(!savedProductSnapshot)return;
+    setCopyProductImages(false);setShowProductCopyDialog(true);
+  };
+  const startCopiedProduct=()=>{
+    if(!savedProductSnapshot)return;
+    const original=savedProductSnapshot.fields;
+    // Dükkan requires unique stock codes and barcodes per store.
+    const newSku=(original.sku||"URUN").slice(0,150)+"-K"+globalThis.crypto.randomUUID().slice(0,6).toUpperCase();
+    setDraft({...original,sku:newSku,barcode:""});
+    setProductImages(copyProductImages?[...savedProductSnapshot.images]:[]);
+    setPublishToB2B(copyProductImages&&savedProductSnapshot.publishToB2B);
+    setNewProductMarkup(null);setNewProductCustomMarkup("");
+    setCreatedProductName(null);setShowProductCopyDialog(false);setShowForm(true);
+    setError("");
+    setNotice("Bilgiler yeni ürün formuna aktarıldı. Stok kodu yenilendi; yeni barkodu girerek kaydedebilirsiniz.");
   };
   const exportPdf=async(invoice:Entry,print=false)=>{
     if(pdfBusyId)return;
