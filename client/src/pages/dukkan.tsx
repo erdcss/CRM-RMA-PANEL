@@ -370,6 +370,9 @@ export default function Dukkan() {
         ...(editingCatalogId?[{key:"stock",label:"B2B Stok Adedi",type:"number" as const,required:true}]:
           [{key:"unit",label:"Birim"},{key:"purchasePrice",label:"Alış Fiyatı",type:"number" as const}]),
         {key:"salePrice",label:"Satış Fiyatı",type:"number"},
+        ...(!editingCatalogId&&!editingProductId
+          ?[{key:"stock",label:"Stok Adedi (Açılış)",type:"number" as const}]
+          :[]),
         {key:"unitsPerBox",label:"Koli İçi Adet",type:"number"},
         {key:"minOrderQty",label:"Minimum Koli",type:"number"},
         {key:"description",label:"Ürün Açıklaması"}];
@@ -390,7 +393,7 @@ export default function Dukkan() {
       case "banks":return [bank,{key:"type",label:"İşlem",type:"select",options:[{value:"deposit",label:"Para girişi"},{value:"withdrawal",label:"Para çıkışı"}]},{key:"amount",label:"Tutar (TL)",type:"number",required:true},{key:"note",label:"Açıklama"}];
       default:return [];
     }
-  },[section,parties,products,banks,cashier,editingCatalogId,editingPartyId,draft.type]);
+  },[section,parties,products,banks,cashier,editingCatalogId,editingProductId,editingPartyId,draft.type]);
 
   const applyAiDocument=(extracted:AiDocumentDraft)=>{
     const data={...extracted.fields};
@@ -468,6 +471,7 @@ export default function Dukkan() {
         path="/products";body.images=productImages;body.publishB2B=publishToB2B;
         body.unitsPerBox=Number(draft.unitsPerBox||1);body.minOrderQty=Number(draft.minOrderQty||1);
         if(editingCatalogId)body.stock=Number(draft.stock);
+        else if(!editingProductId)body.stock=draft.stock===""||draft.stock===undefined?0:Number(draft.stock);
         if(publishToB2B&&!productImages.length)throw new Error("B2B'de yayınlamak için önce ürün görseli ekleyin.");
       }
       else if(section==="parties"||section==="suppliers"){path="/parties";body.type=body.type||(section==="suppliers"?"supplier":"customer");}
@@ -992,7 +996,11 @@ export default function Dukkan() {
                   <label className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
                   {f.type==="select"?<select className={inputClass} required={f.required} disabled={section==="sales"&&f.key==="kind"&&Boolean(editingInvoiceId)} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
                     <option value="">Seçiniz</option>{f.options?.map(opt=><option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                  </select>:<input className={inputClass} type={f.type||"text"} step={f.type==="number"?"any":undefined} required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
+                  </select>:<input className={inputClass} type={f.type||"text"}
+                     min={f.key==="stock"?"0":undefined}
+                     step={f.key==="stock"?"0.001":f.type==="number"?"any":undefined}
+                     placeholder={f.key==="stock"?"0":undefined}
+                     required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
                   </label>
                   {section==="products"&&f.key==="salePrice"&&!editingCatalogId&&
                     <DukkanNewProductProfitPanel
