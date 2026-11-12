@@ -3,7 +3,7 @@ import { trackProductView, trackCustomerProductVisit, trackCustomerProductDurati
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
-import { ArrowLeft, BadgeCheck, Boxes, ChevronLeft, ChevronRight, CreditCard, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Bell, Boxes, ChevronLeft, ChevronRight, CreditCard, Minus, Package, PackageX, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter } from "@/components/b2b-footer";
@@ -169,6 +169,8 @@ export default function B2BProductPage() {
   const min = Math.max(1, Number(product.min_order_qty || 1));
   const stock = Math.max(0, Number(product.stock || 0));
   const maxBoxes = Math.max(0, Math.floor(stock / pack));
+  const soldOut = stock === 0;
+  const cannotOrder = maxBoxes < min;
   const effectiveQuantity = Math.min(
     maxBoxes || min,
     Math.max(min, quantity < min ? min : quantity),
@@ -260,6 +262,21 @@ export default function B2BProductPage() {
                  </span>
                </span>
              </Link>
+             {cannotOrder ? (
+               <div role="status" aria-live="polite" className="mt-4 flex items-start gap-3 rounded-xl border border-rose-100 bg-rose-50 p-4 text-rose-900">
+                 <PackageX className="mt-0.5 h-7 w-7 shrink-0 text-red-600" aria-hidden="true" />
+                 <div>
+                   <h2 className="text-base font-extrabold text-red-700 sm:text-lg">
+                     {soldOut ? "Stoklar Tükenmiştir" : "Sipariş İçin Yeterli Stok Yok"}
+                   </h2>
+                   <p className="mt-1 text-sm leading-6 text-slate-600">
+                     {soldOut
+                       ? "Bu ürünümüzün stokları şu anda tükenmiştir."
+                       : "Mevcut stok, minimum koli siparişini karşılamıyor."}
+                   </p>
+                 </div>
+               </div>
+             ) : null}
              {product.description ? (
               <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
                 {product.description}
@@ -269,7 +286,7 @@ export default function B2BProductPage() {
 
             <div className="mt-5 border-y py-4">
               <div className="text-sm text-slate-500">B2B fiyatı</div>
-              <div className="mt-1 text-2xl font-black text-slate-950">
+              <div className={`mt-1 text-2xl font-black ${cannotOrder ? "text-slate-400" : "text-slate-950"}`}>
                 {loggedIn && product.price !== null && product.price !== undefined
                   ? `${Number(product.price).toLocaleString("tr-TR", {
                       minimumFractionDigits: 2,
@@ -290,11 +307,24 @@ export default function B2BProductPage() {
 
             <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
               <Info icon={<Boxes className="h-5 w-5" />} label="Koli içi" value={`${pack} adet`} />
-              <Info icon={<Warehouse className="h-5 w-5" />} label="Stok" value={`${stock} adet · ${maxBoxes} koli`} />
+              <Info icon={<Warehouse className="h-5 w-5" />} label="Stok" value={soldOut ? "Tükendi" : cannotOrder ? "Yetersiz" : `${stock} adet · ${maxBoxes} koli`} valueClassName={cannotOrder ? "text-red-700" : undefined} />
               <Info icon={<ShieldCheck className="h-5 w-5" />} label="Minimum" value={`${min} koli`} />
             </div>
 
-            {loggedIn ? (
+            {loggedIn && cannotOrder ? (
+              <div className="mt-5 space-y-3">
+                <button type="button" disabled aria-disabled="true"
+                  className="flex min-h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-3 font-bold text-slate-500">
+                  <ShoppingBag className="h-5 w-5" aria-hidden="true"/>
+                  Satın Alınamaz
+                </button>
+                <Link href="/hesabim?tab=support"
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-red-300 bg-rose-50 px-4 py-3 text-center font-bold text-red-700 transition hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500">
+                  <Bell className="h-5 w-5" aria-hidden="true"/>
+                  Stok Bilgisi İçin Destek Talebi Oluştur
+                </Link>
+              </div>
+            ) : loggedIn ? (
               <div className="mt-5 rounded-xl border p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
@@ -409,7 +439,9 @@ export default function B2BProductPage() {
 
             <div className="mt-5 flex items-center gap-2 rounded-xl border bg-slate-50 p-4 text-sm text-slate-600">
               <Truck className="h-5 w-5 text-slate-700" />
-              {isSupplier
+              {cannotOrder
+                ? "Bu ürün şu anda siparişe kapalıdır. Stok hakkında destek talebi oluşturabilirsiniz."
+                : isSupplier
                 ? "Tedarikçi siparişiniz satıcı onayı beklemek üzere oluşturulur. Online ödeme henüz aktif değildir."
                 : loggedIn
                 ? "Siparişinizi kart veya Havale/EFT ile tamamlayabilirsiniz."
@@ -459,12 +491,12 @@ export default function B2BProductPage() {
   );
 }
 
-function Info({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function Info({ icon, label, value, valueClassName }: { icon: ReactNode; label: string; value: string; valueClassName?: string }) {
   return (
     <div className="rounded-xl border p-3">
       <div className="text-slate-500">{icon}</div>
       <div className="mt-3 text-[11px] text-slate-500">{label}</div>
-      <b className="mt-1 block text-sm">{value}</b>
+      <b className={`mt-1 block text-sm ${valueClassName || ""}`}>{value}</b>
     </div>
   );
 }
