@@ -871,6 +871,9 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     unit:z.string().trim().min(1).max(20).default("adet"),
     purchasePrice:z.coerce.number().finite().min(0).refine(twoDecimals).default(0),
     salePrice:z.coerce.number().finite().min(0).refine(twoDecimals).default(0),
+    // New product opening balance; subsequent edits are posted through stock movements.
+    stock:z.coerce.number().finite().min(0).max(999999999)
+      .refine(threeDecimals,"Stok adedi en fazla üç ondalık basamak içerebilir").default(0),
     brand:z.string().trim().max(100).default(""),
     category:z.string().trim().max(120).default(""),
     description:z.string().trim().max(4000).default(""),
@@ -1154,6 +1157,14 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
          p.brand||null,p.category||null,p.description||null,JSON.stringify(images),images[0]||null,
          p.unitsPerBox,p.minOrderQty,p.publishB2B],
       );
+      // Opening stock and product registration commit atomically.
+      if(p.stock>0){
+        const movement=await createManualStockMovement(c,{
+          storeId:sid,productId:Number(inserted.rows[0].id),delta:p.stock,
+          note:"Yeni ürün açılış stoku",actor:user(res),
+        });
+        inserted.rows[0].stock=movement.stock;
+      }
       return syncDukkanToB2B(c,inserted.rows[0]);
     });
     notifyMetaCatalogChange();
