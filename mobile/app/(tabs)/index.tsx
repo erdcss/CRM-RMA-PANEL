@@ -568,6 +568,11 @@ export default function HomeScreen() {
         >
           {filtered.slice(0, 10).map((product) => {
             const image = productImage(product);
+            const pack = Math.max(1, Number(product.units_per_box) || 1);
+            const minBoxes = Math.max(1, Number(product.min_order_qty) || 1);
+            const stock = Math.max(0, Number(product.stock) || 0);
+            const soldOut = stock === 0;
+            const cannotOrder = stock < pack * minBoxes;
             const priceVisible =
               Boolean(session) &&
               product.price !== null &&
@@ -576,7 +581,7 @@ export default function HomeScreen() {
             return (
               <Pressable
                 key={String(product.id)}
-                style={[styles.productCard, { width: Math.min(190, Math.max(145, screenWidth * 0.42)) }]}
+                style={[styles.productCard, { width: Math.min(190, Math.max(145, screenWidth * 0.42)) }, cannotOrder && styles.unavailableProductCard]}
                 onPress={() =>
                   router.push({
                     pathname: '/product/[id]',
@@ -588,7 +593,7 @@ export default function HomeScreen() {
                   {image ? (
                     <Image
                       source={{ uri: image }}
-                      style={styles.productImage}
+                      style={[styles.productImage, cannotOrder && styles.unavailableProductImage]}
                       contentFit="contain"
                       cachePolicy="memory-disk"
                     />
@@ -599,6 +604,12 @@ export default function HomeScreen() {
                       color={palette.muted}
                     />
                   )}
+                  {cannotOrder ? (
+                    <View pointerEvents="none" style={styles.stockOverlayBadge}>
+                      <Ionicons name="ban-outline" size={15} color="#FFFFFF" />
+                      <Text style={styles.stockOverlayText}>{soldOut ? 'STOKTA YOK' : 'STOK YETERSİZ'}</Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.productBody}>
@@ -609,7 +620,7 @@ export default function HomeScreen() {
                   {product.seller_name ? <Text style={styles.meta} numberOfLines={1}>{product.seller_name}</Text> : null}
 
                   {priceVisible ? (
-                    <Text style={styles.price}>{money(product.price)}</Text>
+                    <Text style={[styles.price, cannotOrder && styles.unavailablePrice]}>{money(product.price)}</Text>
                   ) : (
                     <Pressable
                       style={styles.lockedPrice}
@@ -626,9 +637,14 @@ export default function HomeScreen() {
                     </Pressable>
                   )}
 
-                  <Text style={styles.meta}>
-                    Koli içi {Number(product.units_per_box || 1)} · Min.{' '}
-                    {Number(product.min_order_qty || 1)}
+                  {cannotOrder ? (
+                    <View style={styles.stockMessage}>
+                      <Ionicons name="cube-outline" size={14} color="#BE123C"/>
+                      <Text style={styles.stockMessageText}>{soldOut ? 'Stoklar tükenmiştir.' : 'Sipariş için yeterli stok yok.'}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={[styles.meta, cannotOrder && styles.unavailablePrice]}>
+                    Koli içi {pack} · Min. {minBoxes}
                   </Text>
                 </View>
               </Pressable>
@@ -883,6 +899,22 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  unavailableProductCard: { borderColor: '#E5E7EB' },
+  unavailableProductImage: { opacity: 0.42 },
+  stockOverlayBadge: {
+    position: 'absolute', left: 7, right: 7, top: '40%',
+    minHeight: 36, paddingHorizontal: 7, paddingVertical: 8, borderRadius: 22,
+    backgroundColor: '#C91F2C', flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: '#FFFFFF',
+  },
+  stockOverlayText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', flexShrink: 1, textAlign: 'center' },
+  unavailablePrice: { color: '#9CA3AF' },
+  stockMessage: {
+    marginTop: 8, paddingHorizontal: 8, paddingVertical: 8,
+    backgroundColor: '#FFF1F2', borderRadius: 9,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+  },
+  stockMessageText: { flex: 1, fontSize: 10, lineHeight: 15, fontWeight: '700', color: '#9F1239' },
   productBody: {
     padding: spacing.md,
   },
