@@ -62,7 +62,7 @@ export function B2BCategoryTiles({
 
   const railClasses = "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 [-webkit-overflow-scrolling:touch] " +
     (horizontal
-      ? "sm:mx-0 sm:px-0 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent]"
+      ? "sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       : "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-5 xl:grid-cols-6");
 
   return <div className={horizontal ? "relative min-w-0" : undefined}>
