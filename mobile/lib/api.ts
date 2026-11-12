@@ -742,6 +742,12 @@ export const rmaApi = {
     request<MarketplaceProduct>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products/${encodeURIComponent(String(id))}`),
   getB2BProduct: (id: string | number) =>
     request<B2BProduct>(`/api/b2b/products/${encodeURIComponent(String(id))}`),
+  getStockAlert: (kind: 'b2b' | 'marketplace', id: string | number) =>
+    request<{subscribed:boolean;status:string}>(`/api/b2b/stock-alerts/${kind}/${encodeURIComponent(String(id))}`),
+  subscribeStockAlert: (kind: 'b2b' | 'marketplace', id: string | number) =>
+    request<{subscribed:boolean;status:string}>(`/api/b2b/stock-alerts/${kind}/${encodeURIComponent(String(id))}`,{method:'POST',body:'{}'}),
+  cancelStockAlert: (kind: 'b2b' | 'marketplace', id: string | number) =>
+    request<{subscribed:boolean;status:string}>(`/api/b2b/stock-alerts/${kind}/${encodeURIComponent(String(id))}`,{method:'DELETE'}),
   getB2BHomepage: async (): Promise<B2BHomepage> => {
     // Read the same public configuration that Admin → Ana Sayfa writes.
     // A separate B2B server can be on an older deployment; fall back only
