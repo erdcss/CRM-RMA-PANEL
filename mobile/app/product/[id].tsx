@@ -127,6 +127,8 @@ export default function ProductDetailScreen() {
   const min = Math.max(1, Number(product?.min_order_qty || 1));
   const stock = Math.max(0, Number(product?.stock || 0));
   const maxBoxes = Math.max(0, Math.floor(stock / pack));
+  const soldOut = stock === 0;
+  const cannotOrder = maxBoxes < min;
   const effectiveQuantity = Math.min(
     maxBoxes || min,
     Math.max(min, quantity < min ? min : quantity),
@@ -266,7 +268,21 @@ export default function ProductDetailScreen() {
               </Text>
             </View>
             <Ionicons name="chevron-forward" color={palette.textSecondary} size={20}/>
-          </Pressable>{product.description ? (
+          </Pressable>
+          {cannotOrder ? (
+            <View style={styles.outOfStockNotice} accessibilityRole="alert">
+              <Ionicons name="cube-outline" size={29} color="#C81E1E" />
+              <View style={{flex:1}}>
+                <Text style={styles.outOfStockNoticeTitle}>
+                  {soldOut ? 'Stoklar Tükenmiştir' : 'Sipariş İçin Yeterli Stok Yok'}
+                </Text>
+                <Text style={styles.outOfStockNoticeText}>
+                  {soldOut ? 'Bu ürünümüzün stokları şu anda tükenmiştir.' : 'Mevcut stok minimum koli siparişini karşılamıyor.'}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+          {product.description ? (
             <View style={styles.descriptionBox}>
               <Text style={styles.description}>{product.description}</Text>
             </View>
@@ -285,7 +301,8 @@ export default function ProductDetailScreen() {
             <InfoCard
               icon="storefront-outline"
               label="Stok"
-              value={`${stock} adet · ${maxBoxes} koli`}
+              value={soldOut ? 'Tükendi' : cannotOrder ? 'Yetersiz' : `${stock} adet · ${maxBoxes} koli`}
+              valueColor={cannotOrder ? '#B91C1C' : undefined}
             />
             <InfoCard
               icon="shield-checkmark-outline"
@@ -313,7 +330,9 @@ export default function ProductDetailScreen() {
           <View style={styles.shippingBox}>
             <Ionicons name="car-outline" size={21} color={palette.textSecondary} />
             <Text style={styles.shippingText}>
-              {isSellerProduct
+              {cannotOrder
+                ? 'Bu ürün şu anda siparişe kapalıdır.'
+                : isSellerProduct
                 ? 'Tedarikçi siparişiniz, satıcı onayı bekleyecek şekilde kaydedilir; ödeme henüz alınmaz.'
                 : loggedIn
                   ? 'Siparişinizi desteklenen ödeme seçenekleriyle tamamlayabilirsiniz.'
@@ -323,6 +342,21 @@ export default function ProductDetailScreen() {
         </View>
       </ScrollView>
       <View style={[styles.dockContainer, { backgroundColor: palette.background }]}>
+        {cannotOrder ? (
+          <View style={styles.unavailableDock}>
+            <View style={styles.unavailableDockTitleRow}>
+              <Ionicons name="cube-outline" size={20} color="#B91C1C"/>
+              <Text style={styles.unavailableDockTitle}>
+                {soldOut ? 'Stoklar Tükenmiştir' : 'Sipariş İçin Yeterli Stok Yok'}
+              </Text>
+            </View>
+            <View style={styles.unavailableDockButton} accessibilityRole="text">
+              <Ionicons name="ban-outline" size={19} color="#6B7280"/>
+              <Text style={styles.unavailableDockButtonText}>Satın Alınamaz</Text>
+            </View>
+          </View>
+        ) : (
+          <>
         <Animated.View
           pointerEvents={drawerOpen ? 'none' : 'auto'}
           importantForAccessibility={drawerOpen ? 'no-hide-descendants' : 'auto'}
@@ -497,6 +531,8 @@ export default function ProductDetailScreen() {
             </Text>
           </Pressable>
         </View>
+          </>
+        )}
       </View>
       <ProductShareSheet product={product} imageUri={image}
         visible={shareOpen} onClose={()=>setShareOpen(false)}/>
@@ -508,10 +544,12 @@ function InfoCard({
   icon,
   label,
   value,
+  valueColor,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: string;
+  valueColor?: string;
 }) {
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -519,13 +557,31 @@ function InfoCard({
     <View style={styles.infoCard}>
       <Ionicons name={icon} size={18} color={palette.textSecondary} />
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={[styles.infoValue, valueColor ? {color:valueColor} : undefined]}>{value}</Text>
     </View>
   );
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
   sellerCard:{marginTop:14,padding:12,borderRadius:12,borderWidth:1,flexDirection:'row',alignItems:'center',gap:10},
+  outOfStockNotice: {
+    marginTop: 14, borderRadius: 13, padding: 15,
+    backgroundColor: '#FFF1F2', borderWidth: 1, borderColor: '#FFE4E6',
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+  },
+  outOfStockNoticeTitle: { fontSize: 16, fontWeight: '900', color: '#B91C1C' },
+  outOfStockNoticeText: { marginTop: 5, fontSize: 12, lineHeight: 19, color: '#475569' },
+  unavailableDock: {
+    marginHorizontal: 14, marginBottom: 7, padding: 13, borderRadius: 16,
+    borderWidth: 1, borderColor: '#E2E8F0', backgroundColor: '#FFFFFF',
+  },
+  unavailableDockTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginBottom: 10 },
+  unavailableDockTitle: { color: '#B91C1C', fontWeight: '800', fontSize: 14, flexShrink: 1 },
+  unavailableDockButton: {
+    minHeight: 47, flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    gap: 8, borderRadius: 11, backgroundColor: '#E5E7EB',
+  },
+  unavailableDockButtonText: { fontSize: 14, fontWeight: '800', color: '#6B7280' },
   dockContainer: { paddingTop: 0 },
   collapsedSummary: {
     marginHorizontal: 14,
