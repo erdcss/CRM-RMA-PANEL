@@ -162,7 +162,7 @@ export default function B2BStorefront() {
               <Link href="/kategoriler" className="shrink-0 text-xs font-bold text-amber-800 hover:underline">Tüm kategoriler</Link>
             </div>
             <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Kategorileri görmek için sağa kaydırın →</p>
-            <B2BCategoryTiles homepage={homepage} />
+            <B2BCategoryTiles homepage={homepage} horizontal />
           </section>
         ) : null}
 
