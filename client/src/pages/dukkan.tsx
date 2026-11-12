@@ -1007,25 +1007,38 @@ export default function Dukkan() {
                 </div>)}
               </div>
               {section==="products"&&<div className="mt-5 space-y-4">
-                <div className="rounded-2xl border border-[#d7e7fa] bg-white p-4">
+                <div onDragEnter={productImagesDragEnter} onDragOver={productImagesDragOver}
+                  onDragLeave={productImagesDragLeave} onDrop={productImagesDrop}
+                  className={"rounded-2xl border bg-white p-4 transition-colors "+(draggingProductImages
+                    ?"border-sky-500 bg-sky-50 ring-2 ring-sky-200":"border-[#d7e7fa]")}>
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h4 className="text-sm font-extrabold text-[#122b4f]">Ürün Görselleri</h4>
                       <p className="text-xs text-slate-500">En fazla 6 fotoğraf · JPG, PNG veya WebP · İlk görsel kapak fotoğrafı olur</p>
                     </div>
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-[#e9f4ff] px-4 py-2.5 text-xs font-bold text-[#145595] hover:bg-[#dcedff]">
-                      <ImagePlus size={17}/> Görsel Ekle
-                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only"
-                        onChange={e=>{void addProductImages(Array.from(e.target.files||[]));e.target.value="";}}/>
-                    </label>
+                    <button type="button" disabled={busy||processingProductImages||productImages.length>=6}
+                      onClick={()=>productImageFileInput.current?.click()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-[#e9f4ff] px-4 py-2.5 text-xs font-bold text-[#145595] hover:bg-[#dcedff] disabled:cursor-not-allowed disabled:opacity-50">
+                      <ImagePlus size={17}/> {productImages.length>=6?"Görsel Sınırına Ulaşıldı":"Görsel Ekle"}
+                    </button>
+                    <input ref={productImageFileInput} type="file" accept="image/jpeg,image/png,image/webp"
+                      multiple className="sr-only"
+                      onChange={e=>{void addProductImages(Array.from(e.target.files||[]));e.target.value="";}}/>
                   </div>
-                  {productImages.length===0?<div className="grid min-h-24 place-content-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-sm text-slate-400">
-                    <ImagePlus className="mx-auto" size={24}/> Henüz ürün görseli eklenmedi
-                  </div>:<div className="flex flex-wrap gap-3">
+                  <div className={"grid min-h-28 place-content-center gap-2 rounded-xl border-2 border-dashed px-3 py-5 text-center text-sm "+(draggingProductImages
+                    ?"border-sky-400 bg-sky-100 text-sky-800":"border-slate-200 bg-slate-50 text-slate-500")}>
+                    {processingProductImages?<Loader2 className="mx-auto animate-spin" size={25}/>:
+                      <UploadCloud className="mx-auto text-[#356a9c]" size={27}/>}
+                    <strong>{processingProductImages?"Görseller hazırlanıyor...":draggingProductImages
+                      ?"Görselleri buraya bırakın":"Görselleri sürükleyip buraya bırakın"}</strong>
+                    <span className="text-xs">{productImages.length} / 6 görsel · Sürükleyin veya Görsel Ekle ile seçin</span>
+                  </div>
+                  {productImages.length>0&&<div className="mt-3 flex flex-wrap gap-3">
                     {productImages.map((image,i)=><div key={i} className="relative h-28 w-28 overflow-hidden rounded-xl border border-slate-200 bg-white">
                       <img src={image} alt={"Ürün görseli "+(i+1)} className="h-full w-full object-contain"/>
-                      <button type="button" onClick={()=>setProductImages(old=>old.filter((_,n)=>i!==n))}
-                        className="absolute right-1 top-1 rounded-full bg-white p-1 text-red-600 shadow" aria-label={"Görseli kaldır "+(i+1)}>
+                      <button type="button" disabled={processingProductImages||busy}
+                        onClick={()=>setProductImages(old=>old.filter((_,n)=>i!==n))}
+                        className="absolute right-1 top-1 rounded-full bg-white p-1 text-red-600 shadow disabled:opacity-50" aria-label={"Görseli kaldır "+(i+1)}>
                         <Trash2 size={14}/></button>
                       {i===0?<span className="absolute bottom-1 left-1 rounded bg-[#112e51] px-2 py-0.5 text-[10px] text-white">Kapak</span>:null}
                     </div>)}
@@ -1074,7 +1087,7 @@ export default function Dukkan() {
                 </div>)}
                 <div className="mt-2 flex items-center justify-between gap-3"><button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold" onClick={()=>setLines(old=>[...old,{...NEW_LINE}])}>+ Ürün satırı</button><strong className="text-sm">Toplam: {currency(total)}</strong></div>
               </div>}
-              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy} className={buttonClass}>{busy?"Kaydediliyor...":editingInvoiceId?"Değişiklikleri Kaydet":"Kaydet ve İşle"}</button></div>
+              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy||(section==="products"&&processingProductImages)} className={buttonClass}>{busy?"Kaydediliyor...":editingInvoiceId?"Değişiklikleri Kaydet":"Kaydet ve İşle"}</button></div>
             </form>}
             {section==="banks"&&isWriter&&<div className="mb-4 grid gap-3 md:grid-cols-2">
               <form className="rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void submitSpecial("banks",{name:draft.newBank,iban:draft.newIban});}}><h3 className="mb-2 text-sm font-bold">Yeni banka hesabı</h3><input className={inputClass+" mb-2"} placeholder="Banka adı" required value={draft.newBank||""} onChange={e=>put("newBank",e.target.value)}/><input className={inputClass+" mb-2"} placeholder="IBAN (opsiyonel)" value={draft.newIban||""} onChange={e=>put("newIban",e.target.value)}/><button disabled={busy} className={buttonClass}>Banka Ekle</button></form>
