@@ -27,6 +27,7 @@ import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sen
 import { makeBusinessApplicationAlert } from "./business-application-alerts";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BLocationAdmin } from "./b2b-location-admin";
+import { registerB2BStockAlertRoutes, startB2BStockAlertWorker } from "./b2b-stock-alerts";
 import { createMobileSignupEnrollment, claimMobileSignupEnrollment } from "./b2b-push-enrollment";
 import { registerB2BBankPaymentApproval } from "./b2b-bank-payment-approval";
 import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
@@ -1677,6 +1678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await ensureB2BAccountTables();
       await ensureMobilePushTable();
       startMarketingWorker();
+      startB2BStockAlertWorker();
     })
     .catch(err => console.error("DB/B2B account init error:", err));
 
@@ -2953,6 +2955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerDukkanRoutes(app, sessionUserId);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
+  registerB2BStockAlertRoutes(app, requireB2B);
   registerB2BLocationAdmin(app, requireAdmin, requireB2B);
   registerB2BBankPaymentApproval(app, requireAdmin, sessionUserId);
   registerB2BShortageRoutes(app, requireB2B, sessionUserId, requireAdmin);

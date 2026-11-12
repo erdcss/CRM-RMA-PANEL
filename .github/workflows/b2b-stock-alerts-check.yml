@@ -1,0 +1,56 @@
+name: B2B Stock Alert API and Mobile UI
+on:
+  pull_request:
+    paths:
+      - 'server/b2b-stock-alerts.ts'
+      - 'server/routes.ts'
+      - 'mobile/app/product/**'
+      - 'mobile/app/notifications.tsx'
+      - 'mobile/lib/api.ts'
+      - '.github/workflows/b2b-stock-alerts-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/b2b-stock-alerts.ts'
+      - 'server/routes.ts'
+      - 'mobile/app/product/**'
+      - 'mobile/app/notifications.tsx'
+      - 'mobile/lib/api.ts'
+      - '.github/workflows/b2b-stock-alerts-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  server:
+    name: API TypeScript and Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run build
+  mobile:
+    name: Expo Mobile TypeScript and Existing Regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: node --test scripts/b2b-share-crash.test.cjs
+      - run: node --test scripts/tiktok-commerce.test.cjs
+      - run: node --test scripts/campaign-hero-layout.test.cjs
+      - run: npm run typecheck

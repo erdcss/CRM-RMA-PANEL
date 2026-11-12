@@ -23,6 +23,7 @@ import {trackTikTokAddToCart,trackTikTokProductView} from '@/lib/tiktok-commerce
 import { appAlert } from '@/lib/appAlert';
 import { ProductShareSheet } from '@/components/products/ProductShareSheet';
 import { monitorMobileProduct } from '@/lib/customer-insights';
+import { registerB2BPush } from '@/lib/push';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -59,6 +60,8 @@ export default function ProductDetailScreen() {
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [shareOpen,setShareOpen]=useState(false);
+  const [stockAlertSubscribed,setStockAlertSubscribed]=useState(false);
+  const [stockAlertBusy,setStockAlertBusy]=useState(false);
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if(successTimer.current) clearTimeout(successTimer.current); }, []);
   const progress = useRef(new Animated.Value(0)).current;
@@ -78,6 +81,18 @@ export default function ProductDetailScreen() {
   const id = String(params.id || '');
   const marketplaceId = id.startsWith('mp-') ? Number(id.slice(3)) : null;
   const sellerSlug = String(params.slug || '');
+  const alertKind = marketplaceId ? 'marketplace' as const : 'b2b' as const;
+  const alertProductId = marketplaceId ? String(marketplaceId) : id;
+
+  useEffect(() => {
+    let active=true;
+    setStockAlertSubscribed(false);
+    if (!id || session?.user?.role !== 'b2b_customer' || session.user.isActive !== true) return;
+    void rmaApi.getStockAlert(alertKind,alertProductId).then(result => {
+      if(active)setStockAlertSubscribed(result.subscribed);
+    }).catch(error=>console.warn('[stock-alert] Lookup unavailable',error));
+    return () => {active=false;};
+  }, [id,alertKind,alertProductId,session?.user?.id,session?.access_token]);
 
   useEffect(() => {
     if (!id) return;
@@ -206,7 +221,7 @@ export default function ProductDetailScreen() {
                 <Image
                   key={url + index}
                   source={{ uri: url }}
-                  style={[styles.productImage, { width: galleryWidth || 320, height: galleryWidth || 320 }]}
+                  style={[styles.productImage, { width: galleryWidth || 320, height: galleryWidth || 320 }, cannotOrder && styles.unavailableGalleryImage]}
                   contentFit="contain"
                   cachePolicy="memory-disk"
                 />
@@ -215,6 +230,12 @@ export default function ProductDetailScreen() {
           ) : (
             <Ionicons name="cube-outline" size={72} color={colors.border} />
           )}
+          {cannotOrder ? (
+            <View style={styles.soldOutGalleryBanner} pointerEvents="none">
+              <Ionicons name="ban-outline" size={20} color="#FFFFFF"/>
+              <Text style={styles.soldOutGalleryBannerText}>{soldOut ? 'STOKTA YOK' : 'STOK YETERSİZ'}</Text>
+            </View>
+          ) : null}
           {images.length > 0 ? (
             <View style={styles.imageCounter} pointerEvents="none">
               <Text style={styles.imageCounterText}>{Math.min(galleryIndex + 1, images.length)}/{images.length}</Text>
@@ -354,6 +375,40 @@ export default function ProductDetailScreen() {
               <Ionicons name="ban-outline" size={19} color="#6B7280"/>
               <Text style={styles.unavailableDockButtonText}>Satın Alınamaz</Text>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={stockAlertSubscribed ? 'Stok bildirimini iptal et' : 'Stok gelince haber ver'}
+              accessibilityState={{disabled:stockAlertBusy}}
+              disabled={stockAlertBusy}
+              style={[styles.stockNotifyButton,stockAlertSubscribed && styles.stockNotifyButtonActive,stockAlertBusy && {opacity:0.5}]}
+              onPress={async()=>{
+                if(!loggedIn){router.push('/login');return;}
+                setStockAlertBusy(true);
+                try{
+                  if(stockAlertSubscribed){
+                    await rmaApi.cancelStockAlert(alertKind,alertProductId);
+                    setStockAlertSubscribed(false);
+                    appAlert('Stok bildirimi iptal edildi','Bu ürün için yeniden stok bildirimi gönderilmeyecek.');
+                  }else{
+                    await rmaApi.subscribeStockAlert(alertKind,alertProductId);
+                    setStockAlertSubscribed(true);
+                    const pushEnabled=await registerB2BPush();
+                    appAlert('Stok uyarısı oluşturuldu',
+                      pushEnabled
+                        ? 'Ürün yeniden siparişe açıldığında cihazınıza ve uygulama içi bildirimlerinize haber vereceğiz.'
+                        : 'Ürün yeniden stokta olduğunda Bildirimlerim ekranından haberdar olabilirsiniz. Telefon bildirimi için bildirim iznini açın.',
+                      undefined,'success');
+                  }
+                }catch(error){
+                  appAlert('Stok bildirimi kaydedilemedi',error instanceof Error?error.message:'Tekrar deneyin');
+                }finally{setStockAlertBusy(false);}
+              }}
+            >
+              <Ionicons name={stockAlertSubscribed?'checkmark-circle-outline':'notifications-outline'} size={20} color="#B91C1C"/>
+              <Text style={styles.stockNotifyButtonText} numberOfLines={2}>
+                {stockAlertBusy ? 'İşleniyor...' : stockAlertSubscribed ? 'Bildirim Aktif · İptal Et' : 'Stok Gelince Haber Ver'}
+              </Text>
+            </Pressable>
           </View>
         ) : (
           <>
@@ -582,6 +637,20 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     gap: 8, borderRadius: 11, backgroundColor: '#E5E7EB',
   },
   unavailableDockButtonText: { fontSize: 14, fontWeight: '800', color: '#6B7280' },
+  stockNotifyButton: {
+    minHeight: 50, marginTop: 9, borderRadius: 11, borderWidth: 1, borderColor: '#E11D48',
+    backgroundColor: '#FFF1F2', paddingHorizontal: 12, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  stockNotifyButtonActive: { backgroundColor: '#FFFFFF', borderColor: '#FDA4AF' },
+  stockNotifyButtonText: {fontSize: 13, fontWeight: '800', color: '#B91C1C', flexShrink: 1, textAlign: 'center'},
+  unavailableGalleryImage: {opacity:0.48},
+  soldOutGalleryBanner: {
+    position:'absolute',top:'42%',left:20,right:20,borderRadius:26,minHeight:50,
+    backgroundColor:'#C91F2C',borderWidth:2,borderColor:'#FFFFFF',
+    flexDirection:'row',alignItems:'center',justifyContent:'center',gap:10,padding:10,
+  },
+  soldOutGalleryBannerText:{color:'#FFFFFF',fontSize:17,fontWeight:'900',flexShrink:1},
   dockContainer: { paddingTop: 0 },
   collapsedSummary: {
     marginHorizontal: 14,

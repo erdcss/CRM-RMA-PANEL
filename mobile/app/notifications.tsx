@@ -71,14 +71,15 @@ export default function NotificationsScreen() {
        !items.length ? <View style={styles.empty}>
          <Ionicons name="notifications-off-outline" size={40} color={palette.muted}/>
          <Text style={{color:palette.text,fontSize:17,fontWeight:'800',marginTop:13}}>Henüz bildirim yok</Text>
-         <Text style={{color:palette.textSecondary,fontSize:13,marginTop:7,textAlign:'center'}}>Sipariş, fatura, iade ve önemli duyurularınız burada listelenir.</Text>
+         <Text style={{color:palette.textSecondary,fontSize:13,marginTop:7,textAlign:'center'}}>Stok bildirimleri, sipariş, fatura ve önemli duyurularınız burada listelenir.</Text>
        </View> : items.map(item=><Pressable key={item.id}
           onPress={()=>void open(item)}
           style={[styles.card,{borderColor:item.read_at?palette.border:palette.accent,backgroundColor:palette.surface}]}>
           <View style={[styles.icon,{backgroundColor:palette.surfaceSecondary}]}>
             <Ionicons name={item.event_key==='invoice_issued'?'document-text-outline':
                item.event_key==='order_created'?'bag-handle-outline':
-               item.event_key==='return_approved'?'return-down-back-outline':'notifications-outline'}
+               item.event_key==='return_approved'?'return-down-back-outline':
+               item.event_key==='stock_replenished'?'cube-outline':'notifications-outline'}
               color={palette.text} size={23}/>
           </View>
           <View style={{flex:1,minWidth:0}}>
