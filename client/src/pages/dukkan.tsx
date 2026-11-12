@@ -930,12 +930,54 @@ export default function Dukkan() {
                </div>
                <p className="mt-3 text-sm text-emerald-800"><strong>{createdProductName}</strong> merkezi ürün kayıtlarına eklendi.</p>
                <div className="mt-5 flex flex-wrap gap-3">
-                 <button type="button" onClick={()=>{setCreatedProductName(null);setShowForm(true);setDraft({});setProductImages([]);setPublishToB2B(false);setNotice("");}}
-                   className={buttonClass}><Plus size={16}/> Başka Ürün Ekle</button>
+                 <button type="button" onClick={openFreshProduct}
+                   className={buttonClass}><Plus size={16}/> Yeni Ürün Ekle</button>
+                 <button type="button" onClick={openProductCopyDialog} disabled={!savedProductSnapshot}
+                   className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-3 text-sm font-bold text-[#145595] hover:bg-sky-50 disabled:opacity-40">
+                   <Copy size={16}/> Ürünü Kopyala</button>
                  <a href={"/dukkan?tab=products&storeId="+encodeURIComponent(storeId)}
                    className="inline-flex items-center rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-900 hover:bg-emerald-100">Ürün Listesine Dön</a>
                </div>
              </div>}
+             {standaloneProductCreate&&showProductCopyDialog&&savedProductSnapshot&&
+               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4"
+                 onMouseDown={event=>{if(event.currentTarget===event.target)setShowProductCopyDialog(false);}}>
+                 <section role="dialog" aria-modal="true" aria-labelledby="dukkan-copy-product-title"
+                   className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
+                   <div className="mb-2 flex items-center justify-between gap-3">
+                     <h3 id="dukkan-copy-product-title" className="flex items-center gap-2 text-lg font-black text-[#122b4f]">
+                       <Copy size={20}/> Ürünü Kopyala
+                     </h3>
+                     <button type="button" onClick={()=>setShowProductCopyDialog(false)}
+                       className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Pencereyi kapat"><X size={19}/></button>
+                   </div>
+                   <p className="mb-5 text-sm text-slate-600">
+                     <strong>{createdProductName||savedProductSnapshot.fields.name}</strong> ürününün bilgileri
+                     yeni bir ürün formuna aktarılacak. Kaydetmeden önce düzenleyebilirsiniz.
+                   </p>
+                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#d8e5f4] bg-slate-50 p-4">
+                     <input type="checkbox" checked={copyProductImages} disabled={!savedProductSnapshot.images.length}
+                       onChange={event=>setCopyProductImages(event.target.checked)}
+                       className="mt-1 h-4 w-4 accent-[#145595]"/>
+                     <span>
+                       <span className="block text-sm font-bold text-[#12345d]">Ürün görsellerini de kopyala</span>
+                       <span className="mt-1 block text-xs leading-5 text-slate-600">
+                         Varsayılan olarak kapalıdır. {savedProductSnapshot.images.length} görseli de aktarmak için işaretleyin.
+                       </span>
+                     </span>
+                   </label>
+                   <p className="mt-3 text-xs leading-5 text-slate-500">
+                     Stok kodu benzersizleştirilir, barkod boş bırakılır. Diğer bilgiler korunur.
+                     Görseller aktarılmazsa B2B yayını kapalı başlar.
+                   </p>
+                   <div className="mt-6 flex justify-end gap-2">
+                     <button type="button" onClick={()=>setShowProductCopyDialog(false)}
+                       className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Vazgeç</button>
+                     <button type="button" onClick={startCopiedProduct} className={buttonClass}>
+                       <Copy size={16}/> Kopyala ve Düzenle</button>
+                   </div>
+                 </section>
+               </div>}
              {standaloneProductCreate&&section==="products"&&!canManage&&
                <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                  Ürün eklemek için mağaza yöneticisi yetkisi gerekir.
