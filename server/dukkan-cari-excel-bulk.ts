@@ -261,7 +261,7 @@ export async function ensureCariExcelSchema(db:Pool){
   );
 }
 export async function importCariExcel(db:Pool,storeId:number,actor:number,
-  filename:string,bytes:Buffer,expectedSha:string,resolutions:CariExcelResolutions={},expectedFingerprint:string){
+  filename:string,bytes:Buffer,expectedSha:string,resolutions:CariExcelResolutions,expectedFingerprint:string){
   const client=await db.connect();
   try {
     await client.query("BEGIN");
