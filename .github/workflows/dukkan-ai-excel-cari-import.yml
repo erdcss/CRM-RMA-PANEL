@@ -1,0 +1,37 @@
+name: Dukkan AI Excel Cari Import
+on:
+  pull_request:
+    paths:
+      - "server/dukkan-xlsx-reader.ts"
+      - "server/dukkan-cari-excel-bulk.ts"
+      - "server/dukkan-cari-excel-bulk.test.ts"
+      - "server/dukkan.ts"
+      - "client/src/components/dukkan-ai-document-import.tsx"
+      - ".github/workflows/dukkan-ai-excel-cari-import.yml"
+  push:
+    branches: [main]
+    paths:
+      - "server/dukkan-xlsx-reader.ts"
+      - "server/dukkan-cari-excel-bulk.ts"
+      - "server/dukkan-cari-excel-bulk.test.ts"
+      - "server/dukkan.ts"
+      - "client/src/components/dukkan-ai-document-import.tsx"
+      - ".github/workflows/dukkan-ai-excel-cari-import.yml"
+permissions:
+  contents: read
+jobs:
+  check:
+    name: XLSX tests, TypeScript, and web/server production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npx tsx --test server/dukkan-cari-excel-bulk.test.ts
+      - run: npm run check
+      - run: npm run build
