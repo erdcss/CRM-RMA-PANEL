@@ -9,6 +9,8 @@ import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledg
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
 import { buildCariExcel } from "./dukkan-cari-excel";
+import { parseXlsxRows, isXlsx } from "./dukkan-xlsx-reader";
+import { ensureCariExcelSchema, previewCariExcel, importCariExcel } from "./dukkan-cari-excel-bulk";
 import {reviseDukkanSalesInvoice} from "./dukkan-sales-invoice-revisions";
 import {correctArchivedSalesInvoice} from "./dukkan-archive-sales-corrections";
 import {resolveArchiveStockCodes} from "./dukkan-archive-stock-codes";
@@ -464,13 +466,48 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.setHeader("Cache-Control","no-store");
     res.status(201).json(saved);
   }));
+
+  const excelDocumentPayload=z.object({
+    filename:z.string().trim().min(1).max(180).regex(/\.xlsx$/i),
+    mimeType:z.string().trim().max(160).optional(),
+    base64:z.string().min(20).max(11_000_000).regex(/^[a-zA-Z0-9+/]+={0,2}$/),
+  });
+  function excelDocumentBytes(base64:string){
+    const bytes=Buffer.from(base64,"base64");
+    if(bytes.length<64||bytes.length>8_000_000||!isXlsx(bytes))
+      throw Object.assign(new Error("En fazla 8 MB boyutunda geçerli bir .xlsx dosyası yükleyin."),{status:400});
+    return bytes;
+  }
+  // Never modify financial records during preview.
+  app.post("/api/dukkan/stores/:storeId/ai-documents/preview-cari-excel",safe(async(req,res)=>{
+    accountant(res);
+    const input=excelDocumentPayload.parse(req.body);
+    const db=await ready();
+    await ensureCariExcelSchema(db);
+    const result=await previewCariExcel(db,store(req),excelDocumentBytes(input.base64));
+    res.setHeader("Cache-Control","private,no-store");
+    res.json(result);
+  }));
+  app.post("/api/dukkan/stores/:storeId/ai-documents/import-cari-excel",safe(async(req,res)=>{
+    accountant(res);
+    const input=excelDocumentPayload.extend({
+      sha256:z.string().regex(/^[a-f0-9]{64}$/),
+      confirmed:z.literal(true),
+    }).parse(req.body);
+    const db=await ready();
+    await ensureCariExcelSchema(db);
+    const saved=await importCariExcel(db,store(req),user(res),input.filename,
+      excelDocumentBytes(input.base64),input.sha256);
+    res.setHeader("Cache-Control","private,no-store");
+    res.status(201).json(saved);
+  }));
   // Financial documents are interpreted by AI only after an authenticated member uploads them.
   // This route NEVER posts a ledger entry. All extracted fields require explicit review.
   app.post("/api/dukkan/stores/:storeId/ai-documents/extract", safe(async(req,res)=>{
     const payload=z.object({
       section:z.enum(["products","stock","instruments","parties","sales","purchases"]),
       filename:z.string().trim().min(1).max(180),
-      mimeType:z.enum(["application/pdf","image/png","image/jpeg","image/webp"]),
+      mimeType:z.enum(["application/pdf","image/png","image/jpeg","image/webp","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]),
       base64:z.string().min(20).max(11_000_000).regex(/^[a-zA-Z0-9+/]+={0,2}$/)
     }).parse(req.body);
     const role=String(res.locals.dukkanRole||"");
@@ -484,7 +521,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const isPng=magic.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
     const isJpeg=magic[0]===255&&magic[1]===216&&magic[2]===255;
     const isWebp=magic.subarray(0,4).toString()==="RIFF"&&magic.subarray(8,12).toString()==="WEBP";
-    if (!({ "application/pdf":isPdf,"image/png":isPng,"image/jpeg":isJpeg,"image/webp":isWebp } as Record<string,boolean>)[payload.mimeType])
+    const isExcel=isXlsx(bytes)&&/\.xlsx$/i.test(payload.filename);
+    if (!({ "application/pdf":isPdf,"image/png":isPng,"image/jpeg":isJpeg,"image/webp":isWebp,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":isExcel } as Record<string,boolean>)[payload.mimeType])
       throw Object.assign(new Error("Dosyanın gerçek biçimi ile uzantısı uyuşmuyor"),{status:400});
     if (!process.env.OPENAI_API_KEY)throw Object.assign(new Error("AI belge analizi sunucuda henüz yapılandırılmamış"),{status:503});
     const sid=store(req),db=await ready();
@@ -505,6 +543,12 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "Stok hareketi delta pozitif giriş, negatif çıkış; tahmini miktar üretme.",
       "Ürün ve cari kayıtlarını numara/isim benzerliğine göre tahmin ederek kimlik atama; yalnızca belgedeki bilgileri çıkar."
     ].join("\n");
+    const isExcelDocument=payload.mimeType==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const spreadsheetRows=isExcelDocument?parseXlsxRows(bytes):null;
+    const spreadsheetContent=spreadsheetRows
+      ? "Excel dosyası ilk "+Math.min(80,spreadsheetRows.length)+" satır:\n"+
+        spreadsheetRows.slice(0,80).map((cells,i)=>String(i+1)+": "+cells.map(value=>String(value||"").slice(0,120)).join(" | ")).join("\n")
+      : "";
     const media=payload.mimeType==="application/pdf"
       ?{type:"input_file",filename:payload.filename,file_data:"data:application/pdf;base64,"+payload.base64}
       :{type:"input_image",image_url:"data:"+payload.mimeType+";base64,"+payload.base64,detail:"high"};
@@ -516,7 +560,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
         method:"POST",signal:controller.signal,
         headers:{"Authorization":"Bearer "+process.env.OPENAI_API_KEY,"Content-Type":"application/json"},
         body:JSON.stringify({model:process.env.DUKKAN_DOC_AI_MODEL||"gpt-4.1-mini",max_output_tokens:2500,
-          input:[{role:"user",content:[{type:"input_text",text:prompt},media]}]})
+          input:[{role:"user",content:isExcelDocument?[{type:"input_text",text:prompt+"\\n"+spreadsheetContent}]:[{type:"input_text",text:prompt},media]}]})
       });
       if(!response.ok)throw Object.assign(new Error("Belge analiz hizmetine erişilemiyor"),{status:502});
       result=await response.json();
