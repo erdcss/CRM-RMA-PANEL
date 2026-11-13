@@ -20,7 +20,7 @@ const XLSX="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const allowed=["application/pdf","image/png","image/jpeg","image/webp",XLSX];
 type ExcelCariCandidate={id:string;name:string;sourceCariNo:string;accountCode:string;taxNumber:string};
 type ExcelPreviewRow={row:number;name:string;sourceCariNo:string;accountCode:string;cents:number;oldCents:number;afterCents:number;postingCents:number;partyId:string|null;match:"existing"|"new"|"conflict"|"skipped";issue:string|null;candidates:ExcelCariCandidate[];resolution:string;skipped:boolean};
-type ExcelPreview={sha256:string;duplicate:boolean;rows:ExcelPreviewRow[];existing:number;created:number;skipped:number;conflicts:number;sourceKind:"report_snapshot"|"external_excel";reportDate:string|null;unchanged:number;changed:number;totalAdjustmentCents:number};
+type ExcelPreview={sha256:string;stateFingerprint:string;duplicate:boolean;rows:ExcelPreviewRow[];existing:number;created:number;skipped:number;conflicts:number;sourceKind:"report_snapshot"|"external_excel";reportDate:string|null;unchanged:number;changed:number;totalAdjustmentCents:number};
 const lira=(cents:number)=>(cents/100).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
 const isExcel=(f:File|null)=>Boolean(f&&/\.xlsx$/i.test(f.name));
 function asBase64(file:File):Promise<string>{
@@ -95,7 +95,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
   try{
    const response=await fetch(base+"/ai-documents/import-cari-excel",{method:"POST",credentials:"include",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      filename:file.name,mimeType:XLSX,base64:await asBase64(file),sha256:excelPreview.sha256,confirmed:true,resolutions:excelDecisions
+      filename:file.name,mimeType:XLSX,base64:await asBase64(file),sha256:excelPreview.sha256,stateFingerprint:excelPreview.stateFingerprint,confirmed:true,resolutions:excelDecisions
     })});
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw Error(data.error||"Cari bakiyeleri kaydedilemedi");
