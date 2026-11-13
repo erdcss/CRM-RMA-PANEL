@@ -19,8 +19,8 @@ const label:Record<string,string>={
 const XLSX="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const allowed=["application/pdf","image/png","image/jpeg","image/webp",XLSX];
 type ExcelCariCandidate={id:string;name:string;sourceCariNo:string;accountCode:string;taxNumber:string};
-type ExcelPreviewRow={row:number;name:string;sourceCariNo:string;accountCode:string;cents:number;oldCents:number;afterCents:number;partyId:string|null;match:"existing"|"new"|"conflict"|"skipped";issue:string|null;candidates:ExcelCariCandidate[];resolution:string;skipped:boolean};
-type ExcelPreview={sha256:string;duplicate:boolean;rows:ExcelPreviewRow[];existing:number;created:number;skipped:number;conflicts:number};
+type ExcelPreviewRow={row:number;name:string;sourceCariNo:string;accountCode:string;cents:number;oldCents:number;afterCents:number;postingCents:number;partyId:string|null;match:"existing"|"new"|"conflict"|"skipped";issue:string|null;candidates:ExcelCariCandidate[];resolution:string;skipped:boolean};
+type ExcelPreview={sha256:string;stateFingerprint:string;duplicate:boolean;rows:ExcelPreviewRow[];existing:number;created:number;skipped:number;conflicts:number;sourceKind:"report_snapshot"|"external_excel";reportDate:string|null;unchanged:number;changed:number;totalAdjustmentCents:number};
 const lira=(cents:number)=>(cents/100).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
 const isExcel=(f:File|null)=>Boolean(f&&/\.xlsx$/i.test(f.name));
 function asBase64(file:File):Promise<string>{
@@ -90,12 +90,12 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  };
  const importExcel=async()=>{
-  if(!file||!excelPreview||!excelConfirmed||excelNeedsReview||excelPreview.duplicate||excelPreview.conflicts||excelPreview.rows.length===excelPreview.skipped)return;
+  if(!file||!excelPreview||!excelConfirmed||excelNeedsReview||excelPreview.duplicate||excelPreview.conflicts||excelPreview.rows.length===excelPreview.skipped||(excelPreview.sourceKind==="report_snapshot"&&excelPreview.changed===0))return;
   setBusy(true);setError("");
   try{
    const response=await fetch(base+"/ai-documents/import-cari-excel",{method:"POST",credentials:"include",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      filename:file.name,mimeType:XLSX,base64:await asBase64(file),sha256:excelPreview.sha256,confirmed:true,resolutions:excelDecisions
+      filename:file.name,mimeType:XLSX,base64:await asBase64(file),sha256:excelPreview.sha256,stateFingerprint:excelPreview.stateFingerprint,confirmed:true,resolutions:excelDecisions
     })});
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw Error(data.error||"Cari bakiyeleri kaydedilemedi");
@@ -159,9 +159,14 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm">
           <strong>Excel cari eşleştirmesi · {excelPreview.rows.length} kayıt</strong>
           <div className="mt-1 text-xs text-sky-900">{excelPreview.existing} mevcut cari, {excelPreview.created} yeni cari, {excelPreview.skipped} atlanan satır, {excelPreview.conflicts} kontrol gerektiren satır.</div>
-          <p className="mt-2 text-xs text-slate-700">Bakiye hesabı: Mevcut bakiye + Belgeden eklenen tutar = Yeni bakiye. Borç pozitif, alacak negatiftir.</p>
+          {excelPreview.sourceKind==="report_snapshot"?<>
+            <p className="mt-2 font-bold text-sky-900">Çalışkan Dükkân raporu algılandı · {excelPreview.reportDate||"Tarih belirtilmedi"}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-700">Bu belge yeni borç değildir. Excel'deki bakiye hedef alınır; sistem yalnız mevcut bakiye ile Excel arasındaki farkı mutabakat hareketi olarak kaydeder. Aynı bakiye ikinci kez eklenmez.</p>
+            <p className="mt-2 text-xs text-sky-900"><strong>{excelPreview.changed} değişen cari</strong> · {excelPreview.unchanged} zaten aynı · Toplam fark: <strong>{lira(excelPreview.totalAdjustmentCents)}</strong></p>
+          </>:<p className="mt-2 text-xs text-slate-700">Dış kaynak Excel: Mevcut bakiye + Belgeden eklenen tutar = Yeni bakiye. Borç pozitif, alacak negatiftir.</p>}
         </div>
         {excelPreview.duplicate&&<div role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">Bu Excel dosyası daha önce içe aktarılmıştır. Aynı tutarlar tekrar işlenmeyecek.</div>}
+        {excelPreview.sourceKind==="report_snapshot"&&excelPreview.changed===0&&!excelPreview.conflicts&&<div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-900">Rapor bakiyeleri sistemle aynı. Yeni muhasebe hareketi oluşturmaya gerek yok.</div>}
         {excelPreview.conflicts>0&&<div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
           <strong>{excelPreview.conflicts} satırın cari eşleşmesi kontrol edilmeli.</strong>
           <p className="mt-1">Sorunlu satırda doğru mevcut cariyi seçin veya mükerrer satırı atlayın. Excel dosyasını silmeniz ya da yeniden oluşturmanız gerekmez.</p>
@@ -172,7 +177,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
         </label>}
         <div className="max-h-80 overflow-auto rounded-xl border">
           <table className="w-full min-w-[650px] text-left text-xs">
-            <thead className="sticky top-0 bg-slate-100 text-slate-700"><tr><th className="p-2">Satır / Cari</th><th className="min-w-[240px] p-2">Eşleşme ve düzeltme</th><th className="p-2 text-right">Eski bakiye</th><th className="p-2 text-right">Excel tutarı</th><th className="p-2 text-right">Yeni bakiye</th></tr></thead>
+            <thead className="sticky top-0 bg-slate-100 text-slate-700"><tr><th className="p-2">Satır / Cari</th><th className="min-w-[240px] p-2">Eşleşme ve düzeltme</th><th className="p-2 text-right">Eski bakiye</th><th className="p-2 text-right">{excelPreview.sourceKind==="report_snapshot"?"Excel hedef bakiyesi":"Excel tutarı"}</th><th className="p-2 text-right">{excelPreview.sourceKind==="report_snapshot"?"Fark":"Eklenecek"}</th><th className="p-2 text-right">Yeni bakiye</th></tr></thead>
             <tbody>{excelPreview.rows.filter(row=>!showExcelConflictsOnly||Boolean(row.issue)).map(row=><tr key={row.row} className="border-t align-top">
               <td className="p-2">{row.row}. <strong>{row.name}</strong>{row.sourceCariNo&&<span className="block text-slate-500">Cari no: {row.sourceCariNo}</span>}{row.issue&&<p className="mt-1 text-[11px] font-semibold text-red-700">{row.issue}</p>}</td>
               <td className="p-2">
@@ -198,6 +203,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
               </td>
               <td className="p-2 text-right tabular-nums">{lira(row.oldCents)}</td>
               <td className="p-2 text-right font-semibold tabular-nums">{lira(row.cents)}</td>
+              <td className="p-2 text-right tabular-nums">{row.skipped?"—":lira(row.postingCents)}</td>
               <td className="p-2 text-right font-bold tabular-nums">{row.skipped?"—":lira(row.afterCents)}</td>
             </tr>)}</tbody>
           </table>
@@ -210,12 +216,12 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
           </button>
         </div>}
         <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs">
-          <input type="checkbox" className="mt-0.5" checked={excelConfirmed} disabled={busy||excelNeedsReview||excelPreview.conflicts>0||excelPreview.duplicate} onChange={e=>setExcelConfirmed(e.target.checked)}/>
-          <span>Cari eşleşmelerini ve tutarları kontrol ettim. Excel tutarlarının mevcut carilere ayrı bakiye hareketi olarak eklenmesini onaylıyorum.</span>
+          <input type="checkbox" className="mt-0.5" checked={excelConfirmed} disabled={busy||excelNeedsReview||excelPreview.conflicts>0||excelPreview.duplicate||(excelPreview.sourceKind==="report_snapshot"&&excelPreview.changed===0)} onChange={e=>setExcelConfirmed(e.target.checked)}/>
+          <span>{excelPreview.sourceKind==="report_snapshot"?"Çalışkan Dükkân raporundaki hedef bakiyeleri kontrol ettim. Yalnız bakiye farklarının mutabakat hareketi olarak kaydedilmesini onaylıyorum.":"Cari eşleşmelerini ve tutarları kontrol ettim. Excel tutarlarının mevcut carilere ayrı bakiye hareketi olarak eklenmesini onaylıyorum."}</span>
         </label>
-        <button type="button" onClick={()=>void importExcel()} disabled={busy||!excelConfirmed||excelNeedsReview||excelPreview.duplicate||excelPreview.conflicts>0||excelPreview.rows.length===excelPreview.skipped}
+        <button type="button" onClick={()=>void importExcel()} disabled={busy||!excelConfirmed||excelNeedsReview||excelPreview.duplicate||excelPreview.conflicts>0||excelPreview.rows.length===excelPreview.skipped||(excelPreview.sourceKind==="report_snapshot"&&excelPreview.changed===0)}
           className="w-full rounded-xl bg-[#123e78] p-3 text-sm font-bold text-white disabled:opacity-40">
-          {busy?"Kaydediliyor...":(excelPreview.rows.length-excelPreview.skipped)+" Cari Kaydını Onayla ve İşle"}
+          {busy?"Kaydediliyor...":(excelPreview.sourceKind==="report_snapshot"?excelPreview.changed:excelPreview.rows.length-excelPreview.skipped)+" Cari Kaydını Onayla ve İşle"}
         </button>
       </>:!result?<p className="text-sm text-slate-500">Belge seçip analiz edin. Eksik alanları kayıt formunda düzeltebilirsiniz.</p>:<>
        {result.warnings?.length>0&&<div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{result.warnings.map((w,i)=><p key={i}>{w}</p>)}</div>}

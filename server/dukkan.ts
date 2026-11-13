@@ -493,12 +493,13 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     accountant(res);
     const input=excelDocumentPayload.extend({
       sha256:z.string().regex(/^[a-f0-9]{64}$/),
+      stateFingerprint:z.string().regex(/^[a-f0-9]{64}$/),
       confirmed:z.literal(true),
     }).parse(req.body);
     const db=await ready();
     await ensureCariExcelSchema(db);
     const saved=await importCariExcel(db,store(req),user(res),input.filename,
-      excelDocumentBytes(input.base64),input.sha256,input.resolutions);
+      excelDocumentBytes(input.base64),input.sha256,input.resolutions,input.stateFingerprint);
     res.setHeader("Cache-Control","private,no-store");
     res.status(201).json(saved);
   }));

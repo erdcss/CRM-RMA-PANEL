@@ -6,7 +6,7 @@ type CariType = "customer" | "supplier" | "both";
 type ParsedRow = { row:number; name:string; sourceCariNo:string; accountCode:string; taxNumber:string;
   city:string; phone:string; type:CariType; cents:number; };
 type Candidate = {id:string;name:string;sourceCariNo:string;accountCode:string;taxNumber:string};
-type PreviewRow = ParsedRow & {partyId:string|null; match:"existing"|"new"|"conflict"|"skipped"; oldCents:number; afterCents:number; issue:string|null; candidates:Candidate[];resolution:string;skipped:boolean};
+type PreviewRow = ParsedRow & {partyId:string|null; match:"existing"|"new"|"conflict"|"skipped"; oldCents:number; afterCents:number; postingCents:number; issue:string|null; candidates:Candidate[];resolution:string;skipped:boolean};
 const norm=(s:unknown)=>String(s||"").trim().toLocaleLowerCase("tr-TR")
   .replace(/ı/g,"i").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,"");
 const compact=(s:unknown)=>String(s||"").trim().slice(0,180);
@@ -97,6 +97,26 @@ export function parseCariExcelRows(bytes:Buffer):ParsedRow[]{
   return items;
 }
 const hash=(bytes:Buffer)=>createHash("sha256").update(bytes).digest("hex");
+/** An exported debtor/creditor report is a snapshot of this store's ledger,
+ * not a second receivable/payable transaction. Markers are inside the XLSX,
+ * not inferred from the uploaded filename.
+ */
+function reportMetadata(bytes:Buffer):{kind:"debt"|"credit";storeName:string;reportDate:string}|null{
+  const rows=parseXlsxRows(bytes);
+  const heading=norm(rows[0]?.[0]);
+  const kind=heading==="caliskandukkanborclucariler"?"debt":
+    heading==="caliskandukkanalacaklicariler"?"credit":null;
+  if(!kind)return null;
+  const storeHeader=String(rows[1]?.[0]||"");
+  const storeName=/^\s*Mağaza\s*:\s*(.+?)\s*$/iu.exec(storeHeader)?.[1]||"";
+  const date=/^\s*Rapor tarihi\s*:\s*(\d{4}-\d{2}-\d{2})\s*$/iu.exec(String(rows[1]?.[3]||""))?.[1]||"";
+  const actualHeaders=rows[4]||[];
+  if(!storeName||!date||norm(actualHeaders[0])!=="carino"||
+     norm(actualHeaders[1])!=="hesapkodu"||norm(actualHeaders[2])!=="cariadi"||
+     norm(actualHeaders[9])!=="bakiyetl")
+    invalid("Çalışkan Dükkân raporunun başlıkları eksik veya değiştirilmiş. Orijinal Excel şablonunu kullanın.");
+  return {kind,storeName,reportDate:date};
+}
 /**
  * Match by the complete set of identifiers, but resolve repeated names with
  * distinct account numbers safely: a duplicate key is the strongest available
@@ -118,6 +138,13 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer,
   decisions:CariExcelResolutions={}) {
   const resolutions=cleanResolutions(decisions);
   const items=parseCariExcelRows(bytes),sha256=hash(bytes);
+  const report=reportMetadata(bytes);
+  if(report){
+    const storeResult=await db.query("SELECT name FROM dukkan_stores WHERE id=$1",[storeId]);
+    const currentName=String(storeResult.rows[0]?.name||"");
+    if(!currentName||norm(report.storeName)!==norm(currentName))
+      invalid("Bu cari raporu başka bir mağazaya aittir. Muhasebe bakiyeleri yanlış mağazaya aktarılamaz.");
+  }
   const existing=await db.query(
     "SELECT p.id,p.name,p.source_cari_no,p.account_code,p.tax_number,COALESCE(SUM(e.debit-e.credit),0) AS balance "+
     "FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id "+
@@ -128,12 +155,17 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer,
   const output:PreviewRow[]=items.map(item=>{
     // These identifiers are OR candidates, not proof that all candidates
     // are the same party. Never silently choose one of several candidates.
-    const matches=existingRows.filter(p=>
-      (item.sourceCariNo&&norm(p.source_cari_no)===norm(item.sourceCariNo))||
-      (item.accountCode&&norm(p.account_code)===norm(item.accountCode))||
-      (item.taxNumber&&norm(p.tax_number)===norm(item.taxNumber))||
-      (norm(p.name)===norm(item.name)));
-    const matched=matches.length===1?matches[0]:null;
+    const byNo=item.sourceCariNo?existingRows.filter(p=>norm(p.source_cari_no)===norm(item.sourceCariNo)):[];
+    const byAccount=item.accountCode?existingRows.filter(p=>norm(p.account_code)===norm(item.accountCode)):[];
+    const byTax=item.taxNumber?existingRows.filter(p=>norm(p.tax_number)===norm(item.taxNumber)):[];
+    const byName=existingRows.filter(p=>norm(p.name)===norm(item.name));
+    // A report uniquely identifies the account by Cari No, then account/tax
+    // code. Another account with the same name must not create a false conflict.
+    const strong=byNo.length?byNo:byAccount.length?byAccount:byTax.length?byTax:byName;
+    const matched=strong.length===1?strong[0]:null;
+    const matches=existingRows.filter(p=>byNo.includes(p)||byAccount.includes(p)||byTax.includes(p)||byName.includes(p));
+    const incompatibleIdentifiers=[byNo,byAccount,byTax].some(group=>
+      group.length&&matched&&!group.some(p=>String(p.id)===String(matched.id)));
     // Prior implementation counted every identifier including repeated names.
     // Distinct company codes must not be rejected solely because names repeat.
     const fingerprint=item.sourceCariNo?"no:"+norm(item.sourceCariNo):
@@ -147,7 +179,9 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer,
       taxNumber:String(p.tax_number||"")
     }));
     let issue:string|null=null;
-    if(matches.length>1)issue="Birden çok cari kaydıyla eşleşiyor; hangi cariye ekleneceğini seçin.";
+    if(incompatibleIdentifiers)issue="Cari numarası, hesap kodu veya vergi numarası farklı hesaplara işaret ediyor; doğru cariyi seçin.";
+    else if(!matched&&matches.length>1)issue="Birden çok cari kaydıyla eşleşiyor; hangi cariye ekleneceğini seçin.";
+    else if(report&&!matched)issue="Bu rapor satırındaki cari mevcut mağazada bulunamadı; yanlış cari açılmasını önlemek için kontrol edin.";
     else if(repeated)issue="Excel içinde aynı cari numarası/kodu tekrar ediyor; mükerrer satırı atlayın.";
     else if(matched&&item.sourceCariNo&&matched.source_cari_no&&norm(matched.source_cari_no)!==norm(item.sourceCariNo))
       issue="Excel cari numarası mevcut hesapla farklı; aynı firmaysa eşleşmeyi doğrulayın.";
@@ -175,9 +209,13 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer,
       }
     }
     const oldCents=selected?Math.round(Number(selected.balance)*100):0;
+    // Report snapshots replace the TARGET balance via one signed adjustment.
+    // Regular external Excel retains the existing additive behaviour.
+    const postingCents=skipped?0:report?item.cents-oldCents:item.cents;
+    const afterCents=oldCents+postingCents;
     return {...item,partyId:selected?String(selected.id):null,
       match:skipped?"skipped":issue?"conflict":selected?"existing":"new",
-      oldCents,afterCents:skipped?oldCents:oldCents+item.cents,issue,candidates,
+      oldCents,afterCents,postingCents,issue,candidates,
       resolution,skipped};
   });
   const existingCount=output.filter(x=>x.match==="existing").length;
@@ -188,9 +226,19 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer,
   const knownRows=new Set(items.map(x=>String(x.row)));
   if(Object.keys(resolutions).some(key=>!knownRows.has(key)))
     invalid("Excel satırları değişti. Eşleştirmeleri yeniden kontrol edin.");
-  return {sha256,duplicate:batch.rowCount!>0,rows:output,
+  const stateFingerprint=hash(Buffer.from(JSON.stringify({
+    sha256,sourceKind:report?"report_snapshot":"external_excel",
+    rows:output.map(x=>[x.row,x.partyId,x.oldCents,x.cents,x.postingCents,x.resolution,x.issue])
+  })));
+  return {stateFingerprint,sha256,duplicate:batch.rowCount!>0,rows:output,
     existing:existingCount,created:createdCount,skipped:skippedCount,
-    conflicts:output.filter(x=>x.issue).length};
+    conflicts:output.filter(x=>x.issue).length,
+    sourceKind:report?"report_snapshot" as const:"external_excel" as const,
+    reportDate:report?.reportDate||null,
+    unchanged:output.filter(x=>!x.skipped&&!x.issue&&x.postingCents===0).length,
+    changed:output.filter(x=>!x.skipped&&!x.issue&&x.postingCents!==0).length,
+    totalAdjustmentCents:output.filter(x=>!x.skipped).reduce((sum,row)=>sum+row.postingCents,0)
+  };
 }
 export async function previewCariExcel(db:Pool,storeId:number,bytes:Buffer,
   resolutions:CariExcelResolutions={}) {
@@ -203,15 +251,17 @@ export async function ensureCariExcelSchema(db:Pool){
     "sha256 CHAR(64) NOT NULL,filename TEXT NOT NULL,created_by INTEGER NOT NULL REFERENCES users(id),"+
     "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(store_id,sha256));"+
     "ALTER TABLE dukkan_cari_excel_batches ADD COLUMN IF NOT EXISTS resolutions JSONB NOT NULL DEFAULT '{}'::jsonb;"+
+    "ALTER TABLE dukkan_cari_excel_batches ADD COLUMN IF NOT EXISTS source_kind TEXT NOT NULL DEFAULT 'external_excel';"+
     "CREATE TABLE IF NOT EXISTS dukkan_cari_excel_rows ("+
     "id BIGSERIAL PRIMARY KEY,batch_id BIGINT NOT NULL REFERENCES dukkan_cari_excel_batches(id) ON DELETE CASCADE,"+
     "store_id BIGINT NOT NULL,party_id BIGINT NOT NULL,source_row INTEGER NOT NULL,"+
     "amount NUMERIC(18,2) NOT NULL,entry_id BIGINT REFERENCES dukkan_cari_entries(id),"+
-    "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(batch_id,source_row));"
+    "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(batch_id,source_row));"+
+    "ALTER TABLE dukkan_cari_excel_rows ADD COLUMN IF NOT EXISTS source_balance NUMERIC(18,2);"
   );
 }
 export async function importCariExcel(db:Pool,storeId:number,actor:number,
-  filename:string,bytes:Buffer,expectedSha:string,resolutions:CariExcelResolutions={}){
+  filename:string,bytes:Buffer,expectedSha:string,resolutions:CariExcelResolutions,expectedFingerprint:string){
   const client=await db.connect();
   try {
     await client.query("BEGIN");
@@ -219,12 +269,20 @@ export async function importCariExcel(db:Pool,storeId:number,actor:number,
     await client.query("SELECT pg_advisory_xact_lock($1,$2)",[31031,storeId]);
     const preview=await prepared(client,storeId,bytes,resolutions);
     if(preview.sha256!==expectedSha)invalid("Excel dosyası önizlemeden sonra değişmiş; yeniden analiz edin.");
+    if(preview.stateFingerprint!==expectedFingerprint)
+      throw Object.assign(new Error("Excel analizinden sonra cari bakiyesi veya eşleşme değişti. Lütfen yeniden analiz edip güncel bakiyeyi kontrol edin."),{status:409});
     if(preview.duplicate)throw Object.assign(new Error("Bu Excel belgesi daha önce içe aktarılmıştır. Bakiyeler yeniden eklenmedi."),{status:409});
     if(preview.conflicts)invalid("Cari eşleşmelerinde hata var. Bakiyeler kaydedilmedi; belgeyi kontrol edin.");
     if(preview.rows.every(x=>x.skipped))invalid("İçe aktarılacak cari bulunamadı; tüm satırlar atlanmış.");
+    if(preview.sourceKind==="report_snapshot"&&preview.changed===0){
+      await client.query("COMMIT");
+      return {batchId:null,imported:0,matched:preview.existing,created:0,
+        skipped:preview.skipped,unchanged:preview.unchanged,
+        noChanges:true,netAmount:"0.00"};
+    }
     const batch=await client.query(
-      "INSERT INTO dukkan_cari_excel_batches(store_id,sha256,filename,created_by,resolutions) VALUES($1,$2,$3,$4,$5::jsonb) RETURNING id",
-      [storeId,expectedSha,filename,actor,JSON.stringify(resolutions)]
+      "INSERT INTO dukkan_cari_excel_batches(store_id,sha256,filename,created_by,resolutions,source_kind) VALUES($1,$2,$3,$4,$5::jsonb,$6) RETURNING id",
+      [storeId,expectedSha,filename,actor,JSON.stringify(resolutions),preview.sourceKind]
     );
     for(const row of preview.rows){
       if(row.skipped)continue;
@@ -239,26 +297,28 @@ export async function importCariExcel(db:Pool,storeId:number,actor:number,
         party=String(created.rows[0].id);
       }
       let entryId:null|string=null;
-      if(row.cents!==0){
+      if(row.postingCents!==0){
         const posted=await client.query(
           "INSERT INTO dukkan_cari_entries(store_id,party_id,debit,credit,description) "+
           "VALUES($1,$2,$3,$4,$5) RETURNING id",
-          [storeId,party,row.cents>0?(row.cents/100).toFixed(2):"0.00",
-            row.cents<0?(-row.cents/100).toFixed(2):"0.00",
-            "AI Excel cari bakiye aktarımı · "+filename.slice(0,110)+" · Satır "+row.row]
+          [storeId,party,row.postingCents>0?(row.postingCents/100).toFixed(2):"0.00",
+            row.postingCents<0?(-row.postingCents/100).toFixed(2):"0.00",
+            (preview.sourceKind==="report_snapshot"?"Çalışkan raporu bakiye mutabakat farkı":"AI Excel cari bakiye aktarımı")+
+              " · "+filename.slice(0,110)+" · Satır "+row.row]
         );
         entryId=String(posted.rows[0].id);
       }
       await client.query(
-        "INSERT INTO dukkan_cari_excel_rows(batch_id,store_id,party_id,source_row,amount,entry_id) "+
-        "VALUES($1,$2,$3,$4,$5,$6)",
-        [batch.rows[0].id,storeId,party,row.row,(row.cents/100).toFixed(2),entryId]
+        "INSERT INTO dukkan_cari_excel_rows(batch_id,store_id,party_id,source_row,amount,entry_id,source_balance) "+
+        "VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [batch.rows[0].id,storeId,party,row.row,(row.postingCents/100).toFixed(2),entryId,(row.cents/100).toFixed(2)]
       );
     }
     await client.query("COMMIT");
-    return {batchId:String(batch.rows[0].id),imported:preview.rows.length-preview.skipped,
+    return {batchId:String(batch.rows[0].id),imported:preview.changed,
       matched:preview.existing,created:preview.created,skipped:preview.skipped,
-      netAmount:(preview.rows.filter(x=>!x.skipped).reduce((sum,row)=>sum+row.cents,0)/100).toFixed(2)};
+      unchanged:preview.unchanged,noChanges:false,sourceKind:preview.sourceKind,
+      netAmount:(preview.totalAdjustmentCents/100).toFixed(2)};
   }catch(error){await client.query("ROLLBACK").catch(()=>{});throw error;}
   finally{client.release();}
 }
