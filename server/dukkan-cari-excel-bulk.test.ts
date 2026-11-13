@@ -210,3 +210,23 @@ test("a generated report cannot reconcile a different store even with matching c
   }};
   await assert.rejects(previewCariExcel(db,1,fixture()),/başka bir mağazaya aittir/);
 });
+
+test("preview fingerprint changes when ledger balance changes before approval",async()=>{
+  let currentBalance="1000.00";
+  const input=buildCariExcel("debt","ÇALIŞKAN GROUP",[{source_cari_no:"123",account_code:"C000123",
+    name:"FİRMA",city:null,phone:null,type:"customer",tax_number:null,email:null,
+    special_code:null,balance:"1200.00"}]);
+  const db:any={query:async(sql:string)=>{
+    if(sql.includes("FROM dukkan_stores"))return {rows:[{name:"ÇALIŞKAN GROUP"}]};
+    if(sql.includes("FROM dukkan_parties"))return {rows:[{id:"44",name:"FİRMA",source_cari_no:"123",
+      account_code:"C000123",tax_number:null,balance:currentBalance}]};
+    if(sql.includes("FROM dukkan_cari_excel_batches"))return {rows:[],rowCount:0};
+    throw Error("Unexpected query");
+  }};
+  const first=await previewCariExcel(db,1,input);
+  assert.equal(first.rows[0].postingCents,20000);
+  currentBalance="1150.00";
+  const second=await previewCariExcel(db,1,input);
+  assert.equal(second.rows[0].postingCents,5000);
+  assert.notEqual(first.stateFingerprint,second.stateFingerprint);
+});
