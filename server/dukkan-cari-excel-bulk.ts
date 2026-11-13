@@ -67,6 +67,7 @@ function mapping(rows:string[][]) {
 export function parseCariExcelRows(bytes:Buffer):ParsedRow[]{
   const rows=parseXlsxRows(bytes);
   const {header,m}=mapping(rows);
+  const exportedCreditReport=rows.slice(0,header).some(row=>row.some(value=>norm(value).includes("alacaklicariler")));
   const read=(r:string[],key:string)=>m[key]===undefined?"":String(r[m[key]]||"").trim();
   const items:ParsedRow[]=[];
   for(let i=header+1;i<rows.length;i++){
@@ -74,7 +75,10 @@ export function parseCariExcelRows(bytes:Buffer):ParsedRow[]{
     if(!name||/^(genel\s*toplam|toplam\s*bakiye|toplam)$/i.test(name))continue;
     const a=m.debit===undefined?0:cents(read(r,"debit"));
     const b=m.credit===undefined?0:cents(read(r,"credit"));
-    let net=m.debit!==undefined||m.credit!==undefined?a-b:cents(read(r,"balance"));
+    const hasDirectional=m.debit!==undefined||m.credit!==undefined;
+    let net=hasDirectional?a-b:cents(read(r,"balance"));
+    // Legacy Alacaklı Cariler exports display credit amounts as positive in the report.
+    if(!hasDirectional&&exportedCreditReport)net=-Math.abs(net);
     // Exported signed Bakiye report carries credit balances as negative numbers.
     const rawType=norm(read(r,"type"));
     let type:CariType="customer";
