@@ -69,3 +69,18 @@ test("same source cari repeated in source is blocked before posting",async()=>{
   const p=await previewCariExcel(db,1,input);
   assert.equal(p.conflicts,1);
 });
+
+test("company name conflicting with a coded cari requires manual review",async()=>{
+  const fixtureBytes=fixture();
+  const db:any={query:async(sql:string)=>{
+    if(sql.includes("FROM dukkan_parties"))return {rows:[{
+      id:"7",name:"BAŞKA FİRMA",source_cari_no:"C-101",account_code:"A100",
+      tax_number:"1234567890",balance:"50.00"
+    }]};
+    if(sql.includes("FROM dukkan_cari_excel_batches"))return {rows:[],rowCount:0};
+    throw Error("Unexpected SQL");
+  }};
+  const p=await previewCariExcel(db,1,fixtureBytes);
+  assert.equal(p.conflicts,1);
+  assert.equal(p.rows[0].match,"conflict");
+});
