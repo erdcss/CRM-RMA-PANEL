@@ -126,6 +126,8 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer) {
       issue="Hesap kodu mevcut kayıtla çelişiyor.";
     else if(matched&&item.taxNumber&&matched.tax_number&&norm(matched.tax_number)!==norm(item.taxNumber))
       issue="Vergi numarası mevcut kayıtla çelişiyor.";
+    else if(matched&&norm(matched.name)!==norm(item.name))
+      issue="Cari adı mevcut kayıtla farklı; yanlış hesaba aktarımı önlemek için kontrol edilmeli.";
     const oldCents=matched?Math.round(Number(matched.balance)*100):0;
     return {...item,partyId:matched?String(matched.id):null,match:issue?"conflict":matched?"existing":"new",
       oldCents,afterCents:oldCents+item.cents,issue};
