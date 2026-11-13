@@ -18,8 +18,9 @@ const label:Record<string,string>={
 };
 const XLSX="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const allowed=["application/pdf","image/png","image/jpeg","image/webp",XLSX];
-type ExcelPreviewRow={row:number;name:string;sourceCariNo:string;accountCode:string;cents:number;oldCents:number;afterCents:number;partyId:string|null;match:"existing"|"new"|"conflict";issue:string|null};
-type ExcelPreview={sha256:string;duplicate:boolean;rows:ExcelPreviewRow[];existing:number;created:number;conflicts:number};
+type ExcelCariCandidate={id:string;name:string;sourceCariNo:string;accountCode:string;taxNumber:string};
+type ExcelPreviewRow={row:number;name:string;sourceCariNo:string;accountCode:string;cents:number;oldCents:number;afterCents:number;partyId:string|null;match:"existing"|"new"|"conflict"|"skipped";issue:string|null;candidates:ExcelCariCandidate[];resolution:string;skipped:boolean};
+type ExcelPreview={sha256:string;duplicate:boolean;rows:ExcelPreviewRow[];existing:number;created:number;skipped:number;conflicts:number};
 const lira=(cents:number)=>(cents/100).toLocaleString("tr-TR",{style:"currency",currency:"TRY"});
 const isExcel=(f:File|null)=>Boolean(f&&/\.xlsx$/i.test(f.name));
 function asBase64(file:File):Promise<string>{
@@ -39,11 +40,14 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
  const [cariMode,setCariMode]=useState<"profile"|"movements">("profile");
  const [excelPreview,setExcelPreview]=useState<ExcelPreview|null>(null);
  const [excelConfirmed,setExcelConfirmed]=useState(false);
+ const [excelDecisions,setExcelDecisions]=useState<Record<string,string>>({});
+ const [excelNeedsReview,setExcelNeedsReview]=useState(false);
+ const [showExcelConflictsOnly,setShowExcelConflictsOnly]=useState(false);
  useEffect(()=>{
   if(!file||isExcel(file)){setPreview("");return;}
   const url=URL.createObjectURL(file);setPreview(url);return ()=>URL.revokeObjectURL(url);
  },[file]);
- const close=()=>{if(busy)return;setOpen(false);setFile(null);setResult(null);setExcelPreview(null);setExcelConfirmed(false);setError("");};
+ const close=()=>{if(busy)return;setOpen(false);setFile(null);setResult(null);setExcelPreview(null);setExcelConfirmed(false);setExcelDecisions({});setExcelNeedsReview(false);setShowExcelConflictsOnly(false);setError("");};
  const run=async()=>{
   if(!file)return;
   if(file.size>8_000_000 || file.size<64){setError("Dosya en fazla 8 MB olabilir.");return;}
@@ -62,17 +66,36 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
    });
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw Error(data.error||"Belge analizi başarısız");
-   if(previewExcel){setExcelPreview(data as ExcelPreview);setResult(null);setExcelConfirmed(false);}
+   if(previewExcel){
+    const report=data as ExcelPreview;
+    setExcelPreview(report);setResult(null);setExcelConfirmed(false);
+    setExcelDecisions({});setExcelNeedsReview(false);
+    setShowExcelConflictsOnly(report.conflicts>0);
+   }
    else{setResult(data as AiDocumentDraft);setExcelPreview(null);}
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  };
+ const validateExcelMatches=async()=>{
+  if(!file||!excelPreview)return;
+  setBusy(true);setError("");setExcelConfirmed(false);
+  try{
+   const response=await fetch(base+"/ai-documents/preview-cari-excel",{
+    method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({filename:file.name,mimeType:XLSX,base64:await asBase64(file),resolutions:excelDecisions})
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw Error(data.error||"Excel eşleşmeleri doğrulanamadı");
+   const preview=data as ExcelPreview;
+   setExcelPreview(preview);setExcelNeedsReview(false);setShowExcelConflictsOnly(preview.conflicts>0);
+  }catch(e){setError((e as Error).message);}finally{setBusy(false);}
+ };
  const importExcel=async()=>{
-  if(!file||!excelPreview||!excelConfirmed||excelPreview.duplicate||excelPreview.conflicts)return;
+  if(!file||!excelPreview||!excelConfirmed||excelNeedsReview||excelPreview.duplicate||excelPreview.conflicts||excelPreview.rows.length===excelPreview.skipped)return;
   setBusy(true);setError("");
   try{
    const response=await fetch(base+"/ai-documents/import-cari-excel",{method:"POST",credentials:"include",
     headers:{"Content-Type":"application/json"},body:JSON.stringify({
-      filename:file.name,mimeType:XLSX,base64:await asBase64(file),sha256:excelPreview.sha256,confirmed:true
+      filename:file.name,mimeType:XLSX,base64:await asBase64(file),sha256:excelPreview.sha256,confirmed:true,resolutions:excelDecisions
     })});
    const data=await response.json().catch(()=>({}));
    if(!response.ok)throw Error(data.error||"Cari bakiyeleri kaydedilemedi");
@@ -91,7 +114,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
    closeAfterImport();onImported();
   }catch(e){setError((e as Error).message);}finally{setBusy(false);}
  };
- const closeAfterImport=()=>{setOpen(false);setFile(null);setResult(null);setExcelPreview(null);setExcelConfirmed(false);setError("");};
+ const closeAfterImport=()=>{setOpen(false);setFile(null);setResult(null);setExcelPreview(null);setExcelConfirmed(false);setExcelDecisions({});setExcelNeedsReview(false);setShowExcelConflictsOnly(false);setError("");};
  return <>
   <button type="button" onClick={()=>setOpen(true)}
    className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-sky-900 hover:bg-sky-100">
@@ -104,11 +127,11 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
      <button type="button" disabled={busy} onClick={close} aria-label="Kapat"><X size={22}/></button>
     </header>
     {section==="parties"&&<nav aria-label="Cari belge aktarım türü" className="grid grid-cols-2 gap-2 border-b border-[#e4ebf4] px-5 py-3">
-      <button type="button" aria-pressed={cariMode==="profile"} onClick={()=>{setCariMode("profile");setExcelPreview(null);setResult(null);setExcelConfirmed(false);setError("");}}
+      <button type="button" aria-pressed={cariMode==="profile"} onClick={()=>{setCariMode("profile");setExcelPreview(null);setResult(null);setExcelConfirmed(false);setExcelDecisions({});setExcelNeedsReview(false);setError("");}}
         className={"rounded-xl px-4 py-3 text-xs font-bold "+(cariMode==="profile"?"bg-[#143e6d] text-white":"bg-slate-100 text-slate-600")}>
         Cari Kartı Bilgilerini İçe Aktar
       </button>
-      <button type="button" aria-pressed={cariMode==="movements"} onClick={()=>{setCariMode("movements");setExcelPreview(null);setResult(null);setExcelConfirmed(false);setError("");}}
+      <button type="button" aria-pressed={cariMode==="movements"} onClick={()=>{setCariMode("movements");setExcelPreview(null);setResult(null);setExcelConfirmed(false);setExcelDecisions({});setExcelNeedsReview(false);setError("");}}
         className={"rounded-xl px-4 py-3 text-xs font-bold "+(cariMode==="movements"?"bg-[#143e6d] text-white":"bg-slate-100 text-slate-600")}>
         Cari Hesaba Ait Hareketleri İçe Aktar
       </button>
@@ -120,7 +143,7 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
      <div className="space-y-3">
       <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-sky-300 bg-sky-50 p-4 text-sm font-semibold">
        {isExcel(file)?<FileSpreadsheet size={20}/>:<FileUp size={20}/>}<span className="min-w-0 break-all">{file?.name||"PDF, görsel veya Excel (.xlsx) seçin (en fazla 8 MB)"}</span>
-       <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx" className="sr-only" onChange={e=>{setFile(e.target.files?.[0]||null);setResult(null);setExcelPreview(null);setExcelConfirmed(false);setError("");}}/>
+       <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx" className="sr-only" onChange={e=>{setFile(e.target.files?.[0]||null);setResult(null);setExcelPreview(null);setExcelConfirmed(false);setExcelDecisions({});setExcelNeedsReview(false);setError("");}}/>
       </label>
       {isExcel(file)&&<div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-xs text-sky-900"><FileSpreadsheet size={24} className="mb-2"/>Excel dosyası seçildi. Cari adı ve bakiye sütunları tabloda analiz edilir, onaydan önce hiçbir muhasebe kaydı oluşturulmaz.</div>}
       {preview&&(file?.type==="application/pdf"?<iframe title="Belge ön izlemesi" src={preview} className="h-[380px] w-full rounded-xl border"/>:
@@ -135,30 +158,64 @@ export function DukkanAiDocumentImport({section,base,onApply,onImported}:{
       {excelPreview?<>
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm">
           <strong>Excel cari eşleştirmesi · {excelPreview.rows.length} kayıt</strong>
-          <div className="mt-1 text-xs text-sky-900">{excelPreview.existing} mevcut cari, {excelPreview.created} yeni cari, {excelPreview.conflicts} kontrol gerektiren satır.</div>
+          <div className="mt-1 text-xs text-sky-900">{excelPreview.existing} mevcut cari, {excelPreview.created} yeni cari, {excelPreview.skipped} atlanan satır, {excelPreview.conflicts} kontrol gerektiren satır.</div>
           <p className="mt-2 text-xs text-slate-700">Bakiye hesabı: Mevcut bakiye + Belgeden eklenen tutar = Yeni bakiye. Borç pozitif, alacak negatiftir.</p>
         </div>
         {excelPreview.duplicate&&<div role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">Bu Excel dosyası daha önce içe aktarılmıştır. Aynı tutarlar tekrar işlenmeyecek.</div>}
-        {excelPreview.conflicts>0&&<div role="alert" className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{excelPreview.conflicts} satırda mükerrer veya çelişen cari eşleşmesi var. Veri güvenliği için dosyanın tamamı düzeltilmeden aktarım yapılamaz.</div>}
+        {excelPreview.conflicts>0&&<div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <strong>{excelPreview.conflicts} satırın cari eşleşmesi kontrol edilmeli.</strong>
+          <p className="mt-1">Sorunlu satırda doğru mevcut cariyi seçin veya mükerrer satırı atlayın. Excel dosyasını silmeniz ya da yeniden oluşturmanız gerekmez.</p>
+        </div>}
+        {excelPreview.conflicts>0&&<label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+          <input type="checkbox" checked={showExcelConflictsOnly} onChange={e=>setShowExcelConflictsOnly(e.target.checked)}/>
+          Yalnızca kontrol gereken {excelPreview.conflicts} satırı göster
+        </label>}
         <div className="max-h-80 overflow-auto rounded-xl border">
           <table className="w-full min-w-[650px] text-left text-xs">
-            <thead className="sticky top-0 bg-slate-100 text-slate-700"><tr><th className="p-2">Satır / Cari</th><th className="p-2">Eşleşme</th><th className="p-2 text-right">Eski bakiye</th><th className="p-2 text-right">Excel tutarı</th><th className="p-2 text-right">Yeni bakiye</th></tr></thead>
-            <tbody>{excelPreview.rows.map(row=><tr key={row.row} className="border-t align-top">
-              <td className="p-2">{row.row}. <strong>{row.name}</strong>{row.sourceCariNo&&<span className="block text-slate-500">Cari no: {row.sourceCariNo}</span>}</td>
-              <td className="p-2">{row.issue?<span className="font-bold text-red-700">{row.issue}</span>:row.match==="existing"?<span className="font-bold text-sky-700">Mevcut cari #{row.partyId}</span>:<span className="font-bold text-emerald-700">Yeni cari</span>}</td>
+            <thead className="sticky top-0 bg-slate-100 text-slate-700"><tr><th className="p-2">Satır / Cari</th><th className="min-w-[240px] p-2">Eşleşme ve düzeltme</th><th className="p-2 text-right">Eski bakiye</th><th className="p-2 text-right">Excel tutarı</th><th className="p-2 text-right">Yeni bakiye</th></tr></thead>
+            <tbody>{excelPreview.rows.filter(row=>!showExcelConflictsOnly||Boolean(row.issue)).map(row=><tr key={row.row} className="border-t align-top">
+              <td className="p-2">{row.row}. <strong>{row.name}</strong>{row.sourceCariNo&&<span className="block text-slate-500">Cari no: {row.sourceCariNo}</span>}{row.issue&&<p className="mt-1 text-[11px] font-semibold text-red-700">{row.issue}</p>}</td>
+              <td className="p-2">
+                {row.issue?<span className="font-bold text-red-700">Eşleşme doğrulanmalı</span>:
+                  row.match==="skipped"?<span className="font-bold text-slate-600">Bu satır atlanacak</span>:
+                  row.match==="existing"?<span className="font-bold text-sky-700">Mevcut cari #{row.partyId}</span>:
+                  <span className="font-bold text-emerald-700">Yeni cari</span>}
+                {(row.issue||row.resolution)&&<label className="mt-2 block text-[11px] font-semibold text-slate-700">
+                  Bu satır için karar
+                  <select aria-label={row.row+". satır cari eşleştirmesi"} value={excelDecisions[String(row.row)]||""}
+                    onChange={e=>{
+                      setExcelDecisions(prev=>({...prev,[String(row.row)]:e.target.value}));
+                      setExcelNeedsReview(true);setExcelConfirmed(false);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-2 py-2 text-xs text-slate-900">
+                    <option value="">Seçim yapın</option>
+                    <option value="skip">Bu satırı atla (bakiye ekleme)</option>
+                    {row.candidates.map(option=><option key={option.id} value={"party:"+option.id}>
+                      {option.name} · #{option.id}{option.sourceCariNo?" · No "+option.sourceCariNo:""}
+                    </option>)}
+                  </select>
+                </label>}
+              </td>
               <td className="p-2 text-right tabular-nums">{lira(row.oldCents)}</td>
               <td className="p-2 text-right font-semibold tabular-nums">{lira(row.cents)}</td>
-              <td className="p-2 text-right font-bold tabular-nums">{lira(row.afterCents)}</td>
+              <td className="p-2 text-right font-bold tabular-nums">{row.skipped?"—":lira(row.afterCents)}</td>
             </tr>)}</tbody>
           </table>
         </div>
+        {excelNeedsReview&&<div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50 p-3">
+          <p className="text-xs font-semibold text-sky-900">Kararları yeniden doğrulayın. Henüz hiçbir muhasebe kaydı oluşturulmadı.</p>
+          <button type="button" disabled={busy} onClick={()=>void validateExcelMatches()}
+            className="w-full rounded-lg bg-[#143e6d] px-3 py-2.5 text-sm font-bold text-white disabled:opacity-40">
+            {busy?"Kontrol ediliyor...":"Eşleştirmeleri Yeniden Kontrol Et"}
+          </button>
+        </div>}
         <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs">
-          <input type="checkbox" className="mt-0.5" checked={excelConfirmed} onChange={e=>setExcelConfirmed(e.target.checked)}/>
+          <input type="checkbox" className="mt-0.5" checked={excelConfirmed} disabled={busy||excelNeedsReview||excelPreview.conflicts>0||excelPreview.duplicate} onChange={e=>setExcelConfirmed(e.target.checked)}/>
           <span>Cari eşleşmelerini ve tutarları kontrol ettim. Excel tutarlarının mevcut carilere ayrı bakiye hareketi olarak eklenmesini onaylıyorum.</span>
         </label>
-        <button type="button" onClick={()=>void importExcel()} disabled={busy||!excelConfirmed||excelPreview.duplicate||excelPreview.conflicts>0}
+        <button type="button" onClick={()=>void importExcel()} disabled={busy||!excelConfirmed||excelNeedsReview||excelPreview.duplicate||excelPreview.conflicts>0||excelPreview.rows.length===excelPreview.skipped}
           className="w-full rounded-xl bg-[#123e78] p-3 text-sm font-bold text-white disabled:opacity-40">
-          {busy?"Kaydediliyor...":excelPreview.rows.length+" Cari Kaydını Onayla ve İşle"}
+          {busy?"Kaydediliyor...":(excelPreview.rows.length-excelPreview.skipped)+" Cari Kaydını Onayla ve İşle"}
         </button>
       </>:!result?<p className="text-sm text-slate-500">Belge seçip analiz edin. Eksik alanları kayıt formunda düzeltebilirsiniz.</p>:<>
        {result.warnings?.length>0&&<div className="rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{result.warnings.map((w,i)=><p key={i}>{w}</p>)}</div>}
