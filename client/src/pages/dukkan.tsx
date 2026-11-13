@@ -9,6 +9,7 @@ import {DukkanDesktopDownload} from "@/components/dukkan-desktop-download";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
+import {DukkanProductThumbnailDrop} from "@/components/dukkan-product-thumbnail-drop";
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
@@ -1229,9 +1230,22 @@ export default function Dukkan() {
                         })}/>}
                     </td>}
                     <td className="px-3 py-2">
-                      {r.image_url ? <img src={r.image_url} alt={r.name||"Ürün"} loading="lazy"
-                        className="h-14 w-14 rounded-xl border border-slate-100 bg-white object-contain"/> :
-                        <span className="grid h-14 w-14 place-items-center rounded-xl bg-slate-100 text-slate-400"><Package size={21}/></span>}
+                      <DukkanProductThumbnailDrop
+                        key={storeId+":"+String(r._source||"dukkan")+":"+String(r.id)}
+                        productName={String(r.name||"Ürün")}
+                        imageUrl={typeof r.image_url==="string"?r.image_url:null}
+                        enabled={Boolean(canManage)&&!r.archived_at&&!r.deleted_at&&
+                          (r._source!=="b2b"||(Boolean(isAdmin)&&!r.linked_to_store))}
+                        endpoint={r._source==="b2b"
+                          ?base+"/catalog/b2b/"+encodeURIComponent(String(r._b2bId))+"/thumbnail"
+                          :base+"/products/"+encodeURIComponent(String(r.id))+"/thumbnail"}
+                        onSaved={()=>{
+                          setNotice(String(r.name||"Ürün")+" küçük görseli kaydedildi.");
+                          setError("");
+                          setRefresh(value=>value+1);
+                        }}
+                        onError={message=>setError(String(r.name||"Ürün")+": "+message)}
+                      />
                     </td>
                     {[r.sku,r.name,r.barcode,r.stock,
                       r._source==="b2b"?"—":currency(r.purchase_price),
