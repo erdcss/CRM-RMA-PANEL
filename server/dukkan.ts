@@ -7,6 +7,8 @@ import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDu
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
+import {seedRequestedLorenzoKurutmalik} from "./dukkan-lorenzo-import";
+import {prependDukkanProductCover} from "./dukkan-thumbnail-images";
 import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
 import { buildCariExcel } from "./dukkan-cari-excel";
 import { parseXlsxRows, isXlsx } from "./dukkan-xlsx-reader";
@@ -116,6 +118,14 @@ async function ready() {
         }
       }catch(error){
         console.error("Dukkan B2B initial sync failed; existing store data remains available:",error);
+      }
+      // User-approved, atomic, one-time Lorenzo catalog import.
+      // An unrelated SKU collision must never prevent Dükkan from starting.
+      try{
+        const outcome=await seedRequestedLorenzoKurutmalik(pool!);
+        console.info("Dukkan Lorenzo catalog import:",outcome);
+      }catch(error){
+        console.error("Dukkan Lorenzo catalog import blocked; no partial changes:",error);
       }
     })
     .catch((error) => { schemaPromise = undefined; throw error; });
@@ -1031,6 +1041,26 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     notifyMetaCatalogChange();
     res.json(updated);
   }));
+  // Only a platform admin may change an unlinked global catalog cover.
+  // Product prices, publication and stock remain untouched.
+  app.patch("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId/thumbnail",safe(async(req,res)=>{
+    globalB2BAdmin(res);
+    const productId=globalId.parse(req.params.b2bId);
+    const {image}=z.object({image:z.string().min(50).max(3_000_000)}).parse(req.body);
+    const updated=await transaction(async c=>{
+      const previous=await editableGlobalB2B(c,productId);
+      const images=prependDukkanProductCover(image,previous.images,previous.image_data);
+      const saved=await c.query(
+        "UPDATE b2b_products SET image_data=$2,images=$3::jsonb,updated_at=NOW() "+
+        "WHERE id::text=$1 RETURNING id",
+        [productId,images[0],JSON.stringify(images)],
+      );
+      return saved.rows[0];
+    });
+    notifyMetaCatalogChange();
+    res.setHeader("Cache-Control","private,no-store");
+    return res.json({id:updated.id,image_url:"/api/b2b/product-image/"+productId,updated:true});
+  }));
   // Fast publication switches change no product content, prices or stock.
   app.patch("/api/dukkan/stores/:storeId/catalog/b2b/:b2bId/publication",safe(async(req,res)=>{
     globalB2BAdmin(res);
@@ -1189,6 +1219,34 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.setHeader("Cache-Control","private,no-store");
     res.json({...r.rows[0],sku:r.rows[0].b2b_source_sku||r.rows[0].sku,
       barcode:r.rows[0].b2b_source_barcode||r.rows[0].barcode});
+  }));
+  // Lightweight image-only update for the thumbnail cell in the product
+  // list. No full-form PATCH: do not alter inventory, prices or publication.
+  app.patch("/api/dukkan/stores/:storeId/products/:productId/thumbnail",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req),productId=id.parse(req.params.productId);
+    const {image}=z.object({image:z.string().min(50).max(3_000_000)}).parse(req.body);
+    const updated=await transaction(async c=>{
+      const previous=await c.query(
+        "SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 FOR UPDATE",
+        [sid,productId],
+      );
+      if(!previous.rows[0]||previous.rows[0].archived_at||previous.rows[0].deleted_at)
+        throw Object.assign(new Error("Görsel eklemek için etkin mağaza ürünü gerekli."),{status:409});
+      const images=prependDukkanProductCover(image,previous.rows[0].images,previous.rows[0].image_data);
+      const saved=await c.query(
+        "UPDATE dukkan_products SET image_data=$3,images=$4::jsonb "+
+        "WHERE store_id=$1 AND id=$2 RETURNING *",
+        [sid,productId,images[0],JSON.stringify(images)],
+      );
+      await syncDukkanToB2B(c,saved.rows[0]);
+      return saved.rows[0];
+    });
+    notifyMetaCatalogChange();
+    res.setHeader("Cache-Control","private,no-store");
+    res.json({id:updated.id,
+      image_url:"/api/dukkan/stores/"+sid+"/products/"+productId+"/image",
+      image_count:Array.isArray(updated.images)?updated.images.length:1,updated:true});
   }));
   app.post("/api/dukkan/stores/:storeId/products",safe(async(req,res)=>{
     manager(res);
