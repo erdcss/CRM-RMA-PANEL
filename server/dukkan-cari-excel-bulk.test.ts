@@ -48,8 +48,8 @@ test("preview matches existing cari by code and reconciles report target instead
   const result=await previewCariExcel(db,store,fixture());
   assert.equal(result.duplicate,false);
   assert.equal(result.existing,1);
-  assert.equal(result.created,1);
-  assert.equal(result.conflicts,0);
+  assert.equal(result.created,0);
+  assert.equal(result.conflicts,1);
   assert.equal(result.rows[0].oldCents,14000);
   assert.equal(result.rows[0].cents,125050);
   assert.equal(result.rows[0].afterCents,125050);
@@ -71,7 +71,7 @@ test("same source cari repeated in source is blocked before posting",async()=>{
     throw Error("Unexpected query");
   }};
   const p=await previewCariExcel(db,1,input);
-  assert.equal(p.conflicts,1);
+  assert.equal(p.conflicts,2);
 });
 
 test("company name conflicting with a coded cari requires manual review",async()=>{
@@ -86,7 +86,7 @@ test("company name conflicting with a coded cari requires manual review",async()
     throw Error("Unexpected SQL");
   }};
   const p=await previewCariExcel(db,1,fixtureBytes);
-  assert.equal(p.conflicts,1);
+  assert.equal(p.conflicts,2);
   assert.equal(p.rows[0].match,"conflict");
 });
 
@@ -104,8 +104,10 @@ test("different cari numbers with same displayed company name are not false dupl
     throw Error("Unexpected query");
   }};
   const result=await previewCariExcel(db,1,input);
-  assert.equal(result.conflicts,0);
-  assert.equal(result.created,2);
+  assert.equal(result.conflicts,2);
+  assert.equal(result.created,0);
+  assert.ok(result.rows.every(r=>r.issue?.includes("bulunamadı")));
+  assert.ok(result.rows.every(r=>!r.issue?.includes("mükerrer")));
 });
 test("single-name match with a changed cari code requires explicit review",async()=>{
   const db:any={query:async(sql:string)=>{
@@ -118,13 +120,13 @@ test("single-name match with a changed cari code requires explicit review",async
     throw Error("Unexpected SQL");
   }};
   const first=await previewCariExcel(db,1,fixture());
-  assert.equal(first.conflicts,1);
+  assert.equal(first.conflicts,2);
   assert.equal(first.rows[0].candidates[0].id,"7");
-  const fixed=await previewCariExcel(db,1,fixture(),{"6":"party:7"});
+  const fixed=await previewCariExcel(db,1,fixture(),{"6":"party:7","7":"skip"});
   assert.equal(fixed.conflicts,0);
   assert.equal(fixed.rows[0].match,"existing");
   assert.equal(fixed.rows[0].afterCents,125050);
-  const wrong=await previewCariExcel(db,1,fixture(),{"6":"party:999"});
+  const wrong=await previewCariExcel(db,1,fixture(),{"6":"party:999","7":"skip"});
   assert.equal(wrong.conflicts,1);
 });
 test("duplicate Excel row can be explicitly skipped but not applied twice",async()=>{
@@ -136,13 +138,13 @@ test("duplicate Excel row can be explicitly skipped but not applied twice",async
   ]);
   const db:any={query:async(sql:string)=>{
     if(sql.includes("FROM dukkan_stores"))return {rows:[{name:"Test"}]};
-    if(sql.includes("FROM dukkan_parties"))return {rows:[]};
+    if(sql.includes("FROM dukkan_parties"))return {rows:[{id:"1",name:"FİRMA A",source_cari_no:"A1",account_code:null,tax_number:null,balance:"0.00"}]};
     if(sql.includes("FROM dukkan_cari_excel_batches"))return {rows:[],rowCount:0};
     throw Error("Unexpected SQL");
   }};
   const fixed=await previewCariExcel(db,1,input,{"7":"skip"});
   assert.equal(fixed.conflicts,0);
-  assert.equal(fixed.created,1);
+  assert.equal(fixed.created,0);
   assert.equal(fixed.skipped,1);
   assert.equal(fixed.rows[1].match,"skipped");
   assert.equal(fixed.rows[1].afterCents,fixed.rows[1].oldCents);
