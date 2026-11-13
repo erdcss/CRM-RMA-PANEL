@@ -468,6 +468,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   }));
 
   const excelDocumentPayload=z.object({
+    resolutions:z.record(z.string().regex(/^(skip|party:[1-9][0-9]{0,17})$/)).optional().default({}),
     filename:z.string().trim().min(1).max(180).regex(/\.xlsx$/i),
     mimeType:z.string().trim().max(160).optional(),
     base64:z.string().min(20).max(11_000_000).regex(/^[a-zA-Z0-9+/]+={0,2}$/),
@@ -484,7 +485,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const input=excelDocumentPayload.parse(req.body);
     const db=await ready();
     await ensureCariExcelSchema(db);
-    const result=await previewCariExcel(db,store(req),excelDocumentBytes(input.base64));
+    const result=await previewCariExcel(db,store(req),excelDocumentBytes(input.base64),input.resolutions);
     res.setHeader("Cache-Control","private,no-store");
     res.json(result);
   }));
@@ -497,7 +498,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const db=await ready();
     await ensureCariExcelSchema(db);
     const saved=await importCariExcel(db,store(req),user(res),input.filename,
-      excelDocumentBytes(input.base64),input.sha256);
+      excelDocumentBytes(input.base64),input.sha256,input.resolutions);
     res.setHeader("Cache-Control","private,no-store");
     res.status(201).json(saved);
   }));
