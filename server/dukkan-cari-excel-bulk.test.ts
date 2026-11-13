@@ -84,3 +84,60 @@ test("company name conflicting with a coded cari requires manual review",async()
   assert.equal(p.conflicts,1);
   assert.equal(p.rows[0].match,"conflict");
 });
+
+test("different cari numbers with same displayed company name are not false duplicate rows",async()=>{
+  const input=buildCariExcel("debt","Test",[
+    {source_cari_no:"0001",account_code:null,name:"FİRMA A",city:null,phone:null,
+      type:"customer",tax_number:null,email:null,special_code:null,balance:"10"},
+    {source_cari_no:"0002",account_code:null,name:"FİRMA A",city:null,phone:null,
+      type:"customer",tax_number:null,email:null,special_code:null,balance:"20"},
+  ]);
+  const db:any={query:async(sql:string)=>{
+    if(sql.includes("FROM dukkan_parties"))return {rows:[]};
+    if(sql.includes("FROM dukkan_cari_excel_batches"))return {rows:[],rowCount:0};
+    throw Error("Unexpected query");
+  }};
+  const result=await previewCariExcel(db,1,input);
+  assert.equal(result.conflicts,0);
+  assert.equal(result.created,2);
+});
+test("single-name match with a changed cari code requires explicit review",async()=>{
+  const db:any={query:async(sql:string)=>{
+    if(sql.includes("FROM dukkan_parties"))return {rows:[{
+      id:"7",name:"MEHMET TEKSTİL",source_cari_no:"OLD",account_code:"A100",
+      tax_number:"1234567890",balance:"50.00"
+    }]};
+    if(sql.includes("FROM dukkan_cari_excel_batches"))return {rows:[],rowCount:0};
+    throw Error("Unexpected SQL");
+  }};
+  const first=await previewCariExcel(db,1,fixture());
+  assert.equal(first.conflicts,1);
+  assert.equal(first.rows[0].candidates[0].id,"7");
+  const fixed=await previewCariExcel(db,1,fixture(),{"6":"party:7"});
+  assert.equal(fixed.conflicts,0);
+  assert.equal(fixed.rows[0].match,"existing");
+  assert.equal(fixed.rows[0].afterCents,130050);
+  const wrong=await previewCariExcel(db,1,fixture(),{"6":"party:999"});
+  assert.equal(wrong.conflicts,1);
+});
+test("duplicate Excel row can be explicitly skipped but not applied twice",async()=>{
+  const input=buildCariExcel("debt","Test",[
+    {source_cari_no:"A1",account_code:null,name:"FİRMA A",city:null,phone:null,
+      type:"customer",tax_number:null,email:null,special_code:null,balance:"10"},
+    {source_cari_no:"A1",account_code:null,name:"FİRMA A",city:null,phone:null,
+      type:"customer",tax_number:null,email:null,special_code:null,balance:"20"},
+  ]);
+  const db:any={query:async(sql:string)=>{
+    if(sql.includes("FROM dukkan_parties"))return {rows:[]};
+    if(sql.includes("FROM dukkan_cari_excel_batches"))return {rows:[],rowCount:0};
+    throw Error("Unexpected SQL");
+  }};
+  const fixed=await previewCariExcel(db,1,input,{"7":"skip"});
+  assert.equal(fixed.conflicts,0);
+  assert.equal(fixed.created,1);
+  assert.equal(fixed.skipped,1);
+  assert.equal(fixed.rows[1].match,"skipped");
+  assert.equal(fixed.rows[1].afterCents,fixed.rows[1].oldCents);
+  const notFixed=await previewCariExcel(db,1,input,{"7":"party:11"});
+  assert.equal(notFixed.conflicts,1);
+});
