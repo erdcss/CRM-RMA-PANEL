@@ -91,10 +91,12 @@ export function parseXlsxRows(input:Buffer):string[][] {
   const shared=extractStrings(files.get("xl/sharedStrings.xml")||"");
   const sheet=firstSheet(files);
   const rows:string[][]=[];
-  for(const row of sheet.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)){
-    if(rows.length>=MAX_ROWS)fail("En fazla 5.000 Excel satırı içe aktarılabilir.");
+  for(const row of sheet.matchAll(/<row\b([^>]*?)>([\s\S]*?)<\/row>/g)){
+    const physical=Number(tagAttr(row[1],"r"))||rows.length+1;
+    if(physical>MAX_ROWS||physical<rows.length+1)fail("Excel satır sayısı beklenen sınırları aşıyor.");
+    while(rows.length<physical-1)rows.push([]);
     const values:string[]=[];
-    for(const cell of row[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
+    for(const cell of row[2].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){
       const col=columnIndex(tagAttr(cell[1],"r"));
       if(col<0||col>100)continue;
       const kind=tagAttr(cell[1],"t");
@@ -107,7 +109,7 @@ export function parseXlsxRows(input:Buffer):string[][] {
       }
       values[col]=String(value).trim().slice(0,500);
     }
-    if(values.some(Boolean))rows.push(values);
+    rows.push(values);
   }
   if(!rows.length)fail("Excel dosyasında okunabilir satır bulunamadı.");
   return rows;
