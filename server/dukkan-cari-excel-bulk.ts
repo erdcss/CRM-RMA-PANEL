@@ -226,7 +226,11 @@ async function prepared(db:Pool|PoolClient,storeId:number,bytes:Buffer,
   const knownRows=new Set(items.map(x=>String(x.row)));
   if(Object.keys(resolutions).some(key=>!knownRows.has(key)))
     invalid("Excel satırları değişti. Eşleştirmeleri yeniden kontrol edin.");
-  return {sha256,duplicate:batch.rowCount!>0,rows:output,
+  const stateFingerprint=hash(Buffer.from(JSON.stringify({
+    sha256,sourceKind:report?"report_snapshot":"external_excel",
+    rows:output.map(x=>[x.row,x.partyId,x.oldCents,x.cents,x.postingCents,x.resolution,x.issue])
+  })));
+  return {stateFingerprint,sha256,duplicate:batch.rowCount!>0,rows:output,
     existing:existingCount,created:createdCount,skipped:skippedCount,
     conflicts:output.filter(x=>x.issue).length,
     sourceKind:report?"report_snapshot" as const:"external_excel" as const,
@@ -257,7 +261,7 @@ export async function ensureCariExcelSchema(db:Pool){
   );
 }
 export async function importCariExcel(db:Pool,storeId:number,actor:number,
-  filename:string,bytes:Buffer,expectedSha:string,resolutions:CariExcelResolutions={}){
+  filename:string,bytes:Buffer,expectedSha:string,resolutions:CariExcelResolutions={},expectedFingerprint:string){
   const client=await db.connect();
   try {
     await client.query("BEGIN");
@@ -265,6 +269,8 @@ export async function importCariExcel(db:Pool,storeId:number,actor:number,
     await client.query("SELECT pg_advisory_xact_lock($1,$2)",[31031,storeId]);
     const preview=await prepared(client,storeId,bytes,resolutions);
     if(preview.sha256!==expectedSha)invalid("Excel dosyası önizlemeden sonra değişmiş; yeniden analiz edin.");
+    if(preview.stateFingerprint!==expectedFingerprint)
+      throw Object.assign(new Error("Excel analizinden sonra cari bakiyesi veya eşleşme değişti. Lütfen yeniden analiz edip güncel bakiyeyi kontrol edin."),{status:409});
     if(preview.duplicate)throw Object.assign(new Error("Bu Excel belgesi daha önce içe aktarılmıştır. Bakiyeler yeniden eklenmedi."),{status:409});
     if(preview.conflicts)invalid("Cari eşleşmelerinde hata var. Bakiyeler kaydedilmedi; belgeyi kontrol edin.");
     if(preview.rows.every(x=>x.skipped))invalid("İçe aktarılacak cari bulunamadı; tüm satırlar atlanmış.");
