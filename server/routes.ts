@@ -88,6 +88,7 @@ type MobileAuthPayload = {
   uid: number;
   exp: number;
   setupProof?: string;
+  credentialVersion?: number;
 };
 
 function mobileAuthSecret() {
@@ -98,11 +99,12 @@ function mobileAuthSecret() {
   );
 }
 
-function issueMobileAuthToken(userId: number, setupProof?: string) {
+function issueMobileAuthToken(userId: number, setupProof?: string, credentialVersion?: number) {
   const payload: MobileAuthPayload = {
     uid: userId,
     exp: Date.now() + 1000 * 60 * 60 * 24 * 30,
     ...(setupProof ? { setupProof } : {}),
+    ...(credentialVersion!==undefined?{credentialVersion}:{}),
   };
   const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const signature = createHmac("sha256", mobileAuthSecret())
@@ -113,6 +115,24 @@ function issueMobileAuthToken(userId: number, setupProof?: string) {
 
 // Proof is bound to the random invalidated temporary password hash, and
 // becomes invalid as soon as the permanent password is saved.
+function sessionCredentialVersion(req:Request):number|null {
+  if(String(req.headers.authorization||"").trim()){
+    const token=String(req.headers.authorization).trim().replace(/^bearer\s+/i,"");
+    if(!verifiedMobileTokenUserId(token))return null;
+    try{
+      const encoded=token.split(".")[0]||"";
+      const version=JSON.parse(Buffer.from(encoded,"base64url").toString("utf8")).credentialVersion;
+      return Number.isSafeInteger(version)?version:null;
+    }catch{return null;}
+  }
+  const value=(req.session as any).b2bAuthVersion;
+  return Number.isSafeInteger(value)?value:null;
+}
+function authorizedCredentialVersion(req:Request,user:{role:string;b2bAuthVersion?:number|null}):boolean {
+  if(user.role!=="b2b_customer"||!Number.isSafeInteger(user.b2bAuthVersion)||
+     Number(user.b2bAuthVersion)<=0)return true;
+  return sessionCredentialVersion(req)===Number(user.b2bAuthVersion);
+}
 function bearerPasswordSetupProof(req: Request): string | null {
   const authorization=String(req.headers.authorization||"").trim();
   if(!authorization.toLowerCase().startsWith("bearer "))return null;
@@ -193,7 +213,8 @@ function authResponse(user: any, usernameOverride?: string) {
   return {
     ...profile,
     user: profile,
-    token: issueMobileAuthToken(Number(user.id)),
+    token: issueMobileAuthToken(Number(user.id),undefined,
+      user.role==="b2b_customer"?Number(user.b2bAuthVersion)||0:undefined),
   };
 }
 
@@ -1715,6 +1736,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(id);
       // The Business App Review identity may view only the isolated, bundled
       // preview UI. Never expose live customer, sales or admin APIs to it.
+      if(user?.role==="b2b_customer"&&!authorizedCredentialVersion(req,user)){
+        return res.status(401).json({error:"Giriş bilgileriniz değişti. Lütfen yeni e-postanız ve şifrenizle tekrar giriş yapın."});
+      }
       if (user?.role === "business_reviewer") {
         return res.status(403).json({ error: "İnceleme hesabıyla gerçek işletme verilerine erişilemez." });
       }
@@ -1839,8 +1863,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const user = await storage.getUser(userId);
-    if (!user || user.isActive !== 1) {
-      return res.status(401).json({ error: "Oturum geçersiz" });
+    if (!user || user.isActive !== 1||!authorizedCredentialVersion(req,user)) {
+      return res.status(401).json({ error: "Oturum geçersiz; lütfen tekrar giriş yapın." });
     }
 
     return res.json({ user: authResponseUser(user) });
@@ -1855,9 +1879,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
     }
     const user = await storage.getUser(userId);
-    if (!user) {
-      req.session.destroy(() => undefined);
-      return res.status(401).json({ error: "Oturum geçersiz" });
+    if (!user||!authorizedCredentialVersion(req,user)) {
+      if(!req.headers.authorization)req.session.destroy(() => undefined);
+      return res.status(401).json({ error: "Oturum geçersiz; lütfen tekrar giriş yapın." });
     }
     res.json({
       id: user.id,
@@ -2053,6 +2077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
       (req.session as {userId?:number}).userId=user.id;
+      (req.session as any).b2bAuthVersion=Number(user.b2bAuthVersion)||0;
     } catch(error) {
       console.error("B2B session regeneration failed",error);
       return res.status(503).json({error:"Giriş oturumu oluşturulamadı. Tekrar deneyin."});
@@ -2069,7 +2094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const payload = authResponse(user);
       return res.json({
         ...payload,
-        token: issueMobileAuthToken(user.id,proof),
+        token: issueMobileAuthToken(user.id,proof,Number(user.b2bAuthVersion)||0),
         mustChangePassword: true,
         user: { ...payload.user, mustChangePassword: true },
       });
@@ -2787,7 +2812,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const changed=await client.query(
         "UPDATE users SET email=$2,username=$2,password=$3,must_change_password=1,"+
-        "credentials_sent_at=NOW() WHERE id=$1 RETURNING id,email,must_change_password",
+        "credentials_sent_at=NOW(),b2b_auth_version=b2b_auth_version+1 "+
+        "WHERE id=$1 RETURNING id,email,must_change_password,b2b_auth_version",
         [id,email,hashPassword(temporaryPassword)],
       );
       await client.query(
