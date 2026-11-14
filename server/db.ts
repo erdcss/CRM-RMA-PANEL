@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   tax_verified INTEGER NOT NULL DEFAULT 0,
   application_status TEXT,
   must_change_password INTEGER NOT NULL DEFAULT 0,
+  b2b_auth_version INTEGER NOT NULL DEFAULT 0,
   approved_at TIMESTAMP,
   credentials_sent_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
