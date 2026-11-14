@@ -71,13 +71,13 @@ export function B2BSocialAndStores({
     bannerUrl ? (
       <a href={bannerUrl} target="_blank" rel="noopener noreferrer"
         aria-label="Çalışkan B2B WhatsApp destek bannerını aç"
-        className="relative block aspect-[6/1] w-full min-w-0 max-w-[700px] flex-1 overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffcc00]">
+        className="relative block aspect-[6/1] w-full min-w-0 max-w-[410px] flex-1 overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffcc00]">
         <img src={bannerImage} alt="Çalışkan B2B WhatsApp destek hattı"
           loading="lazy" decoding="async"
           className="absolute inset-0 h-full w-full object-cover object-center"/>
       </a>
     ) : (
-      <div className="relative aspect-[6/1] w-full min-w-0 max-w-[700px] flex-1 overflow-hidden rounded-md">
+      <div className="relative aspect-[6/1] w-full min-w-0 max-w-[410px] flex-1 overflow-hidden rounded-md">
         <img src={bannerImage} alt="Çalışkan B2B WhatsApp destek hattı"
           loading="lazy" decoding="async"
           className="absolute inset-0 h-full w-full object-cover object-center"/>
