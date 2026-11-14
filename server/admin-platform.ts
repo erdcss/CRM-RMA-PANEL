@@ -143,6 +143,7 @@ const BRANDING_KEYS = [
   "admin_favicon",
   "b2b_logo",
   "b2b_favicon",
+  "b2b_footer_banner",
   "b2b_mobile_logo",
   "b2b_mobile_android_icon",
   "b2b_mobile_splash",
@@ -436,6 +437,7 @@ async function brandingMap() {
     admin_favicon: null,
     b2b_logo: null,
     b2b_favicon: null,
+    b2b_footer_banner: null,
     b2b_mobile_logo: null,
     b2b_mobile_android_icon: null,
     b2b_mobile_splash: null,
@@ -768,7 +770,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   const footerDefaults = { instagram:"", facebook:"", youtube:"", tiktok:"", appStoreUrl:"", googlePlayUrl:"", appStoreImage:"", googlePlayImage:"",
     appStoreBannerTitle:"",appStoreBannerText:"",appStoreBannerImage:"",appStoreBannerButton:"",
     googlePlayBannerTitle:"",googlePlayBannerText:"",googlePlayBannerImage:"",googlePlayBannerButton:"",
-    downloadHeaderTitle:"",downloadHeaderText:"",latestIosVersion:"",latestAndroidVersion:"" };
+    downloadHeaderTitle:"",downloadHeaderText:"",latestIosVersion:"",latestAndroidVersion:"",
+    footerBannerUrl:"" };
   const footerFields = Object.keys(footerDefaults);
   const readFooter = async () => {
     if (!pool) return footerDefaults;
