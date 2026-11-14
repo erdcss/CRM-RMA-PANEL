@@ -34,6 +34,7 @@ import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
+import {passwordSetupProof,validPasswordSetupProof,normalizedB2BCustomerEmail} from "./b2b-customer-credentials";
 import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
@@ -112,9 +113,6 @@ function issueMobileAuthToken(userId: number, setupProof?: string) {
 
 // Proof is bound to the random invalidated temporary password hash, and
 // becomes invalid as soon as the permanent password is saved.
-function passwordSetupProof(passwordHash: string): string {
-  return createHmac("sha256",mobileAuthSecret()).update("b2b:password-setup:"+passwordHash).digest("base64url");
-}
 function bearerPasswordSetupProof(req: Request): string | null {
   const authorization=String(req.headers.authorization||"").trim();
   if(!authorization.toLowerCase().startsWith("bearer "))return null;
@@ -2066,7 +2064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const replacementHash=hashPassword(randomBytes(32).toString("hex"));
       const changed=await storage.updateUser(user.id,{password:replacementHash});
       if(!changed)return res.status(503).json({error:"Geçici şifre oturumu açılamadı."});
-      const proof=passwordSetupProof(changed.password);
+      const proof=passwordSetupProof(changed.password,mobileAuthSecret());
       (req.session as any).b2bPasswordSetupProof=proof;
       const payload = authResponse(user);
       return res.json({
@@ -2162,10 +2160,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (user.mustChangePassword !== 1) {
       return res.status(409).json({ error: "İlk giriş şifre oluşturma işlemi zaten tamamlanmış" });
     }
-    const expectedProof=passwordSetupProof(user.password);
     const actualProof=bearerPasswordSetupProof(req)||(req.session as any).b2bPasswordSetupProof||"";
-    if(typeof actualProof!=="string"||actualProof.length!==expectedProof.length||
-      !timingSafeEqual(Buffer.from(actualProof),Buffer.from(expectedProof))) {
+    if(!validPasswordSetupProof(actualProof,user.password,mobileAuthSecret())) {
       return res.status(403).json({
         error:"Yeni şifre belirlemek için e-postanıza gönderilen geçici şifreyle tekrar giriş yapın.",
       });
@@ -2738,13 +2734,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader("Cache-Control","private,no-store");
     const id=Number(req.params.id);
     const actor=sessionUserId(req);
-    const email=typeof req.body?.email==="string"?req.body.email.trim().toLowerCase():"";
+    const email=normalizedB2BCustomerEmail(req.body?.email);
     const confirmed=req.body?.confirmed===true;
     if(!Number.isSafeInteger(id)||id<1)
       return res.status(400).json({error:"Geçersiz B2B müşteri numarası."});
     if(!actor)return res.status(401).json({error:"Yönetici oturumu gerekiyor."});
     if(!confirmed)return res.status(400).json({error:"E-posta değişikliğini onaylamanız gerekiyor."});
-    if(email.length>254||! /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    if(!email)
       return res.status(400).json({error:"Geçerli yeni bir e-posta adresi girin."});
     if(!pool)return res.status(503).json({error:"Veritabanına bağlanılamıyor."});
     const client=await pool.connect();
