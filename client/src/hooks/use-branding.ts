@@ -5,6 +5,7 @@ export type BrandingConfig = {
   admin_favicon?: string | null;
   b2b_logo?: string | null;
   b2b_favicon?: string | null;
+  b2b_footer_banner?: string | null;
   b2b_mobile_logo?: string | null;
   b2b_mobile_android_icon?: string | null;
   b2b_mobile_splash?: string | null;
