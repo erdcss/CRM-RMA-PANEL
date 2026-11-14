@@ -65,6 +65,7 @@ export default function Ayarlar() {
       ? "email" : "branding",
   );
   const [footerDraft, setFooterDraft] = useState<Partial<StoreLinks>>({});
+  const [savingFooterBanner, setSavingFooterBanner] = useState(false);
   const [metaDraft,setMetaDraft]=useState<Partial<MetaTrackingSettings>>({});
   const [savingMeta,setSavingMeta]=useState(false);
   const {data:metaSettings={enabled:false,pixelId:""}}=useQuery<MetaTrackingSettings>({
@@ -74,7 +75,7 @@ export default function Ayarlar() {
   const metaValues={...metaSettings,...metaDraft};
 
   const [savingFooter,setSavingFooter]=useState(false);
-  const { data: footerSettings = emptyStoreLinks } = useQuery<StoreLinks>({ queryKey:["/api/admin/b2b-footer"],queryFn:async()=>{const r=await fetch("/api/admin/b2b-footer");if(!r.ok)throw new Error("Alt bilgi okunamadı");return r.json();} });
+  const { data: footerSettings = emptyStoreLinks, isLoading: footerLoading } = useQuery<StoreLinks>({ queryKey:["/api/admin/b2b-footer"],queryFn:async()=>{const r=await fetch("/api/admin/b2b-footer",{credentials:"include"});if(!r.ok)throw new Error("Alt bilgi okunamadı");return r.json();} });
   const footerValues = {...footerSettings,...footerDraft};
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
@@ -132,6 +133,54 @@ export default function Ayarlar() {
       toast({title:"Kaydedildi",description:"B2B footer ve mağaza bağlantıları güncellendi"});
     } catch(error) { toast({title:"Kaydedilemedi",description:error instanceof Error?error.message:"Bir hata oluştu",variant:"destructive"}); }
     finally {setSavingFooter(false);}
+  }
+
+  async function saveFooterBanner() {
+    setSavingFooterBanner(true);
+    try {
+      if (footerLoading || isLoading) throw new Error("Marka ve alt bilgi ayarları henüz yükleniyor");
+      const url = String(footerValues.footerBannerUrl || "").trim();
+      if (url && !/^https:\/\//i.test(url)) {
+        throw new Error("Tıklama bağlantısı https:// ile başlamalı");
+      }
+      if (Object.prototype.hasOwnProperty.call(draft, "b2b_footer_banner")) {
+        const imageResponse = await fetch("/api/admin/branding", {
+          method: "PUT", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ b2b_footer_banner: draft.b2b_footer_banner }),
+        });
+        const imageResult = await imageResponse.json().catch(() => ({}));
+        if (!imageResponse.ok) throw new Error(imageResult.error || "Banner görseli kaydedilemedi");
+      }
+      const response = await fetch("/api/admin/b2b-footer", {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...footerSettings, footerBannerUrl: url }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Banner bağlantısı kaydedilemedi");
+      setDraft(current => {
+        const next = { ...current };
+        delete next.b2b_footer_banner;
+        return next;
+      });
+      setFooterDraft(current => {
+        const next = { ...current };
+        delete next.footerBannerUrl;
+        return next;
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/branding"]}),
+        queryClient.invalidateQueries({queryKey:["/api/public/branding"]}),
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-footer"]}),
+        queryClient.invalidateQueries({queryKey:["/api/public/b2b-footer"]}),
+      ]);
+      toast({ title: "Alt bilgi bannerı kaydedildi", description: "Web sitesindeki görsel ve tıklama bağlantısı güncellendi." });
+    } catch(error) {
+      toast({ title: "Banner kaydedilemedi", description: error instanceof Error ? error.message : "Lütfen yeniden deneyin", variant: "destructive" });
+    } finally {
+      setSavingFooterBanner(false);
+    }
   }
 
   async function saveBranding() {
@@ -379,6 +428,51 @@ export default function Ayarlar() {
                   onChange={(value) => setAsset("b2b_favicon", value)}
                   square
                 />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Web Alt Bilgi · Yatay Banner</CardTitle>
+                <CardDescription>
+                  B2B web sitesinde alt bilgi bağlantılarının altında ve sosyal medya çubuğunun üstünde görünür.
+                  Uzun, ince yatay görsel önerilir (ör. 1800 × 300 px). Görseli yükleyip tıklanınca açılacak bağlantıyı belirleyebilirsiniz.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <AssetUploader
+                    title="Alt bilgi banner görseli"
+                    description="Yatay görsel yükleyin: PNG, JPG veya WebP. Görsel kesilmeden gösterilir."
+                    value={values.b2b_footer_banner}
+                    onChange={value=>setAsset("b2b_footer_banner", value)}
+                    cover
+                  />
+                  <label className="space-y-2">
+                    <span className="text-sm font-semibold">Banner tıklama bağlantısı (URL)</span>
+                    <Input
+                      type="url"
+                      placeholder="https://wa.me/905386983444"
+                      value={footerValues.footerBannerUrl}
+                      onChange={event=>setFooterDraft(current=>({...current,footerBannerUrl:event.target.value}))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Örneğin WhatsApp destek veya web destek sayfası. Boş bırakılırsa görsel tıklanamaz.
+                      Bağlantı yeni sekmede açılır; yalnızca HTTPS adresleri kabul edilir.
+                    </p>
+                  </label>
+                </div>
+                {values.b2b_footer_banner ? <div className="overflow-hidden rounded-xl border bg-white p-2">
+                  <p className="mb-2 text-xs font-semibold text-muted-foreground">Web alt bilgi önizlemesi</p>
+                  <img src={values.b2b_footer_banner} alt="Yatay alt bilgi banner önizlemesi"
+                    className="block aspect-[6/1] w-full object-contain"/>
+                </div> : <p className="rounded-xl border border-dashed px-4 py-5 text-sm text-muted-foreground">
+                  Henüz bir banner seçilmedi. Görsel kaydedilene kadar web sitesindeki banner alanı gizli kalır.
+                </p>}
+                <Button disabled={savingFooterBanner || footerLoading || isLoading} onClick={()=>void saveFooterBanner()}>
+                  <Save className="mr-2 h-4 w-4"/>
+                  {savingFooterBanner ? "Kaydediliyor…" : "Banner Görseli ve Bağlantısını Kaydet"}
+                </Button>
               </CardContent>
             </Card>
 
