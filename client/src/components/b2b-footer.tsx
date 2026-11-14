@@ -2,19 +2,22 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown, Instagram, Facebook, Youtube, Music2, ExternalLink, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useBranding } from "@/hooks/use-branding";
 
 export type StoreLinks = Record<
   "instagram" | "facebook" | "youtube" | "tiktok" |
   "appStoreUrl" | "googlePlayUrl" | "appStoreImage" | "googlePlayImage" |
   "appStoreBannerTitle" | "appStoreBannerText" | "appStoreBannerImage" | "appStoreBannerButton" |
   "googlePlayBannerTitle" | "googlePlayBannerText" | "googlePlayBannerImage" | "googlePlayBannerButton" |
-  "downloadHeaderTitle" | "downloadHeaderText" | "latestIosVersion" | "latestAndroidVersion", string>;
+  "downloadHeaderTitle" | "downloadHeaderText" | "latestIosVersion" | "latestAndroidVersion" |
+  "footerBannerUrl", string>;
 export const emptyStoreLinks: StoreLinks = {
   instagram:"",facebook:"",youtube:"",tiktok:"",
   appStoreUrl:"",googlePlayUrl:"",appStoreImage:"",googlePlayImage:"",
   appStoreBannerTitle:"",appStoreBannerText:"",appStoreBannerImage:"",appStoreBannerButton:"",
   googlePlayBannerTitle:"",googlePlayBannerText:"",googlePlayBannerImage:"",googlePlayBannerButton:"",
   downloadHeaderTitle:"",downloadHeaderText:"",latestIosVersion:"",latestAndroidVersion:"",
+  footerBannerUrl:"",
 };
 export function useStoreLinks() {
   return useQuery<StoreLinks>({ queryKey:["/api/public/b2b-footer"], queryFn:async () => {
@@ -50,6 +53,10 @@ export function B2BSocialAndStores({ compact = false }: { compact?:boolean }) {
 }
 export function B2BFooter() {
   const [open,setOpen]=useState<string | null>(null);
+  const {data:branding}=useBranding();
+  const {data:footerLinks}=useStoreLinks();
+  const bannerImage=branding?.b2b_footer_banner;
+  const bannerUrl=footerLinks?.footerBannerUrl?.trim();
   return <footer className="mt-12 border-t border-[#e6e2d6] bg-[#f8f8f6] text-[#171717]">
     <div className="mx-auto grid max-w-6xl grid-cols-1 px-4 py-9 md:grid-cols-4 md:gap-8 md:py-14">
       {footerGroups.map(group => <section key={group.title} className="border-b border-black/10 py-2 md:border-0 md:py-0">
@@ -63,6 +70,19 @@ export function B2BFooter() {
         </div>
       </section>)}
     </div>
+    {bannerImage ? <div className="mx-auto w-full max-w-6xl px-4 pb-5">
+      {bannerUrl
+        ? <a href={bannerUrl} target="_blank" rel="noopener noreferrer"
+            aria-label="Çalışkan B2B alt bilgi bannerı bağlantısını aç"
+            className="block overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c99f00]">
+            <img src={bannerImage} alt="Çalışkan B2B alt bilgi bannerı" loading="lazy" decoding="async"
+              className="block aspect-[6/1] w-full object-contain"/>
+          </a>
+        : <div className="overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm">
+            <img src={bannerImage} alt="Çalışkan B2B alt bilgi bannerı" loading="lazy" decoding="async"
+              className="block aspect-[6/1] w-full object-contain"/>
+          </div>}
+    </div> : null}
     <B2BSocialAndStores/>
     <div className="bg-[#080808] px-4 pb-5 text-center text-xs text-white/50">© {new Date().getFullYear()} Çalışkan B2B · Tüm hakları saklıdır. <button type="button" className="ml-3 underline underline-offset-2 hover:text-white" onClick={()=>window.dispatchEvent(new Event("caliskan-meta-open-consent"))}>Çerez izni</button></div>
   </footer>;
