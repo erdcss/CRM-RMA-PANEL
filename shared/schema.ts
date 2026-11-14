@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   taxVerified: integer("tax_verified").notNull().default(0),
   applicationStatus: text("application_status"),
   mustChangePassword: integer("must_change_password").notNull().default(0),
+  b2bAuthVersion: integer("b2b_auth_version").notNull().default(0),
   approvedAt: timestamp("approved_at"),
   credentialsSentAt: timestamp("credentials_sent_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

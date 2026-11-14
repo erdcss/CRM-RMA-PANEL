@@ -34,6 +34,7 @@ import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
+import {passwordSetupProof,validPasswordSetupProof,normalizedB2BCustomerEmail} from "./b2b-customer-credentials";
 import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
@@ -86,6 +87,8 @@ function verifyPassword(password: string, stored: string): boolean {
 type MobileAuthPayload = {
   uid: number;
   exp: number;
+  setupProof?: string;
+  credentialVersion?: number;
 };
 
 function mobileAuthSecret() {
@@ -96,10 +99,12 @@ function mobileAuthSecret() {
   );
 }
 
-function issueMobileAuthToken(userId: number) {
+function issueMobileAuthToken(userId: number, setupProof?: string, credentialVersion?: number) {
   const payload: MobileAuthPayload = {
     uid: userId,
     exp: Date.now() + 1000 * 60 * 60 * 24 * 30,
+    ...(setupProof ? { setupProof } : {}),
+    ...(credentialVersion!==undefined?{credentialVersion}:{}),
   };
   const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   const signature = createHmac("sha256", mobileAuthSecret())
@@ -108,6 +113,36 @@ function issueMobileAuthToken(userId: number) {
   return `${encoded}.${signature}`;
 }
 
+// Proof is bound to the random invalidated temporary password hash, and
+// becomes invalid as soon as the permanent password is saved.
+function sessionCredentialVersion(req:Request):number|null {
+  if(String(req.headers.authorization||"").trim()){
+    const token=String(req.headers.authorization).trim().replace(/^bearer\s+/i,"");
+    if(!verifiedMobileTokenUserId(token))return null;
+    try{
+      const encoded=token.split(".")[0]||"";
+      const version=JSON.parse(Buffer.from(encoded,"base64url").toString("utf8")).credentialVersion;
+      return Number.isSafeInteger(version)?version:null;
+    }catch{return null;}
+  }
+  const value=(req.session as any).b2bAuthVersion;
+  return Number.isSafeInteger(value)?value:null;
+}
+function authorizedCredentialVersion(req:Request,user:{role:string;b2bAuthVersion?:number|null}):boolean {
+  if(user.role!=="b2b_customer"||!Number.isSafeInteger(user.b2bAuthVersion)||
+     Number(user.b2bAuthVersion)<=0)return true;
+  return sessionCredentialVersion(req)===Number(user.b2bAuthVersion);
+}
+function bearerPasswordSetupProof(req: Request): string | null {
+  const authorization=String(req.headers.authorization||"").trim();
+  if(!authorization.toLowerCase().startsWith("bearer "))return null;
+  const token=authorization.slice(7).trim();
+  if(!verifiedMobileTokenUserId(token))return null;
+  try {
+    const payload=JSON.parse(Buffer.from(token.split(".")[0]||"","base64url").toString("utf8"));
+    return typeof payload.setupProof==="string"&&payload.setupProof.length===43?payload.setupProof:null;
+  }catch{return null;}
+}
 function mobileTokenUserId(req: Request): number | undefined {
   const authorization = String(req.headers.authorization || "").trim();
   if (!authorization.toLowerCase().startsWith("bearer ")) return undefined;
@@ -178,7 +213,8 @@ function authResponse(user: any, usernameOverride?: string) {
   return {
     ...profile,
     user: profile,
-    token: issueMobileAuthToken(Number(user.id)),
+    token: issueMobileAuthToken(Number(user.id),undefined,
+      user.role==="b2b_customer"?Number(user.b2bAuthVersion)||0:undefined),
   };
 }
 
@@ -1700,6 +1736,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(id);
       // The Business App Review identity may view only the isolated, bundled
       // preview UI. Never expose live customer, sales or admin APIs to it.
+      if(user?.role==="b2b_customer"&&!authorizedCredentialVersion(req,user)){
+        return res.status(401).json({error:"Giriş bilgileriniz değişti. Lütfen yeni e-postanız ve şifrenizle tekrar giriş yapın."});
+      }
       if (user?.role === "business_reviewer") {
         return res.status(403).json({ error: "İnceleme hesabıyla gerçek işletme verilerine erişilemez." });
       }
@@ -1824,8 +1863,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     const user = await storage.getUser(userId);
-    if (!user || user.isActive !== 1) {
-      return res.status(401).json({ error: "Oturum geçersiz" });
+    if (!user || user.isActive !== 1||!authorizedCredentialVersion(req,user)) {
+      return res.status(401).json({ error: "Oturum geçersiz; lütfen tekrar giriş yapın." });
     }
 
     return res.json({ user: authResponseUser(user) });
@@ -1840,9 +1879,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
     }
     const user = await storage.getUser(userId);
-    if (!user) {
-      req.session.destroy(() => undefined);
-      return res.status(401).json({ error: "Oturum geçersiz" });
+    if (!user||!authorizedCredentialVersion(req,user)) {
+      if(!req.headers.authorization)req.session.destroy(() => undefined);
+      return res.status(401).json({ error: "Oturum geçersiz; lütfen tekrar giriş yapın." });
     }
     res.json({
       id: user.id,
@@ -2034,17 +2073,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ error: "Bu hesap B2B web sitesi için yetkili değil" });
     }
 
-    (req.session as { userId?: number }).userId = user.id;
+    // Do not re-use the previous browser session when switching accounts.
+    try {
+      await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
+      (req.session as {userId?:number}).userId=user.id;
+      (req.session as any).b2bAuthVersion=Number(user.b2bAuthVersion)||0;
+    } catch(error) {
+      console.error("B2B session regeneration failed",error);
+      return res.status(503).json({error:"Giriş oturumu oluşturulamadı. Tekrar deneyin."});
+    }
 
     if (user.mustChangePassword === 1) {
-      // Tek kullanımlık şifre ilk başarılı girişte hemen geçersiz kılınır.
-      await storage.updateUser(user.id, {
-        password: hashPassword(randomBytes(32).toString("hex")),
-      });
-
+      // Invalidate the emailed temporary password at the first successful
+      // login, then issue a setup-only proof tied to the rotated password hash.
+      const replacementHash=hashPassword(randomBytes(32).toString("hex"));
+      const changed=await storage.updateUser(user.id,{password:replacementHash});
+      if(!changed)return res.status(503).json({error:"Geçici şifre oturumu açılamadı."});
+      const proof=passwordSetupProof(changed.password,mobileAuthSecret());
+      (req.session as any).b2bPasswordSetupProof=proof;
       const payload = authResponse(user);
       return res.json({
         ...payload,
+        token: issueMobileAuthToken(user.id,proof,Number(user.b2bAuthVersion)||0),
         mustChangePassword: true,
         user: { ...payload.user, mustChangePassword: true },
       });
@@ -2135,11 +2185,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (user.mustChangePassword !== 1) {
       return res.status(409).json({ error: "İlk giriş şifre oluşturma işlemi zaten tamamlanmış" });
     }
+    const actualProof=bearerPasswordSetupProof(req)||(req.session as any).b2bPasswordSetupProof||"";
+    if(!validPasswordSetupProof(actualProof,user.password,mobileAuthSecret())) {
+      return res.status(403).json({
+        error:"Yeni şifre belirlemek için e-postanıza gönderilen geçici şifreyle tekrar giriş yapın.",
+      });
+    }
 
     await storage.updateUser(user.id, {
       password: hashPassword(password),
       mustChangePassword: 0,
     });
+    delete (req.session as any).b2bPasswordSetupProof;
 
     return res.json({ ok: true });
   });
@@ -2693,6 +2750,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
       taxVerified: safeUser.taxVerified === 1,
       mustChangePassword: false,
     });
+  });
+
+  // A verified administrator may change a customer's login e-mail and deliver
+  // a one-time password to the NEW address in the same audited operation.
+  // Never return the password or create a session for the admin.
+  app.post("/api/admin/b2b-customers/:id/change-email",requireAdmin,async(req,res)=>{
+    res.setHeader("Cache-Control","private,no-store");
+    const id=Number(req.params.id);
+    const actor=sessionUserId(req);
+    const email=normalizedB2BCustomerEmail(req.body?.email);
+    const confirmed=req.body?.confirmed===true;
+    if(!Number.isSafeInteger(id)||id<1)
+      return res.status(400).json({error:"Geçersiz B2B müşteri numarası."});
+    if(!actor)return res.status(401).json({error:"Yönetici oturumu gerekiyor."});
+    if(!confirmed)return res.status(400).json({error:"E-posta değişikliğini onaylamanız gerekiyor."});
+    if(!email)
+      return res.status(400).json({error:"Geçerli yeni bir e-posta adresi girin."});
+    if(!pool)return res.status(503).json({error:"Veritabanına bağlanılamıyor."});
+    const client=await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const found=await client.query(
+        "SELECT id,username,email,role,is_active,application_status,first_name,company_name "+
+        "FROM users WHERE id=$1 FOR UPDATE",[id],
+      );
+      const old=found.rows[0];
+      if(old?.role!=="b2b_customer"||old?.company_name==="Çalışkan B2B - Apple İnceleme"){
+        await client.query("ROLLBACK");
+        return res.status(404).json({error:"B2B müşteri hesabı bulunamadı."});
+      }
+      if(old.is_active!==1||old.application_status!=="approved"){
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"E-posta değişikliği yalnızca onaylanmış, aktif B2B müşterileri için yapılabilir."});
+      }
+      if(email===String(old.email||old.username||"").trim().toLowerCase()){
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"Bu adres zaten hesabın e-postası. Farklı bir e-posta girin."});
+      }
+      const duplicate=await client.query(
+        "SELECT id FROM users WHERE id<>$1 AND (LOWER(username)=$2 OR LOWER(COALESCE(email,''))=$2) LIMIT 1",
+        [id,email],
+      );
+      if(duplicate.rowCount){
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"Bu e-posta başka bir kullanıcı hesabında kayıtlı."});
+      }
+      await client.query(
+        "CREATE TABLE IF NOT EXISTS b2b_customer_email_change_audit("+
+        "id BIGSERIAL PRIMARY KEY,customer_id INTEGER NOT NULL REFERENCES users(id),"+
+        "admin_id INTEGER NOT NULL REFERENCES users(id),old_email TEXT,new_email TEXT NOT NULL,"+
+        "password_reset_required BOOLEAN NOT NULL DEFAULT TRUE,"+
+        "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+      );
+      const temporaryPassword=generateTemporaryPassword();
+      // Send while the row is locked. A delivery failure rolls back without
+      // changing the customer's current e-mail or valid password.
+      await sendTemporaryPasswordEmail({
+        to:email,firstName:old.first_name,companyName:old.company_name,
+        temporaryPassword,reason:"reset",
+      });
+      const changed=await client.query(
+        "UPDATE users SET email=$2,username=$2,password=$3,must_change_password=1,"+
+        "credentials_sent_at=NOW(),b2b_auth_version=b2b_auth_version+1 "+
+        "WHERE id=$1 RETURNING id,email,must_change_password,b2b_auth_version",
+        [id,email,hashPassword(temporaryPassword)],
+      );
+      await client.query(
+        "INSERT INTO b2b_customer_email_change_audit "+
+        "(customer_id,admin_id,old_email,new_email) VALUES($1,$2,$3,$4)",
+        [id,actor,old.email||old.username||null,email],
+      );
+      await client.query("COMMIT");
+      return res.json({ok:true,email:changed.rows[0].email,mustChangePassword:true,
+        message:"E-posta değiştirildi. Yeni adrese geçici giriş şifresi gönderildi. Kullanıcı ilk girişte yeni şifresini belirleyecek."});
+    }catch(error:any){
+      await client.query("ROLLBACK").catch(()=>undefined);
+      if(error?.code==="23505")
+        return res.status(409).json({error:"Bu e-posta zaten başka bir hesapta kullanılıyor."});
+      console.error("B2B admin email change failed", {customerId:id,error:normalizeMailError(error)});
+      return res.status(502).json({error:"E-posta değiştirilemedi. "+normalizeMailError(error)});
+    }finally{client.release();}
   });
 
   app.post("/api/admin/b2b-applications/:id/resend-password", requireAdmin, async (req, res) => {
