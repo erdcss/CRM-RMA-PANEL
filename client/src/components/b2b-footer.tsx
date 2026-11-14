@@ -31,25 +31,85 @@ export const footerGroups = [
   { title:"Satıcı", links:[["Onaylı Tedarikçi Mağazaları", "/magazalar"],["Tedarikçi Paneli / Başvuru", "https://pazaryeri.ecalisgan.com"],["Çalışkan Akademi", "/akademi"]] },
   { title:"Yardım", links:[["Sık Sorulan Sorular", "/destek#faq-heading"],["Destek Talebi", "/hesabim?tab=support"],["Gizlilik Politikası ve KVKK", "/privacy"],["Kullanım Koşulları", "/kullanim-kosullari"],["Nasıl İade Ederim?", "/destek#iade"]] },
 ] as const;
-export function B2BSocialAndStores({ compact = false }: { compact?:boolean }) {
-  const { data } = useStoreLinks(); const urls = data || emptyStoreLinks;
+export function B2BSocialAndStores({
+  compact = false,
+  bannerImage,
+  bannerUrl,
+}: {
+  compact?: boolean;
+  bannerImage?: string | null;
+  bannerUrl?: string | null;
+}) {
+  const { data } = useStoreLinks();
+  const urls = data || emptyStoreLinks;
   const social = [
-    { key:"instagram", Icon:Instagram, title:"Instagram" },
-    { key:"facebook", Icon:Facebook, title:"Facebook" },
-    { key:"youtube", Icon:Youtube, title:"YouTube" },
-    { key:"tiktok", Icon:Music2, title:"TikTok" },
+    { key: "instagram", Icon: Instagram, title: "Instagram" },
+    { key: "facebook", Icon: Facebook, title: "Facebook" },
+    { key: "youtube", Icon: Youtube, title: "YouTube" },
+    { key: "tiktok", Icon: Music2, title: "TikTok" },
   ] as const;
-  const stores = [{ title:"App Store", href:urls.appStoreUrl, image:urls.appStoreImage },{ title:"Google Play", href:urls.googlePlayUrl, image:urls.googlePlayImage }];
-  return <div className={compact ? "space-y-4" : "bg-[#0b0b0b] text-white"}>
-    <div className={compact ? "space-y-4" : "mx-auto flex max-w-6xl flex-col gap-5 px-4 py-5 md:flex-row md:items-center md:justify-between"}>
-      <div className="flex flex-wrap items-center gap-3">
-        {social.map(({key,Icon,title}) => urls[key] ? <a key={key} href={urls[key]} target="_blank" rel="noopener noreferrer" title={title} aria-label={title} className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/20 text-[#ffcc00] transition hover:border-[#ffcc00] hover:bg-white/10"><Icon className="h-5 w-5"/></a>:null)}
+  const stores = [
+    { title: "App Store", href: urls.appStoreUrl, image: urls.appStoreImage },
+    { title: "Google Play", href: urls.googlePlayUrl, image: urls.googlePlayImage },
+  ].filter(store => Boolean(store.href));
+
+  const storeBadges = stores.length ? (
+    <div className={compact ? "flex flex-wrap gap-3" : "flex flex-wrap items-center justify-end gap-3"}>
+      {stores.map(store => (
+        <a key={store.title} href={store.href} target="_blank" rel="noopener noreferrer"
+          aria-label={store.title}
+          className="flex min-h-12 min-w-32 items-center justify-center rounded-xl border border-white/25 bg-[#181818] px-3 py-2 text-sm font-bold text-white transition hover:border-[#ffcc00]">
+          {store.image
+            ? <img src={store.image} alt={store.title} className="h-10 max-w-40 object-contain"/>
+            : <><ExternalLink className="mr-2 h-4 w-4 text-[#ffcc00]"/>{store.title}</>}
+        </a>
+      ))}
+    </div>
+  ) : null;
+
+  const banner = !compact && bannerImage ? (
+    bannerUrl ? (
+      <a href={bannerUrl} target="_blank" rel="noopener noreferrer"
+        aria-label="Çalışkan B2B WhatsApp destek bannerını aç"
+        className="relative block aspect-[6/1] w-full min-w-0 max-w-[700px] flex-1 overflow-hidden rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ffcc00]">
+        <img src={bannerImage} alt="Çalışkan B2B WhatsApp destek hattı"
+          loading="lazy" decoding="async"
+          className="absolute inset-0 h-full w-full object-cover object-center"/>
+      </a>
+    ) : (
+      <div className="relative aspect-[6/1] w-full min-w-0 max-w-[700px] flex-1 overflow-hidden rounded-md">
+        <img src={bannerImage} alt="Çalışkan B2B WhatsApp destek hattı"
+          loading="lazy" decoding="async"
+          className="absolute inset-0 h-full w-full object-cover object-center"/>
       </div>
-      <div className="flex flex-wrap gap-3">
-        {stores.map(store => store.href ? <a key={store.title} href={store.href} target="_blank" rel="noopener noreferrer" aria-label={store.title} className="flex min-h-12 min-w-32 items-center justify-center rounded-xl border border-white/25 bg-[#181818] px-3 py-2 text-sm font-bold text-white transition hover:border-[#ffcc00]">{store.image ? <img src={store.image} alt={store.title} className="h-10 max-w-40 object-contain"/> : <><ExternalLink className="mr-2 h-4 w-4 text-[#ffcc00]"/>{store.title}</>}</a> : null)}
+    )
+  ) : null;
+
+  return (
+    <div className={compact ? "space-y-4" : "bg-[#0b0b0b] text-white"}>
+      <div className={compact
+        ? "space-y-4"
+        : "mx-auto flex w-full max-w-6xl flex-col gap-3 px-3 py-3 sm:gap-4 sm:px-4 md:py-4"}>
+        <div className={compact
+          ? "flex flex-wrap items-center gap-3"
+          : "flex w-full min-w-0 items-center justify-between gap-2 sm:gap-4"}>
+          <div className={compact
+            ? "flex flex-wrap items-center gap-3"
+            : "flex shrink-0 items-center gap-1.5 sm:gap-3"}>
+            {social.map(({ key, Icon, title }) => urls[key] ? (
+              <a key={key} href={urls[key]} target="_blank" rel="noopener noreferrer"
+                title={title} aria-label={title}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/20 text-[#ffcc00] transition hover:border-[#ffcc00] hover:bg-white/10 sm:h-11 sm:w-11 sm:rounded-xl">
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5"/>
+              </a>
+            ) : null)}
+          </div>
+          {banner || (!compact && storeBadges)}
+        </div>
+        {compact ? storeBadges : banner ? storeBadges : null}
       </div>
     </div>
-  </div>;
+  );
 }
 export function B2BFooter() {
   const [open,setOpen]=useState<string | null>(null);
@@ -70,20 +130,7 @@ export function B2BFooter() {
         </div>
       </section>)}
     </div>
-    {bannerImage ? <div className="mx-auto w-full max-w-6xl px-4 pb-5">
-      {bannerUrl
-        ? <a href={bannerUrl} target="_blank" rel="noopener noreferrer"
-            aria-label="Çalışkan B2B alt bilgi bannerı bağlantısını aç"
-            className="block overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c99f00]">
-            <img src={bannerImage} alt="Çalışkan B2B alt bilgi bannerı" loading="lazy" decoding="async"
-              className="block aspect-[6/1] w-full object-contain"/>
-          </a>
-        : <div className="overflow-hidden rounded-xl border border-black/10 bg-white shadow-sm">
-            <img src={bannerImage} alt="Çalışkan B2B alt bilgi bannerı" loading="lazy" decoding="async"
-              className="block aspect-[6/1] w-full object-contain"/>
-          </div>}
-    </div> : null}
-    <B2BSocialAndStores/>
+    <B2BSocialAndStores bannerImage={bannerImage} bannerUrl={bannerUrl}/>
     <div className="bg-[#080808] px-4 pb-5 text-center text-xs text-white/50">© {new Date().getFullYear()} Çalışkan B2B · Tüm hakları saklıdır. <button type="button" className="ml-3 underline underline-offset-2 hover:text-white" onClick={()=>window.dispatchEvent(new Event("caliskan-meta-open-consent"))}>Çerez izni</button></div>
   </footer>;
 }
