@@ -120,6 +120,8 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
   const [taxOfficeDraft,setTaxOfficeDraft]=useState("");
   const [taxVerifiedDraft,setTaxVerifiedDraft]=useState(false);
   const [taxNote,setTaxNote]=useState("");
+  const [emailDraft,setEmailDraft]=useState("");
+  const [emailConfirm,setEmailConfirm]=useState(false);
   const {data, isLoading,isError,error,refetch}=useQuery<Overview>({
     queryKey:["/api/admin/b2b-customer-center",id],
     queryFn:()=>get<Overview>(`/api/admin/b2b-customer-center/${encodeURIComponent(id)}`),
@@ -141,6 +143,10 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
     setTaxOfficeDraft(data?.customer.taxOffice||"");
     setTaxVerifiedDraft(Boolean(data?.customer.taxVerified));
   },[data?.customer.taxOffice,data?.customer.taxVerified]);
+  useEffect(()=>{
+    setEmailDraft(data?.customer.email||data?.customer.username||"");
+    setEmailConfirm(false);
+  },[data?.customer.id,data?.customer.email,data?.customer.username]);
   const taxUpdate=useMutation({
     mutationFn:async()=>{
       const result=await apiRequest("PATCH",`/api/admin/b2b-customer-center/${id}/tax`,{
@@ -154,6 +160,29 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
       toast({title:"Manuel vergi bilgisi kaydedildi",description:"Değişiklik yetkili yönetici geçmişine işlendi."});
     },
     onError:(error:Error)=>toast({title:"Kaydedilemedi",description:error.message,variant:"destructive"}),
+  });
+  const emailUpdate=useMutation({
+    mutationFn:async()=>{
+      const response=await apiRequest("POST",
+        `/api/admin/b2b-customers/${encodeURIComponent(id)}/change-email`,{
+          email:emailDraft.trim().toLowerCase(),confirmed:true
+        });
+      return response.json() as Promise<{email:string;message:string}>;
+    },
+    onSuccess:async(result)=>{
+      setEmailConfirm(false);
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-customer-center",id]}),
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-customers"]}),
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-applications"]}),
+      ]);
+      toast({title:"Müşteri e-postası değiştirildi",description:result.message});
+      void refetch();
+    },
+    onError:(error:Error)=>{
+      setEmailConfirm(false);
+      toast({title:"E-posta değiştirilemedi",description:error.message,variant:"destructive"});
+    },
   });
   const action=useMutation({
     mutationFn:async(type:"approve"|"reject"|"resend-password")=>{
@@ -276,6 +305,44 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
               <Field label="İlk şifre durumu" value={customer.mustChangePassword?"Yeni şifre bekleniyor":"Yeni şifre zorunluluğu yok"}/>
             </div>
           </div>
+          {approved&&customer.isActive?<div className="rounded-2xl border bg-background p-5 space-y-4">
+            <div>
+              <h2 className="flex items-center gap-2 font-bold"><Mail className="h-4 w-4"/> Üyelik e-postasını değiştir</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Yeni adres hesabın giriş e-postası ve kullanıcı adı olur. O adrese tek kullanımlık şifre gönderilir.
+                Kullanıcı ilk girişte yeni şifresini belirlemek zorundadır. Önceki şifre geçersiz kalır.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <label className="space-y-1 text-sm">
+                <span className="font-medium">Yeni e-posta adresi</span>
+                <Input type="email" autoComplete="off" placeholder="yeni@firma.com" maxLength={254}
+                  value={emailDraft} disabled={emailUpdate.isPending}
+                  onChange={event=>{setEmailDraft(event.target.value);setEmailConfirm(false);}}/>
+              </label>
+              <Button type="button" disabled={emailUpdate.isPending||
+                  !/^\S+@\S+\.\S+$/.test(emailDraft.trim())||
+                  emailDraft.trim().toLowerCase()===(customer.email||customer.username||"").toLowerCase()}
+                onClick={()=>setEmailConfirm(true)}>
+                <Mail className="mr-2 h-4 w-4"/> E-postayı Değiştir ve Şifre Gönder
+              </Button>
+            </div>
+            {emailConfirm&&<div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+              <p><b>Bu değişiklik mevcut şifreyi geçersiz kılacak.</b> Tek kullanımlık giriş şifresi
+                <b> {emailDraft.trim().toLowerCase()}</b> adresine gönderilecek. E-postanın firmaya ait olduğunu kontrol edin.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" disabled={emailUpdate.isPending} onClick={()=>emailUpdate.mutate()}>
+                  {emailUpdate.isPending?"Gönderiliyor…":"Onayla ve Geçici Şifre Gönder"}
+                </Button>
+                <Button type="button" variant="outline" disabled={emailUpdate.isPending} onClick={()=>setEmailConfirm(false)}>
+                  Vazgeç
+                </Button>
+              </div>
+            </div>}
+            <p className="text-xs text-muted-foreground">
+              E-posta gönderimi başarısız olursa eski adres ve mevcut şifre korunur. İşlem yönetici kimliğiyle kaydedilir.
+            </p>
+          </div>:null}
           <div className="rounded-2xl border bg-background p-5 space-y-4">
             <div>
               <h2 className="font-bold">Vergi bilgileri ve manuel teyit</h2>
