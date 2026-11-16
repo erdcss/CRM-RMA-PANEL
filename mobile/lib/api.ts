@@ -570,6 +570,10 @@ export type B2BSupportMessage = {
   sender_role: 'customer' | 'admin';
   message: string;
   created_at: string;
+  attachment_id?: number | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
+  attachment_size?: number | null;
 };
 export type B2BSupportConversation = {
   ticket: B2BSupportTicket;
@@ -1006,6 +1010,11 @@ export const rmaApi = {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
+  uploadB2BSupportAttachment: (id: number,payload:{
+    fileName:string;mimeType:string;base64:string;message?:string;
+  }) => request<B2BSupportMessage>(`/api/b2b/support/${id}/attachments`,{
+    method:'POST',body:JSON.stringify(payload),
+  }),
   createB2BSupport: (subject: string, message: string) =>
     request<B2BSupportTicket>('/api/b2b/support', {
       method: 'POST',
