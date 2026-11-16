@@ -115,7 +115,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     // Message push opens a specific live conversation. Closed-ticket pushes
     // intentionally lead to the support inbox without a ticket identifier.
-    if (active !== 'support' || !ticketId || !/^[1-9]\\d{0,15}$/.test(ticketId)) return;
+    if (active !== 'support' || !ticketId || !/^[1-9]\d{0,15}$/.test(ticketId)) return;
     setSelectedSupportId(Number(ticketId));
   }, [active, ticketId]);
 
