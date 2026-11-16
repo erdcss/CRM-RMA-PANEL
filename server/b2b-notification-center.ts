@@ -137,8 +137,9 @@ export async function notifyB2BSupportMessage(input:{
   if(!pool||!Number.isSafeInteger(input.userId)||input.userId<1)return {recorded:false,sent:0};
   await ensureB2BNotificationTables();
   const title=input.kind==="closed"?"Destek görüşmeniz sonlandırıldı":"Çalışkan B2B destek yanıtı";
+  const subject=input.message.trim().replace(/\\s+/g," ").slice(0,100);
   const body=input.kind==="closed"
-    ? "Destek talebiniz kapatıldı ve görüşme sonlandırıldı. Yeni bir konuda destek almak için yeni talep oluşturabilirsiniz."
+    ? `"${subject || "Destek"}" konulu talebiniz kapatıldı. Görüşme sonlandırıldı. Yeni bir konuda destek almak için yeni talep oluşturabilirsiniz.`
     : input.message.trim().slice(0,600);
   // Closed conversations are no longer exposed to the customer. Open replies
   // deep-link to the exact ticket; close notices lead to the support inbox.
