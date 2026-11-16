@@ -823,6 +823,17 @@ async function ensureB2BAccountTables() {
       message TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS b2b_support_attachments (
+      id BIGSERIAL PRIMARY KEY,
+      ticket_id BIGINT NOT NULL REFERENCES b2b_support_tickets(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL,
+      contents BYTEA NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    ALTER TABLE b2b_support_messages ADD COLUMN IF NOT EXISTS attachment_id BIGINT REFERENCES b2b_support_attachments(id) ON DELETE SET NULL;
+    CREATE INDEX IF NOT EXISTS b2b_support_attachment_ticket_idx ON b2b_support_attachments(ticket_id,id);
     CREATE INDEX IF NOT EXISTS b2b_support_messages_ticket_time_idx
       ON b2b_support_messages(ticket_id, created_at ASC, id ASC);
     CREATE INDEX IF NOT EXISTS b2b_support_user_idx ON b2b_support_tickets(user_id, created_at DESC);
@@ -1851,6 +1862,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ok:true});
   });
 
+
+  const SUPPORT_ALLOWED_MIMES=new Set([
+    "image/jpeg","image/png","image/webp","application/pdf",
+    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ]);
+  const SUPPORT_MAX_BYTES=5*1024*1024;
+  function supportFileFromBody(input:any){
+    const mime=String(input?.mimeType||"").toLowerCase();
+    const fileName=String(input?.fileName||"dosya")
+      .replace(/[\\/\x00-\x1f\x7f"<>]/g,"_").slice(0,110);
+    const raw=typeof input?.base64==="string"?input.base64:"";
+    if(!SUPPORT_ALLOWED_MIMES.has(mime)||!raw||raw.length>Math.ceil(SUPPORT_MAX_BYTES*4/3)+12
+       ||!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)){
+      throw new Error("Desteklenen görsel veya belge seçin (en fazla 5 MB)");
+    }
+    const bytes=Buffer.from(raw,"base64");
+    if(!bytes.length||bytes.length>SUPPORT_MAX_BYTES)throw new Error("Dosya 5 MB sınırını aşıyor");
+    const png=bytes.length>8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    const jpg=bytes.length>3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+    const webp=bytes.length>12&&bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP";
+    const pdf=bytes.length>5&&bytes.toString("ascii",0,5)==="%PDF-";
+    const zip=bytes.length>4&&bytes.toString("ascii",0,4)==="PK\\x03\\x04";
+    const plain=bytes.length<=512*1024&&!bytes.includes(0);
+    const valid=mime==="image/png"?png:mime==="image/jpeg"?jpg:mime==="image/webp"?webp:
+      mime==="application/pdf"?pdf:mime==="text/plain"?plain:zip;
+    if(!valid)throw new Error("Dosyanın içeriği belirtilen formatla eşleşmiyor");
+    return {bytes,mime,fileName};
+  }
+
+  async function serveSupportAttachment(req:any,res:any,role:"admin"|"customer"){
+    res.setHeader("Cache-Control","private, no-store");
+    res.setHeader("X-Content-Type-Options","nosniff");
+    if(!pool)return res.status(503).json({error:"Dosya servisi kullanılamıyor"});
+    const ticketId=Number(req.params.id),fileId=Number(req.params.fileId);
+    if(!Number.isSafeInteger(ticketId)||ticketId<1||!Number.isSafeInteger(fileId)||fileId<1)
+      return res.status(400).json({error:"Geçersiz dosya"});
+    if(role==="admin"){
+      const adminId=sessionUserId(req);
+      const admin=adminId?await storage.getUser(adminId):null;
+      if(!admin)return res.status(403).json({error:"Erişim reddedildi"});
+      if(admin.role!=="super_admin"){
+        const state=await pool.query("SELECT status FROM b2b_support_tickets WHERE id=$1",[ticketId]);
+        if(state.rows[0]?.status==="closed")return res.status(403).json({error:"Arşive erişim kısıtlı"});
+      }
+    }
+    const userId=role==="customer"?(res.locals as any).b2bUser?.id:null;
+    const f=await pool.query(`
+      SELECT a.file_name,a.mime_type,a.contents
+      FROM b2b_support_attachments a
+      JOIN b2b_support_tickets t ON t.id=a.ticket_id
+      WHERE a.id=$1 AND t.id=$2
+        AND ($3::int IS NULL OR (t.user_id=$3 AND t.status NOT IN ('closed','resolved','done')))
+      LIMIT 1`,[fileId,ticketId,userId]);
+    const file=f.rows[0];
+    if(!file)return res.status(404).json({error:"Dosya bulunamadı"});
+    const mime=String(file.mime_type);
+    const filename=String(file.file_name||"ek").replace(/[^a-zA-Z0-9._-]/g,"_");
+    res.setHeader("Content-Type",mime);
+    res.setHeader("Content-Disposition",
+      `${mime.startsWith("image/")?"inline":"attachment"}; filename="${filename}"`);
+    return res.send(file.contents);
+  }
+
+  async function createSupportAttachment(req:any,res:any,role:"admin"|"customer"){
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const ticketId=Number(req.params.id);
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    let parsed:ReturnType<typeof supportFileFromBody>;
+    try{parsed=supportFileFromBody(req.body);}catch(e){
+      return res.status(400).json({error:e instanceof Error?e.message:"Geçersiz dosya"});
+    }
+    const note=typeof req.body?.message==="string"?req.body.message.trim().slice(0,1000):"";
+    const actor=role==="admin"?sessionUserId(req):Number((res.locals as any).b2bUser?.id);
+    if(!actor)return res.status(401).json({error:"Oturum bulunamadı"});
+    const client=await pool.connect();
+    let inserted:any;
+    let recipient=0;
+    try{
+      await client.query("BEGIN");
+      // Lock ticket so a concurrent close cannot archive while a file is sent.
+      const ticket=await client.query(
+        `SELECT user_id,status FROM b2b_support_tickets WHERE id=$1 FOR UPDATE`,[ticketId]);
+      if(!ticket.rows[0]||["closed","resolved","done"].includes(ticket.rows[0].status)
+        ||role==="customer"&&Number(ticket.rows[0].user_id)!==Number(actor)){
+        await client.query("ROLLBACK");
+        return res.status(409).json({error:"Görüşme bulunamadı veya kapatılmış"});
+      }
+      recipient=Number(ticket.rows[0].user_id);
+      const a=await client.query(
+        `INSERT INTO b2b_support_attachments(ticket_id,file_name,mime_type,file_size,contents)
+         VALUES($1,$2,$3,$4,$5) RETURNING id`,
+        [ticketId,parsed.fileName,parsed.mime,parsed.bytes.length,parsed.bytes]);
+      const message=await client.query(`
+        INSERT INTO b2b_support_messages(ticket_id,sender_user_id,sender_role,message,attachment_id)
+        VALUES($1,$2,$3,$4,$5)
+        RETURNING id,ticket_id,sender_role,message,created_at,attachment_id
+      `,[ticketId,actor,role,note,a.rows[0].id]);
+      await client.query(
+        "UPDATE b2b_support_tickets SET status=$2,updated_at=NOW() WHERE id=$1",
+        [ticketId,role==="admin"?"answered":"open"]);
+      await client.query("COMMIT");
+      inserted={...message.rows[0],attachment_name:parsed.fileName,
+        attachment_mime:parsed.mime,attachment_size:parsed.bytes.length};
+    }catch(error){
+      await client.query("ROLLBACK").catch(()=>undefined);
+      console.error("Support file upload failed",error);
+      return res.status(503).json({error:"Dosya yüklenemedi"});
+    }finally{client.release();}
+    if(role==="admin"&&recipient>0){
+      void notifyB2BSupportMessage({
+        userId:recipient,ticketId,kind:"reply",
+        message:note||`Dosya gönderildi: ${parsed.fileName}`,
+        dedupeKey:`support-file-${inserted.id}`
+      }).catch(e=>console.error("Support attachment customer push",e));
+    }else if(role==="customer"){
+      const displayName=String((res.locals as any).b2bUser?.companyName||"Müşteri").slice(0,100);
+      void sendBusinessPushToSuperAdmins({
+        title:"Yeni dosya · "+displayName,
+        body:note||`Dosya gönderdi: ${parsed.fileName}`,
+        data:{type:"support",ticketId}
+      }).catch(e=>console.error("Support attachment admin push",e));
+    }
+    return res.status(201).json(inserted);
+  }
+
   // Admin-only support inbox: customer identities never leave protected routes.
   // Active conversations only; closed tickets belong to the private archive.
   app.get("/api/admin/b2b-support", requireAdmin, async (req, res) => {
@@ -1911,8 +2049,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ) a ON TRUE
           WHERE t.id=$1 LIMIT 1
         `,[ticketId]),
-        pool.query(`SELECT id,ticket_id,sender_role,message,created_at
-          FROM b2b_support_messages WHERE ticket_id=$1 ORDER BY created_at,id`,[ticketId])
+        pool.query(`SELECT m.id,m.ticket_id,m.sender_role,m.message,m.created_at,
+            a.id AS attachment_id,a.file_name AS attachment_name,
+            a.mime_type AS attachment_mime,a.file_size AS attachment_size
+          FROM b2b_support_messages m
+          LEFT JOIN b2b_support_attachments a ON a.id=m.attachment_id
+          WHERE m.ticket_id=$1 ORDER BY m.created_at,m.id`,[ticketId])
       ]);
       if(!details.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
       if(["closed","resolved","done"].includes(String(details.rows[0].status))){
@@ -1926,6 +2068,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(503).json({error:"Talep ayrıntıları alınamadı"});
     }
   });
+
+  app.post("/api/admin/b2b-support/:id/attachments",requireAdmin,
+    (req,res)=>{void createSupportAttachment(req,res,"admin");});
+  app.get("/api/admin/b2b-support/:id/attachments/:fileId",requireAdmin,
+    (req,res)=>{void serveSupportAttachment(req,res,"admin").catch(()=>res.status(503).end());});
 
   app.post("/api/admin/b2b-support/:id/messages",requireAdmin,async(req,res)=>{
     const ticketId=Number(req.params.id);
@@ -5370,14 +5517,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         COALESCE(updated_at,created_at) AS updated_at
         FROM b2b_support_tickets WHERE id=$1 AND user_id=$2 AND status NOT IN ('closed','resolved','done')`,[ticketId,user.id]);
       if(!ticket.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
-      const messages=await pool.query(`SELECT id,ticket_id,sender_role,message,created_at
-        FROM b2b_support_messages WHERE ticket_id=$1 ORDER BY created_at,id`,[ticketId]);
+      const messages=await pool.query(`SELECT m.id,m.ticket_id,m.sender_role,m.message,m.created_at,
+          a.id AS attachment_id,a.file_name AS attachment_name,
+          a.mime_type AS attachment_mime,a.file_size AS attachment_size
+        FROM b2b_support_messages m
+        LEFT JOIN b2b_support_attachments a ON a.id=m.attachment_id
+        WHERE m.ticket_id=$1 ORDER BY m.created_at,m.id`,[ticketId]);
       return res.json({ticket:ticket.rows[0],messages:messages.rows});
     }catch(error){
       console.error("Customer support detail failed:",error);
       return res.status(503).json({error:"Destek konuşması açılamadı"});
     }
   });
+
+  app.post("/api/b2b/support/:id/attachments",requireB2B,
+    (req,res)=>{void createSupportAttachment(req,res,"customer");});
+  app.get("/api/b2b/support/:id/attachments/:fileId",requireB2B,
+    (req,res)=>{void serveSupportAttachment(req,res,"customer").catch(()=>res.status(503).end());});
 
   app.post("/api/b2b/support/:id/messages",requireB2B,async(req,res)=>{
     const ticketId=Number(req.params.id);
