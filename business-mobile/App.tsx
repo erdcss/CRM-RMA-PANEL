@@ -41,7 +41,11 @@ function applicationPushScreen(type: string, data: Record<string, unknown>): Scr
     const orderId = String(data.orderId ?? "");
     return /^[1-9]\d*$/.test(orderId) ? { name: "orderDetail", id: orderId } : { name: "orders" };
   }
-  if (type === "support" || type === "order_cancelled") return { name: "support" };
+  if (type === "support") {
+    const ticketId = String(data.ticketId ?? "");
+    return /^[1-9]\\d*$/.test(ticketId) ? {name:"support",ticketId} : {name:"support"};
+  }
+  if (type === "order_cancelled") return {name:"support"};
   if (type === "b2b_application") {
     const id = String(data.applicationId ?? "");
     return /^[1-9]\d*$/.test(id) ? {name:"applicationDetail",id} : {name:"applications"};
@@ -301,7 +305,7 @@ export default function App() {
           </SafeAreaView>
         ) : screen.name === "support" ? (
           <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
-            <SupportScreen />
+            <SupportScreen initialTicketId={screen.ticketId} readOnly={user?.role === "business_reviewer"} />
           </AdminShell>
         ) : screen.name === "more" ? (
           <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
