@@ -73,6 +73,20 @@ export function getBusinessReviewFixture(path:string):unknown {
   }
   if(route==="/api/admin/b2b-applications"||route==="/api/admin/b2b-customers")return customers;
   if(route==="/api/admin/b2b-support")return support;
+  if(route==="/api/admin/b2b-support/demo-s1")return {
+    ticket:{
+      ...support[0],user_id:1,customer_company_name:"Örnek Bayi A",
+      customer_first_name:"Demo",customer_last_name:"Müşteri",
+      customer_phone:"",customer_email:"ornek@firma.test",
+      customer_category:"Toptan Ticaret",customer_tax_number:"",
+      customer_tax_office:"",customer_address:"",customer_city:"",customer_district:"",
+      customer_registered_at:"2026-10-15T10:00:00.000Z",
+    },
+    messages:[{id:2,ticket_id:"demo-s1",sender_role:"admin",
+      message:"Merhaba, destek talebinizi incelemeye aldık.",
+      created_at:"2026-10-15T12:05:00.000Z"}],
+  };
+
   if(route==="/api/admin/returns")return [];
   if(/^\/api\/admin\/orders\/\d+$/.test(route)) {
     const match=orders.find(order=>String(order.id)===route.split("/").pop());
