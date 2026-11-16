@@ -560,6 +560,20 @@ export type B2BSupportTicket = {
   message: string;
   status?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+  last_message?: string | null;
+  reply_count?: number;
+};
+export type B2BSupportMessage = {
+  id: number;
+  ticket_id: number;
+  sender_role: 'customer' | 'admin';
+  message: string;
+  created_at: string;
+};
+export type B2BSupportConversation = {
+  ticket: B2BSupportTicket;
+  messages: B2BSupportMessage[];
 };
 
 export type SupplierItem = {
@@ -985,6 +999,13 @@ export const rmaApi = {
     `/api/b2b/notifications/${id}/read`,{method:'PATCH'}
   ),
   listB2BSupport: () => request<B2BSupportTicket[]>('/api/b2b/support'),
+  getB2BSupportConversation: (id: number) =>
+    request<B2BSupportConversation>(`/api/b2b/support/${id}`),
+  replyB2BSupport: (id: number, message: string) =>
+    request<B2BSupportMessage>(`/api/b2b/support/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
   createB2BSupport: (subject: string, message: string) =>
     request<B2BSupportTicket>('/api/b2b/support', {
       method: 'POST',
