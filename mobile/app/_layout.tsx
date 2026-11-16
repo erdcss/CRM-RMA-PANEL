@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import { ImageBackground, Platform, StyleSheet, View } from 'react-native';
+import { AppState, ImageBackground, Platform, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -18,6 +18,7 @@ import {resolveB2BNotificationLink} from '@/lib/notification-link';
 import { requestMetaEventsConsentOnce } from '@/lib/meta-app-events';
 import { initializeTikTokIfConsented } from '@/lib/tiktok-app-events';
 import { configureStoreNearby, stopStoreNearby } from '@/lib/store-geofence';
+import { trackMobilePresence } from '@/lib/customer-insights';
 
 // Prevent the native iOS launch artwork from being dismissed before the
 // admin-managed runtime splash has finished downloading and rendering.
@@ -37,6 +38,24 @@ function AppContent() {
   const [minimumSplashFinished, setMinimumSplashFinished] = useState(false);
   const [paintedSplashUrl, setPaintedSplashUrl] = useState<string | null>(null);
   const [initialRoutePainted, setInitialRoutePainted] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    // All foreground app visitors count, including customers not yet signed in.
+    // Backgrounded devices expire automatically from the 5-minute live window.
+    const heartbeat = () => {
+      if (AppState.currentState === 'active') void trackMobilePresence();
+    };
+    heartbeat();
+    const interval = setInterval(heartbeat, 60_000);
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') heartbeat();
+    });
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(()=>{
     if(Platform.OS==='web')return;
