@@ -305,7 +305,7 @@ export default function App() {
           </SafeAreaView>
         ) : screen.name === "support" ? (
           <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
-            <SupportScreen initialTicketId={screen.ticketId} readOnly={user?.role === "business_reviewer"} />
+            <SupportScreen initialTicketId={screen.ticketId} readOnly={user?.role === "business_reviewer"} isSuperAdmin={user?.role === "super_admin"} />
           </AdminShell>
         ) : screen.name === "more" ? (
           <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
