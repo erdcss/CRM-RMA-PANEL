@@ -23,7 +23,7 @@ import {
   retrieveIyzicoCheckout,
 } from "./iyzico";
 import { getPaymentConfig, encryptStoredCardToken, decryptStoredCardToken } from "./payment-config";
-import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins } from "./push-notifications";
+import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins, sendPushToUsers } from "./push-notifications";
 import { makeBusinessApplicationAlert } from "./business-application-alerts";
 import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BLocationAdmin } from "./b2b-location-admin";
@@ -813,7 +813,21 @@ async function ensureB2BAccountTables() {
     ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS message TEXT;
     ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open';
     ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE b2b_support_tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;
+
+    CREATE TABLE IF NOT EXISTS b2b_support_messages (
+      id BIGSERIAL PRIMARY KEY,
+      ticket_id BIGINT NOT NULL REFERENCES b2b_support_tickets(id) ON DELETE CASCADE,
+      sender_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      sender_role TEXT NOT NULL CHECK (sender_role IN ('customer','admin')),
+      message TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS b2b_support_messages_ticket_time_idx
+      ON b2b_support_messages(ticket_id, created_at ASC, id ASC);
     CREATE INDEX IF NOT EXISTS b2b_support_user_idx ON b2b_support_tickets(user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS b2b_support_updated_idx
+      ON b2b_support_tickets(COALESCE(updated_at,created_at) DESC);
   `);
 
   await ensureB2BOrderIdDefault();
@@ -1837,23 +1851,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({ok:true});
   });
 
+  // Admin-only support inbox: customer identities never leave protected routes.
   app.get("/api/admin/b2b-support", requireAdmin, async (_req, res) => {
-    if (!pool) return res.json([]);
-    const result = await pool.query(
-      `SELECT
-         t.id,
-         t.subject,
-         t.message,
-         t.status,
-         t.created_at,
-         u.email AS customer_email,
-         u.company_name AS customer_name
-       FROM b2b_support_tickets t
-       LEFT JOIN users u ON u.id = t.user_id
-       ORDER BY t.created_at DESC
-       LIMIT 200`,
-    );
-    return res.json(result.rows);
+    res.setHeader("Cache-Control","private, no-store");
+    if (!pool) return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    try {
+      const result = await pool.query(`
+        SELECT t.id,t.user_id,t.subject,t.message,t.status,t.created_at,
+          COALESCE(t.updated_at,t.created_at) AS updated_at,
+          u.email AS customer_email,
+          COALESCE(NULLIF(u.company_name,''),NULLIF(TRIM(CONCAT_WS(' ',u.first_name,u.last_name)),''),u.email,'Müşteri') AS customer_name,
+          u.phone AS customer_phone,
+          (SELECT COUNT(*)::int FROM b2b_support_messages m WHERE m.ticket_id=t.id) AS reply_count,
+          COALESCE((SELECT m.message FROM b2b_support_messages m
+            WHERE m.ticket_id=t.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1),t.message) AS last_message
+        FROM b2b_support_tickets t
+        LEFT JOIN users u ON u.id=t.user_id
+        ORDER BY COALESCE(t.updated_at,t.created_at) DESC,t.id DESC LIMIT 200
+      `);
+      return res.json(result.rows);
+    } catch(error) {
+      console.error("Support inbox failed:",error);
+      return res.status(503).json({error:"Destek talepleri alınamadı"});
+    }
+  });
+
+  app.get("/api/admin/b2b-support/:id", requireAdmin, async (req,res) => {
+    res.setHeader("Cache-Control","private, no-store");
+    const ticketId=Number(req.params.id);
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    try {
+      const [details,messages]=await Promise.all([
+        pool.query(`
+          SELECT t.id,t.user_id,t.subject,t.message,t.status,t.created_at,
+            COALESCE(t.updated_at,t.created_at) AS updated_at,
+            u.company_name AS customer_company_name,u.first_name AS customer_first_name,
+            u.last_name AS customer_last_name,u.email AS customer_email,
+            u.phone AS customer_phone,u.company_category AS customer_category,
+            u.tax_number AS customer_tax_number,u.tax_office AS customer_tax_office,
+            u.application_status AS customer_application_status,
+            u.created_at AS customer_registered_at,
+            a.city AS customer_city,a.district AS customer_district,
+            a.address_line AS customer_address
+          FROM b2b_support_tickets t
+          LEFT JOIN users u ON u.id=t.user_id
+          LEFT JOIN LATERAL (
+            SELECT city,district,address_line FROM b2b_addresses
+            WHERE user_id=u.id ORDER BY is_default DESC,created_at DESC LIMIT 1
+          ) a ON TRUE
+          WHERE t.id=$1 LIMIT 1
+        `,[ticketId]),
+        pool.query(`SELECT id,ticket_id,sender_role,message,created_at
+          FROM b2b_support_messages WHERE ticket_id=$1 ORDER BY created_at,id`,[ticketId])
+      ]);
+      if(!details.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+      return res.json({ticket:details.rows[0],messages:messages.rows});
+    }catch(error){
+      console.error("Support detail failed:",error);
+      return res.status(503).json({error:"Talep ayrıntıları alınamadı"});
+    }
+  });
+
+  app.post("/api/admin/b2b-support/:id/messages",requireAdmin,async(req,res)=>{
+    const ticketId=Number(req.params.id);
+    const message=typeof req.body?.message==="string"?req.body.message.trim():"";
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    if(message.length<2||message.length>4000)return res.status(400).json({error:"Yanıt 2-4000 karakter arasında olmalı"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    try{
+      const exists=await pool.query("SELECT user_id FROM b2b_support_tickets WHERE id=$1",[ticketId]);
+      if(!exists.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+      const userId=sessionUserId(req);
+      const reply=await pool.query(`
+        INSERT INTO b2b_support_messages(ticket_id,sender_user_id,sender_role,message)
+        VALUES($1,$2,'admin',$3)
+        RETURNING id,ticket_id,sender_role,message,created_at
+      `,[ticketId,userId,message]);
+      await pool.query("UPDATE b2b_support_tickets SET status='answered',updated_at=NOW() WHERE id=$1",[ticketId]);
+      const recipient=Number(exists.rows[0].user_id);
+      if(Number.isSafeInteger(recipient)&&recipient>0){
+        void sendPushToUsers([recipient],{
+          title:"Destek talebinize yanıt geldi",
+          body:message.slice(0,180),
+          data:{type:"support",ticketId}
+        }).catch(error=>console.error("Support reply push failed:",error));
+      }
+      return res.status(201).json(reply.rows[0]);
+    }catch(error){
+      console.error("Admin support reply failed:",error);
+      return res.status(503).json({error:"Yanıt gönderilemedi"});
+    }
+  });
+
+  app.patch("/api/admin/b2b-support/:id/status",requireAdmin,async(req,res)=>{
+    const ticketId=Number(req.params.id);
+    const status=req.body?.status;
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    if(!["open","answered","closed"].includes(status))return res.status(400).json({error:"Geçersiz talep durumu"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    try{
+      const result=await pool.query("UPDATE b2b_support_tickets SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING id,status,updated_at",[ticketId,status]);
+      if(!result.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+      return res.json(result.rows[0]);
+    }catch(error){
+      console.error("Support status update failed:",error);
+      return res.status(503).json({error:"Talep durumu güncellenemedi"});
+    }
   });
 
   app.get("/api/auth/session", async (req, res) => {
@@ -5201,18 +5305,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json(result.rows);
   });
 
-  app.get("/api/b2b/support", requireB2B, async (_req, res) => {
-    if (!pool) return res.json([]);
-    const user = (res.locals as any).b2bUser;
-    const result = await pool.query(
-      `SELECT id, subject, message, status, created_at
-       FROM b2b_support_tickets
-       WHERE user_id = $1
-       ORDER BY created_at DESC
-       LIMIT 100`,
-      [user.id],
-    );
-    return res.json(result.rows);
+  app.get("/api/b2b/support",requireB2B,async(_req,res)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    if(!pool)return res.status(503).json({error:"Destek kayıtlarına ulaşılamıyor"});
+    const user=(res.locals as any).b2bUser;
+    try{
+      const result=await pool.query(`
+        SELECT t.id,t.subject,t.message,t.status,t.created_at,
+          COALESCE(t.updated_at,t.created_at) AS updated_at,
+          (SELECT COUNT(*)::int FROM b2b_support_messages m WHERE m.ticket_id=t.id) AS reply_count,
+          COALESCE((SELECT m.message FROM b2b_support_messages m
+            WHERE m.ticket_id=t.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1),t.message) AS last_message
+        FROM b2b_support_tickets t
+        WHERE t.user_id=$1
+        ORDER BY COALESCE(t.updated_at,t.created_at) DESC,t.id DESC LIMIT 100
+      `,[user.id]);
+      return res.json(result.rows);
+    }catch(error){
+      console.error("Customer support list failed:",error);
+      return res.status(503).json({error:"Destek kayıtları alınamadı"});
+    }
+  });
+
+  app.get("/api/b2b/support/:id",requireB2B,async(req,res)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    const ticketId=Number(req.params.id);
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const user=(res.locals as any).b2bUser;
+    try{
+      const ticket=await pool.query(`SELECT id,subject,message,status,created_at,
+        COALESCE(updated_at,created_at) AS updated_at
+        FROM b2b_support_tickets WHERE id=$1 AND user_id=$2`,[ticketId,user.id]);
+      if(!ticket.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+      const messages=await pool.query(`SELECT id,ticket_id,sender_role,message,created_at
+        FROM b2b_support_messages WHERE ticket_id=$1 ORDER BY created_at,id`,[ticketId]);
+      return res.json({ticket:ticket.rows[0],messages:messages.rows});
+    }catch(error){
+      console.error("Customer support detail failed:",error);
+      return res.status(503).json({error:"Destek konuşması açılamadı"});
+    }
+  });
+
+  app.post("/api/b2b/support/:id/messages",requireB2B,async(req,res)=>{
+    const ticketId=Number(req.params.id);
+    const message=typeof req.body?.message==="string"?req.body.message.trim():"";
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    if(message.length<2||message.length>4000)return res.status(400).json({error:"Mesaj 2-4000 karakter arasında olmalı"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const user=(res.locals as any).b2bUser;
+    try{
+      const ticket=await pool.query("SELECT id FROM b2b_support_tickets WHERE id=$1 AND user_id=$2",[ticketId,user.id]);
+      if(!ticket.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+      const reply=await pool.query(`
+        INSERT INTO b2b_support_messages(ticket_id,sender_user_id,sender_role,message)
+        VALUES($1,$2,'customer',$3)
+        RETURNING id,ticket_id,sender_role,message,created_at
+      `,[ticketId,user.id,message]);
+      await pool.query("UPDATE b2b_support_tickets SET status='open',updated_at=NOW() WHERE id=$1",[ticketId]);
+      const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
+      void sendBusinessPushToSuperAdmins({
+        title:"Destek yanıtı · "+displayName,
+        body:message.slice(0,180),
+        data:{type:"support",ticketId,companyName:displayName}
+      }).catch(error=>console.error("Customer support reply push failed:",error));
+      return res.status(201).json(reply.rows[0]);
+    }catch(error){
+      console.error("Customer support reply failed:",error);
+      return res.status(503).json({error:"Mesaj gönderilemedi"});
+    }
   });
 
   app.post("/api/b2b/support", requireB2B, async (req, res) => {
@@ -5225,20 +5386,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Konu ve mesaj alanlarını doldurun" });
     }
 
-    const result = await pool.query(
-      `INSERT INTO b2b_support_tickets (user_id, subject, message)
-       VALUES ($1,$2,$3)
-       RETURNING id, subject, message, status, created_at`,
-      [user.id, subject, message],
-    );
-
-    void sendBusinessPushToSuperAdmins({
-      title: "Yeni destek mesajı",
-      body: subject,
-      data: { type: "support", ticketId: result.rows[0]?.id },
-    }).catch(error => console.error("Business event push failed:", error));
-
-    return res.status(201).json(result.rows[0]);
+    try {
+      const result = await pool.query(
+        `INSERT INTO b2b_support_tickets (user_id, subject, message)
+         VALUES ($1,$2,$3)
+         RETURNING id,subject,message,status,created_at`,
+        [user.id,subject,message],
+      );
+      const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
+      void sendBusinessPushToSuperAdmins({
+        title:"Yeni destek talebi · "+displayName,
+        body:message.slice(0,180),
+        data:{type:"support",ticketId:result.rows[0]?.id,companyName:displayName,subject}
+      }).catch(error=>console.error("Business support push failed:",error));
+      return res.status(201).json(result.rows[0]);
+    }catch(error) {
+      console.error("Support ticket create failed:",error);
+      return res.status(503).json({error:"Destek talebi oluşturulamadı"});
+    }
   });
 
   app.post("/api/b2b/change-password", requireB2B, async (req, res) => {
