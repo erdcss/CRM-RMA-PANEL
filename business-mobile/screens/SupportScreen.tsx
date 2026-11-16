@@ -208,7 +208,7 @@ export function SupportScreen({
       Alert.alert("Görsel gönderilemedi",e instanceof Error?e.message:"İşlem sırasında hata oluştu");
     }finally{setSending(false);}
   }
-  const mediaBase=(process.env.EXPO_PUBLIC_API_URL||"https://admin.ecalisgan.com").replace(/\\/$/,"");
+  const mediaBase=(process.env.EXPO_PUBLIC_API_URL||"https://admin.ecalisgan.com").replace(/\/$/,"");
   const copyField=async(value:string)=>{
     if(!value||value==="—")return;
     await Clipboard.setStringAsync(value);
