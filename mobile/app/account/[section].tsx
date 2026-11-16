@@ -16,6 +16,7 @@ import { openB2BInvoice } from '@/lib/invoice-files';
 import { appAlert } from '@/lib/appAlert';
 
 import { Screen } from '@/components/ui/Screen';
+import { SupportChat } from '@/components/support/SupportChat';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
@@ -215,6 +216,16 @@ export default function ProfileScreen() {
       setSending(false);
     }
   };
+
+  if(active==='support'&&selectedSupportId!==null){
+    return <SupportChat ticketId={selectedSupportId}
+      onBack={()=>{setSelectedSupportId(null);setSupportDetail(null);}}
+      onClosed={()=>{
+        setSelectedSupportId(null);
+        setSupportDetail(null);
+        void rmaApi.listB2BSupport().then(setSupport).catch(()=>undefined);
+      }}/>;
+  }
 
   return (
     <Screen>
