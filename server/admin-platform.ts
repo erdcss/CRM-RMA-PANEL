@@ -2139,7 +2139,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         // Existing TestFlight builds already send authenticated mobile usage events.
         // Merge them into presence, but exclude sessions counted by the newer heartbeat.
         ensureB2BCustomerUsageSchema()
-          .then(() => pool.query(`
+          .then(() => pool!.query(`
             SELECT COUNT(DISTINCT usage.session_id)::int AS count
             FROM b2b_customer_usage_events AS usage
             WHERE usage.platform = 'mobile'
