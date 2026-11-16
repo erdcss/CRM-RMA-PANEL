@@ -66,7 +66,7 @@ function emptyInitials(value?: string | null) {
 export default function ProfileScreen() {
   const router = useRouter();
   const { session, user, signOut } = useAuth();
-  const { section } = useLocalSearchParams<{ section: string }>();
+  const { section, ticketId } = useLocalSearchParams<{ section: string; ticketId?: string }>();
   const active: AccountSection = SECTIONS.some(x => x.key === section) ? section as AccountSection : 'company';
   const { palette } = useAppearance();
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -111,6 +111,31 @@ export default function ProfileScreen() {
   useEffect(() => {
     void loadAccount();
   }, [loadAccount]);
+
+  useEffect(() => {
+    // Message push opens a specific live conversation. Closed-ticket pushes
+    // intentionally lead to the support inbox without a ticket identifier.
+    if (active !== 'support' || !ticketId || !/^[1-9]\\d{0,15}$/.test(ticketId)) return;
+    setSelectedSupportId(Number(ticketId));
+  }, [active, ticketId]);
+
+  useEffect(() => {
+    if (active !== 'support' || !session) return;
+    const refresh = () => {
+      void rmaApi.listB2BSupport().then(rows => {
+        setSupport(rows);
+        setSelectedSupportId(current => {
+          if (current !== null && !rows.some(row => row.id === current)) {
+            setSupportDetail(null);
+            return null;
+          }
+          return current;
+        });
+      }).catch(() => undefined);
+    };
+    const timer = setInterval(refresh, 15_000);
+    return () => clearInterval(timer);
+  }, [active, session]);
 
   const loadSupportConversation = useCallback(async(id: number) => {
     try {
