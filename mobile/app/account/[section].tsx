@@ -393,7 +393,7 @@ export default function ProfileScreen() {
             {selectedSupportId ? (
               <View style={{
                 marginTop:16,borderWidth:1,borderColor:palette.border,
-                borderRadius:18,padding:14,backgroundColor:palette.card,
+                borderRadius:18,padding:14,backgroundColor:palette.surface,
               }}>
                 <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
                   <Text style={{fontWeight:'800',fontSize:16,color:palette.text}}>Destek Yazışması</Text>
