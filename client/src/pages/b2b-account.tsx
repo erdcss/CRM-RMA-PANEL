@@ -341,16 +341,41 @@ function InvoicesPanel() {
   return <Panel title="Fatura İşlemleri" description="Hesabınıza ait faturaları görüntüleyin.">{data.length ? <SimpleRows rows={data} /> : <Empty text="Henüz fatura kaydınız yok." />}</Panel>;
 }
 
+type CustomerSupportTicket = {
+  id:number;subject:string;message:string;status:string;
+  created_at?:string;updated_at?:string;last_message?:string;reply_count?:number;
+};
+type CustomerSupportConversation = {
+  ticket:CustomerSupportTicket;
+  messages:Array<{id:number;sender_role:"admin"|"customer";message:string;created_at:string}>;
+};
+function supportStatusTr(status?:string|null){
+  return status==="answered"?"Yanıtlandı":
+    ["closed","resolved","done"].includes(status||"")?"Kapalı":"Açık";
+}
 function SupportPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"] }) {
-  const { data = [] } = useQuery<any[]>({ queryKey: ["/api/b2b/support"], queryFn: () => getJson("/api/b2b/support") });
+  const { data = [] } = useQuery<CustomerSupportTicket[]>({
+    queryKey: ["/api/b2b/support"],
+    queryFn: () => getJson("/api/b2b/support"),
+    refetchInterval: 20_000,
+  });
   const orderNumber = new URLSearchParams(window.location.search).get("order") || "";
   const [subject, setSubject] = useState(orderNumber ? `Sipariş desteği · ${orderNumber}` : "");
   const [message, setMessage] = useState(
     orderNumber ? `${orderNumber} numaralı siparişim hakkında destek almak istiyorum.` : "",
   );
+  const [selectedTicket,setSelectedTicket]=useState<number|null>(null);
+  const [reply,setReply]=useState("");
+  const [sending,setSending]=useState(false);
+  const {data:conversation,isLoading:loadingConversation}=useQuery<CustomerSupportConversation>({
+    queryKey:["/api/b2b/support",selectedTicket],
+    queryFn:()=>getJson(`/api/b2b/support/${selectedTicket}`),
+    enabled:selectedTicket!==null,
+    refetchInterval:selectedTicket===null?false:15_000,
+  });
 
   return (
-    <Panel title="Destek Hattı" description="Sipariş, ürün, iade veya hesap konularında destek talebi oluşturun.">
+    <Panel title="Destek Hattı" description="Yeni destek talebi oluşturun veya önceki taleplerinizde destek ekibimizle yazışın.">
       <form
         className="space-y-3"
         onSubmit={async (event) => {
@@ -366,10 +391,11 @@ function SupportPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"] }
           }
         }}
       >
-        <Input placeholder="Konu" value={subject} onChange={(e) => setSubject(e.target.value)} required />
+        <Input placeholder="Konu" value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={180} required />
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
+          maxLength={4000}
           placeholder="Mesajınızı yazın"
           className="min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           required
@@ -377,7 +403,88 @@ function SupportPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"] }
         <div className="flex justify-end"><Button type="submit">Destek Talebi Gönder</Button></div>
       </form>
 
-      {data.length ? <div className="mt-6"><SimpleRows rows={data} /></div> : null}
+      <div className="mt-7 border-t pt-5">
+        <h3 className="text-base font-bold">Destek Görüşmelerim</h3>
+        {!data.length ? <p className="mt-2 text-sm text-slate-500">Henüz destek talebiniz bulunmuyor.</p> : null}
+        <div className="mt-3 grid gap-3">
+          {data.map(ticket=>(
+            <button key={ticket.id} type="button" onClick={()=>{setSelectedTicket(current=>current===ticket.id?null:ticket.id);setReply("");}}
+              className={`w-full rounded-xl border p-4 text-left transition-colors hover:border-amber-400 ${selectedTicket===ticket.id?"border-amber-400 bg-amber-50":"bg-white"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold">{ticket.subject}</p>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{ticket.last_message||ticket.message}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  {supportStatusTr(ticket.status)}
+                </span>
+              </div>
+              <span className="mt-2 block text-xs text-slate-400">
+                {new Date(ticket.updated_at||ticket.created_at||"").toLocaleString("tr-TR")}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {selectedTicket!==null?(
+        <section className="mt-5 rounded-2xl border bg-slate-50 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold">Destek Yazışması #{selectedTicket}</h3>
+              <p className="text-xs text-slate-500">Destek ekibiyle güvenli mesajlaşma</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={()=>setSelectedTicket(null)}>Kapat</Button>
+          </div>
+          {loadingConversation&&!conversation?<p className="text-sm text-slate-500">Mesajlar yükleniyor…</p>:null}
+          {conversation?.ticket?.id===selectedTicket?(
+            <>
+              <div className="max-h-96 space-y-3 overflow-y-auto rounded-xl bg-white p-3">
+                {[{
+                  id:-1,sender_role:"customer" as const,
+                  message:conversation.ticket.message,
+                  created_at:conversation.ticket.created_at||"",
+                },...conversation.messages].map(item=>(
+                  <div key={item.id} className={`flex ${item.sender_role==="admin"?"justify-start":"justify-end"}`}>
+                    <div className={`max-w-[90%] rounded-xl px-4 py-3 text-sm ${item.sender_role==="admin"?"bg-green-50 text-green-950":"bg-slate-100 text-slate-900"}`}>
+                      <p className="mb-1 text-xs font-bold">{item.sender_role==="admin"?"Çalışkan B2B Destek":"Siz"}</p>
+                      <p className="whitespace-pre-wrap break-words">{item.message}</p>
+                      <p className="mt-1 text-[11px] opacity-60">{new Date(item.created_at).toLocaleString("tr-TR")}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {conversation.ticket.status==="closed"?(
+                <p className="mt-3 text-sm text-slate-500">Bu destek talebi kapatıldı.</p>
+              ):(
+                <form className="mt-3 space-y-2" onSubmit={async event=>{
+                  event.preventDefault();
+                  if(reply.trim().length<2||sending)return;
+                  setSending(true);
+                  try{
+                    await apiRequest("POST",`/api/b2b/support/${selectedTicket}/messages`,{message:reply.trim()});
+                    setReply("");
+                    await Promise.all([
+                      queryClient.invalidateQueries({queryKey:["/api/b2b/support",selectedTicket]}),
+                      queryClient.invalidateQueries({queryKey:["/api/b2b/support"]}),
+                    ]);
+                    toast({title:"Mesajınız gönderildi"});
+                  }catch(error){
+                    toast({title:"Mesaj gönderilemedi",description:error instanceof Error?error.message:"Hata oluştu",variant:"destructive"});
+                  }finally{setSending(false);}
+                }}>
+                  <textarea value={reply} onChange={event=>setReply(event.target.value)}
+                    maxLength={4000} placeholder="Destek ekibine yanıt yazın…"
+                    className="min-h-24 w-full rounded-xl border bg-white p-3 text-sm outline-none focus:ring-2 focus:ring-amber-400"/>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={sending||reply.trim().length<2}>{sending?"Gönderiliyor…":"Mesaj Gönder"}</Button>
+                  </div>
+                </form>
+              )}
+            </>
+          ):null}
+        </section>
+      ):null}
     </Panel>
   );
 }
