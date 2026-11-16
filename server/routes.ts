@@ -1885,7 +1885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const jpg=bytes.length>3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
     const webp=bytes.length>12&&bytes.toString("ascii",0,4)==="RIFF"&&bytes.toString("ascii",8,12)==="WEBP";
     const pdf=bytes.length>5&&bytes.toString("ascii",0,5)==="%PDF-";
-    const zip=bytes.length>4&&bytes.toString("ascii",0,4)==="PK\\x03\\x04";
+    const zip=bytes.length>4&&bytes[0]===80&&bytes[1]===75&&bytes[2]===3&&bytes[3]===4;
     const plain=bytes.length<=512*1024&&!bytes.includes(0);
     const valid=mime==="image/png"?png:mime==="image/jpeg"?jpg:mime==="image/webp"?webp:
       mime==="application/pdf"?pdf:mime==="text/plain"?plain:zip;
