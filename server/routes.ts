@@ -25,7 +25,7 @@ import {
 import { getPaymentConfig, encryptStoredCardToken, decryptStoredCardToken } from "./payment-config";
 import { ensureMobilePushTable, registerMobilePushToken, markB2BPushSession, sendBusinessPushToSuperAdmins, sendPushToUsers } from "./push-notifications";
 import { makeBusinessApplicationAlert } from "./business-application-alerts";
-import { registerB2BNotificationCenter, notifyB2BEvent, ensureB2BNotificationTables } from "./b2b-notification-center";
+import { registerB2BNotificationCenter, notifyB2BEvent, notifyB2BSupportMessage, ensureB2BNotificationTables } from "./b2b-notification-center";
 import { registerB2BLocationAdmin } from "./b2b-location-admin";
 import { registerB2BStockAlertRoutes, startB2BStockAlertWorker } from "./b2b-stock-alerts";
 import { createMobileSignupEnrollment, claimMobileSignupEnrollment } from "./b2b-push-enrollment";
@@ -1852,9 +1852,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin-only support inbox: customer identities never leave protected routes.
-  app.get("/api/admin/b2b-support", requireAdmin, async (_req, res) => {
+  // Active conversations only; closed tickets belong to the private archive.
+  app.get("/api/admin/b2b-support", requireAdmin, async (req, res) => {
     res.setHeader("Cache-Control","private, no-store");
     if (!pool) return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const archive=req.query.view==="archive";
+    if(archive){
+      const adminId=sessionUserId(req);
+      const admin=adminId?await storage.getUser(adminId):null;
+      if(admin?.role!=="super_admin")return res.status(403).json({error:"Sohbet arşivine yalnızca süper yönetici erişebilir"});
+    }
     try {
       const result = await pool.query(`
         SELECT t.id,t.user_id,t.subject,t.message,t.status,t.created_at,
@@ -1867,8 +1874,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             WHERE m.ticket_id=t.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1),t.message) AS last_message
         FROM b2b_support_tickets t
         LEFT JOIN users u ON u.id=t.user_id
+        WHERE ($1::boolean AND t.status IN ('closed','resolved','done'))
+           OR (NOT $1::boolean AND t.status NOT IN ('closed','resolved','done'))
         ORDER BY COALESCE(t.updated_at,t.created_at) DESC,t.id DESC LIMIT 200
-      `);
+      `,[archive]);
       return res.json(result.rows);
     } catch(error) {
       console.error("Support inbox failed:",error);
@@ -1919,23 +1928,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
     if(message.length<2||message.length>4000)return res.status(400).json({error:"Yanıt 2-4000 karakter arasında olmalı"});
     if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
-    try{
-      const exists=await pool.query("SELECT user_id FROM b2b_support_tickets WHERE id=$1",[ticketId]);
-      if(!exists.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+    try {
       const userId=sessionUserId(req);
       const reply=await pool.query(`
         INSERT INTO b2b_support_messages(ticket_id,sender_user_id,sender_role,message)
-        VALUES($1,$2,'admin',$3)
+        SELECT id,$2,'admin',$3 FROM b2b_support_tickets
+        WHERE id=$1 AND status NOT IN ('closed','resolved','done')
         RETURNING id,ticket_id,sender_role,message,created_at
       `,[ticketId,userId,message]);
-      await pool.query("UPDATE b2b_support_tickets SET status='answered',updated_at=NOW() WHERE id=$1",[ticketId]);
-      const recipient=Number(exists.rows[0].user_id);
+      if(!reply.rows[0])return res.status(409).json({error:"Görüşme kapalı veya bulunamadı"});
+      const updated=await pool.query(`
+        UPDATE b2b_support_tickets SET status='answered',updated_at=NOW()
+        WHERE id=$1 AND status NOT IN ('closed','resolved','done')
+        RETURNING user_id
+      `,[ticketId]);
+      const recipient=Number(updated.rows[0]?.user_id);
       if(Number.isSafeInteger(recipient)&&recipient>0){
-        void sendPushToUsers([recipient],{
-          title:"Destek talebinize yanıt geldi",
-          body:message.slice(0,180),
-          data:{type:"support",ticketId}
-        }).catch(error=>console.error("Support reply push failed:",error));
+        void notifyB2BSupportMessage({
+          userId:recipient,ticketId,kind:"reply",
+          message,dedupeKey:`support-reply-${reply.rows[0].id}`
+        }).catch(error=>console.error("Support reply notification failed:",error));
       }
       return res.status(201).json(reply.rows[0]);
     }catch(error){
@@ -1948,12 +1960,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const ticketId=Number(req.params.id);
     const status=req.body?.status;
     if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
-    if(!["open","answered","closed"].includes(status))return res.status(400).json({error:"Geçersiz talep durumu"});
+    if(!["open","closed"].includes(status))return res.status(400).json({error:"Geçersiz talep durumu"});
     if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const adminId=sessionUserId(req);
+    const admin=adminId?await storage.getUser(adminId):null;
+    if(admin?.role!=="super_admin")return res.status(403).json({error:"Talebi yalnızca süper yönetici sonlandırabilir veya açabilir"});
     try{
-      const result=await pool.query("UPDATE b2b_support_tickets SET status=$2,updated_at=NOW() WHERE id=$1 RETURNING id,status,updated_at",[ticketId,status]);
-      if(!result.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
-      return res.json(result.rows[0]);
+      const result=await pool.query(`
+        UPDATE b2b_support_tickets SET status=$2,updated_at=NOW()
+        WHERE id=$1 AND status IS DISTINCT FROM $2
+        RETURNING id,user_id,subject,status,updated_at
+      `,[ticketId,status]);
+      if(!result.rows[0])return res.status(409).json({error:"Talep bulunamadı veya zaten bu durumda"});
+      const updated=result.rows[0];
+      if(status==="closed"&&Number.isSafeInteger(Number(updated.user_id))&&Number(updated.user_id)>0){
+        void notifyB2BSupportMessage({
+          userId:Number(updated.user_id),ticketId,kind:"closed",
+          message:String(updated.subject||""),
+          dedupeKey:`support-closed-${ticketId}-${new Date(updated.updated_at).getTime()}`
+        }).catch(error=>console.error("Support closed notification failed:",error));
+      }
+      return res.json({id:updated.id,status:updated.status,updated_at:updated.updated_at});
     }catch(error){
       console.error("Support status update failed:",error);
       return res.status(503).json({error:"Talep durumu güncellenemedi"});
