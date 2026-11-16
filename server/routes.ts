@@ -5399,7 +5399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         RETURNING id,ticket_id,sender_role,message,created_at
       `,[ticketId,user.id,message]);
       if(!reply.rows[0])return res.status(409).json({error:"Bu görüşme sonlandırılmış, mesaj gönderilemez"});
-      await pool.query("UPDATE b2b_support_tickets SET status='open',updated_at=NOW() WHERE id=$1",[ticketId]);
+      await pool.query("UPDATE b2b_support_tickets SET status='open',updated_at=NOW() WHERE id=$1 AND status NOT IN ('closed','resolved','done')",[ticketId]);
       const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
       void sendBusinessPushToSuperAdmins({
         title:"Destek yanıtı · "+displayName,
