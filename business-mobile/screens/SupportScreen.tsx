@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import {openBusinessSupportFile} from "../lib/support-attachments";
 import { getBusinessToken } from "../lib/auth";
 import {
   ActivityIndicator,
@@ -208,6 +211,43 @@ export function SupportScreen({
       Alert.alert("Görsel gönderilemedi",e instanceof Error?e.message:"İşlem sırasında hata oluştu");
     }finally{setSending(false);}
   }
+  async function attachDocument(){
+    if(!selectedId||sending||readOnly)return;
+    try {
+      const picked=await DocumentPicker.getDocumentAsync({
+        type:["image/jpeg","image/png","image/webp","application/pdf","text/plain",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+        copyToCacheDirectory:true,
+      });
+      if(picked.canceled||!picked.assets?.[0])return;
+      const asset=picked.assets[0];
+      if(asset.size&&asset.size>5*1024*1024)throw new Error("Dosya en fazla 5 MB olabilir");
+      setSending(true);
+      const base64=await FileSystem.readAsStringAsync(asset.uri,{
+        encoding:FileSystem.EncodingType.Base64,
+      });
+      await apiFetch(`/api/admin/b2b-support/${encodeURIComponent(selectedId)}/attachments`,{
+        method:"POST",body:JSON.stringify({
+          base64,
+          fileName:asset.name||"destek-dosyasi",
+          mimeType:asset.mimeType||"application/octet-stream",
+          message:draft.trim().slice(0,1000),
+        }),
+      });
+      setDraft("");
+      await Promise.all([loadDetail(selectedId,true),load()]);
+    }catch(e){
+      Alert.alert("Dosya gönderilemedi",e instanceof Error?e.message:"Yeniden deneyin");
+    }finally{setSending(false);}
+  }
+  const openAttachment=(file:SupportMessage)=>{
+    if(!selectedId||!file.attachment_id)return;
+    void openBusinessSupportFile(
+      Number(selectedId),Number(file.attachment_id),
+      file.attachment_name||"dosya",file.attachment_mime||"application/octet-stream",
+    ).catch(e=>Alert.alert("Dosya açılamadı",e instanceof Error?e.message:"Yeniden deneyin"));
+  };
   const mediaBase=(process.env.EXPO_PUBLIC_API_URL||"https://admin.ecalisgan.com").replace(/\/$/,"");
   const copyField=async(value:string)=>{
     if(!value||value==="—")return;
@@ -300,14 +340,19 @@ export function SupportScreen({
                 const url=media?`${mediaBase}/api/admin/b2b-support/${selectedId}/attachments/${item.attachment_id}`:"";
                 return (
                   <View key={String(item.id)} style={[s.msg,mine?s.mine:s.theirs]}>
-                    {media&&item.attachment_mime?.startsWith("image/")?(
-                      <Image style={s.mediaPreview} resizeMode="contain"
-                        source={{uri:url,headers:{Authorization:"Bearer "+getBusinessToken()}}}/>
-                    ):media?(
-                      <View style={s.documentBadge}>
-                        <Ionicons name="document-attach-outline" size={22} color={C.text2}/>
-                        <Text style={s.documentText} numberOfLines={2}>{item.attachment_name||"Dosya"}</Text>
-                      </View>
+                    {media?(
+                      <Pressable accessibilityRole="button" accessibilityLabel="Dosyayı aç"
+                        onPress={()=>openAttachment(item)}>
+                        {item.attachment_mime?.startsWith("image/")?(
+                          <Image style={s.mediaPreview} resizeMode="contain"
+                            source={{uri:url,headers:{Authorization:"Bearer "+getBusinessToken()}}}/>
+                        ):(
+                          <View style={s.documentBadge}>
+                            <Ionicons name="document-attach-outline" size={22} color={C.text2}/>
+                            <Text style={s.documentText} numberOfLines={2}>{item.attachment_name||"Dosya"}</Text>
+                          </View>
+                        )}
+                      </Pressable>
                     ):null}
                     {item.message?<Text selectable style={s.msgText}>{item.message}</Text>:null}
                     <Text style={s.msgMeta}>
@@ -343,7 +388,11 @@ export function SupportScreen({
             <View style={s.composerRow}>
               <Pressable style={s.attachButton} disabled={readOnly||sending}
                 accessibilityRole="button" accessibilityLabel="Görsel ekle"
-                onPress={()=>void attachPhoto()}>
+                onPress={()=>Alert.alert("Ek Gönder","Ne göndermek istersiniz?",[
+                  {text:"Fotoğraf",onPress:()=>void attachPhoto()},
+                  {text:"Dosya / PDF",onPress:()=>void attachDocument()},
+                  {text:"Vazgeç",style:"cancel"},
+                ])}>
                 <Ionicons name="add" size={27} color={C.blue}/>
               </Pressable>
               <TextInput multiline scrollEnabled value={draft} onChangeText={setDraft}
