@@ -21,6 +21,8 @@ import ShortageAnalyticsSection from "@/components/dashboard/shortage-analytics-
 type DashboardOverview = {
   sessionUsers: number;
   liveUsers: number;
+  liveWebUsers: number;
+  liveAppUsers: number;
   conversionRate: number;
   orderCount: number;
   approvedTodayOrderCount: number;
@@ -128,8 +130,24 @@ export default function Dashboard() {
             loading={isLoading}
             title="Canlı Kullanıcı"
             value={data?.liveUsers ?? 0}
-            helper="Son 5 dakika"
+            helper="Web + uygulama · Son 5 dakika"
             icon={<Activity className="h-5 w-5" />}
+            live
+          />
+          <MetricCard
+            loading={isLoading}
+            title="Web Canlı"
+            value={data?.liveWebUsers ?? 0}
+            helper="Aktif web ziyaretçisi · Son 5 dakika"
+            icon={<Eye className="h-5 w-5" />}
+            live
+          />
+          <MetricCard
+            loading={isLoading}
+            title="App Canlı"
+            value={data?.liveAppUsers ?? 0}
+            helper="Aktif B2B mobil uygulaması · Son 5 dakika"
+            icon={<Users className="h-5 w-5" />}
             live
           />
           <MetricCard
