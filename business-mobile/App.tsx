@@ -304,9 +304,12 @@ export default function App() {
             />
           </SafeAreaView>
         ) : screen.name === "support" ? (
-          <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
-            <SupportScreen initialTicketId={screen.ticketId} readOnly={user?.role === "business_reviewer"} isSuperAdmin={user?.role === "super_admin"} />
-          </AdminShell>
+          <SafeAreaView style={s.fullSafe} edges={["top","left","right","bottom"]}>
+            <SupportScreen initialTicketId={screen.ticketId}
+              onExit={()=>setScreen({name:"more"})}
+              readOnly={user?.role === "business_reviewer"}
+              isSuperAdmin={user?.role === "super_admin"} />
+          </SafeAreaView>
         ) : screen.name === "more" ? (
           <AdminShell reviewer={user?.role === "business_reviewer"} active="more" onTab={openTab}>
             <MoreScreen
