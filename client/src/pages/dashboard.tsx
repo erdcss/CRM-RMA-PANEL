@@ -118,7 +118,7 @@ export default function Dashboard() {
           </div>
         ) : null}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <MetricCard
             loading={isLoading}
             title="Oturum Kullanıcısı"
@@ -366,19 +366,19 @@ function MetricCard({
   live?: boolean;
 }) {
   return (
-    <Card className="relative overflow-hidden">
+    <Card className="relative min-w-0 h-full overflow-hidden">
       <div className="absolute inset-x-0 top-0 h-0.5 bg-primary/70" />
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
+      <CardContent className="p-4 xl:p-3 2xl:p-4">
+        <div className="flex items-start justify-between gap-2">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground 2xl:text-sm">
               {title}
               {live ? <span className="h-2 w-2 rounded-full bg-emerald-500" /> : null}
             </div>
-            {loading ? <Skeleton className="mt-3 h-9 w-20" /> : <div className="mt-2 text-3xl font-black tracking-tight">{value}</div>}
-            <div className="mt-2 text-xs text-muted-foreground">{helper}</div>
+            {loading ? <Skeleton className="mt-3 h-9 w-20" /> : <div className="mt-2 text-3xl font-black tracking-tight xl:text-[28px] 2xl:text-3xl">{value}</div>}
+            <div className="mt-2 text-[11px] leading-4 text-muted-foreground">{helper}</div>
           </div>
-          <div className="rounded-xl border bg-muted/50 p-2.5 text-muted-foreground">{icon}</div>
+          <div className="shrink-0 rounded-xl border bg-muted/50 p-2 text-muted-foreground">{icon}</div>
         </div>
       </CardContent>
     </Card>
