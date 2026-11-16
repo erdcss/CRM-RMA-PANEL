@@ -150,6 +150,10 @@ export type SupportMessage = {
   sender_role: "admin" | "customer";
   message: string;
   created_at: string;
+  attachment_id?: number | null;
+  attachment_name?: string | null;
+  attachment_mime?: string | null;
+  attachment_size?: number | null;
 };
 
 export type SupportConversation = {
