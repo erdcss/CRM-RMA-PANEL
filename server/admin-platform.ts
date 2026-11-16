@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
+import { ensureB2BCustomerUsageSchema } from "./b2b-customer-insights";
 import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
 
 import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
@@ -2107,6 +2108,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       const [
         sessionUsers,
         liveUsers,
+        legacyMobileUsers,
         orders,
         recentOrders,
         recentApprovedOrders,
@@ -2134,6 +2136,28 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           WHERE event_type IN ('session','heartbeat')
             AND created_at > NOW() - INTERVAL '5 minutes'
         `),
+        // Existing TestFlight builds already send authenticated mobile usage events.
+        // Merge them into presence, but exclude sessions counted by the newer heartbeat.
+        ensureB2BCustomerUsageSchema()
+          .then(() => pool.query(`
+            SELECT COUNT(DISTINCT usage.session_id)::int AS count
+            FROM b2b_customer_usage_events AS usage
+            WHERE usage.platform = 'mobile'
+              AND usage.event_type IN ('session','product_view','product_duration')
+              AND usage.created_at > NOW() - INTERVAL '5 minutes'
+              AND NOT EXISTS (
+                SELECT 1 FROM analytics_events AS active
+                WHERE active.visitor_id = usage.session_id
+                  AND active.event_type IN ('session','heartbeat')
+                  AND active.event_value = 'mobile'
+                  AND active.created_at > NOW() - INTERVAL '5 minutes'
+              )
+          `))
+          .catch(error => {
+            // Metrics remain available even if legacy usage storage is unavailable.
+            console.error("Legacy mobile presence unavailable:", error);
+            return { rows: [{ count: 0 }] };
+          }),
         pool.query(`
           SELECT COUNT(*)::int AS count
           FROM b2b_orders
@@ -2228,11 +2252,14 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       const todayOrders = Number(orders.rows[0]?.count || 0);
       const conversionRate = sessions > 0 ? Number(((todayOrders / sessions) * 100).toFixed(1)) : 0;
 
+      const liveWebCount = Number(liveUsers.rows[0]?.web_count || 0);
+      const liveAppCount = Number(liveUsers.rows[0]?.mobile_count || 0) +
+        Number(legacyMobileUsers.rows[0]?.count || 0);
       res.json({
         sessionUsers: sessions,
-        liveUsers: Number(liveUsers.rows[0]?.web_count || 0) + Number(liveUsers.rows[0]?.mobile_count || 0),
-        liveWebUsers: Number(liveUsers.rows[0]?.web_count || 0),
-        liveAppUsers: Number(liveUsers.rows[0]?.mobile_count || 0),
+        liveUsers: liveWebCount + liveAppCount,
+        liveWebUsers: liveWebCount,
+        liveAppUsers: liveAppCount,
         conversionRate,
         orderCount: todayOrders,
         approvedTodayOrderCount: Number(approvedTodayOrders.rows[0]?.count || 0),
