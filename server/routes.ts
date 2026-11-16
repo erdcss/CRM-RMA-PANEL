@@ -1915,6 +1915,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           FROM b2b_support_messages WHERE ticket_id=$1 ORDER BY created_at,id`,[ticketId])
       ]);
       if(!details.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
+      if(["closed","resolved","done"].includes(String(details.rows[0].status))){
+        const adminId=sessionUserId(req);
+        const admin=adminId?await storage.getUser(adminId):null;
+        if(admin?.role!=="super_admin")return res.status(403).json({error:"Arşivlenmiş görüşmeye yalnızca süper yönetici erişebilir"});
+      }
       return res.json({ticket:details.rows[0],messages:messages.rows});
     }catch(error){
       console.error("Support detail failed:",error);
@@ -5389,9 +5394,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if(!ticket.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
       const reply=await pool.query(`
         INSERT INTO b2b_support_messages(ticket_id,sender_user_id,sender_role,message)
-        VALUES($1,$2,'customer',$3)
+        SELECT id,$2,'customer',$3 FROM b2b_support_tickets
+        WHERE id=$1 AND user_id=$2 AND status NOT IN ('closed','resolved','done')
         RETURNING id,ticket_id,sender_role,message,created_at
       `,[ticketId,user.id,message]);
+      if(!reply.rows[0])return res.status(409).json({error:"Bu görüşme sonlandırılmış, mesaj gönderilemez"});
       await pool.query("UPDATE b2b_support_tickets SET status='open',updated_at=NOW() WHERE id=$1",[ticketId]);
       const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
       void sendBusinessPushToSuperAdmins({
