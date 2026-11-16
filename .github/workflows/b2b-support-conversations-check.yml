@@ -1,0 +1,69 @@
+name: Çalışkan B2B + Business Destek Sohbeti Kontrolleri
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/routes.ts'
+      - 'server/admin-platform.ts'
+      - 'business-mobile/screens/SupportScreen.tsx'
+      - 'business-mobile/App.tsx'
+      - 'business-mobile/types.ts'
+      - 'business-mobile/lib/review-fixtures.ts'
+      - 'mobile/app/account/[section].tsx'
+      - 'mobile/lib/api.ts'
+      - 'client/src/pages/b2b-account.tsx'
+      - '.github/workflows/b2b-support-conversations-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-server:
+    name: API ve web TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+
+  business-mobile:
+    name: Çalışkan Business TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: business-mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx tsc --noEmit --project tsconfig.json
+
+  b2b-mobile:
+    name: Çalışkan B2B iOS TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
