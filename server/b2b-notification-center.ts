@@ -122,6 +122,49 @@ export async function notifyB2BEvent(
   return { recorded:true, ...push };
 }
 
+/**
+ * Customer support notifications are part of the requested support service,
+ * not promotional rules. Save to the in-app inbox and send the same text by
+ * targeted B2B push. A dedupe key keeps retries from duplicating notices.
+ */
+export async function notifyB2BSupportMessage(input:{
+  userId:number;
+  ticketId:number;
+  kind:"reply"|"closed";
+  message:string;
+  dedupeKey:string;
+}) {
+  if(!pool||!Number.isSafeInteger(input.userId)||input.userId<1)return {recorded:false,sent:0};
+  await ensureB2BNotificationTables();
+  const title=input.kind==="closed"?"Destek görüşmeniz sonlandırıldı":"Çalışkan B2B destek yanıtı";
+  const body=input.kind==="closed"
+    ? "Destek talebiniz kapatıldı ve görüşme sonlandırıldı. Yeni bir konuda destek almak için yeni talep oluşturabilirsiniz."
+    : input.message.trim().slice(0,600);
+  // Closed conversations are no longer exposed to the customer. Open replies
+  // deep-link to the exact ticket; close notices lead to the support inbox.
+  const targetPath=input.kind==="closed" ? "/hesabim/destek" : `/hesabim/destek/${input.ticketId}`;
+  const inserted=await pool.query(
+    `INSERT INTO b2b_notifications(user_id,title,body,source,event_key,dedupe_key,target_path)
+     VALUES ($1,$2,$3,'automatic',$4,$5,$6)
+     ON CONFLICT (user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
+     RETURNING id`,
+    [input.userId,title,body,input.kind==="closed"?"support_closed":"support_message",input.dedupeKey,targetPath],
+  );
+  if(!inserted.rows[0])return {recorded:false,sent:0};
+  const noticeId=String(inserted.rows[0].id);
+  const sent=await sendPushToUsers([input.userId],{
+    title,body,data:{
+      type:input.kind==="closed"?"support_closed":"support_message",
+      eventKey:input.kind==="closed"?"support_closed":"support_message",
+      ticketId:input.ticketId,targetPath,notificationId:noticeId,
+    }
+  }).catch(error=>{
+    console.error("Customer support push failed",error);
+    return {sent:0,tokenCount:0};
+  });
+  return {recorded:true,...sent};
+}
+
 export function registerB2BNotificationCenter(
   app:Express, requireAdmin:RequestHandler, requireB2B:RequestHandler,
 ) {
