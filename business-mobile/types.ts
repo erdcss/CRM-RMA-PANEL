@@ -49,6 +49,8 @@ export type AdminOrder = {
 export type DashboardOverview = {
   sessionUsers: number;
   liveUsers: number;
+  liveWebUsers?: number;
+  liveAppUsers?: number;
   conversionRate: number;
   orderCount: number;
   approvedTodayOrderCount?: number;
