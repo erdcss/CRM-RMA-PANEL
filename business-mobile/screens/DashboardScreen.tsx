@@ -126,6 +126,27 @@ export function DashboardScreen({
         <>
           <View style={s.grid}>
             <MetricCard
+              icon="people-outline"
+              title="Toplam Canlı"
+              value={data?.liveUsers ?? 0}
+              note="Web + App · Son 5 dakika"
+              accent={C.green}
+            />
+            <MetricCard
+              icon="globe-outline"
+              title="Web Canlı"
+              value={data?.liveWebUsers ?? 0}
+              note="Aktif web ziyaretçisi"
+              accent={C.blue}
+            />
+            <MetricCard
+              icon="phone-portrait-outline"
+              title="App Canlı"
+              value={data?.liveAppUsers ?? 0}
+              note="Aktif B2B mobil uygulaması"
+              accent={C.green}
+            />
+            <MetricCard
               icon="receipt-outline"
               title="Bugünkü Sipariş"
               value={data?.orderCount ?? 0}
