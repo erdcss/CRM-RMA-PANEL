@@ -28,7 +28,8 @@ async function post(path: string, body: Record<string, unknown>) {
 
 export function trackSession() {
   if (typeof window === "undefined") return;
-  return post("/api/analytics/session", { visitorId: getVisitorId() });
+  if (document.hidden) return;
+  return post("/api/analytics/session", { visitorId: getVisitorId(), platform: "web" });
 }
 
 export function trackSearch(query: string) {
