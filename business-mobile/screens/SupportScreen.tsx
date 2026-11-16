@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import * as ImagePicker from "expo-image-picker";
+import { getBusinessToken } from "../lib/auth";
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -54,10 +60,12 @@ function ProfileRow({title,value}:{title:string;value?:string|null}) {
 
 export function SupportScreen({
   initialTicketId,
+  onExit,
   readOnly=false,
   isSuperAdmin=false,
 }:{
   initialTicketId?:string;
+  onExit?:()=>void;
   readOnly?:boolean;
   isSuperAdmin?:boolean;
 }) {
@@ -65,6 +73,8 @@ export function SupportScreen({
   const [query,setQuery]=useState("");
   const [filter,setFilter]=useState<Filter>("all");
   const [selectedId,setSelectedId]=useState<string|null>(initialTicketId||null);
+  const [profileOpen,setProfileOpen]=useState(false);
+  const chatRef=useRef<ScrollView>(null);
   const [conversation,setConversation]=useState<SupportConversation|null>(null);
   const [draft,setDraft]=useState("");
   const [loading,setLoading]=useState(true);
@@ -169,11 +179,191 @@ export function SupportScreen({
     }finally{setUpdating(false);}
   }
 
+
+  async function attachPhoto(){
+    if(!selectedId||sending||readOnly)return;
+    try{
+      const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if(!permission.granted){
+        Alert.alert("Fotoğraflar", "Görsel seçmek için fotoğraf erişimi vermelisiniz.");
+        return;
+      }
+      const picked=await ImagePicker.launchImageLibraryAsync({
+        mediaTypes:["images"],quality:0.75,base64:true,allowsEditing:false,
+      });
+      if(picked.canceled||!picked.assets?.[0])return;
+      const asset=picked.assets[0];
+      if(!asset.base64)throw new Error("Seçilen fotoğraf okunamadı");
+      setSending(true);
+      await apiFetch(`/api/admin/b2b-support/${encodeURIComponent(selectedId)}/attachments`,{
+        method:"POST",body:JSON.stringify({
+          mimeType:asset.mimeType||"image/jpeg",
+          fileName:asset.fileName||"destek-gorseli.jpg",
+          base64:asset.base64,message:draft.trim().slice(0,1000),
+        }),
+      });
+      setDraft("");
+      await Promise.all([loadDetail(selectedId,true),load()]);
+    }catch(e){
+      Alert.alert("Görsel gönderilemedi",e instanceof Error?e.message:"İşlem sırasında hata oluştu");
+    }finally{setSending(false);}
+  }
+  const mediaBase=(process.env.EXPO_PUBLIC_API_URL||"https://admin.ecalisgan.com").replace(/\\/$/,"");
+  const copyField=async(value:string)=>{
+    if(!value||value==="—")return;
+    await Clipboard.setStringAsync(value);
+    Alert.alert("Kopyalandı","Bilgi panoya kopyalandı.");
+  };
   const ticket=conversation?.ticket;
   const messages:SupportMessage[]=ticket?[
     {id:"initial",ticket_id:ticket.id,sender_role:"customer",message:ticket.message||"",created_at:ticket.created_at||""},
     ...(conversation?.messages||[]),
   ]:[];
+
+
+  if(selectedId&&profileOpen&&ticket){
+    const fields=[
+      ["Firma",ticket.customer_company_name],
+      ["Yetkili",[ticket.customer_first_name,ticket.customer_last_name].filter(Boolean).join(" ")],
+      ["Telefon",ticket.customer_phone],
+      ["E-posta",ticket.customer_email],
+      ["Sektör",ticket.customer_category],
+      ["Vergi dairesi",ticket.customer_tax_office],
+      ["Vergi numarası",ticket.customer_tax_number],
+      ["Adres",[ticket.customer_address,ticket.customer_district,ticket.customer_city].filter(Boolean).join(", ")],
+      ["Üyelik tarihi",ticket.customer_registered_at?shortDate(ticket.customer_registered_at):""],
+      ["Müşteri numarası",ticket.user_id?String(ticket.user_id):""],
+    ] as Array<[string,string|null|undefined]>;
+    return (
+      <ScrollView style={s.page} contentContainerStyle={s.profilePage}>
+        <BackHeader title="Müşteri Bilgileri" subtitle={customerName(ticket)}
+          onBack={()=>setProfileOpen(false)}/>
+        <View style={s.customerTop}>
+          <Ionicons name="business" size={27} color={C.blue}/>
+          <View style={{flex:1}}>
+            <Text style={s.companyName}>{customerName(ticket)}</Text>
+            <Text style={s.note}>Her satıra dokunarak bilgiyi kopyalayabilirsiniz.</Text>
+          </View>
+        </View>
+        {fields.map(([label,value])=>(
+          <Pressable key={label} style={s.copyRow} accessibilityRole="button"
+            accessibilityLabel={label+" kopyala"}
+            onPress={()=>void copyField(String(value||""))}>
+            <View style={{flex:1}}>
+              <Text style={s.profileLabel}>{label}</Text>
+              <Text style={s.copyValue} selectable>{value?.trim()||"—"}</Text>
+            </View>
+            <Ionicons name="copy-outline" size={20} color={C.blue}/>
+          </Pressable>
+        ))}
+      </ScrollView>
+    );
+  }
+  if(selectedId){
+    return (
+      <KeyboardAvoidingView style={s.threadPage}
+        behavior={Platform.OS==="ios"?"padding":undefined}
+        keyboardVerticalOffset={0}>
+        <View style={s.threadHeader}>
+          <Pressable onPress={()=>{
+            setSelectedId(null);setConversation(null);setProfileOpen(false);setDraft("");setError("");
+          }} accessibilityRole="button" accessibilityLabel="Görüşmeden çık">
+            <Ionicons name="chevron-back" size={28} color={C.text}/>
+          </Pressable>
+          <Pressable style={s.threadPerson} onPress={()=>setProfileOpen(true)}
+            accessibilityRole="button" accessibilityLabel="Müşteri bilgilerini görüntüle">
+            <View style={s.smallAvatar}><Ionicons name="business-outline" size={19} color={C.blue}/></View>
+            <View style={{flex:1}}>
+              <Text style={s.threadTitle} numberOfLines={1}>{ticket?customerName(ticket):"Destek Görüşmesi"}</Text>
+              <Text style={s.threadSubtitle} numberOfLines={1}>
+                {ticket?.subject||`Talep #${selectedId}`}
+              </Text>
+            </View>
+            <Ionicons name="information-circle-outline" size={23} color={C.text2}/>
+          </Pressable>
+        </View>
+        {error?<Text style={s.threadError}>{error}</Text>:null}
+        <ScrollView ref={chatRef} style={s.threadScroll}
+          contentContainerStyle={s.threadMessages}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={()=>chatRef.current?.scrollToEnd({animated:false})}>
+          {detailLoading&&!conversation?<ActivityIndicator color={C.blue} style={{marginTop:35}}/>:null}
+          {ticket?(
+            <>
+              <View style={s.threadSubject}>
+                <Text style={s.threadSubjectText}>{ticket.subject||"Destek Talebi"}</Text>
+                <Text style={s.date}>{shortDate(ticket.created_at)} · {statusLabel(ticket.status)}</Text>
+              </View>
+              {messages.map(item=>{
+                const mine=item.sender_role==="admin";
+                const media=Number(item.attachment_id||0)>0;
+                const url=media?`${mediaBase}/api/admin/b2b-support/${selectedId}/attachments/${item.attachment_id}`:"";
+                return (
+                  <View key={String(item.id)} style={[s.msg,mine?s.mine:s.theirs]}>
+                    {media&&item.attachment_mime?.startsWith("image/")?(
+                      <Image style={s.mediaPreview} resizeMode="contain"
+                        source={{uri:url,headers:{Authorization:"Bearer "+getBusinessToken()}}}/>
+                    ):media?(
+                      <View style={s.documentBadge}>
+                        <Ionicons name="document-attach-outline" size={22} color={C.text2}/>
+                        <Text style={s.documentText} numberOfLines={2}>{item.attachment_name||"Dosya"}</Text>
+                      </View>
+                    ):null}
+                    {item.message?<Text selectable style={s.msgText}>{item.message}</Text>:null}
+                    <Text style={s.msgMeta}>
+                      {mine?"Yönetici":"Müşteri"} · {shortDate(item.created_at)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </>
+          ):null}
+        </ScrollView>
+        {ticket&&statusKey(ticket.status)==="closed"?(
+          <View style={s.threadClosed}>
+            <Text style={s.closedText}>Bu görüşme sonlandırıldı.</Text>
+            {isSuperAdmin&&!readOnly?(
+              <Pressable style={s.smallButton} disabled={updating}
+                onPress={()=>void changeStatus("open")}>
+                <Text style={s.smallButtonText}>Yeniden Aç</Text>
+              </Pressable>
+            ):null}
+          </View>
+        ):ticket?(
+          <View style={s.composerWrap}>
+            {isSuperAdmin&&!readOnly?(
+              <Pressable style={s.closeLink} accessibilityRole="button"
+                onPress={()=>Alert.alert("Görüşme sonlandırılsın mı?",
+                  "Görüşme müşteriden kaldırılıp yönetici arşivine taşınacak.",
+                  [{text:"Vazgeç",style:"cancel"},{text:"Talebi Kapat",style:"destructive",onPress:()=>void changeStatus("closed")}])}>
+                <Ionicons name="checkmark-done-outline" size={15} color={C.muted}/>
+                <Text style={s.closeLinkText}>Talebi Kapat</Text>
+              </Pressable>
+            ):null}
+            <View style={s.composerRow}>
+              <Pressable style={s.attachButton} disabled={readOnly||sending}
+                accessibilityRole="button" accessibilityLabel="Görsel ekle"
+                onPress={()=>void attachPhoto()}>
+                <Ionicons name="add" size={27} color={C.blue}/>
+              </Pressable>
+              <TextInput multiline scrollEnabled value={draft} onChangeText={setDraft}
+                maxLength={4000} editable={!sending&&!readOnly}
+                placeholder="Mesaj yazın…" placeholderTextColor={C.muted}
+                accessibilityLabel="Destek mesajı"
+                style={s.messageInput}/>
+              <Pressable onPress={()=>void sendReply()} accessibilityRole="button"
+                accessibilityLabel="Mesajı gönder"
+                style={[s.sendCircle,(sending||readOnly||draft.trim().length<2)&&s.disabled]}
+                disabled={sending||readOnly||draft.trim().length<2}>
+                {sending?<ActivityIndicator color="#fff"/>:
+                  <Ionicons name="send" size={20} color="#fff"/>}
+              </Pressable>
+            </View>
+          </View>
+        ):null}
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <ScrollView
@@ -295,7 +485,10 @@ export function SupportScreen({
       ):(
         <>
           <PageHeader title="Destek Merkezi"
-            subtitle="Müşteri taleplerini inceleyin, firma bilgilerini görün ve doğrudan yanıtlayın."/>
+            subtitle="Müşteri taleplerini inceleyin, firma bilgilerini görün ve doğrudan yanıtlayın."
+            right={onExit?<Pressable onPress={onExit} accessibilityLabel="Geri" style={s.listExit}>
+              <Ionicons name="close" size={20} color={C.text}/>
+            </Pressable>:undefined}/>
           <View style={s.searchBox}>
             <Ionicons name="search-outline" size={21} color={C.muted}/>
             <TextInput style={s.searchInput} placeholder="Firma, konu veya mesaj ara…"
@@ -346,6 +539,46 @@ export function SupportScreen({
   );
 }
 const s=StyleSheet.create({
+  threadPage:{flex:1,backgroundColor:C.bg},
+  threadHeader:{flexDirection:"row",alignItems:"center",gap:9,paddingHorizontal:14,
+    paddingVertical:12,borderBottomWidth:1,borderBottomColor:C.line,backgroundColor:C.panel},
+  threadPerson:{flexDirection:"row",alignItems:"center",gap:11,flex:1,minWidth:0},
+  smallAvatar:{height:40,width:40,borderRadius:20,backgroundColor:C.blueSoft,
+    alignItems:"center",justifyContent:"center"},
+  threadTitle:{fontSize:16,fontWeight:"800",color:C.text},
+  threadSubtitle:{fontSize:11,color:C.text2,marginTop:4},
+  threadScroll:{flex:1},
+  threadMessages:{paddingHorizontal:14,paddingTop:18,paddingBottom:16,flexGrow:1,justifyContent:"flex-end"},
+  threadSubject:{alignSelf:"center",backgroundColor:C.panel2,padding:12,borderRadius:16,marginBottom:18,alignItems:"center"},
+  threadSubjectText:{fontSize:13,color:C.text,fontWeight:"700"},
+  msg:{borderRadius:17,maxWidth:"86%",paddingHorizontal:12,paddingVertical:10,marginBottom:8,borderWidth:1},
+  mine:{alignSelf:"flex-end",backgroundColor:"#17433B",borderColor:"#235B4C",borderBottomRightRadius:4},
+  theirs:{alignSelf:"flex-start",backgroundColor:C.panel2,borderColor:C.line,borderBottomLeftRadius:4},
+  msgText:{fontSize:14,color:C.text,lineHeight:21},
+  msgMeta:{fontSize:9,color:"#AAB9BF",textAlign:"right",marginTop:5},
+  mediaPreview:{width:220,height:185,borderRadius:10,marginBottom:7},
+  documentBadge:{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:5},
+  documentText:{color:C.text2,flexShrink:1,fontSize:12},
+  composerWrap:{paddingHorizontal:10,paddingVertical:10,
+    backgroundColor:C.panel,borderTopWidth:1,borderTopColor:C.line},
+  composerRow:{flexDirection:"row",gap:8,alignItems:"flex-end"},
+  attachButton:{height:44,width:43,alignItems:"center",justifyContent:"center",borderRadius:22,backgroundColor:C.bg2},
+  messageInput:{flex:1,minHeight:45,maxHeight:135,color:C.text,backgroundColor:C.bg2,
+    borderColor:C.line,borderWidth:1,borderRadius:22,paddingHorizontal:14,
+    paddingVertical:10,fontSize:14,textAlignVertical:"center"},
+  sendCircle:{height:45,width:45,backgroundColor:C.blue,borderRadius:23,alignItems:"center",justifyContent:"center"},
+  closeLink:{flexDirection:"row",gap:5,alignItems:"center",alignSelf:"flex-end",padding:5,marginBottom:5},
+  closeLinkText:{color:C.muted,fontSize:11,fontWeight:"700"},
+  threadClosed:{flexDirection:"row",padding:18,alignItems:"center",backgroundColor:C.panel,gap:10},
+  threadError:{color:C.red,paddingHorizontal:15,paddingVertical:8},
+  profilePage:{paddingHorizontal:17,paddingBottom:65},
+  customerTop:{backgroundColor:C.panel,borderRadius:20,padding:18,flexDirection:"row",alignItems:"center",gap:15,marginBottom:12},
+  note:{color:C.muted,fontSize:11,marginTop:5},
+  copyRow:{backgroundColor:C.panel,borderWidth:1,borderColor:C.line,borderRadius:14,
+    marginVertical:4,padding:16,flexDirection:"row",gap:12,alignItems:"center"},
+  copyValue:{color:C.text,fontSize:14,fontWeight:"600",marginTop:6,flexWrap:"wrap"},
+  listExit:{padding:10,borderRadius:12,borderColor:C.line,borderWidth:1},
+
   page:{flex:1,backgroundColor:C.bg},
   content:{paddingHorizontal:17,paddingTop:12,paddingBottom:132},
   loader:{marginTop:28},
