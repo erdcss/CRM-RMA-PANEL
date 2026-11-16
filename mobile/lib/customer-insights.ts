@@ -16,7 +16,20 @@ async function send(type: "session"|"product_view"|"product_duration", productId
   } catch { /* Device analytics should never block navigation. */ }
 }
 
-export const trackMobileSession = () => send("session");
+// The admin live counter uses the same anonymous heartbeat endpoint as the storefront.
+ // It never carries credentials, names or product activity.
+export async function trackMobileSession() {
+  const { token } = await localAuth.getRequestCredentials();
+  if (!token || AppState.currentState !== "active") return;
+  await Promise.allSettled([
+    send("session"),
+    fetch(API_BASE_URL + "/api/analytics/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visitorId: sessionId, platform: "mobile" }),
+    }),
+  ]);
+}
 export const trackMobileProductVisit = (id:string,name:string) => send("product_view",id,name);
 export const trackMobileProductSeconds = (id:string,name:string,seconds:number) =>
   seconds>0 ? send("product_duration",id,name,Math.min(300,Math.floor(seconds))) : Promise.resolve();
