@@ -8,6 +8,7 @@ export type NotificationDestination =
   | {kind:'category';category:string}
   | {kind:'store';slug:string}
   | {kind:'route';path:string}
+  | {kind:'support';ticketId:string}
   | {kind:'web';url:string}
   | null;
 
@@ -31,12 +32,15 @@ export function resolveB2BNotificationLink(value:unknown):NotificationDestinatio
     '/kategoriler':'/(tabs)/menu',
     '/siparislerim':'/my-orders',
     '/hesabim':'/(tabs)/profile',
+    '/hesabim/destek':'/account/support',
     '/reels':'/(tabs)/discover',
     '/kampanyalar':'/campaigns',
     '/defter':'/ledger',
     '/magazalar':'/(tabs)/marketplace',
   };
   if(pages[path])return {kind:'route',path:pages[path]};
+  const support=/^\/hesabim\/destek\/([1-9]\d{0,15})\/?$/.exec(path);
+  if(support)return {kind:'support',ticketId:support[1]};
   const product=/^\/urun\/([A-Za-z0-9._-]{1,100})\/?$/.exec(path);
   if(product)return {kind:'product',id:product[1]};
   const category=/^\/kategori\/([A-Za-z0-9_-]{1,100})\/?$/.exec(path);
