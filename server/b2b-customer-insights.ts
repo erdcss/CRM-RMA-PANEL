@@ -6,7 +6,7 @@ const PRODUCT_RE = /^[A-Za-z0-9_-]{1,120}$/;
 let ready: Promise<void> | null = null;
 let lastPruneAt = 0;
 
-async function ensureUsageSchema() {
+export async function ensureB2BCustomerUsageSchema() {
   if (!pool) throw new Error("Database unavailable");
   if (!ready) {
     ready = (async () => {
@@ -59,7 +59,7 @@ export function registerB2BCustomerInsights(
       return res.status(400).json({error:"Kullanım etkinliği geçersiz"});
     }
     try {
-      await ensureUsageSchema();
+      await ensureB2BCustomerUsageSchema();
       // Limit duplicated client sessions; a repeat does not increase frequency.
       if (type==="session") {
         await pool.query(
@@ -90,7 +90,7 @@ export function registerB2BCustomerInsights(
     if (!Number.isSafeInteger(id)||id<=0)return res.status(400).json({error:"Geçersiz firma numarası"});
     if (!pool)return res.status(503).json({error:"Veritabanı kullanılamıyor"});
     try {
-      await ensureUsageSchema();
+      await ensureB2BCustomerUsageSchema();
       const user=await pool.query("SELECT 1 FROM users WHERE id=$1 AND role='b2b_customer'",[id]);
       if (!user.rowCount)return res.status(404).json({error:"Firma bulunamadı"});
       const [overview,products,daily,recent]=await Promise.all([
