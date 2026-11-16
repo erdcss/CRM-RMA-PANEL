@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -20,7 +21,7 @@ const FILTERS: Array<{key: Filter; label: string}> = [
   {key:"all",label:"Tümü"},
   {key:"open",label:"Açık"},
   {key:"answered",label:"Yanıtlandı"},
-  {key:"closed",label:"Kapalı"},
+  {key:"closed",label:"Sohbet Arşivi"},
 ];
 
 function statusKey(status?: string | null): Filter {
@@ -54,9 +55,11 @@ function ProfileRow({title,value}:{title:string;value?:string|null}) {
 export function SupportScreen({
   initialTicketId,
   readOnly=false,
+  isSuperAdmin=false,
 }:{
   initialTicketId?:string;
   readOnly?:boolean;
+  isSuperAdmin?:boolean;
 }) {
   const [items,setItems]=useState<SupportItem[]>([]);
   const [query,setQuery]=useState("");
@@ -73,7 +76,9 @@ export function SupportScreen({
 
   const load=useCallback(async()=>{
     try {
-      const result=await apiFetch<SupportItem[]>("/api/admin/b2b-support");
+      const result=await apiFetch<SupportItem[]>(
+        filter==="closed" ? "/api/admin/b2b-support?view=archive" : "/api/admin/b2b-support"
+      );
       setItems(Array.isArray(result)?result:[]);
       setError("");
     }catch(e){
@@ -82,7 +87,7 @@ export function SupportScreen({
       setLoading(false);
       setRefreshing(false);
     }
-  },[]);
+  },[filter]);
 
   const loadDetail=useCallback(async(id:string,quiet=false)=>{
     if(!quiet)setDetailLoading(true);
@@ -149,7 +154,16 @@ export function SupportScreen({
       await apiFetch(`/api/admin/b2b-support/${encodeURIComponent(selectedId)}/status`,{
         method:"PATCH",body:JSON.stringify({status:next}),
       });
-      await Promise.all([loadDetail(selectedId,true),load()]);
+      if(next==="closed"){
+        // Move straight to the supervisor archive after closing.
+        setSelectedId(null);
+        setConversation(null);
+        setFilter("closed");
+      }else{
+        setSelectedId(null);
+        setConversation(null);
+        setFilter("all");
+      }
     }catch(e){
       setError(e instanceof Error?e.message:"Talep durumu değiştirilemedi.");
     }finally{setUpdating(false);}
@@ -236,7 +250,7 @@ export function SupportScreen({
                 <View style={s.closedNotice}>
                   <Ionicons name="lock-closed-outline" size={19} color={C.text2}/>
                   <Text style={s.closedText}>Talep kapalı. Yanıt vermek için yeniden açın.</Text>
-                  {!readOnly?<Pressable style={s.smallButton} onPress={()=>void changeStatus("open")} disabled={updating}>
+                  {!readOnly&&isSuperAdmin?<Pressable style={s.smallButton} onPress={()=>void changeStatus("open")} disabled={updating}>
                     <Text style={s.smallButtonText}>Yeniden Aç</Text>
                   </Pressable>:null}
                 </View>
@@ -261,9 +275,16 @@ export function SupportScreen({
                   </View>
                 </View>
               )}
-              {!readOnly&&statusKey(ticket.status)!=="closed"?(
+              {!readOnly&&isSuperAdmin&&statusKey(ticket.status)!=="closed"?(
                 <Pressable style={s.closeButton} disabled={updating}
-                  onPress={()=>void changeStatus("closed")}>
+                  onPress={() => Alert.alert(
+                    "Görüşme sonlandırılsın mı?",
+                    "Bu talep müşterinin destek listesinden kaldırılacak, geçmiş süper yönetici arşivinde saklanacak ve müşteriye kapanış bildirimi gönderilecek.",
+                    [
+                      {text:"Vazgeç",style:"cancel"},
+                      {text:"Talebi Kapat",style:"destructive",onPress:()=>void changeStatus("closed")},
+                    ]
+                  )}>
                   <Ionicons name="checkmark-circle-outline" size={19} color={C.text2}/>
                   <Text style={s.closeText}>{updating?"Kaydediliyor…":"Talebi Kapat"}</Text>
                 </Pressable>
@@ -280,12 +301,13 @@ export function SupportScreen({
             <TextInput style={s.searchInput} placeholder="Firma, konu veya mesaj ara…"
               placeholderTextColor={C.muted} value={query} onChangeText={setQuery}/>
           </View>
+          {filter==="closed"?<Text style={s.archiveHeading}>Süper Yönetici · Kapatılan Sohbet Arşivi</Text>:null}
           <View style={s.stats}>
-            <View style={s.stat}><Text style={s.statLabel}>Tüm Talepler</Text><Text style={s.statValue}>{items.length}</Text></View>
+            <View style={s.stat}><Text style={s.statLabel}>{filter==="closed"?"Arşivlenen":"Aktif Talepler"}</Text><Text style={s.statValue}>{items.length}</Text></View>
             <View style={s.stat}><Text style={s.statLabel}>Açık</Text><Text style={[s.statValue,{color:C.orange}]}>{counts.open}</Text></View>
             <View style={s.stat}><Text style={s.statLabel}>Yanıtlanan</Text><Text style={[s.statValue,{color:C.green}]}>{counts.answered}</Text></View>
           </View>
-          <View style={s.filters}>{FILTERS.map(it=>(
+          <View style={s.filters}>{FILTERS.filter(it=>it.key!=="closed"||isSuperAdmin).map(it=>(
             <Pressable key={it.key} style={[s.filter,filter===it.key&&s.filterActive]} onPress={()=>setFilter(it.key)}>
               <Text style={[s.filterText,filter===it.key&&s.filterTextActive]}>{it.label}</Text>
             </Pressable>
@@ -331,6 +353,7 @@ const s=StyleSheet.create({
     backgroundColor:C.panel,paddingHorizontal:13,flexDirection:"row",alignItems:"center",gap:10,marginBottom:14},
   searchInput:{flex:1,color:C.text,fontSize:14,paddingVertical:12},
   stats:{flexDirection:"row",gap:8,marginBottom:17},
+  archiveHeading:{fontSize:13,fontWeight:"700",color:C.text2,marginBottom:12},
   stat:{flex:1,borderRadius:16,borderWidth:1,borderColor:C.line,backgroundColor:C.panel,
     minHeight:88,padding:12,justifyContent:"space-between"},
   statLabel:{color:C.text2,fontSize:11,fontWeight:"600"},
