@@ -43,7 +43,7 @@ function applicationPushScreen(type: string, data: Record<string, unknown>): Scr
   }
   if (type === "support") {
     const ticketId = String(data.ticketId ?? "");
-    return /^[1-9]\\d*$/.test(ticketId) ? {name:"support",ticketId} : {name:"support"};
+    return /^[1-9]\d*$/.test(ticketId) ? {name:"support",ticketId} : {name:"support"};
   }
   if (type === "order_cancelled") return {name:"support"};
   if (type === "b2b_application") {
