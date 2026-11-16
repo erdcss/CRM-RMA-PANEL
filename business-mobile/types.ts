@@ -18,7 +18,7 @@ export type Screen =
   | { name: "applications" }
   | { name: "applicationDetail"; id: string }
   | { name: "customerDetail"; id: string }
-  | { name: "support" }
+  | { name: "support"; ticketId?: string }
   | { name: "more" }
   | { name: "module"; slug: string };
 
@@ -124,6 +124,35 @@ export type SupportItem = {
   code?: string | null;
   customer_name?: string | null;
   customer_email?: string | null;
+  customer_phone?: string | null;
+  customer_company_name?: string | null;
+  customer_first_name?: string | null;
+  customer_last_name?: string | null;
+  customer_category?: string | null;
+  customer_tax_number?: string | null;
+  customer_tax_office?: string | null;
+  customer_application_status?: string | null;
+  customer_registered_at?: string | null;
+  customer_city?: string | null;
+  customer_district?: string | null;
+  customer_address?: string | null;
+  user_id?: number | null;
+  reply_count?: number;
+  last_message?: string | null;
   status?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type SupportMessage = {
+  id: string | number;
+  ticket_id: string | number;
+  sender_role: "admin" | "customer";
+  message: string;
+  created_at: string;
+};
+
+export type SupportConversation = {
+  ticket: SupportItem;
+  messages: SupportMessage[];
 };
