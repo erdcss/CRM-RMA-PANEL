@@ -1,4 +1,4 @@
-import { FormEvent, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Building2,
@@ -373,6 +373,15 @@ function SupportPanel({ toast }: { toast: ReturnType<typeof useToast>["toast"] }
     enabled:selectedTicket!==null,
     refetchInterval:selectedTicket===null?false:15_000,
   });
+
+  // Closed conversations disappear when the active support list refreshes.
+  // Messages stay in the protected super-admin archive on the server.
+  useEffect(() => {
+    if(selectedTicket!==null && !data.some(ticket=>ticket.id===selectedTicket)){
+      setSelectedTicket(null);
+      setReply("");
+    }
+  },[data,selectedTicket]);
 
   return (
     <Panel title="Destek Hattı" description="Yeni destek talebi oluşturun veya önceki taleplerinizde destek ekibimizle yazışın.">
