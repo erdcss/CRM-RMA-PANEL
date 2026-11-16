@@ -1336,6 +1336,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     if (!pool) return res.status(204).send();
     const visitorId = validVisitorId(req.body?.visitorId);
     if (!visitorId) return res.status(400).json({ error: "Geçersiz ziyaretçi" });
+    // The source is a bounded category, not a user-controlled SQL fragment.
+    const platform = req.body?.platform === "mobile" ? "mobile" : "web";
 
     try {
       const recent = await pool.query(
@@ -1347,13 +1349,13 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       );
       if (recent.rowCount === 0) {
         await pool.query(
-          `INSERT INTO analytics_events (visitor_id, event_type) VALUES ($1, 'session')`,
-          [visitorId],
+          `INSERT INTO analytics_events (visitor_id, event_type, event_value) VALUES ($1, 'session', $2)`,
+          [visitorId, platform],
         );
       } else {
         await pool.query(
-          `INSERT INTO analytics_events (visitor_id, event_type) VALUES ($1, 'heartbeat')`,
-          [visitorId],
+          `INSERT INTO analytics_events (visitor_id, event_type, event_value) VALUES ($1, 'heartbeat', $2)`,
+          [visitorId, platform],
         );
       }
       res.status(204).send();
@@ -2085,6 +2087,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.json({
         sessionUsers: 0,
         liveUsers: 0,
+        liveWebUsers: 0,
+        liveAppUsers: 0,
         conversionRate: 0,
         orderCount: 0,
         approvedTodayOrderCount: 0,
@@ -2123,7 +2127,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
                 (NOW() AT TIME ZONE 'Europe/Istanbul')::date
         `),
         pool.query(`
-          SELECT COUNT(DISTINCT visitor_id)::int AS count
+          SELECT
+            COUNT(DISTINCT visitor_id) FILTER (WHERE COALESCE(event_value, 'web') = 'web')::int AS web_count,
+            COUNT(DISTINCT visitor_id) FILTER (WHERE event_value = 'mobile')::int AS mobile_count
           FROM analytics_events
           WHERE event_type IN ('session','heartbeat')
             AND created_at > NOW() - INTERVAL '5 minutes'
@@ -2224,7 +2230,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
       res.json({
         sessionUsers: sessions,
-        liveUsers: Number(liveUsers.rows[0]?.count || 0),
+        liveUsers: Number(liveUsers.rows[0]?.web_count || 0) + Number(liveUsers.rows[0]?.mobile_count || 0),
+        liveWebUsers: Number(liveUsers.rows[0]?.web_count || 0),
+        liveAppUsers: Number(liveUsers.rows[0]?.mobile_count || 0),
         conversionRate,
         orderCount: todayOrders,
         approvedTodayOrderCount: Number(approvedTodayOrders.rows[0]?.count || 0),
