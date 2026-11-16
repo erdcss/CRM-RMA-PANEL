@@ -20,6 +20,8 @@ export function SupportChat({ticketId,onBack,onClosed}:{
   const [error,setError]=useState('');
   const [bearer,setBearer]=useState('');
   const scroller=useRef<ScrollView>(null);
+  const onClosedRef=useRef(onClosed);
+  useEffect(()=>{onClosedRef.current=onClosed;},[onClosed]);
   const refresh=useCallback(async()=>{
     try{
       const [data,auth]=await Promise.all([rmaApi.getB2BSupportConversation(ticketId),localAuth.getRequestCredentials()]);
@@ -28,10 +30,10 @@ export function SupportChat({ticketId,onBack,onClosed}:{
       setError('');
     }catch(e){
       const msg=e instanceof Error?e.message:'Görüşme açılamadı.';
-      if(/404|bulunamadı|sonlandırılmış/i.test(msg)){onClosed();return;}
+      if(/404|bulunamadı|sonlandırılmış/i.test(msg)){onClosedRef.current();return;}
       setError(msg);
     }finally{setLoading(false);}
-  },[ticketId,onClosed]);
+  },[ticketId]);
   useEffect(()=>{
     void refresh();
     const timer=setInterval(()=>void refresh(),12000);
