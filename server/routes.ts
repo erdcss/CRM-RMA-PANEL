@@ -5344,7 +5344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           COALESCE((SELECT m.message FROM b2b_support_messages m
             WHERE m.ticket_id=t.id ORDER BY m.created_at DESC,m.id DESC LIMIT 1),t.message) AS last_message
         FROM b2b_support_tickets t
-        WHERE t.user_id=$1
+        WHERE t.user_id=$1 AND t.status NOT IN ('closed','resolved','done')
         ORDER BY COALESCE(t.updated_at,t.created_at) DESC,t.id DESC LIMIT 100
       `,[user.id]);
       return res.json(result.rows);
@@ -5363,7 +5363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try{
       const ticket=await pool.query(`SELECT id,subject,message,status,created_at,
         COALESCE(updated_at,created_at) AS updated_at
-        FROM b2b_support_tickets WHERE id=$1 AND user_id=$2`,[ticketId,user.id]);
+        FROM b2b_support_tickets WHERE id=$1 AND user_id=$2 AND status NOT IN ('closed','resolved','done')`,[ticketId,user.id]);
       if(!ticket.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
       const messages=await pool.query(`SELECT id,ticket_id,sender_role,message,created_at
         FROM b2b_support_messages WHERE ticket_id=$1 ORDER BY created_at,id`,[ticketId]);
@@ -5382,7 +5382,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
     const user=(res.locals as any).b2bUser;
     try{
-      const ticket=await pool.query("SELECT id FROM b2b_support_tickets WHERE id=$1 AND user_id=$2",[ticketId,user.id]);
+      const ticket=await pool.query(
+        "SELECT id FROM b2b_support_tickets WHERE id=$1 AND user_id=$2 AND status NOT IN ('closed','resolved','done')",
+        [ticketId,user.id],
+      );
       if(!ticket.rows[0])return res.status(404).json({error:"Talep bulunamadı"});
       const reply=await pool.query(`
         INSERT INTO b2b_support_messages(ticket_id,sender_user_id,sender_role,message)
