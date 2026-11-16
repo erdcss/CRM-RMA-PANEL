@@ -8,6 +8,11 @@ export async function openB2BNotificationTarget(router:Router,raw:unknown):Promi
   const destination=resolveB2BNotificationLink(raw);
   if(!destination)return false;
   switch(destination.kind){
+    case 'support':
+      router.push({pathname:'/account/[section]',params:{
+        section:'support',ticketId:destination.ticketId,
+      }} as never);
+      return true;
     case 'product': {
       // Supplier products require a store slug to load in the native detail page.
       // They have a separate mp- ID namespace and cannot be fetched as B2B stock.
