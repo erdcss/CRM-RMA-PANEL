@@ -67,10 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (session?.user?.role !== 'b2b_customer' || session.user.isActive !== true) return;
     void trackMobileSession();
+    // A foreground-only heartbeat keeps the app count recent; backgrounded
+    // devices expire from the five-minute window automatically.
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') void trackMobileSession();
+    }, 60_000);
     const listener=AppState.addEventListener('change',state=>{
       if(state==='active')void trackMobileSession();
     });
-    return ()=>listener.remove();
+    return ()=>{ clearInterval(timer); listener.remove(); };
   }, [session?.access_token]);
 
   const value = useMemo<AuthContextValue>(
