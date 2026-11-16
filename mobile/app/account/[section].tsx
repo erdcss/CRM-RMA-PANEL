@@ -27,6 +27,7 @@ import {
   type B2BPaymentMethod,
   type B2BReturn,
   type B2BSupportTicket,
+  type B2BSupportConversation,
 } from '@/lib/api';
 
 type AccountSection =
@@ -75,6 +76,11 @@ export default function ProfileScreen() {
   const [returns, setReturns] = useState<B2BReturn[]>([]);
   const [invoices, setInvoices] = useState<B2BInvoice[]>([]);
   const [support, setSupport] = useState<B2BSupportTicket[]>([]);
+  const [selectedSupportId, setSelectedSupportId] = useState<number | null>(null);
+  const [supportDetail, setSupportDetail] = useState<B2BSupportConversation | null>(null);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [supportError, setSupportError] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -105,6 +111,43 @@ export default function ProfileScreen() {
   useEffect(() => {
     void loadAccount();
   }, [loadAccount]);
+
+  const loadSupportConversation = useCallback(async(id: number) => {
+    try {
+      const detail = await rmaApi.getB2BSupportConversation(id);
+      setSupportDetail(detail);
+      setSupportError('');
+    } catch (error) {
+      setSupportError(error instanceof Error ? error.message : 'Destek görüşmesi açılamadı.');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (active !== 'support' || !selectedSupportId || !session) return;
+    void loadSupportConversation(selectedSupportId);
+    const timer = setInterval(() => {
+      void loadSupportConversation(selectedSupportId);
+    }, 15_000);
+    return () => clearInterval(timer);
+  }, [active, selectedSupportId, session, loadSupportConversation]);
+
+  const sendSupportReply = async () => {
+    if (!selectedSupportId || replyMessage.trim().length < 2 || sendingReply) return;
+    setSendingReply(true);
+    setSupportError('');
+    try {
+      await rmaApi.replyB2BSupport(selectedSupportId, replyMessage.trim());
+      setReplyMessage('');
+      await Promise.all([
+        loadSupportConversation(selectedSupportId),
+        rmaApi.listB2BSupport().then(setSupport),
+      ]);
+    } catch (error) {
+      setSupportError(error instanceof Error ? error.message : 'Mesajınız gönderilemedi.');
+    } finally {
+      setSendingReply(false);
+    }
+  };
 
   const displayName = useMemo(() => {
     const fullName = [account?.firstName, account?.lastName]
@@ -325,18 +368,84 @@ export default function ProfileScreen() {
               </Text>
             </Pressable>
 
+            <Text style={{color:palette.text,marginTop:20,marginBottom:8,fontSize:16,fontWeight:'800'}}>
+              Destek Görüşmelerim
+            </Text>
             <View style={styles.supportHistory}>
               {support.map((ticket, index) => (
-                <ListCard
-                  key={ticket.id}
-                  icon="chatbubble-ellipses-outline"
-                  title={ticket.subject}
-                  subtitle={ticket.message}
-                  badge={ticket.status || undefined}
-                  last={index === support.length - 1}
-                />
+                <Pressable key={ticket.id} onPress={() => {
+                  setSelectedSupportId(current => current === ticket.id ? null : ticket.id);
+                  setSupportDetail(null);
+                  setSupportError('');
+                }} accessibilityRole="button"
+                  accessibilityLabel={`${ticket.subject} destek yazışmasını aç`}>
+                  <ListCard
+                    icon="chatbubble-ellipses-outline"
+                    title={ticket.subject}
+                    subtitle={ticket.last_message || ticket.message}
+                    badge={ticket.status === 'answered' ? 'Yanıtlandı' :
+                      ['closed','resolved','done'].includes(ticket.status || '') ? 'Kapalı' : 'Açık'}
+                    last={index === support.length - 1}
+                  />
+                </Pressable>
               ))}
             </View>
+            {selectedSupportId ? (
+              <View style={{
+                marginTop:16,borderWidth:1,borderColor:palette.border,
+                borderRadius:18,padding:14,backgroundColor:palette.card,
+              }}>
+                <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                  <Text style={{fontWeight:'800',fontSize:16,color:palette.text}}>Destek Yazışması</Text>
+                  <Pressable onPress={()=>{setSelectedSupportId(null);setSupportDetail(null);}}>
+                    <Ionicons name="close-circle-outline" size={25} color={palette.muted}/>
+                  </Pressable>
+                </View>
+                {supportDetail?.ticket.id === selectedSupportId ? (
+                  <>
+                    {[{
+                      id:-1,
+                      sender_role:'customer' as const,
+                      message:supportDetail.ticket.message,
+                      created_at:supportDetail.ticket.created_at || '',
+                    },...supportDetail.messages].map((item)=>(
+                      <View key={item.id} style={{
+                        alignSelf:item.sender_role==='admin'?'flex-start':'flex-end',
+                        maxWidth:'95%',marginVertical:5,padding:12,borderRadius:13,
+                        backgroundColor:item.sender_role==='admin'?'#DDF2E7':palette.surface,
+                        borderWidth:1,borderColor:palette.border,
+                      }}>
+                        <Text style={{fontSize:11,fontWeight:'800',color:item.sender_role==='admin'?'#125B40':palette.textSecondary,marginBottom:5}}>
+                          {item.sender_role==='admin'?'Çalışkan B2B Destek':'Siz'}
+                        </Text>
+                        <Text style={{fontSize:13,lineHeight:20,color:item.sender_role==='admin'?'#12382A':palette.text}}>
+                          {item.message}
+                        </Text>
+                      </View>
+                    ))}
+                    {supportDetail.ticket.status==='closed'?(
+                      <Text style={{color:palette.muted,marginTop:10}}>Bu destek talebi kapatıldı.</Text>
+                    ):(
+                      <>
+                        <TextInput value={replyMessage} onChangeText={setReplyMessage}
+                          style={[styles.input,styles.messageInput,{marginTop:12}]}
+                          placeholder="Destek ekibine yanıt yazın…"
+                          placeholderTextColor={palette.muted} multiline maxLength={4000}/>
+                        <Pressable style={[styles.primaryButton,
+                          (!replyMessage.trim()||sendingReply)&&styles.disabled]}
+                          disabled={replyMessage.trim().length<2||sendingReply}
+                          onPress={()=>void sendSupportReply()}>
+                          <Text style={styles.primaryButtonText}>
+                            {sendingReply?'Gönderiliyor…':'Mesaj Gönder'}
+                          </Text>
+                        </Pressable>
+                      </>
+                    )}
+                  </>
+                ) : <Text style={{color:palette.muted}}>Yazışma yükleniyor…</Text>}
+                {supportError ? <Text style={{color:colors.danger,marginTop:9}}>{supportError}</Text>:null}
+              </View>
+            ):null}
           </Panel>
         ) : null}
 
