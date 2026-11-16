@@ -42,13 +42,23 @@ try {
   fail('origin/main bulunamadı. git pull --ff-only origin main komutunu çalıştırın.');
 }
 
-if (remote !== head) {
+// GitHub Actions builds a pinned commit (GITHUB_SHA). New commits arriving
+// during the queue must not invalidate that immutable release snapshot.
+// For local releases we still require the latest origin/main to avoid stale builds.
+const pinnedActionsCommit = process.env.CI === '1'
+  && process.env.GITHUB_ACTIONS === 'true'
+  && process.env.GITHUB_SHA === head;
+if (remote !== head && !pinnedActionsCommit) {
   fail(
     'Yerel kod ile GitHub main farklı!\n' +
     '  Yerel:  ' + head.slice(0, 12) + '\n' +
     '  GitHub: ' + remote.slice(0, 12) + '\n' +
     'Proje kökünde git status --short ile değişiklikleri kontrol edin. Ardından git pull --ff-only origin main çalıştırın.'
   );
+}
+
+if (remote !== head && pinnedActionsCommit) {
+  console.log('[release-check] GitHub Actions sabit SHA doğrulandı: ' + head.slice(0,12));
 }
 
 const appJsonPath = path.join(root, 'app.json');
