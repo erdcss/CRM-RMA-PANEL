@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ReelsProductPicker } from "@/components/reels/ReelsProductPicker";
 
 type Reel = {
   id: string | number;
@@ -23,6 +24,15 @@ type Product = {
   id: string | number;
   sku?: string | null;
   name: string;
+  brand?: string | null;
+  category?: string | null;
+  barcode?: string | null;
+  price?: string | number | null;
+  stock?: string | number | null;
+  image_data?: string | null;
+  image_url?: string | null;
+  images?: string[] | null;
+  is_active?: boolean | null;
 };
 
 const emptyForm = {
@@ -52,7 +62,7 @@ export default function AdminReels() {
     queryFn: () => loadJson("/api/admin/reels"),
   });
 
-  const { data: products = [] } = useQuery<Product[]>({
+  const { data: products = [], isLoading: productsLoading, isError: productsError } = useQuery<Product[]>({
     queryKey: ["/api/admin/b2b-products"],
     queryFn: () => loadJson("/api/admin/b2b-products"),
   });
@@ -175,20 +185,15 @@ export default function AdminReels() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Bağlı ürün</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="reel-product-search">Bağlı ürün</Label>
+              <ReelsProductPicker
+                products={sortedProducts}
                 value={form.productId}
-                onChange={(e) => setForm({ ...form, productId: e.target.value })}
-              >
-                <option value="">Ürün bağlama</option>
-                {sortedProducts.map((product) => (
-                  <option key={product.id} value={String(product.id)}>
-                    {product.sku ? `${product.sku} · ` : ""}{product.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(productId) => setForm((current) => ({ ...current, productId }))}
+                loading={productsLoading}
+                error={productsError}
+              />
             </div>
 
             <div className="space-y-2 md:col-span-2">
