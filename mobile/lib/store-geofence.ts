@@ -1,4 +1,4 @@
-import {Alert,Platform} from 'react-native';
+import {Alert,Linking,Platform} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -159,12 +159,106 @@ async function startForUser(user:string){
   await Location.startGeofencingAsync(TASK,[regionFrom(cfg)]);
   await checkCurrentlyNearby(user);
 }
+// Users can retry opt-in from the Notifications page. Android 11+ grants
+// background location through the OS settings page, not a second popup.
+let permissionRequestPending=false;
+export async function getStoreNearbyPermissionStatus(user:string){
+  if(Platform.OS==='web')return {consented:false,ready:false};
+  const [consented,foreground,background,notifications]=await Promise.all([
+    isStoreNearbyEnabled(user),Location.getForegroundPermissionsAsync(),
+    Location.getBackgroundPermissionsAsync(),Notifications.getPermissionsAsync()
+  ]);
+  return {consented,ready:consented&&foreground.granted&&background.granted&&notifications.granted};
+}
+function openPermissionSettings(title:string,message:string){
+  Alert.alert(title,message,[
+    {text:'Kapat',style:'cancel'},
+    {text:'Uygulama ayarları',onPress:()=>{void Linking.openSettings().catch(
+      error=>console.warn('[store-geofence] settings:',error));}}
+  ]);
+}
+async function grantStoreNearbyPermissions(user:string):Promise<boolean>{
+  if(permissionRequestPending)return false;
+  permissionRequestPending=true;
+  try{
+    const foreground=await Location.getForegroundPermissionsAsync();
+    if(!foreground.granted){
+      if(!foreground.canAskAgain){
+        openPermissionSettings('Konum izni kapalı',
+          'Android veya iPhone uygulama ayarlarından Çalışkan B2B için konum erişimini açın.');
+        return false;
+      }
+      const allowed=await Location.requestForegroundPermissionsAsync();
+      if(!allowed.granted){
+        Alert.alert('Konum izni verilmedi',
+          'Mağaza yakınlık hatırlatmaları için uygulama kullanılırken konum izni gereklidir.');
+        return false;
+      }
+    }
+    const background=await Location.getBackgroundPermissionsAsync();
+    if(!background.granted){
+      // On Android 11+ Expo opens the OS permission settings screen here.
+      // The user must select "Allow all the time"; never imply consent is automatic.
+      const allowed=await Location.requestBackgroundPermissionsAsync();
+      if(!allowed.granted){
+        openPermissionSettings('Arka plan konum izni gerekli',
+          Platform.OS==='android'
+            ? 'Android Ayarlar > Uygulamalar > Çalışkan B2B > İzinler > Konum bölümünden "Her zaman izin ver" seçeneğini açın.'
+            : 'iPhone Ayarları > Çalışkan B2B > Konum bölümünden "Her Zaman" iznini açın.');
+        return false;
+      }
+    }
+    const notification=await Notifications.getPermissionsAsync();
+    if(!notification.granted){
+      const result=await Notifications.requestPermissionsAsync();
+      if(!result.granted){
+        openPermissionSettings('Bildirim izni gerekli',
+          'Mağaza yakınlık hatırlatmalarını görebilmek için Çalışkan B2B bildirimlerini etkinleştirin.');
+        return false;
+      }
+    }
+    await AsyncStorage.setItem(CONSENT_PREFIX+user,'yes');
+    await startForUser(user);
+    return true;
+  }catch(error){
+    console.warn('[store-geofence] permission request:',error);
+    Alert.alert('Konum izni tamamlanamadı','Lütfen tekrar deneyin veya uygulama izinlerini kontrol edin.');
+    return false;
+  }finally{permissionRequestPending=false;}
+}
+export async function requestStoreNearbyOptIn(user:string):Promise<boolean>{
+  if(Platform.OS==='web'||!user)return false;
+  const cfg=await refreshConfig();
+  if(!cfg){
+    Alert.alert('Mağaza bilgisi alınamadı',
+      'Mağaza konum ayarları sunucudan alınamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.');
+    return false;
+  }
+  if(!cfg.enabled||!cfg.coordinates_verified){
+    Alert.alert('Yakınlık bildirimi henüz aktif değil',
+      'Mağaza yakınlık kampanyasının yönetici tarafından açılması ve mağaza koordinatlarının doğrulanması gerekiyor.');
+    return false;
+  }
+  return new Promise(resolve=>{
+    Alert.alert('Konum verilerinin kullanımı',
+      'Çalışkan B2B, isteğe bağlı mağaza yakınlık hatırlatmaları için konum verilerinize uygulama kapalıyken veya kullanılmıyorken de erişir. İSTOÇ mağazamızın 3 km çevresine girdiğinizde günde en fazla bir bildirim gösterir. Konum geçmişiniz sunucuya gönderilmez. Dilediğiniz zaman Bildirimler ekranından kapatabilirsiniz.',
+      [
+        {text:'Şimdi değil',style:'cancel',onPress:()=>{
+          void AsyncStorage.setItem(CONSENT_PREFIX+user,'no');resolve(false);
+        }},
+        {text:'İzin ver',onPress:()=>{
+          void grantStoreNearbyPermissions(user).then(resolve).catch(error=>{
+            console.warn('[store-geofence] opt-in:',error);resolve(false);
+          });
+        }}
+      ],{cancelable:false});
+  });
+}
 export async function configureStoreNearby(user:string){
   if(Platform.OS==='web')return;
   const cfg=await refreshConfig();
   if(!cfg?.enabled||!cfg.coordinates_verified){
-    // Existing permission holders are listed in admin even while the campaign
-    // is paused; do not request new permissions or monitor location.
+    // Never request an unused sensitive permission while the campaign is off.
     if(await AsyncStorage.getItem(CONSENT_PREFIX+user)==='yes')
       await reportPermission(user,true);
     await stopStoreNearby();
@@ -175,21 +269,5 @@ export async function configureStoreNearby(user:string){
     return;
   }
   if(await AsyncStorage.getItem(CONSENT_PREFIX+user))return;
-  // Not a settings toggle: explicit, optional, one-time opt-in disclosure.
-  Alert.alert('Yakındaki Çalışkan mağazası',
-    'İSTOÇ’taki mağazamızın 3 km çevresine girdiğinizde günde en fazla bir kez hatırlatma almak ister misiniz? Uygulama arka plandayken de konum kullanılabilir. Konum geçmişi sunucumuza gönderilmez. Bu izni Bildirimler ekranından durdurabilirsiniz.',
-    [{text:'İstemiyorum',style:'cancel',onPress:()=>{void AsyncStorage.setItem(CONSENT_PREFIX+user,'no');}},
-     {text:'İzin ver',onPress:()=>{void (async()=>{
-       try{
-         const notification=await Notifications.requestPermissionsAsync();
-         if(!notification.granted)return;
-         const fg=await Location.requestForegroundPermissionsAsync();
-         if(!fg.granted)return;
-         const bg=await Location.requestBackgroundPermissionsAsync();
-         if(!bg.granted){Alert.alert('Konum izni','iPhone Ayarları > Çalışkan B2B > Konum > Her Zaman seçeneğine izin vermelisiniz.');return;}
-         await AsyncStorage.setItem(CONSENT_PREFIX+user,'yes');
-         await startForUser(user);
-       }catch(error){console.warn('[store-geofence] opt-in:',error);}
-     })();}}],
-  );
+  await requestStoreNearbyOptIn(user);
 }
