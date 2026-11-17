@@ -25,7 +25,7 @@ export async function registerB2BPush():Promise<boolean> {
       await Notifications.setNotificationChannelAsync('b2b-custom',{
         name:'Çalışkan B2B Özel Bildirim',
         importance:Notifications.AndroidImportance.HIGH,
-        sound:'b2b-custom.wav',
+        sound:'b2b_custom.wav',
       }).catch(() => undefined);
     }
     const existing=await Notifications.getPermissionsAsync();
