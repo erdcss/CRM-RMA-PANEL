@@ -2838,7 +2838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const googleReviewCompany = "Çalışkan B2B - Google Play İnceleme";
   const validGoogleReviewEmail = (value: unknown) =>
     typeof value === "string" && value.trim().length <= 254 &&
-    /^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value.trim().toLowerCase())
+    /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value.trim().toLowerCase())
       ? value.trim().toLowerCase() : null;
 
   const requireSuperAdminForReview = async (req: any, res: any) => {
