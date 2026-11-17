@@ -68,7 +68,7 @@ jobs:
           node scripts/create-scan-beep.cjs
           node scripts/prepare-native-release.cjs
           npm run sync:branding
-          node --test scripts/b2b-custom-notification-sound.test.cjs
+          B2B_ANDROID_BUILD=0 node --test scripts/b2b-custom-notification-sound.test.cjs
           npm run typecheck
           eas whoami
       - name: Android yerel kaynaklarını doğrula
