@@ -2,7 +2,7 @@ import type {Express,RequestHandler,Request} from "express";
 import {storage} from "./storage";
 import {pool} from "./db";
 
-const eligible=(u:any)=>u?.role==="b2b_customer" && u.companyName!=="Çalışkan B2B - Apple İnceleme"
+const eligible=(u:any)=>u?.role==="b2b_customer" && u.companyName!=="Çalışkan B2B - Apple İnceleme" && u.companyName!=="Çalışkan B2B - Google Play İnceleme"
   && ["pending","approved","rejected"].includes(String(u.applicationStatus));
 const safe=(u:any)=>({
   id:u.id,username:u.username,email:u.email,phone:u.phone,companyName:u.companyName,
