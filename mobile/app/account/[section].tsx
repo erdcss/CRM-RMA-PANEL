@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Linking,
   Alert,
@@ -78,10 +78,9 @@ export default function ProfileScreen() {
   const [invoices, setInvoices] = useState<B2BInvoice[]>([]);
   const [support, setSupport] = useState<B2BSupportTicket[]>([]);
   const [selectedSupportId, setSelectedSupportId] = useState<number | null>(null);
-  const [supportDetail, setSupportDetail] = useState<B2BSupportConversation | null>(null);
-  const [replyMessage, setReplyMessage] = useState('');
-  const [supportError, setSupportError] = useState('');
-  const [sendingReply, setSendingReply] = useState(false);
+  const [supportLoading,setSupportLoading] = useState(true);
+  const [supportError,setSupportError] = useState('');
+  const autoOpenedSupport = useRef(false);
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -114,66 +113,43 @@ export default function ProfileScreen() {
   }, [loadAccount]);
 
   useEffect(() => {
-    // Message push opens a specific live conversation. Closed-ticket pushes
-    // intentionally lead to the support inbox without a ticket identifier.
+    // A push tap always wins over automatic opening, including cold launch.
     if (active !== 'support' || !ticketId || !/^[1-9]\d{0,15}$/.test(ticketId)) return;
+    autoOpenedSupport.current=true;
     setSelectedSupportId(Number(ticketId));
   }, [active, ticketId]);
 
   useEffect(() => {
-    if (active !== 'support' || !session) return;
-    const refresh = () => {
-      void rmaApi.listB2BSupport().then(rows => {
+    if (active !== 'support' || !session?.user?.id) return;
+    let cancelled=false;
+    setSupportLoading(true);
+    const refresh=async()=>{
+      try{
+        const rows=await rmaApi.listB2BSupport();
+        if(cancelled)return;
         setSupport(rows);
-        setSelectedSupportId(current => {
-          if (current !== null && !rows.some(row => row.id === current)) {
-            setSupportDetail(null);
+        setSupportError('');
+        setSelectedSupportId(current=>{
+          if(current!==null && !rows.some(row=>row.id===current)){
+            // Closed conversations leave the customer's active support inbox.
             return null;
+          }
+          if(current===null && rows.length>0 && !autoOpenedSupport.current && !ticketId){
+            autoOpenedSupport.current=true;
+            return rows[0].id;
           }
           return current;
         });
-      }).catch(() => undefined);
+      }catch(e){
+        if(!cancelled)setSupportError(e instanceof Error?e.message:'Destek talepleri alınamadı.');
+      }finally{
+        if(!cancelled)setSupportLoading(false);
+      }
     };
-    const timer = setInterval(refresh, 15_000);
-    return () => clearInterval(timer);
-  }, [active, session]);
-
-  const loadSupportConversation = useCallback(async(id: number) => {
-    try {
-      const detail = await rmaApi.getB2BSupportConversation(id);
-      setSupportDetail(detail);
-      setSupportError('');
-    } catch (error) {
-      setSupportError(error instanceof Error ? error.message : 'Destek görüşmesi açılamadı.');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (active !== 'support' || !selectedSupportId || !session) return;
-    void loadSupportConversation(selectedSupportId);
-    const timer = setInterval(() => {
-      void loadSupportConversation(selectedSupportId);
-    }, 15_000);
-    return () => clearInterval(timer);
-  }, [active, selectedSupportId, session, loadSupportConversation]);
-
-  const sendSupportReply = async () => {
-    if (!selectedSupportId || replyMessage.trim().length < 2 || sendingReply) return;
-    setSendingReply(true);
-    setSupportError('');
-    try {
-      await rmaApi.replyB2BSupport(selectedSupportId, replyMessage.trim());
-      setReplyMessage('');
-      await Promise.all([
-        loadSupportConversation(selectedSupportId),
-        rmaApi.listB2BSupport().then(setSupport),
-      ]);
-    } catch (error) {
-      setSupportError(error instanceof Error ? error.message : 'Mesajınız gönderilemedi.');
-    } finally {
-      setSendingReply(false);
-    }
-  };
+    void refresh();
+    const timer=setInterval(()=>void refresh(),12000);
+    return()=>{cancelled=true;clearInterval(timer);};
+  },[active,session?.user?.id,ticketId]);
 
   const displayName = useMemo(() => {
     const fullName = [account?.firstName, account?.lastName]
@@ -205,24 +181,36 @@ export default function ProfileScreen() {
   }
 
   const submitSupport = async () => {
-    if (!supportSubject.trim() || !supportMessage.trim() || sending) return;
+    if(supportLoading||support.length>0||!supportSubject.trim()||!supportMessage.trim()||sending)return;
     setSending(true);
-    try {
-      await rmaApi.createB2BSupport(supportSubject.trim(), supportMessage.trim());
+    setSupportError('');
+    try{
+      const ticket=await rmaApi.createB2BSupport(supportSubject.trim(),supportMessage.trim());
+      autoOpenedSupport.current=true;
       setSupportSubject('');
       setSupportMessage('');
-      setSupport(await rmaApi.listB2BSupport());
-    } finally {
+      setSupport([ticket]);
+      setSelectedSupportId(ticket.id);
+    }catch(e){
+      const msg=e instanceof Error?e.message:'Talep oluşturulamadı.';
+      setSupportError(msg);
+      const active=await rmaApi.listB2BSupport().catch(()=>[]);
+      setSupport(active);
+      if(active.length){
+        autoOpenedSupport.current=true;
+        setSelectedSupportId(active[0].id);
+      }else Alert.alert('Destek talebi oluşturulamadı',msg);
+    }finally{
       setSending(false);
     }
   };
 
   if(active==='support'&&selectedSupportId!==null){
     return <SupportChat ticketId={selectedSupportId}
-      onBack={()=>{setSelectedSupportId(null);setSupportDetail(null);}}
+      onBack={()=>{setSelectedSupportId(null);}}
       onClosed={()=>{
         setSelectedSupportId(null);
-        setSupportDetail(null);
+        setSupport([]);
         void rmaApi.listB2BSupport().then(setSupport).catch(()=>undefined);
       }}/>;
   }
@@ -374,114 +362,75 @@ export default function ProfileScreen() {
         ) : null}
 
         {active === 'support' ? (
-          <Panel title="Destek Hattı" subtitle="Çalışkan B2B destek ekibine ulaşın">
-            <TextInput
-              value={supportSubject}
-              onChangeText={setSupportSubject}
-              placeholder="Konu"
-              placeholderTextColor={palette.muted}
-              style={styles.input}
-            />
-            <TextInput
-              value={supportMessage}
-              onChangeText={setSupportMessage}
-              placeholder="Mesajınızı yazın"
-              placeholderTextColor={palette.muted}
-              multiline
-              style={[styles.input, styles.messageInput]}
-            />
-            <Pressable
-              style={[
-                styles.primaryButton,
-                (!supportSubject.trim() || !supportMessage.trim() || sending) &&
-                  styles.disabled,
-              ]}
-              onPress={submitSupport}
-              disabled={!supportSubject.trim() || !supportMessage.trim() || sending}
-            >
-              <Text style={styles.primaryButtonText}>
-                {sending ? 'Gönderiliyor…' : 'Destek Talebi Gönder'}
-              </Text>
-            </Pressable>
-
-            <Text style={{color:palette.text,marginTop:20,marginBottom:8,fontSize:16,fontWeight:'800'}}>
-              Destek Görüşmelerim
-            </Text>
-            <View style={styles.supportHistory}>
-              {support.map((ticket, index) => (
-                <Pressable key={ticket.id} onPress={() => {
-                  setSelectedSupportId(current => current === ticket.id ? null : ticket.id);
-                  setSupportDetail(null);
-                  setSupportError('');
-                }} accessibilityRole="button"
-                  accessibilityLabel={`${ticket.subject} destek yazışmasını aç`}>
-                  <ListCard
-                    icon="chatbubble-ellipses-outline"
-                    title={ticket.subject}
-                    subtitle={ticket.last_message || ticket.message}
-                    badge={ticket.status === 'answered' ? 'Yanıtlandı' :
-                      ['closed','resolved','done'].includes(ticket.status || '') ? 'Kapalı' : 'Açık'}
-                    last={index === support.length - 1}
-                  />
-                </Pressable>
-              ))}
-            </View>
-            {selectedSupportId ? (
-              <View style={{
-                marginTop:16,borderWidth:1,borderColor:palette.border,
-                borderRadius:18,padding:14,backgroundColor:palette.surface,
-              }}>
-                <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-                  <Text style={{fontWeight:'800',fontSize:16,color:palette.text}}>Destek Yazışması</Text>
-                  <Pressable onPress={()=>{setSelectedSupportId(null);setSupportDetail(null);}}>
-                    <Ionicons name="close-circle-outline" size={25} color={palette.muted}/>
-                  </Pressable>
-                </View>
-                {supportDetail?.ticket.id === selectedSupportId ? (
-                  <>
-                    {[{
-                      id:-1,
-                      sender_role:'customer' as const,
-                      message:supportDetail.ticket.message,
-                      created_at:supportDetail.ticket.created_at || '',
-                    },...supportDetail.messages].map((item)=>(
-                      <View key={item.id} style={{
-                        alignSelf:item.sender_role==='admin'?'flex-start':'flex-end',
-                        maxWidth:'95%',marginVertical:5,padding:12,borderRadius:13,
-                        backgroundColor:item.sender_role==='admin'?'#DDF2E7':palette.surface,
-                        borderWidth:1,borderColor:palette.border,
-                      }}>
-                        <Text style={{fontSize:11,fontWeight:'800',color:item.sender_role==='admin'?'#125B40':palette.textSecondary,marginBottom:5}}>
-                          {item.sender_role==='admin'?'Çalışkan B2B Destek':'Siz'}
-                        </Text>
-                        <Text style={{fontSize:13,lineHeight:20,color:item.sender_role==='admin'?'#12382A':palette.text}}>
-                          {item.message}
-                        </Text>
-                      </View>
-                    ))}
-                    {supportDetail.ticket.status==='closed'?(
-                      <Text style={{color:palette.muted,marginTop:10}}>Bu destek talebi kapatıldı.</Text>
-                    ):(
-                      <>
-                        <TextInput value={replyMessage} onChangeText={setReplyMessage}
-                          style={[styles.input,styles.messageInput,{marginTop:12}]}
-                          placeholder="Destek ekibine yanıt yazın…"
-                          placeholderTextColor={palette.muted} multiline maxLength={4000}/>
-                        <Pressable style={[styles.primaryButton,
-                          (!replyMessage.trim()||sendingReply)&&styles.disabled]}
-                          disabled={replyMessage.trim().length<2||sendingReply}
-                          onPress={()=>void sendSupportReply()}>
-                          <Text style={styles.primaryButtonText}>
-                            {sendingReply?'Gönderiliyor…':'Mesaj Gönder'}
-                          </Text>
-                        </Pressable>
-                      </>
-                    )}
-                  </>
-                ) : <Text style={{color:palette.muted}}>Yazışma yükleniyor…</Text>}
-                {supportError ? <Text style={{color:colors.danger,marginTop:9}}>{supportError}</Text>:null}
+          <Panel title="Destek Merkezi" subtitle="Çalışkan B2B müşteri destek ekibiyle güvenli mesajlaşma">
+            {supportLoading ? (
+              <View style={{alignItems:'center',paddingVertical:36}}>
+                <Text style={{color:palette.muted}}>Görüşmeleriniz yükleniyor…</Text>
               </View>
-            ):null}
+            ) : support.length>0 ? (
+              <View style={{gap:15}}>
+                <View style={{borderRadius:16,padding:14,backgroundColor:palette.surfaceSecondary}}>
+                  <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
+                    <Ionicons name="chatbubbles-outline" size={27} color={palette.accent}/>
+                    <View style={{flex:1}}>
+                      <Text style={{fontSize:16,fontWeight:'800',color:palette.text}}>Aktif Destek Görüşmeniz</Text>
+                      <Text style={{fontSize:12,color:palette.textSecondary,marginTop:4}}>
+                        Yeni bir talep oluşturmak için mevcut sohbeti sonlandırmalısınız.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                {support.map(ticket=>(
+                  <Pressable key={ticket.id} accessibilityRole="button"
+                    accessibilityLabel="Aktif destek sohbetine git"
+                    onPress={()=>{
+                      autoOpenedSupport.current=true;
+                      setSelectedSupportId(ticket.id);
+                    }}
+                    style={{borderColor:palette.border,borderWidth:1,padding:17,borderRadius:17}}>
+                    <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
+                      <Text style={{color:palette.text,fontSize:16,fontWeight:'700',flex:1}}>{ticket.subject}</Text>
+                      <Text style={{color:palette.accent,fontSize:11,fontWeight:'800'}}>
+                        {ticket.status==='answered'?'Yanıtlandı':'Açık'}
+                      </Text>
+                    </View>
+                    <Text style={{color:palette.textSecondary,marginTop:9,fontSize:13}} numberOfLines={2}>
+                      {ticket.last_message||ticket.message}
+                    </Text>
+                    <View style={{flexDirection:'row',alignItems:'center',gap:7,marginTop:14,justifyContent:'flex-end'}}>
+                      <Text style={{color:palette.accent,fontWeight:'800',fontSize:13}}>Sohbete Git</Text>
+                      <Ionicons name="chevron-forward" size={17} color={palette.accent}/>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <View style={{gap:13}}>
+                <Text style={{color:palette.text,fontSize:15,fontWeight:'800'}}>
+                  Yeni Destek Görüşmesi
+                </Text>
+                <Text style={{color:palette.textSecondary,fontSize:12,lineHeight:19}}>
+                  Bir konu yazıp mesaj gönderin. Talebiniz açıldığında destek ekibiyle sohbet edebilirsiniz.
+                </Text>
+                <TextInput value={supportSubject} onChangeText={setSupportSubject}
+                  placeholder="Talep konusu" placeholderTextColor={palette.muted}
+                  maxLength={180} style={styles.input}/>
+                <TextInput value={supportMessage} onChangeText={setSupportMessage}
+                  placeholder="Mesajınızı Türkçe yazın…" placeholderTextColor={palette.muted}
+                  multiline maxLength={4000}
+                  style={[styles.input,styles.messageInput]}/>
+                <Pressable style={[
+                  styles.primaryButton,
+                  (!supportSubject.trim()||!supportMessage.trim()||sending)&&styles.disabled,
+                ]} disabled={!supportSubject.trim()||!supportMessage.trim()||sending}
+                  onPress={()=>void submitSupport()}>
+                  <Text style={styles.primaryButtonText}>
+                    {sending?'Gönderiliyor…':'Sohbet Başlat'}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+            {supportError?<Text style={{color:colors.danger,fontSize:12,marginTop:12}}>{supportError}</Text>:null}
           </Panel>
         ) : null}
 
