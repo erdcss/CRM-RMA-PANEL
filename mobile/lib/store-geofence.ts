@@ -94,7 +94,7 @@ async function notifyOnce(userId:string){
      await Notifications.scheduleNotificationAsync({content:{
        title:result.title||cfg.title,
        body:result.message||cfg.message,
-       sound:'b2b-custom.wav',
+       sound:Platform.OS==='android'?'b2b_custom.wav':'b2b-custom.wav',
        data:{kind:'store_nearby'},
      },trigger:null});
      await AsyncStorage.setItem(key,'sent');
