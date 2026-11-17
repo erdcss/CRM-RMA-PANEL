@@ -5569,6 +5569,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Customer may finish their own conversation; the retained history moves
+  // to the existing super-admin archive and cannot receive further replies.
+  app.patch("/api/b2b/support/:id/close",requireB2B,async(req,res)=>{
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const user=(res.locals as any).b2bUser;
+    const ticketId=Number(req.params.id);
+    if(!Number.isSafeInteger(ticketId)||ticketId<1)return res.status(400).json({error:"Geçersiz talep"});
+    try{
+      const closed=await pool.query(`
+        UPDATE b2b_support_tickets SET status='closed',updated_at=NOW()
+        WHERE id=$1 AND user_id=$2 AND status NOT IN ('closed','resolved','done')
+        RETURNING id,subject
+      `,[ticketId,user.id]);
+      if(!closed.rows[0])return res.status(409).json({error:"Görüşme bulunamadı veya zaten sonlandırılmış"});
+      const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
+      void sendBusinessPushToSuperAdmins({
+        title:"Destek görüşmesi sonlandırıldı · "+displayName,
+        body:String(closed.rows[0].subject||"Destek görüşmesi").slice(0,180),
+        data:{type:"support",ticketId,companyName:displayName,status:"closed"}
+      }).catch(error=>console.error("Customer support closure push failed:",error));
+      return res.json({id:ticketId,status:"closed",message:"Destek görüşmesi sonlandırıldı"});
+    }catch(error){
+      console.error("Customer support close failed:",error);
+      return res.status(503).json({error:"Görüşme sonlandırılamadı"});
+    }
+  });
+
   app.post("/api/b2b/support", requireB2B, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     const user = (res.locals as any).b2bUser;
@@ -5579,24 +5606,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "Konu ve mesaj alanlarını doldurun" });
     }
 
-    try {
-      const result = await pool.query(
-        `INSERT INTO b2b_support_tickets (user_id, subject, message)
-         VALUES ($1,$2,$3)
-         RETURNING id,subject,message,status,created_at`,
-        [user.id,subject,message],
-      );
-      const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
-      void sendBusinessPushToSuperAdmins({
-        title:"Yeni destek talebi · "+displayName,
-        body:message.slice(0,180),
-        data:{type:"support",ticketId:result.rows[0]?.id,companyName:displayName,subject}
-      }).catch(error=>console.error("Business support push failed:",error));
-      return res.status(201).json(result.rows[0]);
-    }catch(error) {
+    // Lock by customer ID to prevent parallel mobile/web submissions from
+    // creating two conversations. Never silently close existing requests.
+    const client=await pool.connect();
+    let ticket:any;
+    try{
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock($1::int,$2::int)",[43610,Number(user.id)]);
+      const existing=await client.query(`
+        SELECT id,subject,status FROM b2b_support_tickets
+        WHERE user_id=$1 AND status NOT IN ('closed','resolved','done')
+        ORDER BY created_at DESC,id DESC LIMIT 1
+      `,[user.id]);
+      if(existing.rows[0]){
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error:"Devam eden bir destek görüşmeniz var. Yeni talep için önce mevcut sohbeti sonlandırın.",
+          activeTicketId:existing.rows[0].id
+        });
+      }
+      const result=await client.query(`
+        INSERT INTO b2b_support_tickets (user_id, subject, message)
+        VALUES ($1,$2,$3)
+        RETURNING id,subject,message,status,created_at
+      `,[user.id,subject,message]);
+      ticket=result.rows[0];
+      await client.query("COMMIT");
+    }catch(error){
+      await client.query("ROLLBACK").catch(()=>undefined);
       console.error("Support ticket create failed:",error);
       return res.status(503).json({error:"Destek talebi oluşturulamadı"});
+    }finally{
+      client.release();
     }
+    const displayName=String(user.companyName||[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"Müşteri").trim().slice(0,100);
+    void sendBusinessPushToSuperAdmins({
+      title:"Yeni destek talebi · "+displayName,
+      body:message.slice(0,180),
+      data:{type:"support",ticketId:ticket.id,companyName:displayName,subject}
+    }).catch(error=>console.error("Business support push failed:",error));
+    return res.status(201).json(ticket);
   });
 
   app.post("/api/b2b/change-password", requireB2B, async (req, res) => {
