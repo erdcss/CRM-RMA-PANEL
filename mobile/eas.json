@@ -97,7 +97,8 @@
       },
       "env": {
         "EAS_NO_VCS": "1",
-        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com"
+        "EXPO_PUBLIC_API_URL": "https://b2b.ecalisgan.com",
+        "B2B_ANDROID_BUILD": "1"
       },
       "environment": "production"
     }
