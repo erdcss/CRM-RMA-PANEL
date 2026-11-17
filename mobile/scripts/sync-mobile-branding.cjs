@@ -57,21 +57,33 @@ async function readAsset(value) {
 
   if (/^https?:\/\//i.test(value) || value.startsWith("/")) {
     const imageUrl = new URL(value, api).toString();
-    const response = await fetchAdminWithRetry(imageUrl, {
-      headers: { Accept: "image/*" },
-      redirect: "follow",
-    });
-    if (!response.ok) {
-      throw new Error("Admin görseli indirilemedi: HTTP " + response.status + " (" + imageUrl + ")");
+    // Node's fetch can resolve response headers before a large image stream
+    // fails with "terminated". Retry the BODY as well as the HTTP request.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const response = await fetchAdminWithRetry(imageUrl, {
+          headers: { Accept: "image/*" },
+          redirect: "follow",
+        });
+        if (!response.ok) {
+          throw new Error("Admin görseli indirilemedi: HTTP " + response.status + " (" + imageUrl + ")");
+        }
+        const mime = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+        if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) {
+          throw new Error("Admin görseli geçersiz formatta: " + (mime || "bilinmiyor"));
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        if (!buffer.length || buffer.length > 16 * 1024 * 1024)
+          throw new Error("Admin görseli boş veya 16 MB sınırından büyük");
+        return { mime, buffer };
+      } catch (error) {
+        if (attempt === 3) throw error;
+        console.warn("[brand-sync] Admin görsel akışı kesildi, yeniden indirilecek:",
+          error instanceof Error ? error.message : String(error), "deneme", attempt + 1);
+        await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
+      }
     }
-    const mime = (response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-    if (!["image/png", "image/jpeg", "image/webp"].includes(mime)) {
-      throw new Error("Admin görseli geçersiz formatta: " + (mime || "bilinmiyor"));
-    }
-    return {
-      mime,
-      buffer: Buffer.from(await response.arrayBuffer()),
-    };
+    throw new Error("Admin görseli indirilemedi");
   }
 
   return null;
@@ -100,16 +112,24 @@ async function saveAsset(name, value, required = true) {
 }
 
 async function main() {
-  const response = await fetchAdminWithRetry(
-    `${api}/api/public/mobile-branding/${target}?t=${Date.now()}`,
-    { headers: { Accept: "application/json" } },
-  );
-
-  if (!response.ok) {
-    throw new Error(`branding endpoint HTTP ${response.status}`);
+  let branding;
+  // Also retry JSON body stream termination, never substitute old branding.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const response = await fetchAdminWithRetry(
+        `${api}/api/public/mobile-branding/${target}?t=${Date.now()}`,
+        { headers: { Accept: "application/json" } },
+      );
+      if (!response.ok) throw new Error(`branding endpoint HTTP ${response.status}`);
+      branding = await response.json();
+      break;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      console.warn("[brand-sync] Mobil marka yanıtı kesildi, tekrar denenecek:",
+        error instanceof Error ? error.message : String(error));
+      await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
+    }
   }
-
-  const branding = await response.json();
   if (target === "b2b" && !branding.logo) {
     throw new Error("Çalışkan B2B için admin panelinde Mobil Logo gerekli. Splash isteğe bağlıdır.");
   }
