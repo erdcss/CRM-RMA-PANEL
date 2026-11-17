@@ -1,0 +1,10 @@
+Çalışkan B2B Android APK telefon testi
+Tarih: 2026-11-17
+Talep: Kullanıcı Google Play konum izinlerinin gerçek işleyişini ekran videosuna kaydetmek için güncel Android APK istedi.
+Paket: com.caliskangroup.rma
+Expo sürüm: 1.3.12
+İç test / doğrudan telefona yükleme, APK formatı, store AAB değil.
+Güncel main; mevcut iOS, Çalışkan Business ve AAB kapalı test sürümlerini değiştirme.
+Android özel bildirim sesi b2b_custom.wav, mağaza yakınlığı konum izni ve kullanıcı destek sohbetleri korunmalı.
+B2B admin paneli güncel splash/logo varlıkları dahil edilmeli.
+Derleme başlat, yerel Android kontrolünü çalıştır, EAS APK çıktısını indirip doğrula, GitHub Actions Artifacts olarak yayınla.
