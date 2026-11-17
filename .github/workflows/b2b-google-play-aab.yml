@@ -56,7 +56,7 @@ jobs:
           const eas=require("./eas.json");
           if(config.android.package!=="com.caliskangroup.rma")
             throw Error("Yanlış Android uygulaması: "+config.android.package);
-          if(!/^1\\.3\\.12$/.test(config.version))
+          if(config.version!=="1.3.12")
             throw Error("Güncel Çalışkan B2B sürümü bekleniyor (1.3.12), bulundu: "+config.version);
           if(eas.build["android-aab"]?.android?.buildType!=="app-bundle"||
              eas.build["android-aab"]?.distribution!=="store")
@@ -107,7 +107,7 @@ jobs:
           {
             echo "### Çalışkan B2B Android Google Play"
             echo "- Paket: \`com.caliskangroup.rma\`"
-            echo "- Sürüm: \`1.1.0\`"
+            echo "- Sürüm: \`1.3.12\`"
             echo "- EAS derleme ID: \`$(cat "$RUNNER_TEMP/b2b-build-id.txt")\`"
             echo "- Paket adı: \`caliskan-b2b-google-play.aab\`"
             echo "- **Actions → Artifacts → Caliskan-B2B-Google-Play-AAB** dosyasından indirin."
