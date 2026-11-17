@@ -12,3 +12,6 @@ Derleme başlat, yerel Android kontrolünü çalıştır, EAS APK çıktısını
 Yeni build talebi (konum izni düzeltmesi): 2026-11-17
 Bildirimlerim ekranından konum izni yeniden istenebilir; Android 11+ sistem ayarları akışı ve Android'e özel açıklamalar düzeltildi.
 Google Play ekran videosu için görünür isteğe bağlı yakınlık özelliği; etkin/verifiye kampanya koşulu korunur.
+
+2026-11-17 GOOGLE PLAY KONUM POLİTİKASI DÜZELTMESİ - Test APK
+Android isteminde mağazaya yaklaşınca promosyon için konum izni istenmeyecek. ACCESS_BACKGROUND_LOCATION, ACCESS_COARSE_LOCATION ve ACCESS_FINE_LOCATION tamamen bloklanmalı. Kullanıcı konumu olmadan sipariş/stok bildirimleri çalışmalı. iOS yakınlık hatırlatması korunmalı. Native prebuild manifest koruma kontrolü geçmeden EAS build başlatılmayacak. Bu dosya sadece Play uyumlu Test APK derlemesini tetikler, Google Play'e otomatik yayınlama yapmaz.
