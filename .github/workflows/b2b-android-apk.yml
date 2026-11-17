@@ -81,6 +81,7 @@ jobs:
             echo "::error title=Splash kaynağı eksik::Native Android splashscreen_logo oluşturulmadı"
             exit 1
           fi
+          node scripts/check-google-play-location.cjs
           rm -rf android
       - name: İmzalı Android APK üret
         shell: bash
