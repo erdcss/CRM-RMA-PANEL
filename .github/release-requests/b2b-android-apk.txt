@@ -8,3 +8,7 @@ Güncel main; mevcut iOS, Çalışkan Business ve AAB kapalı test sürümlerini
 Android özel bildirim sesi b2b_custom.wav, mağaza yakınlığı konum izni ve kullanıcı destek sohbetleri korunmalı.
 B2B admin paneli güncel splash/logo varlıkları dahil edilmeli.
 Derleme başlat, yerel Android kontrolünü çalıştır, EAS APK çıktısını indirip doğrula, GitHub Actions Artifacts olarak yayınla.
+
+Yeni build talebi (konum izni düzeltmesi): 2026-11-17
+Bildirimlerim ekranından konum izni yeniden istenebilir; Android 11+ sistem ayarları akışı ve Android'e özel açıklamalar düzeltildi.
+Google Play ekran videosu için görünür isteğe bağlı yakınlık özelliği; etkin/verifiye kampanya koşulu korunur.
