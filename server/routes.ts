@@ -2817,7 +2817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = (await storage.getUserByEmail(email)) || (await storage.getUserByUsername(email));
       if (!user || user.role !== "b2b_customer" ||
-          user.companyName !== "Çalışkan B2B - Apple İnceleme") {
+          user.companyName !== "Çalışkan B2B - Apple İnceleme" && user.companyName !== googleReviewCompany) {
         return res.status(404).json({ error: "Bu adreste Apple inceleme hesabı bulunamadı." });
       }
       const password = randomBytes(24).toString("base64url");
@@ -2830,6 +2830,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Apple reviewer password reset failed:", error);
       return res.status(500).json({ error: "İnceleme hesabı şifresi yenilenemedi." });
+    }
+  });
+
+  // Separate Google Play inspection identity. Never mutate Apple credentials,
+  // ordinary customers, or any admin account.
+  const googleReviewCompany = "Çalışkan B2B - Google Play İnceleme";
+  const validGoogleReviewEmail = (value: unknown) =>
+    typeof value === "string" && value.trim().length <= 254 &&
+    /^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value.trim().toLowerCase())
+      ? value.trim().toLowerCase() : null;
+
+  const requireSuperAdminForReview = async (req: any, res: any) => {
+    const id = sessionUserId(req);
+    const actor = id ? await storage.getUser(id) : null;
+    if (actor?.role !== "super_admin") {
+      res.status(403).json({ error: "Google Play inceleme hesabını yalnızca süper yönetici yönetebilir." });
+      return false;
+    }
+    return true;
+  };
+
+  app.get("/api/admin/google-play-review-account", requireAdmin, async (req,res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    if (!await requireSuperAdminForReview(req,res)) return;
+    try {
+      const users = await storage.listUsers();
+      const reviewer = users.find(user =>
+        user.role === "b2b_customer" && user.appAccess === "b2b" &&
+        user.companyName === googleReviewCompany);
+      return res.json(reviewer
+        ? { exists:true, email:reviewer.email || reviewer.username, active:reviewer.isActive === 1 }
+        : { exists:false, email:null, active:false });
+    } catch(error) {
+      console.error("Google review account status failed",error);
+      return res.status(503).json({error:"Google Play inceleme hesap durumu alınamadı."});
+    }
+  });
+
+  app.post("/api/admin/google-play-review-account", requireAdmin, async (req,res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    if (!await requireSuperAdminForReview(req,res)) return;
+    const email = validGoogleReviewEmail(req.body?.email);
+    if (!email) return res.status(400).json({error:"Geçerli bir inceleme e-posta adresi girin."});
+    try {
+      const users = await storage.listUsers();
+      if(users.some(user=>user.role==="b2b_customer" && user.companyName===googleReviewCompany)){
+        return res.status(409).json({error:"Google Play inceleme hesabı zaten var. Şifreyi Yenile seçeneğini kullanın."});
+      }
+      const existing = (await storage.getUserByUsername(email)) || (await storage.getUserByEmail(email));
+      if(existing) return res.status(409).json({error:"Bu e-posta başka bir hesapta kullanılıyor. Farklı adres girin."});
+      const password = randomBytes(24).toString("base64url");
+      const reviewer = await storage.createUser({
+        username:email, email, password:hashPassword(password),
+        role:"b2b_customer", appAccess:"b2b", isActive:1,
+        companyName:googleReviewCompany, firstName:"Google",lastName:"Play Review",
+        companyCategory:"Diğer",taxNumber:null,taxOffice:null,taxVerified:0,
+        applicationStatus:"approved",mustChangePassword:0,approvedAt:new Date(),
+        credentialsSentAt:null
+      });
+      return res.status(201).json({
+        id:reviewer.id,email,password,
+        message:"Google Play inceleme hesabı oluşturuldu. Şifre yalnızca bu yanıtta gösterilir."
+      });
+    } catch(error) {
+      console.error("Google Play review account creation failed",error);
+      return res.status(500).json({error:"Google Play inceleme hesabı oluşturulamadı."});
+    }
+  });
+
+  app.post("/api/admin/google-play-review-account/reset-password", requireAdmin, async (req,res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    if(!await requireSuperAdminForReview(req,res))return;
+    const email=validGoogleReviewEmail(req.body?.email);
+    if(!email)return res.status(400).json({error:"Geçerli bir e-posta adresi girin."});
+    try {
+      const account=(await storage.getUserByEmail(email)) || (await storage.getUserByUsername(email));
+      if(!account || account.role!=="b2b_customer" || account.appAccess!=="b2b" ||
+         account.companyName!==googleReviewCompany){
+        return res.status(404).json({error:"Bu e-posta için Google Play inceleme hesabı bulunamadı."});
+      }
+      const password=randomBytes(24).toString("base64url");
+      await storage.updateUser(account.id,{
+        password:hashPassword(password),mustChangePassword:0,
+        isActive:1,applicationStatus:"approved"
+      });
+      return res.json({email,password,message:"Google Play inceleme şifresi yenilendi. Önceki şifre geçersiz."});
+    }catch(error){
+      console.error("Google Play review password reset failed",error);
+      return res.status(500).json({error:"İnceleme şifresi yenilenemedi."});
     }
   });
 
