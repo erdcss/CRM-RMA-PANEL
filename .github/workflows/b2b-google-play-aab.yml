@@ -78,6 +78,7 @@ jobs:
             echo "::error title=Android splash eksik::Expo prebuild splashscreen_logo kaynağı üretemedi. EAS build başlatılmadı."
             exit 1
           fi
+          node scripts/check-google-play-location.cjs
           echo "Android splashscreen_logo native drawable hazır."
           rm -rf android
       - name: İmzalı Google Play AAB derle
