@@ -1020,6 +1020,10 @@ export const rmaApi = {
       method: 'POST',
       body: JSON.stringify({ subject, message }),
     }),
+  closeB2BSupport: (id:number) =>
+    request<{id:number;status:string;message:string}>(`/api/b2b/support/${id}/close`,{
+      method:'PATCH',
+    }),
   getDashboardStats: () => request<DashboardStats>('/api/stats/dashboard'),
   updateProduct: (id: number, payload: UpdateProductPayload) =>
     request<RmaProduct>(`/api/products/${id}`, {
