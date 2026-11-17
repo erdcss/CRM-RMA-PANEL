@@ -17,6 +17,7 @@ export function SupportChat({ticketId,onBack,onClosed}:{
   const [draft,setDraft]=useState('');
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
+  const [closing,setClosing]=useState(false);
   const [error,setError]=useState('');
   const [bearer,setBearer]=useState('');
   const scroller=useRef<ScrollView>(null);
@@ -52,6 +53,26 @@ export function SupportChat({ticketId,onBack,onClosed}:{
       Alert.alert('Mesaj gönderilemedi',e instanceof Error?e.message:'Tekrar deneyin.');
     }finally{setBusy(false);}
   };
+  const closeConversation=()=>{
+    if(busy||closing)return;
+    Alert.alert(
+      'Sohbeti sonlandır',
+      'Görüşmeniz kapatılacak ve destek ekibinin arşivine taşınacak. Yeni bir talep oluşturmak için bu görüşmeyi sonlandırmalısınız.',
+      [
+        {text:'Vazgeç',style:'cancel'},
+        {text:'Sohbeti Sonlandır',style:'destructive',onPress:async()=>{
+          setClosing(true);
+          try{
+            await rmaApi.closeB2BSupport(ticketId);
+            onClosedRef.current();
+          }catch(e){
+            Alert.alert('Sohbet sonlandırılamadı',e instanceof Error?e.message:'Tekrar deneyin.');
+          }finally{setClosing(false);}
+        }}
+      ]
+    );
+  };
+
   const attach=async()=>{
     if(busy||!conversation)return;
     try{
@@ -104,6 +125,13 @@ export function SupportChat({ticketId,onBack,onClosed}:{
               {conversation?.ticket.subject||`Destek Talebi #${ticketId}`}
             </Text>
           </View>
+          <Pressable style={s.closeAction} accessibilityRole="button"
+            accessibilityLabel="Sohbeti Sonlandır"
+            disabled={busy||closing||loading} onPress={closeConversation}>
+            {closing?<ActivityIndicator size="small" color="#FCA5A5"/>:
+              <Ionicons name="close-circle-outline" size={21} color="#FCA5A5"/>}
+            <Text style={s.closeActionText}>Sonlandır</Text>
+          </Pressable>
         </View>
         {error?<Text style={s.error}>{error}</Text>:null}
         <ScrollView ref={scroller} style={{flex:1}} contentContainerStyle={s.chat}
@@ -117,7 +145,7 @@ export function SupportChat({ticketId,onBack,onClosed}:{
             return (
               <View key={item.id} style={[s.bubble,{
                 alignSelf:mine?'flex-end':'flex-start',
-                backgroundColor:mine?'#DCF8C6':'#FFFFFF',
+                backgroundColor:mine?'#15463B':palette.surface,
                 borderBottomRightRadius:mine?4:18,borderBottomLeftRadius:mine?18:4,
               }]}>
                 {attachment?(
@@ -131,15 +159,15 @@ export function SupportChat({ticketId,onBack,onClosed}:{
                           headers:{Authorization:`Bearer ${bearer}`}}}/>
                     ):(
                       <View style={s.fileChip}>
-                        <Ionicons name="document-attach-outline" color="#135E6C" size={22}/>
-                        <Text style={{color:'#23303B',flex:1,fontSize:12}} numberOfLines={2}>
+                        <Ionicons name="document-attach-outline" color={palette.accent} size={22}/>
+                        <Text style={{color:palette.text,flex:1,fontSize:12}} numberOfLines={2}>
                           {item.attachment_name||'Dosya'}
                         </Text>
                       </View>
                     )}
                   </Pressable>
                 ):null}
-                {item.message?<Text selectable style={s.bubbleText}>{item.message}</Text>:null}
+                {item.message?<Text selectable style={[s.bubbleText,{color:palette.text}]}>{item.message}</Text>:null}
                 <Text style={s.time}>{displayTime(item.created_at)}</Text>
               </View>
             );
@@ -174,10 +202,12 @@ const s=StyleSheet.create({
   chat:{flexGrow:1,justifyContent:'flex-end',paddingHorizontal:13,paddingVertical:16},
   bubble:{maxWidth:'84%',marginBottom:9,paddingHorizontal:12,paddingVertical:9,
     borderRadius:18,shadowColor:'#000000',shadowOpacity:0.06,shadowRadius:2},
-  bubbleText:{fontSize:14,lineHeight:21,color:'#1D2935'},
-  time:{alignSelf:'flex-end',fontSize:9,color:'#64727B',marginTop:5},
+  bubbleText:{fontSize:14,lineHeight:21},
+  time:{alignSelf:'flex-end',fontSize:9,color:'#A5B6B6',marginTop:5},
   photo:{width:220,height:190,borderRadius:10,marginBottom:5},
   fileChip:{flexDirection:'row',gap:8,alignItems:'center',paddingVertical:7,maxWidth:220},
+  closeAction:{alignItems:'center',justifyContent:'center',paddingHorizontal:5,minWidth:67,minHeight:46},
+  closeActionText:{color:'#FCA5A5',fontSize:10,fontWeight:'700',marginTop:3},
   composer:{paddingHorizontal:10,paddingTop:10,paddingBottom:8,borderTopWidth:1,
     flexDirection:'row',alignItems:'flex-end',gap:8},
   attach:{width:38,height:42,alignItems:'center',justifyContent:'center'},
