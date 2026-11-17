@@ -28,3 +28,8 @@ Profil: mobile/eas.json → android-aab; store distribution ve app-bundle.
 Güncel mobil ekranlar, destek mesajlaşması ve yönetim entegrasyonları, güncel admin mobil logo/splash varlıkları dahil edilsin.
 Derleme başarılıysa .aab dosyasını GitHub Actions Artifact: Caliskan-B2B-Google-Play-AAB adıyla yükle.
 Google Play'e otomatik yayınlama; kapalı test için indirilebilir dosya hazırla.
+
+ANDROİD NATIVE PREBUILD DÜZELTMESİ VE YENİ AAB — 2026-11-17
+İlk 1.3.12 AAB denemesi 44090159174, Expo notifications eklentisinin Android kaynak adı hatasıyla build öncesinde durdu.
+Düzeltme: iOS özel bildirim sesi b2b-custom.wav korunur; Android için b2b_custom.wav ve B2B_ANDROID_BUILD=1 kullanılır.
+Yeniden Android 1.3.12 store AAB oluştur; paket com.caliskangroup.rma; en az versionCode 21; Google Play kapalı test için Actions artifact dosyasını doğrula.
