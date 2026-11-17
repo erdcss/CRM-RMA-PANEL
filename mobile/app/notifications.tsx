@@ -7,7 +7,7 @@ import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BNotification } from '@/lib/api';
 import { registerB2BPush } from '@/lib/push';
 import { openB2BNotificationTarget } from '@/lib/notification-navigation';
-import { isStoreNearbyEnabled,revokeStoreNearby } from '@/lib/store-geofence';
+import { getStoreNearbyPermissionStatus,requestStoreNearbyOptIn,revokeStoreNearby } from '@/lib/store-geofence';
 import {useAuth} from '@/contexts/AuthContext';
 import { appAlert } from '@/lib/appAlert';
 
@@ -15,7 +15,31 @@ export default function NotificationsScreen() {
   const router=useRouter();
   const {user}=useAuth();
   const [storeNearby,setStoreNearby]=useState(false);
-  useFocusEffect(useCallback(()=>{if(user?.id)void isStoreNearbyEnabled(String(user.id)).then(setStoreNearby);},[user?.id]));
+  const [nearbyReady,setNearbyReady]=useState(false);
+  const [nearbyBusy,setNearbyBusy]=useState(false);
+  const refreshNearby=useCallback(async()=>{
+    if(!user?.id)return;
+    try{
+      const status=await getStoreNearbyPermissionStatus(String(user.id));
+      setStoreNearby(status.consented);
+      setNearbyReady(status.ready);
+    }catch(error){console.warn('[store-geofence] status:',error);}
+  },[user?.id]);
+  useFocusEffect(useCallback(()=>{void refreshNearby();},[refreshNearby]));
+  async function enableNearby(){
+    if(!user?.id||nearbyBusy)return;
+    setNearbyBusy(true);
+    try{await requestStoreNearbyOptIn(String(user.id));}
+    finally{await refreshNearby();setNearbyBusy(false);}
+  }
+  async function disableNearby(){
+    if(!user?.id||nearbyBusy)return;
+    setNearbyBusy(true);
+    try{
+      await revokeStoreNearby(String(user.id));
+      appAlert('Hatırlatmalar durduruldu','Konumunuz artık yakınlık bildirimi için takip edilmeyecek.');
+    }finally{await refreshNearby();setNearbyBusy(false);}
+  }
   const {palette}=useAppearance();
   const [items,setItems]=useState<B2BNotification[]>([]);
   const [loading,setLoading]=useState(true);
@@ -59,12 +83,26 @@ export default function NotificationsScreen() {
         <Ionicons name="notifications-outline" size={24} color={palette.accent}/>
       </Pressable>
     </View>
-    {storeNearby && user?.id ? <Pressable accessibilityRole="button"
-      onPress={()=>{void revokeStoreNearby(String(user.id)).then(()=>{setStoreNearby(false);appAlert('Hatırlatmalar durduruldu','Konumunuz artık yakınlık bildirimi için takip edilmeyecek.');});}}
-      style={{marginHorizontal:18,marginTop:8,marginBottom:3,padding:13,borderRadius:12,borderWidth:1,borderColor:palette.border}}>
-      <Text style={{color:palette.text,fontWeight:'700'}}>Yakınlık bildirimlerini durdur</Text>
-      <Text style={{color:palette.textSecondary,fontSize:12,marginTop:4}}>Mağaza yakınlığı bildirimine verdiğiniz onayı geri çekebilirsiniz.</Text>
-    </Pressable> : null}
+    {user?.id ? <View style={{marginHorizontal:16,marginTop:8,marginBottom:5,padding:14,borderRadius:14,borderWidth:1,borderColor:palette.border,backgroundColor:palette.surface}}>
+      <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+        <Ionicons name="location-outline" size={21} color={palette.accent}/>
+        <Text style={{color:palette.text,fontSize:15,fontWeight:'800',flex:1}}>Mağaza yakınlık bildirimleri</Text>
+      </View>
+      <Text style={{color:palette.textSecondary,fontSize:12,lineHeight:18,marginTop:8}}>
+        {nearbyReady?'Konum ve bildirim izinleri açık. İSTOÇ mağazamıza 3 km yaklaştığınızda hatırlatma alabilirsiniz.':
+          storeNearby?'Onayınız kayıtlı ancak gerekli cihaz izinlerinden biri kapalı. İzinleri yeniden kontrol edebilirsiniz.':
+          'İsteğe bağlıdır. Uygulama kapalıyken de mağazaya yakınlığınızı algılamak ve günde en fazla bir hatırlatma almak için izin verebilirsiniz.'}
+      </Text>
+      <Pressable accessibilityRole="button" disabled={nearbyBusy} onPress={()=>void enableNearby()}
+        style={{marginTop:12,borderRadius:10,paddingVertical:12,paddingHorizontal:13,alignItems:'center',backgroundColor:palette.accent,opacity:nearbyBusy?0.5:1}}>
+        <Text style={{color:'#FFFFFF',fontWeight:'800'}}>{nearbyBusy?'Kontrol ediliyor...':
+          nearbyReady?'Konum izinlerini kontrol et':storeNearby?'Konum izinlerini tamamla':'Konum izinlerini aç'}</Text>
+      </Pressable>
+      {storeNearby?<Pressable accessibilityRole="button" disabled={nearbyBusy}
+        onPress={()=>void disableNearby()} style={{paddingVertical:12,alignItems:'center'}}>
+        <Text style={{color:palette.textSecondary,fontSize:12,fontWeight:'700'}}>Yakınlık bildirimlerini durdur</Text>
+      </Pressable>:null}
+    </View> : null}
     <ScrollView contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>void refresh()} tintColor={palette.accent}/>}>
       {loading ? <ActivityIndicator color={palette.accent} style={{marginTop:50}}/> :
