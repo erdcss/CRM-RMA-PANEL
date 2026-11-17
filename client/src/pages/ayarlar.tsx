@@ -274,6 +274,7 @@ export default function Ayarlar() {
             <TabsTrigger value="location-notifications">Konum ve Bildirimler</TabsTrigger>
             <TabsTrigger value="system">Sistem</TabsTrigger>
             <TabsTrigger value="apple-review">Apple İnceleme Hesabı</TabsTrigger>
+            <TabsTrigger value="google-play-review">Google Play İnceleme Hesabı</TabsTrigger>
             <TabsTrigger value="email">E-posta Servisi</TabsTrigger>
           </TabsList>
 
@@ -689,6 +690,9 @@ export default function Ayarlar() {
           <TabsContent value="apple-review" className="space-y-6">
             <AppleReviewAccountSettings />
           </TabsContent>
+          <TabsContent value="google-play-review" className="space-y-6">
+            <GooglePlayReviewAccountSettings />
+          </TabsContent>
           <TabsContent value="email" className="space-y-6">
             <B2BMailSettings />
           </TabsContent>
@@ -914,6 +918,180 @@ function B2BMailSettings() {
       </div>
     </CardContent>
   </Card>;
+}
+
+function GooglePlayReviewAccountSettings() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [newEmail,setNewEmail] = useState("googleplay.review@ecalisgan.com");
+  const [createOpen,setCreateOpen] = useState(false);
+  const [busy,setBusy] = useState(false);
+  const [credentials,setCredentials] = useState<{email:string;password:string}|null>(null);
+  const [revealPassword,setRevealPassword] = useState(false);
+  const endpoint="/api/admin/google-play-review-account";
+  const {data:account,isLoading,error} = useQuery<ReviewAccountStatus>({
+    queryKey:[endpoint],
+    retry:false,
+    queryFn:async()=>{
+      const response=await fetch(endpoint,{credentials:"include",cache:"no-store"});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error || "Hesap durumu alınamadı.");
+      return payload as ReviewAccountStatus;
+    },
+  });
+  const instructions = (email:string,password:string) =>
+    "Login instructions for Google Play review:\n"+
+    "1. Open the Çalışkan B2B application.\n"+
+    "2. Tap Sign in / Giriş Yap.\n"+
+    "3. Enter the review email and password listed above.\n"+
+    "4. Tap Giriş Yap to access the approved test customer account.\n"+
+    "No OTP, SMS, WhatsApp verification, company approval, or additional documents are required.\n"+
+    "This is a restricted test account; do not place real orders or make real payments.\n"+
+    "Review email: "+email+"\nReview password: "+password;
+  async function run(mode:"create"|"reset"){
+    const email=(mode==="create"?newEmail:account?.email||"").trim().toLowerCase();
+    if(!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email)||email.length>254){
+      toast({title:"Geçerli bir e-posta adresi girin.",variant:"destructive"});return;
+    }
+    if(mode==="create"&&(account?.exists||!account))return;
+    if(mode==="reset"&&(!account?.exists||!window.confirm(
+      "Google Play inceleme hesabının mevcut şifresi geçersiz olacak. Devam edilsin mi?"
+    )))return;
+    setBusy(true);
+    try{
+      const response=await fetch(endpoint+(mode==="reset"?"/reset-password":""),{
+        method:"POST",credentials:"include",cache:"no-store",
+        headers:{"Content-Type":"application/json"},body:JSON.stringify({email}),
+      });
+      const result=await response.json().catch(()=>({})) as {email?:string;password?:string;error?:string};
+      if(!response.ok||!result.email||!result.password)
+        throw new Error(result.error||"İnceleme hesabı işlemi başarısız.");
+      setCredentials({email:result.email,password:result.password});
+      setRevealPassword(false);
+      setCreateOpen(false);
+      await queryClient.invalidateQueries({queryKey:[endpoint]});
+      toast({title:mode==="create"?"Google Play inceleme hesabı hazır":"İnceleme hesabının şifresi yenilendi",
+        description:"Şifre yalnızca bu pencerede gösterilir. Play Console'a kaydedin."});
+    }catch(e){
+      toast({title:"Hesap oluşturulamadı",
+        description:e instanceof Error?e.message:"Yeniden deneyin.",variant:"destructive"});
+    }finally{setBusy(false);}
+  }
+  const copy=async(value:string)=>{
+    try{
+      await navigator.clipboard.writeText(value);
+      toast({title:"Panoya kopyalandı"});
+    }catch{
+      toast({title:"Kopyalanamadı; metni elle seçip kopyalayın.",variant:"destructive"});
+    }
+  };
+  return (
+    <>
+      <Card className="max-w-3xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5"/>
+            Çalışkan B2B — Google Play İnceleme Hesabı
+          </CardTitle>
+          <CardDescription>
+            Google Play Console için Apple inceleme hesabından ayrı bir B2B müşteri hesabı oluşturun.
+            Şifre otomatik ve güvenli oluşturulur; yalnızca bir kez görüntülenir.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border bg-muted/20 p-4 text-sm">
+            <div className="text-xs text-muted-foreground">Hesap durumu</div>
+            <div className="mt-1 font-semibold">{isLoading?"Kontrol ediliyor…":
+              error?"Durum alınamadı":account?.exists?(account.active?"Etkin":"Pasif"):
+              "Henüz oluşturulmadı"}</div>
+            {account?.email?<div className="mt-2 break-all">{account.email}</div>:null}
+          </div>
+          {error?<p className="text-sm text-destructive">
+            {error instanceof Error?error.message:"Süper yönetici yetkisiyle tekrar giriş yapın."}
+          </p>:null}
+          <div className="flex flex-wrap gap-2">
+            <Button disabled={busy||isLoading||!!error||!account||account.exists}
+              onClick={()=>setCreateOpen(true)}>
+              Yeni İnceleme Hesabı Ekle
+            </Button>
+            <Button variant="outline" disabled={busy||isLoading||!!error||!account?.exists}
+              onClick={()=>void run("reset")}>
+              Şifreyi Yenile
+            </Button>
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Bu bir giriş kimliğidir; e-posta kutusu oluşturulmaz. WhatsApp/SMS doğrulaması
+            gerektirmeyen ayrı bir onaylı test müşteri hesabı oluşturulur. Gerçek firma
+            bilgilerini veya yönetici yetkilerini kullanmayın.
+          </p>
+        </CardContent>
+      </Card>
+      <Dialog open={createOpen} onOpenChange={open=>{if(!open&&!busy)setCreateOpen(false);}}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Google Play inceleme hesabı oluştur</DialogTitle>
+            <DialogDescription>
+              Google inceleme ekibinin uygulamaya giriş yaparken kullanacağı e-posta kimliğini girin.
+              Şifreyi sistem üretecek.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="space-y-2 text-sm font-medium">
+            <span>İnceleme giriş e-postası</span>
+            <Input type="email" value={newEmail} autoComplete="off"
+              onChange={event=>setNewEmail(event.target.value)} maxLength={254}/>
+          </label>
+          <Button disabled={busy||!newEmail.includes("@")} onClick={()=>void run("create")}>
+            {busy?"Oluşturuluyor…":"Hesabı Oluştur ve Şifreyi Göster"}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(credentials)} onOpenChange={open=>{if(!open){setCredentials(null);setRevealPassword(false);}}}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Google Play inceleme bilgileri hazır</DialogTitle>
+            <DialogDescription>
+              Bu bilgiler yalnızca bu pencerede görünür. Pencereyi kapatmadan önce
+              Play Console → Oturum Açma Bilgileri bölümüne kaydedin.
+            </DialogDescription>
+          </DialogHeader>
+          {credentials?<div className="space-y-3">
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">E-posta / kullanıcı adı</div>
+              <div className="flex items-center justify-between gap-2">
+                <code className="break-all text-sm">{credentials.email}</code>
+                <Button size="sm" variant="outline" onClick={()=>void copy(credentials.email)}>Kopyala</Button>
+              </div>
+            </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs text-muted-foreground">Şifre</div>
+              <div className="flex items-center justify-between gap-2">
+                <code className="break-all text-sm">
+                  {revealPassword?credentials.password:"••••••••••••••••"}
+                </code>
+                <div className="flex gap-1">
+                  <Button size="sm" variant="outline" onClick={()=>setRevealPassword(v=>!v)}>
+                    {revealPassword?"Gizle":"Göster"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={()=>void copy(credentials.password)}>Kopyala</Button>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border p-3 space-y-2">
+              <div className="text-sm font-semibold">Google Play inceleme talimatları (İngilizce)</div>
+              <p className="text-xs text-muted-foreground">
+                Erişim için gereken diğer bilgiler alanına yapıştırın.
+              </p>
+              <Button variant="outline" onClick={()=>void copy(instructions(credentials.email,credentials.password))}>
+                <Copy className="mr-2 h-4 w-4"/> E-posta, Şifre ve Talimatları Kopyala
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Bu şifreyi sohbete göndermeyin. Google Play Console dışında paylaşmayın.
+            </p>
+          </div>:null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 type ReviewAccountStatus = {
