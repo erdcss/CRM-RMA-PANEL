@@ -1743,6 +1743,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })
     .catch(err => console.error("DB/B2B account init error:", err));
 
+  // Google Play review is browse-only: real payments and order mutations are
+  // never available even if the reviewer reaches checkout.
+  app.use("/api/b2b",async(req,res,next)=>{
+    if(req.method==="GET" || !(
+      req.path.startsWith("/payments/") || req.path.startsWith("/orders/") ||
+      req.path.startsWith("/returns/") || req.path.startsWith("/checkout/place")
+    ))return next();
+    const id=sessionUserId(req);
+    if(!id)return next();
+    try{
+      const user=await storage.getUser(id);
+      if(user?.role==="b2b_customer" && user.companyName==="Çalışkan B2B - Google Play İnceleme"){
+        return res.status(403).json({
+          error:"Bu hesap Google Play incelemesi içindir; gerçek sipariş veya ödeme yapılamaz."
+        });
+      }
+      return next();
+    }catch(error){
+      console.error("Google review purchase guard",error);
+      return res.status(503).json({error:"İnceleme hesabı yetkisi doğrulanamadı."});
+    }
+  });
+
   registerMarketingRoutes(app,requireAdmin);
 
   // Fail closed: a newly approved B2B customer may hold a login cookie or
