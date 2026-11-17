@@ -69,7 +69,7 @@ export async function queueMarketingWelcome(userId:number){
     "SELECT u.id,'welcome',regexp_replace(u.phone,'[^0-9]','','g') FROM users u",
     "JOIN b2b_wa_marketing_consent c ON c.user_id=u.id",
     "WHERE u.id=$1 AND u.role='b2b_customer' AND u.application_status='pending'",
-    "AND c.opted_in=TRUE AND u.company_name <> 'Çalışkan B2B - Apple İnceleme'",
+    "AND c.opted_in=TRUE AND u.company_name NOT IN ('Çalışkan B2B - Apple İnceleme','Çalışkan B2B - Google Play İnceleme')",
     "ON CONFLICT DO NOTHING"
   ].join(" "),[userId]);
 }
@@ -270,7 +270,7 @@ export function registerMarketingRoutes(app:Express,requireAdmin:RequestHandler)
           "SELECT DISTINCT ON (regexp_replace(u.phone,'[^0-9]','','g')) $1,u.id,'campaign',regexp_replace(u.phone,'[^0-9]','','g')",
           "FROM users u JOIN b2b_wa_marketing_consent c ON c.user_id=u.id",
           "WHERE u.role='b2b_customer' AND c.opted_in=TRUE",
-          "AND u.company_name <> 'Çalışkan B2B - Apple İnceleme'",
+          "AND u.company_name NOT IN ('Çalışkan B2B - Apple İnceleme','Çalışkan B2B - Google Play İnceleme')",
           "AND regexp_replace(coalesce(u.phone,''),'[^0-9]','','g') ~ '^905[0-9]{9}$'",
           "AND ($2='all' OR u.application_status=$2)",
           "ORDER BY regexp_replace(u.phone,'[^0-9]','','g'),u.id DESC",
