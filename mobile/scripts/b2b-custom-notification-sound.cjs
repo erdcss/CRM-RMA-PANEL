@@ -57,10 +57,16 @@ async function syncB2BCustomSound({ api, assetsDir, expo, fetchWithRetry, requir
   validateWav(bytes);
   fs.mkdirSync(assetsDir, { recursive: true });
   fs.writeFileSync(path.join(assetsDir, SOUND_NAME), bytes);
+  // Android resource names cannot contain hyphens. Keep the original iOS
+  // filename to preserve existing TestFlight and Apple notification behavior.
+  const isAndroid = process.env.B2B_ANDROID_BUILD === "1" ||
+    process.env.EAS_BUILD_PLATFORM === "android";
+  const androidSoundName = "b2b_custom.wav";
+  if (isAndroid) fs.writeFileSync(path.join(assetsDir, androidSoundName), bytes);
   expo.plugins = (expo.plugins || []).filter(p =>
     !(typeof p === "string" ? p === "expo-notifications" :
       Array.isArray(p) && p[0] === "expo-notifications"));
-  expo.plugins.push(["expo-notifications", { sounds: [SOUND_PATH] }]);
+  expo.plugins.push(["expo-notifications", { sounds: [isAndroid ? "./assets/b2b_custom.wav" : SOUND_PATH] }]);
   console.log("[b2b-sound] iOS/Android native bildirim sesi eklendi:", SOUND_NAME, bytes.length, "bytes");
   return { included: true, bytes: bytes.length };
 }
