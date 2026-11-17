@@ -41,6 +41,18 @@ test("valid 16 bit mono WAV is installed into native Expo plugin",async t=>{
   assert.deepEqual(expo.plugins.at(-1),["expo-notifications",{sounds:["./assets/b2b-custom.wav"]}]);
   assert.equal(expo.plugins.filter(p=>Array.isArray(p)&&p[0]==="expo-notifications").length,1);
 });
+test("Android custom sound uses valid underscore resource name without changing iOS",async t=>{
+  const before=process.env.B2B_ANDROID_BUILD;
+  process.env.B2B_ANDROID_BUILD="1";
+  t.after(()=>{if(before===undefined)delete process.env.B2B_ANDROID_BUILD;
+    else process.env.B2B_ANDROID_BUILD=before;});
+  const dir=sandbox(t),bytes=wav(),expo={plugins:[]};
+  await syncB2BCustomSound({api:"https://admin.example",assetsDir:dir,expo,
+    fetchWithRetry:async()=>response(200,bytes)});
+  assert.deepEqual(fs.readFileSync(path.join(dir,"b2b_custom.wav")),bytes);
+  assert.deepEqual(fs.readFileSync(path.join(dir,"b2b-custom.wav")),bytes);
+  assert.deepEqual(expo.plugins.at(-1),["expo-notifications",{sounds:["./assets/b2b_custom.wav"]}]);
+});
 test("missing custom sound stops a release instead of silently defaulting",async t=>{
   const dir=sandbox(t);
   await assert.rejects(syncB2BCustomSound({
