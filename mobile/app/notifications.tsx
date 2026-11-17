@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
@@ -83,7 +83,20 @@ export default function NotificationsScreen() {
         <Ionicons name="notifications-outline" size={24} color={palette.accent}/>
       </Pressable>
     </View>
-    {user?.id ? <View style={{marginHorizontal:16,marginTop:8,marginBottom:5,padding:14,borderRadius:14,borderWidth:1,borderColor:palette.border,backgroundColor:palette.surface}}>
+    {Platform.OS === 'android' ? <View style={{marginHorizontal:16,marginTop:8,marginBottom:5,padding:14,borderRadius:14,borderWidth:1,borderColor:palette.border,backgroundColor:palette.surface}}>
+      <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+        <Ionicons name="notifications-outline" size={21} color={palette.accent}/>
+        <Text style={{color:palette.text,fontSize:15,fontWeight:'800',flex:1}}>Sipariş ve stok bildirimleri</Text>
+      </View>
+      <Text style={{color:palette.textSecondary,fontSize:12,lineHeight:18,marginTop:8}}>
+        Siparişler, stok güncellemeleri ve hesap hareketleri için bildirim alabilirsiniz. Android sürümünde arka plan konum takibi kullanılmaz.
+      </Text>
+      <Pressable accessibilityRole="button" disabled={pushRegistering} onPress={()=>void register()}
+        style={{marginTop:12,borderRadius:10,paddingVertical:12,paddingHorizontal:13,alignItems:'center',backgroundColor:palette.accent,opacity:pushRegistering?0.5:1}}>
+        <Text style={{color:'#FFFFFF',fontWeight:'800'}}>{pushRegistering?'Kontrol ediliyor...':'Bildirimleri etkinleştir'}</Text>
+      </Pressable>
+    </View> : null}
+    {Platform.OS === 'ios' && user?.id ? <View style={{marginHorizontal:16,marginTop:8,marginBottom:5,padding:14,borderRadius:14,borderWidth:1,borderColor:palette.border,backgroundColor:palette.surface}}>
       <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
         <Ionicons name="location-outline" size={21} color={palette.accent}/>
         <Text style={{color:palette.text,fontSize:15,fontWeight:'800',flex:1}}>Mağaza yakınlık bildirimleri</Text>
