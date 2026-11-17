@@ -26,6 +26,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EAS_NO_VCS: "1"
       CI: "1"
+      B2B_ANDROID_BUILD: "1"
     steps:
       - uses: actions/checkout@v4
         with:
