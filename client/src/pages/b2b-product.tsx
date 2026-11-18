@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type TouchEvent } from "react";
-import { trackProductView, trackCustomerProductVisit, trackCustomerProductDuration } from "@/lib/analytics";
-import { trackMetaEvent } from "@/lib/meta-pixel";
+import { trackProductView, trackMetaProductView, trackCustomerProductVisit, trackCustomerProductDuration } from "@/lib/analytics";
+import { metaConsent, trackMetaEvent } from "@/lib/meta-pixel";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { ArrowLeft, BadgeCheck, Bell, Boxes, ChevronLeft, ChevronRight, CreditCard, Minus, Package, PackageX, Plus, ShieldCheck, ShoppingBag, Store, Truck, Warehouse } from "lucide-react";
@@ -62,6 +62,13 @@ export default function B2BProductPage() {
   const [imageIndex,setImageIndex] = useState(0);
   const swipeStart = useRef<{ x:number; y:number } | null>(null);
   const arrivalsRailRef = useRef<HTMLDivElement>(null);
+  const lastMetaViewedProduct = useRef<string | null>(null);
+  const [metaConsentRevision, setMetaConsentRevision] = useState(0);
+  useEffect(() => {
+    const refresh = () => setMetaConsentRevision(value => value + 1);
+    window.addEventListener("caliskan-meta-consent-change",refresh);
+    return () => window.removeEventListener("caliskan-meta-consent-change",refresh);
+  }, []);
   useEffect(()=>setImageIndex(0),[id]);
   useEffect(()=>{if(!added)return;const t=window.setTimeout(()=>setAdded(false),2400);return ()=>window.clearTimeout(t);},[added]);
 
@@ -119,8 +126,18 @@ export default function B2BProductPage() {
   }, [ownProducts, supplierProducts, id]);
 
   useEffect(() => {
-    if (product?.id) void trackProductView(product.id, product.name, Number(product.price || 0));
-  }, [product?.id, product?.name, product?.price]);
+    if (product?.id) void trackProductView(product.id, product.name);
+  }, [product?.id, product?.name]);
+
+  // A product opened before the visitor accepts advertising cookies must
+  // still send its first ViewContent after that explicit consent is granted.
+  useEffect(() => {
+    if (!product?.id || metaConsent() !== "granted") return;
+    const key = String(product.id);
+    if (lastMetaViewedProduct.current === key) return;
+    const sentId = trackMetaProductView(product.id, product.name, Number(product.price || 0));
+    if (sentId) lastMetaViewedProduct.current = key;
+  }, [product?.id, product?.name, product?.price, metaConsentRevision]);
 
   useEffect(() => {
     if (!loggedIn || !product?.id) return;
