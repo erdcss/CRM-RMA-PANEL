@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/queryClient";
+import { normalizedB2BMobile, registrationStepReadiness } from "@/lib/b2b-registration-progress";
 
 const COMPANY_CATEGORIES = [
   "Elektrik & Elektronik",
@@ -101,16 +102,11 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [whatsAppMarketingOptIn,setWhatsAppMarketingOptIn] = useState(false);
   const [visibleStage, setVisibleStage] = useState(0);
   const reduceMotion = Boolean(useReducedMotion());
-  const normalizedPhone = phone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, "");
-  const stageReady = [
-    companyName.trim().length >= 2,
-    firstName.trim().length >= 2,
-    lastName.trim().length >= 2,
-    /^\S+@\S+\.\S+$/.test(email.trim()),
-    /^5\d{9}$/.test(normalizedPhone),
-    Boolean(companyCategory),
-    taxNumber.length === 10 && taxValid && !taxChecking,
-  ];
+  const normalizedPhone = normalizedB2BMobile(phone);
+  const stageReady = registrationStepReadiness({
+    companyName, firstName, lastName, email, phone,
+    companyCategory, taxNumber, taxValid, taxChecking,
+  });
 
   // Only reveal the next field after the current one is complete.
   // Once visible, previous inputs stay editable even if the user revises one.
@@ -208,7 +204,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
     event.preventDefault();
     setError("");
 
-    if (!/^5\d{9}$/.test(phone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, ""))) {
+    if (!/^5\d{9}$/.test(normalizedPhone)) {
       setError("Geçerli 10 haneli cep telefonu numarası girin");
       return;
     }
