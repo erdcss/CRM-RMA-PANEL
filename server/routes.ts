@@ -421,7 +421,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
   }
 
   const result = await pool.query(
-    `SELECT id, sku, name, category, price, stock, min_order_qty, units_per_box,
+    `SELECT id, sku, name, category, COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price, stock, min_order_qty, units_per_box,
             image_data, images
      FROM b2b_products
      WHERE id::text = $1
@@ -3741,7 +3741,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           sku,
           name,
           category,
-          price,
+          COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price,
+          CASE WHEN campaign_price > 0 AND campaign_price < price THEN price ELSE NULL END AS original_price,
           stock,
           min_order_qty,
           units_per_box,
@@ -3758,6 +3759,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.rows.map((row) => ({
           ...row,
           price: priceVisible ? row.price : null,
+          original_price: priceVisible ? row.original_price : null,
         })),
       );
     } catch (error: any) {
@@ -3836,7 +3838,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           brand,
           category,
           description,
-          price,
+          COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price,
+          CASE WHEN campaign_price > 0 AND campaign_price < price THEN price ELSE NULL END AS original_price,
           stock,
           min_order_qty,
           units_per_box,
@@ -3859,6 +3862,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json({
         ...result.rows[0],
         price: priceVisible ? result.rows[0].price : null,
+        original_price: priceVisible ? result.rows[0].original_price : null,
       });
     } catch (error: any) {
       if (error?.code === "42P01") {
