@@ -11,6 +11,7 @@ import { B2BProductRail } from "@/components/b2b-product-rail";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
+import { splitHomepageProducts, nextHomepageArrivalExpiry } from "@/lib/b2b-homepage-products";
 import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
 
 type SessionUser = {
@@ -41,6 +42,7 @@ async function loadVerifiedStores(): Promise<VerifiedStore[]> {
 
 export default function B2BStorefront() {
   const [query, setQuery] = useState("");
+  const [catalogNow, setCatalogNow] = useState(() => Date.now());
   const { data: session } = useQuery({
     queryKey: ["/api/auth/me"],
     queryFn: loadSession,
@@ -68,6 +70,26 @@ export default function B2BStorefront() {
   });
   const products = useMemo(() => [...supplierProducts, ...ownProducts], [supplierProducts, ownProducts]);
   const isLoading = loadingOwn || loadingSuppliers;
+  // Move newly-added products to wholesale exactly after their 24-hour window,
+  // even while the homepage remains open.
+  useEffect(() => {
+    const deadline = nextHomepageArrivalExpiry(products, catalogNow);
+    if (deadline === null) return;
+    const timer = window.setTimeout(
+      () => setCatalogNow(Date.now()),
+      Math.max(1, deadline - Date.now() + 1),
+    );
+    return () => window.clearTimeout(timer);
+  }, [products, catalogNow]);
+  useEffect(() => {
+    const recheck = () => { if (!document.hidden) setCatalogNow(Date.now()); };
+    window.addEventListener("focus", recheck);
+    document.addEventListener("visibilitychange", recheck);
+    return () => {
+      window.removeEventListener("focus", recheck);
+      document.removeEventListener("visibilitychange", recheck);
+    };
+  }, []);
 
   const { data: homepage = { categories: [] } } = useQuery<B2BHomepageCategories>({
     queryKey: ["/api/public/homepage"],
@@ -97,6 +119,11 @@ export default function B2BStorefront() {
       return matchesSearch;
     });
   }, [products, query]);
+
+  const { newArrivals, wholesale } = useMemo(
+    () => splitHomepageProducts(filtered, catalogNow),
+    [filtered, catalogNow],
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -178,6 +205,31 @@ export default function B2BStorefront() {
           </div>
         </div>
 
+        <section className="mb-9 scroll-mt-24" id="yeni-gelenler" aria-labelledby="new-arrivals-title">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true"/>
+                <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-700">Son 24 saat</span>
+              </div>
+              <h2 id="new-arrivals-title" className="text-xl font-bold">Yeni Gelen Ürünler</h2>
+              <p className="mt-1 text-sm text-slate-500">Kataloğumuza son 24 saatte eklenen ürünler</p>
+            </div>
+            {!isLoading && newArrivals.length > 0 ? (
+              <span className="text-sm text-slate-500">{newArrivals.length} yeni ürün</span>
+            ) : null}
+          </div>
+          {isLoading ? (
+            <div className="rounded-2xl border bg-white p-6 text-center text-sm text-slate-500">Yeni gelen ürünler yükleniyor…</div>
+          ) : newArrivals.length > 0 ? (
+            <B2BProductRail products={newArrivals} loggedIn={loggedIn} title="Yeni Gelen Ürünler" />
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-500">
+              {query.trim() ? "Aramanızla eşleşen yeni ürün bulunmuyor." : "Son 24 saatte eklenen yeni ürün bulunmuyor."}
+            </div>
+          )}
+        </section>
+
         {verifiedStores.length > 0 ? (
           <section className="mb-9" aria-label="Onaylı tedarikçi mağazaları">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -208,22 +260,22 @@ export default function B2BStorefront() {
             <h2 className="text-xl font-bold">Toptan Ürünler</h2>
             <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ve onaylı tedarikçi ürünleri</p>
           </div>
-          {!isLoading && products.length > 0 ? (
-            <div className="text-sm text-slate-500">{filtered.length} ürün</div>
+          {!isLoading && wholesale.length > 0 ? (
+            <div className="text-sm text-slate-500">{wholesale.length} ürün</div>
           ) : null}
         </div>
 
         {isLoading ? (
           <div className="rounded-2xl border bg-white p-10 text-center text-slate-500">Ürünler yükleniyor…</div>
-        ) : filtered.length === 0 ? (
+        ) : wholesale.length === 0 ? (
           <div className="rounded-2xl border bg-white p-10 text-center">
             <Package className="mx-auto h-10 w-10 text-slate-300" />
-            <h3 className="mt-3 font-semibold">Ürün kataloğu hazırlanıyor</h3>
-            <p className="mt-1 text-sm text-slate-500">Yeni ürünler eklendiğinde burada görüntülenecek.</p>
+            <h3 className="mt-3 font-semibold">Toptan ürün bulunamadı</h3>
+            <p className="mt-1 text-sm text-slate-500">Yeni gelen ürünler yukarıdaki ayrı bölümde listelenir.</p>
           </div>
         ) : (
           <div>
-            <B2BProductRail products={filtered} loggedIn={loggedIn} title="Toptan Ürünler" />
+            <B2BProductRail products={wholesale} loggedIn={loggedIn} title="Toptan Ürünler" />
           </div>
         )}
       </main>
