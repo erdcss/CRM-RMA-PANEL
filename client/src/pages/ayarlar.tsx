@@ -302,7 +302,7 @@ export default function Ayarlar() {
                   <Input inputMode="numeric" pattern="[0-9]*" value={metaValues.pixelId}
                     onChange={event=>setMetaDraft(current=>({...current,pixelId:event.target.value.replace(/[^0-9]/g,"")}))}
                     placeholder="Sayısal Pixel ID"/>
-                  <p className="text-xs text-muted-foreground">26 Ekim 2026 tarihli Meta Pixel kurulum e-postasında yer alan ID varsayılan olarak tanımlandı. Gerekirse burada güncelleyin.</p>
+                  <p className="text-xs text-muted-foreground">Meta Events Manager ekranında seçili Çalışkan B2B web Pixel ID: 949840147857568. Web olayları yalnızca bu alanda kayıtlı veri setine gider. Farklı ID girerseniz olaylar o veri setine yönlendirilir.</p>
                 </label>
                 <div className="rounded-xl border border-slate-200 bg-muted/30 px-4 py-3 text-sm">
                   <strong>Conversions API bağlantısı:</strong> {metaSettings.capiConfigured
@@ -312,7 +312,7 @@ export default function Ayarlar() {
                 <p className="text-xs leading-5 text-muted-foreground">
                   Conversions API için ayrıca güvenli bir Meta erişim belirteci ve uygulama olayları için
                   iOS/Android Meta App ID gerekir. Bu gizli bilgiler burada yayınlanmaz.
-                  Kurulumun etkinliğini Meta Events Manager → Test Events ekranında doğrulayın.
+                  Web Pixel kurulumunu Meta Events Manager → Test Events ekranında doğrulayın. “Facebook SDK güncelleyin” uyarısı ayrı bir iOS/Android uygulama ayarıdır; bu web Pixel alanını değiştirerek kalkmaz.
                 </p>
                 <Button disabled={savingMeta} onClick={()=>void saveMetaTracking()}>
                   <Save className="mr-2 h-4 w-4"/>{savingMeta?"Kaydediliyor…":"Meta Ayarlarını Kaydet"}
