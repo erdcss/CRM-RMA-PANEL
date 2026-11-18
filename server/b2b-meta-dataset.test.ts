@@ -9,7 +9,7 @@ test("migrated dataset matches provided Meta Pixel without silently turning trac
   assert.deepEqual(requestedMetaTrackingConfig('{"enabled":true,"pixelId":"949840147857568"}'),
     {enabled:true,pixelId:CALISKAN_META_PIXEL_ID});
   assert.deepEqual(requestedMetaTrackingConfig("malformed"),{enabled:true,pixelId:CALISKAN_META_PIXEL_ID});
-  assert.equal(CALISKAN_META_PIXEL_ID,"1496993098956595");
+  assert.equal(CALISKAN_META_PIXEL_ID,"949840147857568");
 });
 
 function mockDb(initial:unknown,applied=false){
@@ -39,7 +39,8 @@ function mockDb(initial:unknown,applied=false){
 }
 
 test("existing disabled Pixel is swapped once and remains disabled",async()=>{
-  const db=mockDb({enabled:false,pixelId:"949840147857568"});
+  const db=mockDb({enabled:false,pixelId:"1496993098956595"});
+  db.store.set("b2b_meta_dataset_1496993098956595_activated_v1","applied");
   assert.equal(await activateCaliskanMetaDataset(db.pool),true);
   assert.deepEqual(JSON.parse(db.store.get("b2b_meta_tracking")||"{}"),{enabled:false,pixelId:CALISKAN_META_PIXEL_ID});
   assert.equal(db.store.get(DATASET_ACTIVATION_MARKER),"applied");
