@@ -77,7 +77,7 @@ function productLine(row: CatalogRow): string[] | null {
 }
 
 const OWN_PRODUCTS = [
-  "SELECT id::text AS id, sku, name, brand, category, description, price, stock,",
+  "SELECT id::text AS id, sku, name, brand, category, description, COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price, stock,",
   "min_order_qty, units_per_box, barcode,",
   "CASE",
   "WHEN image_data ~ '^data:image/(png|jpeg|webp|gif);base64,'",
