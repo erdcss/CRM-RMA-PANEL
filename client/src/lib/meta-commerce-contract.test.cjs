@@ -33,3 +33,14 @@ test("Product views and AddToCart use the same product ID", () => {
   assert.match(product, /trackMetaEvent\("AddToCart"/);
   assert.match(product, /content_ids:\[String\(product\.id\)\]/);
 });
+
+test("Meta sends initial PageView once and leaves SPA navigation to Pixel history tracking", () => {
+  const consent = read("client/src/components/meta-pixel-consent.tsx");
+  assert.match(consent, /trackMetaPageView\(\);/);
+  assert.match(consent, /\},\[config\?\.enabled,config\?\.pixelId,consent\]\);/);
+  assert.doesNotMatch(consent, /\},\[location,config\?\.enabled,config\?\.pixelId,consent\]\);/);
+  // TikTok manages its own SPA routing and must not lose route tracking.
+  assert.match(consent, /\},\[location,tiktokChoice\]\);/);
+  const meta = read("client/src/lib/meta-pixel.ts");
+  assert.match(meta, /return trackMetaEvent\("PageView"\);/);
+});

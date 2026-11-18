@@ -52,11 +52,15 @@ export function B2BMetaPixelConsent(){
       window.removeEventListener("caliskan-meta-open-consent",open);
     };
   },[]);
+  // Send the initial (or newly consented) PageView once. The Meta SDK already
+  // tracks SPA history.pushState/replaceState navigations; re-emitting PageView
+  // on each Wouter location change creates duplicate events with different IDs.
+  // Keep location-based tracking for TikTok below, which has its own logic.
   useEffect(()=>{
     if(config?.enabled&&consent==="granted"&&initMetaPixel(config.pixelId)){
       trackMetaPageView();
     }
-  },[location,config?.enabled,config?.pixelId,consent]);
+  },[config?.enabled,config?.pixelId,consent]);
   useEffect(()=>{
     if(tiktokChoice==="granted"&&initTiktokPixel(B2B_TIKTOK_PIXEL_ID)){
       trackTiktokPageView();
