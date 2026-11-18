@@ -1,0 +1,44 @@
+name: B2B Yeni Gelenler ve Animasyonlu Kayıt QA
+on:
+  pull_request:
+    paths:
+      - 'client/src/pages/b2b-storefront.tsx'
+      - 'client/src/pages/b2b-register.tsx'
+      - 'client/src/components/b2b-registration-form.tsx'
+      - 'client/src/lib/b2b-homepage-products.ts'
+      - 'client/src/lib/b2b-homepage-products.test.ts'
+      - 'client/src/lib/b2b-registration-progress.ts'
+      - 'client/src/lib/b2b-registration-progress.test.ts'
+      - '.github/workflows/b2b-home-arrivals-registration-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'client/src/pages/b2b-storefront.tsx'
+      - 'client/src/pages/b2b-register.tsx'
+      - 'client/src/components/b2b-registration-form.tsx'
+      - 'client/src/lib/b2b-homepage-products.ts'
+      - 'client/src/lib/b2b-homepage-products.test.ts'
+      - 'client/src/lib/b2b-registration-progress.ts'
+      - 'client/src/lib/b2b-registration-progress.test.ts'
+      - '.github/workflows/b2b-home-arrivals-registration-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Homepage section / stock priority and form step tests
+        run: npx tsx --test client/src/lib/b2b-homepage-products.test.ts client/src/lib/b2b-registration-progress.test.ts client/src/lib/b2b-new-arrivals.test.ts
+      - name: Check web and server types
+        run: npm run check
+      - name: Build production web
+        run: npm run build
