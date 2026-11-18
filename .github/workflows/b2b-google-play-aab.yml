@@ -105,6 +105,19 @@ jobs:
           test -s "$RUNNER_TEMP/caliskan-b2b-google-play.aab"
           unzip -t "$RUNNER_TEMP/caliskan-b2b-google-play.aab" > /dev/null
           unzip -Z1 "$RUNNER_TEMP/caliskan-b2b-google-play.aab" | grep -Fxq 'base/manifest/AndroidManifest.xml'
+          unzip -p "$RUNNER_TEMP/caliskan-b2b-google-play.aab" base/manifest/AndroidManifest.xml > "$RUNNER_TEMP/b2b-final-manifest.bin"
+          for forbidden in \
+            'com.google.android.gms.permission.AD_ID' \
+            'android.permission.ACCESS_ADSERVICES_AD_ID' \
+            'android.permission.ACCESS_BACKGROUND_LOCATION' \
+            'android.permission.ACCESS_COARSE_LOCATION' \
+            'android.permission.ACCESS_FINE_LOCATION'; do
+            if grep -aFq "$forbidden" "$RUNNER_TEMP/b2b-final-manifest.bin"; then
+              echo "::error title=İzin hatası::AAB AndroidManifest.xml içinde yasak izin bulundu: $forbidden"
+              exit 1
+            fi
+          done
+          echo "Android final AAB konum ve reklam kimliği izinleri içermez."
           echo "AAB_READY=true" >> "$GITHUB_OUTPUT"
           {
             echo "### Çalışkan B2B Android Google Play"
