@@ -10,7 +10,7 @@ let scriptAdded=false;
 let lastPageViewKey="";
 let lastPageViewAt=0;
 const pendingEvents:Array<{name:string;data:Record<string,unknown>;eventId:string}>=[];
-const allowedEvents=new Set(["PageView","ViewContent","Search","AddToCart","InitiateCheckout","Purchase","CompleteRegistration"]);
+const allowedEvents=new Set(["PageView","ViewContent","Search","AddToCart","InitiateCheckout","Purchase","Lead","CompleteRegistration"]);
 
 export function metaConsent(): "granted"|"denied"|null {
   try {
