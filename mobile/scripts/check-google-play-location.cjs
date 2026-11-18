@@ -4,8 +4,12 @@
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const expo=require('../app.json').expo;
-const required=['ACCESS_BACKGROUND_LOCATION','ACCESS_COARSE_LOCATION','ACCESS_FINE_LOCATION']
- .map(name=>'android.permission.'+name);
+const required=[
+  ...['ACCESS_BACKGROUND_LOCATION','ACCESS_COARSE_LOCATION','ACCESS_FINE_LOCATION']
+    .map(name=>'android.permission.'+name),
+  'com.google.android.gms.permission.AD_ID',
+  'android.permission.ACCESS_ADSERVICES_AD_ID',
+];
 const plugin=expo.plugins.find(p=>Array.isArray(p)&&p[0]==='expo-location')?.[1];
 assert(plugin,'expo-location plugin is absent');
 assert.equal(plugin.isAndroidBackgroundLocationEnabled,false);
@@ -28,4 +32,4 @@ for(const name of required){
   assert(tags.some(tag=>tag.includes('"'+name+'"')&&/tools:node\s*=\s*["']remove["']/.test(tag)),
     'Android manifest must exclude permission: '+name);
 }
-console.log('Android location permissions blocked; iOS background location preserved.');
+console.log('Android location and ad ID permissions blocked; iOS background location preserved.');
