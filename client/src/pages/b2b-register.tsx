@@ -23,7 +23,7 @@ export default function B2BRegister() {
             initial={reduceMotion ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.45, ease: "easeOut" }}
-            className="min-w-0 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_16px_45px_-27px_rgba(15,23,42,.38)] sm:rounded-[28px]"
+            className="h-fit min-w-0 self-start overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_16px_45px_-27px_rgba(15,23,42,.38)] sm:rounded-[28px]"
             aria-labelledby="registration-heading">
             <div className="border-b border-slate-100 px-5 pb-5 pt-6 sm:px-8 sm:pt-8">
               <div className="mb-5 flex items-center justify-between gap-3">

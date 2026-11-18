@@ -1,0 +1,35 @@
+name: B2B Registration Card Bottom Radius Check
+on:
+  pull_request:
+    paths:
+      - 'client/src/components/b2b-registration-form.tsx'
+      - 'client/src/pages/b2b-register.tsx'
+      - 'client/src/components/b2b-registration-spacing.test.cjs'
+      - '.github/workflows/b2b-register-card-layout-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'client/src/components/b2b-registration-form.tsx'
+      - 'client/src/pages/b2b-register.tsx'
+      - 'client/src/components/b2b-registration-spacing.test.cjs'
+      - '.github/workflows/b2b-register-card-layout-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Registration card bottom spacing regression
+        run: node --test client/src/components/b2b-registration-spacing.test.cjs
+      - name: TypeScript
+        run: npm run check
+      - name: Build
+        run: npm run build
