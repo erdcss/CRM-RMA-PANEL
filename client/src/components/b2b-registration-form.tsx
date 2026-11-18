@@ -60,11 +60,12 @@ type B2BRegistrationFormProps = {
 };
 
 function AnimatedRegistrationField({
-  show, children, reduceMotion,
+  show, children, reduceMotion, isLastVisible = false,
 }: {
   show: boolean;
   children: ReactNode;
   reduceMotion: boolean;
+  isLastVisible?: boolean;
 }) {
   return (
     <AnimatePresence initial={false}>
@@ -76,7 +77,7 @@ function AnimatedRegistrationField({
           transition={{ duration: reduceMotion ? 0 : 0.32, ease: "easeOut" }}
           className="min-w-0 overflow-hidden"
         >
-          <div className="pb-4">{children}</div>
+          <div className={isLastVisible ? "pb-0" : "pb-3 sm:pb-4"}>{children}</div>
         </motion.div>
       ) : null}
     </AnimatePresence>
@@ -255,7 +256,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   }
 
   return (
-    <form onSubmit={submit} className="px-5 pb-7 sm:px-8 sm:pb-9" aria-label="Firma hesabı başvuru formu">
+    <form onSubmit={submit} className="px-5 pb-4 sm:px-8 sm:pb-5" aria-label="Firma hesabı başvuru formu">
       <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4">
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <span className="text-xs font-bold text-slate-700">Başvuru bilgileri</span>
@@ -276,7 +277,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
       </div>
 
       <div className="space-y-0">
-        <AnimatedRegistrationField show={visibleStage >= 0} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 0} isLastVisible={visibleStage === 0} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-company" className="font-semibold text-slate-800">Firma ismi</Label>
             <div className="relative">
@@ -289,7 +290,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 1} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 1} isLastVisible={visibleStage === 1} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-first-name" className="font-semibold text-slate-800">İsim</Label>
             <div className="relative">
@@ -301,7 +302,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 2} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 2} isLastVisible={visibleStage === 2} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-last-name" className="font-semibold text-slate-800">Soy isim</Label>
             <div className="relative">
@@ -313,7 +314,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 3} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 3} isLastVisible={visibleStage === 3} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-email" className="font-semibold text-slate-800">E-posta adresi</Label>
             <div className="relative">
@@ -326,7 +327,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 4} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 4} isLastVisible={visibleStage === 4} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-phone" className="font-semibold text-slate-800">Cep telefonu</Label>
             <div className="relative">
@@ -340,7 +341,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 5} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 5} isLastVisible={visibleStage === 5} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-category" className="font-semibold text-slate-800">Firma kategorisi</Label>
             <select id="register-category" value={companyCategory}
@@ -355,7 +356,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 6} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 6} isLastVisible={visibleStage === 6} reduceMotion={reduceMotion}>
           <div className="space-y-2">
             <Label htmlFor="register-tax-number" className="font-semibold text-slate-800">Vergi numarası</Label>
             <div className="relative">
@@ -373,7 +374,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
           </div>
         </AnimatedRegistrationField>
 
-        <AnimatedRegistrationField show={visibleStage >= 7} reduceMotion={reduceMotion}>
+        <AnimatedRegistrationField show={visibleStage >= 7} isLastVisible={visibleStage === 7} reduceMotion={reduceMotion}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="register-tax-office" className="font-semibold text-slate-800">Vergi dairesi</Label>
