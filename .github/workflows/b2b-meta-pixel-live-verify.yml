@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/b2b-meta-pixel-live-verify.yml'
+      - 'server/b2b-meta-dataset.ts'
   workflow_dispatch:
 jobs:
   verify:
@@ -12,7 +13,7 @@ jobs:
     steps:
       - name: Verify public Pixel config after Railway deployment
         env:
-          EXPECTED_PIXEL_ID: '1496993098956595'
+          EXPECTED_PIXEL_ID: '949840147857568'
         run: |
           node <<'NODE'
           const targets=[

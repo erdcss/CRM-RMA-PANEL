@@ -3,8 +3,9 @@ import type {Pool} from "pg";
 /** The Meta dataset / browser Pixel ID supplied by the business owner.
  * This is PUBLIC metadata, not a Conversions API access token.
  */
-export const CALISKAN_META_PIXEL_ID="1496993098956595";
-export const DATASET_ACTIVATION_MARKER="b2b_meta_dataset_1496993098956595_activated_v1";
+export const CALISKAN_META_PIXEL_ID="949840147857568";
+// New marker triggers a one-time correction even if the previous dataset was activated.
+export const DATASET_ACTIVATION_MARKER="b2b_meta_dataset_949840147857568_activated_v2";
 
 export function requestedMetaTrackingConfig(previous:unknown):{enabled:boolean;pixelId:string}{
   let parsed:unknown=previous;

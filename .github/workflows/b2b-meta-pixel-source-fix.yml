@@ -1,0 +1,39 @@
+name: B2B Meta Pixel Source and Consent Fix
+on:
+  pull_request:
+    paths:
+      - 'server/b2b-meta-dataset.ts'
+      - 'server/b2b-meta-dataset.test.ts'
+      - 'client/src/pages/b2b-product.tsx'
+      - 'client/src/lib/analytics.ts'
+      - 'client/src/pages/ayarlar.tsx'
+      - '.github/workflows/b2b-meta-pixel-source-fix.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/b2b-meta-dataset.ts'
+      - 'server/b2b-meta-dataset.test.ts'
+      - 'client/src/pages/b2b-product.tsx'
+      - 'client/src/lib/analytics.ts'
+      - 'client/src/pages/ayarlar.tsx'
+      - '.github/workflows/b2b-meta-pixel-source-fix.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Pixel source migration and cookie consent regression
+        run: npx tsx --test server/b2b-meta-dataset.test.ts && node --test client/src/components/b2b-cookie-consent.test.cjs
+      - name: Web and server TypeScript
+        run: npm run check
+      - name: Production build
+        run: npm run build

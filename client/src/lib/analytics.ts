@@ -41,15 +41,21 @@ export function trackSearch(query: string) {
   return post("/api/analytics/search", { visitorId: getVisitorId(), query: clean });
 }
 
-export function trackProductView(productId: string | number, name?: string | null, price?: number | null) {
+/** Optional Meta event, kept separate so consent granted mid-page can fire the first view. */
+export function trackMetaProductView(productId: string | number, name?: string | null, price?: number | null) {
   if (typeof window === "undefined") return;
   const value=Number(price);
-  trackMetaEvent("ViewContent",{
+  return trackMetaEvent("ViewContent",{
     content_ids:[String(productId)],content_type:"product",
     content_name:String(name||"").slice(0,120),
     currency:"TRY",
     ...(Number.isFinite(value)&&value>0?{value}:{}),
   });
+}
+
+/** First-party product view is independent of the optional advertising consent. */
+export function trackProductView(productId: string | number, name?: string | null) {
+  if (typeof window === "undefined") return;
   return post("/api/analytics/product-view", {
     visitorId: getVisitorId(),
     productId,
