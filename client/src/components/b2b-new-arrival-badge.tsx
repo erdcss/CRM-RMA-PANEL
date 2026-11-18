@@ -29,7 +29,7 @@ export function B2BNewArrivalBadge({ createdAt, size = "card" }: Props) {
     <span
       role="status"
       aria-label="Yeni geldi: Son 24 saat içinde eklenen ürün"
-      className={`pointer-events-none absolute left-2 top-2 z-20 inline-flex max-w-[calc(100%-16px)] items-center overflow-hidden rounded-full shadow-sm sm:left-3 sm:top-3 ${detail ? "sm:shadow-md" : ""}`}
+      className={`pointer-events-none absolute left-2 top-2 z-20 inline-flex max-w-[calc(100%_-_16px)] items-center overflow-hidden rounded-full shadow-sm sm:left-3 sm:top-3 ${detail ? "sm:shadow-md" : ""}`}
     >
       <span className={`whitespace-nowrap bg-[#16a34a] font-extrabold tracking-wide text-white ${detail ? "px-2.5 py-1.5 text-[10px] sm:px-3.5 sm:py-2 sm:text-xs" : "px-2 py-1 text-[9px] sm:px-2.5 sm:py-1.5 sm:text-[10px]"}`}>
         YENİ GELDİ
