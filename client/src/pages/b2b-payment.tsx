@@ -353,8 +353,8 @@ export default function B2BPaymentPage() {
     if(result||!preview||checkoutEventSent.current||metaConsent()!=="granted")return;
     const id=trackMetaEvent("InitiateCheckout",{
       content_type:"product",
-      content_ids:preview.items.map(item=>String(item.product.sku||item.product.id)),
-      contents:preview.items.map(item=>({id:String(item.product.sku||item.product.id),quantity:item.quantity})),
+      content_ids:preview.items.map(item=>String(item.product.id)),
+      contents:preview.items.map(item=>({id:String(item.product.id),quantity:item.quantity})),
       currency:"TRY",
       value:Number(preview.total)||0,
       num_items:Number(preview.itemCount)||0

@@ -5,6 +5,9 @@ on:
       - 'client/src/pages/b2b-storefront.tsx'
       - 'client/src/pages/b2b-register.tsx'
       - 'client/src/components/b2b-registration-form.tsx'
+      - 'client/src/lib/meta-pixel.ts'
+      - 'client/src/pages/b2b-payment.tsx'
+      - 'client/src/lib/meta-commerce-contract.test.cjs'
       - 'client/src/lib/b2b-homepage-products.ts'
       - 'client/src/lib/b2b-homepage-products.test.ts'
       - 'client/src/lib/b2b-registration-progress.ts'
@@ -16,6 +19,9 @@ on:
       - 'client/src/pages/b2b-storefront.tsx'
       - 'client/src/pages/b2b-register.tsx'
       - 'client/src/components/b2b-registration-form.tsx'
+      - 'client/src/lib/meta-pixel.ts'
+      - 'client/src/pages/b2b-payment.tsx'
+      - 'client/src/lib/meta-commerce-contract.test.cjs'
       - 'client/src/lib/b2b-homepage-products.ts'
       - 'client/src/lib/b2b-homepage-products.test.ts'
       - 'client/src/lib/b2b-registration-progress.ts'
@@ -38,6 +44,8 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Homepage section / stock priority and form step tests
         run: npx tsx --test client/src/lib/b2b-homepage-products.test.ts client/src/lib/b2b-registration-progress.test.ts client/src/lib/b2b-new-arrivals.test.ts
+      - name: Verify Meta catalog conversion event contract
+        run: node --test client/src/lib/meta-commerce-contract.test.cjs
       - name: Check web and server types
         run: npm run check
       - name: Build production web
