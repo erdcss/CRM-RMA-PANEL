@@ -16,5 +16,8 @@ test("last revealed field never reserves a phantom trailing field gap",()=>{
 test("registration card keeps content-height and small bottom inset",()=>{
   assert.match(form,/className="px-5 pb-4 sm:px-8 sm:pb-5"/);
   assert.match(page,/className="h-fit min-w-0 self-start overflow-hidden rounded-\[24px\]/);
-  assert.doesNotMatch(page,/min-h-\[|h-screen|h-full/);
+  // min-h-screen is valid on the page background; only the form card must size to content.
+  const cardClasses = page.match(/className="h-fit min-w-0 self-start[^"]*"/)?.[0] || "";
+  assert.ok(cardClasses, "the form card must use intrinsic content height");
+  assert.doesNotMatch(cardClasses,/min-h-\[|h-screen|h-full/);
 });
