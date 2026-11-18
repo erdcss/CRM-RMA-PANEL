@@ -71,13 +71,13 @@ function AnimatedRegistrationField({
     <AnimatePresence initial={false}>
       {show ? (
         <motion.div
-          initial={reduceMotion ? false : { opacity: 0, height: 0, y: -12 }}
-          animate={{ opacity: 1, height: "auto", y: 0 }}
-          exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -8 }}
+          initial={reduceMotion ? false : { opacity: 0, height: 0, y: -12, overflow: "hidden" }}
+          animate={{ opacity: 1, height: "auto", y: 0, transitionEnd: { overflow: "visible" } }}
+          exit={reduceMotion ? undefined : { opacity: 0, height: 0, y: -8, overflow: "hidden" }}
           transition={{ duration: reduceMotion ? 0 : 0.32, ease: "easeOut" }}
-          className="min-w-0 overflow-hidden"
+          className="min-w-0"
         >
-          <div className={isLastVisible ? "pb-0" : "pb-3 sm:pb-4"}>{children}</div>
+          <div className={isLastVisible ? "px-1.5 pt-1.5 pb-2" : "px-1.5 pt-1.5 pb-4 sm:pb-5"}>{children}</div>
         </motion.div>
       ) : null}
     </AnimatePresence>
@@ -284,7 +284,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
               <Building2 className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <Input id="register-company" value={companyName}
                 onChange={event => setCompanyName(event.target.value)}
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-amber-400"
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400"
                 placeholder="Firma unvanı" autoComplete="organization" required />
             </div>
           </div>
@@ -297,7 +297,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
               <UserRound className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <Input id="register-first-name" value={firstName}
                 onChange={event => setFirstName(event.target.value)} autoComplete="given-name"
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-amber-400" required/>
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400" required/>
             </div>
           </div>
         </AnimatedRegistrationField>
@@ -309,7 +309,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
               <UserRound className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <Input id="register-last-name" value={lastName}
                 onChange={event => setLastName(event.target.value)} autoComplete="family-name"
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-amber-400" required/>
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400" required/>
             </div>
           </div>
         </AnimatedRegistrationField>
@@ -320,7 +320,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <Input id="register-email" type="email" autoComplete="email"
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-amber-400"
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400"
                 value={email} onChange={event => setEmail(event.target.value)}
                 placeholder="ornek@firma.com" required />
             </div>
@@ -335,7 +335,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
               <Input id="register-phone" type="tel" autoComplete="tel" inputMode="tel" required
                 value={phone} onChange={event => setPhone(event.target.value)}
                 placeholder="05XX XXX XX XX" maxLength={20}
-                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-amber-400"/>
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400"/>
             </div>
             <p className="text-xs text-slate-500">Türkiye cep telefonu: 5XX XXX XX XX</p>
           </div>
@@ -346,7 +346,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
             <Label htmlFor="register-category" className="font-semibold text-slate-800">Firma kategorisi</Label>
             <select id="register-category" value={companyCategory}
               onChange={event => setCompanyCategory(event.target.value)}
-              className="flex h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+              className="flex h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400"
               required>
               <option value="">Kategori seçin</option>
               {COMPANY_CATEGORIES.map(category =>
@@ -362,7 +362,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
             <div className="relative">
               <Input id="register-tax-number" inputMode="numeric" autoComplete="off"
                 value={taxNumber} onChange={event => setTaxNumber(event.target.value.replace(/\D/g, "").slice(0, 10))}
-                className="h-12 rounded-xl border-slate-200 bg-white pr-10 focus-visible:ring-amber-400"
+                className="h-12 rounded-xl border-slate-200 bg-white pr-10 focus-visible:ring-inset focus-visible:ring-offset-0 focus-visible:ring-amber-400"
                 placeholder="10 haneli vergi numarası" minLength={10} maxLength={10} required/>
               <span className="absolute right-3 top-1/2 -translate-y-1/2">
                 {taxChecking ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" aria-label="Sorgulanıyor" /> :
