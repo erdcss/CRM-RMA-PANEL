@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter } from "@/components/b2b-footer";
 import { B2BProductCard } from "@/components/b2b-product-card";
+import { B2BNewArrivalBadge } from "@/components/b2b-new-arrival-badge";
 import { useBranding } from "@/hooks/use-branding";
 import { addB2BCartItem, refreshB2BCart } from "@/lib/b2b-cart";
 import { useToast } from "@/hooks/use-toast";
@@ -196,7 +197,8 @@ export default function B2BProductPage() {
             aria-label="Ürün görsel galerisi">
             <div className="relative flex aspect-[5/4] w-full items-center justify-center overflow-hidden bg-white touch-pan-y"
               onTouchStart={onGalleryTouchStart} onTouchEnd={onGalleryTouchEnd}>
-              {currentImage ? (
+              <B2BNewArrivalBadge createdAt={product.created_at} size="detail" />
+               {currentImage ? (
                 <img key={currentImage}
                   src={currentImage}
                   alt={`${product.name || "Ürün"} - ${currentImageIndex+1}. görsel`}
