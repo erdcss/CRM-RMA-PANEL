@@ -1,0 +1,39 @@
+name: Çalışkan B2B Yeni Geldi 24 Saat Kontrolü
+on:
+  pull_request:
+    paths:
+      - "client/src/components/b2b-new-arrival-badge.tsx"
+      - "client/src/components/b2b-product-card.tsx"
+      - "client/src/pages/b2b-product.tsx"
+      - "client/src/lib/b2b-new-arrivals.ts"
+      - "client/src/lib/b2b-new-arrivals.test.ts"
+      - "server/routes.ts"
+      - ".github/workflows/b2b-new-arrivals-24h.yml"
+  push:
+    branches: [main]
+    paths:
+      - "client/src/components/b2b-new-arrival-badge.tsx"
+      - "client/src/components/b2b-product-card.tsx"
+      - "client/src/pages/b2b-product.tsx"
+      - "client/src/lib/b2b-new-arrivals.ts"
+      - "client/src/lib/b2b-new-arrivals.test.ts"
+      - "server/routes.ts"
+      - ".github/workflows/b2b-new-arrivals-24h.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify 24-hour arrival window
+        run: npx tsx --test client/src/lib/b2b-new-arrivals.test.ts
+      - name: Typecheck web and server
+        run: npm run check

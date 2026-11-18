@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { B2BNewArrivalBadge } from "@/components/b2b-new-arrival-badge";
 import { BadgeCheck, Ban, Package, PackageX } from "lucide-react";
 import { type UnifiedB2BProduct, unifiedProductHref } from "@/lib/b2b-marketplace-products";
 
@@ -36,6 +37,7 @@ export function B2BProductCard({
     >
       <article className="flex h-full min-w-0 flex-col">
         <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-slate-50">
+          <B2BNewArrivalBadge createdAt={product.created_at} size="card" />
           <div className={`flex h-full w-full items-center justify-center ${
             cannotOrder ? "opacity-50 grayscale-[40%]" : ""
           }`}>

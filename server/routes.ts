@@ -3848,7 +3848,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           barcode,
           collection_name,
           features,
-          variants
+          variants,
+          created_at
         FROM b2b_products
         WHERE id::text = $1
           AND is_active IS DISTINCT FROM FALSE
