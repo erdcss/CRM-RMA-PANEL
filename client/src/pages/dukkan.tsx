@@ -14,6 +14,7 @@ import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
 import {DukkanNewProductProfitPanel} from "@/components/dukkan-new-product-profit-panel";
+import {DukkanCampaignPriceControl} from "@/components/dukkan-campaign-price-control";
 import {applyDukkanNewProductMarkup,updateDukkanNewProductPrice,type DukkanMarkupChoice} from "@/lib/dukkan-product-create-markup";
 import {DEFAULT_PRODUCT_TOOLBAR,paginateDukkanProducts,restoreProductToolbar,selectDukkanProducts,type ProductToolbarState} from "@/lib/dukkan-product-toolbar";
 import { Building2, Plus, Copy, Pencil, RefreshCw, Store, Trash2, ShieldCheck, Eye, EyeOff, Download, Activity, Users, Package, FileText, BarChart3, ChevronRight, ArrowUpRight, LayoutDashboard, Wallet, Landmark, ReceiptText, Boxes, Clock3, Search, Menu, X, Lock, ImagePlus, Link2, CheckCircle2, UploadCloud, Loader2 } from "lucide-react";
@@ -110,6 +111,7 @@ export default function Dukkan() {
   const [report,setReport]=useState<Entry|null>(null);
   const [draft,setDraft]=useState<Record<string,string>>({});
   const [newProductMarkup,setNewProductMarkup]=useState<DukkanMarkupChoice>(null);
+  const [newProductCampaignEnabled,setNewProductCampaignEnabled]=useState(false);
   const [newProductCustomMarkup,setNewProductCustomMarkup]=useState("");
   const [lines,setLines]=useState<DocLine[]>([{...NEW_LINE}]);
   const [notice,setNotice]=useState("");
@@ -299,6 +301,7 @@ export default function Dukkan() {
       setCreatedProductName(null);
       setSavedProductSnapshot(null);setShowProductCopyDialog(false);
       setDraft({});
+      setNewProductCampaignEnabled(false);
       setProductImages([]);
       setPublishToB2B(false);
       setError("");setNotice("");
@@ -424,7 +427,7 @@ export default function Dukkan() {
       return;
     }
     setDraft(data);
-    if(section==="products"){setNewProductMarkup(null);setNewProductCustomMarkup("");}
+    if(section==="products"){setNewProductMarkup(null);setNewProductCustomMarkup("");setNewProductCampaignEnabled(false);}
     if(["sales","purchases"].includes(section)){
       setLines(extracted.lines.length?extracted.lines.map(item=>({
         productId:item.productId||"",quantity:item.quantity||"1",unitPrice:item.unitPrice||"0",taxRate:item.taxRate||"20"
@@ -470,6 +473,9 @@ export default function Dukkan() {
         if(productImagesInFlight.current||processingProductImages)
           throw new Error("Görseller hazırlanırken ürün kaydedilemez. Lütfen yükleme bitsin.");
         path="/products";body.images=productImages;body.publishB2B=publishToB2B;
+        if(newProductCampaignEnabled&&(draft.campaignPrice==null||draft.campaignPrice.trim()===""))
+          throw new Error("Kampanya fiyatını girin veya kampanyayı kaldırın.");
+        body.campaignPrice=newProductCampaignEnabled?Number(draft.campaignPrice):null;
         body.unitsPerBox=Number(draft.unitsPerBox||1);body.minOrderQty=Number(draft.minOrderQty||1);
         if(editingCatalogId)body.stock=Number(draft.stock);
         else if(!editingProductId)body.stock=draft.stock===""||draft.stock===undefined?0:Number(draft.stock);
@@ -499,7 +505,7 @@ export default function Dukkan() {
         ((section==="sales"||section==="purchases")?" Fatura numarası: "+saved.invoice_no:""));
       setEditingProductId(null);setEditingCatalogId(null);setEditingPartyId(null);
       setEditingInvoiceId(null);setEditingInvoiceRevision(null);setInvoiceCopySource(null);
-      setShowForm(false);setDraft({});setNewProductMarkup(null);setNewProductCustomMarkup("");setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
+      setShowForm(false);setDraft({});setNewProductMarkup(null);setNewProductCustomMarkup("");setNewProductCampaignEnabled(false);setProductImages([]);setPublishToB2B(false);setLines([{...NEW_LINE}]);setRefresh(x=>x+1);
     }catch(e){setError((e as Error).message);}
     finally{setBusy(false);}
   };
@@ -631,7 +637,7 @@ export default function Dukkan() {
   const openFreshProduct=()=>{
     setCreatedProductName(null);setShowProductCopyDialog(false);setShowForm(true);
     setSavedProductSnapshot(null);setDraft({});setProductImages([]);setPublishToB2B(false);
-    setNewProductMarkup(null);setNewProductCustomMarkup("");setError("");setNotice("");
+    setNewProductMarkup(null);setNewProductCustomMarkup("");setNewProductCampaignEnabled(false);setError("");setNotice("");
   };
   const openProductCopyDialog=()=>{
     if(!savedProductSnapshot)return;
@@ -646,6 +652,7 @@ export default function Dukkan() {
     setProductImages(copyProductImages?[...savedProductSnapshot.images]:[]);
     setPublishToB2B(copyProductImages&&savedProductSnapshot.publishToB2B);
     setNewProductMarkup(null);setNewProductCustomMarkup("");
+    setNewProductCampaignEnabled(Boolean(original.campaignPrice));
     setCreatedProductName(null);setShowProductCopyDialog(false);setShowForm(true);
     setError("");
     setNotice("Bilgiler yeni ürün formuna aktarıldı. Stok kodu yenilendi; yeni barkodu girerek kaydedebilirsiniz.");
@@ -1003,7 +1010,12 @@ export default function Dukkan() {
                      placeholder={f.key==="stock"?"0":undefined}
                      required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
                   </label>
-                  {section==="products"&&f.key==="salePrice"&&!editingCatalogId&&
+                  {section==="products"&&f.key==="salePrice"&&
+                     <DukkanCampaignPriceControl salePrice={draft.salePrice||""}
+                       campaignPrice={draft.campaignPrice||""} enabled={newProductCampaignEnabled}
+                       disabled={busy} onToggle={setNewProductCampaignEnabled}
+                       onChange={value=>setDraft(current=>({...current,campaignPrice:value}))}/>}
+                   {section==="products"&&f.key==="salePrice"&&!editingCatalogId&&
                     <DukkanNewProductProfitPanel
                       purchasePrice={draft.purchasePrice||""}
                       salePrice={draft.salePrice||""}

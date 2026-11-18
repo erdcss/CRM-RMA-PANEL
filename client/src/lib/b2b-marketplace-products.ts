@@ -9,6 +9,7 @@ export type UnifiedB2BProduct = {
   collection_name?: string | null;
   tags?: string[] | null;
   price?: number | string | null;
+  original_price?: number | string | null;
   stock?: number | null;
   min_order_qty?: number | null;
   units_per_box?: number | null;

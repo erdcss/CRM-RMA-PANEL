@@ -13,6 +13,8 @@ export function B2BProductCard({
 }) {
   const image = product.image_data || product.image_url || (Array.isArray(product.images) ? product.images[0] : null);
   const visiblePrice = showPrice && loggedIn && product.price !== null && product.price !== undefined;
+  const hasCampaign = visiblePrice && product.original_price != null && Number(product.original_price) > Number(product.price);
+  const formatPrice = (value: unknown) => Number(value).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
   const pack = Math.max(1, Number(product.units_per_box) || 1);
   const minBoxes = Math.max(1, Number(product.min_order_qty) || 1);
   const stock = Math.max(0, Number(product.stock) || 0);
@@ -62,9 +64,13 @@ export function B2BProductCard({
             </p>
           ) : null}
           <div className={`mt-2 min-w-0 break-words text-xs font-semibold leading-5 sm:mt-3 sm:text-sm ${cannotOrder ? "text-slate-400" : "text-slate-700"}`}>
-            {visiblePrice
-              ? Number(product.price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺"
-              : showPrice ? "Fiyat için giriş yapın" : "Fiyat bilgisi gizli"}
+            {visiblePrice ? (hasCampaign ? (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-[11px] font-normal text-slate-400 line-through sm:text-xs">{formatPrice(product.original_price)}</span>
+                <strong className={`text-base font-black sm:text-lg ${cannotOrder ? "text-slate-400" : "text-red-600"}`}>{formatPrice(product.price)}</strong>
+                <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-extrabold text-red-700">KAMPANYA</span>
+              </div>
+            ) : formatPrice(product.price)) : showPrice ? "Fiyat için giriş yapın" : "Fiyat bilgisi gizli"}
           </div>
           {cannotOrder ? (
             <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-rose-50 px-2 py-2 text-[10px] font-semibold text-red-800 sm:mt-3 sm:text-xs">

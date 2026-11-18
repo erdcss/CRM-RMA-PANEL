@@ -269,7 +269,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   const listQueries: Record<string,string> = {
     parties:"SELECT p.*,COALESCE(SUM(e.debit-e.credit),0) AS balance,MAX(e.created_at) AS last_transaction_at FROM dukkan_parties p LEFT JOIN dukkan_cari_entries e ON e.store_id=p.store_id AND e.party_id=p.id WHERE p.store_id=$1 GROUP BY p.id ORDER BY p.id DESC LIMIT 5000",
     products:"SELECT p.id,p.store_id,COALESCE(p.b2b_source_sku,p.sku) AS sku,COALESCE(p.b2b_source_barcode,p.barcode) AS barcode,"+
-      "p.name,p.unit,p.stock,p.purchase_price,p.sale_price,p.brand,p.category,p.description,p.publish_b2b,"+
+      "p.name,p.unit,p.stock,p.purchase_price,p.sale_price,p.campaign_price,p.brand,p.category,p.description,p.publish_b2b,"+
       "p.b2b_product_id,p.units_per_box,p.min_order_qty,p.created_at,p.archived_at,p.deleted_at,"+
       "CASE WHEN cover.photo ~* '^https://' THEN cover.photo "+
       "WHEN cover.photo IS NOT NULL THEN '/api/dukkan/stores/'||p.store_id||'/products/'||p.id||'/image' "+
@@ -921,12 +921,20 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json({deleted:true});
   }));
 
+  // The original sale price remains; a campaign price is optional and always lower.
+  const campaignPriceField = z.number().finite().positive().max(999999999).refine(twoDecimals).nullable().optional();
+  const validateCampaignPrice = (campaign: number | null | undefined, salePrice: number) => {
+    if (campaign != null && campaign >= salePrice) {
+      throw Object.assign(new Error("Kampanyalı fiyat satış fiyatından düşük olmalıdır."), {status:400});
+    }
+  };
   const productPayload = z.object({
     name:string,sku:string,
     barcode:z.string().trim().max(64).optional(),
     unit:z.string().trim().min(1).max(20).default("adet"),
     purchasePrice:z.coerce.number().finite().min(0).refine(twoDecimals).default(0),
     salePrice:z.coerce.number().finite().min(0).refine(twoDecimals).default(0),
+    campaignPrice:campaignPriceField,
     // New product opening balance; subsequent edits are posted through stock movements.
     stock:z.coerce.number().finite().min(0).max(999999999)
       .refine(threeDecimals,"Stok adedi en fazla üç ondalık basamak içerebilir").default(0),
@@ -999,7 +1007,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     globalB2BAdmin(res);
     const productId=globalId.parse(req.params.b2bId),db=await ready();
     const found=await db.query(
-      "SELECT id,sku,name,brand,category,description,price,stock,min_order_qty,units_per_box,"+
+      "SELECT id,sku,name,brand,category,description,price,campaign_price,stock,min_order_qty,units_per_box,"+
       "image_data,images,barcode,is_active FROM b2b_products WHERE id::text=$1 LIMIT 1",[productId],
     );
     if(!found.rows[0])return res.status(404).json({error:"B2B ürünü bulunamadı"});
@@ -1015,6 +1023,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       category:z.string().trim().max(120).default(""),
       description:z.string().trim().max(4000).default(""),
       salePrice:z.coerce.number().finite().min(0).max(999999999).refine(twoDecimals),
+      campaignPrice:campaignPriceField,
       stock:z.coerce.number().int().min(0).max(2147483647),
       unitsPerBox:z.coerce.number().int().min(1).max(100000),
       minOrderQty:z.coerce.number().int().min(1).max(10000),
@@ -1026,15 +1035,19 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       const images=p.images===undefined
         ? (Array.isArray(before.images)&&before.images.length?before.images:before.image_data?[before.image_data]:[])
         : validateDukkanImages(p.images);
+      const campaignPrice=p.campaignPrice===undefined
+        ? before.campaign_price==null?null:Number(before.campaign_price)
+        : p.campaignPrice;
+      validateCampaignPrice(campaignPrice,p.salePrice);
       if(p.publishB2B&&!images.length)throw Object.assign(
         new Error("B2B'de yayınlamak için en az bir ürün görseli ekleyin"),{status:400});
       const output=await c.query(
         "UPDATE b2b_products SET name=$2,sku=$3,barcode=$4,brand=$5,category=$6,description=$7,"+
         "price=$8,stock=$9,units_per_box=$10,min_order_qty=$11,is_active=$12,image_data=$13,"+
-        "images=$14::jsonb,updated_at=NOW() WHERE id::text=$1 RETURNING id,is_active",
+        "images=$14::jsonb,campaign_price=$15,updated_at=NOW() WHERE id::text=$1 RETURNING id,is_active",
         [productId,p.name,p.sku,p.barcode||null,p.brand||null,p.category||null,
          p.description||null,money(p.salePrice),p.stock,p.unitsPerBox,p.minOrderQty,
-         p.publishB2B,images[0]||null,JSON.stringify(images)],
+         p.publishB2B,images[0]||null,JSON.stringify(images),campaignPrice],
       );
       return output.rows[0];
     });
@@ -1164,7 +1177,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const sid=store(req),b2bId=z.string().trim().min(1).max(128).parse(req.params.b2bId);
     const item=await transaction(async c=>{
       const result=await c.query(
-        "SELECT id,sku,name,barcode,brand,category,description,price,stock,image_data,images,units_per_box,min_order_qty " +
+        "SELECT id,sku,name,barcode,brand,category,description,price,campaign_price,stock,image_data,images,units_per_box,min_order_qty " +
         "FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE FOR UPDATE",
         [b2bId],
       );
@@ -1178,11 +1191,11 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       }
       const imported=await c.query(
         "INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,stock,purchase_price,sale_price,"+
-        "brand,category,description,image_data,images,units_per_box,min_order_qty,publish_b2b,b2b_product_id) "+
-        "VALUES($1,$2,$3,$4,'adet',$5,0,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,TRUE,$14) RETURNING *",
+        "brand,category,description,image_data,images,units_per_box,min_order_qty,publish_b2b,b2b_product_id,campaign_price) "+
+        "VALUES($1,$2,$3,$4,'adet',$5,0,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,TRUE,$14,$15) RETURNING *",
         [sid,row.name,row.sku,row.barcode||null,row.stock,row.price||0,row.brand||null,
          row.category||null,row.description||null,row.image_data||null,JSON.stringify(row.images||[]),
-         row.units_per_box||1,row.min_order_qty||1,row.id],
+         row.units_per_box||1,row.min_order_qty||1,row.id,row.campaign_price??null],
       );
       return imported.rows[0];
     });
@@ -1251,15 +1264,16 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   app.post("/api/dukkan/stores/:storeId/products",safe(async(req,res)=>{
     manager(res);
     const p=productPayload.parse(req.body),sid=store(req);
+    validateCampaignPrice(p.campaignPrice,p.salePrice);
     const images=validateDukkanImages(p.images);
     const created=await transaction(async c=>{
       const inserted=await c.query(
         "INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,purchase_price,sale_price,brand,category,"+
-        "description,images,image_data,units_per_box,min_order_qty,publish_b2b) "+
-        "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15) RETURNING *",
+        "description,images,image_data,units_per_box,min_order_qty,publish_b2b,campaign_price) "+
+        "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING *",
         [sid,p.name,p.sku,p.barcode||null,p.unit,money(p.purchasePrice),money(p.salePrice),
          p.brand||null,p.category||null,p.description||null,JSON.stringify(images),images[0]||null,
-         p.unitsPerBox,p.minOrderQty,p.publishB2B],
+         p.unitsPerBox,p.minOrderQty,p.publishB2B,p.campaignPrice??null],
       );
       // Opening stock and product registration commit atomically.
       if(p.stock>0){
@@ -1286,6 +1300,10 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
         throw Object.assign(new Error("Arşivlenen ürün önce arşivden çıkarılmalıdır."),{status:409});
       const images=p.images===undefined?before.rows[0].images:validateDukkanImages(p.images);
       const original=before.rows[0];
+      const campaignPrice=p.campaignPrice===undefined
+        ? original.campaign_price==null?null:Number(original.campaign_price)
+        : p.campaignPrice;
+      validateCampaignPrice(campaignPrice,p.salePrice);
       const importedFromB2B=Boolean(original.b2b_source_sku);
       // Imported catalog rows keep their original sales SKU / barcode visible,
       // but collisions must not break Dükkan's unique scanner/index constraints.
@@ -1304,12 +1322,12 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
         "UPDATE dukkan_products SET name=$3,sku=$4,barcode=$5,unit=$6,purchase_price=$7,sale_price=$8,"+
         "brand=$9,category=$10,description=$11,images=$12::jsonb,image_data=$13,"+
         "units_per_box=$14,min_order_qty=$15,publish_b2b=$16,"+
-        "b2b_source_sku=$17,b2b_source_barcode=$18 "+
+        "b2b_source_sku=$17,b2b_source_barcode=$18,campaign_price=$19 "+
         "WHERE store_id=$1 AND id=$2 RETURNING *",
         [sid,productId,p.name,internalSku,internalBarcode,p.unit,money(p.purchasePrice),
          money(p.salePrice),p.brand||null,p.category||null,p.description||null,
          JSON.stringify(images),images[0]||null,p.unitsPerBox,p.minOrderQty,p.publishB2B,
-         importedFromB2B?p.sku:null,importedFromB2B?p.barcode||null:null],
+         importedFromB2B?p.sku:null,importedFromB2B?p.barcode||null:null,campaignPrice],
       );
       return syncDukkanToB2B(c,result.rows[0]);
     });

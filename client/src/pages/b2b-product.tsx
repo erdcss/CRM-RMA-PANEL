@@ -81,6 +81,8 @@ export default function B2BProductPage() {
     queryFn: loadApprovedSupplierProducts,
     staleTime: 30_000,
   });
+  const hasCampaign = loggedIn && product?.price != null && product.original_price != null && Number(product.original_price) > Number(product.price);
+  const formatProductPrice = (value: unknown) => Number(value).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₺";
   const productImages = useMemo(()=>collectB2BProductImages(product),[product]);
   const currentImageIndex=Math.min(imageIndex,Math.max(0,productImages.length-1));
   const currentImage=productImages[currentImageIndex]||null;
@@ -286,12 +288,15 @@ export default function B2BProductPage() {
 
             <div className="mt-5 border-y py-4">
               <div className="text-sm text-slate-500">B2B fiyatı</div>
-              <div className={`mt-1 text-2xl font-black ${cannotOrder ? "text-slate-400" : "text-slate-950"}`}>
+              {hasCampaign && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-slate-400 line-through">{formatProductPrice(product.original_price)}</span>
+                  <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-extrabold text-red-700">KAMPANYALI FİYAT</span>
+                </div>
+              )}
+              <div className={`mt-1 text-2xl font-black ${cannotOrder ? "text-slate-400" : hasCampaign ? "text-red-600" : "text-slate-950"}`}>
                 {loggedIn && product.price !== null && product.price !== undefined
-                  ? `${Number(product.price).toLocaleString("tr-TR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })} ₺`
+                  ? formatProductPrice(product.price)
                   : "Fiyat için giriş yapın"}
               </div>
               {loggedIn ? (

@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS b2b_products (
   category TEXT,
   description TEXT,
   price NUMERIC(14,2),
+  campaign_price NUMERIC(14,2),
   stock INTEGER NOT NULL DEFAULT 0,
   min_order_qty INTEGER NOT NULL DEFAULT 1,
   units_per_box INTEGER NOT NULL DEFAULT 1,
@@ -166,6 +167,7 @@ async function ensureB2BProductSchema() {
       const migrations = [
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS image_data TEXT`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb`,
+        `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS campaign_price NUMERIC(14,2)`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS barcode TEXT`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS collection_name TEXT`,
         `ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,

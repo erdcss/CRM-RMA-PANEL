@@ -2,24 +2,25 @@ import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "rea
 import { useLocation } from "wouter";
 import { ArrowLeft, Check, ImagePlus, Loader2, Package, Plus, Save, ShieldCheck, Trash2, UploadCloud } from "lucide-react";
 import { fileToCompressedDataUrl } from "@/lib/compress-image";
+import { DukkanCampaignPriceControl } from "@/components/dukkan-campaign-price-control";
 import { parseMarkupPercent, parsePriceInput, productProfitPreview, suggestedSaleFromMarkup } from "@/lib/dukkan-profit-price";
 
 type Product = {
   id: string | number; name: string; sku: string; barcode?: string | null;
   brand?: string | null; category?: string | null; description?: string | null;
   unit?: string | null; stock: number | string; purchase_price?: string | number | null;
-  sale_price?: string | number | null; units_per_box?: number; min_order_qty?: number;
+  sale_price?: string | number | null; campaign_price?: string | number | null; units_per_box?: number; min_order_qty?: number;
   images?: string[] | null; image_data?: string | null; publish_b2b: boolean;
   b2b_product_id?: string | null;
 };
 type Fields = {
   name: string; sku: string; barcode: string; brand: string; category: string;
-  description: string; unit: string; purchasePrice: string; salePrice: string;
+  description: string; unit: string; purchasePrice: string; salePrice: string; campaignPrice: string;
   unitsPerBox: string; minOrderQty: string;
 };
 const EMPTY: Fields = {
   name:"",sku:"",barcode:"",brand:"",category:"",description:"",
-  unit:"adet",purchasePrice:"0",salePrice:"0",unitsPerBox:"1",minOrderQty:"1",
+  unit:"adet",purchasePrice:"0",salePrice:"0",campaignPrice:"",unitsPerBox:"1",minOrderQty:"1",
 };
 const fieldStyle="w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-[#172945] outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 const labelStyle="block text-xs font-bold text-slate-600 mb-1.5";
@@ -48,6 +49,7 @@ export default function DukkanProductEdit({id}:{id:string}){
   const [fields,setFields]=useState<Fields>(EMPTY);
   const [images,setImages]=useState<string[]>([]);
   const [selectedMarkup,setSelectedMarkup]=useState<MarkupSelection|null>(null);
+  const [campaignEnabled,setCampaignEnabled]=useState(false);
   const [customMarkup,setCustomMarkup]=useState("");
   const [published,setPublished]=useState(false);
   const [loading,setLoading]=useState(true);
@@ -93,6 +95,7 @@ export default function DukkanProductEdit({id}:{id:string}){
         setData(product);
         setSelectedMarkup(null);
         setCustomMarkup("");
+        setCampaignEnabled(product.campaign_price != null);
         setFields({
           name:String(product.name||""),sku:String(product.sku||""),
           barcode:String(product.barcode||""),brand:String(product.brand||""),
@@ -100,6 +103,7 @@ export default function DukkanProductEdit({id}:{id:string}){
           unit:String(product.unit||"adet"),
           purchasePrice:String(product.purchase_price??0),
           salePrice:String(product.sale_price??0),
+          campaignPrice:product.campaign_price==null?"":String(product.campaign_price),
           unitsPerBox:String(product.units_per_box??1),
           minOrderQty:String(product.min_order_qty??1),
         });
@@ -228,6 +232,8 @@ export default function DukkanProductEdit({id}:{id:string}){
     try{
       if(processingImages||imageInFlight.current)throw new Error("Görseller yüklenirken ürün kaydedilemez.");
       if(published&&!images.length)throw new Error("B2B yayını için önce bir görsel ekleyin.");
+      if(campaignEnabled && (fields.campaignPrice.trim()==="" || !Number.isFinite(Number(fields.campaignPrice))))
+        throw new Error("Geçerli bir kampanya fiyatı girin.");
       if(Number(fields.unitsPerBox)<1||Number(fields.minOrderQty)<1)
         throw new Error("Koli içeriği ve minimum adet en az 1 olmalıdır.");
       await request("/api/dukkan/stores/"+encodeURIComponent(storeId)+"/products/"+encodeURIComponent(id),{
@@ -236,6 +242,7 @@ export default function DukkanProductEdit({id}:{id:string}){
           ...fields,
           purchasePrice:Number(fields.purchasePrice),
           salePrice:Number(fields.salePrice),
+           campaignPrice:campaignEnabled?Number(fields.campaignPrice):null,
           unitsPerBox:Number(fields.unitsPerBox),
           minOrderQty:Number(fields.minOrderQty),
           publishB2B:published,images,
@@ -292,6 +299,10 @@ export default function DukkanProductEdit({id}:{id:string}){
               {field("purchasePrice","Alış Fiyatı (TL)","number",true)}
               <div className="min-w-0">
                 {field("salePrice","Satış Fiyatı (TL)","number",true)}
+                <DukkanCampaignPriceControl salePrice={fields.salePrice}
+                  campaignPrice={fields.campaignPrice} enabled={campaignEnabled} disabled={saving}
+                  onToggle={setCampaignEnabled}
+                  onChange={value=>setFields(old=>({...old,campaignPrice:value}))}/>
                 <div className="mt-2 rounded-xl border border-[#d9e6f6] bg-[#f7faff] p-3"
                   aria-label="Ürün kâr oranı ve kâr hesabı">
                   <p className="mb-2 text-xs font-bold text-[#17385f]">Alış fiyatına göre kâr ekle</p>

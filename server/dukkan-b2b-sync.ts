@@ -6,6 +6,7 @@ export type DukkanCatalogRecord = {
   b2b_source_sku?: string | null; b2b_source_barcode?: string | null;
   barcode?: string | null; brand?: string | null; category?: string | null;
   description?: string | null; stock: string | number; sale_price: string | number;
+  campaign_price?: string | number | null;
   image_data?: string | null; images?: string[] | null;
   publish_b2b: boolean; b2b_product_id?: string | number | null;
   units_per_box?: number | null; min_order_qty?: number | null;
@@ -51,6 +52,8 @@ export async function ensureDukkanB2BBridge(pool: Pool): Promise<void> {
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS description TEXT",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS units_per_box INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS min_order_qty INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS campaign_price NUMERIC(18,2)",
+    "ALTER TABLE b2b_products ADD COLUMN IF NOT EXISTS campaign_price NUMERIC(14,2)",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS publish_b2b BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_product_id TEXT",
     "ALTER TABLE dukkan_products ADD COLUMN IF NOT EXISTS b2b_source_sku TEXT",
@@ -79,6 +82,8 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   const images = Array.isArray(row.images) ? row.images : [];
   const photo = images[0] || row.image_data || null;
   const price = Number(row.sale_price);
+  const proposedCampaign = row.campaign_price == null ? null : Number(row.campaign_price);
+  const campaign = proposedCampaign != null && Number.isFinite(proposedCampaign) && proposedCampaign > 0 && proposedCampaign < price ? proposedCampaign : null;
   const stock = stockForB2B(row.stock);
   const boxSize = Math.max(1, Number(row.units_per_box) || 1);
   const minQty = Math.max(1, Number(row.min_order_qty) || 1);
@@ -92,9 +97,9 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
     const result = await c.query(
       "UPDATE b2b_products SET sku=$2,name=$3,brand=$4,category=$5,description=$6,price=$7,stock=$8," +
       "min_order_qty=$9,units_per_box=$10,image_data=$11,images=$12::jsonb,barcode=$13," +
-      "is_active=$14,updated_at=NOW() WHERE id::text=$1 RETURNING id",
+      "is_active=$14,campaign_price=$15,updated_at=NOW() WHERE id::text=$1 RETURNING id",
       [row.b2b_product_id,b2bSku,row.name,row.brand||null,row.category||"Genel",row.description||null,
-       price,stock,minQty,boxSize,photo,JSON.stringify(images),desiredBarcode,row.publish_b2b],
+       price,stock,minQty,boxSize,photo,JSON.stringify(images),desiredBarcode,row.publish_b2b,campaign],
     );
     if (!result.rowCount) throw Object.assign(new Error("Bağlı B2B ürünü bulunamadı; işlem geri alındı"),{status:409});
     return row;
@@ -104,10 +109,10 @@ export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): 
   const sku = existing.rowCount ? "DUK-"+row.store_id+"-"+row.id : row.sku;
   const created = await c.query(
     "INSERT INTO b2b_products(sku,name,brand,category,description,price,stock,min_order_qty," +
-    "units_per_box,image_data,images,barcode,is_active,updated_at) " +
-    "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,NOW()) RETURNING id",
+    "units_per_box,image_data,images,barcode,is_active,updated_at,campaign_price) " +
+    "VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,NOW(),$14) RETURNING id",
     [sku,row.name,row.brand||null,row.category||"Genel",row.description||null,price,stock,
-     minQty,boxSize,photo,JSON.stringify(images),row.barcode||null,row.publish_b2b],
+     minQty,boxSize,photo,JSON.stringify(images),row.barcode||null,row.publish_b2b,campaign],
   );
   const linkedId = created.rows[0].id;
   await c.query("UPDATE dukkan_products SET b2b_product_id=$3 WHERE store_id=$1 AND id=$2",
@@ -143,7 +148,7 @@ export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise
       "INSERT INTO dukkan_products (",
       "store_id,sku,b2b_source_sku,barcode,b2b_source_barcode,name,unit,stock,",
       "purchase_price,sale_price,brand,category,description,image_data,images,",
-      "units_per_box,min_order_qty,publish_b2b,b2b_product_id)",
+      "units_per_box,min_order_qty,publish_b2b,b2b_product_id,campaign_price)",
       "SELECT $1,",
       "CASE WHEN EXISTS (SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.sku=p.sku)",
       "THEN 'B2B-' || p.id::text ELSE p.sku END,",
@@ -156,7 +161,7 @@ export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise
       "p.name,'adet',GREATEST(0,COALESCE(p.stock,0)),0,COALESCE(p.price,0),",
       "p.brand,p.category,p.description,p.image_data,COALESCE(p.images,'[]'::jsonb),",
       "GREATEST(1,COALESCE(p.units_per_box,1)),GREATEST(1,COALESCE(p.min_order_qty,1)),",
-      "COALESCE(p.is_active,TRUE),p.id::text",
+      "COALESCE(p.is_active,TRUE),p.id::text,p.campaign_price",
       "FROM b2b_products p",
       "JOIN (SELECT id, ROW_NUMBER() OVER (PARTITION BY NULLIF(TRIM(barcode),'')",
       "ORDER BY created_at,id) AS barcode_rank FROM b2b_products) ranked ON ranked.id=p.id",
