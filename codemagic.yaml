@@ -4,7 +4,7 @@
 # for com.caliskangroup.rma in Codemagic Code Signing Identities.
 workflows:
   caliskan-b2b-ios:
-    name: Caliskan B2B - iOS native IPA (no EAS)
+    name: Caliskan B2B - iOS signed IPA (no Expo EAS)
     instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
@@ -17,6 +17,7 @@ workflows:
         REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND: "1"
         EXPO_SKIP_NIIMBOT: "1"
         CI: "1"
+        APP_STORE_APPLE_ID: "6802286663"
       node: 22
       xcode: 26.4
       cocoapods: default
@@ -33,8 +34,9 @@ workflows:
           node scripts/create-scan-beep.cjs
           node scripts/prepare-native-release.cjs
           npm run sync:branding
+          # Exclude private NIIMBOT SDK libraries and set unique CFBundleVersion.
+          node scripts/codemagic-ios-prebuild.cjs
           npm run typecheck
-          node scripts/eas-branding-preinstall.cjs
       - name: Generate iOS native Xcode project
         script: |
           set -e
@@ -53,9 +55,11 @@ workflows:
           cd mobile
           workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' | head -n 1)"
           if [ -z "$workspace" ]; then echo "Xcode workspace not generated"; exit 1; fi
-          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["workspace"]["schemes"][0])')"
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((s for s in d["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
           if [ -z "$scheme" ]; then echo "Xcode scheme missing"; exit 1; fi
           xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+    # TestFlight auto-publishing stays disabled until Apple account integration
+    # and the first signed IPA have been verified.
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
