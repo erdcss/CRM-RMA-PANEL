@@ -229,8 +229,19 @@ function B2BWebsite() {
     const timer = window.setInterval(() => {
       void trackSession();
     }, 60_000);
-    return () => window.clearInterval(timer);
+    // Returning to the tab restores page presence without waiting a minute.
+    const onVisibility=()=>{if(!document.hidden)void trackSession();};
+    document.addEventListener("visibilitychange",onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange",onVisibility);
+    };
   }, []);
+  // SPA route changes must update the current page, not count the same
+  // browser tab as one simultaneous visitor on every previously opened page.
+  useEffect(()=>{
+    void trackSession();
+  },[routePath]);
 
   return (
     <div className={`b2b-site h-dvh min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain ${hideBottomNav ? "pb-0" : "pb-[calc(106px+env(safe-area-inset-bottom,0px))] md:pb-[116px]"}`}>

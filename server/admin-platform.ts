@@ -5,6 +5,7 @@ import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
 import { ensureB2BCustomerUsageSchema } from "./b2b-customer-insights";
 import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
+import {recordB2BLivePage,registerB2BLivePageDashboard} from "./b2b-live-page-presence";
 
 import {shareBadgeUrl,shareAppLogo} from "./b2b-share-asset-urls";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
@@ -713,6 +714,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   if(pool)await activateCaliskanMetaDataset(pool).catch(error=>{
     console.error("Çalışkan Meta dataset activation could not be verified:",error);
   });
+  registerB2BLivePageDashboard(app, requireAdmin);
   registerHomepageMediaRoutes(app, requireAdmin);
   registerReelMediaRoutes(app, requireAdmin);
 
@@ -1360,6 +1362,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           `INSERT INTO analytics_events (visitor_id, event_type, event_value) VALUES ($1, 'heartbeat', $2)`,
           [visitorId, platform],
         );
+      }
+      // Reuse first-party web heartbeats; no account or advertising cookie required.
+      // Store only an allowlisted route bucket, not full paths or visitor identity.
+      if(platform==="web"){
+        await recordB2BLivePage(visitorId,req.body?.pagePath)
+          .catch(error=>console.error("B2B page presence could not be recorded",error));
       }
       res.status(204).send();
     } catch (error) {

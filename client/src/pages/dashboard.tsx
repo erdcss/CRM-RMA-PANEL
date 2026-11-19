@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import ShortageAnalyticsSection from "@/components/dashboard/shortage-analytics-section";
+import LivePageVisitors from "@/components/dashboard/live-page-visitors";
 
 type DashboardOverview = {
   sessionUsers: number;
@@ -165,6 +166,8 @@ export default function Dashboard() {
             icon={<ShoppingCart className="h-5 w-5" />}
           />
         </section>
+
+        <LivePageVisitors />
 
         <section className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
           <Card className="overflow-hidden">

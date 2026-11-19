@@ -3,6 +3,12 @@ on:
   push:
     paths:
       - 'client/src/pages/dashboard.tsx'
+      - 'client/src/components/dashboard/live-page-visitors.tsx'
+      - 'client/src/lib/analytics.ts'
+      - 'client/src/App.tsx'
+      - 'shared/b2b-live-pages.ts'
+      - 'shared/b2b-live-pages.test.ts'
+      - 'server/b2b-live-page-presence.ts'
       - 'server/admin-platform.ts'
       - 'server/b2b-approved-order-filter.ts'
       - 'server/b2b-approved-order-filter.test.ts'
@@ -10,6 +16,12 @@ on:
   pull_request:
     paths:
       - 'client/src/pages/dashboard.tsx'
+      - 'client/src/components/dashboard/live-page-visitors.tsx'
+      - 'client/src/lib/analytics.ts'
+      - 'client/src/App.tsx'
+      - 'shared/b2b-live-pages.ts'
+      - 'shared/b2b-live-pages.test.ts'
+      - 'server/b2b-live-page-presence.ts'
       - 'server/admin-platform.ts'
       - 'server/b2b-approved-order-filter.ts'
       - 'server/b2b-approved-order-filter.test.ts'
@@ -32,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts
       - name: Verify only approved orders pass the dashboard filter
-        run: npx tsx --test server/b2b-approved-order-filter.test.ts
+        run: npx tsx --test server/b2b-approved-order-filter.test.ts shared/b2b-live-pages.test.ts
       - name: TypeScript check
         run: npm run check
       - name: Build web and backend
