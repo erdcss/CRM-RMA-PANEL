@@ -25,7 +25,11 @@ upload sertifikası SHA-256 (genel bilgi; özel anahtar değil):
 
 `B4:39:A9:45:78:10:72:88:AC:6D:8A:BB:A6:53:96:4B:71:D4:76:1C:9F:8B:B3:79:33:5C:21:E6:21:0C:B0:A3`
 
-Script bu sertifikaya uymayan keystore ile sürüm oluşturmayı **reddeder**.
+**21 Kasım 2026 11:45 itibarıyla etkinleşmesi planlanan yeni upload sertifikası** (19 Kasım'da yerel olarak oluşturulan PEM):
+
+`9B:49:A1:2A:D0:60:80:4B:A2:36:92:C7:8C:15:3C:AD:CB:38:F0:7B:3D:19:59:FE:B1:BF:F0:DD:A2:E7:72:D0`
+
+Script artık bu **yeni** sertifikaya uymayan keystore ile sürüm oluşturmayı **reddeder**. Google Play Console üzerinden sıfırlama etkinleştikten sonra, **Anahtarı yükleyin** bölümündeki SHA-256 sertifika parmak izinin yeni değerle aynı olduğunu ayrıca doğrulayın. Yükleme anahtarı başvurusu henüz etkin değilken Play'e yeni AAB göndermeyin.
 Google Play Console → Kurulum → Uygulama bütünlüğü → Uygulama imzalama
 altındaki **yükleme anahtarı sertifikasıyla** karşılaştırın.
 
