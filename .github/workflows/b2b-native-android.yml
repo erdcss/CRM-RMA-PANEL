@@ -79,6 +79,9 @@ jobs:
           fi
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           echo "Selected Android build: $kind"
+      - name: Assign unique Android versionCode for signed releases
+        if: ${{ steps.build_kind.outputs.kind == 'release' }}
+        run: node scripts/stamp-chat-android-version.cjs
       - name: Build with native Gradle (no EXPO_TOKEN, no EAS)
         run: |
           bash scripts/native-android-ci.sh "${{ steps.build_kind.outputs.kind }}"
