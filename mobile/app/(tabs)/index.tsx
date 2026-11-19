@@ -37,6 +37,7 @@ import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
+import {isNewArrival,splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -53,7 +54,7 @@ function productImage(product: B2BProduct) {
       ? product.image_data
       : Array.isArray(product.images)
         ? product.images.find((item) => typeof item === 'string' && item.trim())
-        : null) || null;
+        : null) || product.image_url || null;
 
   return absoluteMediaUrl(raw);
 }
@@ -69,6 +70,8 @@ export default function HomeScreen() {
   const welcomeShift = useRef(new Animated.Value(-24)).current;
 
   const [products, setProducts] = useState<B2BProduct[]>([]);
+  const [catalogNow, setCatalogNow] = useState(() => Date.now());
+  const [newArrivalsVisible, setNewArrivalsVisible] = useState(12);
   const [catalogError, setCatalogError] = useState('');
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -83,9 +86,9 @@ export default function HomeScreen() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const [loadedBannerSizes,setLoadedBannerSizes]=useState<Record<string,{width:number;height:number}>>({});
   const bannerScrollRef = useRef<ScrollView>(null);
-  const newProductsScrollRef = useRef<ScrollView>(null);
-  const newProductsIndexRef = useRef(0);
-  const [newProductsWidth, setNewProductsWidth] = useState(0);
+  const wholesaleScrollRef = useRef<ScrollView>(null);
+  const wholesaleIndexRef = useRef(0);
+  const [wholesaleWidth, setNewProductsWidth] = useState(0);
   const bannerIndexRef = useRef(0);
   const activeBanner=banners[bannerIndex];
   const activeSize=activeBanner ? (loadedBannerSizes[activeBanner.imageId] ||
@@ -160,6 +163,7 @@ export default function HomeScreen() {
       const suppliers = supplierResult.status === 'fulfilled' && Array.isArray(supplierResult.value)
         ? supplierResult.value.map(asCatalogProduct) : [];
       setProducts([...suppliers, ...own]);
+      setCatalogNow(Date.now());
       setCatalogError('');
     } else {
       setCatalogError('Ürün kataloglarına ulaşılamadı. Yeniden deneyin.');
@@ -175,6 +179,7 @@ export default function HomeScreen() {
   }, [load, session?.access_token]);
 
   useFocusEffect(useCallback(() => {
+    setCatalogNow(Date.now());
     // Returning from Admin-managed promotions should refresh banners without
     // requiring the customer to close or reinstall the mobile application.
     // Refresh both the catalog and category metadata when returning from a product.
@@ -210,6 +215,23 @@ export default function HomeScreen() {
     return found;
   }, [products, query, sort]);
 
+  const { newArrivals, wholesale } = useMemo(
+    () => splitHomepageProducts(filtered, catalogNow),
+    [filtered, catalogNow],
+  );
+
+  // When a product reaches its 24-hour deadline, move it to wholesale
+  // automatically, without requiring a refresh or app restart.
+  useEffect(() => {
+    const deadline = nextHomepageArrivalExpiry(products, catalogNow);
+    if (deadline === null) return;
+    const timeout = setTimeout(
+      () => setCatalogNow(Date.now()),
+      Math.max(1, Math.min(2_147_483_647, deadline - Date.now() + 1)),
+    );
+    return () => clearTimeout(timeout);
+  }, [products, catalogNow]);
+
   useEffect(() => {
     bannerIndexRef.current = 0;
     setBannerIndex(0);
@@ -227,16 +249,16 @@ export default function HomeScreen() {
   }, [bannerWidth, banners.length, query, sliderAutoPlay, sliderIntervalMs]);
 
   useEffect(() => {
-    if (query.trim() || filtered.length < 2 || !newProductsWidth) return;
+    if (query.trim() || wholesale.length < 2 || !wholesaleWidth) return;
     const cardWidth = Math.min(190, Math.max(145, screenWidth * 0.42)) + spacing.sm;
-    const count = Math.min(filtered.length, 10);
+    const count = Math.min(wholesale.length, 10);
     const timer = setInterval(() => {
-      const next = (newProductsIndexRef.current + 1) % count;
-      newProductsIndexRef.current = next;
-      newProductsScrollRef.current?.scrollTo({ x: next * cardWidth, animated: next !== 0 });
+      const next = (wholesaleIndexRef.current + 1) % count;
+      wholesaleIndexRef.current = next;
+      wholesaleScrollRef.current?.scrollTo({ x: next * cardWidth, animated: next !== 0 });
     }, 3500);
     return () => clearInterval(timer);
-  }, [filtered.length, newProductsWidth, query, screenWidth]);
+  }, [wholesale.length, wholesaleWidth, query, screenWidth]);
 
   const handleScannedBarcode = async (value: string) => {
     if (scanLockedRef.current) return;
@@ -268,6 +290,100 @@ export default function HomeScreen() {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false) => {
+
+            const image = productImage(product);
+            const pack = Math.max(1, Number(product.units_per_box) || 1);
+            const minBoxes = Math.max(1, Number(product.min_order_qty) || 1);
+            const stock = Math.max(0, Number(product.stock) || 0);
+            const soldOut = stock === 0;
+            const cannotOrder = stock < pack * minBoxes;
+            const priceVisible =
+              Boolean(session) &&
+              product.price !== null &&
+              product.price !== undefined;
+
+            return (
+              <Pressable
+                key={String(product.id)}
+                style={[styles.productCard, { width: isNewArrivalCard
+                  ? Math.max(130, Math.floor((screenWidth - 2 * spacing.lg - spacing.sm) / 2))
+                  : Math.min(190, Math.max(145, screenWidth * 0.42)) }, cannotOrder && styles.unavailableProductCard]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/product/[id]',
+                    params: productParams(product),
+                  } as never)
+                }
+              >
+                <View style={styles.productImageWrap}>
+                  {isNewArrivalCard ? (
+                    <View style={styles.newArrivalBadge} pointerEvents="none">
+                      <Text style={styles.newArrivalBadgeText}>YENİ GELDİ</Text>
+                    </View>
+                  ) : null}
+                  {image ? (
+                    <Image
+                      source={{ uri: image }}
+                      style={[styles.productImage, cannotOrder && styles.unavailableProductImage]}
+                      contentFit="contain"
+                      cachePolicy="memory-disk"
+                    />
+                  ) : (
+                    <Ionicons
+                      name="cube-outline"
+                      size={38}
+                      color={palette.muted}
+                    />
+                  )}
+                  {cannotOrder ? (
+                    <View pointerEvents="none" style={styles.stockOverlayBadge}>
+                      <Ionicons name="ban-outline" size={15} color="#FFFFFF" />
+                      <Text style={styles.stockOverlayText}>{soldOut ? 'STOKTA YOK' : 'STOK YETERSİZ'}</Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.productBody}>
+                  <Text style={styles.sku}>{product.sku || 'STOK'}</Text>
+                  <Text style={styles.productName} numberOfLines={2}>
+                    {product.name}
+                  </Text>
+                  {product.seller_name ? <Text style={styles.meta} numberOfLines={1}>{product.seller_name}</Text> : null}
+
+                  {priceVisible ? (
+                    <Text style={[styles.price, cannotOrder && styles.unavailablePrice]}>{money(product.price)}</Text>
+                  ) : (
+                    <Pressable
+                      style={styles.lockedPrice}
+                      onPress={() => router.push('/login')}
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={13}
+                        color={palette.textSecondary}
+                      />
+                      <Text style={styles.lockedPriceText}>
+                        Fiyat bilgisi giriş yapıldıktan sonra listelenir
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {cannotOrder ? (
+                    <View style={styles.stockMessage}>
+                      <Ionicons name="cube-outline" size={14} color="#BE123C"/>
+                      <Text style={styles.stockMessageText}>{soldOut ? 'Stoklar tükenmiştir.' : 'Sipariş için yeterli stok yok.'}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={[styles.meta, cannotOrder && styles.unavailablePrice]}>
+                    Koli içi {pack} · Min. {minBoxes}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+
   };
 
   return (
@@ -448,209 +564,64 @@ export default function HomeScreen() {
             <Text style={styles.sectionSubtitle}>Ürün grubunu seçin</Text>
           </View>
           <Pressable onPress={() => router.push('/(tabs)/products')}>
-            <Text style={styles.sectionAction}>Tümü</Text>
-          </Pressable>
+         <View style={styles.sectionHeader}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.newArrivalLabelRow}>
+              <View style={styles.newArrivalDot} />
+              <Text style={styles.newArrivalLabel}>SON 24 SAAT</Text>
+            </View>
+            <Text style={styles.sectionTitle}>Yeni Gelen Ürünler</Text>
+            <Text style={styles.sectionSubtitle}>Kataloğumuza son 24 saatte eklenen ürünler</Text>
+          </View>
+          <Text style={styles.productCount}>{newArrivals.length} yeni ürün</Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categories}
-        >
-          <Pressable
-            onPress={() => router.push('/ledger' as never)}
-            style={[styles.categoryCard, styles.ledgerTile]}
-            accessibilityRole="button"
-            accessibilityLabel="Defterim'e git"
-          >
-            {ledgerTileImageId ? <Image
-              source={{uri:homepageMediaUrl(ledgerTileImageId)||''}}
-              style={styles.categoryImage}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-            /> : <Ionicons name="book-outline" size={27} color={palette.text}/>}
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.categoryText}>Defterim</Text>
-          </Pressable>
-
-          {categories.map((category, index) => {
-            const configured = categoryCards.find((item) => item.category === category);
-            const icons: Array<keyof typeof Ionicons.glyphMap> = [
-              'home-outline',
-              'flash-outline',
-              'basket-outline',
-              'construct-outline',
-              'storefront-outline',
-              'cube-outline',
-            ];
-
-            return (
+        {newArrivals.length > 0 ? (
+          <>
+            <View style={styles.productGrid}>
+              {newArrivals.slice(0, newArrivalsVisible).map(product => renderHomeProductCard(product, true))}
+            </View>
+            {newArrivalsVisible < newArrivals.length ? (
               <Pressable
-                key={category}
-                onPress={() => router.push({ pathname: '/collection/[category]', params: { category } } as never)}
-                style={styles.categoryCard}
+                onPress={() => setNewArrivalsVisible(value => value + 12)}
+                style={styles.catalogRetry}
+                accessibilityRole="button"
+                accessibilityLabel="Daha fazla yeni gelen ürün göster"
               >
-                {configured?.imageId ? (
-                  <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
-                    style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
-                ) : (
-                  <Ionicons name={icons[index % icons.length]} size={28}
-                    color={palette.text} />
-                )}
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.68}
-                  style={styles.categoryText}
-                >
-                  {configured?.label || category}
-                </Text>
+                <Text style={styles.catalogRetryText}>Daha fazla yeni ürün gör</Text>
               </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {reels.length > 0 ? <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Reels Videoları</Text>
-            <Pressable onPress={() => router.push('/(tabs)/discover')} accessibilityRole="button">
-              <Text style={styles.sectionAction}>Tümünü Gör  →</Text>
-            </Pressable>
+            ) : null}
+          </>
+        ) : (
+          <View style={styles.newArrivalEmpty}>
+            <Text style={styles.newArrivalEmptyText}>Son 24 saatte eklenen yeni ürün bulunmuyor.</Text>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-            {reels.slice(0, 4).map(reel => (
-              <Pressable
-                key={String(reel.id)}
-                style={styles.reelPreviewCard}
-                onPress={() => router.push('/(tabs)/discover')}
-                accessibilityLabel={reel.title || 'Reels videosu'}
-              >
-                {absoluteMediaUrl(reel.video_url) ? (
-                  <Video
-                    source={{ uri: absoluteMediaUrl(reel.video_url)! }}
-                    style={styles.reelCoverImage}
-                    resizeMode={ResizeMode.COVER}
-                    isMuted
-                    shouldPlay
-                    isLooping
-                    useNativeControls={false}
-                    progressUpdateIntervalMillis={1000}
-                  />
-                ) : (
-                  <View style={styles.reelFallback} pointerEvents="none">
-                    <Ionicons name="videocam-outline" size={36} color="#CBD5E1" />
-                  </View>
-                )}
-                <View style={styles.reelPreviewOverlay}>
-                  <Ionicons name="play-circle" size={34} color="#FFCD00" />
-                  <Text style={styles.reelPreviewText} numberOfLines={2}>{reel.title || 'Ürün videosu'}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </> : null}
+        )}
 
         <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Yeni Gelen Ürünler</Text>
-            <Text style={styles.sectionSubtitle}>
-              Çalışkan B2B ve onaylı tedarikçilerden son eklenenler
-            </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Toptan Ürünler</Text>
+            <Text style={styles.sectionSubtitle}>Çalışkan B2B ve onaylı tedarikçi ürünleri</Text>
           </View>
-          <Text style={styles.productCount}>{filtered.length} ürün</Text>
+          <Pressable onPress={() => router.push('/(tabs)/products')} accessibilityRole="button">
+            <Text style={styles.sectionAction}>Tümünü Gör</Text>
+          </Pressable>
         </View>
-
-        <ScrollView
-          ref={newProductsScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onLayout={event => setNewProductsWidth(event.nativeEvent.layout.width)}
-          contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.lg }}
-        >
-          {filtered.slice(0, 10).map((product) => {
-            const image = productImage(product);
-            const pack = Math.max(1, Number(product.units_per_box) || 1);
-            const minBoxes = Math.max(1, Number(product.min_order_qty) || 1);
-            const stock = Math.max(0, Number(product.stock) || 0);
-            const soldOut = stock === 0;
-            const cannotOrder = stock < pack * minBoxes;
-            const priceVisible =
-              Boolean(session) &&
-              product.price !== null &&
-              product.price !== undefined;
-
-            return (
-              <Pressable
-                key={String(product.id)}
-                style={[styles.productCard, { width: Math.min(190, Math.max(145, screenWidth * 0.42)) }, cannotOrder && styles.unavailableProductCard]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/product/[id]',
-                    params: productParams(product),
-                  } as never)
-                }
-              >
-                <View style={styles.productImageWrap}>
-                  {image ? (
-                    <Image
-                      source={{ uri: image }}
-                      style={[styles.productImage, cannotOrder && styles.unavailableProductImage]}
-                      contentFit="contain"
-                      cachePolicy="memory-disk"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="cube-outline"
-                      size={38}
-                      color={palette.muted}
-                    />
-                  )}
-                  {cannotOrder ? (
-                    <View pointerEvents="none" style={styles.stockOverlayBadge}>
-                      <Ionicons name="ban-outline" size={15} color="#FFFFFF" />
-                      <Text style={styles.stockOverlayText}>{soldOut ? 'STOKTA YOK' : 'STOK YETERSİZ'}</Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.productBody}>
-                  <Text style={styles.sku}>{product.sku || 'STOK'}</Text>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.name}
-                  </Text>
-                  {product.seller_name ? <Text style={styles.meta} numberOfLines={1}>{product.seller_name}</Text> : null}
-
-                  {priceVisible ? (
-                    <Text style={[styles.price, cannotOrder && styles.unavailablePrice]}>{money(product.price)}</Text>
-                  ) : (
-                    <Pressable
-                      style={styles.lockedPrice}
-                      onPress={() => router.push('/login')}
-                    >
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={13}
-                        color={palette.textSecondary}
-                      />
-                      <Text style={styles.lockedPriceText}>
-                        Fiyat bilgisi giriş yapıldıktan sonra listelenir
-                      </Text>
-                    </Pressable>
-                  )}
-
-                  {cannotOrder ? (
-                    <View style={styles.stockMessage}>
-                      <Ionicons name="cube-outline" size={14} color="#BE123C"/>
-                      <Text style={styles.stockMessageText}>{soldOut ? 'Stoklar tükenmiştir.' : 'Sipariş için yeterli stok yok.'}</Text>
-                    </View>
-                  ) : null}
-                  <Text style={[styles.meta, cannotOrder && styles.unavailablePrice]}>
-                    Koli içi {pack} · Min. {minBoxes}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {wholesale.length > 0 ? (
+          <ScrollView
+            ref={wholesaleScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            onLayout={event => setWholesaleWidth(event.nativeEvent.layout.width)}
+            contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.lg }}
+          >
+            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product))}
+          </ScrollView>
+        ) : (
+          <View style={styles.newArrivalEmpty}>
+            <Text style={styles.newArrivalEmptyText}>Toptan ürünler burada listelenecek. Yeni ürünler yukarıdaki bölümde yer alır.</Text>
+          </View>
+        )
 
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
@@ -879,8 +850,22 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   productGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
+  newArrivalLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
+  newArrivalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#16A34A' },
+  newArrivalLabel: { fontSize: 10, color: '#15803D', fontWeight: '800', letterSpacing: 0.5 },
+  newArrivalBadge: {
+    position: 'absolute', top: 8, left: 8, zIndex: 2,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6,
+    backgroundColor: '#16A34A',
+  },
+  newArrivalBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  newArrivalEmpty: {
+    borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface,
+    paddingVertical: 22, paddingHorizontal: 16, borderRadius: 12,
+  },
+  newArrivalEmptyText: { color: palette.textSecondary, fontSize: 13, textAlign: 'center' },
   productCard: {
     width: '48%',
     borderRadius: radius.lg,
