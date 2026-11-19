@@ -80,9 +80,11 @@ export B2B_ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/b2b-upload/upload.jks"
 printf '%s' "$B2B_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$B2B_ANDROID_KEYSTORE_PATH"
 chmod 600 "$B2B_ANDROID_KEYSTORE_PATH"
 
-# Fingerprint observed in the existing signed Play AAB and EAS APK.
-# A mismatched key must never silently replace the production upload key.
-expected="B439A94578107288AC6D8ABBA653964B71D4761C9F8BB379335C21E6210CB0A3"
+# New replacement upload certificate generated on 2026-11-19.
+# Play Console says this certificate becomes effective on 2026-11-21 11:45.
+# The Play Console upload-key fingerprint MUST be rechecked after activation.
+# A mismatched key must never silently replace the authorized upload key.
+expected="9B49A12AD060804BA23692C78C153CADCB38F07B3D1959FEB1BFF0DDA2E772D0"
 keytool -exportcert \
   -keystore "$B2B_ANDROID_KEYSTORE_PATH" \
   -alias "$B2B_ANDROID_KEY_ALIAS" \
@@ -107,4 +109,4 @@ if [[ "$bundle_fingerprint" != "$expected" ]]; then
   echo "AAB signing certificate mismatch." >&2
   exit 1
 fi
-echo "Store-signed standalone APK and AAB created with original upload certificate."
+echo "Store-signed standalone APK and AAB created with replacement upload certificate."
