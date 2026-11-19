@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { AdminNotificationTargetPicker } from "@/components/admin-notification-target-picker";
 
 type Customer={id:number;email:string;company_name?:string|null};
 type Rule={event_key:string;enabled:boolean;title_template:string;body_template:string};
@@ -408,25 +409,7 @@ export default function AdminNotifications(){
                 value={message} maxLength={800} onChange={e=>setMessage(e.target.value)}
                 placeholder="Kullanıcının telefonunda ve uygulama bildirim kutusunda görünecek mesaj"/>
             </div>
-            <div className="space-y-2 rounded-xl border bg-background p-3">
-              <label htmlFor="notification-target" className="block text-sm font-semibold">Ürün veya sayfa bağlantısı (isteğe bağlı)</label>
-              <Input id="notification-target" type="text" inputMode="url" maxLength={500}
-                value={targetPath} onChange={event=>setTargetPath(event.target.value)}
-                placeholder="https://b2b.ecalisgan.com/urun/145"/>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  ["Ana sayfa","/"],["Ürünler","/urunler"],["Kategoriler","/kategoriler"],
-                  ["Siparişlerim","/siparislerim"],["Hesabım","/hesabim"],
-                  ["Kampanyalar","/kampanyalar"],
-                ].map(([label,path])=><Button key={path} size="sm" type="button" variant="outline"
-                  onClick={()=>setTargetPath(path)}>{label}</Button>)}
-                {targetPath?<Button size="sm" type="button" variant="ghost" onClick={()=>setTargetPath("")}>Temizle</Button>:null}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Bildirime dokunulduğunda seçilen ürün veya sayfa açılır. Yalnızca b2b.ecalisgan.com
-                bağlantıları ya da /urun/145 gibi site içi yollar kabul edilir. Bağlantı boşsa mevcut davranış değişmez.
-              </p>
-            </div>
+            <AdminNotificationTargetPicker id="notification-target" value={targetPath} onChange={setTargetPath} />
             <div className="rounded-xl border bg-muted/20 p-3">
               <div className="flex items-center gap-2 font-semibold"><Volume2 className="h-4 w-4"/> Bildirim sesi</div>
               <label className="mt-2 flex items-center gap-2 text-sm">
@@ -590,16 +573,9 @@ export default function AdminNotifications(){
                   <textarea rows={3} maxLength={800} className="w-full rounded-lg border bg-background p-3 text-sm font-normal"
                     value={editingSchedule.body} onChange={e=>changeScheduleDraft({body:e.target.value})}/>
                 </label>
-                <label className="block space-y-1 text-xs font-semibold">
-                  Ürün veya sayfa bağlantısı (isteğe bağlı)
-                  <Input type="text" inputMode="url" maxLength={500} value={editingSchedule.targetPath}
-                    placeholder="/urun/145 veya https://b2b.ecalisgan.com/urun/145"
-                    onChange={e=>changeScheduleDraft({targetPath:e.target.value})}/>
-                </label>
-                <Button size="sm" type="button" variant="outline" className="w-fit"
-                  onClick={()=>changeScheduleDraft({targetPath:"/kampanyalar"})}>
-                  Kampanyalar sayfasına yönlendir
-                </Button>
+                <AdminNotificationTargetPicker key={editingSchedule.id} id={"scheduled-notification-target-"+editingSchedule.id}
+                  value={editingSchedule.targetPath}
+                  onChange={path=>changeScheduleDraft({targetPath:path})}/>
                 <div className="flex flex-wrap gap-4 text-sm">
                   <label className="flex cursor-pointer items-center gap-2">
                     <input type="checkbox" checked={editingSchedule.all}
