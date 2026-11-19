@@ -29,7 +29,11 @@ async function post(path: string, body: Record<string, unknown>) {
 export function trackSession() {
   if (typeof window === "undefined") return;
   if (document.hidden) return;
-  return post("/api/analytics/session", { visitorId: getVisitorId(), platform: "web" });
+  // Send a pathname only. The server reduces it to a fixed page category,
+  // and guests are included without needing a B2B account.
+  return post("/api/analytics/session", {
+    visitorId: getVisitorId(), platform: "web", pagePath: window.location.pathname,
+  });
 }
 
 export function trackSearch(query: string) {
