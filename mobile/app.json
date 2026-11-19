@@ -32,7 +32,8 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "com.google.android.gms.permission.AD_ID",
         "android.permission.ACCESS_ADSERVICES_AD_ID"
-      ]
+      ],
+      "versionCode": 27
     },
     "plugins": [
       [
