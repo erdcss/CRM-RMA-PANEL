@@ -4,3 +4,5 @@ Amac: GitHub Actions ubuntu runner uzerinde npx expo prebuild + Gradle assembleD
 Kontroller: uygulama kimligi com.caliskangroup.rma, surum kodu >= 27,
 Android konum ve reklam kimligi izinleri bloke, splash ve marka senkronizasyonu.
 Not: Debug APK Google Play'e yuklenmeyecek; imzali APK/AAB icin orijinal yukleme anahtari gerekli.
+
+Ikinci deneme: 2026-11-19 - SDK setup action cikarildi, runner on yuklu Android SDK kullaniliyor.
