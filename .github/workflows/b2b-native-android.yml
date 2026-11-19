@@ -55,9 +55,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # GitHub ubuntu-latest already has Android SDK commandline tools.
+      # android-actions/setup-android@v3 tries to install obsolete "tools"
+      # package on current runners and exits before Gradle can run.
       - name: Android SDK 36
-        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          command -v sdkmanager
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - name: Node dependencies
         run: npm ci
       - name: Build with native Gradle (no EXPO_TOKEN, no EAS)
