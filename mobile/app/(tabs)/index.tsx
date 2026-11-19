@@ -621,7 +621,7 @@ export default function HomeScreen() {
           <View style={styles.newArrivalEmpty}>
             <Text style={styles.newArrivalEmptyText}>Toptan ürünler burada listelenecek. Yeni ürünler yukarıdaki bölümde yer alır.</Text>
           </View>
-        )
+        )}
 
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
