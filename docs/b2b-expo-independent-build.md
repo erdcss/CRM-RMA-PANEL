@@ -91,12 +91,15 @@ Uygulama ve bundle ID yeniden oluşturulmaz.
    Apple Developer hesabından güvenli şekilde içeri alın.
    `ios_signing.distribution_type: app_store` bu kayıtları seçecektir.
 4. Codemagic uygulama ekranında **Start new build → branch main →
-   caliskan-b2b-ios** seçin. İş akışı otomatiktir, ancak TestFlight'a yükleme
-   bu ilk doğrulama derlemesinde **kapalıdır**.
-5. Derleme başarıyla tamamlanırsa **Artifacts** kısmında imzalı `.ipa`
-   oluşturulur. Önce çıktının `com.caliskangroup.rma` bundle ID'sini,
-   sertifikasını, sürüm numarasını ve Apple Developer takımını doğrulayın;
-   sonra TestFlight yayımlama adımını etkinleştirin.
+   caliskan-b2b-ios** seçin. İlk imzalı doğrulama build'i **#261119001**
+   başarıyla tamamlandı, ancak TestFlight'a gönderim bu ilk çalışmada kapalıydı.
+5. GitHub commit `e89098f` sonrasında Codemagic YAML içindeki
+   `publishing.app_store_connect.auth: integration` etkinleştirildi.
+   **Yeni bir Codemagic build başlatılması gerekir**; eski `.ipa` otomatik
+   olarak geçmişe dönük yüklenmez. Yeni build sonunda Codemagic
+   **App Store Connect'e binary yükler**; ardından Apple işlemeyi bitirince
+   TestFlight > Builds üzerinden görülür. Harici beta incelemesi ve herkese
+   açık App Store yayını otomatik olarak yapılmaz.
 
 ### CI güvenlik ve uyumluluk
 
@@ -119,8 +122,10 @@ Uygulama ve bundle ID yeniden oluşturulmaz.
   test edilip yeniden etkinleştirilecektir.
 - Kod derleme yolu `expo prebuild` + CocoaPods + Xcode kullanır,
   `eas build` veya `EXPO_TOKEN` gerektirmez.
-- TestFlight'a **otomatik** gönderim şu anda kapalıdır; Apple bağlantısı ve imzalı
-  ilk IPA doğrulandıktan sonra yayınlama ayrı aşamada yapılır.
+- İlk IPA doğrulamasından sonra **App Store Connect'e otomatik IPA yükleme**
+  etkinleştirildi. `submit_to_testflight: false` ile harici beta
+  incelemesi istenmez ve `submit_to_app_store: false` ile App Store
+  üretim yayını yapılmaz. İç test grubuna atama App Store Connect'te yapılır.
 - Push bildirimleri için Expo projesinden bağımsız APNs yoluna geçiş hâlâ
   ayrıca doğrulanmalıdır. IPA derleme başarısı bildirimlerin geldiğini ispatlamaz.
 
