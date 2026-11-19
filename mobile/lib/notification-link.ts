@@ -6,6 +6,7 @@
 export type NotificationDestination =
   | {kind:'product';id:string}
   | {kind:'category';category:string}
+  | {kind:'subcategory';category:string;subcategoryId:string}
   | {kind:'store';slug:string}
   | {kind:'route';path:string}
   | {kind:'support';ticketId:string}
@@ -43,8 +44,28 @@ export function resolveB2BNotificationLink(value:unknown):NotificationDestinatio
   if(support)return {kind:'support',ticketId:support[1]};
   const product=/^\/urun\/([A-Za-z0-9._-]{1,100})\/?$/.exec(path);
   if(product)return {kind:'product',id:product[1]};
-  const category=/^\/kategori\/([A-Za-z0-9_-]{1,100})\/?$/.exec(path);
-  if(category)return {kind:'category',category:category[1]};
+  // The storefront uses category names (often Turkish/percent-encoded) and
+  // stable 24-hex subcategory IDs: /kategori/<name>/alt/<id>.
+  const decodeCategory = (part:string):string|null => {
+    try {
+      const name=decodeURIComponent(part);
+      if(!name || name.length>80 || name==='.' || name==='..' ||
+         /[\\/\\\\\\u0000-\\u001f\\u007f?#]/.test(name))return null;
+      return name;
+    }catch{return null;}
+  };
+  const subcategory=/^\\/kategori\\/([^/]+)\\/alt\\/([a-fA-F0-9]{24})\\/?$/.exec(path);
+  if(subcategory){
+    const name=decodeCategory(subcategory[1]);
+    if(name)return {kind:'subcategory',category:name,subcategoryId:subcategory[2].toLowerCase()};
+    return null;
+  }
+  const category=/^\\/kategori\\/([^/]+)\\/?$/.exec(path);
+  if(category){
+    const name=decodeCategory(category[1]);
+    if(name)return {kind:'category',category:name};
+    return null;
+  }
   const store=/^\/magaza\/([A-Za-z0-9_-]{1,100})\/?$/.exec(path);
   if(store)return {kind:'store',slug:store[1]};
   // Unsupported B2B web pages may still be visited securely in the browser.
