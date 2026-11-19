@@ -8,6 +8,8 @@ test("accepts only B2B internal product and page targets",()=>{
     ["https://b2b.ecalisgan.com/urun/mp-42","/urun/mp-42"],
     ["https://b2b.ecalisgan.com/kategoriler","/kategoriler"],
     ["/kategori/ev-aletleri","/kategori/ev-aletleri"],
+    ["/kategori/Elektrikli%20Ev%20Aletleri","/kategori/Elektrikli%20Ev%20Aletleri"],
+    ["/kategori/%C3%87ama%C5%9F%C4%B1r%20%C3%9Cr%C3%BCnleri/alt/0123456789abcdef01234567","/kategori/%C3%87ama%C5%9F%C4%B1r%20%C3%9Cr%C3%BCnleri/alt/0123456789abcdef01234567"],
     ["/","/"],
   ] as const) assert.deepEqual(parseB2BNotificationTarget(value),{ok:true,path:expected});
 });
