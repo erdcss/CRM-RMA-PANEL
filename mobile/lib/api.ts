@@ -171,6 +171,7 @@ export type MarketplaceProduct = {
     barcode?: string;
     imageUrl?: string;
     imageUrls?: string[];
+    images?: string[];
     price?: string | number | null;
     category?: string;
     brand?: string;
