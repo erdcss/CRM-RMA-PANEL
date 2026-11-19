@@ -36,6 +36,11 @@ export async function openB2BNotificationTarget(router:Router,raw:unknown):Promi
     case 'category':
       router.push({pathname:'/collection/[category]',params:{category:destination.category}} as never);
       return true;
+    case 'subcategory':
+      router.push({pathname:'/collection/[category]',params:{
+        category:destination.category,subcategoryId:destination.subcategoryId,
+      }} as never);
+      return true;
     case 'store':
       router.push({pathname:'/marketplace/store/[slug]',params:{slug:destination.slug}} as never);
       return true;
