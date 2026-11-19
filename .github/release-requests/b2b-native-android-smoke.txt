@@ -1,0 +1,6 @@
+Caliskan B2B - Expo EAS'den bagimsiz Android native smoke test
+Tarih: 2026-11-19
+Amac: GitHub Actions ubuntu runner uzerinde npx expo prebuild + Gradle assembleDebug, Expo token olmadan.
+Kontroller: uygulama kimligi com.caliskangroup.rma, surum kodu >= 27,
+Android konum ve reklam kimligi izinleri bloke, splash ve marka senkronizasyonu.
+Not: Debug APK Google Play'e yuklenmeyecek; imzali APK/AAB icin orijinal yukleme anahtari gerekli.
