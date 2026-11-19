@@ -11,8 +11,10 @@ workflows:
       app_store_connect: Codemagic Caliskan B2B
     environment:
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.caliskangroup.rma
+        certificates:
+          - caliskan_b2b_appstore_distribution
+        provisioning_profiles:
+          - caliskan_b2b_appstore_2026
       vars:
         EXPO_PUBLIC_API_URL: "https://b2b.ecalisgan.com"
         EXPO_PUBLIC_B2B_AD_TRACKING: "0"
