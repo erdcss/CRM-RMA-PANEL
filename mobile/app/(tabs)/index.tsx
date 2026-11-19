@@ -37,7 +37,7 @@ import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
-import {isNewArrival,splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
+import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
