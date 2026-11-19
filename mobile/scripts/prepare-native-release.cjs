@@ -32,7 +32,11 @@ const pinnedCodemagicCommit = process.env.CI === '1'
   && process.env.CM_BRANCH === 'main'
   && process.env.CM_COMMIT === head;
 
-if (branch !== 'main' && !pinnedCodemagicCommit) {
+const pinnedActionsCommit = process.env.CI === '1'
+  && process.env.GITHUB_ACTIONS === 'true'
+  && process.env.GITHUB_SHA === head;
+
+if (branch !== 'main' && !pinnedCodemagicCommit && !pinnedActionsCommit) {
   fail('Aktif branch "' + branch + '". Yayın için main dalına geçin; yerel değişiklikleri önce yedekleyin.');
 }
 
@@ -52,9 +56,7 @@ try {
 // GitHub Actions builds a pinned commit (GITHUB_SHA). New commits arriving
 // during the queue must not invalidate that immutable release snapshot.
 // For local releases we still require the latest origin/main to avoid stale builds.
-const pinnedActionsCommit = process.env.CI === '1'
-  && process.env.GITHUB_ACTIONS === 'true'
-  && process.env.GITHUB_SHA === head;
+
 if (remote !== head && !pinnedActionsCommit && !pinnedCodemagicCommit) {
   fail(
     'Yerel kod ile GitHub main farklı!\n' +
@@ -75,7 +77,7 @@ config.expo.extra = {
   ...(config.expo.extra || {}),
   sourceRevision: head.slice(0, 12),
   sourceBuildDate: new Date().toISOString(),
-  sourceBranch: branch,
+  sourceBranch: branch || (pinnedActionsCommit || pinnedCodemagicCommit ? 'main' : ''),
 };
 fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + '\n');
 console.log('[release-check] Güncel main doğrulandı: ' + head.slice(0, 12));
