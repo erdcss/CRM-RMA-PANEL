@@ -44,27 +44,26 @@ export function resolveB2BNotificationLink(value:unknown):NotificationDestinatio
   if(support)return {kind:'support',ticketId:support[1]};
   const product=/^\/urun\/([A-Za-z0-9._-]{1,100})\/?$/.exec(path);
   if(product)return {kind:'product',id:product[1]};
-  // The storefront uses category names (often Turkish/percent-encoded) and
-  // stable 24-hex subcategory IDs: /kategori/<name>/alt/<id>.
+  // Storefront URLs use category names, which can contain Turkish characters.
+  // /kategori/<name>/alt/<24-hex-id> must open the filtered native collection.
   const decodeCategory = (part:string):string|null => {
     try {
       const name=decodeURIComponent(part);
-      if(!name || name.length>80 || name==='.' || name==='..' ||
-         /[\\/\\\\\\u0000-\\u001f\\u007f?#]/.test(name))return null;
+      if (!name || name.length > 80 || name === '.' || name === '..' ||
+          /[\/\\\u0000-\u001f\u007f?#]/.test(name)) return null;
       return name;
-    }catch{return null;}
+    } catch { return null; }
   };
-  const subcategory=/^\\/kategori\\/([^/]+)\\/alt\\/([a-fA-F0-9]{24})\\/?$/.exec(path);
-  if(subcategory){
+  const subcategory=/^\/kategori\/([^/]+)\/alt\/([a-fA-F0-9]{24})\/?$/.exec(path);
+  if (subcategory) {
     const name=decodeCategory(subcategory[1]);
-    if(name)return {kind:'subcategory',category:name,subcategoryId:subcategory[2].toLowerCase()};
-    return null;
+    if (!name) return null;
+    return {kind:'subcategory',category:name,subcategoryId:subcategory[2].toLowerCase()};
   }
-  const category=/^\\/kategori\\/([^/]+)\\/?$/.exec(path);
-  if(category){
+  const category=/^\/kategori\/([^/]+)\/?$/.exec(path);
+  if (category) {
     const name=decodeCategory(category[1]);
-    if(name)return {kind:'category',category:name};
-    return null;
+    return name ? {kind:'category',category:name} : null;
   }
   const store=/^\/magaza\/([A-Za-z0-9_-]{1,100})\/?$/.exec(path);
   if(store)return {kind:'store',slug:store[1]};
