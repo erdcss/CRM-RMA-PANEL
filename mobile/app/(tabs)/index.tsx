@@ -564,7 +564,108 @@ export default function HomeScreen() {
             <Text style={styles.sectionSubtitle}>Ürün grubunu seçin</Text>
           </View>
           <Pressable onPress={() => router.push('/(tabs)/products')}>
-         <View style={styles.sectionHeader}>
+            <Text style={styles.sectionAction}>Tümü</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categories}
+        >
+          <Pressable
+            onPress={() => router.push('/ledger' as never)}
+            style={[styles.categoryCard, styles.ledgerTile]}
+            accessibilityRole="button"
+            accessibilityLabel="Defterim'e git"
+          >
+            {ledgerTileImageId ? <Image
+              source={{uri:homepageMediaUrl(ledgerTileImageId)||''}}
+              style={styles.categoryImage}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            /> : <Ionicons name="book-outline" size={27} color={palette.text}/>}
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.categoryText}>Defterim</Text>
+          </Pressable>
+
+          {categories.map((category, index) => {
+            const configured = categoryCards.find((item) => item.category === category);
+            const icons: Array<keyof typeof Ionicons.glyphMap> = [
+              'home-outline',
+              'flash-outline',
+              'basket-outline',
+              'construct-outline',
+              'storefront-outline',
+              'cube-outline',
+            ];
+
+            return (
+              <Pressable
+                key={category}
+                onPress={() => router.push({ pathname: '/collection/[category]', params: { category } } as never)}
+                style={styles.categoryCard}
+              >
+                {configured?.imageId ? (
+                  <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
+                    style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
+                ) : (
+                  <Ionicons name={icons[index % icons.length]} size={28}
+                    color={palette.text} />
+                )}
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.68}
+                  style={styles.categoryText}
+                >
+                  {configured?.label || category}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        {reels.length > 0 ? <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Reels Videoları</Text>
+            <Pressable onPress={() => router.push('/(tabs)/discover')} accessibilityRole="button">
+              <Text style={styles.sectionAction}>Tümünü Gör  →</Text>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+            {reels.slice(0, 4).map(reel => (
+              <Pressable
+                key={String(reel.id)}
+                style={styles.reelPreviewCard}
+                onPress={() => router.push('/(tabs)/discover')}
+                accessibilityLabel={reel.title || 'Reels videosu'}
+              >
+                {absoluteMediaUrl(reel.video_url) ? (
+                  <Video
+                    source={{ uri: absoluteMediaUrl(reel.video_url)! }}
+                    style={styles.reelCoverImage}
+                    resizeMode={ResizeMode.COVER}
+                    isMuted
+                    shouldPlay
+                    isLooping
+                    useNativeControls={false}
+                    progressUpdateIntervalMillis={1000}
+                  />
+                ) : (
+                  <View style={styles.reelFallback} pointerEvents="none">
+                    <Ionicons name="videocam-outline" size={36} color="#CBD5E1" />
+                  </View>
+                )}
+                <View style={styles.reelPreviewOverlay}>
+                  <Ionicons name="play-circle" size={34} color="#FFCD00" />
+                  <Text style={styles.reelPreviewText} numberOfLines={2}>{reel.title || 'Ürün videosu'}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </> : null}
+
+        <View style={styles.sectionHeader}>
           <View style={{ flex: 1 }}>
             <View style={styles.newArrivalLabelRow}>
               <View style={styles.newArrivalDot} />
