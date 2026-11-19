@@ -4,12 +4,16 @@ import { sendPushToUsers } from "./push-notifications";
 import { registerB2BScheduledNotifications } from "./b2b-scheduled-notifications";
 import {parseB2BNotificationTarget} from "./b2b-notification-target";
 
-const EVENT_KEYS = ["membership_approved","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid"] as const;
+const EVENT_KEYS = ["membership_approved","membership_rejected","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid"] as const;
 export type NotificationEvent = typeof EVENT_KEYS[number];
 const DEFAULTS: Record<NotificationEvent,{title:string;body:string}> = {
   membership_approved: {
     title: "Üyeliğiniz onaylandı",
     body: "Çalışkan B2B üyeliğiniz onaylandı. Artık hesabınıza giriş yapabilirsiniz.",
+  },
+  membership_rejected: {
+    title: "Firma başvurunuz için düzeltme gerekiyor",
+    body: "Başvurunuz onaylanmadı. Gerekçe: {reason} Eksiklikleri giderip yeniden başvuru yapabilirsiniz.",
   },
   order_created: {
     title: "Siparişiniz oluşturuldu",
@@ -97,6 +101,7 @@ export async function notifyB2BEvent(
   userId:number, eventKey:NotificationEvent,
   vars:Record<string,string>={},
   dedupeKey?:string,
+  options:{includeLoggedOut?:boolean;targetPath?:string}={},
 ) {
   if (!pool || !Number.isSafeInteger(userId) || userId < 1) return { recorded:false,sent:0 };
   await ensureB2BNotificationTables();
@@ -109,16 +114,17 @@ export async function notifyB2BEvent(
   const title=expand(String(rule.title_template),vars).slice(0,180);
   const body=expand(String(rule.body_template),vars).slice(0,800);
   const inserted = await pool.query(
-    `INSERT INTO b2b_notifications (user_id,title,body,source,event_key,dedupe_key)
-     VALUES ($1,$2,$3,'automatic',$4,$5)
+    `INSERT INTO b2b_notifications (user_id,title,body,source,event_key,dedupe_key,target_path)
+     VALUES ($1,$2,$3,'automatic',$4,$5,$6)
      ON CONFLICT (user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
      RETURNING id`,
-    [userId,title,body,eventKey,dedupeKey || null],
+    [userId,title,body,eventKey,dedupeKey || null,options.targetPath||null],
   );
   if (!inserted.rows[0]) return { recorded:false,sent:0 };
   const push = await sendPushToUsers([userId],{
-    title,body,data:{type:eventKey,eventKey,notificationId:String(inserted.rows[0].id)}
-  }).catch(e => { console.error("B2B auto push error",e);return {sent:0,tokenCount:0}; });
+    title,body,data:{type:eventKey,eventKey,notificationId:String(inserted.rows[0].id),
+      ...(options.targetPath?{targetPath:options.targetPath}:{})}
+  },{includeLoggedOut:options.includeLoggedOut===true}).catch(e => { console.error("B2B auto push error",e);return {sent:0,tokenCount:0}; });
   return { recorded:true, ...push };
 }
 
