@@ -131,6 +131,7 @@ export type CatalogCustomer = {
 
 export type B2BProduct = {
   id: string | number;
+  created_at?: string | null;
   sku?: string | null;
   name: string;
   price?: string | number | null;
@@ -158,6 +159,7 @@ export type B2BProduct = {
 // Approved marketplace products use their own IDs and must never be mixed with b2b_products IDs.
 export type MarketplaceProduct = {
   id: string | number;
+  created_at?: string | null;
   sku: string;
   stock: number;
   seller_slug: string;
