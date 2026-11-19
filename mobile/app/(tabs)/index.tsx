@@ -88,7 +88,7 @@ export default function HomeScreen() {
   const bannerScrollRef = useRef<ScrollView>(null);
   const wholesaleScrollRef = useRef<ScrollView>(null);
   const wholesaleIndexRef = useRef(0);
-  const [wholesaleWidth, setNewProductsWidth] = useState(0);
+  const [wholesaleWidth, setWholesaleWidth] = useState(0);
   const bannerIndexRef = useRef(0);
   const activeBanner=banners[bannerIndex];
   const activeSize=activeBanner ? (loadedBannerSizes[activeBanner.imageId] ||
