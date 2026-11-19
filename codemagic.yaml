@@ -1,12 +1,27 @@
 # B2B iOS backup CI: Expo SDK, but NOT Expo EAS Build.
-# Manual Codemagic build only. Connect this GitHub repo in Codemagic UI,
-# then add App Store distribution signing certificate + provisioning profile
+# Chat-triggered build via GitHub marker push; Codemagic webhook required.
+# Manual UI builds remain available. Use App Store distribution signing certificate + profile
 # for com.caliskangroup.rma in Codemagic Code Signing Identities.
 workflows:
   caliskan-b2b-ios:
     name: Caliskan B2B - iOS signed IPA (no Expo EAS)
     instance_type: mac_mini_m2
     max_build_duration: 120
+    # Only a dedicated chat command marker triggers this costly iOS build.
+    # Routine code commits, Android requests, and docs changes are excluded.
+    # First config change may be detected as a changeset by Codemagic.
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: false
+    when:
+      changeset:
+        includes:
+          - '.github/release-requests/b2b-ios-testflight.txt'
     integrations:
       app_store_connect: Codemagic Caliskan B2B
     environment:
