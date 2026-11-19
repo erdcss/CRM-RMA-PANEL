@@ -1,0 +1,85 @@
+name: Caliskan B2B - Expo hesap gerektirmeyen Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_kind:
+        description: "smoke = sadece gelistirme APK kontrolu; release = orijinal imzayla APK + Play AAB"
+        required: true
+        type: choice
+        options:
+          - smoke
+          - release
+        default: smoke
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/b2b-native-android-smoke.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-b2b-native-android
+  cancel-in-progress: false
+
+jobs:
+  native-android:
+    name: Gradle - Expo EAS olmadan Android derle
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      CI: '1'
+      B2B_ANDROID_BUILD: '1'
+      EXPO_PUBLIC_API_URL: https://b2b.ecalisgan.com
+      EXPO_PUBLIC_B2B_AD_TRACKING: '0'
+      REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND: '1'
+      B2B_ANDROID_KEYSTORE_BASE64: ${{ secrets.B2B_ANDROID_KEYSTORE_BASE64 }}
+      B2B_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.B2B_ANDROID_KEYSTORE_PASSWORD }}
+      B2B_ANDROID_KEY_ALIAS: ${{ secrets.B2B_ANDROID_KEY_ALIAS }}
+      B2B_ANDROID_KEY_PASSWORD: ${{ secrets.B2B_ANDROID_KEY_PASSWORD }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK 36
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+      - name: Node dependencies
+        run: npm ci
+      - name: Build with native Gradle (no EXPO_TOKEN, no EAS)
+        run: |
+          bash scripts/native-android-ci.sh "${{ github.event_name == 'workflow_dispatch' && inputs.build_kind == 'release' && 'release' || 'smoke' }}"
+      - name: Debug smoke APK - not a standalone release
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_kind == 'release') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caliskan-B2B-Native-Smoke-DEBUG-not-for-Play
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
+          if-no-files-found: error
+          compression-level: 0
+      - name: Signed Android APK and Play AAB
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_kind == 'release' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Caliskan-B2B-Native-Signed-APK-AAB
+          path: |
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            mobile/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
