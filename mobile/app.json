@@ -2,7 +2,7 @@
   "expo": {
     "name": "Çalışkan B2B",
     "slug": "caliskan-rma",
-    "version": "1.3.12",
+    "version": "1.3.13",
     "orientation": "portrait",
     "scheme": "caliskanb2b",
     "userInterfaceStyle": "automatic",
@@ -33,7 +33,7 @@
         "com.google.android.gms.permission.AD_ID",
         "android.permission.ACCESS_ADSERVICES_AD_ID"
       ],
-      "versionCode": 27
+      "versionCode": 28
     },
     "plugins": [
       [
