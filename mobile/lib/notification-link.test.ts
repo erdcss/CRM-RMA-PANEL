@@ -13,6 +13,21 @@ test('known B2B pages open corresponding app screens',()=>{
   assert.deepEqual(resolve('/hesabim'),{kind:'route',path:'/(tabs)/profile'});
   assert.deepEqual(resolve('/kategori/ev-aletleri'),{kind:'category',category:'ev-aletleri'});
 });
+test('Turkish categories and exact subcategories open native filtered collections',()=>{
+  assert.deepEqual(
+    resolve('/kategori/Elektrikli%20Ev%20Aletleri'),
+    {kind:'category',category:'Elektrikli Ev Aletleri'},
+  );
+  assert.deepEqual(
+    resolve('https://b2b.ecalisgan.com/kategori/%C3%87ama%C5%9F%C4%B1r%20%C3%9Cr%C3%BCnleri/alt/0123456789abcdef01234567'),
+    {kind:'subcategory',category:'Çamaşır Ürünleri',subcategoryId:'0123456789abcdef01234567'},
+  );
+  assert.deepEqual(resolve('/kategori/ev-aletleri/alt/abcdefabcdefabcdefabcdef'),
+    {kind:'subcategory',category:'ev-aletleri',subcategoryId:'abcdefabcdefabcdefabcdef'});
+  assert.equal(resolve('/kategori/ev-aletleri/alt/not-a-real-id')?.kind,'web');
+  assert.equal(resolve('/kategori/bad%2fpath'),null);
+  assert.equal(resolve('/kategori/%ZZ'),null);
+});
 test('other safe B2B pages can open the original web page',()=>{
   assert.deepEqual(resolve('/destek'),{kind:'web',url:'https://b2b.ecalisgan.com/destek'});
 });
