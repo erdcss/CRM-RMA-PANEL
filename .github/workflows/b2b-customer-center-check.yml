@@ -1,9 +1,25 @@
 name: B2B Customer Center - Build and Types
 on:
-  push:
+  pull_request:
     paths:
+      - 'server/b2b-application-rejection.ts'
+      - 'server/b2b-application-rejection.test.ts'
+      - 'server/b2b-notification-center.ts'
       - 'server/b2b-admin-customer-center.ts'
       - 'server/routes.ts'
+      - 'client/src/pages/admin-b2b-customer-detail.tsx'
+      - 'business-mobile/screens/BusinessCustomerCenterScreen.tsx'
+      - 'business-mobile/lib/b2b-customer-center.ts'
+      - '.github/workflows/b2b-customer-center-check.yml'
+  push:
+    paths:
+      - 'server/b2b-application-rejection.ts'
+      - 'server/b2b-application-rejection.test.ts'
+      - 'server/b2b-notification-center.ts'
+      - 'server/b2b-admin-customer-center.ts'
+      - 'server/routes.ts'
+      - 'business-mobile/screens/BusinessCustomerCenterScreen.tsx'
+      - 'business-mobile/lib/b2b-customer-center.ts'
       - 'client/src/pages/admin-applications.tsx'
       - 'client/src/pages/admin-b2b-customers.tsx'
       - 'client/src/pages/admin-b2b-customer-detail.tsx'
@@ -22,6 +38,7 @@ jobs:
   verify:
     name: TypeScript ve üretim derlemesi
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +47,7 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts
-      - run: npx tsx --test client/src/lib/b2b-bottom-nav-routes.test.ts
+      - run: npx tsx --test client/src/lib/b2b-bottom-nav-routes.test.ts server/b2b-application-rejection.test.ts
+      - run: cd business-mobile && npm ci --ignore-scripts && npx tsc --noEmit
       - run: npm run check
       - run: npm run build

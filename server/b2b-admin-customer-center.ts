@@ -1,6 +1,7 @@
 import type {Express,RequestHandler,Request} from "express";
 import {storage} from "./storage";
 import {pool} from "./db";
+import {latestB2BRejection} from "./b2b-application-rejection";
 
 const eligible=(u:any)=>u?.role==="b2b_customer" && u.companyName!=="Çalışkan B2B - Apple İnceleme" && u.companyName!=="Çalışkan B2B - Google Play İnceleme"
   && ["pending","approved","rejected"].includes(String(u.applicationStatus));
@@ -86,7 +87,8 @@ export function registerB2BAdminCustomerCenter(app:Express,requireAdmin:RequestH
     try {
       const user=await storage.getUser(id);
       if(!eligible(user))return res.status(404).json({error:"B2B firması bulunamadı."});
-      const customer=safe(user);
+      const customer={...safe(user),
+        rejection:user?.applicationStatus==="rejected"?await latestB2BRejection(id):null};
       const empty={orderCount:0,orderTotal:0,paidTotal:0,awaitingPayment:0,
         returnCount:0,invoiceCount:0,invoiceTotal:0,supportCount:0,openSupport:0,
         addressCount:0,ledgerEntryCount:0};

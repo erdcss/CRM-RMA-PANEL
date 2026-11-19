@@ -34,6 +34,7 @@ import { registerB2BInvoiceDocumentRoutes } from "./b2b-invoice-documents";
 import { registerB2BShortageRoutes } from "./b2b-shortages";
 import { registerB2BLedgerRoutes } from "./b2b-ledger";
 import { registerB2BAdminCustomerCenter } from "./b2b-admin-customer-center";
+import {B2B_REAPPLICATION_URL,ensureB2BRejectionTable,normalizeB2BRejectionReason,rejectionEmail} from "./b2b-application-rejection";
 import {passwordSetupProof,validPasswordSetupProof,normalizedB2BCustomerEmail} from "./b2b-customer-credentials";
 import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
@@ -2632,6 +2633,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           approvedAt: null, credentialsSentAt: null,
         });
         if (!user) return res.status(404).json({ error: "Önceki başvuru bulunamadı." });
+        // Preserve the original rejection in audit history, but mark it
+        // resolved by a new application (no duplicate applicant accounts).
+        try {
+          await ensureB2BRejectionTable();
+          await pool?.query(`UPDATE b2b_application_rejection_history SET reapplied_at=NOW()
+            WHERE id=(SELECT id FROM b2b_application_rejection_history
+              WHERE user_id=$1 AND reapplied_at IS NULL ORDER BY rejected_at DESC,id DESC LIMIT 1)`,[user.id]);
+        } catch(error) { console.error("B2B reapplication rejection history update failed",error); }
         let marketingConsentSaved=false;
         try {
           await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource);
@@ -3116,35 +3125,124 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.post("/api/admin/b2b-applications/:id/reject", requireAdmin, async (req, res) => {
-    const id = Number(req.params.id);
-    const user = await storage.getUser(id);
-    if (!user || user.role !== "b2b_customer") {
-      return res.status(404).json({ error: "Başvuru bulunamadı" });
+  // A rejection always includes a human-readable explanation. History and the
+  // inactive account transition are committed atomically. Notification failure
+  // never silently reinstates an applicant or discards the rejection reason.
+  async function deliverB2BRejectionNotice(entry:{
+    id:number;userId:number;email:string;firstName?:string|null;companyName?:string|null;reason:string;
+  }){
+    let emailSent=false;
+    let emailError:string|null=null;
+    let pushRecorded=false;
+    try{
+      if(!/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(entry.email))
+        throw Error("Alıcı e-posta adresi geçerli değil");
+      await dispatchB2BMail({
+        to:entry.email,
+        ...rejectionEmail({firstName:entry.firstName,companyName:entry.companyName,reason:entry.reason}),
+      });
+      emailSent=true;
+    }catch(error){
+      emailError=normalizeMailError(error).slice(0,400);
+      console.error("B2B rejection email not delivered",{rejectionId:entry.id,error:emailError});
     }
+    await pool?.query(`UPDATE b2b_application_rejection_history
+      SET email_attempts=email_attempts+1,email_sent_at=CASE WHEN $2 THEN NOW() ELSE email_sent_at END,
+          email_error=CASE WHEN $2 THEN NULL ELSE $3 END
+      WHERE id=$1`,[entry.id,emailSent,emailError]).catch(error=>console.error("B2B rejection mail delivery audit",error));
 
-    if (user.applicationStatus !== "pending") {
-      return res.status(409).json({ error: "Yalnızca bekleyen başvurular reddedilebilir." });
+    try{
+      const result=await notifyB2BEvent(entry.userId,"membership_rejected",
+        {reason:entry.reason},`membership_rejected:${entry.id}`,
+        {includeLoggedOut:true,targetPath:"/kayit-ol"});
+      // A stored inbox notification counts as recorded even without a push token.
+      pushRecorded=result.recorded===true;
+      if(pushRecorded)await pool?.query(
+        "UPDATE b2b_application_rejection_history SET push_recorded=TRUE WHERE id=$1",
+        [entry.id]);
+    }catch(error){console.error("B2B rejection push/inbox failed",{rejectionId:entry.id,error});}
+    return {emailSent,emailError,pushRecorded};
+  }
+
+  app.post("/api/admin/b2b-applications/:id/reject",requireAdmin,async(req,res)=>{
+    res.setHeader("Cache-Control","private,no-store");
+    const id=Number(req.params.id);
+    const reason=normalizeB2BRejectionReason(req.body?.reason);
+    if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:"Geçersiz firma numarası"});
+    if(!reason)return res.status(400).json({error:"En az 10, en fazla 1000 karakterlik açıklayıcı bir red nedeni yazın."});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const actor=sessionUserId(req)||null;
+    try{
+      await ensureB2BRejectionTable();
+      const transaction=await pool.connect();
+      let entry:{id:number;userId:number;email:string;firstName?:string|null;companyName?:string|null;reason:string};
+      try{
+        await transaction.query("BEGIN");
+        const found=await transaction.query(
+          "SELECT id,role,is_active,application_status,email,first_name,company_name FROM users WHERE id=$1 FOR UPDATE",
+          [id]);
+        const user=found.rows[0];
+        if(!user||user.role!=="b2b_customer"){
+          await transaction.query("ROLLBACK");
+          return res.status(404).json({error:"B2B firma başvurusu bulunamadı."});
+        }
+        if(user.application_status!=="pending"||Number(user.is_active)!==0){
+          await transaction.query("ROLLBACK");
+          return res.status(409).json({error:"Yalnızca bekleyen, henüz aktif olmayan başvurular reddedilebilir."});
+        }
+        await transaction.query(
+          "UPDATE users SET is_active=0,application_status='rejected',must_change_password=0,password=$2 WHERE id=$1",
+          [id,hashPassword(randomBytes(32).toString("hex"))]);
+        const saved=await transaction.query(
+          `INSERT INTO b2b_application_rejection_history(user_id,admin_id,reason)
+           VALUES($1,$2,$3) RETURNING id`,[id,actor,reason]);
+        entry={
+          id:Number(saved.rows[0].id),userId:id,email:String(user.email||"").trim().toLowerCase(),
+          firstName:user.first_name,companyName:user.company_name,reason,
+        };
+        await transaction.query("COMMIT");
+      }catch(error){
+        await transaction.query("ROLLBACK").catch(()=>undefined);
+        throw error;
+      }finally{transaction.release();}
+      const delivered=await deliverB2BRejectionNotice(entry);
+      return res.json({
+        ok:true,applicationStatus:"rejected",reason,reapplicationUrl:B2B_REAPPLICATION_URL,
+        ...delivered,
+        message:delivered.emailSent
+          ?"Başvuru reddedildi. Gerekçeli e-posta gönderildi ve kullanıcı bildirim kaydı oluşturulmaya çalışıldı."
+          :"Başvuru gerekçesiyle reddedildi; e-posta gönderilemedi. Bildirimi yeniden gönder butonunu kullanabilirsiniz.",
+      });
+    }catch(error){
+      console.error("B2B rejection failed",error);
+      return res.status(500).json({error:"Başvuru reddedilemedi. Tekrar deneyin."});
     }
+  });
 
-    const updated = await storage.updateUser(id, {
-      isActive: 0,
-      applicationStatus: "rejected",
-      mustChangePassword: 0,
-      password: hashPassword(randomBytes(32).toString("hex")),
-    });
-
-    if (!updated) {
-      return res.status(404).json({ error: "Başvuru bulunamadı" });
+  app.post("/api/admin/b2b-applications/:id/resend-rejection",requireAdmin,async(req,res)=>{
+    res.setHeader("Cache-Control","private,no-store");
+    const id=Number(req.params.id);
+    if(!Number.isSafeInteger(id)||id<1)return res.status(400).json({error:"Geçersiz firma numarası"});
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    try{
+      await ensureB2BRejectionTable();
+      const result=await pool.query(`SELECT r.id,r.reason,u.id AS user_id,u.email,u.first_name,u.company_name
+        FROM b2b_application_rejection_history r JOIN users u ON u.id=r.user_id
+        WHERE u.id=$1 AND u.role='b2b_customer' AND u.application_status='rejected'
+          AND r.reapplied_at IS NULL ORDER BY r.rejected_at DESC,r.id DESC LIMIT 1`,[id]);
+      const item=result.rows[0];
+      if(!item)return res.status(409).json({error:"Aktif bir red kaydı bulunamadı."});
+      const delivery=await deliverB2BRejectionNotice({
+        id:Number(item.id),userId:Number(item.user_id),email:String(item.email||"").trim().toLowerCase(),
+        firstName:item.first_name,companyName:item.company_name,reason:String(item.reason),
+      });
+      return res.json({...delivery,message:delivery.emailSent
+        ?"Red nedeni ve yeniden başvuru bağlantısı tekrar e-postayla gönderildi."
+        :"E-posta gönderilemedi. E-posta servisini kontrol edin."});
+    }catch(error){
+      console.error("B2B rejection resend failed",error);
+      return res.status(500).json({error:"Red bildirimi yeniden gönderilemedi."});
     }
-
-    const { password, ...safeUser } = updated;
-    return res.json({
-      ...safeUser,
-      isActive: false,
-      taxVerified: safeUser.taxVerified === 1,
-      mustChangePassword: false,
-    });
   });
 
   // A verified administrator may change a customer's login e-mail and deliver

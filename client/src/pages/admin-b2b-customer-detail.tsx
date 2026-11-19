@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
+import {Textarea} from "@/components/ui/textarea";
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter} from "@/components/ui/dialog";
 import {Badge} from "@/components/ui/badge";
 import {Tabs,TabsContent,TabsList,TabsTrigger} from "@/components/ui/tabs";
 import {useToast} from "@/hooks/use-toast";
@@ -20,6 +22,8 @@ export type B2BProfile={
   taxNumber?:string|null;taxOffice?:string|null;taxVerified:boolean;
   applicationStatus:string;isActive:boolean;mustChangePassword:boolean;
   createdAt?:string|null;approvedAt?:string|null;credentialsSentAt?:string|null;
+  rejection?:{id:number;reason:string;rejectedAt?:string|null;
+    emailSentAt?:string|null;emailError?:string|null;emailAttempts:number;pushRecorded:boolean}|null;
 };
 type Item={id:string;order_number?:string;invoice_number?:string;total_amount?:string;
   amount_cents?:string;status?:string;payment_status?:string;payment_method?:string;
@@ -122,6 +126,8 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
   const [taxNote,setTaxNote]=useState("");
   const [emailDraft,setEmailDraft]=useState("");
   const [emailConfirm,setEmailConfirm]=useState(false);
+  const [rejectOpen,setRejectOpen]=useState(false);
+  const [rejectionReason,setRejectionReason]=useState("");
   const {data, isLoading,isError,error,refetch}=useQuery<Overview>({
     queryKey:["/api/admin/b2b-customer-center",id],
     queryFn:()=>get<Overview>(`/api/admin/b2b-customer-center/${encodeURIComponent(id)}`),
@@ -185,11 +191,13 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
     },
   });
   const action=useMutation({
-    mutationFn:async(type:"approve"|"reject"|"resend-password")=>{
-      const r=await apiRequest("POST",`/api/admin/b2b-applications/${id}/${type}`);
-      return r.json().catch(()=>({})) as Promise<{message?:string}>;
+    mutationFn:async(input:{type:"approve"|"reject"|"resend-password"|"resend-rejection";reason?:string})=>{
+      const r=await apiRequest("POST",`/api/admin/b2b-applications/${id}/${input.type}`,
+        input.type==="reject"?{reason:input.reason?.trim()}:undefined);
+      return r.json().catch(()=>({})) as Promise<{message?:string;emailSent?:boolean}>;
     },
-    onSuccess:async(payload,_type)=>{
+    onSuccess:async(payload,input)=>{
+      if(input.type==="reject"){setRejectOpen(false);setRejectionReason("");}
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-applications"]}),
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-customers"]}),
@@ -243,13 +251,13 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
           </div>
           <div className="flex flex-wrap gap-2">
             {customer.applicationStatus==="pending"?<>
-              <Button onClick={()=>{if(window.confirm("Firma başvurusunu onaylayıp e-posta ile tek kullanımlık şifre göndermek istiyor musunuz?"))action.mutate("approve");}}
+              <Button onClick={()=>{if(window.confirm("Firma başvurusunu onaylayıp e-posta ile tek kullanımlık şifre göndermek istiyor musunuz?"))action.mutate({type:"approve"});}}
                 disabled={action.isPending}><CheckCircle2 className="mr-2 h-4 w-4"/>Onayla</Button>
-              <Button variant="destructive" onClick={()=>{if(window.confirm("Bu başvuruyu reddetmek istediğinizden emin misiniz?"))action.mutate("reject");}}
+              <Button variant="destructive" onClick={()=>setRejectOpen(true)}
                 disabled={action.isPending}>Reddet</Button>
             </>:null}
             {approved&&customer.mustChangePassword?<Button variant="outline" disabled={action.isPending}
-              onClick={()=>{if(window.confirm("Henüz ilk şifresini belirlemeyen kullanıcıya yeni tek kullanımlık şifre gönderilsin mi?"))action.mutate("resend-password");}}>
+              onClick={()=>{if(window.confirm("Henüz ilk şifresini belirlemeyen kullanıcıya yeni tek kullanımlık şifre gönderilsin mi?"))action.mutate({type:"resend-password"});}}>
               <Mail className="mr-2 h-4 w-4"/>Geçici Şifreyi Yenile
             </Button>:null}
             {source==="application"&&approved?<Button variant="outline" onClick={()=>navigate(`/b2b-musteriler/${customer.id}`)}>
@@ -258,6 +266,48 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
           </div>
         </div>
       </div>
+
+      <Dialog open={rejectOpen} onOpenChange={open=>{if(!action.isPending)setRejectOpen(open);}}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Firma başvurusunu reddet</DialogTitle>
+            <DialogDescription>
+              Red nedenini yazın. Başvuru reddedildiğinde gerekçe, yeniden başvuru bağlantısıyla
+              birlikte firma e-posta adresine otomatik olarak gönderilir. Bildirim kaydı da oluşturulur.
+            </DialogDescription>
+          </DialogHeader>
+          <label htmlFor="b2b-rejection-reason" className="text-sm font-semibold">Red nedeni (zorunlu)</label>
+          <Textarea id="b2b-rejection-reason" rows={5} maxLength={1000}
+            placeholder="Örn. Vergi dairesi bilgileri eksik veya firma unvanı ile VKN uyuşmuyor. Lütfen güncelleyerek tekrar başvurun."
+            value={rejectionReason} onChange={event=>setRejectionReason(event.target.value)}
+            disabled={action.isPending}/>
+          <div className="text-xs text-muted-foreground">{rejectionReason.trim().length}/1000 karakter · En az 10 karakter</div>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setRejectOpen(false)} disabled={action.isPending}>Vazgeç</Button>
+            <Button variant="destructive" disabled={action.isPending||rejectionReason.trim().length<10}
+              onClick={()=>action.mutate({type:"reject",reason:rejectionReason})}>
+              {action.isPending?"Kaydediliyor…":"Reddet ve Kullanıcıyı Bilgilendir"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {customer.applicationStatus==="rejected"&&<section className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-950">
+        <h2 className="font-bold">Firma başvurusu reddedildi</h2>
+        <p className="mt-2 whitespace-pre-wrap break-words"><strong>Red nedeni:</strong> {customer.rejection?.reason||"Önceki red işleminde gerekçe kaydedilmemiş."}</p>
+        <div className="mt-3 text-xs">
+          <p>Red tarihi: {trDate(customer.rejection?.rejectedAt)}</p>
+          <p>E-posta bildirimi: {customer.rejection?.emailSentAt
+            ?`Gönderildi (${trDate(customer.rejection.emailSentAt)})`
+            :"Gönderilemedi veya henüz gönderilmedi"}</p>
+          {customer.rejection?.emailError?<p className="mt-1">Gönderim sorunu: {customer.rejection.emailError}</p>:null}
+        </div>
+        <p className="mt-3">Firma aynı e-posta adresi ve vergi numarasıyla yeniden başvurabilir.</p>
+        {customer.rejection&&<Button className="mt-3" variant="outline" disabled={action.isPending}
+          onClick={()=>action.mutate({type:"resend-rejection"})}>
+          <Mail className="mr-2 h-4 w-4"/>Red Bildirimini Yeniden Gönder
+        </Button>}
+      </section>}
 
       {approved&&stats?<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile icon={Package} label="Sipariş sayısı" value={stats.orderCount}/>

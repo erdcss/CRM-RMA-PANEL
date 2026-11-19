@@ -92,6 +92,8 @@ export function BusinessCustomerCenterScreen({
   const [taxOfficeDraft,setTaxOfficeDraft]=useState("");
   const [taxVerifiedDraft,setTaxVerifiedDraft]=useState(false);
   const [taxNote,setTaxNote]=useState("");
+  const [showRejectReason,setShowRejectReason]=useState(false);
+  const [rejectReason,setRejectReason]=useState("");
   const load=useCallback(async()=>{
     setError("");
     try {const next=await getCenter(id);setData(next);
@@ -139,15 +141,17 @@ export function BusinessCustomerCenterScreen({
   const item=data?.customer;
   const approved=item?.applicationStatus==="approved";
   const tabs=useMemo(()=>approved?sections:sections.slice(0,1),[approved]);
-  const doAction=useCallback((action:"approve"|"reject"|"resend-password")=>{
+  const doAction=useCallback((action:"approve"|"reject"|"resend-password"|"resend-rejection")=>{
+    if(action==="reject"){setShowRejectReason(true);return;}
     const messages={
       approve:"Firmayı onaylayıp kayıtlı e-posta adresine tek kullanımlık şifre göndermek istiyor musunuz?",
-      reject:"Başvuruyu reddetmek istediğinizden emin misiniz? Firma daha sonra tekrar başvurabilir.",
-      "resend-password":"Henüz ilk şifresini belirlememiş müşteriye yeni geçici şifre e-postası gönderilsin mi?"
+      reject:"Başvuruyu reddetmek istediğinizden emin misiniz?",
+      "resend-password":"Henüz ilk şifresini belirlememiş müşteriye yeni geçici şifre e-postası gönderilsin mi?",
+      "resend-rejection":"Red nedeni ve yeniden başvuru bağlantısı e-postayla tekrar gönderilsin mi?"
     };
     Alert.alert("İşlemi onayla",messages[action],[
       {text:"Vazgeç",style:"cancel"},
-      {text:"Onayla",style:action==="reject"?"destructive":"default",onPress:async()=>{
+      {text:"Onayla",style:"default",onPress:async()=>{
         setBusy(true);
         try{
           const result=await changeApplication(id,action);
@@ -158,6 +162,26 @@ export function BusinessCustomerCenterScreen({
       }}
     ]);
   },[id,load]);
+  const submitRejection=()=>{
+    const reason=rejectReason.trim();
+    if(reason.length<10||reason.length>1000){
+      Alert.alert("Red nedeni gerekli","Lütfen 10-1000 karakter arası açıklayıcı bir red nedeni yazın.");return;
+    }
+    Alert.alert("Başvuruyu reddet","Red gerekçesi kaydedilecek ve firmaya otomatik bildirim gönderilecek.",[
+      {text:"Vazgeç",style:"cancel"},
+      {text:"Reddet ve bildir",style:"destructive",onPress:async()=>{
+        setBusy(true);
+        try{
+          const result=await changeApplication(id,"reject",reason);
+          setRejectReason("");setShowRejectReason(false);
+          await load();
+          Alert.alert(result.emailSent===false?"Red kaydedildi, e-posta hatası":"Başvuru reddedildi",
+            result.message||"Red gerekçesi kaydedildi.");
+        }catch(e){Alert.alert("İşlem yapılamadı",e instanceof Error?e.message:"Tekrar deneyin.");}
+        finally{setBusy(false);}
+      }}
+    ]);
+  };
   const records=tab==="orders"?data?.orders:tab==="invoices"?data?.invoices:
     tab==="returns"?data?.returns:tab==="support"?data?.support:
     tab==="addresses"?data?.addresses:tab==="ledger"?data?.ledger:[];
@@ -215,6 +239,34 @@ export function BusinessCustomerCenterScreen({
           disabled={busy} onPress={()=>doAction("reject")}>
           <Text style={[s.actionText,{color:C.red}]}>× Reddet</Text>
         </TouchableOpacity>
+      </View>:null}
+      {item.applicationStatus==="pending"&&showRejectReason?<View style={{borderWidth:1,borderColor:C.red,borderRadius:12,padding:14,marginBottom:12}}>
+        <Text style={{color:C.text,fontWeight:"700",marginBottom:8}}>Red nedeni (zorunlu)</Text>
+        <TextInput value={rejectReason} onChangeText={setRejectReason} multiline maxLength={1000}
+          placeholder="Eksik belge veya düzeltilecek bilgileri belirtin…"
+          placeholderTextColor={C.muted} textAlignVertical="top"
+          style={{minHeight:110,color:C.text,borderWidth:1,borderColor:C.line,borderRadius:9,padding:11}}/>
+        <Text style={{color:C.muted,fontSize:11,marginTop:5}}>{rejectReason.trim().length}/1000 · En az 10 karakter</Text>
+        <View style={{flexDirection:"row",gap:8,marginTop:10}}>
+          <TouchableOpacity style={s.action} disabled={busy} onPress={()=>setShowRejectReason(false)}>
+            <Text style={s.actionText}>Vazgeç</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.action,{backgroundColor:C.redSoft,borderColor:C.red}]}
+            disabled={busy||rejectReason.trim().length<10} onPress={submitRejection}>
+            <Text style={[s.actionText,{color:C.red}]}>Reddet ve Bildir</Text>
+          </TouchableOpacity>
+        </View>
+      </View>:null}
+      {item.applicationStatus==="rejected"?<View style={{borderWidth:1,borderColor:C.red,borderRadius:12,padding:14,marginBottom:12}}>
+        <Text style={{color:C.red,fontWeight:"700"}}>Red nedeni</Text>
+        <Text style={{color:C.text,marginTop:6}}>{item.rejection?.reason||"Önceki red işleminde gerekçe bulunmuyor."}</Text>
+        <Text style={{color:C.muted,fontSize:12,marginTop:7}}>
+          {item.rejection?.emailSentAt?"Gerekçeli e-posta gönderildi.":"E-posta gönderilemedi veya beklemede."}
+        </Text>
+        {item.rejection?<TouchableOpacity style={[s.action,{marginTop:10}]} disabled={busy}
+          onPress={()=>doAction("resend-rejection")}>
+          <Text style={s.actionText}>Red Bildirimini Yeniden Gönder</Text>
+        </TouchableOpacity>:null}
       </View>:null}
       {approved&&item.mustChangePassword?<TouchableOpacity style={s.resend}
         onPress={()=>doAction("resend-password")} disabled={busy}>
