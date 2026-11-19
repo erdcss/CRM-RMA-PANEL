@@ -53,7 +53,7 @@ workflows:
           set -e
           cd mobile
           xcode-project use-profiles
-      - name: Build signed IPA (no automatic TestFlight upload)
+      - name: Build signed IPA for TestFlight upload
         script: |
           set -e
           cd mobile
@@ -62,8 +62,15 @@ workflows:
           scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((s for s in d["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
           if [ -z "$scheme" ]; then echo "Xcode scheme missing"; exit 1; fi
           xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
-    # TestFlight auto-publishing stays disabled until Apple account integration
-    # and the first signed IPA have been verified.
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
+    # The first signed IPA was verified in Codemagic (#261119001).
+    # Upload subsequent signed builds to the existing App Store Connect app.
+    # Internal TestFlight availability is managed in App Store Connect;
+    # external beta review and public App Store release remain manual.
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false
