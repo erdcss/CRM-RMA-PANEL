@@ -8,6 +8,7 @@ import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import {seedRequestedLorenzoKurutmalik} from "./dukkan-lorenzo-import";
+import {seedRequestedLorenzo23} from "./dukkan-lorenzo-23-import";
 import {prependDukkanProductCover} from "./dukkan-thumbnail-images";
 import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
 import { buildCariExcel } from "./dukkan-cari-excel";
@@ -126,6 +127,13 @@ async function ready() {
         console.info("Dukkan Lorenzo catalog import:",outcome);
       }catch(error){
         console.error("Dukkan Lorenzo catalog import blocked; no partial changes:",error);
+      }
+      // One-time, repeat-safe 23-item Lorenzo iron board/ladder import.
+      try{
+        const result=await seedRequestedLorenzo23(pool!);
+        console.info("Dukkan Lorenzo 23 catalog import:",result);
+      }catch(error){
+        console.error("Dukkan Lorenzo 23 catalog import blocked; no partial changes:",error);
       }
     })
     .catch((error) => { schemaPromise = undefined; throw error; });
