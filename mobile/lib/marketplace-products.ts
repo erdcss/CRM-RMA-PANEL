@@ -4,6 +4,7 @@ import type { B2BProduct, MarketplaceProduct } from './api';
 export function asCatalogProduct(item: MarketplaceProduct): B2BProduct {
   return {
     id: 'mp-' + String(item.id),
+    created_at: item.created_at ?? null,
     sku: item.sku,
     name: item.content.name,
     description: item.content.description || null,
