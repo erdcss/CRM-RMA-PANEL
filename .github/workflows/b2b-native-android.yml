@@ -15,6 +15,7 @@ on:
     branches: [main]
     paths:
       - '.github/release-requests/b2b-native-android-smoke.txt'
+      - '.github/release-requests/b2b-native-android-release.txt'
 
 permissions:
   contents: read
@@ -66,11 +67,23 @@ jobs:
           "$sdkmanager_bin" --sdk_root="$ANDROID_HOME" --install "platforms;android-36" "build-tools;36.0.0"
       - name: Node dependencies
         run: npm ci
+      - name: Choose smoke or release for this run
+        id: build_kind
+        shell: bash
+        run: |
+          kind=smoke
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            kind="${{ inputs.build_kind }}"
+          elif git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" | grep -Fxq '.github/release-requests/b2b-native-android-release.txt'; then
+            kind=release
+          fi
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          echo "Selected Android build: $kind"
       - name: Build with native Gradle (no EXPO_TOKEN, no EAS)
         run: |
-          bash scripts/native-android-ci.sh "${{ github.event_name == 'workflow_dispatch' && inputs.build_kind == 'release' && 'release' || 'smoke' }}"
+          bash scripts/native-android-ci.sh "${{ steps.build_kind.outputs.kind }}"
       - name: Debug smoke APK - not a standalone release
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_kind == 'release') }}
+        if: ${{ steps.build_kind.outputs.kind == 'smoke' }}
         uses: actions/upload-artifact@v4
         with:
           name: Caliskan-B2B-Native-Smoke-DEBUG-not-for-Play
@@ -79,7 +92,7 @@ jobs:
           if-no-files-found: error
           compression-level: 0
       - name: Signed Android APK and Play AAB
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_kind == 'release' }}
+        if: ${{ steps.build_kind.outputs.kind == 'release' }}
         uses: actions/upload-artifact@v4
         with:
           name: Caliskan-B2B-Native-Signed-APK-AAB
