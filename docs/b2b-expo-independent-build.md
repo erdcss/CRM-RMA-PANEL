@@ -71,18 +71,58 @@ Başarılıysa **orijinal upload keystore** secrets girildikten sonra `build_kin
 çalıştırın. Artifacts sekmesindeki `Caliskan-B2B-Native-Signed-APK-AAB`
 arşivinde APK ve AAB bulunacaktır.
 
-## iOS: Codemagic
+## iOS: Codemagic (Expo hesabı olmadan)
 
-Kök dizindeki [codemagic.yaml](../codemagic.yaml) içinde
-`caliskan-b2b-ios` iş akışı hazır.
+Kök dizindeki [codemagic.yaml](../codemagic.yaml) iş akışı: `caliskan-b2b-ios`.
+GitHub ana dalı `erdcss/CRM-RMA-PANEL`, iOS bundle ID `com.caliskangroup.rma`;
+önceden açılmış App Store Connect Apple ID: **6802286663**.
+Uygulama ve bundle ID yeniden oluşturulmaz.
 
-1. Codemagic'te GitHub `erdcss/CRM-RMA-PANEL` deposunu bağlayın.
-2. Apple Developer ve App Store Connect hesabına **kendi yetkinizle** bağlanın.
-3. Codemagic → Code signing identities: `com.caliskangroup.rma` için
-   **App Store Distribution** sertifikası ve provisioning profile sağlayın.
-4. `caliskan-b2b-ios` iş akışını **manuel** çalıştırın.
-5. IPA çıktı dosyasını kontrol edin. Otomatik TestFlight yüklemesi şimdilik **kapalı**.
-   API anahtarları/sertifikalar doğrulandıktan sonra ayrı izinle etkinleştirilebilir.
+### İlk Codemagic bağlantısı (kullanıcı hesabından)
+
+1. [Codemagic](https://codemagic.io/) sitesinde GitHub ile oturum açın;
+   `erdcss/CRM-RMA-PANEL` deposunu ekleyin ve **codemagic.yaml** yapılandırmasını seçin.
+2. App Store Connect → **Users and Access → Integrations → App Store Connect API**
+   bölümünde uygun yetkili (App Manager) API anahtarı oluşturun. `.p8` dosyasını
+   **yalnız Codemagic Team Settings → Developer Portal integration** alanına girin.
+   Issuer ID ve Key ID de buraya eklenir; sohbete veya GitHub kaynak koduna girilmez.
+3. Codemagic → **Code signing identities** bölümünde **App Store distribution**
+   sertifikası ve `com.caliskangroup.rma` için provisioning profile oluşturun veya
+   Apple Developer hesabından güvenli şekilde içeri alın.
+   `ios_signing.distribution_type: app_store` bu kayıtları seçecektir.
+4. Codemagic uygulama ekranında **Start new build → branch main →
+   caliskan-b2b-ios** seçin. İş akışı otomatiktir, ancak TestFlight'a yükleme
+   bu ilk doğrulama derlemesinde **kapalıdır**.
+5. Derleme başarıyla tamamlanırsa **Artifacts** kısmında imzalı `.ipa`
+   oluşturulur. Önce çıktının `com.caliskangroup.rma` bundle ID'sini,
+   sertifikasını, sürüm numarasını ve Apple Developer takımını doğrulayın;
+   sonra TestFlight yayımlama adımını etkinleştirin.
+
+### CI güvenlik ve uyumluluk
+
+- `mobile/scripts/prepare-native-release.cjs`, Codemagic'in `main` dalındaki
+  sabit `CM_COMMIT` bilgisini doğrular; ayrıca detached HEAD checkout'a izin verir.
+  Eski veya farklı dalın yanlışlıkla dağıtımına izin verilmez.
+- Her Codemagic derlemesinde `mobile/scripts/codemagic-ios-prebuild.cjs`,
+  `YYMMDDNNN` biçiminde benzersiz `ios.buildNumber` oluşturur;
+  `NNN` Codemagic `PROJECT_BUILD_NUMBER` değeridir. 999 build sınırına
+  yaklaşırsa tarih şeması yeniden tasarlanmalı. App Store'daki mevcut en
+  son TestFlight build numarasından **yüksek olduğunu doğrulamak zorunludur**.
+- Yönetici panelinden yeni logo, splash ve bildirim sesi alınmadan build devam etmez.
+  Admin'de logo/splash kaydının canlı çalışan uygulamaya yansıması ayrı davranıştır;
+  native uygulama ikonunu değiştirmek için her zaman yeni binary gerekir.
+- Özel NIIMBOT iOS SDK statik kütüphaneleri (ticari lisans) public GitHub'da
+  bulunmadığından, `EXPO_SKIP_NIIMBOT=1` altında sadece ilk Codemagic
+  TestFlight derlemesinde `niimbot-printer` iOS native modülü autolink
+  listesinden çıkarılır. **NIIMBOT Bluetooth etiket yazdırma işlevi bu IPA'da
+  kullanılamaz.** SDK lisanslı dosyaları özel depoya/secret artifact'e alınca
+  test edilip yeniden etkinleştirilecektir.
+- Kod derleme yolu `expo prebuild` + CocoaPods + Xcode kullanır,
+  `eas build` veya `EXPO_TOKEN` gerektirmez.
+- TestFlight'a **otomatik** gönderim şu anda kapalıdır; Apple bağlantısı ve imzalı
+  ilk IPA doğrulandıktan sonra yayınlama ayrı aşamada yapılır.
+- Push bildirimleri için Expo projesinden bağımsız APNs yoluna geçiş hâlâ
+  ayrıca doğrulanmalıdır. IPA derleme başarısı bildirimlerin geldiğini ispatlamaz.
 
 ## Mevcut Expo hizmetlerine kalan bağımlılıklar
 
