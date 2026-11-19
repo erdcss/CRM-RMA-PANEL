@@ -151,7 +151,7 @@ export function BusinessCustomerCenterScreen({
     };
     Alert.alert("İşlemi onayla",messages[action],[
       {text:"Vazgeç",style:"cancel"},
-      {text:"Onayla",style:action==="reject"?"destructive":"default",onPress:async()=>{
+      {text:"Onayla",style:"default",onPress:async()=>{
         setBusy(true);
         try{
           const result=await changeApplication(id,action);
