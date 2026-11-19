@@ -1,0 +1,61 @@
+# B2B iOS backup CI: Expo SDK, but NOT Expo EAS Build.
+# Manual Codemagic build only. Connect this GitHub repo in Codemagic UI,
+# then add App Store distribution signing certificate + provisioning profile
+# for com.caliskangroup.rma in Codemagic Code Signing Identities.
+workflows:
+  caliskan-b2b-ios:
+    name: Caliskan B2B - iOS native IPA (no EAS)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.caliskangroup.rma
+      vars:
+        EXPO_PUBLIC_API_URL: "https://b2b.ecalisgan.com"
+        EXPO_PUBLIC_B2B_AD_TRACKING: "0"
+        REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND: "1"
+        EXPO_SKIP_NIIMBOT: "1"
+        CI: "1"
+      node: 22
+      xcode: 26.4
+      cocoapods: default
+    scripts:
+      - name: Install packages
+        script: |
+          set -e
+          cd mobile
+          npm ci
+      - name: Sync B2B branding and check sources
+        script: |
+          set -e
+          cd mobile
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          npm run typecheck
+          node scripts/eas-branding-preinstall.cjs
+      - name: Generate iOS native Xcode project
+        script: |
+          set -e
+          cd mobile
+          npx expo prebuild --platform ios --no-install --clean
+          cd ios
+          pod install
+      - name: Apply Apple App Store distribution signing
+        script: |
+          set -e
+          cd mobile
+          xcode-project use-profiles
+      - name: Build signed IPA (no automatic TestFlight upload)
+        script: |
+          set -e
+          cd mobile
+          workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' | head -n 1)"
+          if [ -z "$workspace" ]; then echo "Xcode workspace not generated"; exit 1; fi
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["workspace"]["schemes"][0])')"
+          if [ -z "$scheme" ]; then echo "Xcode scheme missing"; exit 1; fi
+          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+    artifacts:
+      - mobile/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
