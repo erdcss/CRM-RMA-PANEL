@@ -6,6 +6,7 @@ export type B2BApplication = {
   taxNumber?:string|null;taxOffice?:string|null; taxVerified:boolean;
   applicationStatus?:ApplicationStatus|string|null; mustChangePassword:boolean;
   isActive:boolean;createdAt?:string|null;approvedAt?:string|null;credentialsSentAt?:string|null;
+  rejection?:{id:number;reason:string;rejectedAt?:string|null;emailSentAt?:string|null;emailError?:string|null}|null;
 };
 export type B2BStats = {
   orderCount:number;orderTotal:number;paidTotal:number;awaitingPayment:number;
@@ -43,8 +44,11 @@ export const getCenter = (id:string) =>
 export const getTimeline = (id:string,page:number) =>
   apiFetch<ActivityPage>("/api/admin/b2b-customer-center/"+encodeURIComponent(id)+
     "/activity?page="+encodeURIComponent(String(page)));
-export const changeApplication = (id:string,action:"approve"|"reject"|"resend-password") =>
-  apiFetch<{message?:string}>("/api/admin/b2b-applications/"+encodeURIComponent(id)+"/"+action,{method:"POST"});
+export const changeApplication = (id:string,action:"approve"|"reject"|"resend-password"|"resend-rejection",reason?:string) =>
+  apiFetch<{message?:string;emailSent?:boolean}>("/api/admin/b2b-applications/"+encodeURIComponent(id)+"/"+action,{
+    method:"POST",
+    ...(action==="reject"?{body:JSON.stringify({reason})}:{})
+  });
 export const statusName=(s?:string|null)=>({
   pending:"Onay bekliyor",approved:"Onaylandı",rejected:"Reddedildi",
   SUCCESS:"Ödeme alındı",bank_confirmed:"Havale onaylandı",paid:"Ödendi",
