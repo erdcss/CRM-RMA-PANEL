@@ -1,0 +1,7 @@
+ÇALIŞKAN B2B / iOS → TestFlight build request
+Bu dosya GitHub üzerinden sadece kullanıcının açık "TestFlight'a gönder" veya "build al" komutu sonrası güncellenir.
+Codemagic workflow: caliskan-b2b-ios
+Bundle ID: com.caliskangroup.rma
+Hedef: imzalı IPA oluşturmak ve App Store Connect'e yüklemek; App Store üretim yayını YAPILMAZ.
+Son istek numarası: 0
+Son istek: başlangıç yapılandırması, iOS derlemesi başlatılmadı.
