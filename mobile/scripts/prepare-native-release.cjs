@@ -25,7 +25,14 @@ try {
   fail('Git bilgisi okunamıyor. Projeyi GitHub deposundan açıp tekrar deneyin.');
 }
 
-if (branch !== 'main') {
+// Codemagic may checkout a detached HEAD while retaining a pinned main commit.
+// Verify both the Codemagic branch and exact commit before accepting it.
+const pinnedCodemagicCommit = process.env.CI === '1'
+  && Boolean(process.env.CM_BUILD_ID)
+  && process.env.CM_BRANCH === 'main'
+  && process.env.CM_COMMIT === head;
+
+if (branch !== 'main' && !pinnedCodemagicCommit) {
   fail('Aktif branch "' + branch + '". Yayın için main dalına geçin; yerel değişiklikleri önce yedekleyin.');
 }
 
@@ -48,7 +55,7 @@ try {
 const pinnedActionsCommit = process.env.CI === '1'
   && process.env.GITHUB_ACTIONS === 'true'
   && process.env.GITHUB_SHA === head;
-if (remote !== head && !pinnedActionsCommit) {
+if (remote !== head && !pinnedActionsCommit && !pinnedCodemagicCommit) {
   fail(
     'Yerel kod ile GitHub main farklı!\n' +
     '  Yerel:  ' + head.slice(0, 12) + '\n' +
@@ -57,8 +64,8 @@ if (remote !== head && !pinnedActionsCommit) {
   );
 }
 
-if (remote !== head && pinnedActionsCommit) {
-  console.log('[release-check] GitHub Actions sabit SHA doğrulandı: ' + head.slice(0,12));
+if (remote !== head && (pinnedActionsCommit || pinnedCodemagicCommit)) {
+  console.log('[release-check] CI sabit SHA doğrulandı: ' + head.slice(0,12));
 }
 
 const appJsonPath = path.join(root, 'app.json');
