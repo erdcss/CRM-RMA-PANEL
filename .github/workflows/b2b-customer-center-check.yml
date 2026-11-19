@@ -6,11 +6,6 @@ on:
       - 'server/b2b-application-rejection.test.ts'
       - 'server/b2b-notification-center.ts'
       - 'server/b2b-admin-customer-center.ts'
-      - 'server/b2b-application-rejection.ts'
-      - 'server/b2b-application-rejection.test.ts'
-      - 'server/b2b-notification-center.ts'
-      - 'business-mobile/screens/BusinessCustomerCenterScreen.tsx'
-      - 'business-mobile/lib/b2b-customer-center.ts'
       - 'server/routes.ts'
       - 'client/src/pages/admin-b2b-customer-detail.tsx'
       - 'business-mobile/screens/BusinessCustomerCenterScreen.tsx'
@@ -18,8 +13,13 @@ on:
       - '.github/workflows/b2b-customer-center-check.yml'
   push:
     paths:
+      - 'server/b2b-application-rejection.ts'
+      - 'server/b2b-application-rejection.test.ts'
+      - 'server/b2b-notification-center.ts'
       - 'server/b2b-admin-customer-center.ts'
       - 'server/routes.ts'
+      - 'business-mobile/screens/BusinessCustomerCenterScreen.tsx'
+      - 'business-mobile/lib/b2b-customer-center.ts'
       - 'client/src/pages/admin-applications.tsx'
       - 'client/src/pages/admin-b2b-customers.tsx'
       - 'client/src/pages/admin-b2b-customer-detail.tsx'
@@ -38,6 +38,7 @@ jobs:
   verify:
     name: TypeScript ve üretim derlemesi
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
