@@ -13,11 +13,20 @@ import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
 import { splitHomepageProducts, nextHomepageArrivalExpiry } from "@/lib/b2b-homepage-products";
 import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
+import { B2BTimedOffer } from "@/components/b2b-timed-offer";
 
 type SessionUser = {
   role?: string;
   isActive?: boolean;
 };
+
+type TimedCampaign = { id: string; title: string; starts_at: string; ends_at: string; product_ids: string[] };
+async function loadTimedCampaigns(): Promise<TimedCampaign[]> {
+  const response=await fetch("/api/public/timed-campaigns",{credentials:"include",cache:"no-store"});
+  if(!response.ok) return [];
+  const result: unknown = await response.json();
+  return Array.isArray(result) ? result as TimedCampaign[] : [];
+}
 
 type VerifiedStore = {id:number;slug:string;company_name:string;followers:number;description?:string;content?:{logoUrl?:string;bannerUrl?:string;tagline?:string}};
 
@@ -69,6 +78,12 @@ export default function B2BStorefront() {
     staleTime: 30_000,
   });
   const products = useMemo(() => [...supplierProducts, ...ownProducts], [supplierProducts, ownProducts]);
+  const { data: timedCampaigns = [] } = useQuery({
+    queryKey:["/api/public/timed-campaigns"],
+    queryFn:loadTimedCampaigns,
+    refetchInterval:30_000,
+    staleTime:10_000,
+  });
   const isLoading = loadingOwn || loadingSuppliers;
   // Move newly-added products to wholesale exactly after their 24-hour window,
   // even while the homepage remains open.
@@ -179,6 +194,23 @@ export default function B2BStorefront() {
       </section>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+        {timedCampaigns.map(campaign=>{
+          const end=Date.parse(campaign.ends_at);
+          if(!Number.isFinite(end)||end<=catalogNow)return null;
+          const ids=new Set(campaign.product_ids.map(String));
+          const offers=ownProducts.filter(item=>ids.has(String(item.id))&&item.timed_campaign_id===campaign.id);
+          if(!offers.length)return null;
+          return <section key={campaign.id} className="mb-9 rounded-2xl border border-amber-300/70 bg-gradient-to-b from-amber-50 to-white p-3 shadow-sm sm:p-5" aria-label={campaign.title}>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><p className="text-[11px] font-black uppercase tracking-widest text-amber-700">Sadece sınırlı süre</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{campaign.title}</h2>
+                <p className="mt-1 text-xs text-slate-500">Süre dolduğunda indirim otomatik biter · Stok koli bazında canlı gösterilir</p>
+              </div>
+              <B2BTimedOffer endAt={campaign.ends_at} title="Kalan süre" stock={offers.reduce((total,p)=>total+Math.floor(Math.max(0,Number(p.stock)||0)/Math.max(1,Number(p.units_per_box)||1)),0)} unitsPerBox={1}/>
+            </div>
+            <B2BProductRail products={offers} loggedIn={loggedIn} title={campaign.title}/>
+          </section>;
+        })}
         {homepage.categories.length > 0 ? (
           <section className="mb-8" aria-labelledby="homepage-categories-title">
             <div className="mb-4 flex items-center justify-between gap-3">
