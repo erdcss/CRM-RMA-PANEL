@@ -1,13 +1,15 @@
-ÇALIŞKAN B2B / iOS → TestFlight build request
-Komut: Çalışkan B2B TestFlight al (Codemagic)
-İstek numarası: 4
-Tarih: 2026-11-20 (Europe/Istanbul)
+ÇALIŞKAN B2B / iOS → Codemagic TestFlight build request
+Komut: Çalışkan B2B TESTFLIGHT al
+İstek numarası: 5
+Tarih: 2026-11-20 19:18 (Europe/Istanbul)
 GitHub branch: main
+Kaynak commit (kampanya sistemi dahil): 166680f82dfe5eeeb4ca1f855ca328f409a24918
 Bundle ID: com.caliskangroup.rma
-App sürüm: 1.3.13
+App sürümü: 1.3.13
 Codemagic YAML workflow: caliskan-b2b-ios
 iOS imzalama: caliskan_b2b_appstore_distribution + caliskan_b2b_appstore_2026
-Çıktı: imzalı IPA; App Store Connect'e otomatik upload; TestFlight iç test.
+Hedef: imzalı IPA üretimi, App Store Connect yüklemesi ve dahili TestFlight testi.
+Bu istek yalnızca Çalışkan B2B içindir; MAYK ve Business derlenmeyecek.
 App Store üretim yayını veya harici beta incelemesi otomatik başlatılmayacak.
-Codemagic changeset tetikleyici dosyasıdır; Expo EAS build tetiklenmeyecek.
-Bu dosya açık kullanıcı komutuyla güncellenmiştir.
+Expo EAS kullanılmayacak; Codemagic push changeset tetiklemesi.
+Bu dosya 2026-11-20 tarihli açık kullanıcı TestFlight komutuyla güncellendi.
