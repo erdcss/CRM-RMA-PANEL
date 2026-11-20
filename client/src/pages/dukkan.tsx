@@ -133,6 +133,7 @@ export default function Dukkan() {
   const [publishingId,setPublishingId]=useState<string|null>(null);
   const [selectedCariIds,setSelectedCariIds]=useState<Set<string>>(()=>new Set());
   const [bulkCariBusy,setBulkCariBusy]=useState(false);
+  useEffect(()=>{setSelectedCariIds(new Set());},[storeId,section]);
   const [selectedProductIds,setSelectedProductIds]=useState<Set<string>>(()=>new Set());
   const [bulkProductBusy,setBulkProductBusy]=useState(false);
   const requestVersion=useRef(0);
