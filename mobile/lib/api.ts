@@ -135,6 +135,10 @@ export type B2BProduct = {
   sku?: string | null;
   name: string;
   price?: string | number | null;
+  original_price?: string | number | null;
+  timed_campaign_id?: string | null;
+  timed_campaign_title?: string | null;
+  timed_campaign_end_at?: string | null;
   stock?: number | null;
   min_order_qty?: number | null;
   units_per_box?: number | null;
@@ -220,6 +224,13 @@ export type RoundBottomBanner = {
   showPrices:boolean;showCountdown:boolean;endAt:string;cardStyle:'standard'|'compact';
   heroImageMode?:'full'|'background';
   heroCropPercent?:number;
+};
+export type B2BTimedCampaign = {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string;
+  product_ids: string[];
 };
 export type B2BHomepage = {
   roundBottomBanner?:RoundBottomBanner;
@@ -739,6 +750,7 @@ export const rmaApi = {
   listCatalogCustomers: (q?: string) =>
     request<CatalogCustomer[]>(`/api/catalog-customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   listB2BProducts: (forceRefresh = false) => loadMobileCatalog(forceRefresh),
+  listTimedCampaigns: () => request<B2BTimedCampaign[]>('/api/public/timed-campaigns?t=' + Date.now()),
   listMarketplaceProducts: () => request<MarketplaceProduct[]>('/api/marketplace/products'),
   getMarketplaceStore: (slug:string) => request<MarketplaceStore>(`/api/marketplace/stores/${encodeURIComponent(slug)}`),
   listMarketplaceStoreProducts: (slug:string) => request<MarketplaceProduct[]>(`/api/marketplace/stores/${encodeURIComponent(slug)}/products`),
