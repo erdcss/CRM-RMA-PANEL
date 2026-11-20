@@ -23,6 +23,7 @@ import {
   Megaphone,
   Network,
   Store,
+  Headset,
 } from "lucide-react";
 import {
   Sidebar,
@@ -187,6 +188,14 @@ export function AppSidebar({ username, role }: { username: string; role: string 
               <Link href="/meta" onClick={()=>setOpenMobile(false)}>
                 <Network className="h-4 w-4" />
                 <span>Meta</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={location === "/destek"}>
+              <Link href="/destek" onClick={() => setOpenMobile(false)}>
+                <Headset className="h-4 w-4" />
+                <span>Destek</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
