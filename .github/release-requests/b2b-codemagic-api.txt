@@ -1,11 +1,12 @@
 ÇALIŞKAN B2B / Codemagic REST API TestFlight request
-Request: 2026-11-20-001
-Date: 2026-11-20 19:26 Europe/Istanbul
+Request: 2026-11-20-002
+Date: 2026-11-20 21:50 Europe/Istanbul
 GitHub: erdcss/CRM-RMA-PANEL main
+Source head before request: 7ef0a3f35ef6502ab15c33f312c6d16aa94cf3b0
 App bundle: com.caliskangroup.rma
 App Store Connect app: 6802286663
 Workflow: caliskan-b2b-ios
-Target: internal TestFlight iOS
-Includes: timed campaign admin, stock/countdown, web/mobile product UI, last corrections
-Do not use Expo EAS or publish to the public App Store
-GH workflow should verify CODEMAGIC_API_TOKEN and CODEMAGIC_APP_ID and return explicit Codemagic build ID or actionable failure.
+Target: signed IPA, App Store Connect upload, internal TestFlight iOS
+Includes: timed campaigns, mobile home rails, countdown, remaining cartons, latest updates
+Only B2B iOS: do not launch Expo EAS or public App Store submission
+GitHub Actions must return Codemagic build ID or explicit actionable API diagnostics.
