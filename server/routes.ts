@@ -11,6 +11,12 @@ import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
+import {
+  registerB2BTimedCampaignRoutes,
+  B2B_TIMED_CAMPAIGN_JOIN,
+  B2B_EFFECTIVE_PRICE_SQL,
+  B2B_ORIGINAL_PRICE_SQL,
+} from "./b2b-timed-campaigns";
 import {CALISKAN_META_PIXEL_ID} from "./b2b-meta-dataset";
 import { registerDukkanRoutes } from "./dukkan";
 import {
@@ -422,10 +428,11 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
   }
 
   const result = await pool.query(
-    `SELECT id, sku, name, category, COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price, stock, min_order_qty, units_per_box,
-            image_data, images
-     FROM b2b_products
-     WHERE id::text = $1
+    `SELECT p.id,p.sku,p.name,p.category,${B2B_EFFECTIVE_PRICE_SQL} AS price,
+            p.stock,p.min_order_qty,p.units_per_box,p.image_data,p.images
+     FROM b2b_products p
+     ${B2B_TIMED_CAMPAIGN_JOIN}
+     WHERE p.id::text = $1
        AND is_active IS DISTINCT FROM FALSE
      LIMIT 1`,
     [String(productId)],
@@ -3447,6 +3454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerProductAIRoutes(app, requireAdmin);
   await registerAdminPlatformRoutes(app, requireAdmin);
+  await registerB2BTimedCampaignRoutes(app, requireAdmin);
   // Only active users explicitly assigned to a Dükkan store can sign in here.
   // This does not grant access to the general Çalışkan Admin panel.
   app.post("/api/dukkan/login", async (req, res) => {
@@ -3814,8 +3822,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? `
           CASE
             WHEN image_data LIKE 'data:image/%' THEN
-              '/api/b2b/product-image/' || id::text || '?v=' ||
-              EXTRACT(EPOCH FROM updated_at)::bigint::text
+              '/api/b2b/product-image/' || p.id::text || '?v=' ||
+              EXTRACT(EPOCH FROM p.updated_at)::bigint::text
             ELSE image_data
           END AS image_data,
           CASE
@@ -3823,8 +3831,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               jsonb_build_array(
                 CASE
                   WHEN LEFT(images ->> 0, 11) = 'data:image/' THEN
-                    '/api/b2b/product-image/' || id::text || '?index=0&v=' ||
-                    EXTRACT(EPOCH FROM updated_at)::bigint::text
+                    '/api/b2b/product-image/' || p.id::text || '?index=0&v=' ||
+                    EXTRACT(EPOCH FROM p.updated_at)::bigint::text
                   ELSE images ->> 0
                 END
               )
@@ -3835,23 +3843,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const result = await pool.query(`
         SELECT
-          id,
-          sku,
-          name,
-          category,
-          COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price,
-          CASE WHEN campaign_price > 0 AND campaign_price < price THEN price ELSE NULL END AS original_price,
-          stock,
-          min_order_qty,
-          units_per_box,
+          p.id,
+          p.sku,
+          p.name,
+          p.category,
+          ${B2B_EFFECTIVE_PRICE_SQL} AS price,
+          ${B2B_ORIGINAL_PRICE_SQL} AS original_price,
+          timed.id::text AS timed_campaign_id,
+          timed.title AS timed_campaign_title,
+          timed.ends_at AS timed_campaign_end_at,
+          p.stock,
+          p.min_order_qty,
+          p.units_per_box,
           ${imagesSql},
-          barcode,
-          collection_name,
-          tags,
-          created_at
-        FROM b2b_products
-        WHERE is_active IS DISTINCT FROM FALSE
-        ORDER BY created_at DESC
+          p.barcode,
+          p.collection_name,
+          p.tags,
+          p.created_at
+        FROM b2b_products p
+        ${B2B_TIMED_CAMPAIGN_JOIN}
+        WHERE p.is_active IS DISTINCT FROM FALSE
+        ORDER BY p.created_at DESC
       `);
       return res.json(
         result.rows.map((row) => ({
@@ -3930,27 +3942,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const priceVisible = await canViewB2BPrices(req);
       const result = await pool.query(`
         SELECT
-          id,
-          sku,
-          name,
-          brand,
-          category,
-          description,
-          COALESCE(CASE WHEN campaign_price > 0 AND campaign_price < price THEN campaign_price END, price) AS price,
-          CASE WHEN campaign_price > 0 AND campaign_price < price THEN price ELSE NULL END AS original_price,
-          stock,
-          min_order_qty,
-          units_per_box,
-          image_data,
-          images,
-          barcode,
-          collection_name,
-          features,
-          variants,
-          created_at
-        FROM b2b_products
-        WHERE id::text = $1
-          AND is_active IS DISTINCT FROM FALSE
+          p.id,
+          p.sku,
+          p.name,
+          p.brand,
+          p.category,
+          p.description,
+          ${B2B_EFFECTIVE_PRICE_SQL} AS price,
+          ${B2B_ORIGINAL_PRICE_SQL} AS original_price,
+          timed.id::text AS timed_campaign_id,
+          timed.title AS timed_campaign_title,
+          timed.ends_at AS timed_campaign_end_at,
+          p.stock,
+          p.min_order_qty,
+          p.units_per_box,
+          p.image_data,
+          p.images,
+          p.barcode,
+          p.collection_name,
+          p.features,
+          p.variants,
+          p.created_at
+        FROM b2b_products p
+        ${B2B_TIMED_CAMPAIGN_JOIN}
+        WHERE p.id::text = $1
+          AND p.is_active IS DISTINCT FROM FALSE
         LIMIT 1
       `, [String(req.params.id)]);
 
