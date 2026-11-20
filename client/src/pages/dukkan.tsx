@@ -131,6 +131,8 @@ export default function Dukkan() {
   const [selectedCariAction,setSelectedCariAction]=useState<Entry|null>(null);
   const [editingCatalogId,setEditingCatalogId]=useState<string|null>(null);
   const [publishingId,setPublishingId]=useState<string|null>(null);
+  const [selectedCariIds,setSelectedCariIds]=useState<Set<string>>(()=>new Set());
+  const [bulkCariBusy,setBulkCariBusy]=useState(false);
   const [selectedProductIds,setSelectedProductIds]=useState<Set<string>>(()=>new Set());
   const [bulkProductBusy,setBulkProductBusy]=useState(false);
   const requestVersion=useRef(0);
@@ -760,6 +762,25 @@ export default function Dukkan() {
     }
     return String(a.name||"").localeCompare(String(b.name||""),"tr-TR");
   });
+  const visibleCariIds=displayed.map(row=>String(row.id));
+  const selectedCariCount=visibleCariIds.filter(cariId=>selectedCariIds.has(cariId)).length;
+  const clearSelectedCariMovements=async()=>{
+    const partyIds=visibleCariIds.filter(cariId=>selectedCariIds.has(cariId)).map(Number);
+    if(!partyIds.length||bulkCariBusy)return;
+    if(!window.confirm(partyIds.length+" carinin bütün cari hareketleri kalıcı olarak silinecek. Cari kartları ve faturalar korunacak. Devam edilsin mi?"))return;
+    const confirmation=window.prompt("Bu işlemin geri dönüşü yoktur. Onaylamak için TEMİZLE yazın:");
+    if(confirmation!=="TEMİZLE")return;
+    setBulkCariBusy(true);setError("");
+    try{
+      const result=await api(base+"/parties/bulk-clear-movements",{
+        method:"POST",body:JSON.stringify({partyIds,confirmation})
+      });
+      setSelectedCariIds(new Set());
+      setNotice(result.partyCount+" carinin "+result.deletedMovements+" hareketi temizlendi; bakiyeler sıfırlandı.");
+      setRefresh(previous=>previous+1);
+    }catch(error){setError((error as Error).message);}
+    finally{setBulkCariBusy(false);}
+  };
   const matchingProducts=useMemo(()=>selectDukkanProducts(rows,productToolbar),[rows,productToolbar]);
   const pagedProducts=useMemo(()=>paginateDukkanProducts(matchingProducts,productToolbar.page,productToolbar.pageSize),[matchingProducts,productToolbar.page,productToolbar.pageSize]);
   const tableRows=section==="products"?pagedProducts.rows:displayed;
@@ -1183,6 +1204,21 @@ export default function Dukkan() {
                 className="ml-auto text-xs font-semibold text-sky-800 underline">Seçimi Temizle</button>}
               {bulkProductBusy&&<span role="status" className="text-xs text-slate-500">İşleniyor...</span>}
             </div>}
+            {isCariSection&&isManager&&canAccount&&<div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#dce7f4] bg-white px-4 py-3" aria-label="Toplu cari hesap işlemleri">
+              <span className="mr-2 text-xs font-bold text-[#24466a]">{selectedCariCount} / {visibleCariIds.length} cari seçili</span>
+              <button type="button" disabled={!visibleCariIds.length||bulkCariBusy}
+                onClick={()=>setSelectedCariIds(previous=>new Set([...previous,...visibleCariIds]))}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">Görünenlerin Tümünü Seç</button>
+              <button type="button" disabled={!selectedCariCount||bulkCariBusy}
+                onClick={()=>setSelectedCariIds(previous=>new Set([...previous].filter(id=>!visibleCariIds.includes(id))))}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">Seçimi Kaldır</button>
+              <button type="button" disabled={!selectedCariCount||bulkCariBusy}
+                onClick={()=>void clearSelectedCariMovements()}
+                className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 disabled:opacity-40">
+                {bulkCariBusy?"Temizleniyor...":"Seçilenlerin Cari Hareketlerini Temizle"}
+              </button>
+              <span className="text-xs text-slate-500">Cari kartları ve faturalar silinmez.</span>
+            </div>}
             {section==="stock"&&<DukkanStockWorkspace
               key={storeId}
               storeId={storeId}
@@ -1194,6 +1230,17 @@ export default function Dukkan() {
             {section!=="stock"&&!(standaloneSalesCreate&&section==="sales")&&!(standaloneProductCreate&&section==="products")&&<div className="overflow-x-auto rounded-2xl border border-[#e8eef7]">
               <table className={"w-full border-collapse text-left text-sm "+(section==="products"?"min-w-[1120px]":isCariSection?"min-w-[1120px]":"min-w-[650px]")}>
                 <thead className="bg-[#f0f5fc] text-xs font-bold text-[#58708d]"><tr>
+                  {isCariSection&&isManager&&canAccount&&<th className="w-10 px-2 py-3 text-center">
+                    <input type="checkbox" className="h-4 w-4 accent-[#174b83]"
+                      aria-label="Listelenen tüm carileri seç"
+                      checked={visibleCariIds.length>0&&visibleCariIds.every(id=>selectedCariIds.has(id))}
+                      disabled={!visibleCariIds.length||bulkCariBusy}
+                      onChange={event=>setSelectedCariIds(previous=>{
+                        const next=new Set(previous);
+                        for(const id of visibleCariIds)event.target.checked?next.add(id):next.delete(id);
+                        return next;
+                      })}/>
+                  </th>}
                   {section==="products"&&canManage&&<th className="w-10 px-2 py-3 text-center">
                     <input type="checkbox" className="h-4 w-4 accent-[#174b83]"
                       aria-label="Görünen sayfadaki tüm ürünleri seç"
@@ -1227,6 +1274,18 @@ export default function Dukkan() {
                     if(section!=="products"||!canManage||(r._source==="b2b"&&(!isAdmin||r.linked_to_store)))return;
                     void editProduct(r);
                   }}>
+                  {isCariSection&&isManager&&canAccount&&<td className="w-10 px-2 py-3 text-center">
+                    <input type="checkbox" className="h-4 w-4 accent-[#174b83]"
+                      aria-label={String(r.name||"Cari")+" hesabını seç"}
+                      checked={selectedCariIds.has(String(r.id))}
+                      disabled={bulkCariBusy}
+                      onClick={event=>event.stopPropagation()}
+                      onChange={event=>setSelectedCariIds(previous=>{
+                        const next=new Set(previous);
+                        if(event.target.checked)next.add(String(r.id));else next.delete(String(r.id));
+                        return next;
+                      })}/>
+                  </td>}
                   {section==="products" ? <>
                     {canManage&&<td className="w-10 px-2 py-2 text-center">
                       {r._source!=="b2b"&&<input type="checkbox" className="h-4 w-4 accent-[#174b83]"
