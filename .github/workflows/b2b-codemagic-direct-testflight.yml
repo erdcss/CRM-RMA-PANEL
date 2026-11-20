@@ -1,0 +1,97 @@
+name: Çalışkan B2B TestFlight - Codemagic Doğrudan API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/b2b-codemagic-api.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b2b-codemagic-direct-testflight
+  cancel-in-progress: false
+
+jobs:
+  codemagic:
+    name: Codemagic API ile B2B iOS derlemesini başlat
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+      CODEMAGIC_APP_ID_VAR: ${{ vars.CODEMAGIC_APP_ID }}
+      CODEMAGIC_APP_ID_SECRET: ${{ secrets.CODEMAGIC_APP_ID }}
+    steps:
+      - name: Kod kaynağı ve tek uygulama koruması
+        run: |
+          echo "App: Çalışkan B2B"
+          echo "Branch: main"
+          echo "Workflow: caliskan-b2b-ios"
+          echo "iOS bundle: com.caliskangroup.rma"
+          echo "Expo EAS kullanılmıyor."
+      - name: Codemagic API bağlantısını denetle
+        id: preflight
+        run: |
+          if [ -z "$CODEMAGIC_API_TOKEN" ]; then
+            echo "::error::CODEMAGIC_API_TOKEN GitHub Actions secrets içinde bulunamadı. Codemagic > Account Settings > API token bölümünden alıp GitHub > Settings > Secrets and variables > Actions > New repository secret'a CODEMAGIC_API_TOKEN olarak kaydedin."
+            exit 1
+          fi
+          ID="${CODEMAGIC_APP_ID_VAR:-$CODEMAGIC_APP_ID_SECRET}"
+          if [ -z "$ID" ]; then
+            echo "::error::CODEMAGIC_APP_ID bulunamadı. Codemagic uygulama URL'si /app/<id> adresindeki id'yi GitHub Actions > Variables altına CODEMAGIC_APP_ID olarak kaydedin."
+            exit 1
+          fi
+          if ! [[ "$ID" =~ ^[a-fA-F0-9]{24}$ ]]; then
+            echo "::error::CODEMAGIC_APP_ID biçimi geçersiz (24 haneli Codemagic app ID gerekli)."
+            exit 1
+          fi
+          echo "Codemagic API kimlik bilgileri tanımlı."
+      - name: Codemagic TestFlight derlemesini doğrudan tetikle
+        id: launch
+        env:
+          GITHUB_SHA_REQUEST: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const appId = process.env.CODEMAGIC_APP_ID_VAR || process.env.CODEMAGIC_APP_ID_SECRET;
+          const body = { appId, workflowId: 'caliskan-b2b-ios', branch: 'main' };
+          let response;
+          try {
+            response = await fetch('https://api.codemagic.io/builds', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-auth-token': process.env.CODEMAGIC_API_TOKEN },
+              body: JSON.stringify(body),
+              signal: AbortSignal.timeout(45000),
+            });
+          } catch (e) {
+            console.error('::error::Codemagic API bağlantısı kurulamadı: ' + e.message);
+            process.exit(1);
+          }
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.buildId) {
+            console.error('::error::Codemagic isteği reddetti: HTTP ' + response.status +
+              '. API token yetkisini, CODEMAGIC_APP_ID ve workflow adını kontrol edin.');
+            process.exit(1);
+          }
+          const buildId = payload.buildId;
+          const url = 'https://codemagic.io/app/' + appId + '/build/' + buildId;
+          console.log('Codemagic build successfully queued: ' + buildId);
+          console.log('Build URL: ' + url);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build_id=' + buildId + '\n' +
+            'build_url=' + url + '\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            '### Çalışkan B2B Codemagic TestFlight',
+            '',
+            '- **İstek:** Codemagic API tarafından kabul edildi',
+            '- **Uygulama:** com.caliskangroup.rma',
+            '- **Workflow:** caliskan-b2b-ios',
+            '- **GitHub commit:** ' + process.env.GITHUB_SHA_REQUEST,
+            '- **Derleme:** [' + buildId + '](' + url + ')',
+            '- **Hedef:** Dahili Apple TestFlight, App Store üretim yayını değil.',
+            '',
+            'Derleme tamamlanınca IPA yüklemesini ve Apple TestFlight durumunu Codemagic ve App Store Connect üzerinden doğrulayın.',
+            ''
+          ].join('\n'));
+          NODE
