@@ -168,7 +168,7 @@ export default function AdminTimedCampaigns() {
     finally{setBusy(false);}
   };
 
-  return <div className="mx-auto max-w-7xl space-y-6 pb-16">
+  return <div data-testid="timed-campaigns-scroll-container" className="mx-auto h-full min-h-0 w-full max-w-7xl space-y-6 overflow-x-hidden overflow-y-auto overscroll-y-contain px-4 pb-36 pt-4 [scrollbar-gutter:stable] sm:px-6 sm:pt-6">
     <header className="rounded-2xl bg-slate-950 px-5 py-6 text-white shadow-md sm:px-8">
       <div className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-[#FFCD00]"><Zap className="h-4 w-4"/> Kampanyalar</div>
       <h1 className="mt-2 text-2xl font-black sm:text-3xl">Süreli Kampanyalar</h1>
@@ -261,7 +261,7 @@ export default function AdminTimedCampaigns() {
             {!form.items.length?<p className="rounded-xl border border-dashed p-7 text-center text-sm text-slate-500">Yukarıdan ürün seçerek kampanyayı oluşturun.</p>:null}
           </div>
         </section>
-        <div className="sticky bottom-0 flex flex-wrap gap-3 rounded-xl border bg-white/95 p-4 shadow-lg backdrop-blur">
+        <div className="sticky bottom-0 z-20 flex flex-wrap gap-3 rounded-xl border bg-white/95 p-4 shadow-lg backdrop-blur">
           <button disabled={busy} type="button" onClick={()=>void save(false)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-extrabold disabled:opacity-50"><Check size={17}/> Taslak Kaydet / Durdur</button>
           <button disabled={busy} type="button" onClick={()=>void save(true)} className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-extrabold text-[#FFCD00] disabled:opacity-50"><Zap size={17}/> {busy?"Kaydediliyor…":"Yayınla / Planla"}</button>
         </div>
