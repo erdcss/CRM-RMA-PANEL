@@ -56,8 +56,7 @@ export default function Dukkan() {
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [settingsView,setSettingsView]=useState<"general"|"forms">("general");
   const [members,setMembers]=useState<Entry[]>([]);
-  const [memberCredential,setMemberCredential]=useState<{username:string;email:string|null;password:string}|null>(null);
-  const [memberPasswordVisible,setMemberPasswordVisible]=useState(false);
+  const [memberMailNotice,setMemberMailNotice]=useState("");
   const [resettingMember,setResettingMember]=useState<number|null>(null);
   const [storeId,setStoreId]=useState(()=>{
     const fromUrl=new URLSearchParams(window.location.search).get("storeId");
@@ -86,7 +85,7 @@ export default function Dukkan() {
     return SECTIONS.some(item=>item.key===tab)?tab as Section:"overview";
   });
   // Never retain a freshly issued credential when switching stores or sections.
-  useEffect(()=>{setMemberCredential(null);setMemberPasswordVisible(false);},[storeId,section]);
+  useEffect(()=>{setMemberMailNotice("");},[storeId,section]);
   const [productToolbar,setProductToolbar]=useState<ProductToolbarState>(()=>{
     try{
       const initialStore=new URLSearchParams(window.location.search).get("storeId")||"";
@@ -703,16 +702,16 @@ export default function Dukkan() {
   };
   const resetMemberPassword=async(member:Entry)=>{
     if(!isSuperAdmin||member.account_role!=="staff"||member.role==="owner"||resettingMember!==null)return;
-    if(!window.confirm(member.username+" hesabının mevcut şifresi geçersiz kılınacak. Yeni geçici şifre oluşturulsun mu?"))return;
+    if(!member.email){setError("Bu personelin kayıtlı e-posta adresi yok. Önce e-posta adresi tanımlanmalı.");return;}
+    if(!window.confirm(member.username+" için yeni geçici şifre kayıtlı "+member.email+" adresine gönderilsin mi?"))return;
     setResettingMember(Number(member.user_id));
-    setMemberCredential(null);
-    setMemberPasswordVisible(false);
+    setMemberMailNotice("");
     setError("");
     try{
       const result=await api(base+"/members/"+encodeURIComponent(String(member.user_id))+"/reset-password",{method:"POST"});
-      setMemberCredential({username:String(result.username),email:result.email?String(result.email):null,password:String(result.password)});
-      setNotice("Yeni şifre oluşturuldu. Yalnızca bu pencerede gösterilir; güvenli şekilde ilgili personele iletin.");
-    }catch(e){setError(e instanceof Error?e.message:"Şifre yenilenemedi.");}
+      setMemberMailNotice("Yeni geçici giriş şifresi "+String(result.email)+" adresine gönderildi. Personel ilk girişinde kendi kalıcı şifresini belirleyecek.");
+      setNotice("Şifre sıfırlama e-postası gönderim hizmeti tarafından kabul edildi.");
+    }catch(e){setError(e instanceof Error?e.message:"Şifre e-postası gönderilemedi.");}
     finally{setResettingMember(null);}
   };
   const downloadCariExcel=async(kind:"debt"|"credit")=>{
@@ -913,7 +912,8 @@ export default function Dukkan() {
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-slate-500">Mevcut şifre güvenlik nedeniyle gösterilemez.</span>
                   {isSuperAdmin&&m.account_role==="staff"&&m.role!=="owner"&&
-                    <button type="button" disabled={resettingMember!==null}
+                    <button type="button" disabled={resettingMember!==null||!m.email}
+                      title={!m.email?"Şifre göndermek için kayıtlı e-posta gerekli":undefined}
                       className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       onClick={()=>void resetMemberPassword(m)}>
                       {resettingMember===Number(m.user_id)?"Yenileniyor…":"Şifre Yenile"}
@@ -922,25 +922,8 @@ export default function Dukkan() {
               </div>)}
               {!members.length&&<p className="text-sm text-slate-500">Bu mağazada atanmış yetkili bulunamadı.</p>}
             </div>
-            {memberCredential&&<div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div><p className="font-bold text-slate-900">Yeni giriş bilgileri</p>
-                  <p className="mt-1 text-xs text-slate-600">Şifre yalnızca şimdi gösterilir. Pencere kapatıldığında yeniden görüntülenemez.</p>
-                </div>
-                <button type="button" aria-label="Yeni şifre penceresini kapat" className="rounded p-1 hover:bg-blue-100"
-                  onClick={()=>{setMemberCredential(null);setMemberPasswordVisible(false);}}><X size={17}/></button>
-              </div>
-              <p className="mt-3 text-sm">Kullanıcı: <strong>{memberCredential.username}</strong></p>
-              <p className="mt-1 break-all text-sm">E-posta: {memberCredential.email||"Kayıtlı e-posta yok"}</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <code className="max-w-full break-all rounded-lg bg-white px-3 py-2 text-xs">
-                  {memberPasswordVisible?memberCredential.password:"••••••••••••••••"}
-                </code>
-                <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold"
-                  onClick={()=>setMemberPasswordVisible(v=>!v)}>{memberPasswordVisible?"Gizle":"Göster"}</button>
-                <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold"
-                  onClick={()=>void navigator.clipboard?.writeText(memberCredential.password)}>Şifreyi Kopyala</button>
-              </div>
+            {memberMailNotice&&<div role="status" className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+              {memberMailNotice}
             </div>}
           </div>}
           {section==="settings"&&settingsView==="general"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
