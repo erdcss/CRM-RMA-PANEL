@@ -1,0 +1,26 @@
+name: M.A.Y.K APNs credentials safety check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/mayk-apns-probe/*.json"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Check shared Expo Apple push key (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Inspect Expo project's APNs credential references (no secrets printed)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node .github/scripts/mayk-apns-probe.mjs
