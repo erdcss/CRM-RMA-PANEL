@@ -100,6 +100,123 @@ const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS dukkan_cari_store_idx ON dukkan_cari_entries(store_id,party_id,created_at DESC)"
 ].join(";\n") + ";";
 
+// Reset one or more accounts' *ledger history*. Never remove party cards,
+// invoices, payments, bank movements or stock movements in this operation.
+// All FK-linked import records are deleted before their parent ledger rows.
+// Caller must own a transaction and lock the selected party rows first.
+async function clearCariMovementRows(c:PoolClient,sid:number,partyIds:number[]){
+  await c.query("SELECT pg_advisory_xact_lock($1,$2)",[31031,sid]);
+  if(!partyIds.length)return {partyCount:0,deletedMovements:0,oldBalance:"0",remainingMovements:0,
+    deletedExcelRows:0,deletedImportedRows:0};
+  const params:[number,number[]]=[sid,partyIds];
+  const initial=await c.query(
+    "SELECT COUNT(*)::int AS movement_count,COALESCE(SUM(debit-credit),0)::text AS balance "+
+    "FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",params
+  );
+  // Excel-import rows also reference dukkan_cari_entries(id); deleting only the
+  // imported statements and openings leaves a foreign-key violation.
+  const excel=await c.query(
+    "DELETE FROM dukkan_cari_excel_rows WHERE store_id=$1 AND "+
+    "(party_id=ANY($2::bigint[]) OR entry_id IN "+
+    "(SELECT id FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])))",
+    params
+  );
+  const imported=await c.query(
+    "SELECT id FROM dukkan_cari_import_entries WHERE store_id=$1 AND "+
+    "(party_id=ANY($2::bigint[]) OR entry_id IN "+
+    "(SELECT id FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])))",
+    params
+  );
+  const importedIds=imported.rows.map(row=>row.id);
+  if(importedIds.length){
+    await c.query("DELETE FROM dukkan_archive_invoice_audit WHERE store_id=$1 AND import_entry_id=ANY($2::bigint[])",[sid,importedIds]);
+    await c.query("DELETE FROM dukkan_cari_import_lines WHERE import_entry_id=ANY($1::bigint[])",[importedIds]);
+    await c.query("DELETE FROM dukkan_cari_import_entries WHERE store_id=$1 AND id=ANY($2::bigint[])",[sid,importedIds]);
+  }
+  await c.query("DELETE FROM dukkan_cari_openings WHERE store_id=$1 AND party_id=ANY($2::bigint[])",params);
+  const entries=await c.query(
+    "DELETE FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",params
+  );
+  await c.query(
+    "DELETE FROM dukkan_cari_import_batches b WHERE b.store_id=$1 AND b.party_id=ANY($2::bigint[]) "+
+    "AND NOT EXISTS(SELECT 1 FROM dukkan_cari_import_entries e WHERE e.batch_id=b.id)",params
+  );
+  await c.query(
+    "DELETE FROM dukkan_cari_excel_batches b WHERE b.store_id=$1 AND "+
+    "NOT EXISTS(SELECT 1 FROM dukkan_cari_excel_rows e WHERE e.batch_id=b.id)",[sid]
+  );
+  const checked=await c.query(
+    "SELECT COUNT(*)::int AS remaining,COALESCE(SUM(debit-credit),0)::text AS balance "+
+    "FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",params
+  );
+  if(Number(checked.rows[0].remaining)!==0||Number(checked.rows[0].balance)!==0)
+    throw Object.assign(new Error("Cari hareketleri veya bakiyesi sıfırlanamadı; işlem geri alındı."),{status:409});
+  return {partyCount:partyIds.length,deletedMovements:entries.rowCount||0,
+    oldBalance:initial.rows[0].balance,remainingMovements:0,
+    deletedExcelRows:excel.rowCount||0,deletedImportedRows:importedIds.length};
+}
+
+// One-time execution of the owner's explicitly approved 20 Nov 2026 request.
+// Strictly limited to the existing ÇALIŞKAN GROUP store in this production project;
+// an audit marker is committed in the very same transaction to prevent replay.
+async function clearApprovedCaliskanGroupOnce(db:NonNullable<typeof pool>){
+  if(process.env.RAILWAY_PROJECT_ID!=="169cc9d7-b4b5-43b1-8b7e-3a18b4ecef7f"||
+     process.env.RAILWAY_SERVICE_ID!=="9ccfcca5-4c8c-49cc-985e-465ead945376"||
+     process.env.RAILWAY_ENVIRONMENT_NAME!=="production")return;
+  await ensureCariExcelSchema(db);
+  const c=await db.connect();
+  try{
+    await c.query("BEGIN");
+    await c.query("SELECT pg_advisory_xact_lock($1,$2)",[31031,1]);
+    const shop=await c.query("SELECT id,name FROM dukkan_stores WHERE id=$1 FOR UPDATE",[1]);
+    if(shop.rows.length!==1||String(shop.rows[0].name).trim().toLocaleUpperCase("tr-TR")!=="ÇALIŞKAN GROUP"){
+      await c.query("ROLLBACK");
+      console.error("Dukkan cari one-time clear skipped: store 1 is not ÇALIŞKAN GROUP");
+      return;
+    }
+    await c.query(
+      "CREATE TABLE IF NOT EXISTS dukkan_cari_clear_audit ("+
+      "id BIGSERIAL PRIMARY KEY,store_id BIGINT NOT NULL REFERENCES dukkan_stores(id),"+
+      "request_key TEXT NOT NULL UNIQUE,party_count INTEGER NOT NULL,"+
+      "deleted_movements INTEGER NOT NULL,deleted_excel_rows INTEGER NOT NULL,"+
+      "deleted_imported_rows INTEGER NOT NULL,old_total_balance NUMERIC(18,2) NOT NULL,"+
+      "completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW())"
+    );
+    const key="2026-11-20-caliskan-group-all-ledger-movements-clear-1";
+    const done=await c.query("SELECT id FROM dukkan_cari_clear_audit WHERE request_key=$1",[key]);
+    if(done.rowCount){
+      await c.query("COMMIT");
+      console.info("Dukkan one-time cari clear already completed",{storeId:1,requestKey:key});
+      return;
+    }
+    const parties=await c.query("SELECT id FROM dukkan_parties WHERE store_id=$1 ORDER BY id FOR UPDATE",[1]);
+    const ids=parties.rows.map(row=>Number(row.id));
+    const outcome=await clearCariMovementRows(c,1,ids);
+    const total=await c.query(
+      "SELECT COUNT(*)::int AS remaining,COALESCE(SUM(debit-credit),0)::text AS total_balance "+
+      "FROM dukkan_cari_entries WHERE store_id=$1",[1]
+    );
+    if(Number(total.rows[0].remaining)!==0||Number(total.rows[0].total_balance)!==0)
+      throw Error("One-time cari reset verification failed; rolling back");
+    await c.query(
+      "INSERT INTO dukkan_cari_clear_audit (store_id,request_key,party_count,deleted_movements,"+
+      "deleted_excel_rows,deleted_imported_rows,old_total_balance) "+
+      "VALUES($1,$2,$3,$4,$5,$6,$7)",
+      [1,key,outcome.partyCount,outcome.deletedMovements,outcome.deletedExcelRows,
+       outcome.deletedImportedRows,outcome.oldBalance]
+    );
+    await c.query("COMMIT");
+    console.info("Dukkan one-time cari clear COMPLETED",{
+      storeId:1,...outcome,verifiedRemaining:total.rows[0].remaining,
+      verifiedBalance:total.rows[0].total_balance
+    });
+  }catch(error){
+    await c.query("ROLLBACK").catch(()=>{});
+    console.error("Dukkan one-time cari clear FAILED; rolled back",error);
+    throw error;
+  }finally{c.release();}
+}
+
 let schemaPromise: Promise<void> | undefined;
 async function ready() {
   if (!pool) throw Object.assign(new Error("PostgreSQL bağlantısı gerekli"), { status: 503 });
@@ -136,6 +253,7 @@ async function ready() {
         console.error("Dukkan Lorenzo 23 catalog import blocked; no partial changes:",error);
       }
     })
+    .then(async()=>{try{await clearApprovedCaliskanGroupOnce(pool!);}catch(error){console.error("Dukkan approved cari clear needs attention:",error);}})
     .catch((error) => { schemaPromise = undefined; throw error; });
   await schemaPromise;
   return pool;
@@ -912,45 +1030,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       );
       if(parties.rows.length!==payload.partyIds.length)
         throw Object.assign(new Error("Seçilen carilerden biri bu mağazada bulunamadı. Listeyi yenileyin."),{status:409});
-      const original=await c.query(
-        "SELECT COUNT(*)::int AS movement_count,COALESCE(SUM(debit-credit),0)::text AS total_balance FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
-        [sid,payload.partyIds]
-      );
-      // Historical import metadata is tied to imported movements. Preserve all
-      // independent issued invoices and real payment/bank/stock transactions.
-      const imported=await c.query(
-        "SELECT id FROM dukkan_cari_import_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
-        [sid,payload.partyIds]
-      );
-      const importIds=imported.rows.map(row=>row.id);
-      if(importIds.length){
-        await c.query("DELETE FROM dukkan_archive_invoice_audit WHERE store_id=$1 AND import_entry_id=ANY($2::bigint[])",[sid,importIds]);
-        await c.query("DELETE FROM dukkan_cari_import_lines WHERE import_entry_id=ANY($1::bigint[])",[importIds]);
-        await c.query("DELETE FROM dukkan_cari_import_entries WHERE store_id=$1 AND id=ANY($2::bigint[])",[sid,importIds]);
-      }
-      await c.query(
-        "DELETE FROM dukkan_cari_openings WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
-        [sid,payload.partyIds]
-      );
-      const deleted=await c.query(
-        "DELETE FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
-        [sid,payload.partyIds]
-      );
-      // Imported report batch identifiers cannot block re-importing a corrected
-      // statement after history was intentionally cleared.
-      await c.query(
-        "DELETE FROM dukkan_cari_import_batches WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
-        [sid,payload.partyIds]
-      );
-      const check=await c.query(
-        "SELECT COUNT(*)::int AS remaining FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
-        [sid,payload.partyIds]
-      );
-      if(Number(check.rows[0].remaining)!==0)
-        throw Object.assign(new Error("Cari hareketlerinin tamamı temizlenemedi."),{status:409});
-      return {partyCount:parties.rows.length,deletedMovements:deleted.rowCount||0,
-        oldBalance:original.rows[0].total_balance,remainingMovements:0,
-        message:"Seçilen cari hareketleri temizlendi. Cari kartları, faturalar ve ödeme kayıtları korundu."};
+      const result=await clearCariMovementRows(c,sid,payload.partyIds);
+      return {...result,message:"Seçilen cari hareketleri temizlendi. Cari kartları, faturalar ve ödeme kayıtları korundu."};
     });
     res.setHeader("Cache-Control","private,no-store");
     res.json(result);
