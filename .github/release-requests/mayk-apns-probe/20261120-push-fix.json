@@ -1,0 +1,5 @@
+{
+  "app": "mayk",
+  "operation": "probe",
+  "reason": "Expo InvalidCredentials on production push"
+}
