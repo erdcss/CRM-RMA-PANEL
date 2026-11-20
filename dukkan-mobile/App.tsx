@@ -4,7 +4,7 @@ import {pickAiDocument} from "./ai-document";
 import {Image} from "react-native";
 import {ProductThumbnail} from "./product-thumbnail";
 import {CariMovements} from "./cari-movements";
-import {login,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,importAiProducts,type AiDocumentSection,type StoreInfo} from "./remote-db";
+import {login,completePasswordReset,availableStores,setStoreSession,clearStoreSession,list,summary,report,settings,add,setStatus,getSaleDocument,importAiProducts,type AiDocumentSection,type StoreInfo} from "./remote-db";
 import {shareSalesInvoicePdf} from "./invoice-pdf";
 import {DUKKAN_THEME} from "./design-system";
 import {DukkanMobileHeader,DukkanDrawerNavigation,DukkanBottomNavigation,DukkanDashboardOverview,type DukkanTab} from "./dukkan-home";
@@ -349,6 +349,9 @@ export default function App(){
  const [checking,setChecking]=useState(true);
  const [username,setUsername]=useState("");
  const [password,setPassword]=useState("");
+ const [passwordSetup,setPasswordSetup]=useState(false);
+ const [newPassword,setNewPassword]=useState("");
+ const [confirmPassword,setConfirmPassword]=useState("");
  const [busy,setBusy]=useState(false);
  const [loginError,setLoginError]=useState("");
  const [logo,setLogo]=useState<string|null>(null);
@@ -389,12 +392,33 @@ export default function App(){
   if(busy)return;
   setBusy(true);setLoginError("");
   try{
-   const result=await login(username,password);
-   const store=result.stores[0];
-   const next={token:result.token,stores:result.stores,store,user:result.user};
-   await SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
-   setStoreSession(result.token,store);
-   setAccount(next);setPassword("");
+   if(passwordSetup){
+    if(newPassword!==confirmPassword)throw Error("Yeni şifreler eşleşmiyor.");
+    await completePasswordReset(username,password,newPassword,confirmPassword);
+    // The emailed password cannot be reused after this point.
+    setPasswordSetup(false);setPassword("");setConfirmPassword("");
+    let result;
+    try{result=await login(username,newPassword);}
+    catch{throw Error("Şifreniz kaydedildi. Lütfen yeni şifrenizle yeniden giriş yapın.");}
+    if("mustChangePassword" in result)throw Error("Yeni şifre tamamlanamadı. Tekrar deneyin.");
+    const store=result.stores[0];
+    const next={token:result.token,stores:result.stores,store,user:result.user};
+    await SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
+    setStoreSession(result.token,store);
+    setAccount(next);setNewPassword("");
+   }else{
+    const result=await login(username,password);
+    if("mustChangePassword" in result&&result.mustChangePassword){
+     setPasswordSetup(true);
+     return;
+    }
+    if(!("token" in result))throw Error("Oturum açılamadı.");
+    const store=result.stores[0];
+    const next={token:result.token,stores:result.stores,store,user:result.user};
+    await SecureStore.setItemAsync(SECURE_SESSION_KEY,JSON.stringify(next));
+    setStoreSession(result.token,store);
+    setAccount(next);setPassword("");
+   }
   }catch(e){setLoginError((e as Error).message);}
   finally{setBusy(false);}
  };
@@ -420,15 +444,30 @@ export default function App(){
     <Text style={{fontSize:24,fontWeight:"600",color:"#13283f",marginTop:15}}>Çalışkan Dükkan</Text>
     <Text style={{fontSize:12,color:"#64748b",marginTop:4}}>Yetkili mağaza hesabınızla giriş yapın</Text>
    </View>
-   <Text style={styles.label}>Kullanıcı adı / E-posta</Text>
-   <TextInput style={[styles.input,{marginBottom:16}]} value={username} autoCapitalize="none" autoCorrect={false} autoComplete="username" onChangeText={setUsername} placeholder="Yönetici tarafından atanan kullanıcı"/>
-   <Text style={styles.label}>Şifre</Text>
-   <TextInput style={[styles.input,{marginBottom:18}]} value={password} secureTextEntry autoComplete="current-password" onChangeText={setPassword} placeholder="Şifreniz"/>
+   {passwordSetup?<>
+    <Text style={[styles.hint,{marginBottom:16}]}>Geçici şifreniz doğrulandı. Yeni bir kalıcı şifre belirleyin.</Text>
+    <Text style={styles.label}>Yeni şifre</Text>
+    <TextInput style={[styles.input,{marginBottom:16}]} value={newPassword} secureTextEntry autoComplete="new-password"
+     onChangeText={setNewPassword} placeholder="En az 12 karakter"/>
+    <Text style={styles.label}>Yeni şifre (tekrar)</Text>
+    <TextInput style={[styles.input,{marginBottom:12}]} value={confirmPassword} secureTextEntry autoComplete="new-password"
+     onChangeText={setConfirmPassword} placeholder="Şifrenizi doğrulayın"/>
+    <Text style={[styles.hint,{marginBottom:15}]}>Büyük/küçük harf, rakam ve özel karakter içermelidir.</Text>
+   </>:<>
+    <Text style={styles.label}>Kullanıcı adı / E-posta</Text>
+    <TextInput style={[styles.input,{marginBottom:16}]} value={username} autoCapitalize="none" autoCorrect={false} autoComplete="username" onChangeText={setUsername} placeholder="Yönetici tarafından atanan kullanıcı"/>
+    <Text style={styles.label}>Şifre</Text>
+    <TextInput style={[styles.input,{marginBottom:18}]} value={password} secureTextEntry autoComplete="current-password" onChangeText={setPassword} placeholder="Şifreniz"/>
+   </>}
    {loginError?<Text style={styles.error}>{loginError}</Text>:null}
-   <Pressable disabled={busy||!username.trim()||!password} onPress={()=>void enter()} style={[styles.primary,{marginRight:0,opacity:busy?0.5:1}]}>
-    <Text style={styles.primaryText}>{busy?"Giriş yapılıyor...":"Giriş Yap"}</Text>
+   <Pressable disabled={busy||(passwordSetup?(!newPassword||!confirmPassword):(!username.trim()||!password))}
+    onPress={()=>void enter()} style={[styles.primary,{marginRight:0,opacity:busy?0.5:1}]}>
+    <Text style={styles.primaryText}>{busy?"İşleniyor...":passwordSetup?"Yeni Şifreyi Kaydet":"Giriş Yap"}</Text>
    </Pressable>
-   <Text style={[styles.hint,{marginTop:16,textAlign:"center"}]}>Bu hesaba Çalışkan Admin panelinden mağaza yetkisi verilmiş olmalıdır.</Text>
+   {passwordSetup?<Pressable style={{marginTop:16,alignItems:"center"}} onPress={()=>{
+    setPasswordSetup(false);setPassword("");setNewPassword("");setConfirmPassword("");setLoginError("");
+   }}><Text style={styles.hint}>Giriş ekranına dön</Text></Pressable>:
+   <Text style={[styles.hint,{marginTop:16,textAlign:"center"}]}>Bu hesaba Çalışkan Admin panelinden mağaza yetkisi verilmiş olmalıdır.</Text>}
   </View>
  </SafeAreaView>;
 }

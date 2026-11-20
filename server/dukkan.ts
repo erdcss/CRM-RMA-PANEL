@@ -3,6 +3,7 @@ import { pool } from "./db";
 import { storage } from "./storage";
 import { z, ZodError } from "zod";
 import type { PoolClient } from "pg";
+import { randomBytes, scryptSync } from "crypto";
 import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
@@ -331,7 +332,12 @@ async function exists(c: PoolClient, table: "dukkan_parties" | "dukkan_products"
 }
 
 
-export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request) => number | undefined) {
+export function registerDukkanRoutes(
+  app: Express,
+  sessionUserId: (req: Request) => number | undefined,
+  sendMail: (input:{to:string;subject:string;text:string;html:string})=>Promise<void> =
+    async()=>{throw new Error("E-posta hizmeti bu ortamda yapılandırılmadı.");}
+) {
   app.use("/api/dukkan", (req: Request, res: Response, next: NextFunction) => {
     void Promise.resolve().then(async () => {
       const uid = sessionUserId(req);
@@ -382,14 +388,80 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Üye ekleme yetkiniz yok");
     const p=z.object({userId:id.optional(),username:z.string().trim().min(1).max(254).optional(),role:z.enum(["manager","accountant","cashier","viewer"])}).refine(v=>Boolean(v.userId||v.username),"Kullanıcı seçiniz").parse(req.body);
     const db=await ready();
-    const existsUser=p.userId?await storage.getUser(p.userId):await storage.getUserByUsername(p.username||"");
+    const existsUser=p.userId?await storage.getUser(p.userId):
+      (await storage.getUserByUsername(p.username||""))||(await storage.getUserByEmail(p.username||""));
     if(!existsUser || existsUser.isActive!==1) return res.status(404).json({error:"Aktif kullanıcı bulunamadı"});
     await db.query("INSERT INTO dukkan_members(store_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(store_id,user_id) DO UPDATE SET role=EXCLUDED.role WHERE dukkan_members.role<>'owner'",[store(req),existsUser.id,p.role]);
     res.status(201).json({ok:true});
   }));
   app.get("/api/dukkan/stores/:storeId/members",safe(async(req,res)=>{
     if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Üye listesi için yetkiniz yok");
-    const db=await ready();const r=await db.query("SELECT m.user_id,u.username,m.role FROM dukkan_members m JOIN users u ON u.id=m.user_id WHERE m.store_id=$1 ORDER BY m.user_id",[store(req)]);res.json(r.rows);
+    const db=await ready();
+    const r=await db.query(
+      "SELECT m.user_id,u.username,u.email,u.role AS account_role,m.role FROM dukkan_members m JOIN users u ON u.id=m.user_id WHERE m.store_id=$1 ORDER BY m.user_id",
+      [store(req)]
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(r.rows);
+  }));
+
+
+  // The existing password stays irreversible. A temporary replacement is
+  // emailed only to the verified, saved staff mailbox and never returned to admin.
+  const lastStaffReset=new Map<number,number>();
+  app.post("/api/dukkan/stores/:storeId/members/:memberId/reset-password",safe(async(req,res)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    const actor=await storage.getUser(user(res));
+    if(actor?.role!=="super_admin"||res.locals.dukkanRole!=="owner")
+      deny("Şifre yenilemek için platform süper yönetici ve mağaza sahibi yetkisi gerekir");
+    const memberId=id.parse(req.params.memberId);
+    const db=await ready();
+    const member=await db.query(
+      "SELECT m.role AS store_role,u.id,u.username,u.email,u.first_name,u.role AS account_role,u.is_active FROM dukkan_members m JOIN users u ON u.id=m.user_id WHERE m.store_id=$1 AND m.user_id=$2 LIMIT 1",
+      [store(req),memberId]
+    );
+    const target=member.rows[0];
+    if(!target||target.account_role!=="staff"||target.store_role==="owner"||target.is_active!==1||target.id===actor.id)
+      return res.status(403).json({error:"Bu hesabın şifresi burada yenilenemez."});
+    const recipient=String(target.email||"").trim().toLowerCase();
+    if(!recipient||recipient.length>254||!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(recipient))
+      return res.status(400).json({error:"Personelin kayıtlı geçerli bir e-posta adresi olmalı."});
+    if(Date.now()-(lastStaffReset.get(Number(target.id))||0)<60000)
+      return res.status(429).json({error:"Aynı hesap için tekrar şifre gönderimini 60 saniye sonra deneyin."});
+    lastStaffReset.set(Number(target.id),Date.now());
+    const temporaryPassword=randomBytes(24).toString("base64url");
+    const salt=randomBytes(16).toString("hex");
+    const hash=scryptSync(temporaryPassword,salt,64).toString("hex");
+    const loginUrl=(process.env.DUKKAN_PUBLIC_URL?.trim()||"https://admin.ecalisgan.com/dukkan");
+    const greeting=target.first_name?("Merhaba "+String(target.first_name).slice(0,70)+","):"Merhaba,";
+    const subject="Çalışkan Dükkan - Geçici giriş şifreniz";
+    const text=[
+      greeting,"","Çalışkan Dükkan personel hesabınızın giriş şifresi yenilendi.",
+      "Tek kullanımlık geçici şifreniz: "+temporaryPassword,
+      "","Giriş: "+loginUrl,
+      "Giriş yaptıktan sonra yeni bir kalıcı şifre belirlemeniz zorunludur.",
+      "Bu işlemi siz istemediyseniz mağaza yöneticinize haber verin."
+    ].join("\n");
+    const html="<div style=\"font-family:Arial,sans-serif;max-width:550px;margin:auto;color:#142b4e\">"+
+      "<h2>Çalışkan Dükkan giriş bilgileri</h2><p>"+greeting.replace(/[&<>\"']/g,"")+"</p>"+
+      "<p>Hesabınız için geçici bir giriş şifresi oluşturuldu.</p>"+
+      "<p style=\"padding:15px;background:#f0f4f9;border-radius:9px\">"+
+      "<strong>Geçici şifre:</strong> "+temporaryPassword+"</p>"+
+      "<p>İlk girişte kalıcı şifrenizi belirlemeniz istenecektir.</p>"+
+      "<p><a href=\""+loginUrl.replace(/[&<>\"']/g,"")+"\">Çalışkan Dükkan girişine git</a></p></div>";
+    try{
+      await sendMail({to:recipient,subject,text,html});
+    }catch(error){
+      lastStaffReset.delete(Number(target.id));
+      console.error("Dükkan staff reset delivery failed",error instanceof Error?error.message:"unknown");
+      return res.status(502).json({error:"Şifre e-postası gönderilemedi. Eski şifre değiştirilmedi. E-posta servis ayarlarını kontrol edin."});
+    }
+    const updated=await storage.updateUser(Number(target.id),{
+      password:"scrypt$"+salt+"$"+hash,mustChangePassword:1,credentialsSentAt:new Date()
+    });
+    if(!updated)return res.status(503).json({error:"E-posta gönderildi ancak şifre kaydedilemedi. Destek ile iletişime geçin."});
+    return res.json({ok:true,email:recipient,username:target.username,
+      message:"Geçici şifre kayıtlı e-posta adresine gönderildi. İlk girişte yeni şifre oluşturulması zorunludur."});
   }));
 
   const listQueries: Record<string,string> = {
