@@ -14,6 +14,7 @@ import Istatistikler from "@/pages/istatistikler";
 import Musteriler from "@/pages/musteriler";
 import Ayarlar from "@/pages/ayarlar";
 import AdminMeta from "@/pages/admin-meta";
+import AdminTimedCampaigns from "@/pages/admin-timed-campaigns";
 import AdminSupport from "@/pages/admin-support";
 import Depolar from "@/pages/depolar";
 import Tedarikciler from "@/pages/tedarikciler";
@@ -115,6 +116,7 @@ function Router() {
       <Route path="/faturalar" component={Faturalar} />
       <Route path="/ayarlar" component={Ayarlar} />
       <Route path="/meta" component={AdminMeta} />
+      <Route path="/kampanyalar/sureli" component={AdminTimedCampaigns} />
       <Route path="/destek" component={AdminSupport} />
       <Route path="/yoneticiler" component={Yoneticiler} />
       <Route path="/yapay-zeka" component={YapayZeka} />
