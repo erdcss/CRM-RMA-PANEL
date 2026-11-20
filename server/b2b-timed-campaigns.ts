@@ -97,6 +97,31 @@ export async function registerB2BTimedCampaignRoutes(app: Express, requireAdmin:
     console.error("Timed campaign schema initialization failed:", error);
   });
 
+  app.get("/api/admin/timed-campaign-products", requireAdmin, async (req, res) => {
+    if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
+    const q = String(req.query.q || "").trim().slice(0, 100);
+    try {
+      const items = await pool.query(`
+        SELECT id::text AS id,sku,name,price,campaign_price,stock,
+          units_per_box,min_order_qty,
+          CASE WHEN image_data LIKE 'data:image/%' THEN
+            '/api/b2b/product-image/' || id::text || '?v=' ||
+            EXTRACT(EPOCH FROM updated_at)::bigint::text
+          ELSE image_data END AS image_url
+        FROM b2b_products
+        WHERE is_active IS DISTINCT FROM FALSE
+          AND ($1::text = '' OR name ILIKE '%' || $1 || '%'
+            OR sku ILIKE '%' || $1 || '%')
+        ORDER BY created_at DESC LIMIT 100
+      `, [q]);
+      res.setHeader("Cache-Control", "private, no-store");
+      return res.json(items.rows);
+    } catch (error) {
+      console.error("Timed campaign product selection:", error);
+      return res.status(500).json({ error: "Ürünler yüklenemedi" });
+    }
+  });
+
   app.get("/api/admin/timed-campaigns", requireAdmin, async (_req, res) => {
     res.setHeader("Cache-Control", "private, no-store");
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
