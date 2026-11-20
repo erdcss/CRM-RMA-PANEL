@@ -22,6 +22,7 @@ import { addToOrderList } from '@/lib/b2b-order-list';
 import {trackTikTokAddToCart,trackTikTokProductView} from '@/lib/tiktok-commerce-events';
 import { appAlert } from '@/lib/appAlert';
 import { ProductShareSheet } from '@/components/products/ProductShareSheet';
+import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
 import { monitorMobileProduct } from '@/lib/customer-insights';
 import { registerB2BPush } from '@/lib/push';
 
@@ -115,6 +116,16 @@ export default function ProductDetailScreen() {
       })
       .finally(() => setLoading(false));
   }, [id, sellerSlug, session?.access_token]);
+
+  useEffect(() => {
+    const until = product?.timed_campaign_end_at ? Date.parse(product.timed_campaign_end_at) : NaN;
+    if (!Number.isFinite(until) || until <= Date.now() || marketplaceId) return;
+    const timer = setTimeout(() => {
+      void rmaApi.getB2BProduct(id).then(setProduct).catch(error =>
+        console.warn('Timed campaign price refresh failed:', error));
+    }, Math.max(1, until - Date.now() + 1000));
+    return () => clearTimeout(timer);
+  }, [id, marketplaceId, product?.timed_campaign_end_at]);
 
   useEffect(() => {
     if (!product) return;
@@ -301,6 +312,20 @@ export default function ProductDetailScreen() {
                   {soldOut ? 'Bu ürünümüzün stokları şu anda tükenmiştir.' : 'Mevcut stok minimum koli siparişini karşılamıyor.'}
                 </Text>
               </View>
+            </View>
+          ) : null}
+          {product.timed_campaign_end_at ? <TimedCampaignNotice
+            endAt={product.timed_campaign_end_at} title={product.timed_campaign_title}
+            stock={product.stock} unitsPerBox={product.units_per_box}
+            onExpire={()=>void rmaApi.getB2BProduct(id).then(setProduct).catch(()=>undefined)}
+          /> : null}
+          {loggedIn&&product.timed_campaign_end_at&&product.original_price!=null ? (
+            <View style={{flexDirection:'row',alignItems:'center',gap:8,marginTop:10}}>
+              <Text style={{color:palette.textSecondary,fontSize:12}}>Normal birim fiyat</Text>
+              <Text style={{color:palette.textSecondary,textDecorationLine:'line-through',fontWeight:'700'}}>
+                {money(product.original_price)}
+              </Text>
+              <Text style={{fontWeight:'900',color:'#DC2626'}}>{money(product.price)}</Text>
             </View>
           ) : null}
           {product.description ? (
