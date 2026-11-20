@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { clearB2BCart, getB2BCart } from "@/lib/b2b-cart";
+import { B2BPaymentLogos } from "@/components/b2b-payment-logos";
 
 type CheckoutProduct = {
   id: string;
@@ -1345,6 +1346,12 @@ export default function B2BPaymentPage() {
             </aside>
           </div>
         )}
+      </div>
+      <div className="mx-auto mt-6 max-w-6xl px-4 pb-10">
+        <B2BPaymentLogos />
+        <p className="mt-2 text-center text-xs leading-6 text-zinc-600">
+          Sipariş öncesi <Link href="/mesafeli-satis-sozlesmesi" target="_blank" className="font-semibold underline underline-offset-2">Mesafeli Satış Sözleşmesi</Link> ile <Link href="/teslimat-iade" target="_blank" className="font-semibold underline underline-offset-2">Teslimat ve İade Şartları</Link> metinlerini inceleyebilirsiniz.
+        </p>
       </div>
     </main>
   );

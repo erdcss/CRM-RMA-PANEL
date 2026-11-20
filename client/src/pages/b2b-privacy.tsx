@@ -20,7 +20,7 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
       "Sipariş ve teslimat verileri: ürünler, miktarlar, fiyatlar, adresler, sipariş ve iade geçmişi.",
       "Hesap/Defterim içerikleri: kullanıcı tarafından oluşturulan cari kayıtlar, notlar ve işletme finans takibi bilgileri.",
       "Destek iletişimleri: destek taleplerinin konusu, mesajlar ve talebe eklenen bilgiler.",
-      "Teknik ve kullanım verileri: IP adresi, cihaz ve tarayıcı bilgileri, oturum güvenliği kayıtları, hata günlükleri ve uygulama etkileşimleri., kullanıcının izin vermesi halinde bildirim gönderimi için push belirteçleri."
+      "Teknik ve kullanım verileri: IP adresi, cihaz ve tarayıcı bilgileri, oturum güvenliği kayıtları, hata günlükleri ve uygulama etkileşimleri; kullanıcının izin vermesi halinde bildirim gönderimi için push belirteçleri."
     ]
   },
   {
