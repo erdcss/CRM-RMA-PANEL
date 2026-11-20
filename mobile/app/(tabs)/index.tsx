@@ -28,6 +28,7 @@ import {
   rmaApi,
   type B2BHomepage,
   type B2BProduct,
+  type B2BTimedCampaign,
   type B2BReel,
   type HomeBanner,
   type HomeCategoryCard,
@@ -38,6 +39,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
 import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
+import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -70,6 +72,7 @@ export default function HomeScreen() {
   const welcomeShift = useRef(new Animated.Value(-24)).current;
 
   const [products, setProducts] = useState<B2BProduct[]>([]);
+  const [timedCampaigns,setTimedCampaigns] = useState<B2BTimedCampaign[]>([]);
   const [catalogNow, setCatalogNow] = useState(() => Date.now());
   const [newArrivalsVisible, setNewArrivalsVisible] = useState(12);
   const [catalogError, setCatalogError] = useState('');
@@ -152,10 +155,11 @@ export default function HomeScreen() {
   }, []);
 
   const load = useCallback(async (forceRefresh = false) => {
-    const [productResult, supplierResult, homepageResult] = await Promise.allSettled([
+    const [productResult, supplierResult, homepageResult, campaignResult] = await Promise.allSettled([
       rmaApi.listB2BProducts(forceRefresh),
       rmaApi.listMarketplaceProducts(),
       rmaApi.getB2BHomepage(),
+      rmaApi.listTimedCampaigns(),
     ]);
 
     if (productResult.status === 'fulfilled' || supplierResult.status === 'fulfilled') {
@@ -171,6 +175,9 @@ export default function HomeScreen() {
 
     if (homepageResult.status === 'fulfilled') {
       applyHomepage(homepageResult.value);
+    }
+    if (campaignResult.status === 'fulfilled') {
+      setTimedCampaigns(Array.isArray(campaignResult.value) ? campaignResult.value : []);
     }
   }, [applyHomepage]);
 
@@ -354,7 +361,12 @@ export default function HomeScreen() {
                   {product.seller_name ? <Text style={styles.meta} numberOfLines={1}>{product.seller_name}</Text> : null}
 
                   {priceVisible ? (
-                    <Text style={[styles.price, cannotOrder && styles.unavailablePrice]}>{money(product.price)}</Text>
+                    <View>
+                      {product.timed_campaign_end_at&&product.original_price!=null ? (
+                        <Text style={{fontSize:11,color:palette.muted,textDecorationLine:'line-through'}}>{money(product.original_price)}</Text>
+                      ) : null}
+                      <Text style={[styles.price, cannotOrder && styles.unavailablePrice]}>{money(product.price)}</Text>
+                    </View>
                   ) : (
                     <Pressable
                       style={styles.lockedPrice}
@@ -370,6 +382,11 @@ export default function HomeScreen() {
                       </Text>
                     </Pressable>
                   )}
+
+                  {product.timed_campaign_end_at ? <TimedCampaignNotice
+                    compact endAt={product.timed_campaign_end_at}
+                    title={product.timed_campaign_title} stock={product.stock}
+                    unitsPerBox={product.units_per_box} onExpire={()=>void load(true)}/> : null}
 
                   {cannotOrder ? (
                     <View style={styles.stockMessage}>
@@ -557,6 +574,28 @@ export default function HomeScreen() {
             ) : null}
           </>
         ) : null}
+
+        {timedCampaigns.map(campaign=>{
+          if(Date.parse(campaign.ends_at)<=catalogNow)return null;
+          const ids=new Set((campaign.product_ids||[]).map(String));
+          const offers=products.filter(product=>!product.marketplace&&ids.has(String(product.id))&&product.timed_campaign_id===campaign.id);
+          if(!offers.length)return null;
+          return <View key={campaign.id} style={{marginTop:16,marginHorizontal:spacing.lg,
+            padding:12,borderWidth:1,borderColor:'#FBBF24',borderRadius:15,backgroundColor:palette.surface}}>
+            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
+              <Ionicons name="flash" size={19} color="#D97706"/>
+              <Text style={{fontWeight:'900',fontSize:19,color:palette.text,flex:1}} numberOfLines={2}>{campaign.title}</Text>
+            </View>
+            <Text style={{marginTop:5,fontSize:11,color:palette.textSecondary}}>Sınırlı süreli koli fırsatları</Text>
+            <TimedCampaignNotice endAt={campaign.ends_at} title="Kalan süre"
+              stock={offers.reduce((sum,product)=>sum+Math.floor(Math.max(0,Number(product.stock)||0)/Math.max(1,Number(product.units_per_box)||1)),0)}
+              unitsPerBox={1} onExpire={()=>void load(true)}/>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{gap:spacing.sm,paddingVertical:12,paddingRight:12}}>
+              {offers.map(product=>renderHomeProductCard(product))}
+            </ScrollView>
+          </View>;
+        })}
 
         <View style={styles.sectionHeader}>
           <View>
