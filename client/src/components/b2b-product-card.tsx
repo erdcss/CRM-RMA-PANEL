@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { B2BNewArrivalBadge } from "@/components/b2b-new-arrival-badge";
+import { B2BTimedOffer } from "@/components/b2b-timed-offer";
 import { BadgeCheck, Ban, Package, PackageX } from "lucide-react";
 import { type UnifiedB2BProduct, unifiedProductHref } from "@/lib/b2b-marketplace-products";
 
@@ -74,6 +75,7 @@ export function B2BProductCard({
               </div>
             ) : formatPrice(product.price)) : showPrice ? "Fiyat için giriş yapın" : "Fiyat bilgisi gizli"}
           </div>
+          {product.timed_campaign_end_at ? <B2BTimedOffer compact endAt={product.timed_campaign_end_at} title={product.timed_campaign_title} stock={product.stock} unitsPerBox={product.units_per_box}/> : null}
           {cannotOrder ? (
             <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-rose-50 px-2 py-2 text-[10px] font-semibold text-red-800 sm:mt-3 sm:text-xs">
               <PackageX className="h-4 w-4 shrink-0 text-red-600" aria-hidden="true"/>
