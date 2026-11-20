@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { ChevronDown, Instagram, Facebook, Youtube, Music2, ExternalLink, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useBranding } from "@/hooks/use-branding";
+import { B2BPaymentLogos } from "@/components/b2b-payment-logos";
 
 export type StoreLinks = Record<
   "instagram" | "facebook" | "youtube" | "tiktok" |
@@ -29,7 +30,8 @@ export const footerGroups = [
   { title:"Çalışkan", links:[["Biz Kimiz", "/hakkimizda"],["İletişim", "/iletisim"]] },
   { title:"Kampanyalar ve İndirimler", links:[["Kampanyalar", "/kampanyalar"],["Avantajlı Alışveriş", "/?firsatlar=1"]] },
   { title:"Satıcı", links:[["Onaylı Tedarikçi Mağazaları", "/magazalar"],["Tedarikçi Paneli / Başvuru", "https://pazaryeri.ecalisgan.com"],["Çalışkan Akademi", "/akademi"]] },
-  { title:"Yardım", links:[["Sık Sorulan Sorular", "/destek#faq-heading"],["Destek Talebi", "/hesabim?tab=support"],["Gizlilik Politikası ve KVKK", "/privacy"],["Kullanım Koşulları", "/kullanim-kosullari"],["Nasıl İade Ederim?", "/destek#iade"]] },
+  { title:"Yardım", links:[["Sık Sorulan Sorular", "/destek#faq-heading"],["Destek Talebi", "/hesabim?tab=support"],["Gizlilik Politikası ve KVKK", "/privacy"],["Kullanım Koşulları", "/kullanim-kosullari"],["Nasıl İade Ederim?", "/teslimat-iade"]] },
+  { title:"Yasal", links:[["Mesafeli Satış Sözleşmesi", "/mesafeli-satis-sozlesmesi"],["Teslimat ve İade Şartları", "/teslimat-iade"],["Gizlilik Politikası", "/gizlilik-politikasi"],["İletişim", "/iletisim"]] },
 ] as const;
 export function B2BSocialAndStores({
   compact = false,
@@ -118,7 +120,7 @@ export function B2BFooter() {
   const bannerImage=branding?.b2b_footer_banner;
   const bannerUrl=footerLinks?.footerBannerUrl?.trim();
   return <footer className="mt-12 border-t border-[#e6e2d6] bg-[#f8f8f6] text-[#171717]">
-    <div className="mx-auto grid max-w-6xl grid-cols-1 px-4 py-9 md:grid-cols-4 md:gap-8 md:py-14">
+    <div className="mx-auto grid max-w-6xl grid-cols-1 px-4 py-9 lg:grid-cols-5 md:gap-6 md:py-14">
       {footerGroups.map(group => <section key={group.title} className="border-b border-black/10 py-2 md:border-0 md:py-0">
         <button type="button" className="flex min-h-12 w-full items-center justify-between text-left text-base font-extrabold md:pointer-events-none" aria-expanded={open===group.title} onClick={()=>setOpen(open===group.title?null:group.title)}>
           {group.title}<ChevronDown className={`h-5 w-5 text-[#c99f00] transition-transform md:hidden ${open===group.title?"rotate-180":""}`}/>
@@ -131,6 +133,8 @@ export function B2BFooter() {
       </section>)}
     </div>
     <B2BSocialAndStores bannerImage={bannerImage} bannerUrl={bannerUrl}/>
+    <B2BPaymentLogos compact />
+    <div className="pb-5 text-center text-xs text-zinc-600"> <Link href="/mesafeli-satis-sozlesmesi" className="underline underline-offset-2">Mesafeli Satış Sözleşmesi</Link> · <Link href="/teslimat-iade" className="underline underline-offset-2">Teslimat ve İade</Link> </div>
     <div className="bg-[#080808] px-4 pb-5 text-center text-xs text-white/50">© {new Date().getFullYear()} Çalışkan B2B · Tüm hakları saklıdır. <button type="button" className="ml-3 underline underline-offset-2 hover:text-white" onClick={()=>window.dispatchEvent(new Event("caliskan-meta-open-consent"))}>Çerez izni</button></div>
   </footer>;
 }

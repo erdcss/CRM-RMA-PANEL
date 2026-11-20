@@ -57,6 +57,7 @@ import B2BSupport from "@/pages/b2b-support";
 import B2BPrivacyPage from "@/pages/b2b-privacy";
 import B2BTermsPage from "@/pages/b2b-terms";
 import B2BInfoPage from "@/pages/b2b-info";
+import { B2BDistanceSalesPage, B2BDeliveryReturnsPage } from "@/pages/b2b-commerce-legal";
 import AdminMarketplace from "@/pages/admin-marketplace";
 import MarketplaceSeller from "@/pages/marketplace-seller";
 import MarketplaceSellerProduct from "@/pages/marketplace-seller-product";
@@ -286,6 +287,8 @@ function B2BWebsite() {
         <Route path="/privacy" component={B2BPrivacyPage} />
         <Route path="/gizlilik-politikasi" component={B2BPrivacyPage} />
         <Route path="/kullanim-kosullari" component={B2BTermsPage} />
+        <Route path="/mesafeli-satis-sozlesmesi" component={B2BDistanceSalesPage} />
+        <Route path="/teslimat-iade" component={B2BDeliveryReturnsPage} />
         <Route component={B2BStorefront} />
       </Switch>
         </motion.div>
