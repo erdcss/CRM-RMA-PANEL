@@ -31,6 +31,7 @@ async function authorization(path: string, body: string) {
 async function iyzicoPost<T extends Record<string, any>>(
   path: string,
   payload: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const body = JSON.stringify(payload);
   const { baseUrl, headers } = await authorization(path, body);
@@ -43,6 +44,7 @@ async function iyzicoPost<T extends Record<string, any>>(
       Accept: "application/json",
     },
     body,
+    signal,
   });
 
   const result = (await response.json().catch(() => ({}))) as T & {
@@ -223,4 +225,29 @@ export async function deleteIyzicoStoredCard(cardUserKey: string, cardToken: str
     throw new Error(result.errorMessage || "Kart iyzico üzerinden silinemedi");
   }
   return true;
+}
+
+
+/**
+ * Check saved iyzico credentials without charging a card or creating an order.
+ * The BIN/installment lookup uses a public test BIN and a nominal query amount.
+ * Returns only a boolean and generic messages; never echoes API credentials.
+ */
+export async function testSavedIyzicoCredentials(): Promise<{ ok: boolean; message: string }> {
+  const { iyzico } = await getPaymentConfig();
+  if (!iyzico.enabled || !iyzico.apiKey || !iyzico.secretKey) {
+    return { ok: false, message: "iyzico etkin değil veya API anahtarları eksik." };
+  }
+  try {
+    const result = await iyzicoPost<{ status?: string }>(
+      "/payment/iyzipos/installment",
+      { locale: "tr", conversationId: "connection_check_" + Date.now(), binNumber: "552608", price: "1" },
+      AbortSignal.timeout(10000),
+    );
+    return result.status === "success"
+      ? { ok: true, message: "iyzico API bağlantısı doğrulandı. Kimlik doğrulaması başarılı; ödeme tahsilatı yapılmadı." }
+      : { ok: false, message: "iyzico doğrulama isteği kabul edilmedi. API anahtarlarını ve seçili ortamı kontrol edin." };
+  } catch {
+    return { ok: false, message: "iyzico bağlantısı doğrulanamadı. API Key, Secret Key ve canlı/test ortamı eşleşmesini kontrol edin." };
+  }
 }

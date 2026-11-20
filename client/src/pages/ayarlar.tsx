@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import LocationNotificationSettings from "@/components/b2b-location-notification-settings";
+import { IyzicoAdminCredentials } from "@/components/iyzico-admin-credentials";
 import type { BrandingConfig } from "@/hooks/use-branding";
 import { emptyStoreLinks, type StoreLinks } from "@/components/b2b-footer";
 
@@ -596,34 +597,7 @@ export default function Ayarlar() {
           </TabsContent>
 
           <TabsContent value="payments" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  iyzico Canlı Kart Ödemesi
-                </CardTitle>
-                <CardDescription>
-                  Kart bilgileri Çalışkan sunucularında tutulmaz; ödeme iyzico Checkout Form üzerinden tamamlanır.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="font-semibold">Canlı bağlantı durumu</div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      Railway üzerinde IYZICO_API_KEY ve IYZICO_SECRET_KEY tanımlandığında aktif olur.
-                    </div>
-                  </div>
-                  <span className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-semibold ${
-                    paymentSettings?.iyzicoConfigured
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "bg-amber-100 text-amber-800"
-                  }`}>
-                    {paymentSettings?.iyzicoConfigured ? "Canlı bağlantı aktif" : "API anahtarları bekleniyor"}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+            <IyzicoAdminCredentials />
 
             <Card>
               <CardHeader>
