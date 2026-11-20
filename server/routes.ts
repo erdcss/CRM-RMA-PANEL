@@ -3456,7 +3456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({error:"Kullanıcı adı ve şifre gerekli"});
     try {
       const person=(await storage.getUserByUsername(username))||(await storage.getUserByEmail(username));
-      if(!person||person.isActive!==1||person.mustChangePassword===1||!verifyPassword(password,person.password))
+      if(!person||person.isActive!==1||!verifyPassword(password,person.password))
         return res.status(401).json({error:"Giriş bilgileri geçersiz veya hesap etkin değil"});
       if(!pool)return res.status(503).json({error:"Mağaza veritabanına erişilemiyor"});
       const memberships=await pool.query(
@@ -3464,6 +3464,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [person.id]
       );
       if(!memberships.rowCount)return res.status(403).json({error:"Bu hesaba Çalışkan Dükkan mağazası atanmamış. Yöneticiye başvurun."});
+      if(person.mustChangePassword===1){
+        // A temporary credential cannot create an authenticated session/token.
+        res.setHeader("Cache-Control","private, no-store");
+        return res.json({ok:true,mustChangePassword:true});
+      }
       await new Promise<void>((resolve,reject)=>req.session.regenerate(error=>error?reject(error):resolve()));
       (req.session as {userId?:number}).userId=person.id;
       await new Promise<void>((resolve,reject)=>req.session.save(error=>error?reject(error):resolve()));
@@ -3472,6 +3477,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }catch(error){
       console.error("Dükkan login failed",error instanceof Error?error.message:"unknown");
       res.status(503).json({error:"Giriş hizmeti şu anda kullanılamıyor"});
+    }
+  });
+
+
+  // A temporary Dükkan password can only be exchanged for a permanent one.
+  // Authenticate again using the emailed password; do not accept a session token.
+  app.post("/api/dukkan/complete-password-reset", async (req,res) => {
+    res.setHeader("Cache-Control","private, no-store");
+    const username=typeof req.body?.username==="string"?req.body.username.trim():"";
+    const temporaryPassword=typeof req.body?.temporaryPassword==="string"?req.body.temporaryPassword:"";
+    const newPassword=typeof req.body?.newPassword==="string"?req.body.newPassword:"";
+    const confirmPassword=typeof req.body?.confirmPassword==="string"?req.body.confirmPassword:"";
+    if(!username||username.length>254||!temporaryPassword||temporaryPassword.length>1024)
+      return res.status(400).json({error:"Giriş bilgileri eksik."});
+    if(newPassword!==confirmPassword)return res.status(400).json({error:"Yeni şifreler eşleşmiyor."});
+    if(newPassword.length<12||newPassword.length>128||!/[a-z]/.test(newPassword)||
+       !/[A-Z]/.test(newPassword)||!/[0-9]/.test(newPassword)||!/[^A-Za-z0-9]/.test(newPassword))
+      return res.status(400).json({error:"Yeni şifre en az 12 karakter, büyük/küçük harf, rakam ve özel karakter içermeli."});
+    if(newPassword===temporaryPassword)
+      return res.status(400).json({error:"Yeni şifreniz geçici şifreden farklı olmalı."});
+    try{
+      const person=(await storage.getUserByUsername(username))||(await storage.getUserByEmail(username));
+      if(!person||person.role!=="staff"||person.isActive!==1||person.mustChangePassword!==1||
+          !verifyPassword(temporaryPassword,person.password))
+        return res.status(401).json({error:"Geçici şifre geçersiz veya önceden kullanılmış."});
+      if(!pool)return res.status(503).json({error:"Veritabanına erişilemiyor."});
+      const member=await pool.query(
+        "SELECT 1 FROM dukkan_members WHERE user_id=$1 LIMIT 1",[person.id]);
+      if(!member.rowCount)return res.status(403).json({error:"Bu hesap mağazaya atanmış değil."});
+      const newHash=hashPassword(newPassword);
+      const changed=await pool.query(
+        "UPDATE users SET password=$1,must_change_password=0 WHERE id=$2 AND password=$3 AND must_change_password=1 AND is_active=1 RETURNING id",
+        [newHash,person.id,person.password]
+      );
+      if(!changed.rowCount)return res.status(409).json({error:"Geçici şifre artık geçerli değil. Tekrar giriş yapın."});
+      return res.json({ok:true,message:"Yeni şifreniz kaydedildi. Yeni şifrenizle giriş yapabilirsiniz."});
+    }catch(error){
+      console.error("Dükkan password activation failed",error instanceof Error?error.message:"unknown");
+      return res.status(503).json({error:"Şifre kaydedilemedi. Lütfen yeniden deneyin."});
     }
   });
 
@@ -3584,7 +3628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }finally{client.release();}
   });
 
-  registerDukkanRoutes(app, sessionUserId);
+  registerDukkanRoutes(app, sessionUserId, dispatchB2BMail);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
   registerB2BStockAlertRoutes(app, requireB2B);
   registerB2BLocationAdmin(app, requireAdmin, requireB2B);
