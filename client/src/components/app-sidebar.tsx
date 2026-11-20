@@ -24,6 +24,8 @@ import {
   Network,
   Store,
   Headset,
+  Timer,
+  Clock3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -183,6 +185,26 @@ export function AppSidebar({ username, role }: { username: string; role: string 
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          <Collapsible defaultOpen={location.startsWith("/kampanyalar")}>
+            <SidebarMenuItem>
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton isActive={location.startsWith("/kampanyalar")} className="w-full">
+                  <Timer className="h-4 w-4"/>
+                  <span>Kampanyalar</span>
+                  <ChevronDown className="ml-auto h-4 w-4 transition-transform data-[state=open]:rotate-180 group-data-[collapsible=icon]:hidden"/>
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="group-data-[collapsible=icon]:hidden">
+                <div className="ml-4 mt-1 border-l pl-3">
+                  <SidebarMenuButton asChild size="sm" isActive={location === "/kampanyalar/sureli"}>
+                    <Link href="/kampanyalar/sureli" onClick={() => setOpenMobile(false)}>
+                      <Clock3 className="h-3.5 w-3.5"/><span>Süreli Kampanyalar</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </div>
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={location === "/meta"}>
               <Link href="/meta" onClick={()=>setOpenMobile(false)}>
