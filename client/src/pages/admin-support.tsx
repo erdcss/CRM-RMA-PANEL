@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Archive, ArrowLeft, Check, CheckCheck, Copy, Download, FileText, Headset,
+  Archive, ArrowLeft, CheckCheck, Copy, Download, FileText, Headset,
   Image as ImageIcon, Loader2, MessageSquare, Paperclip, RefreshCw, Search,
   Send, ShieldCheck, UserRound, X,
 } from "lucide-react";
@@ -384,7 +384,7 @@ export default function AdminSupport() {
             <>
               <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
                 <button type="button" className="rounded-lg p-1.5 hover:bg-muted lg:hidden"
-                  aria-label="Görüşme listesine dön" onClick={() => selectTicket("")}>
+                  aria-label="Görüşme listesine dön" onClick={() => { setSelectedId(null); setProfileOpen(false); setError(""); }}>
                   <ArrowLeft className="h-5 w-5" />
                 </button>
                 <div className="min-w-0 flex-1">
