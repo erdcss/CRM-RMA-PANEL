@@ -1,0 +1,26 @@
+name: M.A.Y.K APNs shared-key repair
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release-requests/mayk-apns-attach/*.json"
+
+permissions:
+  contents: read
+
+jobs:
+  attach:
+    name: Attach existing same-team Apple push key to M.A.Y.K only
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate and attach existing APNs key; never print private key
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node .github/scripts/mayk-apns-attach.mjs
