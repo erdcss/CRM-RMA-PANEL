@@ -895,6 +895,67 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.status(201).json(saved);
   }));
 
+  // Explicit administrator action: remove selected parties' ledger history without
+  // removing party cards, invoices, payments, stock or bank records.
+  // Dependent imported-statement rows must be removed before their ledger parents.
+  app.post("/api/dukkan/stores/:storeId/parties/bulk-clear-movements",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req);
+    const payload=z.object({
+      partyIds:z.array(id).min(1).max(500).refine(ids=>new Set(ids).size===ids.length,"Aynı cari iki defa seçilemez."),
+      confirmation:z.literal("TEMİZLE"),
+    }).parse(req.body);
+    const result=await transaction(async c=>{
+      const parties=await c.query(
+        "SELECT id,name FROM dukkan_parties WHERE store_id=$1 AND id=ANY($2::bigint[]) ORDER BY id FOR UPDATE",
+        [sid,payload.partyIds]
+      );
+      if(parties.rows.length!==payload.partyIds.length)
+        throw Object.assign(new Error("Seçilen carilerden biri bu mağazada bulunamadı. Listeyi yenileyin."),{status:409});
+      const original=await c.query(
+        "SELECT COUNT(*)::int AS movement_count,COALESCE(SUM(debit-credit),0)::text AS total_balance FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
+        [sid,payload.partyIds]
+      );
+      // Historical import metadata is tied to imported movements. Preserve all
+      // independent issued invoices and real payment/bank/stock transactions.
+      const imported=await c.query(
+        "SELECT id FROM dukkan_cari_import_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
+        [sid,payload.partyIds]
+      );
+      const importIds=imported.rows.map(row=>row.id);
+      if(importIds.length){
+        await c.query("DELETE FROM dukkan_archive_invoice_audit WHERE store_id=$1 AND import_entry_id=ANY($2::bigint[])",[sid,importIds]);
+        await c.query("DELETE FROM dukkan_cari_import_lines WHERE import_entry_id=ANY($1::bigint[])",[importIds]);
+        await c.query("DELETE FROM dukkan_cari_import_entries WHERE store_id=$1 AND id=ANY($2::bigint[])",[sid,importIds]);
+      }
+      await c.query(
+        "DELETE FROM dukkan_cari_openings WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
+        [sid,payload.partyIds]
+      );
+      const deleted=await c.query(
+        "DELETE FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
+        [sid,payload.partyIds]
+      );
+      // Imported report batch identifiers cannot block re-importing a corrected
+      // statement after history was intentionally cleared.
+      await c.query(
+        "DELETE FROM dukkan_cari_import_batches WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
+        [sid,payload.partyIds]
+      );
+      const check=await c.query(
+        "SELECT COUNT(*)::int AS remaining FROM dukkan_cari_entries WHERE store_id=$1 AND party_id=ANY($2::bigint[])",
+        [sid,payload.partyIds]
+      );
+      if(Number(check.rows[0].remaining)!==0)
+        throw Object.assign(new Error("Cari hareketlerinin tamamı temizlenemedi."),{status:409});
+      return {partyCount:parties.rows.length,deletedMovements:deleted.rowCount||0,
+        oldBalance:original.rows[0].total_balance,remainingMovements:0,
+        message:"Seçilen cari hareketleri temizlendi. Cari kartları, faturalar ve ödeme kayıtları korundu."};
+    });
+    res.setHeader("Cache-Control","private,no-store");
+    res.json(result);
+  }));
+
   // Hard-deletion is allowed only for a completely untouched account. A zero
   // balance is NOT sufficient: invoices/orders/cheques/ledger entries block it.
   app.delete("/api/dukkan/stores/:storeId/parties/:partyId",safe(async(req,res)=>{
