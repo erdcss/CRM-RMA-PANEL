@@ -3,6 +3,7 @@ import { pool } from "./db";
 import { storage } from "./storage";
 import { z, ZodError } from "zod";
 import type { PoolClient } from "pg";
+import { randomBytes, scryptSync } from "crypto";
 import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
@@ -382,14 +383,48 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Üye ekleme yetkiniz yok");
     const p=z.object({userId:id.optional(),username:z.string().trim().min(1).max(254).optional(),role:z.enum(["manager","accountant","cashier","viewer"])}).refine(v=>Boolean(v.userId||v.username),"Kullanıcı seçiniz").parse(req.body);
     const db=await ready();
-    const existsUser=p.userId?await storage.getUser(p.userId):await storage.getUserByUsername(p.username||"");
+    const existsUser=p.userId?await storage.getUser(p.userId):
+      (await storage.getUserByUsername(p.username||""))||(await storage.getUserByEmail(p.username||""));
     if(!existsUser || existsUser.isActive!==1) return res.status(404).json({error:"Aktif kullanıcı bulunamadı"});
     await db.query("INSERT INTO dukkan_members(store_id,user_id,role) VALUES($1,$2,$3) ON CONFLICT(store_id,user_id) DO UPDATE SET role=EXCLUDED.role WHERE dukkan_members.role<>'owner'",[store(req),existsUser.id,p.role]);
     res.status(201).json({ok:true});
   }));
   app.get("/api/dukkan/stores/:storeId/members",safe(async(req,res)=>{
     if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Üye listesi için yetkiniz yok");
-    const db=await ready();const r=await db.query("SELECT m.user_id,u.username,m.role FROM dukkan_members m JOIN users u ON u.id=m.user_id WHERE m.store_id=$1 ORDER BY m.user_id",[store(req)]);res.json(r.rows);
+    const db=await ready();
+    const r=await db.query(
+      "SELECT m.user_id,u.username,u.email,u.role AS account_role,m.role FROM dukkan_members m JOIN users u ON u.id=m.user_id WHERE m.store_id=$1 ORDER BY m.user_id",
+      [store(req)]
+    );
+    res.setHeader("Cache-Control","private, no-store");
+    res.json(r.rows);
+  }));
+
+
+  // Existing passwords are never returned. Only a platform super administrator
+  // may issue a replacement credential for an ordinary staff account assigned
+  // to this store. Global administrators, store owners and customers are excluded.
+  app.post("/api/dukkan/stores/:storeId/members/:memberId/reset-password",safe(async(req,res)=>{
+    res.setHeader("Cache-Control","private, no-store");
+    const actor=await storage.getUser(user(res));
+    if(actor?.role!=="super_admin"||res.locals.dukkanRole!=="owner")
+      deny("Şifre yenilemek için platform süper yönetici ve mağaza sahibi yetkisi gerekir");
+    const memberId=id.parse(req.params.memberId);
+    const db=await ready();
+    const member=await db.query(
+      "SELECT m.role AS store_role,u.id,u.username,u.email,u.role AS account_role,u.is_active FROM dukkan_members m JOIN users u ON u.id=m.user_id WHERE m.store_id=$1 AND m.user_id=$2 LIMIT 1",
+      [store(req),memberId]
+    );
+    const target=member.rows[0];
+    if(!target||target.account_role!=="staff"||target.store_role==="owner"||target.is_active!==1||target.id===actor.id)
+      return res.status(403).json({error:"Bu hesabın şifresi burada yenilenemez. Hesap sahibi kendi şifre yenileme yolunu kullanmalıdır."});
+    const password=randomBytes(24).toString("base64url");
+    const salt=randomBytes(16).toString("hex");
+    const hash=scryptSync(password,salt,64).toString("hex");
+    const updated=await storage.updateUser(Number(target.id),{password:"scrypt$"+salt+"$"+hash});
+    if(!updated)return res.status(503).json({error:"Şifre yenilenemedi"});
+    res.setHeader("Pragma","no-cache");
+    res.json({username:target.username,email:target.email||null,password});
   }));
 
   const listQueries: Record<string,string> = {
