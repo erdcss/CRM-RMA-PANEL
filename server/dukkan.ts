@@ -335,7 +335,8 @@ async function exists(c: PoolClient, table: "dukkan_parties" | "dukkan_products"
 export function registerDukkanRoutes(
   app: Express,
   sessionUserId: (req: Request) => number | undefined,
-  sendMail: (input:{to:string;subject:string;text:string;html:string})=>Promise<void>
+  sendMail: (input:{to:string;subject:string;text:string;html:string})=>Promise<void> =
+    async()=>{throw new Error("E-posta hizmeti bu ortamda yapılandırılmadı.");}
 ) {
   app.use("/api/dukkan", (req: Request, res: Response, next: NextFunction) => {
     void Promise.resolve().then(async () => {
