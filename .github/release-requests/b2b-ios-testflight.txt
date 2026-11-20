@@ -1,7 +1,7 @@
 ÇALIŞKAN B2B / iOS → TestFlight build request
-Komut: Güncel sürüm için TestFlight al.
-İstek numarası: 1
-Tarih: 2026-11-19 (Europe/Istanbul)
+Komut: MAYK ve Çalışkan B2B TestFlight al
+İstek numarası: 2
+Tarih: 2026-11-20 (Europe/Istanbul)
 GitHub branch: main
 Bundle ID: com.caliskangroup.rma
 App sürüm: 1.3.13
@@ -9,4 +9,4 @@ Codemagic YAML workflow: caliskan-b2b-ios
 iOS imzalama: caliskan_b2b_appstore_distribution + caliskan_b2b_appstore_2026
 Çıktı: imzalı IPA; App Store Connect'e otomatik upload; TestFlight iç test.
 App Store üretim yayını veya harici beta incelemesi otomatik başlatılmayacak.
-Bu dosyaya yapılan değişiklik yalnızca açık kullanıcı komutuyla tetiklenmiştir.
+Bu dosya açık kullanıcı komutuyla güncellenmiştir.
