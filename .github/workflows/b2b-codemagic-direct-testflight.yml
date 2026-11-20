@@ -39,15 +39,14 @@ jobs:
             exit 1
           fi
           ID="${CODEMAGIC_APP_ID_VAR:-$CODEMAGIC_APP_ID_SECRET}"
-          if [ -z "$ID" ]; then
-            echo "::error::CODEMAGIC_APP_ID bulunamadı. Codemagic uygulama URL'si /app/<id> adresindeki id'yi GitHub Actions > Variables altına CODEMAGIC_APP_ID olarak kaydedin."
-            exit 1
-          fi
-          if ! [[ "$ID" =~ ^[a-fA-F0-9]{24}$ ]]; then
+          if [ -n "$ID" ] && ! [[ "$ID" =~ ^[a-fA-F0-9]{24}$ ]]; then
             echo "::error::CODEMAGIC_APP_ID biçimi geçersiz (24 haneli Codemagic app ID gerekli)."
             exit 1
           fi
-          echo "Codemagic API kimlik bilgileri tanımlı."
+          if [ -z "$ID" ]; then
+            echo "CODEMAGIC_APP_ID yok; Codemagic uygulama listesinde CRM-RMA-PANEL otomatik aranacak."
+          fi
+          echo "Codemagic API token tanımlı."
       - name: Codemagic TestFlight derlemesini doğrudan tetikle
         id: launch
         env:
@@ -55,13 +54,39 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const appId = process.env.CODEMAGIC_APP_ID_VAR || process.env.CODEMAGIC_APP_ID_SECRET;
+          const headers = {
+            'Content-Type': 'application/json',
+            'x-auth-token': process.env.CODEMAGIC_API_TOKEN,
+          };
+          let appId = process.env.CODEMAGIC_APP_ID_VAR || process.env.CODEMAGIC_APP_ID_SECRET;
+          if (!appId) {
+            const lookup = await fetch('https://api.codemagic.io/apps', {
+              headers, signal: AbortSignal.timeout(30000),
+            });
+            if (!lookup.ok) {
+              console.error('::error::Codemagic uygulama listesi alınamadı: HTTP ' + lookup.status);
+              process.exit(1);
+            }
+            const lookupData = await lookup.json();
+            const applications = Array.isArray(lookupData.applications) ? lookupData.applications : [];
+            const matching = applications.filter(app => {
+              const name = String(app.appName || '').toLowerCase();
+              const repo = String(app.repositoryUrl || app.repository?.url || '').toLowerCase();
+              return name === 'crm-rma-panel' || repo.includes('erdcss/crm-rma-panel');
+            });
+            if (matching.length !== 1 || !/^[a-f0-9]{24}$/i.test(String(matching[0]._id || ''))) {
+              console.error('::error::CRM-RMA-PANEL Codemagic uygulama ID otomatik doğrulanamadı. Codemagic uygulama URL /app/<id> içindeki ID yi GitHub > Settings > Actions > Variables bölümünde CODEMAGIC_APP_ID olarak kaydedin.');
+              process.exit(1);
+            }
+            appId = matching[0]._id;
+            console.log('Codemagic app automatically resolved from account.');
+          }
           const body = { appId, workflowId: 'caliskan-b2b-ios', branch: 'main' };
           let response;
           try {
             response = await fetch('https://api.codemagic.io/builds', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'x-auth-token': process.env.CODEMAGIC_API_TOKEN },
+              headers,
               body: JSON.stringify(body),
               signal: AbortSignal.timeout(45000),
             });
