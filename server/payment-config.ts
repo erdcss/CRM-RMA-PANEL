@@ -3,6 +3,7 @@ import { pool } from "./db";
 
 const SETTINGS_KEY = "b2b_payment_settings";
 const LIVE_BASE_URL = "https://api.iyzipay.com";
+const SANDBOX_BASE_URL = "https://sandbox-api.iyzipay.com";
 
 type PaymentLogo = { id: string; label: string; imageId: string };
 const validAssetId = /^[a-f0-9]{32}$/;
@@ -227,6 +228,8 @@ export async function savePaymentSettings(input: any) {
   const iyzicoInput = input?.iyzico || {};
   const bankInput = input?.bankTransfer || {};
 
+  if (typeof iyzicoInput.apiKey === "string" && (iyzicoInput.apiKey.length > 512 || /[\r\n]/.test(iyzicoInput.apiKey))) throw new Error("Geçersiz API Key");
+  if (typeof iyzicoInput.secretKey === "string" && (iyzicoInput.secretKey.length > 512 || /[\r\n]/.test(iyzicoInput.secretKey))) throw new Error("Geçersiz Secret Key");
   const nextApiKey =
     typeof iyzicoInput.apiKey === "string" && iyzicoInput.apiKey.trim()
       ? encryptSecret(iyzicoInput.apiKey.trim())
@@ -246,8 +249,8 @@ export async function savePaymentSettings(input: any) {
     .trim()
     .replace(/\/$/, "");
 
-  if (!/^https:\/\//i.test(baseUrl)) {
-    throw new Error("iyzico API adresi https:// ile başlamalıdır");
+  if (baseUrl !== LIVE_BASE_URL && baseUrl !== SANDBOX_BASE_URL) {
+    throw new Error("iyzico için yalnızca resmî canlı ve test API adresleri kullanılabilir");
   }
 
   const bankName =

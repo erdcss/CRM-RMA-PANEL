@@ -15,7 +15,7 @@ import {
   savePaymentSettings,
   saveCheckoutVisibility,
 } from "./payment-config";
-import { retrieveIyzicoCheckout } from "./iyzico";
+import { retrieveIyzicoCheckout, testSavedIyzicoCredentials } from "./iyzico";
 import {
   ensureReelVideoCompatibility,
   saveVideoDataUrl,
@@ -1108,6 +1108,16 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.status(400).json({
         error: error instanceof Error ? error.message : "Ödeme ayarları kaydedilemedi",
       });
+    }
+  });
+
+
+  app.post("/api/admin/payment-settings/iyzico/test", requireAdmin, async (_req, res) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    try {
+      return res.json(await testSavedIyzicoCredentials());
+    } catch {
+      return res.status(503).json({ ok: false, message: "iyzico bağlantı testi gerçekleştirilemedi." });
     }
   });
 
