@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS b2b_timed_campaigns (
 );
 CREATE TABLE IF NOT EXISTS b2b_timed_campaign_items (
   campaign_id BIGINT NOT NULL REFERENCES b2b_timed_campaigns(id) ON DELETE CASCADE,
-  product_id BIGINT NOT NULL REFERENCES b2b_products(id) ON DELETE CASCADE,
+  product_id TEXT NOT NULL REFERENCES b2b_products(id) ON DELETE CASCADE,
   promo_price NUMERIC(14,2) NOT NULL CHECK (promo_price > 0),
   sort_order INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (campaign_id,product_id)
@@ -81,7 +81,7 @@ function parseBody(body: any): { title: string; startsAt: Date; endsAt: Date; is
   const items = values.map((item: any) => {
     const productId = String(item?.productId ?? "").trim();
     const price = Number(item?.promoPrice);
-    if (!/^[1-9]\d*$/.test(productId) || !Number.isSafeInteger(Number(productId)))
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9-]{0,119}$/.test(productId))
       throw new Error("Geçersiz ürün seçimi");
     if (seen.has(productId)) throw new Error("Bir ürün aynı kampanyada iki kez olamaz");
     seen.add(productId);
