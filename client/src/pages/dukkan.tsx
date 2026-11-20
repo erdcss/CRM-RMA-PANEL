@@ -56,6 +56,9 @@ export default function Dukkan() {
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [settingsView,setSettingsView]=useState<"general"|"forms">("general");
   const [members,setMembers]=useState<Entry[]>([]);
+  const [memberCredential,setMemberCredential]=useState<{username:string;email:string|null;password:string}|null>(null);
+  const [memberPasswordVisible,setMemberPasswordVisible]=useState(false);
+  const [resettingMember,setResettingMember]=useState<number|null>(null);
   const [storeId,setStoreId]=useState(()=>{
     const fromUrl=new URLSearchParams(window.location.search).get("storeId");
     if(fromUrl)return fromUrl;
@@ -82,6 +85,8 @@ export default function Dukkan() {
     }catch{ /* use query-string fallback */ }
     return SECTIONS.some(item=>item.key===tab)?tab as Section:"overview";
   });
+  // Never retain a freshly issued credential when switching stores or sections.
+  useEffect(()=>{setMemberCredential(null);setMemberPasswordVisible(false);},[storeId,section]);
   const [productToolbar,setProductToolbar]=useState<ProductToolbarState>(()=>{
     try{
       const initialStore=new URLSearchParams(window.location.search).get("storeId")||"";
@@ -696,6 +701,20 @@ export default function Dukkan() {
     try{await api(base+"/"+resource,{method:"POST",body:JSON.stringify(payload)});setNotice("İşlem kaydedildi");setDraft({});setRefresh(n=>n+1);}
     catch(e){setError((e as Error).message);}finally{setBusy(false);}
   };
+  const resetMemberPassword=async(member:Entry)=>{
+    if(!isSuperAdmin||member.account_role!=="staff"||member.role==="owner"||resettingMember!==null)return;
+    if(!window.confirm(member.username+" hesabının mevcut şifresi geçersiz kılınacak. Yeni geçici şifre oluşturulsun mu?"))return;
+    setResettingMember(Number(member.user_id));
+    setMemberCredential(null);
+    setMemberPasswordVisible(false);
+    setError("");
+    try{
+      const result=await api(base+"/members/"+encodeURIComponent(String(member.user_id))+"/reset-password",{method:"POST"});
+      setMemberCredential({username:String(result.username),email:result.email?String(result.email):null,password:String(result.password)});
+      setNotice("Yeni şifre oluşturuldu. Yalnızca bu pencerede gösterilir; güvenli şekilde ilgili personele iletin.");
+    }catch(e){setError(e instanceof Error?e.message:"Şifre yenilenemedi.");}
+    finally{setResettingMember(null);}
+  };
   const downloadCariExcel=async(kind:"debt"|"credit")=>{
     if(!storeId||exportingCari)return;
     setExportingCari(kind);
@@ -870,7 +889,60 @@ export default function Dukkan() {
             storeName={String(currentStore?.name||"Çalışkan Dükkân")}
             canEdit={canManage}/>}
           {section==="settings"&&settingsView==="general"&&<DukkanDesktopDownload/>}
-          {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
+          {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}>
+            <h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2>
+            <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}>
+              <input className={inputClass+" flex-1"} value={draft.memberUsername||""}
+                onChange={e=>put("memberUsername",e.target.value)} required
+                placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/>
+              <select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}>
+                <option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option>
+                <option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option>
+              </select>
+              <button className={buttonClass} disabled={busy}>Yetki Ata</button>
+            </form>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {members.map(m=><div key={m.user_id} className="rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-bold text-slate-900">{m.username}</span>
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                    {({owner:"Mağaza Sahibi",manager:"Mağaza Müdürü",accountant:"Muhasebeci",cashier:"Kasiyer",viewer:"Görüntüleme"} as Record<string,string>)[m.role]||m.role}
+                  </span>
+                </div>
+                <p className="mt-2 break-all text-xs text-slate-700">E-posta: <span className="font-medium">{m.email||"Kayıtlı e-posta yok"}</span></p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs text-slate-500">Mevcut şifre güvenlik nedeniyle gösterilemez.</span>
+                  {isSuperAdmin&&m.account_role==="staff"&&m.role!=="owner"&&
+                    <button type="button" disabled={resettingMember!==null}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      onClick={()=>void resetMemberPassword(m)}>
+                      {resettingMember===Number(m.user_id)?"Yenileniyor…":"Şifre Yenile"}
+                    </button>}
+                </div>
+              </div>)}
+              {!members.length&&<p className="text-sm text-slate-500">Bu mağazada atanmış yetkili bulunamadı.</p>}
+            </div>
+            {memberCredential&&<div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-bold text-slate-900">Yeni giriş bilgileri</p>
+                  <p className="mt-1 text-xs text-slate-600">Şifre yalnızca şimdi gösterilir. Pencere kapatıldığında yeniden görüntülenemez.</p>
+                </div>
+                <button type="button" aria-label="Yeni şifre penceresini kapat" className="rounded p-1 hover:bg-blue-100"
+                  onClick={()=>{setMemberCredential(null);setMemberPasswordVisible(false);}}><X size={17}/></button>
+              </div>
+              <p className="mt-3 text-sm">Kullanıcı: <strong>{memberCredential.username}</strong></p>
+              <p className="mt-1 break-all text-sm">E-posta: {memberCredential.email||"Kayıtlı e-posta yok"}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <code className="max-w-full break-all rounded-lg bg-white px-3 py-2 text-xs">
+                  {memberPasswordVisible?memberCredential.password:"••••••••••••••••"}
+                </code>
+                <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold"
+                  onClick={()=>setMemberPasswordVisible(v=>!v)}>{memberPasswordVisible?"Gizle":"Göster"}</button>
+                <button type="button" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold"
+                  onClick={()=>void navigator.clipboard?.writeText(memberCredential.password)}>Şifreyi Kopyala</button>
+              </div>
+            </div>}
+          </div>}
           {section==="settings"&&settingsView==="general"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
             onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
             onError={setError}/>}
