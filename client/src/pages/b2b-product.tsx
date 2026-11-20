@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter } from "@/components/b2b-footer";
 import { B2BProductCard } from "@/components/b2b-product-card";
+import { B2BTimedOffer } from "@/components/b2b-timed-offer";
 import { B2BNewArrivalBadge } from "@/components/b2b-new-arrival-badge";
 import { useBranding } from "@/hooks/use-branding";
 import { addB2BCartItem, refreshB2BCart } from "@/lib/b2b-cart";
@@ -329,6 +330,7 @@ export default function B2BProductPage() {
               )}
             </div>
 
+            {product.timed_campaign_end_at ? <B2BTimedOffer endAt={product.timed_campaign_end_at} title={product.timed_campaign_title} stock={product.stock} unitsPerBox={product.units_per_box}/> : null}
             <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
               <Info icon={<Boxes className="h-5 w-5" />} label="Koli içi" value={`${pack} adet`} />
               <Info icon={<Warehouse className="h-5 w-5" />} label="Stok" value={soldOut ? "Tükendi" : cannotOrder ? "Yetersiz" : `${stock} adet · ${maxBoxes} koli`} valueClassName={cannotOrder ? "text-red-700" : undefined} />
