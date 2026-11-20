@@ -10,6 +10,9 @@ export type UnifiedB2BProduct = {
   tags?: string[] | null;
   price?: number | string | null;
   original_price?: number | string | null;
+  timed_campaign_id?: string | null;
+  timed_campaign_title?: string | null;
+  timed_campaign_end_at?: string | null;
   stock?: number | null;
   min_order_qty?: number | null;
   units_per_box?: number | null;
