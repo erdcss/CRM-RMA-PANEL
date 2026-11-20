@@ -37,6 +37,8 @@ workflows:
         EXPO_SKIP_NIIMBOT: "1"
         CI: "1"
         APP_STORE_APPLE_ID: "6802286663"
+        # Mark the archive as internal-TestFlight-only, not an App Store release candidate.
+        XCODE_PROJECT_CUSTOM_EXPORT_OPTIONS: '{"testFlightInternalTestingOnly": true}'
       node: 22
       xcode: 26.4
       cocoapods: default
@@ -67,7 +69,7 @@ workflows:
         script: |
           set -e
           cd mobile
-          xcode-project use-profiles
+          xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": true}'
       - name: Build signed IPA for TestFlight upload
         script: |
           set -e
@@ -82,6 +84,7 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
     # The first signed IPA was verified in Codemagic (#261119001).
     # Upload subsequent signed builds to the existing App Store Connect app.
+    # Explicit internal-only export prevents misleading Ready to Submit statuses.
     # Internal TestFlight availability is managed in App Store Connect;
     # external beta review and public App Store release remain manual.
     publishing:
