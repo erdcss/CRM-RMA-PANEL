@@ -20,10 +20,18 @@ async function request<T=any>(endpoint:string,method="GET",body?:unknown,token=b
  if(!response.ok)throw Error(value.error||"Sunucu işlemi tamamlayamadı ("+response.status+")");
  return value as T;
 }
-export async function login(username:string,password:string):Promise<LoginResult>{
- const result=await request<LoginResult>("/api/dukkan/login","POST",{username:username.trim(),password},"");
- if(!result.token||!Array.isArray(result.stores)||!result.stores.length)throw Error("Mağazaya yetkili hesap bulunamadı");
+export type DukkanLoginResponse=LoginResult|{ok:true;mustChangePassword:true};
+export async function login(username:string,password:string):Promise<DukkanLoginResponse>{
+ const result=await request<DukkanLoginResponse>("/api/dukkan/login","POST",{username:username.trim(),password},"");
+ if("mustChangePassword" in result&&result.mustChangePassword)return result;
+ if(!("token" in result)||!result.token||!Array.isArray(result.stores)||!result.stores.length)
+  throw Error("Mağazaya yetkili hesap bulunamadı");
  return result;
+}
+export async function completePasswordReset(username:string,temporaryPassword:string,newPassword:string,confirmPassword:string){
+ return request<{ok:true}>("/api/dukkan/complete-password-reset","POST",{
+  username:username.trim(),temporaryPassword,newPassword,confirmPassword
+ },"");
 }
 export async function availableStores(token:string){return request<StoreInfo[]>("/api/dukkan/stores","GET",undefined,token);}
 export async function uploadedLogoUrl(){const v=await request<{dukkan_logo?:string|null}>("/api/public/branding");return v.dukkan_logo&&v.dukkan_logo.startsWith("/api/public/branding-asset/dukkan_logo?")?API+v.dukkan_logo:null;}
