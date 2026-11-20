@@ -3465,6 +3465,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       if(!memberships.rowCount)return res.status(403).json({error:"Bu hesaba Çalışkan Dükkan mağazası atanmamış. Yöneticiye başvurun."});
       if(person.mustChangePassword===1){
+        if(person.role!=="staff")
+          return res.status(403).json({error:"Bu hesap için mağaza personeli şifre yenileme akışı kullanılamaz."});
         // A temporary credential cannot create an authenticated session/token.
         res.setHeader("Cache-Control","private, no-store");
         return res.json({ok:true,mustChangePassword:true});
