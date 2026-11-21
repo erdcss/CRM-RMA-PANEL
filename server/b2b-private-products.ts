@@ -1,4 +1,5 @@
 import {pool} from "./db";
+export {parseAssignedCustomerId,canReadProductForCustomer} from "../shared/b2b-private-product-policy";
 
 // Public products have no recipient. A private product always has exactly one
 // approved customer recipient; never downgrade a deleted recipient to public.
@@ -13,18 +14,8 @@ export function ensurePrivateProductSchema():Promise<void>{
   }
   return schemaReady;
 }
-export function parseAssignedCustomerId(raw:unknown):{ok:true;id:number|null}|{ok:false}{
-  if(raw===null||raw===undefined||raw==="")return {ok:true,id:null};
-  if(typeof raw!=="number"&&typeof raw!=="string")return {ok:false};
-  if(!/^[1-9][0-9]{0,9}$/.test(String(raw)))return {ok:false};
-  const value=Number(raw);
-  return Number.isSafeInteger(value)&&value>0&&value<=2147483647?{ok:true,id:value}:{ok:false};
-}
 export async function approvedCustomerExists(id:number):Promise<boolean>{
   if(!pool)return false;
   const result=await pool.query("SELECT 1 FROM users WHERE id=$1 AND role='b2b_customer' AND is_active=1 AND application_status='approved' LIMIT 1",[id]);
   return Boolean(result.rowCount);
-}
-export function canReadProductForCustomer(assignedId:number|null,viewerId:number|null):boolean{
-  return assignedId===null||(viewerId!==null&&assignedId===viewerId);
 }
