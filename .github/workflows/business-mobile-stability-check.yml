@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   validate:
-    name: Business mobile typecheck and export
+    name: Business mobile typecheck and bundle
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -24,12 +24,18 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: business-mobile/package-lock.json
-      - name: Install dependencies
+      - name: Install native dependencies
         working-directory: business-mobile
         run: npm ci --ignore-scripts
       - name: Typecheck
         working-directory: business-mobile
         run: npx tsc --noEmit --project tsconfig.json
+      - name: Export iOS JavaScript bundle
+        working-directory: business-mobile
+        run: npx expo export --platform ios
+      - name: Install Railway-only web dependencies
+        working-directory: business-mobile
+        run: npm install --no-save --package-lock=false --no-audit --no-fund react-dom@19.2.3 react-native-web@0.21.4
       - name: Export web bundle
         working-directory: business-mobile
         run: npm run build
