@@ -16,8 +16,10 @@ type MobileBrandingResponse = {
 
 const PRODUCTION_API_URL = 'https://admin.ecalisgan.com';
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL).replace(/\/$/, '');
+const REQUEST_TIMEOUT_MS = 6500;
+const MAX_RETRIES = 3;
 
-async function fetchBusinessBranding(): Promise<MobileBranding> {
+async function fetchBusinessBranding(signal: AbortSignal): Promise<MobileBranding> {
   const response = await fetch(
     `${API_URL}/api/public/mobile-branding/business?t=${Date.now()}`,
     {
@@ -25,6 +27,7 @@ async function fetchBusinessBranding(): Promise<MobileBranding> {
         Accept: 'application/json',
         'Cache-Control': 'no-cache',
       },
+      signal,
     },
   );
 
@@ -33,8 +36,8 @@ async function fetchBusinessBranding(): Promise<MobileBranding> {
   }
 
   const payload = (await response.json()) as MobileBrandingResponse;
-  const logo = payload.logo || null;
-  const splash = payload.splash || logo;
+  const logo = typeof payload.logo === 'string' && payload.logo ? payload.logo : null;
+  const splash = typeof payload.splash === 'string' && payload.splash ? payload.splash : logo;
 
   return {
     business_mobile_logo: logo,
@@ -44,36 +47,78 @@ async function fetchBusinessBranding(): Promise<MobileBranding> {
   };
 }
 
+/**
+ * Branding must never block app launch or retry forever when the API is offline.
+ * Keep the last successful image, limit in-flight requests to one and retry
+ * transient failures at most three times. Foregrounding the app allows another
+ * attempt without keeping a permanent background polling loop.
+ */
 export function useMobileBranding() {
   const [branding, setBranding] = useState<MobileBranding>({ loaded: false });
 
   useEffect(() => {
     let active = true;
+    let inFlight = false;
+    let retryCount = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
 
     const load = async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
+
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+
+      const requestController = new AbortController();
+      controller = requestController;
+      const timeout = setTimeout(() => requestController.abort(), REQUEST_TIMEOUT_MS);
+
       try {
-        const next = await fetchBusinessBranding();
-        if (active) setBranding(next);
+        const next = await fetchBusinessBranding(requestController.signal);
+        if (!active) return;
+        retryCount = 0;
+        setBranding(next);
       } catch {
-        if (active) {
-          setBranding((current) => ({ ...current, loaded: true }));
+        if (!active) return;
+
+        // Offline branding must not hide the app or discard previously loaded art.
+        setBranding((current) => ({ ...current, loaded: true }));
+
+        if (retryCount < MAX_RETRIES) {
+          const delay = Math.min(8000, 2000 * 2 ** retryCount);
+          retryCount += 1;
           retryTimer = setTimeout(() => {
+            retryTimer = null;
             void load();
-          }, 1800);
+          }, delay);
         }
+      } finally {
+        clearTimeout(timeout);
+        if (controller === requestController) controller = null;
+        inFlight = false;
       }
     };
 
     void load();
 
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void load();
+      if (state === 'active') {
+        retryCount = 0;
+        if (retryTimer) {
+          clearTimeout(retryTimer);
+          retryTimer = null;
+        }
+        void load();
+      }
     });
 
     return () => {
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
+      controller?.abort();
       subscription.remove();
     };
   }, []);
