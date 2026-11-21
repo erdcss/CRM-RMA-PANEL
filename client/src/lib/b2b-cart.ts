@@ -177,8 +177,8 @@ export function useB2BCart() {
       setItems([]);
       void Promise.all([
         fetch("/api/b2b/products?compact=1",{credentials:"include",cache:"no-store"})
-          .then(async r=>{if(!r.ok)throw Error("Catalog unavailable");return r.json() as Promise<Array<{id:string|number}>>})
-          .catch(()=>[] as Array<{id:string|number}>),
+          .then(async r=>{if(!r.ok)throw Error("Catalog unavailable");return {ok:true,rows:await r.json() as Array<{id:string|number}>};})
+          .catch(()=>({ok:false,rows:[] as Array<{id:string|number}>})),
         fetch("/api/marketplace/cart",{credentials:"include",cache:"no-store"})
           .then(async r=>{
             if(!r.ok)throw Error("Supplier selections unavailable");
@@ -189,10 +189,10 @@ export function useB2BCart() {
           }).catch(()=>({items:[]})),
       ]).then(([catalog,supplier])=>{
         if(!mounted||seq!==version)return;
-        const visibleIds=new Set(catalog.map(p=>String(p.id)));
+        const visibleIds=new Set(catalog.rows.map(p=>String(p.id)));
         const original=getB2BCart();
         const local=original.filter(item=>visibleIds.has(item.productId));
-        if(local.length!==original.length){
+        if(catalog.ok&&local.length!==original.length){
           window.localStorage.setItem(STORAGE_KEY,JSON.stringify(local));
           syncCustomerCart(local);
         }
