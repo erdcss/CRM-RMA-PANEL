@@ -1,17 +1,16 @@
-ÇALIŞKAN B2B / iOS → Codemagic TestFlight build request
-Komut: Çalışkan B2B TESTFLIGHT al
-İstek numarası: 6
-Tarih: 2026-11-20 19:18 (Europe/Istanbul)
-GitHub branch: main
-Kaynak commit (kampanya sistemi dahil): 166680f82dfe5eeeb4ca1f855ca328f409a24918
+ÇALIŞKAN B2B / iOS → Codemagic App Store genel yayın isteği
+İstek numarası: 7
+Tarih: 2026-11-21 (Europe/Istanbul)
+Kaynak dalı: main
+Kaynak commit: d389f24d29f79cf502f7554ad588ef38af8fdb62
 Bundle ID: com.caliskangroup.rma
-App sürümü: 1.3.13
-Codemagic YAML workflow: caliskan-b2b-ios
-iOS imzalama: caliskan_b2b_appstore_distribution + caliskan_b2b_appstore_2026
-Hedef: imzalı IPA üretimi, App Store Connect yüklemesi ve dahili TestFlight testi.
-Bu istek yalnızca Çalışkan B2B içindir; MAYK ve Business derlenmeyecek.
-App Store üretim yayını veya harici beta incelemesi otomatik başlatılmayacak.
-Expo EAS kullanılmayacak; Codemagic push changeset tetiklemesi.
-Bu dosya 2026-11-20 tarihli açık kullanıcı TestFlight komutuyla güncellendi.
-
-Yeni TestFlight istegi: 2026-11-21 15:43:19 - No: 6
+Uygulama sürümü: 1.3.13
+Codemagic workflow: caliskan-b2b-ios
+Hedef: TestFlight internal-only işareti OLMAYAN, App Store dağıtımına uygun yeni imzalı IPA.
+App Store Connect: com.caliskangroup.rma / 6802286663
+İşlem: Yeni IPA yükle, Apple App Review'a gönder, onaydan sonra App Store'da otomatik yayınla.
+Önceki TestFlight internal-only IPA'ları yeniden kullanma.
+Yalnız Çalışkan B2B; MAYK ve Çalışkan Business bu istekten etkilenmez.
+Apple App Store Connect metadata, App Review test hesabı ve izinler tamam değilse otomatik başvuru başarısız olabilir.
+Codemagic webhook/derleme/publishing durumları ayrıca doğrulanmalıdır.
+Expo EAS değil, Codemagic üzerinden iOS dağıtımı.
