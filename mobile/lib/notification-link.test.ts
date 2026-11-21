@@ -10,6 +10,7 @@ test('known B2B pages open corresponding app screens',()=>{
   assert.deepEqual(resolve('/'),{kind:'route',path:'/(tabs)'});
   assert.deepEqual(resolve('/kategoriler'),{kind:'route',path:'/(tabs)/menu'});
   assert.deepEqual(resolve('/siparislerim'),{kind:'route',path:'/my-orders'});
+  assert.deepEqual(resolve('/pazaryeri-sepetim'),{kind:'route',path:'/(tabs)/orders'});
   assert.deepEqual(resolve('/hesabim'),{kind:'route',path:'/(tabs)/profile'});
   assert.deepEqual(resolve('/kategori/ev-aletleri'),{kind:'category',category:'ev-aletleri'});
 });
