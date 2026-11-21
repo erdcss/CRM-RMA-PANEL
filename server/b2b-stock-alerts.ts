@@ -1,5 +1,6 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import { ensureB2BNotificationTables } from "./b2b-notification-center";
 import { sendPushToUsers } from "./push-notifications";
 
@@ -46,12 +47,13 @@ function identity(req: any): { kind: ProductKind; id: string } | null {
   return { kind, id };
 }
 
-async function findProduct(kind: ProductKind, id: string): Promise<{name:string;available:boolean} | null> {
+async function findProduct(kind: ProductKind, id: string, viewerId:number): Promise<{name:string;available:boolean} | null> {
   if (!pool) return null;
   if (kind === "b2b") {
+    await ensurePrivateProductSchema();
     const result = await pool.query(
-      "SELECT name, (GREATEST(0,stock) >= GREATEST(1,COALESCE(units_per_box,1))*GREATEST(1,COALESCE(min_order_qty,1))) AS available FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE LIMIT 1",
-      [id]
+      "SELECT name, (GREATEST(0,stock) >= GREATEST(1,COALESCE(units_per_box,1))*GREATEST(1,COALESCE(min_order_qty,1))) AS available FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE AND (assigned_customer_id IS NULL OR assigned_customer_id=$2) LIMIT 1",
+      [id,viewerId]
     );
     return result.rows[0] ? { name:String(result.rows[0].name || "Ürün"), available:result.rows[0].available===true } : null;
   }
@@ -72,7 +74,7 @@ const claimQuery = [
   "WHERE (a.status='active' OR (a.status='processing' AND a.claimed_at < NOW()-INTERVAL '5 minutes'))",
   "AND ((a.product_kind='b2b' AND EXISTS(",
   "SELECT 1 FROM b2b_products b WHERE b.id::text=a.product_id",
-  "AND b.is_active IS DISTINCT FROM FALSE",
+  "AND b.is_active IS DISTINCT FROM FALSE AND (b.assigned_customer_id IS NULL OR b.assigned_customer_id=a.user_id)",
   "AND GREATEST(0,b.stock) >= GREATEST(1,COALESCE(b.units_per_box,1))*GREATEST(1,COALESCE(b.min_order_qty,1))",
   ")) OR (a.product_kind='marketplace' AND EXISTS(",
   "SELECT 1 FROM mp_products m",
@@ -95,11 +97,12 @@ export async function runB2BStockAlertCheck(): Promise<number> {
   try {
     await ensureB2BStockAlertTables();
     await ensureB2BNotificationTables();
+    await ensurePrivateProductSchema();
     const claims = await pool.query(claimQuery);
     for (const item of claims.rows) {
       const dedupe = "restock:" + String(item.id) + ":" + String(item.cycle);
       try {
-        const product = await findProduct(item.product_kind as ProductKind,String(item.product_id));
+        const product = await findProduct(item.product_kind as ProductKind,String(item.product_id),Number(item.user_id));
         // The product can disappear/become unavailable between claim and send.
         if (!product?.available) {
           await pool.query(
@@ -181,10 +184,10 @@ export function registerB2BStockAlertRoutes(app: Express, requireB2B: RequestHan
     if(!ref)return res.status(400).json({error:"Geçersiz ürün kodu"});
     try{
       await ensureB2BStockAlertTables();
-      const product=await findProduct(ref.kind,ref.id);
+      const user=(res.locals as any).b2bUser;
+      const product=await findProduct(ref.kind,ref.id,Number(user.id));
       if(!product)return res.status(404).json({error:"Ürün bulunamadı veya satışa kapalı"});
       if(product.available)return res.status(409).json({error:"Ürün yeniden stokta. Sipariş verebilirsiniz."});
-      const user=(res.locals as any).b2bUser;
       const result=await pool!.query(
         "INSERT INTO b2b_stock_alert_subscriptions(user_id,product_kind,product_id) VALUES($1,$2,$3) " +
         "ON CONFLICT(user_id,product_kind,product_id) DO UPDATE SET " +

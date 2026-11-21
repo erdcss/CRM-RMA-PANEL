@@ -1,5 +1,6 @@
 import type { Express, Request, RequestHandler, Response, NextFunction } from "express";
 import { pool } from "./db";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import { storage } from "./storage";
 import { z, ZodError } from "zod";
 import type { PoolClient } from "pg";
@@ -221,6 +222,7 @@ let schemaPromise: Promise<void> | undefined;
 async function ready() {
   if (!pool) throw Object.assign(new Error("PostgreSQL bağlantısı gerekli"), { status: 503 });
   if (!schemaPromise) schemaPromise = pool.query(SCHEMA)
+    .then(() => ensurePrivateProductSchema())
     .then(() => ensureDukkanB2BBridge(pool!))
     .then(() => backfillExistingDukkanProducts(pool!))
     .then(async()=>{
@@ -1101,7 +1103,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   app.get("/api/dukkan/stores/:storeId/catalog/summary",safe(async(req,res)=>{
     const db=await ready();
     const counts=await db.query(
-      "SELECT (SELECT COUNT(*)::integer FROM b2b_products WHERE is_active IS DISTINCT FROM FALSE) AS published_b2b, "+
+      "SELECT (SELECT COUNT(*)::integer FROM b2b_products WHERE is_active IS DISTINCT FROM FALSE AND assigned_customer_id IS NULL) AS published_b2b, "+
       "(SELECT COUNT(*)::integer FROM dukkan_products WHERE store_id=$1 AND deleted_at IS NULL) AS dukkan_total",
       [store(req)],
     );
@@ -1120,7 +1122,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "SELECT p.id,p.sku,p.name,p.barcode,p.brand,p.category,p.price,p.stock,p.image_data," +
       "p.units_per_box,p.min_order_qty,p.is_active,p.updated_at," +
       "EXISTS(SELECT 1 FROM dukkan_products other WHERE other.b2b_product_id=p.id::text) AS linked_to_store " +
-      "FROM b2b_products p WHERE (p.is_active IS DISTINCT FROM FALSE OR $2::boolean) AND NOT EXISTS(" +
+      "FROM b2b_products p WHERE p.assigned_customer_id IS NULL AND (p.is_active IS DISTINCT FROM FALSE OR $2::boolean) AND NOT EXISTS(" +
       "SELECT 1 FROM dukkan_products d WHERE d.store_id=$1 AND d.b2b_product_id=p.id::text) ORDER BY p.updated_at DESC LIMIT 500",
       [store(req),Boolean(res.locals.dukkanAdmin)],
     );
@@ -1328,7 +1330,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const item=await transaction(async c=>{
       const result=await c.query(
         "SELECT id,sku,name,barcode,brand,category,description,price,campaign_price,stock,image_data,images,units_per_box,min_order_qty " +
-        "FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE FOR UPDATE",
+        "FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE AND assigned_customer_id IS NULL FOR UPDATE",
         [b2bId],
       );
       const row=result.rows[0];

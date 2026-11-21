@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Package, PackagePlus, Search, Sparkles, Trash2 } from "lucide-react";
+import { Building2, LockKeyhole, Package, PackagePlus, Search, Sparkles, Trash2 } from "lucide-react";
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter} from "@/components/ui/dialog";
+import AdminPrivateProductCustomerSelect,{fetchProductRecipients,recipientKey,type ProductRecipient} from "@/components/admin-private-product-customer-select";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +35,7 @@ type Product = {
   barcode?: string | null;
   collection_name: string | null;
   is_active: boolean;
+  assigned_customer_id?:number|null;
   created_at: string;
 };
 
@@ -47,6 +50,11 @@ export default function AdminProducts() {
   const [query, setQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
+  const [assignProduct,setAssignProduct]=useState<Product|null>(null);
+  const [assignedCustomerId,setAssignedCustomerId]=useState<number|null>(null);
+  const {data:recipients=[]}=useQuery<ProductRecipient[]>({
+    queryKey:recipientKey,queryFn:fetchProductRecipients,staleTime:60_000
+  });
 
   const { data = [], isLoading } = useQuery<Product[]>({
     queryKey: ["/api/admin/b2b-products"],
@@ -101,6 +109,20 @@ export default function AdminProducts() {
         variant: "destructive",
       });
     },
+  });
+
+  const assignMutation=useMutation({
+    mutationFn:async ({id,assignedCustomerId}:{id:string;assignedCustomerId:number|null})=>
+      apiRequest("PATCH",`/api/admin/b2b-products/${encodeURIComponent(id)}/recipient`,{assignedCustomerId}),
+    onSuccess:async()=>{
+      setAssignProduct(null);
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-products"]}),
+        queryClient.invalidateQueries({queryKey:["/api/b2b/products"]})
+      ]);
+      toast({title:"Ürün görünürlüğü güncellendi",description:"Ürünün hangi firmada gösterileceği kaydedildi."});
+    },
+    onError:(error:Error)=>toast({title:"Ürün atanamadı",description:error.message,variant:"destructive"})
   });
 
   function toggleProduct(id: string) {
@@ -173,6 +195,12 @@ export default function AdminProducts() {
                 AI ile Toplu Ürün Ekle
               </Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/urunler/ekle?private=1">
+                <LockKeyhole className="mr-2 h-4 w-4"/>
+                Firmaya Özel Ürün Ata
+              </Link>
+            </Button>
             <Button asChild>
               <Link href="/urunler/ekle">
                 <PackagePlus className="mr-2 h-4 w-4" />
@@ -215,7 +243,7 @@ export default function AdminProducts() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[940px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="w-12 px-4 py-3 font-medium">
@@ -235,14 +263,15 @@ export default function AdminProducts() {
                   <th className="px-4 py-3 font-medium">Fiyat</th>
                   <th className="px-4 py-3 font-medium">Stok</th>
                   <th className="px-4 py-3 font-medium">Durum</th>
-                  <th className="w-14 px-4 py-3 text-right font-medium">Sil</th>
+                  <th className="px-4 py-3 font-medium">Görünürlük</th>
+                  <th className="w-28 px-4 py-3 text-right font-medium">İşlemler</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {isLoading ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">Ürünler yükleniyor…</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">Ürünler yükleniyor…</td></tr>
                 ) : products.length === 0 ? (
-                  <tr><td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">Ürün bulunamadı.</td></tr>
+                  <tr><td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">Ürün bulunamadı.</td></tr>
                 ) : (
                   products.map((product) => {
                     const id = String(product.id);
@@ -297,11 +326,28 @@ export default function AdminProducts() {
                             {product.is_active ? "Aktif" : "Pasif"}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          {product.assigned_customer_id!=null
+                            ?<span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
+                              <LockKeyhole className="h-3 w-3"/>
+                              {recipients.find(item=>item.id===Number(product.assigned_customer_id))?.company_name||"Özel firma"}
+                            </span>
+                            :<span className="text-xs text-muted-foreground">Herkese açık</span>}
+                        </td>
                         <td
                           className="px-4 py-3 text-right"
                           onClick={(event) => event.stopPropagation()}
                           onKeyDown={(event) => event.stopPropagation()}
                         >
+                          <Button type="button" variant="ghost" size="icon"
+                            title="Firmaya ata / görünürlüğü değiştir"
+                            onClick={()=>{
+                              setAssignProduct(product);
+                              setAssignedCustomerId(product.assigned_customer_id??null);
+                            }}
+                            aria-label={product.name+" ürününü firmaya ata"}>
+                            <Building2 className="h-4 w-4"/>
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"
@@ -323,6 +369,25 @@ export default function AdminProducts() {
         </div>
       </div>
 
+      <Dialog open={assignProduct!==null} onOpenChange={open=>{if(!open&&!assignMutation.isPending)setAssignProduct(null);}}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Firmaya Özel Ürün Ata</DialogTitle>
+            <DialogDescription>
+              {assignProduct?.name} ürününü tek bir firmanın görebileceği şekilde atayın.
+              Genel kataloğa dönerseniz ürün tüm müşterilere açılır.
+            </DialogDescription>
+          </DialogHeader>
+          <AdminPrivateProductCustomerSelect value={assignedCustomerId} onChange={setAssignedCustomerId} allowPublic/>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={()=>setAssignProduct(null)} disabled={assignMutation.isPending}>İptal</Button>
+            <Button type="button" disabled={assignMutation.isPending||!assignProduct}
+              onClick={()=>assignProduct&&assignMutation.mutate({id:String(assignProduct.id),assignedCustomerId})}>
+              {assignMutation.isPending?"Kaydediliyor…":"Atamayı Kaydet"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialog
         open={deleteRequest !== null}
         onOpenChange={(open) => {

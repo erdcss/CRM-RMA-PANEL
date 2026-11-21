@@ -21,7 +21,7 @@ test("automatically import every B2B product once, preserving colliding SKUs and
       "CREATE UNIQUE INDEX dukkan_b2b_product_link_unique ON dukkan_products(b2b_product_id) WHERE b2b_product_id IS NOT NULL",
       "CREATE TABLE b2b_products(id TEXT PRIMARY KEY,sku TEXT NOT NULL UNIQUE,name TEXT NOT NULL,barcode TEXT,"+
         "stock INTEGER,price NUMERIC(18,2),campaign_price NUMERIC(18,2),brand TEXT,category TEXT,description TEXT,image_data TEXT,images JSONB,"+
-        "units_per_box INTEGER,min_order_qty INTEGER,is_active BOOLEAN,created_at TIMESTAMPTZ DEFAULT NOW())",
+        "units_per_box INTEGER,min_order_qty INTEGER,is_active BOOLEAN,assigned_customer_id INTEGER,created_at TIMESTAMPTZ DEFAULT NOW())",
     ].join(";\n")+";");
     await db.query("INSERT INTO dukkan_stores(id,name) VALUES(1,'ÇALIŞKAN GROUP'),(2,'SECONDARY')");
     await db.query("INSERT INTO dukkan_products(store_id,sku,barcode,name,unit) VALUES(1,'OVERLAP','EXISTING','Existing','adet')");
@@ -75,5 +75,13 @@ test("automatically import every B2B product once, preserving colliding SKUs and
     const next=await importAllB2BToDukkan(pool,1);
     assert.equal(next.imported,1);
     assert.equal(next.total,4);
+
+    // Company-exclusive items must never be copied into Dükkan inventory.
+    await db.query("INSERT INTO b2b_products(id,sku,name,stock,price,is_active,assigned_customer_id) VALUES('ee','PRIVATE-001','Firmaya özel ürün',12,25,TRUE,42)");
+    const privateSync=await importAllB2BToDukkan(pool,1);
+    assert.equal(privateSync.imported,0);
+    assert.equal(privateSync.total,4);
+    const privateCopy=await db.query("SELECT id FROM dukkan_products WHERE b2b_product_id='ee'");
+    assert.equal(privateCopy.rows.length,0);
   }finally{await db.close();}
 });

@@ -11,6 +11,7 @@ import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import {
   registerB2BTimedCampaignRoutes,
   B2B_TIMED_CAMPAIGN_JOIN,
@@ -385,7 +386,7 @@ async function newBankTransferCode() {
   throw new Error("Benzersiz havale açıklama kodu oluşturulamadı");
 }
 
-async function checkoutProduct(productId: unknown, quantity: unknown, previewOnly = false): Promise<CheckoutProduct> {
+async function checkoutProduct(productId: unknown, quantity: unknown, previewOnly = false, customerId: number | null = null): Promise<CheckoutProduct> {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
   const qty = cleanOrderQuantity(quantity);
@@ -429,15 +430,17 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
     };
   }
 
+  await ensurePrivateProductSchema();
   const result = await pool.query(
     `SELECT p.id,p.sku,p.name,p.category,${B2B_EFFECTIVE_PRICE_SQL} AS price,
             p.stock,p.min_order_qty,p.units_per_box,p.image_data,p.images
      FROM b2b_products p
      ${B2B_TIMED_CAMPAIGN_JOIN}
      WHERE p.id::text = $1
-       AND is_active IS DISTINCT FROM FALSE
+       AND p.is_active IS DISTINCT FROM FALSE
+       AND (p.assigned_customer_id IS NULL OR p.assigned_customer_id=$2)
      LIMIT 1`,
-    [String(productId)],
+    [String(productId),customerId],
   );
 
   const row = result.rows[0];
@@ -475,7 +478,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
   };
 }
 
-async function checkoutItems(rawItems: unknown, previewOnly = false) {
+async function checkoutItems(rawItems: unknown, previewOnly = false, customerId: number | null = null) {
   if (!Array.isArray(rawItems) || rawItems.length > 100) throw new Error("Sipariş listesinde en fazla 100 ürün olabilir");
   const source = rawItems;
   if (source.length === 0) throw new Error("Siparişe ürün eklenmedi");
@@ -494,7 +497,7 @@ async function checkoutItems(rawItems: unknown, previewOnly = false) {
     const key=String(value.productId||"");
     if(uniqueIds.has(key))throw new Error("Sipariş listesinde aynı ürün birden fazla kez bulunamaz");
     uniqueIds.add(key);
-    const product = await checkoutProduct(value.productId, quantity, previewOnly);
+    const product = await checkoutProduct(value.productId, quantity, previewOnly, customerId);
     const totalUnits = quantity * product.unitsPerBox;
     items.push({
       product,
@@ -3787,16 +3790,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).end();
     }
     try {
+      await ensurePrivateProductSchema();
+      const viewerId = await canViewB2BPrices(req) ? sessionUserId(req) ?? null : null;
       const result = imageIndex < 0
         ? await pool.query(
             `SELECT image_data AS asset FROM b2b_products
-             WHERE id::text = $1 AND is_active IS DISTINCT FROM FALSE LIMIT 1`,
-            [String(req.params.id)],
+             WHERE id::text = $1 AND is_active IS DISTINCT FROM FALSE
+               AND (assigned_customer_id IS NULL OR assigned_customer_id=$2) LIMIT 1`,
+            [String(req.params.id),viewerId],
           )
         : await pool.query(
             `SELECT images ->> $2::int AS asset FROM b2b_products
-             WHERE id::text = $1 AND is_active IS DISTINCT FROM FALSE LIMIT 1`,
-            [String(req.params.id), imageIndex],
+             WHERE id::text = $1 AND is_active IS DISTINCT FROM FALSE
+               AND (assigned_customer_id IS NULL OR assigned_customer_id=$3) LIMIT 1`,
+            [String(req.params.id), imageIndex,viewerId],
           );
       const asset = result.rows[0]?.asset;
       if (typeof asset !== "string") return res.status(404).end();
@@ -3805,7 +3812,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!match) return res.status(404).end();
 
       res.setHeader("Content-Type", match[1]);
-      res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("Vary", "Cookie, Authorization, X-Owner-User-Id");
       return res.send(Buffer.from(match[2], "base64"));
     } catch (error) {
       console.error("B2B product image load failed:", error);
@@ -3829,7 +3837,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ).then(() => {}).catch(error => { mobileCatalogTagSchema = null; throw error; });
       }
       await mobileCatalogTagSchema;
+      await ensurePrivateProductSchema();
       const priceVisible = await canViewB2BPrices(req);
+      const viewerId=priceVisible ? sessionUserId(req)??null : null;
       const compact = req.query.mobile === "1" || req.query.compact === "1";
       // Web catalog grids need only a thumbnail; keep the full gallery in the
       // single-product endpoint. Avoid sending megabytes of base64 to browsers.
@@ -3837,6 +3847,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imagesSql = compact
         ? `
           CASE
+            WHEN p.assigned_customer_id IS NOT NULL THEN image_data
             WHEN image_data LIKE 'data:image/%' THEN
               '/api/b2b/product-image/' || p.id::text || '?v=' ||
               EXTRACT(EPOCH FROM p.updated_at)::bigint::text
@@ -3846,6 +3857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             WHEN jsonb_typeof(images) = 'array' AND jsonb_array_length(images) > 0 THEN
               jsonb_build_array(
                 CASE
+                  WHEN p.assigned_customer_id IS NOT NULL THEN images ->> 0
                   WHEN LEFT(images ->> 0, 11) = 'data:image/' THEN
                     '/api/b2b/product-image/' || p.id::text || '?index=0&v=' ||
                     EXTRACT(EPOCH FROM p.updated_at)::bigint::text
@@ -3879,8 +3891,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM b2b_products p
         ${B2B_TIMED_CAMPAIGN_JOIN}
         WHERE p.is_active IS DISTINCT FROM FALSE
+          AND (p.assigned_customer_id IS NULL OR p.assigned_customer_id=$1)
         ORDER BY p.created_at DESC
-      `);
+      `,[viewerId]);
       return res.json(
         result.rows.map((row) => ({
           ...row,
@@ -3909,16 +3922,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!values.length) return res.status(400).json({ error: "Geçersiz barkod" });
     const digits = values.filter(value => /^\d+$/.test(value));
     try {
+      await ensurePrivateProductSchema();
+      const viewerId=await canViewB2BPrices(req) ? sessionUserId(req)??null : null;
       // Company products have priority when an old supplier barcode is duplicated.
       const own = await pool.query(
         `SELECT id::text AS id, name, barcode
          FROM b2b_products
          WHERE is_active IS DISTINCT FROM FALSE
+           AND (assigned_customer_id IS NULL OR assigned_customer_id=$3)
            AND (TRIM(COALESCE(barcode,'')) = ANY($1::text[])
              OR (cardinality($2::text[]) > 0
                  AND regexp_replace(COALESCE(barcode,''), '[^0-9]', '', 'g') = ANY($2::text[])))
          ORDER BY created_at DESC LIMIT 1`,
-        [values,digits],
+        [values,digits,viewerId],
       );
       if (own.rows[0]) {
         res.setHeader("Cache-Control", "no-store");
@@ -3955,7 +3971,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!pool) return res.status(404).json({ error: "Ürün bulunamadı" });
 
     try {
+      await ensurePrivateProductSchema();
       const priceVisible = await canViewB2BPrices(req);
+      const viewerId=priceVisible ? sessionUserId(req)??null : null;
       const result = await pool.query(`
         SELECT
           p.id,
@@ -3983,8 +4001,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ${B2B_TIMED_CAMPAIGN_JOIN}
         WHERE p.id::text = $1
           AND p.is_active IS DISTINCT FROM FALSE
+          AND (p.assigned_customer_id IS NULL OR p.assigned_customer_id=$2)
         LIMIT 1
-      `, [String(req.params.id)]);
+      `, [String(req.params.id),viewerId]);
 
       if (!result.rows[0]) {
         return res.status(404).json({ error: "Ürün bulunamadı" });
@@ -4190,7 +4209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
     try {
       const quantity = cleanOrderQuantity(req.query.qty);
-      const product = await checkoutProduct(req.query.productId, quantity, true);
+      const product = await checkoutProduct(req.query.productId, quantity, true, Number((res.locals as any).b2bUser.id));
       const totalUnits = quantity * product.unitsPerBox;
       const total = Number((product.price * totalUnits).toFixed(2));
 
@@ -4213,7 +4232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
     try {
-      const cart = await checkoutItems(req.body?.items, true);
+      const cart = await checkoutItems(req.body?.items, true, Number((res.locals as any).b2bUser.id));
       return res.json({
         items: cart.items.map((entry) => ({
           product: entry.product,
@@ -4254,7 +4273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
       // Calculating installment options is informational; it must not charge
       // or bypass the supplier-payment authorization enforced at submission.
-      const checkout = await checkoutItems(rawItems, true);
+      const checkout = await checkoutItems(rawItems, true, Number((res.locals as any).b2bUser.id));
       const result = await retrieveIyzicoInstallments(checkout.total, binNumber);
       const detail = Array.isArray(result.installmentDetails)
         ? result.installmentDetails[0]
@@ -4398,7 +4417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      checkout = await checkoutItems(rawItems);
+      checkout = await checkoutItems(rawItems, false, Number((res.locals as any).b2bUser.id));
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
       await assertCheckoutVisibility("card",shipping);
@@ -4934,7 +4953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      checkout = await checkoutItems(rawItems);
+      checkout = await checkoutItems(rawItems, false, Number((res.locals as any).b2bUser.id));
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
       await assertCheckoutVisibility("card",shipping);
@@ -5381,7 +5400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      checkout = await checkoutItems(rawItems);
+      checkout = await checkoutItems(rawItems, false, Number((res.locals as any).b2bUser.id));
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
       await assertCheckoutVisibility("bank_transfer",shipping);

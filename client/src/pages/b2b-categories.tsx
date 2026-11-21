@@ -11,7 +11,7 @@ import { loadB2BHomepageCategories, b2bCategoryImage, b2bCategoryHref, b2bSubcat
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 import { trackSearch } from "@/lib/analytics";
 
-type SessionUser={role?:string;isActive?:boolean};
+type SessionUser={id?:number;role?:string;isActive?:boolean};
 
 function useB2BCategoryData(){
   const {data:homepage={categories:[]}}=useQuery({
@@ -25,7 +25,7 @@ function useB2BCategoryData(){
   });
   const loggedIn=session?.role==="b2b_customer"&&session?.isActive===true;
   const {data:ownProducts=[],isLoading:ownLoading,isError:ownError}=useQuery<UnifiedB2BProduct[]>({
-    queryKey:["/api/b2b/products",loggedIn?"member":"guest"],
+    queryKey:["/api/b2b/products",loggedIn?session?.id:"guest"],
     queryFn:async()=>{
       const response=await fetch("/api/b2b/products?compact=1",{credentials:"include"});
       if(!response.ok)throw new Error("Ürün kataloğu alınamadı");

@@ -18,6 +18,7 @@ import { loadApprovedSupplierProduct, loadApprovedSupplierProducts, type Unified
 import { collectB2BProductImages, galleryIndexAfterMove } from "@/lib/b2b-product-gallery";
 
 type SessionUser = {
+  id?: number;
   role?: string;
   isActive?: boolean;
 };
@@ -74,14 +75,14 @@ export default function B2BProductPage() {
   useEffect(()=>{if(!added)return;const t=window.setTimeout(()=>setAdded(false),2400);return ()=>window.clearTimeout(t);},[added]);
 
   const { data: product, isLoading, error } = useQuery({
-    queryKey: ["/api/b2b/products", id, loggedIn ? "member" : "guest"],
+    queryKey: ["/api/b2b/products", id, loggedIn ? session?.id : "guest"],
     queryFn: () => loadProduct(id),
     enabled: Boolean(id),
     staleTime: 30_000,
   });
 
   const { data: ownProducts = [], isLoading: loadingOwn } = useQuery<UnifiedB2BProduct[]>({
-    queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
+    queryKey: ["/api/b2b/products", loggedIn ? session?.id : "guest"],
     queryFn: loadAvailableProducts,
     enabled: session !== undefined,
     staleTime: 30_000,

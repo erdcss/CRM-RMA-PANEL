@@ -14,11 +14,11 @@ async function loadCatalog():Promise<UnifiedB2BProduct[]>{
   if(!r.ok)throw Error("Ürün kataloğu yüklenemedi");
   const rows=await r.json();return Array.isArray(rows)?rows:[];
 }
-async function loadSession():Promise<boolean>{
+type SessionUser={id:number;role:string;isActive:boolean};
+async function loadSession():Promise<SessionUser|null>{
   const r=await fetch("/api/auth/me",{credentials:"include"});
-  if(!r.ok)return false;
-  const user=await r.json();
-  return user?.role==="b2b_customer"&&user?.isActive===true;
+  if(!r.ok)return null;
+  return r.json();
 }
 function remainingDuration(endAt:string,now:number){
   const diff=Math.max(0,new Date(endAt).getTime()-now);
@@ -58,11 +58,13 @@ export default function B2BRoundCampaign(){
     queryKey:["/api/public/homepage"],queryFn:loadB2BHomepageCategories,staleTime:10000,
     refetchOnWindowFocus:true
   });
-  const {data:products=[],isLoading:loadingProducts,isError}=useQuery({
-    queryKey:["/api/b2b/products","campaign"],queryFn:loadCatalog,staleTime:15000
-  });
-  const {data:loggedIn=false}=useQuery({
+  const {data:session}=useQuery({
     queryKey:["/api/auth/me","campaign"],queryFn:loadSession,staleTime:10000
+  });
+  const loggedIn=session?.role==="b2b_customer"&&session?.isActive===true;
+  const {data:products=[],isLoading:loadingProducts,isError}=useQuery({
+    queryKey:["/api/b2b/products","campaign",loggedIn?session?.id:"guest"],
+    queryFn:loadCatalog,enabled:session!==undefined,staleTime:15000
   });
   const [now,setNow]=useState(()=>Date.now());
   const [heroImageDimensions,setHeroImageDimensions]=useState<{width:number;height:number}|null>(null);

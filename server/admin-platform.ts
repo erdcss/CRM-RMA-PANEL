@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
+import {ensurePrivateProductSchema,parseAssignedCustomerId,approvedCustomerExists} from "./b2b-private-products";
 import { ensureB2BCustomerUsageSchema } from "./b2b-customer-insights";
 import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
 import {recordB2BLivePage,registerB2BLivePageDashboard} from "./b2b-live-page-presence";
@@ -275,6 +276,7 @@ async function ensureB2BProductSchema() {
   }
 
   await productSchemaReady;
+  await ensurePrivateProductSchema();
 }
 
 let dashboardSchemaReady: Promise<void> | null = null;
@@ -509,10 +511,12 @@ async function detectedProductCategories(): Promise<string[]> {
   if (!pool) return [];
 
   try {
+    await ensurePrivateProductSchema();
     const result = await pool.query(
       `SELECT DISTINCT TRIM(category) AS category
        FROM b2b_products
        WHERE is_active = TRUE
+         AND assigned_customer_id IS NULL
          AND COALESCE(TRIM(category), '') <> ''
        ORDER BY TRIM(category) ASC
        LIMIT 50`,
@@ -883,8 +887,19 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/homepage", async (_req, res) => {
     try {
       const config = await homepageConfig();
+      const layout=await getMobileHomeLayout();
+      // Do not expose a recipient-only product through a public homepage banner,
+      // even when an old promotion still references that product.
+      if(pool){
+        await ensurePrivateProductSchema();
+        const privateRows=await pool.query(
+          "SELECT id::text AS id FROM b2b_products WHERE assigned_customer_id IS NOT NULL");
+        const hidden=new Set(privateRows.rows.map(row=>String(row.id)));
+        layout.banners=layout.banners.filter(item=>item.linkType!=="product"||!hidden.has(String(item.productId)));
+        layout.roundBottomBanner.productIds=layout.roundBottomBanner.productIds.filter(id=>!hidden.has(String(id)));
+      }
       res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.json({ categories: config.categories, ...await getMobileHomeLayout() });
+      return res.json({ categories: config.categories, ...layout });
     } catch (error) {
       console.error("Public homepage config load failed:", error);
       return res.json({ categories: [] });
@@ -1166,11 +1181,13 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/reels", async (_req, res) => {
     if (!pool) return res.json([]);
     try {
+      await ensurePrivateProductSchema();
       const result = await pool.query(
-        `SELECT id, title, video_url, thumbnail_url, product_id, sort_order, created_at
-         FROM b2b_reels
-         WHERE is_active = TRUE
-         ORDER BY sort_order ASC, created_at DESC`,
+        `SELECT r.id, r.title, r.video_url, r.thumbnail_url, r.product_id, r.sort_order, r.created_at
+         FROM b2b_reels r
+         LEFT JOIN b2b_products p ON p.id::text = r.product_id
+         WHERE r.is_active = TRUE AND p.assigned_customer_id IS NULL
+         ORDER BY r.sort_order ASC, r.created_at DESC`,
       );
 
       const rows = await Promise.all(
@@ -1454,6 +1471,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           tags,
           variants,
           is_active,
+          assigned_customer_id,
           created_at,
           updated_at
         FROM b2b_products
@@ -1478,7 +1496,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         `SELECT
            id, sku, name, brand, category, description, price, stock,
            min_order_qty, units_per_box, image_data, images, barcode,
-           collection_name, tags, features, variants, is_active, created_at, updated_at
+           collection_name, tags, features, variants, is_active, assigned_customer_id, created_at, updated_at
          FROM b2b_products
          WHERE id::text = $1
          LIMIT 1`,
@@ -1493,6 +1511,56 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  // Only active and approved B2B customer accounts can receive private stock.
+  app.get("/api/admin/b2b-product-recipients",requireAdmin,async(_req,res)=>{
+    res.setHeader("Cache-Control","private,no-store");
+    if(!pool)return res.status(503).json({error:"Veritabanına ulaşılamadı"});
+    try{
+      const result=await pool.query(
+        "SELECT id,company_name,email FROM users WHERE role='b2b_customer' AND is_active=1 AND application_status='approved' ORDER BY company_name NULLS LAST,email LIMIT 5000");
+      return res.json(result.rows);
+    }catch(error){
+      console.error("Private product recipients",error);
+      return res.status(500).json({error:"Firma listesi alınamadı"});
+    }
+  });
+
+  // Assign an existing SKU to ONE customer or reset visibility to public.
+  app.patch("/api/admin/b2b-products/:id/recipient",requireAdmin,async(req,res)=>{
+    if(!pool)return res.status(503).json({error:"Veritabanına ulaşılamadı"});
+    if(!req.body||!Object.prototype.hasOwnProperty.call(req.body,"assignedCustomerId"))
+      return res.status(400).json({error:"Ürün görünürlüğü açıkça seçilmelidir"});
+    const assignment=parseAssignedCustomerId(req.body?.assignedCustomerId);
+    if(!assignment.ok)return res.status(400).json({error:"Geçerli bir firma seçin"});
+    try{
+      await ensureB2BProductSchema();
+      if(assignment.id!==null&&!await approvedCustomerExists(assignment.id))
+        return res.status(404).json({error:"Seçilen firma bulunamadı veya aktif değil"});
+      if(assignment.id!==null){
+        // Store-linked products are already copied to a Dükkan inventory and
+        // cannot safely be made customer-exclusive without unlinking first.
+        const table=await pool.query("SELECT to_regclass('public.dukkan_products') AS table_name");
+        if(table.rows[0]?.table_name){
+          const linked=await pool.query(
+            "SELECT 1 FROM dukkan_products WHERE b2b_product_id=$1 LIMIT 1",
+            [String(req.params.id)]);
+          if(linked.rowCount)return res.status(409).json({
+            error:"Bu ürün Dükkan stoklarına bağlı. Özel firma atamak için mağazadan bağımsız yeni ürün kartı oluşturun."
+          });
+        }
+      }
+      const result=await pool.query(
+        "UPDATE b2b_products SET assigned_customer_id=$2,updated_at=NOW() WHERE id::text=$1 RETURNING id,assigned_customer_id",
+        [String(req.params.id),assignment.id]);
+      if(!result.rows[0])return res.status(404).json({error:"Ürün bulunamadı"});
+      notifyMetaCatalogChange();
+      return res.json({ok:true,...result.rows[0]});
+    }catch(error){
+      console.error("Assign private B2B product",error);
+      return res.status(500).json({error:"Ürün görünürlüğü değiştirilemedi"});
+    }
+  });
+
   app.post("/api/admin/b2b-products", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     try { await ensureB2BProductSchema(); } catch (error) {
@@ -1500,6 +1568,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
     }
     const product = parseAdminProductPayload(req.body);
+    const assignment=parseAssignedCustomerId(req.body?.assignedCustomerId);
+    if(!assignment.ok)return res.status(400).json({error:"Geçerli bir firma seçin"});
+    if(assignment.id!==null&&!await approvedCustomerExists(assignment.id))
+      return res.status(404).json({error:"Seçilen firma bulunamadı veya aktif değil"});
 
     if (!product.sku || !product.name) {
       return res.status(400).json({ error: "Stok kodu ve ürün adı zorunludur" });
@@ -1516,9 +1588,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         `INSERT INTO b2b_products (
           sku, name, brand, category, description, price, stock,
           min_order_qty, units_per_box, image_data, images, barcode,
-          collection_name, tags, variants, is_active, updated_at
+          collection_name, tags, variants, assigned_customer_id, is_active, updated_at
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::text[],$15::jsonb,TRUE,NOW())
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::text[],$15::jsonb,$16,TRUE,NOW())
         RETURNING *`,
         [
           product.sku,
@@ -1536,6 +1608,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           product.collectionName || null,
           product.tags,
           JSON.stringify(product.variants),
+          assignment.id,
         ],
       );
       notifyMetaCatalogChange();
@@ -1626,6 +1699,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             variants = EXCLUDED.variants,
             is_active = TRUE,
             updated_at = NOW()
+          WHERE b2b_products.assigned_customer_id IS NULL
           RETURNING id, sku, name`,
           [
             product.sku,
@@ -1644,6 +1718,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             JSON.stringify(product.variants),
           ],
         );
+        if(!result.rows[0])throw new Error("Özel firmaya atanmış stok kodu toplu aktarımda güncellenemez: "+product.sku);
         created.push(result.rows[0]);
       }
 
