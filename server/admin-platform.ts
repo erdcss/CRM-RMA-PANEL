@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
 import { pool } from "./db";
+import {ensurePrivateProductSchema,parseAssignedCustomerId,approvedCustomerExists} from "./b2b-private-products";
 import { ensureB2BCustomerUsageSchema } from "./b2b-customer-insights";
 import { APPROVED_B2B_ORDER_SQL } from "./b2b-approved-order-filter";
 import {recordB2BLivePage,registerB2BLivePageDashboard} from "./b2b-live-page-presence";
@@ -275,7 +276,7 @@ async function ensureB2BProductSchema() {
   }
 
   await productSchemaReady;
-}
+  await ensurePrivateProductSchema();
 
 let dashboardSchemaReady: Promise<void> | null = null;
 
@@ -1454,6 +1455,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           tags,
           variants,
           is_active,
+          assigned_customer_id,
           created_at,
           updated_at
         FROM b2b_products
@@ -1478,7 +1480,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         `SELECT
            id, sku, name, brand, category, description, price, stock,
            min_order_qty, units_per_box, image_data, images, barcode,
-           collection_name, tags, features, variants, is_active, created_at, updated_at
+           collection_name, tags, features, variants, is_active, assigned_customer_id, created_at, updated_at
          FROM b2b_products
          WHERE id::text = $1
          LIMIT 1`,
@@ -1493,6 +1495,41 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
+  // Only active and approved B2B customer accounts can receive private stock.
+  app.get("/api/admin/b2b-product-recipients",requireAdmin,async(_req,res)=>{
+    res.setHeader("Cache-Control","private,no-store");
+    if(!pool)return res.status(503).json({error:"Veritabanına ulaşılamadı"});
+    try{
+      const result=await pool.query(
+        "SELECT id,company_name,email FROM users WHERE role='b2b_customer' AND is_active=1 AND application_status='approved' ORDER BY company_name NULLS LAST,email LIMIT 5000");
+      return res.json(result.rows);
+    }catch(error){
+      console.error("Private product recipients",error);
+      return res.status(500).json({error:"Firma listesi alınamadı"});
+    }
+  });
+
+  // Assign an existing SKU to ONE customer or reset visibility to public.
+  app.patch("/api/admin/b2b-products/:id/recipient",requireAdmin,async(req,res)=>{
+    if(!pool)return res.status(503).json({error:"Veritabanına ulaşılamadı"});
+    const assignment=parseAssignedCustomerId(req.body?.assignedCustomerId);
+    if(!assignment.ok)return res.status(400).json({error:"Geçerli bir firma seçin"});
+    try{
+      await ensureB2BProductSchema();
+      if(assignment.id!==null&&!await approvedCustomerExists(assignment.id))
+        return res.status(404).json({error:"Seçilen firma bulunamadı veya aktif değil"});
+      const result=await pool.query(
+        "UPDATE b2b_products SET assigned_customer_id=$2,updated_at=NOW() WHERE id::text=$1 RETURNING id,assigned_customer_id",
+        [String(req.params.id),assignment.id]);
+      if(!result.rows[0])return res.status(404).json({error:"Ürün bulunamadı"});
+      notifyMetaCatalogChange();
+      return res.json({ok:true,...result.rows[0]});
+    }catch(error){
+      console.error("Assign private B2B product",error);
+      return res.status(500).json({error:"Ürün görünürlüğü değiştirilemedi"});
+    }
+  });
+
   app.post("/api/admin/b2b-products", requireAdmin, async (req, res) => {
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
     try { await ensureB2BProductSchema(); } catch (error) {
@@ -1500,6 +1537,10 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       return res.status(500).json({ error: "Ürün veritabanı hazırlanamadı" });
     }
     const product = parseAdminProductPayload(req.body);
+    const assignment=parseAssignedCustomerId(req.body?.assignedCustomerId);
+    if(!assignment.ok)return res.status(400).json({error:"Geçerli bir firma seçin"});
+    if(assignment.id!==null&&!await approvedCustomerExists(assignment.id))
+      return res.status(404).json({error:"Seçilen firma bulunamadı veya aktif değil"});
 
     if (!product.sku || !product.name) {
       return res.status(400).json({ error: "Stok kodu ve ürün adı zorunludur" });
@@ -1516,9 +1557,9 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         `INSERT INTO b2b_products (
           sku, name, brand, category, description, price, stock,
           min_order_qty, units_per_box, image_data, images, barcode,
-          collection_name, tags, variants, is_active, updated_at
+          collection_name, tags, variants, assigned_customer_id, is_active, updated_at
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::text[],$15::jsonb,TRUE,NOW())
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14::text[],$15::jsonb,$16,TRUE,NOW())
         RETURNING *`,
         [
           product.sku,
@@ -1536,6 +1577,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           product.collectionName || null,
           product.tags,
           JSON.stringify(product.variants),
+          assignment.id,
         ],
       );
       notifyMetaCatalogChange();
@@ -1626,6 +1668,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             variants = EXCLUDED.variants,
             is_active = TRUE,
             updated_at = NOW()
+          WHERE b2b_products.assigned_customer_id IS NULL
           RETURNING id, sku, name`,
           [
             product.sku,
@@ -1644,6 +1687,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             JSON.stringify(product.variants),
           ],
         );
+        if(!result.rows[0])throw new Error("Özel firmaya atanmış stok kodu toplu aktarımda güncellenemez: "+product.sku);
         created.push(result.rows[0]);
       }
 
