@@ -32,6 +32,7 @@ export function resolveB2BNotificationLink(value:unknown):NotificationDestinatio
     '/urunler':'/(tabs)/products',
     '/kategoriler':'/(tabs)/menu',
     '/siparislerim':'/my-orders',
+    '/pazaryeri-sepetim':'/(tabs)/orders',
     '/hesabim':'/(tabs)/profile',
     '/hesabim/destek':'/account/support',
     '/reels':'/(tabs)/discover',
