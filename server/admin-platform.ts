@@ -511,10 +511,12 @@ async function detectedProductCategories(): Promise<string[]> {
   if (!pool) return [];
 
   try {
+    await ensurePrivateProductSchema();
     const result = await pool.query(
       `SELECT DISTINCT TRIM(category) AS category
        FROM b2b_products
        WHERE is_active = TRUE
+         AND assigned_customer_id IS NULL
          AND COALESCE(TRIM(category), '') <> ''
        ORDER BY TRIM(category) ASC
        LIMIT 50`,
@@ -1179,11 +1181,13 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/reels", async (_req, res) => {
     if (!pool) return res.json([]);
     try {
+      await ensurePrivateProductSchema();
       const result = await pool.query(
-        `SELECT id, title, video_url, thumbnail_url, product_id, sort_order, created_at
-         FROM b2b_reels
-         WHERE is_active = TRUE
-         ORDER BY sort_order ASC, created_at DESC`,
+        `SELECT r.id, r.title, r.video_url, r.thumbnail_url, r.product_id, r.sort_order, r.created_at
+         FROM b2b_reels r
+         LEFT JOIN b2b_products p ON p.id::text = r.product_id
+         WHERE r.is_active = TRUE AND p.assigned_customer_id IS NULL
+         ORDER BY r.sort_order ASC, r.created_at DESC`,
       );
 
       const rows = await Promise.all(
