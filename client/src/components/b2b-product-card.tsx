@@ -43,7 +43,7 @@ export function B2BProductCard({
             cannotOrder ? "opacity-50 grayscale-[40%]" : ""
           }`}>
             {image ? (
-              <img src={image} alt={product.name || "Ürün"} loading="lazy"
+              <img src={image} alt={product.name || "Ürün"} loading="lazy" decoding="async"
                 className={`h-full w-full object-contain p-2 transition-transform duration-200 sm:p-3 ${!cannotOrder ? "group-hover:scale-[1.02]" : ""}`} />
             ) : (
               <Package className="h-12 w-12 text-slate-300" />

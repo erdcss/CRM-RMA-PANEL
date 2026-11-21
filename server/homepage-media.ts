@@ -10,6 +10,58 @@ const LAYOUT_KEY = "b2b_home_layout";
 const imageDataPattern = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/s;
 const validId = /^[a-f0-9]{32}$/;
 
+// Image IDs are immutable (a new upload gets a new ID). Cache decoded bytes
+// in a bounded process-local LRU to avoid querying Postgres for every image
+// request, and coalesce identical concurrent requests.
+type MediaAsset = { mime: string; bytes: Buffer };
+const MAX_MEDIA_CACHE_BYTES = 32 * 1024 * 1024;
+const cachedMedia = new Map<string, MediaAsset>();
+const inFlightMedia = new Map<string, Promise<MediaAsset | null>>();
+let cachedMediaBytes = 0;
+
+function storeCachedMedia(id: string, value: MediaAsset) {
+  if (value.bytes.length > MAX_MEDIA_CACHE_BYTES) return;
+  const previous = cachedMedia.get(id);
+  if (previous) cachedMediaBytes -= previous.bytes.length;
+  cachedMedia.delete(id);
+  while (cachedMediaBytes + value.bytes.length > MAX_MEDIA_CACHE_BYTES) {
+    const oldest = cachedMedia.keys().next().value;
+    if (!oldest) break;
+    const entry = cachedMedia.get(oldest);
+    if (entry) cachedMediaBytes -= entry.bytes.length;
+    cachedMedia.delete(oldest);
+  }
+  cachedMedia.set(id, value);
+  cachedMediaBytes += value.bytes.length;
+}
+
+async function getCachedHomepageMedia(id: string): Promise<MediaAsset | null> {
+  const hit = cachedMedia.get(id);
+  if (hit) {
+    cachedMedia.delete(id);
+    cachedMedia.set(id, hit);
+    return hit;
+  }
+  const pending = inFlightMedia.get(id);
+  if (pending) return pending;
+  if (!pool) return null;
+  const read = (async () => {
+    const record = await pool.query("SELECT value FROM platform_settings WHERE key=$1", [MEDIA_PREFIX + id]);
+    const match = imageDataPattern.exec(String(record.rows[0]?.value || ""));
+    if (!match) return null;
+    const asset = { mime: match[1], bytes: Buffer.from(match[2], "base64") };
+    storeCachedMedia(id, asset);
+    return asset;
+  })();
+  inFlightMedia.set(id, read);
+  try {
+    return await read;
+  } finally {
+    inFlightMedia.delete(id);
+  }
+}
+
+
 function safeString(value: unknown, max = 180) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
@@ -312,6 +364,7 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
         `INSERT INTO platform_settings (key,value,updated_at) VALUES ($1,$2,NOW())`,
         [MEDIA_PREFIX + id, raw],
       );
+      storeCachedMedia(id, { mime, bytes });
       return res.status(201).json({ id, url: homepageImageUrl(id), imageWidth: dimensions.width, imageHeight: dimensions.height });
     } catch (err) {
       console.error("Homepage media upload failed:", err);
@@ -323,13 +376,12 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
     const id = String(req.params.id || "");
     if (!validId.test(id) || !pool) return res.status(404).end();
     try {
-      const record = await pool.query("SELECT value FROM platform_settings WHERE key=$1", [MEDIA_PREFIX + id]);
-      const match = imageDataPattern.exec(String(record.rows[0]?.value || ""));
-      if (!match) return res.status(404).end();
-      res.setHeader("Content-Type", match[1]);
+      const asset = await getCachedHomepageMedia(id);
+      if (!asset) return res.status(404).end();
+      res.setHeader("Content-Type", asset.mime);
       res.setHeader("X-Content-Type-Options", "nosniff");
-      res.setHeader("Cache-Control", "public, max-age=3600");
-      return res.send(Buffer.from(match[2], "base64"));
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return res.send(asset.bytes);
     } catch (err) {
       console.error("Homepage media load failed:", err);
       return res.status(500).end();

@@ -30,7 +30,7 @@ async function loadSession(): Promise<SessionUser | null> {
 }
 
 async function loadAvailableProducts(): Promise<UnifiedB2BProduct[]> {
-  const response = await fetch("/api/b2b/products", { credentials: "include" });
+  const response = await fetch("/api/b2b/products?compact=1", { credentials: "include" });
   if (!response.ok) throw new Error("Ürün listesi yüklenemedi");
   const products: unknown = await response.json();
   return Array.isArray(products) ? products as UnifiedB2BProduct[] : [];
@@ -83,11 +83,13 @@ export default function B2BProductPage() {
   const { data: ownProducts = [], isLoading: loadingOwn } = useQuery<UnifiedB2BProduct[]>({
     queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
     queryFn: loadAvailableProducts,
+    enabled: session !== undefined,
     staleTime: 30_000,
   });
   const { data: supplierProducts = [], isLoading: loadingSuppliers } = useQuery<UnifiedB2BProduct[]>({
     queryKey: ["/api/marketplace/products", loggedIn ? "member" : "guest"],
     queryFn: loadApprovedSupplierProducts,
+    enabled: session !== undefined,
     staleTime: 30_000,
   });
   const hasCampaign = loggedIn && product?.price != null && product.original_price != null && Number(product.original_price) > Number(product.price);

@@ -37,7 +37,7 @@ async function loadSession(): Promise<SessionUser | null> {
 }
 
 async function loadProducts(): Promise<UnifiedB2BProduct[]> {
-  const response = await fetch("/api/b2b/products", { credentials: "include" });
+  const response = await fetch("/api/b2b/products?compact=1", { credentials: "include" });
   if (!response.ok) return [];
   return response.json();
 }
@@ -65,11 +65,13 @@ export default function B2BStorefront() {
   const { data: ownProducts = [], isLoading: loadingOwn } = useQuery({
     queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
     queryFn: loadProducts,
+    enabled: session !== undefined,
     staleTime: 30_000,
   });
   const { data: supplierProducts = [], isLoading: loadingSuppliers } = useQuery({
     queryKey: ["/api/marketplace/products", loggedIn ? "member" : "guest"],
     queryFn: loadApprovedSupplierProducts,
+    enabled: session !== undefined,
     staleTime: 30_000,
   });
   const { data: verifiedStores = [] } = useQuery({

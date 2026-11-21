@@ -27,15 +27,15 @@ function useB2BCategoryData(){
   const {data:ownProducts=[],isLoading:ownLoading,isError:ownError}=useQuery<UnifiedB2BProduct[]>({
     queryKey:["/api/b2b/products",loggedIn?"member":"guest"],
     queryFn:async()=>{
-      const response=await fetch("/api/b2b/products",{credentials:"include"});
+      const response=await fetch("/api/b2b/products?compact=1",{credentials:"include"});
       if(!response.ok)throw new Error("Ürün kataloğu alınamadı");
       const data=await response.json();
       return Array.isArray(data)?data:[];
-    },staleTime:30000
+    },enabled:session!==undefined,staleTime:30000
   });
   const {data:supplierProducts=[],isLoading:supplierLoading,isError:supplierError}=useQuery<UnifiedB2BProduct[]>({
     queryKey:["/api/marketplace/products",loggedIn?"member":"guest"],
-    queryFn:loadApprovedSupplierProducts,staleTime:30000
+    queryFn:loadApprovedSupplierProducts,enabled:session!==undefined,staleTime:30000
   });
   const products=useMemo(()=>[...supplierProducts,...ownProducts],[supplierProducts,ownProducts]);
   return {homepage,loggedIn,products,isLoading:ownLoading||supplierLoading,hasLoadError:ownError&&supplierError};
