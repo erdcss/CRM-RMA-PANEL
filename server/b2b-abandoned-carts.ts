@@ -4,10 +4,11 @@ import {z} from "zod";
 import {pool} from "./db";
 import {ensureB2BNotificationTables} from "./b2b-notification-center";
 import {sendPushToUsers} from "./push-notifications";
+import {cartReminderDue,CART_REMINDER_DELAY_MS} from "./b2b-cart-reminder-rules";
 
 // Every customer has one cart cycle across web, mobile and marketplace.
 // A reminder is allowed once per cycle, four hours after the LAST change.
-const FOUR_HOURS_MS=4*60*60*1000;
+
 const snapshotSchema=z.object({
   source:z.enum(["web","mobile"]),
   items:z.array(z.object({
@@ -24,15 +25,6 @@ let workerBusy=false;
 function money(value:unknown):number{
   const n=Number(value);
   return Number.isFinite(n)&&n>=0?Math.round(n*100)/100:0;
-}
-export function cartReminderDue(input:{
-  lastActivityAt:string|Date;now:string|Date;remindedAt:string|Date|null;
-  itemCount:number;
-}):boolean{
-  const now=new Date(input.now).getTime(),last=new Date(input.lastActivityAt).getTime();
-  return input.itemCount>0&&!input.remindedAt
-    &&Number.isFinite(now)&&Number.isFinite(last)
-    &&now-last>=FOUR_HOURS_MS;
 }
 export async function ensureB2BCartTracking(){
   if(!pool)throw Error("PostgreSQL bağlantısı bulunamadı");
@@ -157,7 +149,7 @@ export function registerB2BAbandonedCartRoutes(
           reminderNotificationId:row.reminder_notification_id,
           itemCount:items.length,boxCount:items.reduce((n,i)=>n+i.quantity,0),
           estimatedTotal:money(total),
-          remindAt:new Date(new Date(row.last_activity_at).getTime()+FOUR_HOURS_MS).toISOString(),
+          remindAt:new Date(new Date(row.last_activity_at).getTime()+CART_REMINDER_DELAY_MS).toISOString(),
           items};
       });
       return res.json({carts,customerCount:carts.length,totalItems:carts.reduce((n,c)=>n+c.itemCount,0),
