@@ -1,6 +1,7 @@
 import type {Express, Request, RequestHandler} from "express";
 import {createHmac, timingSafeEqual} from "node:crypto";
 import {pool} from "./db";
+import {applyApprovalWhatsAppWebhook} from "./b2b-approval-whatsapp";
 
 // Separate, explicit marketing consent. Legacy service-support opt-ins are NEVER imported.
 const CONSENT_NOTICE="Çalışkan B2B tarafından WhatsApp üzerinden başvuru sonrası tanıtım, yeni ürün, indirim ve kampanya mesajları almayı kabul ediyorum. İzin isteğe bağlıdır; DUR yazarak iptal edebilirim.";
@@ -182,6 +183,7 @@ export function registerMarketingRoutes(app:Express,requireAdmin:RequestHandler)
           const from=phone(msg.from);
           const message=String(msg.text?.body||msg.button?.text||msg.interactive?.button_reply?.title||"").trim();
           if(from&&/^(DUR|STOP|IPTAL|İPTAL|UNSUBSCRIBE)$/iu.test(message)){
+            await applyApprovalWhatsAppWebhook(from,null,null);
             await pool!.query([
               "UPDATE b2b_wa_marketing_consent c SET opted_in=FALSE,agreed_at=NULL,updated_at=now()",
               "FROM users u WHERE u.id=c.user_id AND regexp_replace(coalesce(u.phone,''),'[^0-9]','','g')=$1"
@@ -192,6 +194,7 @@ export function registerMarketingRoutes(app:Express,requireAdmin:RequestHandler)
           const wamid=String(st.id||"");
           const status=String(st.status||"");
           if(wamid&&["sent","delivered","read","failed"].includes(status)){
+            await applyApprovalWhatsAppWebhook(null,wamid,status);
             await pool!.query([
               "UPDATE b2b_wa_marketing_deliveries SET status=$2,updated_at=now(),",
               "error_code=CASE WHEN $2='failed' THEN 'meta_delivery_failed' ELSE error_code END",
