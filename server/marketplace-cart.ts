@@ -2,6 +2,7 @@
 import type { Express, RequestHandler } from "express";
 import type { PoolClient } from "pg";
 import { pool } from "./db";
+import {syncMarketplaceCartTracking} from "./b2b-abandoned-carts";
 import { ensureMarketplaceSchema } from "./marketplace";
 import { supplierOrderView } from "./supplier-privacy";
 import { generateSupplierOrderPdf } from "./supplier-order-pdf";
@@ -211,13 +212,16 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
       VALUES($1,$2,$3,$4) ON CONFLICT(buyer_user_id,product_id)
       DO UPDATE SET boxes=EXCLUDED.boxes,delivery_mode=EXCLUDED.delivery_mode,updated_at=NOW() RETURNING id`,
       [uid,parsed.data.productId,parsed.data.boxes,parsed.data.deliveryMode]);
+    await syncMarketplaceCartTracking(uid).catch(error=>console.error("Marketplace cart tracking add",error));
     res.json(result.rows[0]);
   }catch(e){console.error("Cart add:",e);res.status(500).json({error:"Sepete eklenemedi"});}
  });
  app.delete("/api/marketplace/cart/:id",requireB2B,async(req,res)=>{
   const line=Number(req.params.id);
   if(!Number.isSafeInteger(line)||line<1)return res.status(400).json({error:"Geçersiz sepet satırı"});
-  try{const db=await ready();await db.query("DELETE FROM mp_cart_lines WHERE id=$1 AND buyer_user_id=$2",[line,Number((res.locals as any).b2bUser.id)]);
+  try{const db=await ready();const uid=Number((res.locals as any).b2bUser.id);
+    await db.query("DELETE FROM mp_cart_lines WHERE id=$1 AND buyer_user_id=$2",[line,uid]);
+    await syncMarketplaceCartTracking(uid).catch(error=>console.error("Marketplace cart tracking remove",error));
     res.json({ok:true});}catch(e){res.status(500).json({error:"Sepetten silinemedi"});}
  });
  // Drafts are NOT paid orders; no payment, invoice, stock deduction, or shipping may be triggered from this endpoint.
@@ -308,6 +312,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    }
    await client.query("DELETE FROM mp_cart_lines WHERE buyer_user_id=$1",[uid]);
    await client.query("COMMIT");
+   await syncMarketplaceCartTracking(uid).catch(error=>console.error("Marketplace cart tracking checkout",error));
    return res.status(201).json({...order.rows[0],paymentStatus:"unpaid",paymentEnabled:false,
     message:"Siparişiniz oluşturuldu. Tedarikçi onayı bekleniyor; henüz ödeme alınmadı."});
   }catch(e){
@@ -367,6 +372,7 @@ export function registerMarketplaceCartRoutes(app:Express,requireB2B:RequestHand
    }
    await client.query("DELETE FROM mp_cart_lines WHERE buyer_user_id=$1 AND product_id=ANY($2::bigint[])",[uid,chosen.map(x=>x.productId)]);
    await client.query("COMMIT");
+   await syncMarketplaceCartTracking(uid).catch(error=>console.error("Marketplace cart tracking checkout",error));
    return res.status(201).json({...order.rows[0],paymentStatus:"unpaid",paymentEnabled:false,
     message:"Siparişiniz oluşturuldu. Tedarikçi onayı bekleniyor; henüz ödeme alınmadı."});
   }catch(e){

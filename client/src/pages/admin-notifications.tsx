@@ -49,6 +49,7 @@ function turkeyNowInput(){return turkeyInput(new Date());}
 const titles:Record<string,string>={
   membership_approved:"Üyelik onayı",
   order_created:"Sipariş oluşturuldu",
+  cart_reminder:"Sepette unutulan ürünler (4 saat)",
   return_approved:"İade onaylandı",
   invoice_issued:"Fatura kesildi",
 };

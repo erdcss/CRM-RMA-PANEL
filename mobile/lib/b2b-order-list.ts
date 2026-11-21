@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { rmaApi, absoluteMediaUrl } from '@/lib/api';
+import { localAuth } from '@/lib/supabase';
 
 const KEY = 'caliskan_b2b_order_list_v1';
+const TRACK_OWNER_KEY='caliskan_b2b_order_list_tracking_owner';
 
 export type B2BOrderListItem = {
   productId: string;
@@ -62,9 +64,30 @@ export async function getOrderList(): Promise<B2BOrderListItem[]> {
   }
 }
 
+async function syncMobileCart(items:B2BOrderListItem[]){
+  // App installations may be shared: do not upload the last user's old local
+  // cart into a different customer's corporate profile.
+  const {token,userId}=await localAuth.getRequestCredentials();
+  if(!token||!userId)return;
+  const owner=await AsyncStorage.getItem(TRACK_OWNER_KEY);
+  if(owner&&owner!==userId&&items.length>0)return;
+  if(!owner||items.length===0)await AsyncStorage.setItem(TRACK_OWNER_KEY,userId);
+  await rmaApi.syncB2BCartTracking(items
+    .filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-'))
+    .map(item=>({productId:item.productId,quantity:item.boxQuantity})));
+}
+let mobileCartSyncQueue=Promise.resolve();
+function queueMobileCartSync(items:B2BOrderListItem[]){
+  // Serialize quick quantity edits and removals so older requests cannot
+  // finish later and restore an already cleared customer basket.
+  mobileCartSyncQueue=mobileCartSyncQueue.catch(()=>undefined).then(()=>syncMobileCart(items));
+  void mobileCartSyncQueue.catch(error=>console.warn('B2B cart tracking sync failed',error));
+}
 async function save(items: B2BOrderListItem[]) {
   await AsyncStorage.setItem(KEY, JSON.stringify(items));
   emit();
+  // Only own-store items: supplier cart is already tracked by the server.
+  queueMobileCartSync(items);
   return items;
 }
 
@@ -128,6 +151,7 @@ export async function removeFromOrderList(productId: string) {
 export async function clearOrderList() {
   await AsyncStorage.removeItem(KEY);
   emit();
+  queueMobileCartSync([]);
 }
 
 export function orderListItemUnits(item: B2BOrderListItem) {

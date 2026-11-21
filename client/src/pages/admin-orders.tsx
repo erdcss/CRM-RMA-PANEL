@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "wouter";
-import { ChevronRight, ShoppingCart } from "lucide-react";
+import { ChevronRight, Clock3, ShoppingCart } from "lucide-react";
+import AdminPendingCarts from "@/components/admin-pending-carts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -52,6 +54,7 @@ function deliveryLabel(method?: string | null) {
   }
 }
 export default function AdminOrders() {
+  const [section,setSection]=useState<"orders"|"pending">(()=>typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("tab")==="pending"?"pending":"orders");
   const { data = [], isLoading, isError, refetch } = useQuery<Order[]>({
     queryKey: ["/api/admin/orders"],
     queryFn: loadOrders,
@@ -68,7 +71,13 @@ export default function AdminOrders() {
         </div>
         <Button variant="outline" size="sm" onClick={() => void refetch()}>Yenile</Button>
       </div>
-      <div className="overflow-hidden rounded-2xl border bg-background">
+      <div className="mb-5 flex flex-wrap gap-2" role="tablist" aria-label="Sipariş ekranı bölümleri">
+        <Button role="tab" aria-selected={section==="orders"} variant={section==="orders"?"default":"outline"}
+          onClick={()=>setSection("orders")}><ShoppingCart className="mr-2 h-4 w-4"/>Verilen Siparişler</Button>
+        <Button role="tab" aria-selected={section==="pending"} variant={section==="pending"?"default":"outline"}
+          onClick={()=>setSection("pending")}><Clock3 className="mr-2 h-4 w-4"/>Sepette Bekleyen Ürünler</Button>
+      </div>
+      {section==="pending"?<AdminPendingCarts/>:<div className="overflow-hidden rounded-2xl border bg-background">
         {isLoading ? <div className="p-8 text-sm text-muted-foreground">Siparişler yükleniyor…</div>
         : isError ? <div className="p-8 text-sm text-destructive">Siparişler yüklenemedi. Yeniden deneyin.</div>
         : data.length === 0 ? <div className="p-10 text-center text-sm text-muted-foreground">Görüntülenecek sipariş bulunmuyor.</div>
@@ -105,7 +114,7 @@ export default function AdminOrders() {
               </Link>
             ))}
           </div>}
-      </div>
+      </div>}
     </div>
   </div>;
 }
