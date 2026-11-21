@@ -51,7 +51,7 @@ export async function getOrderList(): Promise<B2BOrderListItem[]> {
       :[]
   );
   const verified=local.filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-')&&visibleIds.has(item.productId));
-  if(verified.length!==local.length){
+  if(catalogResult.status==='fulfilled'&&verified.length!==local.length){
     await AsyncStorage.setItem(KEY,JSON.stringify(verified)).catch(()=>undefined);
     queueMobileCartSync(verified);
   }
