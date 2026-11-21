@@ -2,6 +2,7 @@ import type {Express,RequestHandler} from "express";
 import {randomUUID} from "node:crypto";
 import {z} from "zod";
 import {pool} from "./db";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import {ensureB2BNotificationTables} from "./b2b-notification-center";
 import {sendPushToUsers} from "./push-notifications";
 import {cartReminderDue,CART_REMINDER_DELAY_MS} from "./b2b-cart-reminder-rules";
@@ -63,8 +64,9 @@ async function upsertCart(userId:number,source:Source,items:Line[]){
     "WHERE c."+col+" IS DISTINCT FROM EXCLUDED."+col
   ].join(" ").replace("ON CONFLICT(user_id) DO UPDATE SET","ON CONFLICT(user_id) DO UPDATE SET"),[userId,JSON.stringify(items),randomUUID()]);
 }
-async function hydrateOwnProducts(source:"web"|"mobile",raw:z.infer<typeof snapshotSchema>["items"]):Promise<Line[]>{
+async function hydrateOwnProducts(source:"web"|"mobile",raw:z.infer<typeof snapshotSchema>["items"],customerId:number):Promise<Line[]>{
   if(!pool||!raw.length)return [];
+  await ensurePrivateProductSchema();
   const requested=new Map<string,number>();
   for(const row of raw){
     const id=String(row.productId).trim();
@@ -74,8 +76,8 @@ async function hydrateOwnProducts(source:"web"|"mobile",raw:z.infer<typeof snaps
   if(!requested.size)return [];
   const result=await pool.query([
     "SELECT id,sku,name,price,campaign_price,units_per_box FROM b2b_products",
-    "WHERE id::text=ANY($1::text[]) AND is_active=TRUE"
-  ].join(" "),[[...requested.keys()]]);
+    "WHERE id::text=ANY($1::text[]) AND is_active=TRUE AND (assigned_customer_id IS NULL OR assigned_customer_id=$2)"
+  ].join(" "),[[...requested.keys()],customerId]);
   return result.rows.map(row=>{
     const productId=String(row.id),quantity=requested.get(productId)||1;
     const unitsPerBox=Math.max(1,Number(row.units_per_box)||1);
@@ -117,7 +119,7 @@ export function registerB2BAbandonedCartRoutes(
     if(user?.role!=="b2b_customer"||Number(user?.isActive??user?.is_active)!==1)
       return res.status(403).json({error:"Yalnızca aktif B2B müşterileri"});
     try{
-      const items=await hydrateOwnProducts(parsed.data.source,parsed.data.items);
+      const items=await hydrateOwnProducts(parsed.data.source,parsed.data.items,Number(user.id));
       await upsertCart(Number(user.id),parsed.data.source,items);
       return res.json({ok:true,items:items.length});
     }catch(error){
