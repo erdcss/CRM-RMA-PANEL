@@ -5,7 +5,7 @@ import {
   ArrowLeft,ArrowUpRight,Building2,CalendarDays,CheckCircle2,ClipboardList,
   CreditCard,FileText,Headphones,Home,Mail,MapPin,Package,ReceiptText,
   RefreshCw,ShieldCheck,UserRound,WalletCards,RotateCcw,Clock3,
-  Activity,AlertCircle,ChevronLeft,ChevronRight
+  Activity,AlertCircle,ChevronLeft,ChevronRight,Copy,MessageCircle
 } from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
@@ -116,6 +116,29 @@ function ItemList({items,kind,limit=100}:{items:Item[];kind:string;limit?:number
     </div>:null}
   </div>;
 }
+const approvalMessageFor=(customer:B2BProfile)=>{
+  const company=(customer.companyName||"Değerli iş ortağımız").trim();
+  const email=(customer.email||customer.username||"").trim();
+  const intro=[
+    `Merhaba ${company},`,
+    "",
+    "Çalışkan B2B'ye yapmış olduğunuz firma üyelik başvurunuz başarıyla onaylanmıştır.",
+    "",
+  ];
+  const access=customer.mustChangePassword
+    ?[`Hesabınıza ilk girişte kullanacağınız tek kullanımlık şifreniz, kayıtlı ${email} e-posta adresinize gönderilmiştir.`,
+      "", "E-posta adresinizi kontrol ederek hesabınıza giriş yapabilir ve şifrenizi oluşturabilirsiniz."]
+    :["Çalışkan B2B hesabınız aktiftir. Kayıtlı e-posta adresinizle mevcut şifrenizi kullanarak giriş yapabilirsiniz."];
+  return [...intro,...access,"","Çalışkan B2B ailesine hoş geldiniz!","","Çalışkan B2B Ekibi","https://b2b.ecalisgan.com"].join("\n");
+};
+const whatsappNumberFor=(phone?:string|null)=>{
+  const digits=String(phone||"").replace(/\D/g,"");
+  const international=digits.startsWith("00")?digits.slice(2)
+    :digits.startsWith("0")&&digits.length===11?"90"+digits.slice(1)
+    :digits.length===10?"90"+digits:digits;
+  return /^\d{11,15}$/.test(international)?international:null;
+};
+
 export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string;source?:"application"|"customer"}){
   const [,navigate]=useLocation();
   const {toast}=useToast();
@@ -212,6 +235,27 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
   const stats=data?.stats;
   const fullName=useMemo(()=>[customer?.firstName,customer?.lastName].filter(Boolean).join(" "),[customer]);
   const back=source==="application"?"/basvurular":"/b2b-musteriler";
+  const approvalReady=customer?.applicationStatus==="approved"&&customer.isActive
+    &&Boolean(customer.credentialsSentAt)&&Boolean(customer.email);
+  const approvalMessage=customer?approvalMessageFor(customer):"";
+  const whatsappNumber=whatsappNumberFor(customer?.phone);
+  const copyApprovalMessage=async()=>{
+    if(!approvalReady)return;
+    try{
+      if(navigator.clipboard?.writeText){
+        await navigator.clipboard.writeText(approvalMessage);
+      }else{
+        const field=document.getElementById("b2b-approval-message") as HTMLTextAreaElement|null;
+        if(!field)throw Error("Metin alanı bulunamadı");
+        field.focus();
+        field.select();
+        if(!document.execCommand("copy"))throw Error("Kopyalama engellendi");
+      }
+      toast({title:"Onay mesajı kopyalandı",description:"Müşterinize gönderebilirsiniz."});
+    }catch{
+      toast({title:"Mesaj kopyalanamadı",description:"Metni kutudan seçerek kopyalayabilirsiniz.",variant:"destructive"});
+    }
+  };
   if(isLoading)return <div className="p-8 text-muted-foreground">Firma bilgileri yükleniyor…</div>;
   if(isError||!data||!customer)return <div className="p-8"><div className="font-semibold text-destructive">
     {(error as Error)?.message||"Firma bulunamadı"}</div><Link href={back} className="mt-4 inline-block text-primary underline">Listeye dön</Link></div>;
@@ -266,6 +310,33 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
           </div>
         </div>
       </div>
+
+      {approvalReady?<section className="rounded-2xl border bg-background p-4 shadow-sm sm:p-5" aria-label="Firma onay mesajı">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold">Firma Onay Mesajı</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {customer.mustChangePassword
+                ?`Geçici şifre e-postası gönderim kaydı: ${trDate(customer.credentialsSentAt)}`
+                :"Müşteri ilk giriş şifresini belirlemiş; mesajda geçici şifre iddiası yer almaz."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={()=>void copyApprovalMessage()}>
+              <Copy className="mr-2 h-4 w-4"/>Onay Mesajını Kopyala
+            </Button>
+            {whatsappNumber?<Button size="sm" variant="outline"
+              onClick={()=>window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(approvalMessage)}`,"_blank","noopener,noreferrer")}>
+              <MessageCircle className="mr-2 h-4 w-4"/>WhatsApp'tan Gönder
+            </Button>:null}
+          </div>
+        </div>
+        <Textarea id="b2b-approval-message" aria-label="Kopyalanabilir firma onay mesajı"
+          className="mt-4 min-h-56 resize-y bg-muted/15 text-sm leading-6" readOnly value={approvalMessage}/>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Firma adı ve kayıtlı e-posta otomatik doldurulur. WhatsApp seçeneği mesajı açar; gönderim müşteriye onay verdiğinizde yapılır.
+        </p>
+      </section>:null}
 
       <Dialog open={rejectOpen} onOpenChange={open=>{if(!action.isPending)setRejectOpen(open);}}>
         <DialogContent className="max-w-lg">
