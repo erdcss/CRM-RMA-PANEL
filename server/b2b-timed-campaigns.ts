@@ -1,5 +1,6 @@
 import type { Express, RequestHandler } from "express";
 import { pool } from "./db";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 
 // A single campaign price source is shared by the catalog, product detail and checkout.
 // The timed offer only wins when it is cheaper than the product's existing effective price.
@@ -159,13 +160,14 @@ export async function registerB2BTimedCampaignRoutes(app: Express, requireAdmin:
     if (!pool) return res.json([]);
     try {
       await ensureB2BTimedCampaignSchema();
+      await ensurePrivateProductSchema();
       const rows = await pool.query(`
         SELECT c.id::text AS id,c.title,c.starts_at,c.ends_at,
           ARRAY_AGG(ci.product_id::text ORDER BY ci.sort_order,ci.product_id) AS product_ids
         FROM b2b_timed_campaigns c
         JOIN b2b_timed_campaign_items ci ON ci.campaign_id=c.id
         JOIN b2b_products p ON p.id=ci.product_id
-          AND p.is_active IS DISTINCT FROM FALSE
+          AND p.is_active IS DISTINCT FROM FALSE AND p.assigned_customer_id IS NULL
         WHERE c.is_active = TRUE AND c.starts_at <= NOW() AND c.ends_at > NOW()
           AND ci.promo_price < COALESCE(
             CASE WHEN p.campaign_price > 0 AND p.campaign_price < p.price
