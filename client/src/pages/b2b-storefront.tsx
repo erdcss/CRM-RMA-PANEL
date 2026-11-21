@@ -16,6 +16,7 @@ import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
 import { B2BTimedOffer } from "@/components/b2b-timed-offer";
 
 type SessionUser = {
+  id?: number;
   role?: string;
   isActive?: boolean;
 };
@@ -63,7 +64,7 @@ export default function B2BStorefront() {
     session?.isActive === true;
 
   const { data: ownProducts = [], isLoading: loadingOwn } = useQuery({
-    queryKey: ["/api/b2b/products", loggedIn ? "member" : "guest"],
+    queryKey: ["/api/b2b/products", loggedIn ? session?.id : "guest"],
     queryFn: loadProducts,
     enabled: session !== undefined,
     staleTime: 30_000,
