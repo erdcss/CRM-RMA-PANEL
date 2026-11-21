@@ -1,0 +1,35 @@
+name: Business mobile stability checks
+on:
+  pull_request:
+    paths:
+      - 'business-mobile/**'
+      - '.github/workflows/business-mobile-stability-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'business-mobile/**'
+      - '.github/workflows/business-mobile-stability-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: Business mobile typecheck and export
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - name: Install dependencies
+        working-directory: business-mobile
+        run: npm ci --ignore-scripts
+      - name: Typecheck
+        working-directory: business-mobile
+        run: npx tsc --noEmit --project tsconfig.json
+      - name: Export web bundle
+        working-directory: business-mobile
+        run: npm run build
