@@ -220,7 +220,7 @@ export async function processB2BCartReminders(now=new Date()){
         const dedupeKey="cart_reminder:"+cart.cycle_id;
         const inserted=await client.query([
           "INSERT INTO b2b_notifications(user_id,title,body,source,event_key,dedupe_key,target_path)",
-          "VALUES($1,$2,$3,'automatic','cart_reminder',$4,'/siparislerim')",
+          "VALUES($1,$2,$3,'automatic','cart_reminder',$4,'/pazaryeri-sepetim')",
           "ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING RETURNING id"
         ].join(" "),[cart.user_id,title,body,dedupeKey]);
         await client.query([
@@ -239,7 +239,7 @@ export async function processB2BCartReminders(now=new Date()){
       const accepted=await sendPushToUsers([notice.userId],{
         title:notice.title,body:notice.body,
         data:{type:"cart_reminder",eventKey:"cart_reminder",
-          targetPath:"/siparislerim",notificationId:notice.notificationId}
+          targetPath:"/pazaryeri-sepetim",notificationId:notice.notificationId}
       }).catch(error=>{
         console.error("Cart reminder push",error);
         return {sent:0,tokenCount:0};
