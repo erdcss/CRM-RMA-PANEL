@@ -59,7 +59,7 @@ async function upsertCart(userId:number,source:Source,items:Line[]){
   const wasEmpty="jsonb_array_length(c.web_items)=0 AND jsonb_array_length(c.mobile_items)=0 AND jsonb_array_length(c.marketplace_items)=0";
   const startedNewCycle="("+wasEmpty+" AND jsonb_array_length(EXCLUDED."+col+")>0)";
   await pool.query([
-    "INSERT INTO b2b_customer_carts(user_id,"+col+",cycle_id)",
+    "INSERT INTO b2b_customer_carts AS c(user_id,"+col+",cycle_id)",
     "VALUES($1,$2::jsonb,$3::uuid)",
     "ON CONFLICT(user_id) DO UPDATE SET",
     col+"=EXCLUDED."+col+",",
