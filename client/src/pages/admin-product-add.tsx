@@ -1,6 +1,7 @@
 import { FormEvent, useState, type ReactNode } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Barcode, ImagePlus, PackagePlus, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Barcode, ImagePlus, LockKeyhole, PackagePlus, Plus, Trash2 } from "lucide-react";
+import AdminPrivateProductCustomerSelect from "@/components/admin-private-product-customer-select";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,8 @@ export default function AdminProductAdd() {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [privateMode,setPrivateMode]=useState(()=>typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("private")==="1");
+  const [assignedCustomerId,setAssignedCustomerId]=useState<number|null>(null);
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -87,6 +90,10 @@ export default function AdminProductAdd() {
   async function submit(event: FormEvent) {
     event.preventDefault();
 
+    if (privateMode&&!assignedCustomerId){
+      toast({title:"Firma seçilmedi",description:"Özel ürünü eklemek için onaylı bir firma seçin.",variant:"destructive"});
+      return;
+    }
     if (form.images.length === 0) {
       toast({
         title: "Ürün görseli zorunlu",
@@ -100,6 +107,7 @@ export default function AdminProductAdd() {
     try {
       await apiRequest("POST", "/api/admin/b2b-products", {
         ...form,
+        assignedCustomerId:privateMode?assignedCustomerId:null,
         tags: form.tags.split(",").map(tag => tag.trim()).filter(Boolean),
         price: Number(form.price || 0),
         stock: Number(form.stock || 0),
@@ -113,7 +121,7 @@ export default function AdminProductAdd() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ["/api/admin/b2b-products"] });
-      toast({ title: "Ürün eklendi", description: "Ürün B2B kataloğuna kaydedildi." });
+      toast({ title: "Ürün eklendi", description: privateMode?"Ürün yalnızca seçtiğiniz firmanın kataloğuna atandı.":"Ürün B2B kataloğuna kaydedildi." });
       setForm({ ...emptyForm, images: [], variants: [] });
     } catch (error) {
       toast({
@@ -139,11 +147,28 @@ export default function AdminProductAdd() {
           </span>
           <div>
             <h1 className="text-2xl font-black tracking-tight">Ürün Ekle</h1>
-            <p className="text-sm text-muted-foreground">B2B mağaza kataloğuna yeni ürün oluşturun.</p>
+            <p className="text-sm text-muted-foreground">{privateMode?"Yalnızca seçilen firmanın görebileceği özel ürün oluşturun.":"B2B mağaza kataloğuna yeni ürün oluşturun."}</p>
           </div>
         </div>
 
         <form onSubmit={submit} className="space-y-5">
+          <section className="rounded-2xl border bg-background p-5 shadow-sm sm:p-7">
+            <div className="mb-4 flex items-center gap-2 font-bold"><LockKeyhole className="h-4 w-4"/>Ürün Görünürlüğü</div>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <label className="inline-flex cursor-pointer items-center gap-2">
+                <input type="radio" checked={!privateMode} onChange={()=>{setPrivateMode(false);setAssignedCustomerId(null);}}/>
+                Genel katalog · Tüm firmalar
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-2">
+                <input type="radio" checked={privateMode} onChange={()=>setPrivateMode(true)}/>
+                Firmaya Özel Ürün
+              </label>
+            </div>
+            {privateMode?<div className="mt-4 max-w-xl space-y-2">
+              <Label>Ürünün atanacağı firma *</Label>
+              <AdminPrivateProductCustomerSelect value={assignedCustomerId} onChange={setAssignedCustomerId}/>
+            </div>:null}
+          </section>
           <section className="rounded-2xl border bg-background p-5 shadow-sm sm:p-7">
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Stok kodu *">
