@@ -3790,7 +3790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!match) return res.status(404).end();
 
       res.setHeader("Content-Type", match[1]);
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
       return res.send(Buffer.from(match[2], "base64"));
     } catch (error) {
       console.error("B2B product image load failed:", error);
@@ -3815,10 +3815,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       await mobileCatalogTagSchema;
       const priceVisible = await canViewB2BPrices(req);
-      const mobile = req.query.mobile === "1";
-      // Compact payload omits raw base64 pictures and all but the first gallery
-      // image. The unmodified endpoint stays compatible with existing web clients.
-      const imagesSql = mobile
+      const compact = req.query.mobile === "1" || req.query.compact === "1";
+      // Web catalog grids need only a thumbnail; keep the full gallery in the
+      // single-product endpoint. Avoid sending megabytes of base64 to browsers.
+      // Keep the default legacy response unchanged for existing consumers.
+      const imagesSql = compact
         ? `
           CASE
             WHEN image_data LIKE 'data:image/%' THEN
