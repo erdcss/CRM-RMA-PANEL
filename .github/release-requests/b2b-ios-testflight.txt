@@ -1,6 +1,6 @@
 ÇALIŞKAN B2B / iOS → Codemagic TestFlight build request
 Komut: Çalışkan B2B TESTFLIGHT al
-İstek numarası: 5
+İstek numarası: 6
 Tarih: 2026-11-20 19:18 (Europe/Istanbul)
 GitHub branch: main
 Kaynak commit (kampanya sistemi dahil): 166680f82dfe5eeeb4ca1f855ca328f409a24918
@@ -13,3 +13,5 @@ Bu istek yalnızca Çalışkan B2B içindir; MAYK ve Business derlenmeyecek.
 App Store üretim yayını veya harici beta incelemesi otomatik başlatılmayacak.
 Expo EAS kullanılmayacak; Codemagic push changeset tetiklemesi.
 Bu dosya 2026-11-20 tarihli açık kullanıcı TestFlight komutuyla güncellendi.
+
+Yeni TestFlight istegi: 2026-11-21 15:43:19 - No: 6
