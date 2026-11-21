@@ -65,6 +65,11 @@ export async function getOrderList(): Promise<B2BOrderListItem[]> {
 async function save(items: B2BOrderListItem[]) {
   await AsyncStorage.setItem(KEY, JSON.stringify(items));
   emit();
+  // Only own-store items: supplier cart is already tracked by the server.
+  void rmaApi.syncB2BCartTracking(items
+    .filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-'))
+    .map(item=>({productId:item.productId,quantity:item.boxQuantity})))
+    .catch(error=>console.warn('B2B cart tracking sync failed',error));
   return items;
 }
 
@@ -128,6 +133,8 @@ export async function removeFromOrderList(productId: string) {
 export async function clearOrderList() {
   await AsyncStorage.removeItem(KEY);
   emit();
+  void rmaApi.syncB2BCartTracking([])
+    .catch(error=>console.warn('B2B cart tracking clear failed',error));
 }
 
 export function orderListItemUnits(item: B2BOrderListItem) {
