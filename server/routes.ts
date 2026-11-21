@@ -46,6 +46,7 @@ import { registerB2BCustomerInsights } from "./b2b-customer-insights";
 import { registerB2BLedgerImportRoutes } from "./b2b-ledger-import";
 import { registerB2BLedgerAdvancedRoutes } from "./b2b-ledger-advanced";
 import {registerMarketingRoutes,saveMarketingConsent,queueMarketingWelcome,startMarketingWorker} from "./b2b-whatsapp-marketing";
+import {saveApprovalWhatsAppConsent,queueApprovalWhatsApp,startApprovalWhatsAppWorker,registerApprovalWhatsAppRoutes} from "./b2b-approval-whatsapp";
 import { registerMarketplaceRoutes, ensureMarketplaceSchema } from "./marketplace";
 import { registerMetaCatalogFeed } from "./meta-catalog";
 import { registerMetaCatalogAdmin } from "./meta-catalog-sync";
@@ -1747,6 +1748,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await ensureB2BAccountTables();
       await ensureMobilePushTable();
       startMarketingWorker();
+      startApprovalWhatsAppWorker();
       startB2BStockAlertWorker();
     })
     .catch(err => console.error("DB/B2B account init error:", err));
@@ -1775,6 +1777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerMarketingRoutes(app,requireAdmin);
+  registerApprovalWhatsAppRoutes(app,requireAdmin);
 
   // Fail closed: a newly approved B2B customer may hold a login cookie or
   // mobile bearer token, but cannot use ANY authenticated API before choosing
@@ -2576,6 +2579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const phoneDigits = rawPhone.replace(/\D/g, "").replace(/^90(?=5\d{9}$)/, "").replace(/^0(?=5\d{9}$)/, "");
     const phone = /^5\d{9}$/.test(phoneDigits) ? "+90" + phoneDigits : "";
     const whatsAppConsent=req.body?.whatsappMarketingOptIn===true;
+    const whatsAppApprovalOptIn=req.body?.whatsappApprovalOptIn===true;
     const whatsAppSource=req.body?.whatsappSignupSource==="mobile"?"mobile_signup":"web_signup";
     const taxNumber = typeof req.body?.taxNumber === "string" ? req.body.taxNumber.replace(/\D/g, "").slice(0, 10) : "";
 
@@ -2653,6 +2657,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource);
           marketingConsentSaved=true;
         } catch(error) { console.error("Marketing reapplication consent save failed",error); }
+        await saveApprovalWhatsAppConsent(user.id,whatsAppApprovalOptIn,whatsAppSource)
+          .catch(error=>console.error("Approval WhatsApp reapplication consent save",error));
         if(marketingConsentSaved&&whatsAppConsent) {
           await queueMarketingWelcome(user.id).catch(error=>console.error("Marketing welcome queue",error));
         }
@@ -2689,6 +2695,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await saveMarketingConsent(user.id,whatsAppConsent,whatsAppSource);
         marketingConsentSaved=true;
       } catch(error) { console.error("Marketing signup consent save failed",error); }
+      await saveApprovalWhatsAppConsent(user.id,whatsAppApprovalOptIn,whatsAppSource)
+        .catch(error=>console.error("Approval WhatsApp signup consent save",error));
       if(marketingConsentSaved&&whatsAppConsent) {
         await queueMarketingWelcome(user.id).catch(error=>console.error("Marketing welcome queue",error));
       }
@@ -3119,6 +3127,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!updated) {
       return res.status(500).json({ error: "E-posta gönderildi fakat hesap etkinleştirilemedi. Yönetici desteği gerekiyor." });
     }
+    const whatsAppQueued=await queueApprovalWhatsApp(id).catch(error=>{
+      console.error("B2B approval WhatsApp enqueue failed",error);
+      return false;
+    });
     void notifyB2BEvent(id, "membership_approved", {}, `membership_approved:${id}`)
       .catch(error => console.error("Membership approval notification", error));
     
@@ -3127,7 +3139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return res.json({
       ...safeUser,
       isActive: true, taxVerified: safeUser.taxVerified === 1,
-      mustChangePassword: true, emailSent: true,
+      mustChangePassword: true, emailSent: true, whatsAppQueued,
       message: "Başvuru onaylandı. Tek kullanımlık şifre e-postayla gönderildi. İlk girişte yeni şifre zorunludur.",
     });
   });
