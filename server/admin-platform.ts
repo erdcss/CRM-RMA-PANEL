@@ -885,8 +885,19 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   app.get("/api/public/homepage", async (_req, res) => {
     try {
       const config = await homepageConfig();
+      const layout=await getMobileHomeLayout();
+      // Do not expose a recipient-only product through a public homepage banner,
+      // even when an old promotion still references that product.
+      if(pool){
+        await ensurePrivateProductSchema();
+        const privateRows=await pool.query(
+          "SELECT id::text AS id FROM b2b_products WHERE assigned_customer_id IS NOT NULL");
+        const hidden=new Set(privateRows.rows.map(row=>String(row.id)));
+        layout.banners=layout.banners.filter(item=>item.linkType!=="product"||!hidden.has(String(item.productId)));
+        layout.roundBottomBanner.productIds=layout.roundBottomBanner.productIds.filter(id=>!hidden.has(String(id)));
+      }
       res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.json({ categories: config.categories, ...await getMobileHomeLayout() });
+      return res.json({ categories: config.categories, ...layout });
     } catch (error) {
       console.error("Public homepage config load failed:", error);
       return res.json({ categories: [] });
