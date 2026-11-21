@@ -1518,6 +1518,19 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       await ensureB2BProductSchema();
       if(assignment.id!==null&&!await approvedCustomerExists(assignment.id))
         return res.status(404).json({error:"Seçilen firma bulunamadı veya aktif değil"});
+      if(assignment.id!==null){
+        // Store-linked products are already copied to a Dükkan inventory and
+        // cannot safely be made customer-exclusive without unlinking first.
+        const table=await pool.query("SELECT to_regclass('public.dukkan_products') AS table_name");
+        if(table.rows[0]?.table_name){
+          const linked=await pool.query(
+            "SELECT 1 FROM dukkan_products WHERE b2b_product_id=$1 LIMIT 1",
+            [String(req.params.id)]);
+          if(linked.rowCount)return res.status(409).json({
+            error:"Bu ürün Dükkan stoklarına bağlı. Özel firma atamak için mağazadan bağımsız yeni ürün kartı oluşturun."
+          });
+        }
+      }
       const result=await pool.query(
         "UPDATE b2b_products SET assigned_customer_id=$2,updated_at=NOW() WHERE id::text=$1 RETURNING id,assigned_customer_id",
         [String(req.params.id),assignment.id]);
