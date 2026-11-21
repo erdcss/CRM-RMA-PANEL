@@ -165,7 +165,7 @@ export function refreshB2BCart(){
 }
 
 export function useB2BCart() {
-  const [items, setItems] = useState<B2BCartItem[]>(() => getB2BCart());
+  const [items, setItems] = useState<B2BCartItem[]>([]);
 
   useEffect(() => {
     let mounted=true,version=0;
