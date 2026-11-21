@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { pool } from "./db";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import { getMobileHomeLayout } from "./homepage-media";
 
 const BASE = "https://b2b.ecalisgan.com";
@@ -83,13 +84,14 @@ export async function resolveB2BPreview(pathname: string): Promise<LinkPreview> 
     ].join(" "), shopProduct ? [id.slice(3), decode(shopProduct[1])] : [id.slice(3)]);
     row = result.rows[0];
   } else {
+    await ensurePrivateProductSchema();
     const result = await pool.query([
       "SELECT name, description,",
       "CASE WHEN image_data LIKE 'data:image/%' THEN '/api/b2b/product-image/' || id::text",
       "WHEN image_data LIKE 'https://%' OR image_data LIKE '/%' THEN image_data ELSE NULL END AS image_url,",
       "CASE WHEN images->>0 LIKE 'data:image/%' THEN '/api/b2b/product-image/' || id::text || '?index=0'",
       "WHEN images->>0 LIKE 'https://%' OR images->>0 LIKE '/%' THEN images->>0 ELSE NULL END AS gallery_url",
-      "FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE LIMIT 1",
+      "FROM b2b_products WHERE id::text=$1 AND is_active IS DISTINCT FROM FALSE AND assigned_customer_id IS NULL LIMIT 1",
     ].join(" "), [id]);
     row = result.rows[0];
   }
