@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { pool } from "./db";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import { ensureMarketplaceSchema } from "./marketplace";
 import { META_FEED_COLUMNS as HEADERS,metaCatalogCsv,type MetaFeedEntry } from "./meta-catalog-export";
 
@@ -89,7 +90,7 @@ const OWN_PRODUCTS = [
   "WHEN jsonb_typeof(images)='array' AND jsonb_array_length(images)>0",
   "AND (images->>0) ~* '^https://' THEN images->>0",
   "ELSE NULL END AS image_url",
-  "FROM b2b_products WHERE is_active IS DISTINCT FROM FALSE ORDER BY id",
+  "FROM b2b_products WHERE is_active IS DISTINCT FROM FALSE AND assigned_customer_id IS NULL ORDER BY id",
 ].join(" ");
 
 const SUPPLIER_PRODUCTS = [
@@ -113,6 +114,7 @@ export type MetaCatalogItem = MetaFeedEntry;
 export async function loadMetaCatalogItems(): Promise<{items: MetaCatalogItem[]; sourceCount: number; skipped: number}> {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
   await ensureMarketplaceSchema();
+  await ensurePrivateProductSchema();
   const [own, suppliers] = await Promise.all([pool.query(OWN_PRODUCTS), pool.query(SUPPLIER_PRODUCTS)]);
   const records: CatalogRow[] = [...own.rows, ...suppliers.rows];
   const items: MetaCatalogItem[] = [];
