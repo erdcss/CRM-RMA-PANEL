@@ -137,6 +137,11 @@ export function registerB2BAbandonedCartRoutes(
         "AND (jsonb_array_length(c.web_items)+jsonb_array_length(c.mobile_items)",
         "+jsonb_array_length(c.marketplace_items))>0",
         "AND COALESCE(c.reminder_status,'')<>'order_placed'",
+        "AND NOT EXISTS (SELECT 1 FROM b2b_orders o",
+        "WHERE o.user_id=c.user_id AND o.created_at>=c.last_activity_at",
+        "AND LOWER(COALESCE(o.status,'')) IN",
+        "('paid','paid_stock_review','completed','awaiting_bank_transfer',",
+        "'awaiting_bank_confirmation','approved','confirmed','onaylandi'))",
         "ORDER BY c.last_activity_at DESC LIMIT 300"
       ].join(" "));
       const carts=result.rows.map(row=>{
