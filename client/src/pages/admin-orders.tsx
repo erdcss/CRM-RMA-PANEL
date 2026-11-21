@@ -54,7 +54,7 @@ function deliveryLabel(method?: string | null) {
   }
 }
 export default function AdminOrders() {
-  const [section,setSection]=useState<"orders"|"pending">("orders");
+  const [section,setSection]=useState<"orders"|"pending">(()=>typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("tab")==="pending"?"pending":"orders");
   const { data = [], isLoading, isError, refetch } = useQuery<Order[]>({
     queryKey: ["/api/admin/orders"],
     queryFn: loadOrders,
