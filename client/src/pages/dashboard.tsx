@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import {
   Activity,
   ArrowUpRight,
@@ -9,6 +10,7 @@ import {
   RotateCcw,
   Search,
   ShoppingCart,
+  ShoppingBasket,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -79,6 +81,16 @@ export default function Dashboard() {
     retry: 2,
   });
 
+  // Uses the same authenticated admin-only basket summary as the Orders page.
+  const {data:waitingCarts}=useQuery<{customerCount:number;totalItems:number;pendingReminders:number}>({
+    queryKey:["/api/admin/b2b-pending-carts"],
+    queryFn:async()=>{
+      const response=await fetch("/api/admin/b2b-pending-carts",{credentials:"include",cache:"no-store"});
+      if(!response.ok)throw Error("Sepet özeti alınamadı");
+      return response.json();
+    },
+    refetchInterval:30_000,
+  });
   // Never fall back to recentOrders: it includes unpaid/awaiting-bank orders.
   const approvedOrders = data?.recentApprovedOrders ?? [];
 
@@ -167,6 +179,17 @@ export default function Dashboard() {
           />
         </section>
 
+        <Link href="/siparisler?tab=pending" className="group flex flex-wrap items-center gap-3 rounded-xl border bg-background p-4 transition-colors hover:bg-muted/40">
+          <span className="rounded-lg bg-muted p-3"><ShoppingBasket className="h-6 w-6"/></span>
+          <div className="min-w-0 flex-1">
+            <div className="font-bold">Sepette Bekleyen Ürünler</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {waitingCarts?.customerCount??0} firma · {waitingCarts?.totalItems??0} ürün ·
+              {" "}{waitingCarts?.pendingReminders??0} bekleyen hatırlatma
+            </p>
+          </div>
+          <ArrowUpRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-0.5"/>
+        </Link>
         <LivePageVisitors />
 
         <section className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
