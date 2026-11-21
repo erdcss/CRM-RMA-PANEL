@@ -4,9 +4,13 @@ import { sendPushToUsers } from "./push-notifications";
 import { registerB2BScheduledNotifications } from "./b2b-scheduled-notifications";
 import {parseB2BNotificationTarget} from "./b2b-notification-target";
 
-const EVENT_KEYS = ["membership_approved","membership_rejected","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid"] as const;
+const EVENT_KEYS = ["membership_approved","membership_rejected","order_created","order_payment_approved","return_approved","invoice_issued","supplier_order_paid","admin_supplier_paid","cart_reminder"] as const;
 export type NotificationEvent = typeof EVENT_KEYS[number];
 const DEFAULTS: Record<NotificationEvent,{title:string;body:string}> = {
+  cart_reminder: {
+    title: "Sepetinizde ürünler sizi bekliyor",
+    body: "Sepetinize eklediğiniz ürünler hâlâ bekliyor. Siparişinizi tamamlamak için sepetinizi kontrol edebilirsiniz.",
+  },
   membership_approved: {
     title: "Üyeliğiniz onaylandı",
     body: "Çalışkan B2B üyeliğiniz onaylandı. Artık hesabınıza giriş yapabilirsiniz.",
