@@ -140,7 +140,7 @@ export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise
       await c.query("COMMIT");
       return {imported:0,total:0,assignedElsewhere:0,skipped:0,enabled:false};
     }
-    const count=await c.query("SELECT COUNT(*)::int AS total FROM b2b_products");
+    const count=await c.query("SELECT COUNT(*)::int AS total FROM b2b_products WHERE assigned_customer_id IS NULL");
     const linked=await c.query(
       "SELECT COUNT(*)::int AS total FROM dukkan_products WHERE b2b_product_id IS NOT NULL AND store_id<>$1",[storeId],
     );
@@ -164,13 +164,13 @@ export async function importAllB2BToDukkan(pool: Pool, storeId: number): Promise
       "COALESCE(p.is_active,TRUE),p.id::text,p.campaign_price",
       "FROM b2b_products p",
       "JOIN (SELECT id, ROW_NUMBER() OVER (PARTITION BY NULLIF(TRIM(barcode),'')",
-      "ORDER BY created_at,id) AS barcode_rank FROM b2b_products) ranked ON ranked.id=p.id",
-      "WHERE NOT EXISTS (SELECT 1 FROM dukkan_products used WHERE used.b2b_product_id=p.id::text)",
+      "ORDER BY created_at,id) AS barcode_rank FROM b2b_products WHERE assigned_customer_id IS NULL) ranked ON ranked.id=p.id",
+      "WHERE p.assigned_customer_id IS NULL AND NOT EXISTS (SELECT 1 FROM dukkan_products used WHERE used.b2b_product_id=p.id::text)",
       "ON CONFLICT DO NOTHING RETURNING id",
     ].join(" ");
     const created=await c.query(query,[storeId]);
     const missing=await c.query(
-      "SELECT COUNT(*)::int AS missing FROM b2b_products b WHERE NOT EXISTS ("+
+      "SELECT COUNT(*)::int AS missing FROM b2b_products b WHERE b.assigned_customer_id IS NULL AND NOT EXISTS ("+
       "SELECT 1 FROM dukkan_products d WHERE d.b2b_product_id=b.id::text)",
     );
     await c.query("COMMIT");
