@@ -277,6 +277,7 @@ async function ensureB2BProductSchema() {
 
   await productSchemaReady;
   await ensurePrivateProductSchema();
+}
 
 let dashboardSchemaReady: Promise<void> | null = null;
 
