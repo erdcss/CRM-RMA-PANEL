@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, ArrowRight, FileText, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
-const updatedAt = "11 Kasım 2026";
+const updatedAt = "22 Kasım 2026";
 
 const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] = [
   {
@@ -18,6 +18,7 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
       "Hesap ve kimlik bilgileri: ad, soyad, e-posta, telefon, giriş ve hesap bilgileri.",
       "İşletme ve ticari bilgiler: firma adı, vergi/fatura bilgileri, yetkili kullanıcı bilgileri.",
       "Sipariş ve teslimat verileri: ürünler, miktarlar, fiyatlar, adresler, sipariş ve iade geçmişi.",
+      "Giriş yapılan hesaba ait sepet verileri: seçilen ürünler, koli miktarları, tahmini tutarlar, sepet değişiklik zamanı ve tek seferlik hatırlatma kayıtları.",
       "Hesap/Defterim içerikleri: kullanıcı tarafından oluşturulan cari kayıtlar, notlar ve işletme finans takibi bilgileri.",
       "Destek iletişimleri: destek taleplerinin konusu, mesajlar ve talebe eklenen bilgiler.",
       "Teknik ve kullanım verileri: IP adresi, cihaz ve tarayıcı bilgileri, oturum güvenliği kayıtları, hata günlükleri ve uygulama etkileşimleri; kullanıcının izin vermesi halinde bildirim gönderimi için push belirteçleri."
@@ -28,11 +29,19 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
     bullets: [
       "Kayıt, kimlik doğrulama, hesap açma ve kullanıcı yetkilendirmesi işlemlerini yürütmek.",
       "Toptan ürünleri görüntüleme, teklif/sipariş oluşturma ve sipariş süreçlerini işletmek.",
+      "Tamamlanmamış sipariş sepetini firma hesabı bazında yöneticiye göstermek ve son sepet değişikliğinden dört saat sonra en fazla bir uygulama içi hatırlatma oluşturmak; cihaz bildirimi izni bulunanlara buna ilişkin push iletmek.",
       "Ödeme, faturalama, kargo, iade ve müşteri desteği süreçlerini gerçekleştirmek.",
       "İsteğe bağlı hesap, liste ve Defterim içeriklerini kullanıcıya sunmak.",
       "Dolandırıcılığı önlemek, sistem güvenliğini sağlamak ve teknik sorunları gidermek.",
       "Mevzuattan doğan muhasebe, saklama ve resmi kurumlara karşı yükümlülükleri yerine getirmek.",
       "Uygulamanın kullanımını, performansını ve hizmet kalitesini ölçüp geliştirmek."
+    ]
+  },
+  {
+    title: "Sepette bekleyen ürünler ve uygulama bildirimi",
+    paragraphs: [
+      "Oturum açmış B2B müşterilerinin web, mobil ve tedarikçi sipariş sepetlerinde kaydedilen ürün ve miktarlar hesapla ilişkili olarak sunucuya aktarılabilir. Firma bazlı sepet özeti yalnızca yetkili yöneticilerin sipariş ekranında görüntülenebilir.",
+      "Sepetteki ürünler en az dört saat boyunca değişmez ve bu sırada sipariş tamamlanmazsa sepet döngüsü için bir kez uygulama içi hatırlatma oluşturulabilir. Aktif cihaz bildirimi bulunan kullanıcıya push gönderimi de denenir; bu işlev WhatsApp ya da SMS mesajı değildir. Kesin sipariş veya ödeme yapılmış sayılmaz."
     ]
   },
   {
