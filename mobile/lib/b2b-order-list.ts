@@ -40,28 +40,37 @@ export async function getOrderList(): Promise<B2BOrderListItem[]> {
     const parsed=raw?JSON.parse(raw):[];
     local=Array.isArray(parsed)?parsed:[];
   }catch{}
-  // Supplier lines are stored per-account on the server, shared across web/iOS/Android.
-  // Old locally stored supplier lines must not reappear after a server-side removal.
-  try {
-    const cart=await rmaApi.getMarketplaceCart();
-    const suppliers:B2BOrderListItem[]=cart.items.map(line=>({
-      productId:'mp-'+String(line.product_id),
-      marketplaceProductId:Number(line.product_id),
-      sellerSlug:String(line.seller_slug||''),
-      sellerName:String(line.company_name||''),
-      sku:String(line.sku||''),
-      name:String(line.content?.name||'Ürün'),
-      image:absoluteMediaUrl(line.content?.imageUrl)||null,
-      unitPrice:Number(line.price)||0,
-      unitsPerBox:Math.max(1,Number(line.unitsPerBox)||1),
-      boxQuantity:Number(line.boxes)||1,
-      minOrderQty:Math.max(1,Number(line.content?.minBoxes)||1),
-      stock:Math.max(0,Number(line.stock)||0),
-    }));
-    return [...suppliers,...local.filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-'))];
-  }catch {
-    return local;
+  // Only show local products that the server says this account can access.
+  // Never fall back to unverified AsyncStorage values on auth/network errors.
+  const [catalogResult,cartResult]=await Promise.allSettled([
+    rmaApi.listB2BProducts(),rmaApi.getMarketplaceCart()
+  ]);
+  const visibleIds=new Set(
+    catalogResult.status==='fulfilled'
+      ?catalogResult.value.map(row=>String(row.id))
+      :[]
+  );
+  const verified=local.filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-')&&visibleIds.has(item.productId));
+  if(verified.length!==local.length){
+    await AsyncStorage.setItem(KEY,JSON.stringify(verified)).catch(()=>undefined);
+    queueMobileCartSync(verified);
   }
+  const cart=cartResult.status==='fulfilled'?cartResult.value:{items:[]};
+  const suppliers:B2BOrderListItem[]=cart.items.map(line=>({
+    productId:'mp-'+String(line.product_id),
+    marketplaceProductId:Number(line.product_id),
+    sellerSlug:String(line.seller_slug||''),
+    sellerName:String(line.company_name||''),
+    sku:String(line.sku||''),
+    name:String(line.content?.name||'Ürün'),
+    image:absoluteMediaUrl(line.content?.imageUrl)||null,
+    unitPrice:Number(line.price)||0,
+    unitsPerBox:Math.max(1,Number(line.unitsPerBox)||1),
+    boxQuantity:Number(line.boxes)||1,
+    minOrderQty:Math.max(1,Number(line.content?.minBoxes)||1),
+    stock:Math.max(0,Number(line.stock)||0),
+  }));
+  return [...suppliers,...verified];
 }
 
 async function syncMobileCart(items:B2BOrderListItem[]){
