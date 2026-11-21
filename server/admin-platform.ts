@@ -1513,6 +1513,8 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
   // Assign an existing SKU to ONE customer or reset visibility to public.
   app.patch("/api/admin/b2b-products/:id/recipient",requireAdmin,async(req,res)=>{
     if(!pool)return res.status(503).json({error:"Veritabanına ulaşılamadı"});
+    if(!req.body||!Object.prototype.hasOwnProperty.call(req.body,"assignedCustomerId"))
+      return res.status(400).json({error:"Ürün görünürlüğü açıkça seçilmelidir"});
     const assignment=parseAssignedCustomerId(req.body?.assignedCustomerId);
     if(!assignment.ok)return res.status(400).json({error:"Geçerli bir firma seçin"});
     try{
