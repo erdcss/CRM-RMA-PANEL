@@ -32,6 +32,10 @@ type Item={id:string;order_number?:string;invoice_number?:string;total_amount?:s
   city?:string;district?:string;address_line?:string;postal_code?:string;
   is_default?:boolean;type?:string;description?:string;effective_on?:string;
   voided_at?:string|null;contact_name?:string;};
+type ApprovalWhatsAppStatus={
+  optedIn:boolean;status:string;errorCode:string|null;updatedAt:string|null;
+  connected:boolean;missing:string[];
+};
 type Overview={customer:B2BProfile;stats:{
   orderCount:number;orderTotal:number;paidTotal:number;awaitingPayment:number;
   returnCount:number;invoiceCount:number;invoiceTotal:number;supportCount:number;
@@ -155,6 +159,13 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
     queryKey:["/api/admin/b2b-customer-center",id],
     queryFn:()=>get<Overview>(`/api/admin/b2b-customer-center/${encodeURIComponent(id)}`),
     retry:false,
+  });
+  const {data:approvalWhatsApp,isError:approvalWhatsAppError}=useQuery<ApprovalWhatsAppStatus>({
+    queryKey:["/api/admin/b2b-approval-whatsapp",id],
+    queryFn:()=>get<ApprovalWhatsAppStatus>(`/api/admin/b2b-approval-whatsapp/${encodeURIComponent(id)}`),
+    enabled:data?.customer.applicationStatus==="approved",
+    refetchInterval:15000,
+    retry:1,
   });
   const {data:timeline,isLoading:historyLoading,isError:historyError}=useQuery<Timeline>({
     queryKey:["/api/admin/b2b-customer-center",id,"activity",page],
@@ -310,6 +321,37 @@ export default function AdminB2BCustomerDetail({id,source="customer"}:{id:string
           </div>
         </div>
       </div>
+
+      {approved?<section className="rounded-2xl border bg-background p-4 shadow-sm sm:p-5" aria-label="Otomatik WhatsApp bildirim durumu">
+        <h2 className="flex items-center gap-2 text-base font-bold">
+          <MessageCircle className="h-5 w-5"/> Otomatik WhatsApp Onay Bildirimi
+        </h2>
+        <div className="mt-2 text-sm">
+          {approvalWhatsAppError?"Gönderim durumu alınamadı; bağlantıyı kontrol edin."
+            :!approvalWhatsApp?"Gönderim kaydı kontrol ediliyor…"
+            :!approvalWhatsApp.optedIn?"Müşteri kayıt sırasında ayrı WhatsApp onay bildirimi izni vermedi. Otomatik gönderim yapılmaz."
+            :({
+              not_queued:"WhatsApp onay mesajı henüz kuyruğa alınmadı.",
+              pending:approvalWhatsApp.connected?"WhatsApp onay mesajı gönderim sırasında bekliyor.":"WhatsApp Cloud API ayarları eksik; mesaj beklemede.",
+              sending:"WhatsApp Cloud API'ye gönderim deneniyor.",
+              accepted:"Meta mesajı kabul etti, teslimat bildirimi bekleniyor.",
+              sent:"Mesaj WhatsApp üzerinden gönderildi.",
+              delivered:"Mesaj müşterinin WhatsApp hesabına teslim edildi.",
+              read:"Mesaj müşteri tarafından okundu.",
+              failed:"WhatsApp mesajı gönderilemedi. Meta bağlantısını ve şablonu kontrol edin.",
+              unknown:"Gönderim sonucu kesinleşmedi; çift mesajı önlemek için otomatik tekrar denenmez.",
+              expired:"Mesaj 24 saat içinde gönderilemediği için süresi doldu.",
+              skipped:"Hesap veya izin bilgisi geçersiz olduğu için mesaj gönderilmedi."
+            } as Record<string,string>)[approvalWhatsApp.status]||"WhatsApp durumu: "+approvalWhatsApp.status}
+        </div>
+        {approvalWhatsApp?.optedIn&&approvalWhatsApp.missing.length>0?
+          <p className="mt-2 text-xs text-amber-700">Eksik sunucu ayarları: {approvalWhatsApp.missing.join(", ")}</p>:null}
+        {approvalWhatsApp?.updatedAt?
+          <p className="mt-2 text-xs text-muted-foreground">Son durum: {trDate(approvalWhatsApp.updatedAt)}</p>:null}
+        <p className="mt-2 text-xs text-muted-foreground">
+          WhatsApp şablon mesajı Meta onayı ve ayrıca müşteri izni gerektirir. API kabulü teslim garantisi değildir.
+        </p>
+      </section>:null}
 
       {approvalReady?<section className="rounded-2xl border bg-background p-4 shadow-sm sm:p-5" aria-label="Firma onay mesajı">
         <div className="flex flex-wrap items-center justify-between gap-3">

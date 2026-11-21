@@ -65,6 +65,7 @@ export default function SignupScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [whatsAppMarketingOptIn,setWhatsAppMarketingOptIn] = useState(false);
+  const [whatsAppApprovalOptIn,setWhatsAppApprovalOptIn] = useState(false);
 
   useEffect(() => {
     setTaxOffice('');
@@ -146,6 +147,7 @@ export default function SignupScreen() {
         companyCategory,
         taxNumber,
         whatsappMarketingOptIn:whatsAppMarketingOptIn,
+        whatsappApprovalOptIn:whatsAppApprovalOptIn,
         whatsappSignupSource:"mobile",
       });
       setCompleted(true);
@@ -334,6 +336,17 @@ export default function SignupScreen() {
               İsteğe bağlı: Çalışkan B2B tarafından WhatsApp üzerinden
               başvuru sonrası tanıtım, yeni ürün, indirim ve kampanya mesajları
               almayı kabul ediyorum. DUR yazarak iznimi geri çekebilirim.
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={()=>setWhatsAppApprovalOptIn(value=>!value)}
+            accessibilityRole="checkbox" accessibilityState={{checked:whatsAppApprovalOptIn}}
+            style={styles.notice}>
+            <Ionicons name={whatsAppApprovalOptIn?"checkbox":"square-outline"} size={23} color="#FFCC00"/>
+            <Text style={styles.noticeText}>
+              İsteğe bağlı: Firma başvurum onaylandığında Çalışkan B2B'nin
+              başvuru sonucu ve ilk giriş bilgilendirmesini WhatsApp üzerinden
+              kayıtlı numarama göndermesini kabul ediyorum. Kampanya izninden ayrıdır.
             </Text>
           </Pressable>
 

@@ -36,6 +36,14 @@ const sections: { title: string; paragraphs?: string[]; bullets?: string[] }[] =
     ]
   },
   {
+    title: "WhatsApp üzerinden firma onay bilgilendirmesi",
+    paragraphs: [
+      "Başvuru formunda ayrı olarak isteğe bağlı onay verenlere, yalnızca firma başvurusu onaylandıktan ve ilk giriş şifresi e-posta ile gönderildikten sonra WhatsApp üzerinden bir kez bilgilendirme mesajı iletilebilir.",
+      "Bu izin pazarlama izninden bağımsızdır. Mesajda şifre veya giriş kodu paylaşılmaz; kayıtlı firma unvanı ve e-posta adresi Meta WhatsApp Business Platform üzerinden şablon değişkenleri olarak gönderilebilir. Onay tarihi, izin kanalı ve gönderim/teslim durumu kayıt altına alınır.",
+      "Aydınlatma ve varsa yurt dışına kişisel veri aktarımı koşulları ayrıca değerlendirilmelidir."
+    ]
+  },
+  {
     title: "WhatsApp tanıtım ve kampanya mesajları",
     paragraphs: [
       "Başvuru formundaki ayrı ve isteğe bağlı WhatsApp pazarlama iznini veren kişiler, başvuru sonrası tanıtım, yeni ürün ve kampanya duyuruları alabilir. İzin vermeyenlere pazarlama mesajı gönderilmez; önceki destek/hizmet onayları pazarlama iznine dönüştürülmez.",
