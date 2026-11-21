@@ -762,6 +762,9 @@ export const rmaApi = {
   startMarketplaceConversation: (slug:string,text:string) => request<{id:number}>('/api/marketplace/conversations',{method:'POST',body:JSON.stringify({slug,text})}),
   listMarketplaceMessages: (id:number) => request<MarketplaceMessage[]>(`/api/marketplace/conversations/${id}/messages`),
   sendMarketplaceMessage: (id:number,text:string) => request<MarketplaceMessage>(`/api/marketplace/conversations/${id}/messages`,{method:'POST',body:JSON.stringify({text})}),
+  syncB2BCartTracking: (items:Array<{productId:string;quantity:number}>) =>
+    request<{ok:boolean}>('/api/b2b/cart-tracking/snapshot',{
+      method:'POST',body:JSON.stringify({source:'mobile',items})}),
   getMarketplaceCart: () => request<MarketplaceCart>('/api/marketplace/cart'),
   addMarketplaceCart: (productId:number,boxes:number) => request<{id:number}>('/api/marketplace/cart',{method:'POST',body:JSON.stringify({productId,boxes,deliveryMode:'direct'})}),
   removeMarketplaceCart: (lineId:number) => request<{ok:boolean}>(`/api/marketplace/cart/${lineId}`,{method:'DELETE'}),
