@@ -54,6 +54,7 @@ import { expandScanLookupValues } from "@shared/shipment-barcode";
 import { registerMarketplaceMediaRoutes } from "./marketplace-media";
 import { registerMarketplaceVideoUploadRoutes } from "./marketplace-video-upload";
 import { registerMarketplaceCartRoutes } from "./marketplace-cart";
+import {registerB2BAbandonedCartRoutes,startB2BCartReminderWorker} from "./b2b-abandoned-carts";
 import { isMarketplaceLine, deductMarketplaceStock, notifyVerifiedSupplierOrder, removePurchasedMarketplaceCartItems } from "./marketplace-paid-orders";
 import { ensureSupplierSalesLedger, recordVerifiedSupplierSales } from "./b2b-supplier-sales-ledger";
 import { reserveB2BBankReference, lockB2BBankReference, bindB2BBankReference, findB2BBankReferenceOrder, ensureB2BBankReferenceTable, BankReferenceError } from "./b2b-bank-transfer-code";
@@ -1749,6 +1750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await ensureMobilePushTable();
       startMarketingWorker();
       startApprovalWhatsAppWorker();
+      startB2BCartReminderWorker();
       startB2BStockAlertWorker();
     })
     .catch(err => console.error("DB/B2B account init error:", err));
@@ -3606,6 +3608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerDukkanRoutes(app, sessionUserId);
   registerB2BNotificationCenter(app, requireAdmin, requireB2B);
+  registerB2BAbandonedCartRoutes(app, requireAdmin, requireB2B);
   registerB2BStockAlertRoutes(app, requireB2B);
   registerB2BLocationAdmin(app, requireAdmin, requireB2B);
   registerB2BBankPaymentApproval(app, requireAdmin, sessionUserId);
