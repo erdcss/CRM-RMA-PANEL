@@ -171,28 +171,39 @@ export function useB2BCart() {
     let mounted=true,version=0;
     const refresh = () => {
       const seq=++version;
-      setItems(getB2BCart());
-      // Approved supplier selections are shared between web and phone for the signed-in account.
-      void fetch("/api/marketplace/cart",{credentials:"include",cache:"no-store"})
-        .then(async response=>{
-          if(!response.ok)throw new Error("Supplier selection unavailable");
-          return response.json() as Promise<{items:Array<{
-            product_id:number;sku:string;stock:number;boxes:number;price:number;unitsPerBox:number;
-            content:{name:string;imageUrl?:string;minBoxes?:number};
-          }>;}>;
-        })
-        .then(result=>{
-          if(!mounted||seq!==version)return;
-          const remote:B2BCartItem[]=result.items.map(line=>({
-            productId:"mp-"+line.product_id,sku:line.sku,name:line.content?.name||"Ürün",
-            image:line.content?.imageUrl||null,price:Number(line.price)||0,
-            quantity:Number(line.boxes)||1,minOrderQty:Math.max(1,Number(line.content?.minBoxes)||1),
-            unitsPerBox:Math.max(1,Number(line.unitsPerBox)||1),stock:Math.max(0,Number(line.stock)||0)
-          }));
-          const local=getB2BCart().filter(item=>!item.productId.startsWith("mp-"));
-          setItems([...remote,...local]);
-        })
-        .catch(()=>{});
+      // An old local cart may belong to another account or contain a product
+      // which became private. Verify its IDs against the authenticated API
+      // BEFORE rendering any local product names/prices on this browser.
+      setItems([]);
+      void Promise.all([
+        fetch("/api/b2b/products?compact=1",{credentials:"include",cache:"no-store"})
+          .then(async r=>{if(!r.ok)throw Error("Catalog unavailable");return r.json() as Promise<Array<{id:string|number}>>})
+          .catch(()=>[] as Array<{id:string|number}>),
+        fetch("/api/marketplace/cart",{credentials:"include",cache:"no-store"})
+          .then(async r=>{
+            if(!r.ok)throw Error("Supplier selections unavailable");
+            return r.json() as Promise<{items:Array<{
+              product_id:number;sku:string;stock:number;boxes:number;price:number;unitsPerBox:number;
+              content:{name:string;imageUrl?:string;minBoxes?:number};
+            }>;}>;
+          }).catch(()=>({items:[]})),
+      ]).then(([catalog,supplier])=>{
+        if(!mounted||seq!==version)return;
+        const visibleIds=new Set(catalog.map(p=>String(p.id)));
+        const original=getB2BCart();
+        const local=original.filter(item=>visibleIds.has(item.productId));
+        if(local.length!==original.length){
+          window.localStorage.setItem(STORAGE_KEY,JSON.stringify(local));
+          syncCustomerCart(local);
+        }
+        const remote:B2BCartItem[]=supplier.items.map(line=>({
+          productId:"mp-"+line.product_id,sku:line.sku,name:line.content?.name||"Ürün",
+          image:line.content?.imageUrl||null,price:Number(line.price)||0,
+          quantity:Number(line.boxes)||1,minOrderQty:Math.max(1,Number(line.content?.minBoxes)||1),
+          unitsPerBox:Math.max(1,Number(line.unitsPerBox)||1),stock:Math.max(0,Number(line.stock)||0)
+        }));
+        setItems([...remote,...local]);
+      }).catch(()=>setItems([]));
     };
     refresh();
     window.addEventListener(EVENT_NAME, refresh);
