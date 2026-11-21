@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { pool } from "./db";
+import {syncMarketplaceCartTracking} from "./b2b-abandoned-carts";
 import { notifyB2BEvent } from "./b2b-notification-center";
 import { sendBusinessPushToUsers } from "./push-notifications";
 
@@ -72,4 +73,6 @@ export async function removePurchasedMarketplaceCartItems(
     "DELETE FROM mp_cart_lines WHERE buyer_user_id=$1 AND product_id=ANY($2::bigint[])",
     [userId,ids]
   );
+  if(ids.length)await syncMarketplaceCartTracking(userId)
+    .catch(error=>console.error("Paid marketplace cart tracking cleanup",error));
 }
