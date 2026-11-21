@@ -11,6 +11,7 @@ import { registerBusinessAiProductRoutes } from "./business-ai-products";
 import { pool } from "./db";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { registerAdminPlatformRoutes } from "./admin-platform";
+import {ensurePrivateProductSchema} from "./b2b-private-products";
 import {
   registerB2BTimedCampaignRoutes,
   B2B_TIMED_CAMPAIGN_JOIN,
@@ -385,7 +386,7 @@ async function newBankTransferCode() {
   throw new Error("Benzersiz havale açıklama kodu oluşturulamadı");
 }
 
-async function checkoutProduct(productId: unknown, quantity: unknown, previewOnly = false): Promise<CheckoutProduct> {
+async function checkoutProduct(productId: unknown, quantity: unknown, previewOnly = false, customerId: number | null = null): Promise<CheckoutProduct> {
   if (!pool) throw new Error("Veritabanı bağlantısı yok");
 
   const qty = cleanOrderQuantity(quantity);
@@ -429,15 +430,17 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
     };
   }
 
+  await ensurePrivateProductSchema();
   const result = await pool.query(
     `SELECT p.id,p.sku,p.name,p.category,${B2B_EFFECTIVE_PRICE_SQL} AS price,
             p.stock,p.min_order_qty,p.units_per_box,p.image_data,p.images
      FROM b2b_products p
      ${B2B_TIMED_CAMPAIGN_JOIN}
      WHERE p.id::text = $1
-       AND is_active IS DISTINCT FROM FALSE
+       AND p.is_active IS DISTINCT FROM FALSE
+       AND (p.assigned_customer_id IS NULL OR p.assigned_customer_id=$2)
      LIMIT 1`,
-    [String(productId)],
+    [String(productId),customerId],
   );
 
   const row = result.rows[0];
@@ -475,7 +478,7 @@ async function checkoutProduct(productId: unknown, quantity: unknown, previewOnl
   };
 }
 
-async function checkoutItems(rawItems: unknown, previewOnly = false) {
+async function checkoutItems(rawItems: unknown, previewOnly = false, customerId: number | null = null) {
   if (!Array.isArray(rawItems) || rawItems.length > 100) throw new Error("Sipariş listesinde en fazla 100 ürün olabilir");
   const source = rawItems;
   if (source.length === 0) throw new Error("Siparişe ürün eklenmedi");
@@ -494,7 +497,7 @@ async function checkoutItems(rawItems: unknown, previewOnly = false) {
     const key=String(value.productId||"");
     if(uniqueIds.has(key))throw new Error("Sipariş listesinde aynı ürün birden fazla kez bulunamaz");
     uniqueIds.add(key);
-    const product = await checkoutProduct(value.productId, quantity, previewOnly);
+    const product = await checkoutProduct(value.productId, quantity, previewOnly, customerId);
     const totalUnits = quantity * product.unitsPerBox;
     items.push({
       product,
@@ -4190,7 +4193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
     try {
       const quantity = cleanOrderQuantity(req.query.qty);
-      const product = await checkoutProduct(req.query.productId, quantity, true);
+      const product = await checkoutProduct(req.query.productId, quantity, true, Number((res.locals as any).b2bUser.id));
       const totalUnits = quantity * product.unitsPerBox;
       const total = Number((product.price * totalUnits).toFixed(2));
 
@@ -4213,7 +4216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/b2b/checkout/preview", requireB2B, async (req, res) => {
     try {
-      const cart = await checkoutItems(req.body?.items, true);
+      const cart = await checkoutItems(req.body?.items, true, Number((res.locals as any).b2bUser.id));
       return res.json({
         items: cart.items.map((entry) => ({
           product: entry.product,
@@ -4254,7 +4257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
       // Calculating installment options is informational; it must not charge
       // or bypass the supplier-payment authorization enforced at submission.
-      const checkout = await checkoutItems(rawItems, true);
+      const checkout = await checkoutItems(rawItems, true, Number((res.locals as any).b2bUser.id));
       const result = await retrieveIyzicoInstallments(checkout.total, binNumber);
       const detail = Array.isArray(result.installmentDetails)
         ? result.installmentDetails[0]
@@ -4398,7 +4401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      checkout = await checkoutItems(rawItems);
+      checkout = await checkoutItems(rawItems, false, Number((res.locals as any).b2bUser.id));
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
       await assertCheckoutVisibility("card",shipping);
@@ -4934,7 +4937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      checkout = await checkoutItems(rawItems);
+      checkout = await checkoutItems(rawItems, false, Number((res.locals as any).b2bUser.id));
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
       await assertCheckoutVisibility("card",shipping);
@@ -5381,7 +5384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawItems = Array.isArray(req.body?.items)
         ? req.body.items
         : [{ productId: req.body?.productId, quantity: req.body?.quantity }];
-      checkout = await checkoutItems(rawItems);
+      checkout = await checkoutItems(rawItems, false, Number((res.locals as any).b2bUser.id));
       address = await checkoutAddress(user.id, req.body?.addressId);
       shipping = checkoutShipping(req.body?.shipping);
       await assertCheckoutVisibility("bank_transfer",shipping);
