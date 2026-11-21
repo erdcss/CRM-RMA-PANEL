@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {cartReminderDue} from "./b2b-abandoned-carts";
+import {cartReminderDue} from "./b2b-cart-reminder-rules";
 
 const start="2026-11-22T00:00:00.000Z";
 test("notifies only after four full hours of unchanged non-empty cart",()=>{
