@@ -76,11 +76,18 @@ async function syncMobileCart(items:B2BOrderListItem[]){
     .filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-'))
     .map(item=>({productId:item.productId,quantity:item.boxQuantity})));
 }
+let mobileCartSyncQueue=Promise.resolve();
+function queueMobileCartSync(items:B2BOrderListItem[]){
+  // Serialize quick quantity edits and removals so older requests cannot
+  // finish later and restore an already cleared customer basket.
+  mobileCartSyncQueue=mobileCartSyncQueue.catch(()=>undefined).then(()=>syncMobileCart(items));
+  void mobileCartSyncQueue.catch(error=>console.warn('B2B cart tracking sync failed',error));
+}
 async function save(items: B2BOrderListItem[]) {
   await AsyncStorage.setItem(KEY, JSON.stringify(items));
   emit();
   // Only own-store items: supplier cart is already tracked by the server.
-  void syncMobileCart(items).catch(error=>console.warn('B2B cart tracking sync failed',error));
+  queueMobileCartSync(items);
   return items;
 }
 
@@ -144,7 +151,7 @@ export async function removeFromOrderList(productId: string) {
 export async function clearOrderList() {
   await AsyncStorage.removeItem(KEY);
   emit();
-  void syncMobileCart([]).catch(error=>console.warn('B2B cart tracking clear failed',error));
+  queueMobileCartSync([]);
 }
 
 export function orderListItemUnits(item: B2BOrderListItem) {
