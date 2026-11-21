@@ -101,6 +101,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
   const [reapplied, setReapplied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [whatsAppMarketingOptIn,setWhatsAppMarketingOptIn] = useState(false);
+  const [whatsAppApprovalOptIn,setWhatsAppApprovalOptIn] = useState(false);
   const [visibleStage, setVisibleStage] = useState(0);
   const reduceMotion = Boolean(useReducedMotion());
   const normalizedPhone = normalizedB2BMobile(phone);
@@ -229,6 +230,7 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
         companyCategory,
         taxNumber,
         whatsappMarketingOptIn:whatsAppMarketingOptIn,
+        whatsappApprovalOptIn:whatsAppApprovalOptIn,
         whatsappSignupSource:"web",
       });
       const result = await response.json() as { reapplied?: boolean };
@@ -396,6 +398,15 @@ export function B2BRegistrationForm({ onCompleted }: B2BRegistrationFormProps) {
                 indirim ve kampanya mesajları almayı kabul ediyorum.
                 <strong className="ml-1">İsteğe bağlıdır.</strong>
                 İznimi WhatsApp üzerinden DUR yazarak geri çekebilirim.
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm leading-relaxed text-slate-700">
+              <input type="checkbox" className="mt-1 h-4 w-4 shrink-0 accent-emerald-600"
+                checked={whatsAppApprovalOptIn} onChange={event => setWhatsAppApprovalOptIn(event.target.checked)}/>
+              <span>Firma başvurum onaylandığında, Çalışkan B2B'nin başvuru sonucu ve ilk giriş bilgilendirmesini
+                kayıtlı telefonuma WhatsApp üzerinden göndermesini kabul ediyorum.
+                <strong className="ml-1">İsteğe bağlıdır; kampanya izninden ayrıdır.</strong>
               </span>
             </label>
 
