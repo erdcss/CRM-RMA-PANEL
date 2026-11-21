@@ -22,6 +22,16 @@ function syncCustomerCart(items:B2BCartItem[]){
     .map(item=>({productId:item.productId,quantity:item.quantity}))});
   // Preserve mutation order; a slow add response must never restore a removed cart.
   cartSyncQueue=cartSyncQueue.catch(()=>undefined).then(async()=>{
+    // Browser storage predates server-side carts and may contain a previous
+    // firm's selections on a shared device: never attribute them to a new user.
+    const session=await fetch("/api/auth/me",{credentials:"include",cache:"no-store"});
+    if(!session.ok)return;
+    const user=await session.json() as {id?:number;role?:string};
+    if(user.role!=="b2b_customer"||!Number.isSafeInteger(user.id))return;
+    const ownerKey="caliskan-b2b-cart-sync-owner";
+    const lastOwner=window.localStorage.getItem(ownerKey);
+    if(lastOwner&&lastOwner!==String(user.id)&&items.length>0)return;
+    if(!lastOwner||items.length===0)window.localStorage.setItem(ownerKey,String(user.id));
     const response=await fetch("/api/b2b/cart-tracking/snapshot",{
       method:"POST",credentials:"include",keepalive:true,
       headers:{"Content-Type":"application/json"},body:payload
@@ -29,6 +39,7 @@ function syncCustomerCart(items:B2BCartItem[]){
     if(!response.ok&&response.status!==401&&response.status!==403)
       throw new Error("Sepet görünürlüğü sunucuyla eşitlenemedi");
   });
+  void cartSyncQueue.catch(error=>console.warn("B2B cart tracking unavailable",error));
 }
 
 function maxBoxes(item: Pick<B2BCartItem, "stock" | "unitsPerBox">) {
