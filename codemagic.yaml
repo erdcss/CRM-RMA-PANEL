@@ -4,7 +4,7 @@
 # for com.caliskangroup.rma in Codemagic Code Signing Identities.
 workflows:
   caliskan-b2b-ios:
-    name: Caliskan B2B - iOS signed IPA (no Expo EAS)
+    name: Caliskan B2B - iOS App Store release (no Expo EAS)
     instance_type: mac_mini_m2
     max_build_duration: 120
     # Only a dedicated chat command marker triggers this costly iOS build.
@@ -37,8 +37,6 @@ workflows:
         EXPO_SKIP_NIIMBOT: "1"
         CI: "1"
         APP_STORE_APPLE_ID: "6802286663"
-        # Mark the archive as internal-TestFlight-only, not an App Store release candidate.
-        XCODE_PROJECT_CUSTOM_EXPORT_OPTIONS: '{"testFlightInternalTestingOnly": true}'
       node: 22
       xcode: 26.4
       cocoapods: default
@@ -69,8 +67,8 @@ workflows:
         script: |
           set -e
           cd mobile
-          xcode-project use-profiles --custom-export-options='{"testFlightInternalTestingOnly": true}'
-      - name: Build signed IPA for TestFlight upload
+          xcode-project use-profiles
+      - name: Build signed IPA for App Store Connect
         script: |
           set -e
           cd mobile
@@ -82,13 +80,15 @@ workflows:
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-    # The first signed IPA was verified in Codemagic (#261119001).
-    # Upload subsequent signed builds to the existing App Store Connect app.
-    # Explicit internal-only export prevents misleading Ready to Submit statuses.
-    # Internal TestFlight availability is managed in App Store Connect;
-    # external beta review and public App Store release remain manual.
+    # Public App Store release build, not a TestFlight-internal-only export.
+    # Codemagic uploads to the existing B2B App Store Connect app,
+    # requests App Review and releases automatically AFTER Apple's approval.
+    # An incomplete App Store listing/review metadata can block submission.
+    # Do not cancel another submission automatically.
     publishing:
       app_store_connect:
         auth: integration
         submit_to_testflight: false
-        submit_to_app_store: false
+        submit_to_app_store: true
+        release_type: AFTER_APPROVAL
+        phased_release: false
