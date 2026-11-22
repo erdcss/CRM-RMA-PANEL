@@ -67,13 +67,20 @@ export async function importMusulluDukkanCatalog(
   });
   await c.query("SELECT pg_advisory_xact_lock(hashtext($1))",["musullu_dukkan_import_"+storeId]);
   for(const p of prepared){
+    // Avoid stealing a scanner barcode already linked to a different product.
+    const occupied=p.barcode ? await c.query(
+      "SELECT id,sku FROM dukkan_products WHERE store_id=$1 AND barcode=$2 LIMIT 1",
+      [storeId,p.barcode],
+    ):null;
+    const savedBarcode=occupied?.rows[0] ? null : p.barcode||null;
+    const savedNote=p.note+(occupied?.rows[0] ? " Kaynak barkod: "+p.barcode+" (mağazada başka üründe kayıtlı; barkod eşleştirmesi bekliyor)." : "");
     const added = await c.query(
       "INSERT INTO dukkan_products(store_id,name,sku,barcode,unit,stock,purchase_price,sale_price,"+
       "brand,category,description,images,image_data,units_per_box,min_order_qty,publish_b2b) "+
       "VALUES($1,$2,$3,$4,'adet',0,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,FALSE) "+
       "ON CONFLICT DO NOTHING RETURNING *",
-      [storeId,p.name,p.sku,p.barcode||null,(p.cents/100).toFixed(2),
-       (p.saleCents/100).toFixed(2),p.brand,p.category,p.note,
+      [storeId,p.name,p.sku,savedBarcode,(p.cents/100).toFixed(2),
+       (p.saleCents/100).toFixed(2),p.brand,p.category,savedNote,
        JSON.stringify(p.images),p.images[0],p.unitsPerBox,p.minOrderQty],
     );
     if(!added.rows[0]){
