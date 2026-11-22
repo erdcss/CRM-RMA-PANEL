@@ -50,6 +50,7 @@ export function DukkanMusulluImport({base,onImported}:{base:string;onImported:()
             Hazırlanan Musullu JSON dosyasını seçin. Toptan alış fiyatı korunur; satış fiyatı alışa %10 eklenerek hesaplanır.
             Yeni ürünler stok 0 ve B2B yayını kapalı olarak eklenir. Aynı stok kodu veya barkod varsa mevcut ürün değiştirilmez.
           </p>
+          <p className="mt-2 text-xs font-semibold text-slate-800">iPhone: Sohbetteki Musullu_Caliskan_Dukkan_Urun_Aktarim.json dosyasını indirip Dosyalara Kaydet → iPhone'umda / İndirilenler. Ardından buradan JSON dosyasını seç. Orijinal PDF gri görünür; bu ekran PDF değil, hazırlanmış JSON aktarımını kabul eder.</p>
           <p className="mt-1 flex items-start gap-1 text-xs text-amber-800">
             <AlertTriangle size={14} className="mt-0.5 shrink-0"/>
             PDF görselleri düşük çözünürlüklü: yayınlamadan önce ürün ve renk eşleşmelerini kontrol edin.
@@ -60,7 +61,7 @@ export function DukkanMusulluImport({base,onImported}:{base:string;onImported:()
         <button type="button" disabled={busy} onClick={()=>fileInput.current?.click()}
           className="inline-flex items-center gap-2 rounded-lg bg-[#122a51] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#234776] disabled:opacity-50">
           {busy?<Loader2 className="animate-spin" size={17}/>:<UploadCloud size={17}/>}
-          {busy?"Ürünler aktarılıyor":"Musullu listesini yükle"}
+          {busy?"Ürünler aktarılıyor":"Musullu JSON dosyasını seç"}
         </button>
       </div>
       {error&&<p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
