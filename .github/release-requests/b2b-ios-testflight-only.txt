@@ -1,9 +1,10 @@
-Çalışkan B2B iOS internal TestFlight release request
+Çalışkan B2B iOS internal TestFlight retry
 Date (Europe/Istanbul): 2026-11-23
-Merge commit: 475dc8f6d1dcac3f2d83d37918056b952b78139c
-Feature: Siparişlerim > Bekleyen Sepet Hatırlatıcısı
-Automation: existing 4-hour one-time pending-cart reminder + customer-scoped reminder status
-Build workflow: caliskan-b2b-testflight
-Distribution: TestFlight only; do not submit to public App Store review
-Bundle ID: com.caliskangroup.rma
-ASC App ID: 6802286663
+Release fix commit: cd41ffac565378756b9f9e1ed6cc9c6bfc0b622f
+Feature: Siparişlerim pending cart reminder (PR #89)
+Fix: preflight App Store Connect API and ensure unique CFBundleVersion (PR #92)
+Workflow: caliskan-b2b-testflight
+Distribution: Apple TestFlight only (submit_to_app_store: false)
+Bundle: com.caliskangroup.rma
+App Store Connect Apple app ID: 6802286663
+Reason: prior Codemagic Publishing failed after signed IPA build; future SDK 27 notice was a warning.
