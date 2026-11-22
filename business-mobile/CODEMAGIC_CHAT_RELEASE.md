@@ -1,42 +1,34 @@
-# Çalışkan Business · Codemagic sohbet sürüm komutları
+# Çalışkan Business — Codemagic sohbet derleme komutları
 
-Bu proje Çalışkan Business uygulamasının native iOS / Android derlemelerini Expo EAS Build'e ihtiyaç duymadan Codemagic'te oluşturur. Çalışkan B2B'nin farklı bundle kimliğine sahip mevcut Codemagic iş akışları değiştirilmez.
+Çalışkan B2B ve Çalışkan Business **aynı GitHub deposundadır:** `erdcss/CRM-RMA-PANEL`. Mevcut **tek Codemagic uygulaması** bu deponun kökündeki `codemagic.yaml` dosyasından hem B2B (`mobile/`) hem Business (`business-mobile/`) iş akışlarını yürütür. İkinci Codemagic uygulaması, ek Codemagic app ID'si veya API token **gerekmiyor**.
 
-## Sohbette kullanılacak komutlar
+## Sohbet komutları
 
-- **Business TestFlight al** → `caliskan-business-ios-testflight`; imzalı IPA oluşturup App Store Connect / TestFlight'a yükler. **Halka açık App Store'a yayınlamaz.**
-- **Business APK al** → `caliskan-business-android-apk`; imzalı APK oluşturur.
-- **Business AAB al** → `caliskan-business-android-aab`; Play Console'a hazır imzalı AAB oluşturur. **Google Play'e otomatik yüklemez.**
-- **Business Codemagic bağlantısını kontrol et** → yalnız API erişimini kontrol eder, ücretli derleme başlatmaz.
+| Komut | Sadece bu dosyayı main dalında güncelle | Codemagic iş akışı |
+| --- | --- | --- |
+| `Business TestFlight al` | `.github/release-requests/business-codemagic-testflight.txt` | `caliskan-business-ios-testflight` |
+| `Business APK al` | `.github/release-requests/business-codemagic-apk.txt` | `caliskan-business-android-apk` |
+| `Business AAB al` | `.github/release-requests/business-codemagic-aab.txt` | `caliskan-business-android-aab` |
 
-ChatGPT GitHub bağlantısı üzerinden **yalnız** ilgili dosyayı oluşturmalı/güncellemelidir (yeni benzersiz istek metni ve değişiklik zamanı ile bir commit):
+ChatGPT bağlı GitHub aracılığıyla **yalnız talep edilen dosyada yeni bir commit** oluşturur. Commit içeriği her istekte farklı olmalı; yalnızca `main` dalına push yapılır. Codemagic'in mevcut GitHub push webhook'u `codemagic.yaml > triggering > when.changeset` koşuluna göre ilgili iş akışını seçer. Diğer uygulama ve platformların release dosyaları değişmediği için onların build'leri başlatılmaz. Üstelik iş akışlarının ilk adımı, `HEAD` commit'inin ilgili release dosyasını değiştirdiğini doğrular.
 
-| Komut | GitHub release request dosyası |
-| --- | --- |
-| Ön kontrol | `.github/release-requests/business-codemagic-check.txt` |
-| TestFlight | `.github/release-requests/business-codemagic-testflight.txt` |
-| APK | `.github/release-requests/business-codemagic-apk.txt` |
-| AAB | `.github/release-requests/business-codemagic-aab.txt` |
+**Önemli:** `codemagic.yaml` dosyası değişiklikleri, Codemagic'in changeset mekanizmasında özel bir durumdur; ilk konfigürasyon güncellemesinde otomatik bir iş akışı denemesi görülebilir. İlk adımdaki commit koruması, talep dosyası olmadan pahalı derleme ve yayınlama aşamalarına geçişi engeller.
 
-Push yalnız `main` dalında yapılır. GitHub Actions `.github/workflows/business-codemagic-chat-build.yml` yalnız değişen release-request yolunu inceler, Codemagic API'sine tam ilgili workflow ID'sini gönderir ve Codemagic build URL'sini GitHub Actions özetine yazar. Aynı commit'e birden çok marker eklenmemelidir. Manuel alternatif: GitHub Actions / Çalışkan Business - Codemagic Sohbet Derleme Komutları / Run workflow / artifact seçimi.
+## Codemagic üzerinde hazır olması gerekenler
 
-**Kuyruğa alınan build, tamamlanmış ve başarılı build değildir.** Codemagic'in ilgili build sayfasında sonucu doğrulayın; APK ve AAB dosyaları Artifacts altında olur. TestFlight yüklemesinde Apple işlem süresi ayrıca takip edilmelidir.
+1. **Tek proje:** Codemagic'te `CRM-RMA-PANEL` deposu ve GitHub **push webhook'u** etkin olmalı.
+2. **iOS Business:** Mevcut Apple Developer/App Store Connect entegrasyonu `com.caliskangroup.business` uygulamasına erişmeli. `codemagic.yaml` içerisinde entegrasyonun ismi `Codemagic Caliskan B2B`; Business bundle'ı için geçerli App Store dağıtım sertifikası ve provisioning profile gerekli. App Store Connect App ID: `6818161236`.
+3. **Android Business:** Codemagic Code Signing Identities altında `caliskan_business_android_release` adıyla **mevcut** Business release/upload keystore'u kayıtlı olmalı. Daha önce Play'de yayımlandıysa yeni keystore üretmeyin.
 
-## Tek seferlik dış platform kurulumu
+`CODEMAGIC_API_TOKEN`, `CODEMAGIC_BUSINESS_APP_ID` ve ikinci bir Codemagic uygulaması gerekli değildir. Önceki GitHub Actions → Codemagic API tetikleyicisi kaldırılmıştır.
 
-1. Codemagic'te `erdcss/CRM-RMA-PANEL` GitHub reposu tanımlı ve root `codemagic.yaml` etkin olmalı. Önceden kullanılan B2B Codemagic uygulaması aynı repo/workflow'ları içeriyorsa onu yeniden kullanabilirsiniz.
-2. GitHub repo > Settings > Secrets and variables > Actions > **Secrets**: `CODEMAGIC_API_TOKEN`. Codemagic > Account Settings > API token üzerinden alın. Anahtarı sohbet veya kaynak koda yazmayın.
-3. GitHub repo > Settings > Secrets and variables > Actions > **Variables**: `CODEMAGIC_BUSINESS_APP_ID` (Codemagic uygulaması URL'sinin 24 haneli ID'si). Mevcut `CODEMAGIC_APP_ID` de desteklenir. API'de aynı repository ile eşleşen tek Codemagic app varsa otomatik bulunabilir.
-4. Codemagic Team integrations / Developer Portal: `Codemagic Caliskan B2B` adlı **mevcut** Apple API entegrasyonunun Business app'e de eriştiğini doğrulayın. Business App Store Connect Apple ID: `6818161236`, bundle: `com.caliskangroup.business`. Codemagic Code signing identities altında app_store distribution certificate ve Business bundle için geçerli provisioning profile olmalı. Eğer entegrasyon adı farklıysa `codemagic.yaml` içindeki Business iOS `integrations.app_store_connect` değerini mevcut gerçek adla güncelleyin.
-5. Android AAB/APK için Codemagic Code signing identities > Android keystores bölümüne mevcut **Business release/upload keystore**'unu `caliskan_business_android_release` referans adıyla yükleyin. Google Play'de önceki anahtar ile yayın varsa yeni keystore üretmeyin; mevcut upload anahtarını güvenli biçimde yeniden kullanın. Keystore yedeğini ayrı saklayın.
-6. `Business Codemagic bağlantısını kontrol et` komutuyla API erişimini sınayın. Sertifika ve keystore yalnız **gerçek imzalı build** sırasında doğrulanır.
+## Derleme ve yayınlama
 
-## Teknik notlar
-
-- Uygulama kimliği: iOS/Android `com.caliskangroup.business`; Expo app sürümü `1.0.1`.
-- `EXPO_PUBLIC_API_URL=https://admin.ecalisgan.com` kullanılır.
-- Native Expo prebuild, Codemagic üzerinde yapılır. EAS Build/Submit kullanılmaz. Eski EAS yapılandırması geri dönüş için silinmez.
-- Logo/splash her native derleme öncesinde CRM API üzerinden senkronize edilir.
-- `business-mobile/scripts/codemagic-build-version.cjs` Codemagic build sırasını tarih ile birleştirerek native build numarasını üretir. İlk Play AAB yüklemesinde Console'daki en yüksek versionCode ile karşılaştırın.
-- `business-mobile/scripts/codemagic-android-signing.cjs` yalnız derleme makinesinde oluşturulan Gradle release signing ayarını değiştirir; özel anahtar içermez.
-- İOS üretim App Store yayını bu iş akışları tarafından **kapalıdır**. Android AAB yalnız artefakt üretir, Play'e yüklemez.
+- Business iOS bundle ve Android package: `com.caliskangroup.business`, Expo version `1.0.1`.
+- `EXPO_PUBLIC_API_URL=https://admin.ecalisgan.com`.
+- İş akışları önce Business logo ve splash dosyalarını CRM'den alır, sonra native Expo prebuild çalıştırır. Expo EAS Build kullanılmaz.
+- **TestFlight**: IPA Codemagic'te üretilip yalnız TestFlight'a gönderilir; halka açık App Store yayını yapılmaz.
+- **APK**: Codemagic Artifacts içinden indirilebilir kurulum paketi.
+- **AAB**: Codemagic Artifacts içinden indirilebilir Play upload paketi; Google Play'e otomatik yükleme yapılmaz.
+- Gerçek sonuç ve dosya bağlantısı, mevcut Codemagic projesinin build ekranından kontrol edilir. GitHub push'unun başarılı olması derlemenin tamamlandığı anlamına gelmez.
+- Apple imzalama ve Android keystore gerçek bir native build yapılmadan tamamen doğrulanamaz.
