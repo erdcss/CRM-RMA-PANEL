@@ -10,6 +10,7 @@ import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledg
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import {seedRequestedLorenzoKurutmalik} from "./dukkan-lorenzo-import";
 import {seedRequestedLorenzo23} from "./dukkan-lorenzo-23-import";
+import {importMusulluDukkanCatalog} from "./dukkan-musullu-import";
 import {prependDukkanProductCover} from "./dukkan-thumbnail-images";
 import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
 import { buildCariExcel } from "./dukkan-cari-excel";
@@ -1412,6 +1413,16 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     res.json({id:updated.id,
       image_url:"/api/dukkan/stores/"+sid+"/products/"+productId+"/image",
       image_count:Array.isArray(updated.images)?updated.images.length:1,updated:true});
+  }));
+  // Authenticated, store-scoped, zero-stock Musullu PDF catalogue import.
+  // Existing SKUs/barcodes are not overwritten; B2B publication stays off.
+  app.post("/api/dukkan/stores/:storeId/products/import/musullu",safe(async(req,res)=>{
+    manager(res);
+    const sid=store(req);
+    const outcome=await transaction(async c=>importMusulluDukkanCatalog(c,sid,req.body));
+    notifyMetaCatalogChange();
+    res.setHeader("Cache-Control","private,no-store");
+    res.status(201).json(outcome);
   }));
   app.post("/api/dukkan/stores/:storeId/products",safe(async(req,res)=>{
     manager(res);
