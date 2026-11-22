@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { B2BProductCard } from "@/components/b2b-product-card";
 import type { UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
-import { nextProductScrollTop } from "@/lib/b2b-product-auto-scroll";
+import {
+  interpolateProductRowScroll,
+  nextProductRowOffset,
+  PRODUCT_ROW_HOLD_MS,
+  PRODUCT_ROW_SLIDE_MS,
+  PRODUCT_ROW_END_HOLD_MS,
+} from "@/lib/b2b-product-auto-scroll";
 
 const PAGE_SIZE = 60;
 const AUTO_SCROLL_PAGE_SIZE = 24;
@@ -27,6 +33,9 @@ export function B2BProductRail({
   const [isMobile, setIsMobile] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [inViewport, setInViewport] = useState(false);
+  const [visibleRowHeight, setVisibleRowHeight] = useState(0);
+  const productGridRef = useRef<HTMLDivElement>(null);
+  const rescheduleRef = useRef<((delay: number) => void) | null>(null);
   const scrollViewportRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pausedUntilRef = useRef(0);
@@ -72,35 +81,142 @@ export function B2BProductRail({
     return () => observer.disconnect();
   }, [canAutoScroll, isMobile]);
 
+  const measureRowHeight = (rowIndex: number) => {
+    const grid = productGridRef.current;
+    if (!grid) return;
+    const first = grid.children.item(rowIndex * 2) as HTMLElement | null;
+    const second = grid.children.item(rowIndex * 2 + 1) as HTMLElement | null;
+    const height = Math.ceil(Math.max(first?.offsetHeight || 0, second?.offsetHeight || 0));
+    if (height > 0) setVisibleRowHeight(current => current === height ? current : height);
+  };
+
+  // Show exactly one side-by-side pair on phones. A different-sized row can
+  // expand the viewport instead of cutting off the price / campaign / box info.
+  useEffect(() => {
+    if (!canAutoScroll || !isMobile) return;
+    const grid = productGridRef.current;
+    const viewport = scrollViewportRef.current;
+    if (!grid || !viewport) return;
+    const refresh = () => {
+      const children = Array.from(grid.children) as HTMLElement[];
+      let activeRow = 0;
+      for (let index = 0; index < children.length; index += 2) {
+        if (children[index].offsetTop <= viewport.scrollTop + 3) activeRow = index / 2;
+        else break;
+      }
+      measureRowHeight(activeRow);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(refresh);
+    observer?.observe(grid);
+    for (const child of Array.from(grid.children)) observer?.observe(child);
+    window.addEventListener("resize", refresh);
+    refresh();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", refresh);
+    };
+  }, [canAutoScroll, isMobile, visibleCount, products]);
+
+  // Each tick moves a *whole row* (two products) from the bottom upward using
+  // a cancelable eased animation. No constant-speed drifting or half-card stops.
   useEffect(() => {
     if (!canAutoScroll || !isMobile || !inViewport || !autoplay || reducedMotion) return;
     const viewport = scrollViewportRef.current;
     if (!viewport) return;
+    let timer = 0;
     let frameId = 0;
-    let previousFrame = 0;
-    let bottomSince: number | null = null;
+    let disposed = false;
 
-    const frame = (now: number) => {
-      const deltaMs = previousFrame > 0 ? now - previousFrame : 0;
-      previousFrame = now;
-      const focusedInside = document.activeElement !== null && viewport.contains(document.activeElement);
-      if (!document.hidden && Date.now() >= pausedUntilRef.current && !focusedInside) {
-        const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-        const atEnd = maxScrollTop > 0 && viewport.scrollTop >= maxScrollTop - 1;
-        if (atEnd && bottomSince === null) bottomSince = now;
-        if (!atEnd) bottomSince = null;
-        viewport.scrollTop = nextProductScrollTop(
-          viewport.scrollTop,
-          maxScrollTop,
-          deltaMs,
-          atEnd && bottomSince !== null ? now - bottomSince : 0,
-        );
-      }
+    const cancel = () => {
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frameId);
+    };
+    const schedule = (delay: number) => {
+      cancel();
+      if (!disposed) timer = window.setTimeout(advance, delay);
+    };
+    const animateRow = (target: number) => {
+      const from = viewport.scrollTop;
+      let startedAt: number | null = null;
+      const frame = (now: number) => {
+        if (disposed) return;
+        if (startedAt === null) startedAt = now;
+        const elapsed = now - startedAt;
+        viewport.scrollTop = interpolateProductRowScroll(from, target, elapsed, PRODUCT_ROW_SLIDE_MS);
+        if (elapsed >= PRODUCT_ROW_SLIDE_MS) {
+          schedule(PRODUCT_ROW_HOLD_MS);
+        } else {
+          frameId = window.requestAnimationFrame(frame);
+        }
+      };
       frameId = window.requestAnimationFrame(frame);
     };
-    frameId = window.requestAnimationFrame(frame);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [canAutoScroll, isMobile, inViewport, autoplay, reducedMotion]);
+    const advance = () => {
+      if (disposed) return;
+      const activeElement = document.activeElement;
+      if (document.hidden || Date.now() < pausedUntilRef.current ||
+          (activeElement !== null && viewport.contains(activeElement))) {
+        schedule(500);
+        return;
+      }
+      const grid = productGridRef.current;
+      if (!grid) {
+        schedule(PRODUCT_ROW_HOLD_MS);
+        return;
+      }
+      const children = Array.from(grid.children) as HTMLElement[];
+      const offsets = children.filter((_, index) => index % 2 === 0).map(child => child.offsetTop);
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      if (maxScrollTop <= 1) {
+        if (hasMore) setVisibleCount(count => Math.min(count + pageSize, products.length));
+        schedule(PRODUCT_ROW_HOLD_MS);
+        return;
+      }
+
+      // When we reach the final visible row, bring in more catalog products
+      // first. Only reset to the first pair after the actual final row.
+      if (viewport.scrollTop >= maxScrollTop - 2) {
+        if (hasMore) {
+          setVisibleCount(count => Math.min(count + pageSize, products.length));
+        } else {
+          viewport.scrollTop = 0;
+          measureRowHeight(0);
+        }
+        schedule(PRODUCT_ROW_END_HOLD_MS);
+        return;
+      }
+      const nextOffset = nextProductRowOffset(offsets, viewport.scrollTop);
+      if (nextOffset === null) {
+        if (hasMore) setVisibleCount(count => Math.min(count + pageSize, products.length));
+        else {
+          viewport.scrollTop = 0;
+          measureRowHeight(0);
+        }
+        schedule(PRODUCT_ROW_END_HOLD_MS);
+        return;
+      }
+
+      const nextIndex = offsets.indexOf(nextOffset);
+      measureRowHeight(nextIndex);
+      // Run on the next frame so React can fit the viewport to the new pair.
+      frameId = window.requestAnimationFrame(() => {
+        const availableScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+        const target = Math.min(nextOffset, availableScroll);
+        if (target <= viewport.scrollTop + 1) {
+          schedule(PRODUCT_ROW_HOLD_MS);
+          return;
+        }
+        animateRow(target);
+      });
+    };
+    rescheduleRef.current = schedule;
+    schedule(PRODUCT_ROW_HOLD_MS);
+    return () => {
+      disposed = true;
+      cancel();
+      rescheduleRef.current = null;
+    };
+  }, [canAutoScroll, isMobile, inViewport, autoplay, reducedMotion, hasMore, visibleCount, products.length, pageSize]);
 
   // Load more cards *inside* the mobile scrolling area as it approaches the
   // bottom. Keep a manual fallback for older browsers without observers.
@@ -123,13 +239,14 @@ export function B2BProductRail({
 
   const pauseForManualInteraction = () => {
     pausedUntilRef.current = Date.now() + MANUAL_SCROLL_PAUSE_MS;
+    rescheduleRef.current?.(MANUAL_SCROLL_PAUSE_MS);
   };
 
   return (
     <>
       {canAutoScroll ? (
         <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
-          <span className="text-[11px] font-medium text-slate-500">2 sütun · Tüm ürünler aşağı kayar</span>
+          <span className="text-[11px] font-medium text-slate-500">2 ürün bir sırada · Yukarı kayarak geçer</span>
           {reducedMotion ? (
             <span className="text-[11px] text-slate-500">Elle kaydırma</span>
           ) : (
@@ -146,6 +263,7 @@ export function B2BProductRail({
       ) : null}
       <div
         ref={scrollViewportRef}
+        style={canAutoScroll && isMobile && visibleRowHeight > 0 ? { height: visibleRowHeight } : undefined}
         role={canAutoScroll ? "region" : undefined}
         aria-label={canAutoScroll ? `${title || "Ürün kataloğu"} · dikey kaydırmalı iki sütunlu ürün listesi` : undefined}
         tabIndex={canAutoScroll ? 0 : undefined}
@@ -161,7 +279,8 @@ export function B2BProductRail({
         <div
           role={canAutoScroll ? undefined : "region"}
           aria-label={canAutoScroll ? undefined : title || "Ürün kataloğu"}
-          className="grid w-full min-w-0 grid-cols-2 gap-2 pb-4 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5"
+          ref={productGridRef}
+          className="relative grid w-full min-w-0 grid-cols-2 gap-2 pb-4 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5"
         >
           {products.slice(0, visibleCount).map(product => (
             <div key={String(product.id)} className="min-w-0 w-full">
