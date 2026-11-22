@@ -156,12 +156,26 @@ export async function approveRecovery(pool:Pool,storeId:number,productId:number)
 }
 export async function prepareMusulluOfficialSample(pool:Pool,storeId:number){
  const q=await pool.query(
-  "SELECT r.product_id FROM dukkan_image_recovery r JOIN dukkan_products p ON p.id=r.product_id AND p.store_id=r.store_id "+
-  "WHERE r.store_id=$1 AND p.sku='UV-16' AND r.state='critical' LIMIT 1",[storeId]);
- if(!q.rows[0])return {status:"not_needed"};
- try{return {status:"candidate_ready",...await officialImage(pool,storeId,Number(q.rows[0].product_id))};}
- catch(e){return {status:"not_found",reason:e instanceof Error?e.message:"unknown"};}
+  "SELECT r.product_id,r.state,r.candidate_origin FROM dukkan_image_recovery r "+
+  "JOIN dukkan_products p ON p.id=r.product_id AND p.store_id=r.store_id "+
+  "WHERE r.store_id=$1 AND p.sku='UV-16' LIMIT 1",[storeId]);
+ const row=q.rows[0];
+ if(!row)return {status:"not_needed"};
+ // Only verified official supplier photographs may be applied automatically.
+ // AI-generated photographs always need a human review.
+ if(row.state==="approved")return {status:"already_applied"};
+ if(row.state==="pending_review"&&row.candidate_origin==="official"){
+  try{await approveRecovery(pool,storeId,Number(row.product_id));return {status:"official_applied",product:"UV-16"};}
+  catch(e){return {status:"not_applied",reason:e instanceof Error?e.message:"unknown"};}
+ }
+ if(row.state!=="critical")return {status:"needs_manual_review"};
+ try{
+  const candidate=await officialImage(pool,storeId,Number(row.product_id));
+  await approveRecovery(pool,storeId,Number(row.product_id));
+  return {status:"official_applied",product:"UV-16",...candidate};
+ }catch(e){return {status:"not_verified",reason:e instanceof Error?e.message:"unknown"};}
 }
+
 export function registerDukkanImageRecovery(app:Express,pool:Pool){
  const root="/api/dukkan/stores/:storeId/image-recovery";
  const sid=(req:Request)=>id(req.params.storeId),pid=(req:Request)=>id(req.params.productId);
