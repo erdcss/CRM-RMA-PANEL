@@ -92,3 +92,88 @@ workflows:
         submit_to_app_store: true
         release_type: AFTER_APPROVAL
         phased_release: false
+
+  # Dedicated internal beta release, isolated from the public App Store workflow.
+  caliskan-b2b-testflight:
+    name: Caliskan B2B - iOS TestFlight only (no public App Store)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    # Only a dedicated chat command marker triggers this costly iOS build.
+    # Routine code commits, Android requests, and docs changes are excluded.
+    # First config change may be detected as a changeset by Codemagic.
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+      cancel_previous_builds: false
+    when:
+      changeset:
+        includes:
+          - '.github/release-requests/b2b-ios-testflight-only.txt'
+    integrations:
+      app_store_connect: Codemagic Caliskan B2B
+    environment:
+      ios_signing:
+        certificates:
+          - caliskan_b2b_appstore_distribution
+        provisioning_profiles:
+          - caliskan_b2b_appstore_2026
+      vars:
+        EXPO_PUBLIC_API_URL: "https://b2b.ecalisgan.com"
+        EXPO_PUBLIC_B2B_AD_TRACKING: "0"
+        REQUIRE_B2B_CUSTOM_NOTIFICATION_SOUND: "1"
+        EXPO_SKIP_NIIMBOT: "1"
+        CI: "1"
+        APP_STORE_APPLE_ID: "6802286663"
+      node: 22
+      xcode: 26.4
+      cocoapods: default
+    scripts:
+      - name: Install packages
+        script: |
+          set -e
+          cd mobile
+          npm ci
+      - name: Sync B2B branding and check sources
+        script: |
+          set -e
+          cd mobile
+          node scripts/create-scan-beep.cjs
+          node scripts/prepare-native-release.cjs
+          npm run sync:branding
+          # Exclude private NIIMBOT SDK libraries and set unique CFBundleVersion.
+          node scripts/codemagic-ios-prebuild.cjs
+          npm run typecheck
+      - name: Generate iOS native Xcode project
+        script: |
+          set -e
+          cd mobile
+          npx expo prebuild --platform ios --no-install --clean
+          cd ios
+          pod install
+      - name: Apply Apple App Store distribution signing
+        script: |
+          set -e
+          cd mobile
+          xcode-project use-profiles
+      - name: Build signed IPA for App Store Connect
+        script: |
+          set -e
+          cd mobile
+          workspace="$(find ios -maxdepth 1 -type d -name '*.xcworkspace' | head -n 1)"
+          if [ -z "$workspace" ]; then echo "Xcode workspace not generated"; exit 1; fi
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((s for s in d["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
+          if [ -z "$scheme" ]; then echo "Xcode scheme missing"; exit 1; fi
+          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+    artifacts:
+      - mobile/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    # Internal TestFlight distribution only. Never initiate public App Store review.
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
