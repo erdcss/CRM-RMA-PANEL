@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { splitHomepageProducts, nextHomepageArrivalExpiry } from "./b2b-homepage-products";
+import { availableProductsFirst, splitHomepageProducts, nextHomepageArrivalExpiry } from "./b2b-homepage-products";
 import type { UnifiedB2BProduct } from "./b2b-marketplace-products";
 
 const at = Date.parse("2026-11-18T12:00:00.000Z");
@@ -50,4 +50,20 @@ test("future timestamps are not new; null/unknown stock is sorted as unavailable
   const sections = splitHomepageProducts([future, legacy, inStock], at);
   assert.equal(sections.newArrivals.length, 0);
   assert.deepEqual(sections.wholesale.map(p => p.id), ["future", "in-stock", "legacy"]);
+});
+
+test("full two-column catalog keeps new arrivals and older products together once each", () => {
+  const input = [
+    product("new-in-stock", 1000, 12),
+    product("old-empty", 48 * 3600_000, 0),
+    product("old-in-stock", 48 * 3600_000, 8),
+    product("new-empty", 500, 0),
+  ];
+  const fullCatalog = availableProductsFirst(input);
+  assert.deepEqual(fullCatalog.map(p => p.id), [
+    "new-in-stock", "old-in-stock", "old-empty", "new-empty",
+  ]);
+  assert.equal(new Set(fullCatalog.map(p => p.id)).size, input.length);
+  const featuredNew = splitHomepageProducts(input, at).newArrivals;
+  assert.ok(featuredNew.every(p => fullCatalog.some(item => item.id === p.id)));
 });
