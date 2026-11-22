@@ -35,6 +35,8 @@ const official:Record<string,string>={
  "MSL-2038":"https://musullu.com/musullu-tost-ve-waffle-makinesi-msl-2038",
  "MSL-CM212":"https://musullu.com/musullu-msl-cm212-elektrikli-cezve-celik",
  "MSL-3004":"https://musullu.com/musullu-msl-3004-superchef-max-2200w-10l-stand-mikser-2-paslanmaz-celik-kase-9-hiz-led-ekran-3-aparat",
+ "MT-G1600M":"https://musullu.com/musullu-1600w-mt-g1600m-super-turbo-et-kiyma-makinesi",
+ "P15UV":"https://toptan.musullu.com/baofeng-p15uv-walkie-talkie-su-ve-toza-dayanikli-telsiz",
 };
 function meta(html:string,key:string){
  for(const tag of html.match(/<meta\b[^>]*>/gi)||[]){
@@ -203,7 +205,7 @@ export async function approveRecovery(pool:Pool,storeId:number,productId:number)
  }catch(e){await c.query("ROLLBACK").catch(()=>{});throw e;}finally{c.release();}
 }
 export async function prepareMusulluOfficialSample(pool:Pool,storeId:number){
- const verifiedSkus=["UV-16","MSL-2037","MSL-2038","MSL-CM212","MSL-3004"];
+ const verifiedSkus=["UV-16","MSL-2037","MSL-2038","MSL-CM212","MSL-3004","MT-G1600M","P15UV"];
  const q=await pool.query(
   "SELECT r.product_id,r.state,r.candidate_origin,p.sku FROM dukkan_image_recovery r "+
   "JOIN dukkan_products p ON p.id=r.product_id AND p.store_id=r.store_id "+
