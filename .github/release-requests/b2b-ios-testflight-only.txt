@@ -1,0 +1,9 @@
+Çalışkan B2B iOS internal TestFlight release request
+Date (Europe/Istanbul): 2026-11-23
+Merge commit: 475dc8f6d1dcac3f2d83d37918056b952b78139c
+Feature: Siparişlerim > Bekleyen Sepet Hatırlatıcısı
+Automation: existing 4-hour one-time pending-cart reminder + customer-scoped reminder status
+Build workflow: caliskan-b2b-testflight
+Distribution: TestFlight only; do not submit to public App Store review
+Bundle ID: com.caliskangroup.rma
+ASC App ID: 6802286663
