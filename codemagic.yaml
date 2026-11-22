@@ -162,7 +162,20 @@ workflows:
           node scripts/create-scan-beep.cjs
           node scripts/prepare-native-release.cjs
           npm run sync:branding
-          # Exclude private NIIMBOT SDK libraries and set unique CFBundleVersion.
+          # Fail fast when the Apple integration cannot read the intended app.
+          # This also prevents both independent Codemagic workflows from using
+          # the same CFBundleVersion when their run counters overlap.
+          LATEST_APPLE_BUILD="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --all-versions)"
+          case "$LATEST_APPLE_BUILD" in
+            ""|*[!0-9]*)
+              echo "App Store Connect did not return a valid latest build number."
+              echo "Check Codemagic Apple integration API key, app access and App Store Connect app ID."
+              exit 1
+              ;;
+          esac
+          export B2B_APPSTORE_LATEST_BUILD_NUMBER="$LATEST_APPLE_BUILD"
+          echo "App Store Connect latest build number: $LATEST_APPLE_BUILD"
+          # Exclude private NIIMBOT SDK libraries and stamp an Apple-safe higher build number.
           node scripts/codemagic-ios-prebuild.cjs
           npm run typecheck
       - name: Generate iOS native Xcode project
@@ -186,6 +199,27 @@ workflows:
           scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((s for s in d["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
           if [ -z "$scheme" ]; then echo "Xcode scheme missing"; exit 1; fi
           xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import plistlib
+          files=list(Path("build/ios/ipa").glob("*.ipa"))
+          if len(files)!=1:
+              raise SystemExit(f"Expected one signed IPA; found {len(files)}")
+          with ZipFile(files[0]) as ipa:
+              matches=[n for n in ipa.namelist() if n.startswith("Payload/") and n.count("/") == 2 and n.endswith(".app/Info.plist")]
+              if not matches:
+                  matches=[n for n in ipa.namelist() if n.startswith("Payload/") and ".app/Info.plist" in n and not "/PlugIns/" in n]
+              if not matches:
+                  raise SystemExit("Signed IPA does not contain main app Info.plist")
+              info=plistlib.loads(ipa.read(matches[0]))
+          bundle=info.get("CFBundleIdentifier","")
+          version=info.get("CFBundleShortVersionString","")
+          build=info.get("CFBundleVersion","")
+          if bundle!="com.caliskangroup.rma" or not str(build).isdigit():
+              raise SystemExit(f"Unexpected IPA identity: bundle={bundle} version={version} build={build}")
+          print(f"Verified signed IPA: bundle={bundle}, version={version}, build={build}")
+          PY
     artifacts:
       - mobile/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
