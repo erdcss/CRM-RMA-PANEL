@@ -62,6 +62,7 @@ export default function B2BProductPage() {
   const [busy, setBusy] = useState(false);
   const [added,setAdded] = useState(false);
   const [imageIndex,setImageIndex] = useState(0);
+  const [currentImageResolution,setCurrentImageResolution]=useState<"critical"|"low"|null>(null);
   const swipeStart = useRef<{ x:number; y:number } | null>(null);
   const arrivalsRailRef = useRef<HTMLDivElement>(null);
   const lastMetaViewedProduct = useRef<string | null>(null);
@@ -98,6 +99,7 @@ export default function B2BProductPage() {
   const productImages = useMemo(()=>collectB2BProductImages(product),[product]);
   const currentImageIndex=Math.min(imageIndex,Math.max(0,productImages.length-1));
   const currentImage=productImages[currentImageIndex]||null;
+  useEffect(()=>setCurrentImageResolution(null),[currentImage]);
   const goToImage=(direction:-1|1)=>{
     setImageIndex(prev=>galleryIndexAfterMove(prev,productImages.length,direction));
   };
@@ -223,7 +225,13 @@ export default function B2BProductPage() {
                 <img key={currentImage}
                   src={currentImage}
                   alt={`${product.name || "Ürün"} - ${currentImageIndex+1}. görsel`}
-                  className="h-full w-full select-none object-contain p-4 sm:p-5"
+                  className={(currentImageResolution==="critical"?"max-h-[180px] max-w-[180px]":
+                    currentImageResolution==="low"?"max-h-[320px] max-w-[320px]":"h-full w-full")+
+                    " select-none object-contain p-4 sm:p-5"}
+                  onLoad={e=>{
+                    const edge=Math.max(e.currentTarget.naturalWidth,e.currentTarget.naturalHeight);
+                    setCurrentImageResolution(edge<200?"critical":edge<800?"low":null);
+                  }}
                   loading={currentImageIndex===0?"eager":"lazy"}
                   decoding="async" draggable={false}/>
               ) : (
@@ -241,6 +249,9 @@ export default function B2BProductPage() {
                   <ChevronRight className="h-5 w-5"/>
                 </button>
               </>:null}
+              {currentImageResolution&&<span className="absolute bottom-3 left-3 max-w-[68%] rounded-md bg-slate-100/95 px-2 py-1 text-[10px] font-medium text-slate-600">
+                Kaynak fotoğraf düşük çözünürlüklü
+              </span>}
               {productImages.length>0?
                 <span aria-live="polite" className="absolute bottom-3 right-3 rounded-full bg-slate-950/85 px-3 py-1.5 text-xs font-bold tabular-nums text-white shadow-sm">
                   {currentImageIndex+1} / {productImages.length}
