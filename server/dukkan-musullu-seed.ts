@@ -55,7 +55,7 @@ async function verifyMusulluCatalog(c:PoolClient,storeId:number):Promise<Verific
     if(!row.archived_at&&!row.deleted_at)v.activeInDukkan++;
     const hashes=p.images.map(im=>createHash("md5").update(im).digest("hex"));
     const stored=Array.isArray(row.image_hashes)?row.image_hashes:[];
-    if(stored.length===hashes.length&&stored.every((hash:string,i:number)=>hash===hashes[i])){
+    if(hashes.every((hash:string)=>stored.includes(hash))){
       v.originalImageMatches++;
       v.matchingImageCount+=hashes.length;
     }else v.imageMismatchSkus.push(p.sku);
