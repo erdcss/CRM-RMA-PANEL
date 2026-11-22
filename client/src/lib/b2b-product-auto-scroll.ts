@@ -1,22 +1,34 @@
 /**
- * Automatically advance a mobile product grid without hijacking page scrolling.
- * A short hold at the bottom lets visitors read the last row before looping.
+ * Two products remain side by side. Autoplay advances one complete grid row
+ * at a time with a bottom-to-top ease-in-out transition.
  */
-export const AUTO_SCROLL_SPEED_PX_PER_MS = 0.038;
-export const AUTO_SCROLL_END_HOLD_MS = 2100;
+export const PRODUCT_ROW_HOLD_MS = 2900;
+export const PRODUCT_ROW_SLIDE_MS = 820;
+export const PRODUCT_ROW_END_HOLD_MS = 2600;
 
-export function nextProductScrollTop(
-  current: number,
-  maxScrollTop: number,
-  deltaMs: number,
-  elapsedAtEndMs: number,
-): number {
-  if (!Number.isFinite(maxScrollTop) || maxScrollTop <= 0) return 0;
-  const max = Math.max(0, maxScrollTop);
-  const position = Math.max(0, Math.min(max, Number.isFinite(current) ? current : 0));
-  if (position >= max - 1) {
-    return elapsedAtEndMs >= AUTO_SCROLL_END_HOLD_MS ? 0 : max;
+/** Find the next row without rounding by assumed (often unequal) card heights. */
+export function nextProductRowOffset(
+  orderedOffsets: readonly number[],
+  currentScrollTop: number,
+): number | null {
+  if (!Number.isFinite(currentScrollTop)) return null;
+  for (const offset of orderedOffsets) {
+    if (Number.isFinite(offset) && offset > currentScrollTop + 2) return offset;
   }
-  const elapsed = Math.max(0, Math.min(64, Number.isFinite(deltaMs) ? deltaMs : 0));
-  return Math.min(max, position + elapsed * AUTO_SCROLL_SPEED_PX_PER_MS);
+  return null;
+}
+
+/** Interpolate a single row's upward movement; cancelable by touch/wheel. */
+export function interpolateProductRowScroll(
+  from: number,
+  to: number,
+  elapsedMs: number,
+  durationMs: number = PRODUCT_ROW_SLIDE_MS,
+): number {
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return from;
+  if (durationMs <= 0 || elapsedMs >= durationMs) return to;
+  const t = Math.max(0, Math.min(1, elapsedMs / durationMs));
+  const easing = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  return from + (to - from) * easing;
 }
