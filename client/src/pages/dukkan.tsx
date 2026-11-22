@@ -9,6 +9,7 @@ import {DukkanDesktopDownload} from "@/components/dukkan-desktop-download";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
+import {DukkanMusulluImport} from "@/components/dukkan-musullu-import";
 import {DukkanProductThumbnailDrop} from "@/components/dukkan-product-thumbnail-drop";
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
@@ -1183,6 +1184,8 @@ export default function Dukkan() {
             {section==="products"&&!standaloneProductCreate&&<DukkanProductToolbar value={productToolbar} onChange={changeToolbar}
               onClear={()=>setProductToolbar({...DEFAULT_PRODUCT_TOOLBAR})}
               page={pagedProducts} totalProducts={rows.length}/>}
+            {section==="products"&&!standaloneProductCreate&&canManage&&<DukkanMusulluImport base={base}
+              onImported={()=>{setNotice("Musullu ürün aktarımı tamamlandı. Ürünler listesini kontrol edin.");setRefresh(v=>v+1);}}/>}
             {section==="products"&&!standaloneProductCreate&&canManage&&<div aria-label="Toplu ürün işlemleri"
               className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-sky-100 bg-[#f5f9ff] p-3">
               <span className="mr-2 text-xs font-bold text-[#1c4a7d]">
