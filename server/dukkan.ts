@@ -11,6 +11,7 @@ import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stoc
 import {seedRequestedLorenzoKurutmalik} from "./dukkan-lorenzo-import";
 import {seedRequestedLorenzo23} from "./dukkan-lorenzo-23-import";
 import {seedRequestedMusulluCatalog} from "./dukkan-musullu-seed";
+import {scanMusulluRecovery,prepareMusulluOfficialSample,registerDukkanImageRecovery} from "./dukkan-image-recovery";
 import {importMusulluDukkanCatalog} from "./dukkan-musullu-import";
 import {prependDukkanProductCover} from "./dukkan-thumbnail-images";
 import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
@@ -264,6 +265,14 @@ async function ready() {
       }catch(error){
         console.error("Dukkan Musullu 116 import blocked; transaction rolled back:",error);
       }
+      try{
+        const group=await pool!.query("SELECT id FROM dukkan_stores WHERE LOWER(TRIM(name))=LOWER('ÇALIŞKAN GROUP') ORDER BY id LIMIT 2");
+        if(group.rows.length===1){
+          const sid=Number(group.rows[0].id);
+          console.info("Dukkan Musullu image quality scan:",await scanMusulluRecovery(pool!,sid));
+          console.info("Dukkan Musullu official image sample:",await prepareMusulluOfficialSample(pool!,sid));
+        }
+      }catch(error){console.error("Dukkan image recovery audit deferred:",error);}
     })
     .then(async()=>{try{await clearApprovedCaliskanGroupOnce(pool!);}catch(error){console.error("Dukkan approved cari clear needs attention:",error);}})
     .catch((error) => { schemaPromise = undefined; throw error; });
@@ -389,6 +398,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       next();
     }).catch(next);
   });
+
+  if(pool) registerDukkanImageRecovery(app,pool);
 
   app.post("/api/dukkan/stores/:storeId/members",safe(async(req,res)=>{
     if (!["owner","manager"].includes(res.locals.dukkanRole)) deny("Üye ekleme yetkiniz yok");
