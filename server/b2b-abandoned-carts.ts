@@ -127,6 +127,40 @@ export function registerB2BAbandonedCartRoutes(
       return res.status(503).json({error:"Sepet kaydedilemedi"});
     }
   });
+  // Customer-scoped status for the native “Siparişlerim” reminder card.
+  app.get("/api/b2b/cart-tracking/mine",requireB2B,async(_req,res)=>{
+    res.setHeader("Cache-Control","private,no-store");
+    const user=(res.locals as any).b2bUser;
+    if(user?.role!=="b2b_customer"||Number(user?.isActive??user?.is_active)!==1)
+      return res.status(403).json({error:"Yalnızca aktif B2B müşterileri"});
+    try{
+      await ensureB2BCartTracking();
+      const result=await pool!.query(
+        "SELECT web_items,mobile_items,marketplace_items,last_activity_at,reminded_at,reminder_status FROM b2b_customer_carts WHERE user_id=$1",
+        [Number(user.id)]
+      );
+      const row=result.rows[0];
+      const items:Line[]=row
+        ? [...(Array.isArray(row.web_items)?row.web_items:[]),
+           ...(Array.isArray(row.mobile_items)?row.mobile_items:[]),
+           ...(Array.isArray(row.marketplace_items)?row.marketplace_items:[])]
+        : [];
+      const lastActivityAt=row?.last_activity_at??null;
+      return res.json({
+        itemCount:items.length,
+        boxCount:items.reduce((sum,item)=>sum+Math.max(0,Number(item.quantity)||0),0),
+        estimatedTotal:money(items.reduce((sum,item)=>sum+money(item.total),0)),
+        lastActivityAt,
+        remindAt:items.length&&lastActivityAt
+          ? new Date(new Date(lastActivityAt).getTime()+CART_REMINDER_DELAY_MS).toISOString():null,
+        remindedAt:row?.reminded_at??null,
+        reminderStatus:row?.reminder_status??null,
+      });
+    }catch(error){
+      console.error("B2B own cart reminder status",error);
+      return res.status(503).json({error:"Sepet hatırlatma durumu alınamadı"});
+    }
+  });
   app.get("/api/admin/b2b-pending-carts",requireAdmin,async(_req,res)=>{
     res.setHeader("Cache-Control","private,no-store");
     try{
