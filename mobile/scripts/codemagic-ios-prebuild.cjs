@@ -42,7 +42,7 @@ let nextBuild = automaticCandidate;
 // Two Codemagic workflows can reuse PROJECT_BUILD_NUMBER=1 on the same day.
 // For TestFlight, always exceed the highest build Apple already knows about.
 if (applePrevious !== undefined) {
-  if (!/^\\d+$/.test(applePrevious.trim())) {
+  if (!/^[0-9]+$/.test(applePrevious.trim())) {
     throw new Error('App Store Connect returned a non-numeric build number; refusing a duplicate upload.');
   }
   const latest = Number(applePrevious);
