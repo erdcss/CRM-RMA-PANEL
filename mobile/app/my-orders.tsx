@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance } from '@/contexts/AppearanceContext';
-import { rmaApi, type B2BOrderSummary } from '@/lib/api';
+import { rmaApi, type B2BOrderSummary, type B2BCartTrackingStatus } from '@/lib/api';
 import { orderStatusTR, paymentStatusTR } from '@/lib/b2b-order-labels';
 import {trackTikTokConfirmedBankPurchases} from '@/lib/tiktok-commerce-events';
 
@@ -21,12 +21,14 @@ export default function MyOrdersScreen() {
   const router = useRouter();
   const { palette } = useAppearance();
   const [orders, setOrders] = useState<B2BOrderSummary[]>([]);
+  const [pendingCart, setPendingCart] = useState<B2BCartTrackingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const load = useCallback(async () => {
     const own = await rmaApi.listB2BOrders();
     setOrders(Array.isArray(own) ? own.filter(isPaymentCompleted) : []);
     if(Array.isArray(own))void trackTikTokConfirmedBankPurchases(own);
+    void rmaApi.getB2BCartTrackingStatus().then(setPendingCart).catch(()=>setPendingCart(null));
   }, []);
   useEffect(() => { let mounted = true; void load().catch(() => undefined).finally(() => { if (mounted) setLoading(false); }); return () => { mounted = false; }; }, [load]);
   const refresh = async () => { setRefreshing(true); try { await load(); } catch {} finally { setRefreshing(false); } };
@@ -39,6 +41,28 @@ export default function MyOrdersScreen() {
       <View style={styles.back} />
     </View>
     <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={palette.text} />} contentContainerStyle={styles.content}>
+      {pendingCart && pendingCart.itemCount > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Bekleyen sepetteki ürünleri görüntüle"
+          onPress={() => router.push('/(tabs)/orders' as never)}
+          style={[styles.pendingCartCard, {backgroundColor:palette.surface, borderColor:'#E6B800'}]}
+        >
+          <View style={styles.pendingIcon}><Ionicons name="cart-outline" size={22} color="#151515" /></View>
+          <View style={{flex:1}}>
+            <Text style={{color:palette.text,fontSize:15,fontWeight:'900'}}>Bekleyen Sepetiniz</Text>
+            <Text style={{color:palette.textSecondary,fontSize:12,marginTop:3}}>
+              {pendingCart.itemCount} çeşit · {pendingCart.boxCount} koli · {Number(pendingCart.estimatedTotal).toLocaleString('tr-TR',{style:'currency',currency:'TRY'})}
+            </Text>
+            <Text style={{color:palette.textSecondary,fontSize:11,marginTop:5}}>
+              {pendingCart.remindedAt
+                ? 'Hatırlatma oluşturuldu · sepeti tamamlayabilirsiniz'
+                : '4 saat işlem yapılmadığında otomatik hatırlatma'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={palette.text} />
+        </Pressable>
+      ) : null}
       {loading ? <ActivityIndicator color={palette.accent} /> : orders.length ? (<>
       {orders.map((order) => (
         <Pressable key={String(order.id)} accessibilityRole="button" accessibilityLabel={`Sipariş detayını aç: ${order.order_number || order.id}`} onPress={() => router.push({ pathname: '/my-orders/[id]', params: { id: String(order.id) } } as never)} style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.border }]}>
@@ -75,5 +99,7 @@ const styles = StyleSheet.create({
   title:{ fontSize:19,fontWeight:'900' },
   content:{ paddingHorizontal:16,paddingVertical:18,paddingBottom:110,gap:12 },
   card:{ borderWidth:1,borderRadius:16,padding:16 },
+  pendingCartCard:{borderWidth:1,borderRadius:18,padding:14,flexDirection:'row',alignItems:'center',gap:12},
+  pendingIcon:{width:44,height:44,borderRadius:14,backgroundColor:'#FFCD00',alignItems:'center',justifyContent:'center'},
   empty:{ alignItems:'center',justifyContent:'center',paddingVertical:90 },
 });
