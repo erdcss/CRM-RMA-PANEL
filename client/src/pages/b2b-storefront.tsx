@@ -11,7 +11,7 @@ import { B2BProductRail } from "@/components/b2b-product-rail";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
 import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
-import { splitHomepageProducts, nextHomepageArrivalExpiry } from "@/lib/b2b-homepage-products";
+import { availableProductsFirst, splitHomepageProducts, nextHomepageArrivalExpiry } from "@/lib/b2b-homepage-products";
 import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
 import { B2BTimedOffer } from "@/components/b2b-timed-offer";
 
@@ -138,10 +138,12 @@ export default function B2BStorefront() {
     });
   }, [products, query]);
 
-  const { newArrivals, wholesale } = useMemo(
+  const { newArrivals } = useMemo(
     () => splitHomepageProducts(filtered, catalogNow),
     [filtered, catalogNow],
   );
+  // New arrivals are showcased separately but still belong to the full catalog.
+  const catalogProducts = useMemo(() => availableProductsFirst(filtered), [filtered]);
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
@@ -293,24 +295,24 @@ export default function B2BStorefront() {
         <div id="urunler" className="mb-5 flex scroll-mt-24 items-end justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold">Toptan Ürünler</h2>
-            <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ve onaylı tedarikçi ürünleri</p>
+            <p className="mt-1 text-sm text-slate-500">Çalışkan B2B ve onaylı tedarikçilerin tüm ürünleri · Yeni gelenler dahil</p>
           </div>
-          {!isLoading && wholesale.length > 0 ? (
-            <div className="text-sm text-slate-500">{wholesale.length} ürün</div>
+          {!isLoading && catalogProducts.length > 0 ? (
+            <div className="text-sm text-slate-500">{catalogProducts.length} ürün</div>
           ) : null}
         </div>
 
         {isLoading ? (
           <div className="rounded-2xl border bg-white p-10 text-center text-slate-500">Ürünler yükleniyor…</div>
-        ) : wholesale.length === 0 ? (
+        ) : catalogProducts.length === 0 ? (
           <div className="rounded-2xl border bg-white p-10 text-center">
             <Package className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-3 font-semibold">Toptan ürün bulunamadı</h3>
-            <p className="mt-1 text-sm text-slate-500">Yeni gelen ürünler yukarıdaki ayrı bölümde listelenir.</p>
+            <p className="mt-1 text-sm text-slate-500">{query.trim() ? "Aramanızla eşleşen ürün bulunmuyor." : "Henüz listelenecek ürün bulunmuyor."}</p>
           </div>
         ) : (
           <div>
-            <B2BProductRail products={wholesale} loggedIn={loggedIn} title="Toptan Ürünler" />
+            <B2BProductRail products={catalogProducts} loggedIn={loggedIn} title="Toptan Ürünler" autoScroll />
           </div>
         )}
       </main>
