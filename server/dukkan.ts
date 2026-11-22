@@ -10,6 +10,7 @@ import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledg
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
 import {seedRequestedLorenzoKurutmalik} from "./dukkan-lorenzo-import";
 import {seedRequestedLorenzo23} from "./dukkan-lorenzo-23-import";
+import {seedRequestedMusulluCatalog} from "./dukkan-musullu-seed";
 import {importMusulluDukkanCatalog} from "./dukkan-musullu-import";
 import {prependDukkanProductCover} from "./dukkan-thumbnail-images";
 import {softDeleteDukkanProducts} from "./dukkan-product-soft-delete";
@@ -254,6 +255,14 @@ async function ready() {
         console.info("Dukkan Lorenzo 23 catalog import:",result);
       }catch(error){
         console.error("Dukkan Lorenzo 23 catalog import blocked; no partial changes:",error);
+      }
+      // Owner-requested Musullu PDF direct transfer: 116 products, 142 PDF images.
+      // Always hidden on B2B with zero on-hand stock; one-time transaction.
+      try{
+        const result=await seedRequestedMusulluCatalog(pool!);
+        console.info("Dukkan Musullu 116 direct catalog import:",result);
+      }catch(error){
+        console.error("Dukkan Musullu 116 import blocked; transaction rolled back:",error);
       }
     })
     .then(async()=>{try{await clearApprovedCaliskanGroupOnce(pool!);}catch(error){console.error("Dukkan approved cari clear needs attention:",error);}})
