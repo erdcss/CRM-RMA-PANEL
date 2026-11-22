@@ -77,10 +77,36 @@ async function readRow(pool:Pool,storeId:number,productId:number){
  if(!q.rows[0])throw Object.assign(new Error("Ürün kalite kaydı bulunamadı"),{status:404});
  return q.rows[0];
 }
+async function discoverOfficialUrl(product:{sku:string;brand:string;name:string}):Promise<string|null>{
+ if(!process.env.OPENAI_API_KEY)return null;
+ const openai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:35000,maxRetries:0});
+ const result=await openai.responses.create({
+  model:process.env.OPENAI_WEB_SEARCH_MODEL||process.env.OPENAI_PRODUCT_MODEL||"gpt-4o-mini",
+  tools:[{type:"web_search"} as any],
+  max_output_tokens:300,
+  input:[{role:"user",content:"Find the product detail page for this EXACT product, using web search. "+
+   "Only consider the manufacturer's own domains musullu.com or toptan.musullu.com. "+
+   "Never return a homepage, search page, category page, different model, color or accessory. "+
+   "If you find exact product page, return ONLY its full HTTPS URL, otherwise NOT_FOUND. "+
+   "Brand: "+product.brand+", model code: "+product.sku+", product name: "+product.name}],
+ } as any);
+ const raw=String(result.output_text||"");
+ const urls=raw.match(/https:\/\/[^\s<>"')\]]+/gi)||[];
+ for(const candidate of urls){
+  try{
+   const u=new URL(candidate.replace(/[.,;]+$/,""));
+   if(["musullu.com","www.musullu.com","toptan.musullu.com"].includes(u.hostname) &&
+     u.protocol==="https:" && !u.username && !u.password && !u.port)return u.toString();
+  }catch{ /* ignore invalid model result */ }
+ }
+ return null;
+}
 async function officialImage(pool:Pool,storeId:number,productId:number){
  const p=await readRow(pool,storeId,productId);
- const link=official[String(p.sku)];
- if(!link)throw Object.assign(new Error("Bu ürün için doğrulanmış resmî bağlantı bulunamadı"),{status:404});
+ const link=official[String(p.sku)]||await discoverOfficialUrl({
+  sku:String(p.sku),brand:String(p.brand||""),name:String(p.name||"")
+ });
+ if(!link)throw Object.assign(new Error("Bu modelin birebir resmî ürün sayfası bulunamadı; fotoğraf korunuyor"),{status:404});
  const page=await fetch(link,{redirect:"error",signal:AbortSignal.timeout(12000)});
  if(!page.ok)throw new Error("Resmî ürün sayfasına ulaşılamadı");
  const html=(await page.text()).slice(0,300000);
