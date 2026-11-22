@@ -137,6 +137,8 @@ workflows:
         EXPO_SKIP_NIIMBOT: "1"
         CI: "1"
         APP_STORE_APPLE_ID: "6802286663"
+        # Codemagic Xcode 26 altool App ID resolution compatibility workaround.
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool"
       node: 22
       xcode: 26.4
       cocoapods: default
