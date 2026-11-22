@@ -113,7 +113,11 @@ async function officialImage(pool:Pool,storeId:number,productId:number){
  const title=meta(html,"og:title")||(html.match(/<title[^>]*>([^<]+)/i)||[])[1]||"";
  if(!isExactOfficialMatch(String(p.sku),String(p.brand||""),title,html))
   throw Object.assign(new Error("Marka/model kesin eşleşmedi; mevcut fotoğraf korundu"),{status:409});
- const image=meta(html,"og:image")||meta(html,"twitter:image");
+ const exactGalleryImages:Record<string,string>={
+  "MSL-2038":"https://cdn.myikas.com/images/949426e2-307e-45d7-a385-4ffd55560760/861acadb-e217-45c2-8b0e-55c51af9cc12/image_3840.webp",
+  "MSL-CM212":"https://cdn.myikas.com/images/949426e2-307e-45d7-a385-4ffd55560760/43f35de9-200a-4f10-956e-4db89f24892d/image_3840.webp",
+ };
+ const image=exactGalleryImages[String(p.sku)]||meta(html,"og:image")||meta(html,"twitter:image");
  if(!imageHost(image))throw new Error("Resmî görselin kaynak adresi doğrulanamadı");
  // myikas og:image can point at a tiny preview; the identical media UUID
  // also has a full-resolution image_3840.webp representation.
