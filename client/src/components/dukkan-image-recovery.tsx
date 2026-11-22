@@ -104,9 +104,12 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
       </div>
      </div>
      <div className="mt-3 flex flex-wrap gap-2">
-      {p.state!=="pending_review"&&p.state!=="approved"&&["UV-16","MT-G3500M"].includes(p.sku)&&
+      {p.state!=="pending_review"&&p.state!=="approved"&&
        <button type="button" disabled={!!busy} className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-800 disabled:opacity-40"
-        onClick={()=>void request("/"+p.product_id+"/official",p.sku+" resmî görsel arama")}>Resmî görseli kontrol et</button>}
+        onClick={()=>{
+         if(window.confirm("Bu ürünün birebir fotoğrafı tedarikçinin resmî sitesinde aranacak. Gerekirse ücretli AI web araması kullanılabilir. Devam edilsin mi?"))
+           void request("/"+p.product_id+"/official",p.sku+" resmî görsel arama");
+        }}>Resmî fotoğrafı ara</button>}
       {p.state!=="pending_review"&&p.state!=="approved"&&
        <button type="button" disabled={!!busy} className="rounded-lg bg-[#173f6d] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
         onClick={()=>{
