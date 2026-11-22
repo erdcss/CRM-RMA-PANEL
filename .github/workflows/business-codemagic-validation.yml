@@ -1,0 +1,71 @@
+name: Business Codemagic YAML and chat command validation
+on:
+  pull_request:
+    paths:
+      - 'codemagic.yaml'
+      - 'business-mobile/scripts/codemagic-*.cjs'
+      - 'scripts/trigger-codemagic-business.mjs'
+      - '.github/workflows/business-codemagic-chat-build.yml'
+      - '.github/workflows/business-codemagic-validation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: business-mobile/package-lock.json
+      - name: Validate syntax of native version and API command scripts
+        run: |
+          node --check business-mobile/scripts/codemagic-build-version.cjs
+          node --check business-mobile/scripts/codemagic-android-signing.cjs
+          node --check scripts/trigger-codemagic-business.mjs
+      - name: Parse Codemagic YAML and inspect exact app boundaries
+        run: |
+          python3 -m pip install --quiet PyYAML
+          python3 - <<'PY'
+          import yaml, pathlib
+          doc=yaml.safe_load(pathlib.Path('codemagic.yaml').read_text())
+          workflows=doc['workflows']
+          expected={
+              'caliskan-business-ios-testflight',
+              'caliskan-business-android-apk',
+              'caliskan-business-android-aab',
+          }
+          assert expected <= workflows.keys()
+          assert 'caliskan-b2b-ios' in workflows
+          for name in expected:
+              item=workflows[name]
+              assert 'triggering' not in item, 'Do not auto-trigger paid builds'
+              assert item['environment']['vars']['EXPO_PUBLIC_API_URL']=='https://admin.ecalisgan.com'
+              assert 'business-mobile' in str(item['scripts'])
+          ios=workflows['caliskan-business-ios-testflight']
+          assert ios['environment']['ios_signing']['bundle_identifier']=='com.caliskangroup.business'
+          assert ios['publishing']['app_store_connect']['submit_to_testflight'] is True
+          assert ios['publishing']['app_store_connect']['submit_to_app_store'] is False
+          for name in ('caliskan-business-android-apk','caliskan-business-android-aab'):
+              assert workflows[name]['environment']['android_signing']==['caliskan_business_android_release']
+          print('Three Business workflows and untouched B2B workflow are valid.')
+          PY
+      - name: Check Android/iOS build version generation
+        working-directory: business-mobile
+        run: |
+          set -e
+          cp app.json /tmp/business-original-app.json
+          BUILD_NUMBER=42 node scripts/codemagic-build-version.cjs ios
+          node -e "const e=require('./app.json').expo; if(!/^\\d{9}$/.test(e.ios.buildNumber)) process.exit(1)"
+          cp /tmp/business-original-app.json app.json
+          BUILD_NUMBER=42 node scripts/codemagic-build-version.cjs android
+          node -e "const e=require('./app.json').expo; if(e.android.versionCode<100000000) process.exit(1)"
+          cp /tmp/business-original-app.json app.json
+      - name: Verify Business TypeScript
+        working-directory: business-mobile
+        run: |
+          npm ci --ignore-scripts
+          npx tsc --noEmit --project tsconfig.json
