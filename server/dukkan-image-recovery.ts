@@ -31,6 +31,10 @@ const id=(v:unknown)=>{
 const official:Record<string,string>={
  "UV-16":"https://toptan.musullu.com/baofeng-uv-16-pro-su-ve-toza-dayankli-telsiz",
  "MT-G3500M":"https://musullu.com/musullu-premium-max-3500w-et-kiyma-makinesi",
+ "MSL-2037":"https://musullu.com/musullu-izgara-tost-waffle-makinesi-msl-2037",
+ "MSL-2038":"https://musullu.com/musullu-tost-ve-waffle-makinesi-msl-2038",
+ "MSL-CM212":"https://musullu.com/musullu-msl-cm212-elektrikli-cezve-celik",
+ "MSL-3004":"https://musullu.com/musullu-msl-3004-superchef-max-2200w-10l-stand-mikser-2-paslanmaz-celik-kase-9-hiz-led-ekran-3-aparat",
 };
 function meta(html:string,key:string){
  for(const tag of html.match(/<meta\b[^>]*>/gi)||[]){
@@ -155,25 +159,25 @@ export async function approveRecovery(pool:Pool,storeId:number,productId:number)
  }catch(e){await c.query("ROLLBACK").catch(()=>{});throw e;}finally{c.release();}
 }
 export async function prepareMusulluOfficialSample(pool:Pool,storeId:number){
+ const verifiedSkus=["UV-16","MSL-2037","MSL-2038","MSL-CM212","MSL-3004"];
  const q=await pool.query(
-  "SELECT r.product_id,r.state,r.candidate_origin FROM dukkan_image_recovery r "+
+  "SELECT r.product_id,r.state,r.candidate_origin,p.sku FROM dukkan_image_recovery r "+
   "JOIN dukkan_products p ON p.id=r.product_id AND p.store_id=r.store_id "+
-  "WHERE r.store_id=$1 AND p.sku='UV-16' LIMIT 1",[storeId]);
- const row=q.rows[0];
- if(!row)return {status:"not_needed"};
- // Only verified official supplier photographs may be applied automatically.
- // AI-generated photographs always need a human review.
- if(row.state==="approved")return {status:"already_applied"};
- if(row.state==="pending_review"&&row.candidate_origin==="official"){
-  try{await approveRecovery(pool,storeId,Number(row.product_id));return {status:"official_applied",product:"UV-16"};}
-  catch(e){return {status:"not_applied",reason:e instanceof Error?e.message:"unknown"};}
+  "WHERE r.store_id=$1 AND p.sku=ANY($2::text[]) ORDER BY p.sku",
+  [storeId,verifiedSkus]);
+ const outcome={checked:q.rows.length,applied:0,already:0,failed:[] as string[]};
+ for(const row of q.rows){
+  if(row.state==="approved"){outcome.already++;continue;}
+  if(row.state==="pending_review"&&row.candidate_origin==="ai")continue;
+  try{
+   if(row.state!=="pending_review")await officialImage(pool,storeId,Number(row.product_id));
+   await approveRecovery(pool,storeId,Number(row.product_id));
+   outcome.applied++;
+  }catch(e){
+   outcome.failed.push(row.sku+": "+(e instanceof Error?e.message:"unknown"));
+  }
  }
- if(row.state!=="critical")return {status:"needs_manual_review"};
- try{
-  const candidate=await officialImage(pool,storeId,Number(row.product_id));
-  await approveRecovery(pool,storeId,Number(row.product_id));
-  return {status:"official_applied",product:"UV-16",...candidate};
- }catch(e){return {status:"not_verified",reason:e instanceof Error?e.message:"unknown"};}
+ return outcome;
 }
 
 export function registerDukkanImageRecovery(app:Express,pool:Pool){
