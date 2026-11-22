@@ -1,0 +1,33 @@
+name: B2B Mobile Vertical Product Grid
+on:
+  pull_request:
+    paths:
+      - 'client/src/pages/b2b-storefront.tsx'
+      - 'client/src/components/b2b-product-rail.tsx'
+      - 'client/src/lib/b2b-product-auto-scroll*'
+      - 'client/src/lib/b2b-homepage-products*'
+      - '.github/workflows/b2b-mobile-vertical-product-grid.yml'
+  push:
+    paths:
+      - 'client/src/pages/b2b-storefront.tsx'
+      - 'client/src/components/b2b-product-rail.tsx'
+      - 'client/src/lib/b2b-product-auto-scroll*'
+      - 'client/src/lib/b2b-homepage-products*'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Verify vertical scrolling and full product catalog
+        run: npx tsx --test client/src/lib/b2b-product-auto-scroll.test.ts client/src/lib/b2b-homepage-products.test.ts
+      - name: Typecheck
+        run: npm run check
+      - name: Production build
+        run: npm run build
