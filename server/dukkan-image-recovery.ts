@@ -89,16 +89,30 @@ async function officialImage(pool:Pool,storeId:number,productId:number){
   throw Object.assign(new Error("Marka/model kesin eşleşmedi; mevcut fotoğraf korundu"),{status:409});
  const image=meta(html,"og:image")||meta(html,"twitter:image");
  if(!imageHost(image))throw new Error("Resmî görselin kaynak adresi doğrulanamadı");
- const response=await fetch(image,{redirect:"error",signal:AbortSignal.timeout(15000)});
- if(!response.ok)throw new Error("Üretici görseline ulaşılamadı");
- const mime=(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
- if(!["image/jpeg","image/png","image/webp"].includes(mime))throw new Error("Görsel formatı desteklenmiyor");
- if(Number(response.headers.get("content-length")||0)>2800000)throw new Error("Görsel boyutu çok büyük");
- const bytes=Buffer.from(await response.arrayBuffer());
- if(bytes.length<100||bytes.length>2800000)throw new Error("Görsel boyutu geçersiz");
- const data="data:"+mime+";base64,"+bytes.toString("base64");
- const metrics=imageDimensions(data);
- if(!metrics||Math.max(metrics.width,metrics.height)<700)throw new Error("Resmî kaynak fotoğrafı yeterince net değil");
+ // myikas og:image can point at a tiny preview; the identical media UUID
+ // also has a full-resolution image_3840.webp representation.
+ const imageUrl=new URL(image);
+ const fullSize=imageUrl.hostname==="cdn.myikas.com"?
+  image.replace(/image_[0-9]+\.(?:webp|png|jpg|jpeg)(?:\?.*)?$/i,"image_3840.webp"):image;
+ let chosen:{data:string;metrics:NonNullable<ReturnType<typeof imageDimensions>>}|null=null;
+ for(const candidate of [...new Set([fullSize,image])]){
+  if(!imageHost(candidate))continue;
+  try{
+   const response=await fetch(candidate,{redirect:"error",signal:AbortSignal.timeout(15000)});
+   if(!response.ok)continue;
+   const mime=(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
+   if(!["image/jpeg","image/png","image/webp"].includes(mime))continue;
+   if(Number(response.headers.get("content-length")||0)>2800000)continue;
+   const bytes=Buffer.from(await response.arrayBuffer());
+   if(bytes.length<100||bytes.length>2800000)continue;
+   const data="data:"+mime+";base64,"+bytes.toString("base64");
+   const metrics=imageDimensions(data);
+   if(!metrics||Math.max(metrics.width,metrics.height)<700)continue;
+   chosen={data,metrics};break;
+  }catch{ /* try the next resolution for this exact product asset */ }
+ }
+ if(!chosen)throw new Error("Resmî kaynak fotoğrafı yeterince net değil");
+ const {data,metrics}=chosen;
  await pool.query(
   "UPDATE dukkan_image_recovery SET candidate_image=$3,candidate_origin='official',candidate_source_url=$4,"+
   "candidate_width=$5,candidate_height=$6,state='pending_review',review_note=$7,updated_at=NOW() "+
