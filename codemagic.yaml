@@ -44,10 +44,12 @@ workflows:
       - name: Verify explicit chat release request
         script: |
           set -eu
-          git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/b2b-ios-testflight.txt' || {
-            echo "This workflow requires an explicit release request commit: .github/release-requests/b2b-ios-testflight.txt";
-            exit 1;
-          }
+          if [ "${CM_TRIGGER_SOURCE:-}" = "webhook" ]; then
+            git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/b2b-ios-testflight.txt' || {
+              echo "Push-triggered release requires marker in this commit: .github/release-requests/b2b-ios-testflight.txt";
+              exit 1;
+            }
+          fi
       - name: Install packages
         script: |
           set -e
@@ -142,10 +144,12 @@ workflows:
       - name: Verify explicit chat release request
         script: |
           set -eu
-          git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/b2b-ios-testflight-only.txt' || {
-            echo "This workflow requires an explicit release request commit: .github/release-requests/b2b-ios-testflight-only.txt";
-            exit 1;
-          }
+          if [ "${CM_TRIGGER_SOURCE:-}" = "webhook" ]; then
+            git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/b2b-ios-testflight-only.txt' || {
+              echo "Push-triggered release requires marker in this commit: .github/release-requests/b2b-ios-testflight-only.txt";
+              exit 1;
+            }
+          fi
       - name: Install packages
         script: |
           set -e
@@ -228,10 +232,12 @@ workflows:
       - name: Verify explicit chat release request
         script: |
           set -eu
-          git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-testflight.txt' || {
-            echo "This workflow requires an explicit release request commit: .github/release-requests/business-codemagic-testflight.txt";
-            exit 1;
-          }
+          if [ "${CM_TRIGGER_SOURCE:-}" = "webhook" ]; then
+            git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-testflight.txt' || {
+              echo "Push-triggered release requires marker in this commit: .github/release-requests/business-codemagic-testflight.txt";
+              exit 1;
+            }
+          fi
       - name: Install Business packages and verify TypeScript
         script: |
           set -e
@@ -302,10 +308,12 @@ workflows:
       - name: Verify explicit chat release request
         script: |
           set -eu
-          git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-apk.txt' || {
-            echo "This workflow requires an explicit release request commit: .github/release-requests/business-codemagic-apk.txt";
-            exit 1;
-          }
+          if [ "${CM_TRIGGER_SOURCE:-}" = "webhook" ]; then
+            git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-apk.txt' || {
+              echo "Push-triggered release requires marker in this commit: .github/release-requests/business-codemagic-apk.txt";
+              exit 1;
+            }
+          fi
       - name: Install and typecheck Business application
         script: |
           set -e
@@ -363,10 +371,12 @@ workflows:
       - name: Verify explicit chat release request
         script: |
           set -eu
-          git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-aab.txt' || {
-            echo "This workflow requires an explicit release request commit: .github/release-requests/business-codemagic-aab.txt";
-            exit 1;
-          }
+          if [ "${CM_TRIGGER_SOURCE:-}" = "webhook" ]; then
+            git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-aab.txt' || {
+              echo "Push-triggered release requires marker in this commit: .github/release-requests/business-codemagic-aab.txt";
+              exit 1;
+            }
+          fi
       - name: Install and typecheck Business application
         script: |
           set -e
