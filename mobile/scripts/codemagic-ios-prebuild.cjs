@@ -36,7 +36,25 @@ const now = new Date();
 const date = String(now.getUTCFullYear() % 100).padStart(2, '0')
   + String(now.getUTCMonth() + 1).padStart(2, '0')
   + String(now.getUTCDate()).padStart(2, '0');
-const buildNumber = date + String(sequence).padStart(3, '0');
+const automaticCandidate = Number(date + String(sequence).padStart(3, '0'));
+const applePrevious = process.env.B2B_APPSTORE_LATEST_BUILD_NUMBER;
+let nextBuild = automaticCandidate;
+// Two Codemagic workflows can reuse PROJECT_BUILD_NUMBER=1 on the same day.
+// For TestFlight, always exceed the highest build Apple already knows about.
+if (applePrevious !== undefined) {
+  if (!/^\\d+$/.test(applePrevious.trim())) {
+    throw new Error('App Store Connect returned a non-numeric build number; refusing a duplicate upload.');
+  }
+  const latest = Number(applePrevious);
+  if (!Number.isSafeInteger(latest) || latest < 0) {
+    throw new Error('Invalid latest App Store Connect build number.');
+  }
+  nextBuild = Math.max(automaticCandidate, latest + 1);
+}
+if (!Number.isSafeInteger(nextBuild) || nextBuild < 1 || nextBuild > 2147483647) {
+  throw new Error('iOS build number is outside the safe positive integer range.');
+}
+const buildNumber = String(nextBuild);
 
 app.expo ||= {};
 app.expo.ios ||= {};
