@@ -177,3 +177,150 @@ workflows:
         auth: integration
         submit_to_testflight: true
         submit_to_app_store: false
+
+  # Çalışkan Business release workflows are API-only. They are started by the
+  # separate GitHub release-request workflow, never by routine code pushes.
+  # They do NOT use Expo EAS Build and do NOT publish to the public App Store.
+  caliskan-business-ios-testflight:
+    name: Caliskan Business - iOS TestFlight (Codemagic)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    integrations:
+      app_store_connect: Codemagic Caliskan B2B
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.caliskangroup.business
+      vars:
+        EXPO_PUBLIC_API_URL: "https://admin.ecalisgan.com"
+        APP_STORE_APPLE_ID: "6818161236"
+        CI: "1"
+      node: 22
+      xcode: 26.4
+      cocoapods: default
+    scripts:
+      - name: Install Business packages and verify TypeScript
+        script: |
+          set -e
+          cd business-mobile
+          npm ci
+          npx tsc --noEmit --project tsconfig.json
+      - name: Sync current Business logo and splash from CRM
+        script: |
+          set -e
+          cd business-mobile
+          npm run sync:branding
+          node scripts/codemagic-build-version.cjs ios
+      - name: Generate native iOS project and install pods
+        script: |
+          set -e
+          cd business-mobile
+          npx expo prebuild --platform ios --clean --no-install
+          cd ios
+          pod install
+      - name: Sign Business bundle for TestFlight
+        script: |
+          set -e
+          cd business-mobile
+          xcode-project use-profiles
+      - name: Create signed Business IPA
+        script: |
+          set -e
+          cd business-mobile
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -type d | head -n 1)"
+          test -n "$workspace" || { echo "Business Xcode workspace missing"; exit 1; }
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; print(next((s for s in json.load(sys.stdin)["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
+          test -n "$scheme" || { echo "Business Xcode scheme missing"; exit 1; }
+          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+    artifacts:
+      - business-mobile/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false
+
+  caliskan-business-android-apk:
+    name: Caliskan Business - Android APK (Codemagic)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - caliskan_business_android_release
+      vars:
+        EXPO_PUBLIC_API_URL: "https://admin.ecalisgan.com"
+        CI: "1"
+      node: 22
+      java: 17
+    scripts:
+      - name: Install and typecheck Business application
+        script: |
+          set -e
+          cd business-mobile
+          npm ci
+          npx tsc --noEmit --project tsconfig.json
+      - name: Prepare correct Business application identity and branding
+        script: |
+          set -e
+          cd business-mobile
+          npm run sync:branding
+          node scripts/codemagic-build-version.cjs android
+      - name: Generate Android native project
+        script: |
+          set -e
+          cd business-mobile
+          npx expo prebuild --platform android --clean --no-install
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          node scripts/codemagic-android-signing.cjs
+      - name: Build standalone signed APK
+        script: |
+          set -e
+          cd business-mobile/android
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+    artifacts:
+      - business-mobile/android/app/build/outputs/apk/release/*.apk
+      - business-mobile/android/app/build/outputs/mapping/release/mapping.txt
+
+  caliskan-business-android-aab:
+    name: Caliskan Business - Android AAB (Codemagic)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      android_signing:
+        - caliskan_business_android_release
+      vars:
+        EXPO_PUBLIC_API_URL: "https://admin.ecalisgan.com"
+        CI: "1"
+      node: 22
+      java: 17
+    scripts:
+      - name: Install and typecheck Business application
+        script: |
+          set -e
+          cd business-mobile
+          npm ci
+          npx tsc --noEmit --project tsconfig.json
+      - name: Prepare correct Business application identity and branding
+        script: |
+          set -e
+          cd business-mobile
+          npm run sync:branding
+          node scripts/codemagic-build-version.cjs android
+      - name: Generate Android native project
+        script: |
+          set -e
+          cd business-mobile
+          npx expo prebuild --platform android --clean --no-install
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          node scripts/codemagic-android-signing.cjs
+      - name: Build signed Google Play AAB
+        script: |
+          set -e
+          cd business-mobile/android
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon
+    artifacts:
+      - business-mobile/android/app/build/outputs/bundle/release/*.aab
+      - business-mobile/android/app/build/outputs/mapping/release/mapping.txt

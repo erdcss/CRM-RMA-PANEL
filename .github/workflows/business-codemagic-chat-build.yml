@@ -1,0 +1,74 @@
+name: Çalışkan Business - Codemagic Sohbet Derleme Komutları
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/business-codemagic-check.txt'
+      - '.github/release-requests/business-codemagic-testflight.txt'
+      - '.github/release-requests/business-codemagic-apk.txt'
+      - '.github/release-requests/business-codemagic-aab.txt'
+  workflow_dispatch:
+    inputs:
+      artifact:
+        description: 'Çalışkan Business Codemagic build türü'
+        required: true
+        type: choice
+        options: [check, testflight, apk, aab]
+permissions:
+  contents: read
+concurrency:
+  group: business-codemagic-api-dispatch
+  cancel-in-progress: false
+jobs:
+  codemagic:
+    name: Codemagic API üzerinden yalnız Business uygulaması
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+      CODEMAGIC_BUSINESS_APP_ID: ${{ vars.CODEMAGIC_BUSINESS_APP_ID }}
+      CODEMAGIC_APP_ID_VAR: ${{ vars.CODEMAGIC_APP_ID }}
+      CODEMAGIC_APP_ID_SECRET: ${{ secrets.CODEMAGIC_APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Komut türünü belirle
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ARTIFACT: ${{ inputs.artifact }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            target="$INPUT_ARTIFACT"
+          else
+            changed="$(git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA")"
+            matches=""
+            for target_name in check testflight apk aab; do
+              if printf '%s\n' "$changed" | grep -Fxq ".github/release-requests/business-codemagic-$target_name.txt"; then
+                matches="$matches $target_name"
+              fi
+            done
+            read -r -a targets <<< "$matches"
+            if [ "${#targets[@]}" -ne 1 ]; then
+              echo "::error::Aynı commit yalnız bir Business derleme komutu içermeli."
+              exit 1
+            fi
+            target="${targets[0]}"
+          fi
+          case "$target" in
+            check|testflight|apk|aab) echo "target=$target" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Bilinmeyen Business komutu"; exit 1 ;;
+          esac
+      - name: Codemagic API ön kontrol veya derleme tetikleme
+        env:
+          GITHUB_REF: ${{ github.ref }}
+        run: node scripts/trigger-codemagic-business.mjs "${{ steps.target.outputs.target }}"
