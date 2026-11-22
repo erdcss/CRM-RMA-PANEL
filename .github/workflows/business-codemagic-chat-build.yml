@@ -53,7 +53,7 @@ jobs:
             changed="$(git diff --name-only "$PUSH_BEFORE" "$PUSH_SHA")"
             matches=""
             for target_name in check testflight apk aab; do
-              if printf '%s\\n' "$changed" | grep -Fxq ".github/release-requests/business-codemagic-$target_name.txt"; then
+              if printf '%s\n' "$changed" | grep -Fxq ".github/release-requests/business-codemagic-$target_name.txt"; then
                 matches="$matches $target_name"
               fi
             done
