@@ -28,7 +28,7 @@ jobs:
         run: |
           echo "App: Çalışkan B2B"
           echo "Branch: main"
-          echo "Workflow: caliskan-b2b-ios"
+          echo "Workflow: caliskan-b2b-testflight"
           echo "iOS bundle: com.caliskangroup.rma"
           echo "Expo EAS kullanılmıyor."
       - name: Codemagic API bağlantısını denetle
@@ -81,7 +81,7 @@ jobs:
             appId = matching[0]._id;
             console.log('Codemagic app automatically resolved from account.');
           }
-          const body = { appId, workflowId: 'caliskan-b2b-ios', branch: 'main' };
+          const body = { appId, workflowId: 'caliskan-b2b-testflight', branch: 'main' };
           let response;
           try {
             response = await fetch('https://api.codemagic.io/builds', {
@@ -111,7 +111,7 @@ jobs:
             '',
             '- **İstek:** Codemagic API tarafından kabul edildi',
             '- **Uygulama:** com.caliskangroup.rma',
-            '- **Workflow:** caliskan-b2b-ios',
+            '- **Workflow:** caliskan-b2b-testflight',
             '- **GitHub commit:** ' + process.env.GITHUB_SHA_REQUEST,
             '- **Derleme:** [' + buildId + '](' + url + ')',
             '- **Hedef:** Dahili Apple TestFlight, App Store üretim yayını değil.',

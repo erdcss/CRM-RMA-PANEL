@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,10 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { rmaApi, type B2BCartTrackingStatus } from '@/lib/api';
+import { registerB2BPush } from '@/lib/push';
+import { appAlert } from '@/lib/appAlert';
 
 import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
@@ -37,16 +42,54 @@ export default function OrderListScreen() {
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const [items, setItems] = useState<B2BOrderListItem[]>([]);
+  const [tracking, setTracking] = useState<B2BCartTrackingStatus | null>(null);
+  const [trackingError, setTrackingError] = useState(false);
+  const [pushPermission, setPushPermission] = useState(false);
+  const [pushRegistering, setPushRegistering] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const drawer = useRef(new Animated.Value(0)).current;
 
   const load = useCallback(async () => {
-    setItems(await getOrderList());
+    const currentItems = await getOrderList();
+    setItems(currentItems);
+    if (!currentItems.length) {
+      setTracking(null);
+      setTrackingError(false);
+      return;
+    }
+    try {
+      setTracking(await rmaApi.getB2BCartTrackingStatus());
+      setTrackingError(false);
+    } catch {
+      setTracking(null);
+      setTrackingError(true);
+    }
   }, []);
+
+  const enablePush = useCallback(async () => {
+    if (pushRegistering) return;
+    setPushRegistering(true);
+    try {
+      const registered = await registerB2BPush();
+      if (registered) {
+        setPushPermission(true);
+        appAlert('Bildirimler etkinleştirildi', 'Bekleyen sepet hatırlatmaları bu cihaza gönderilebilir.');
+      } else {
+        appAlert('Bildirimler etkinleştirilemedi', 'Bildirim iznini ve hesabınızın oturumunu kontrol edin.');
+      }
+    } finally {
+      setPushRegistering(false);
+    }
+  }, [pushRegistering]);
 
   useFocusEffect(
     useCallback(() => {
       void load();
+      if (Platform.OS !== 'web') {
+        void Notifications.getPermissionsAsync()
+          .then((permission) => setPushPermission(permission.granted))
+          .catch(() => setPushPermission(false));
+      }
       const unsubscribe = subscribeOrderList(() => void load());
       return unsubscribe;
     }, [load]),
@@ -91,15 +134,83 @@ export default function OrderListScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.eyebrow}>B2B SİPARİŞ</Text>
-            <Text style={styles.title}>Sipariş Listesi</Text>
+            <Text style={styles.title}>Siparişlerim</Text>
             <Text style={styles.subtitle}>
-              Siparişe eklediğiniz ürünleri koli bazında kontrol edin.
+              Bekleyen sepetinizi ve siparişlerinizi yönetin.
             </Text>
           </View>
           <View style={styles.countBadge}>
             <Text style={styles.countBadgeText}>{items.length}</Text>
           </View>
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Tamamlanmış siparişlerime git"
+          style={styles.historyLink}
+          onPress={() => router.push('/my-orders' as never)}
+        >
+          <Ionicons name="receipt-outline" size={17} color={palette.text} />
+          <Text style={styles.historyLinkText}>Tamamlanmış Siparişlerim</Text>
+          <Ionicons name="chevron-forward" size={16} color={palette.textSecondary} />
+        </Pressable>
+
+        {items.length > 0 ? (
+          <View style={styles.reminderCard}>
+            <View style={styles.reminderTitleRow}>
+              <View style={styles.reminderIcon}>
+                <Ionicons name="notifications-outline" size={20} color="#151515" />
+              </View>
+              <View style={styles.reminderTitleWrap}>
+                <Text style={styles.reminderTitle}>Bekleyen Sepet Hatırlatıcısı</Text>
+                <Text style={styles.reminderStatus}>
+                  {trackingError
+                    ? 'Hatırlatma durumu kontrol edilemiyor'
+                    : !tracking
+                      ? 'Hatırlatma durumu yükleniyor'
+                      : tracking.reminderStatus === 'disabled'
+                        ? 'Otomatik hatırlatma kapalı'
+                        : tracking.remindedAt
+                          ? tracking.reminderStatus === 'push_accepted'
+                            ? 'Bildirim gönderimi başlatıldı'
+                            : 'Hatırlatma bildirim merkezinde'
+                          : tracking.remindAt
+                            ? 'Otomatik hatırlatma planlandı'
+                            : 'Sepet takibi aktif'}
+                </Text>
+              </View>
+              <Ionicons name="time-outline" size={20} color={palette.textSecondary} />
+            </View>
+            <Text style={styles.reminderDescription}>
+              Sepetinizde 4 saat boyunca işlem yapılmazsa bir kez otomatik hatırlatma oluşturulur.
+              Sepeti değiştirdiğinizde süre yeniden başlar.
+            </Text>
+            {tracking?.remindAt && !tracking.remindedAt && tracking.reminderStatus !== 'disabled' ? (
+              <Text style={styles.reminderTime}>
+                Hatırlatma: {new Date(tracking.remindAt).toLocaleString('tr-TR', {
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                })}
+              </Text>
+            ) : null}
+            {Platform.OS !== 'web' ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Bekleyen sepet bildirimlerini etkinleştir"
+                disabled={pushRegistering}
+                onPress={() => void enablePush()}
+                style={styles.pushLink}
+              >
+                <Ionicons name={pushPermission ? 'checkmark-circle-outline' : 'notifications-circle-outline'} size={19} color={palette.text} />
+                <Text style={styles.pushLinkText}>
+                  {pushRegistering ? 'Bildirimler bağlanıyor…' : pushPermission
+                    ? 'Bildirim izni açık · cihazı bağla'
+                    : 'Telefon bildirimlerini etkinleştir'}
+                </Text>
+                <Ionicons name="chevron-forward" size={15} color={palette.textSecondary} />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         {items.length ? (
           <ScrollView
@@ -354,6 +465,57 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     ...typography.bodyMedium,
     color: '#FFFFFF',
     fontWeight: '900',
+  },
+  historyLink: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  historyLinkText: {
+    ...typography.bodyMedium,
+    color: palette.text,
+    fontWeight: '800',
+    flex: 1,
+  },
+  reminderCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: '#E6B800',
+    backgroundColor: palette.surface,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  reminderTitleRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
+  reminderIcon: {
+    height: 40, width: 40, borderRadius: radius.md,
+    backgroundColor: '#FFCD00', alignItems: 'center', justifyContent: 'center',
+  },
+  reminderTitleWrap: {flex: 1},
+  reminderTitle: {
+    ...typography.bodyMedium, color: palette.text, fontWeight: '900',
+  },
+  reminderStatus: {
+    ...typography.caption, color: palette.textSecondary, marginTop: 2,
+  },
+  reminderDescription: {
+    ...typography.caption, color: palette.textSecondary, lineHeight: 19,
+  },
+  reminderTime: {
+    ...typography.caption, color: palette.text, fontWeight: '800',
+  },
+  pushLink: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
+    backgroundColor: palette.surfaceSecondary,
+    borderRadius: radius.md, paddingHorizontal: spacing.sm,
+    minHeight: 38,
+  },
+  pushLinkText: {
+    ...typography.caption, color: palette.text, fontWeight: '800', flex: 1,
   },
   list: {
     paddingHorizontal: spacing.lg,

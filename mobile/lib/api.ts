@@ -548,6 +548,16 @@ export type B2BReturn = {
   created_at?: string | null;
 };
 
+export type B2BCartTrackingStatus = {
+  itemCount:number;
+  boxCount:number;
+  estimatedTotal:number;
+  lastActivityAt:string|null;
+  remindAt:string|null;
+  remindedAt:string|null;
+  reminderStatus:string|null;
+};
+
 export type B2BNotification = {
   id: number;
   title: string;
@@ -765,6 +775,7 @@ export const rmaApi = {
   syncB2BCartTracking: (items:Array<{productId:string;quantity:number}>) =>
     request<{ok:boolean}>('/api/b2b/cart-tracking/snapshot',{
       method:'POST',body:JSON.stringify({source:'mobile',items})}),
+  getB2BCartTrackingStatus: () => request<B2BCartTrackingStatus>('/api/b2b/cart-tracking/mine'),
   getMarketplaceCart: () => request<MarketplaceCart>('/api/marketplace/cart'),
   addMarketplaceCart: (productId:number,boxes:number) => request<{id:number}>('/api/marketplace/cart',{method:'POST',body:JSON.stringify({productId,boxes,deliveryMode:'direct'})}),
   removeMarketplaceCart: (lineId:number) => request<{ok:boolean}>(`/api/marketplace/cart/${lineId}`,{method:'DELETE'}),
