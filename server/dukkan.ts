@@ -270,7 +270,9 @@ async function ready() {
         if(group.rows.length===1){
           const sid=Number(group.rows[0].id);
           console.info("Dukkan Musullu image quality scan:",await scanMusulluRecovery(pool!,sid));
-          console.info("Dukkan Musullu official image sample:",await prepareMusulluOfficialSample(pool!,sid));
+          void prepareMusulluOfficialSample(pool!,sid)
+            .then(result=>console.info("Dukkan Musullu verified official photo recovery:",result))
+            .catch(error=>console.error("Dukkan official photo recovery failed:",error));
         }
       }catch(error){console.error("Dukkan image recovery audit deferred:",error);}
     })
