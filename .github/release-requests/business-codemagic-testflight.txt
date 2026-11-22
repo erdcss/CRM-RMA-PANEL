@@ -1,0 +1,9 @@
+Çalışkan Business — Codemagic TestFlight build talebi
+Komut: Business TestFlight al
+Tarih: 2026-11-23
+Uygulama: com.caliskangroup.business
+Codemagic workflow: caliskan-business-ios-testflight
+GitHub dalı: main
+Yayın hedefi: Apple TestFlight (App Store genel yayını değil)
+İstek kaynağı: ChatGPT sohbeti
+Release request: ilk Business TestFlight marker
