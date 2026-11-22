@@ -1,0 +1,5 @@
+Çalışkan Business Codemagic bağlantı kontrolü
+Komut: check
+Talep: 2026-11-23
+Kaynak: ChatGPT → GitHub Actions → Codemagic API
+Ücretli iOS/Android derlemesi: HAYIR
