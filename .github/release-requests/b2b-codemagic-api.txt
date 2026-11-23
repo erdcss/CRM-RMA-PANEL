@@ -1,11 +1,12 @@
-ÇALIŞKAN B2B — ChatGPT üzerinden Codemagic API bağlantı testi
-Request: b2b-api-verify-20261123-01
-Operation: verify
+ÇALIŞKAN B2B — ChatGPT → GitHub Actions → Codemagic TestFlight
+Request: b2b-testflight-20261123-after-token-01
+Operation: testflight
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
 Bundle ID: com.caliskangroup.rma
 App version: 1.3.14
 Codemagic application: CRM-RMA-PANEL
 Codemagic workflow: caliskan-b2b-testflight
-Check only: verify API credentials and exact application identity.
-Chargeable iOS build: NO. No IPA is built and no TestFlight submission requested.
+Publishing: Apple TestFlight ONLY; do not submit to the public App Store.
+Prerequisite: CODEMAGIC_API_TOKEN verified successfully in GitHub Actions run 45131538775, attempt 2.
+Expected result: Codemagic API accepts POST /builds, returns build ID and URL; actual IPA upload and Apple processing require separate confirmation.
