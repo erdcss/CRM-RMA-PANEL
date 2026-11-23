@@ -61,7 +61,7 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
     const logo = normalizeBrandAsset(branding.logo);
     return {
       // The app uses only the mobile assets configured in Admin settings.
-      b2b_web_logo: normalizeBrandAsset(branding.webLogo) || logo,
+      b2b_web_logo: logo,
       b2b_mobile_logo: logo,
       b2b_mobile_splash: normalizeBrandAsset(branding.splash),
       loaded: true,

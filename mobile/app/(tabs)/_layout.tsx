@@ -1,11 +1,9 @@
 import { Tabs } from 'expo-router';
 
 import { TabBar } from '@/components/navigation/TabBar';
-import { BottomBarScrollProvider } from '@/components/navigation/BottomBarScrollContext';
 
 export default function TabsLayout() {
   return (
-    <BottomBarScrollProvider>
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
       screenOptions={{ headerShown: false }}
@@ -19,6 +17,5 @@ export default function TabsLayout() {
       <Tabs.Screen name="products" options={{ href: null }} />
       <Tabs.Screen name="marketplace" options={{ href: null }} />
     </Tabs>
-    </BottomBarScrollProvider>
   );
 }
