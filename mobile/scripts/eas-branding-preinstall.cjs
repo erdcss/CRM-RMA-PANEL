@@ -80,7 +80,7 @@ async function main(){
     ? path.resolve(root, preparedIcon)
     : null;
   if (typeof preparedIcon === "string" &&
-      /^\\.\\/assets\\/managed-ios-app-icon-[a-f0-9]{12}\\.png$/.test(preparedIcon) &&
+      preparedIcon.startsWith("./assets/managed-ios-app-icon-") && preparedIcon.endsWith(".png") &&
       preparedIconPath && fs.existsSync(preparedIconPath)) {
     console.log("[EAS preinstall] Preserving prepared iOS launcher icon:", path.basename(preparedIconPath));
   } else {
