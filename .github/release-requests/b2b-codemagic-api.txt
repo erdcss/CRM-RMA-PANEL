@@ -1,13 +1,15 @@
-ÇALIŞKAN B2B — Premium iOS TestFlight 1.3.15
+ÇALIŞKAN B2B — Eski arayüze dönüş, TestFlight 1.3.16
 Operation: testflight
-Request: b2b-premium-navigation-branding-20261123-01
+Request: b2b-restore-old-ui-testflight-20261123-01
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
-Merge commit: db7f5cd47dd0511fe9adccedd43ddcc01164bd8b
+Rollback commit: 0b65c4c0338f17ba57792ee7146d0d29ff5115e5
 Bundle ID: com.caliskangroup.rma
-App Version: 1.3.15
+App Version: 1.3.16
 Codemagic application: CRM-RMA-PANEL
 Codemagic workflow: caliskan-b2b-testflight
-Only internal TestFlight; public App Store submission prohibited.
-Includes: actual uploaded brand logo on header, native icon selection, premium hamburger drawer, six-item scroll-aware floating navbar with 3D parcel.
-Production publishing: false. Exactly one iOS build requested.
+Goal: Rebuild original 1.3.14-era UI from before PR #99.
+Removed: premium homepage, hamburger modal, scroll-to-3D parcel navigation, replacement iOS icon behavior.
+Preserved: customer orders, shortages, Reels, pending cart reminders, prior app features.
+Publishing: Apple TestFlight ONLY. Do not submit to public App Store review.
+Exactly one new iOS build.
