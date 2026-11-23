@@ -17,7 +17,11 @@ export type RoundBottomBanner = {
   heroImageMode?:'full'|'background';
   heroCropPercent?:number;
 };
+export type HomeBanner = { id:string; title?:string; imageId:string; imageWidth?:number; imageHeight?:number; linkType?:string; productId?:number|null; pagePath?:string; externalUrl?:string };
 export type B2BHomepageCategories = {
+  banners?: HomeBanner[];
+  sliderAutoPlay?: boolean;
+  sliderIntervalMs?: number;
   roundBottomBanner?:RoundBottomBanner;
   categories: string[];
   categoryCards?: B2BCategoryCard[];
@@ -34,6 +38,9 @@ export async function loadB2BHomepageCategories(): Promise<B2BHomepageCategories
     categories: Array.isArray(data?.categories)
       ? data.categories.filter((item: unknown): item is string => typeof item === "string" && Boolean(item.trim()))
       : [],
+    banners: Array.isArray(data?.banners) ? data.banners.filter((b: HomeBanner) => b && typeof b.imageId === "string" && /^[a-f0-9]{32}$/i.test(b.imageId)) : [],
+    sliderAutoPlay: data?.sliderAutoPlay !== false,
+    sliderIntervalMs: Number(data?.sliderIntervalMs) || 5000,
     categoryCards: Array.isArray(data?.categoryCards) ? data.categoryCards : [],
     roundBottomBanner:data?.roundBottomBanner && typeof data.roundBottomBanner==='object'
       ? data.roundBottomBanner as RoundBottomBanner:undefined,
