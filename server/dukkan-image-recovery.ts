@@ -166,6 +166,8 @@ async function aiImage(pool:Pool,storeId:number,productId:number,regenerate=fals
  const source=base64Image(p.original_image);
  if(!source)throw Object.assign(new Error("Kaynak fotoğraf okunamadı"),{status:422});
  const productLabel=[p.brand,p.sku,p.name].filter(Boolean).map((x:unknown)=>String(x).slice(0,120)).join(" / ");
+ const heaterNotes=/fanlı ısıtıcı|fanli isitici|fan heater/i.test(String(p.name)) ?
+  "For this fan heater only, preserve the top handle cutout, front protective grille, fan/heating element behind it, lower control knob and red indicator light if those parts are visible in the source.":"";
  const prompt=[
   "TASK: Edit the ATTACHED EXISTING product photo; do not design a new product.",
   "Product identification for context only: "+productLabel+".",
@@ -174,11 +176,11 @@ async function aiImage(pool:Pool,storeId:number,productId:number,regenerate=fals
   "Pure white (#FFFFFF) seamless background, natural studio lighting, minimal realistic grounding shadow.",
   "Improve edges, clarity, contrast, plastic/metal textures and visible existing details; no blur, noise or pixelation.",
   "Preserve original body geometry, silhouette, proportions, model, main colors, vent grille, handle, control dials, button/light placement, accessories and visible brand markings.",
-  "For a fan heater: preserve the handle cutout at top, front protective grille, fan/heating element behind it, lower control knob and red indicator light as shown in the reference. Only apply details that are actually visible in the supplied photograph.",
+  heaterNotes,
   "Do not crop off any part of the product. No packaging, labels, captions, graphics, price, frame, watermark or extra products.",
   "Do not invent logos, small text, control labels, accessories, ports or features absent or unreadable in the reference.",
   "Very low-resolution source photos cannot prove fine details: this is an illustrative enhancement candidate that must be reviewed before publication."
- ].join("\n");
+ ].filter(Boolean).join("\n");
  const openai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:120000,maxRetries:0});
  const result=await openai.images.edit({
   model:productImageEditModel(),
