@@ -960,9 +960,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
         const androidIcon = available.has("b2b_mobile_android_icon") ? "b2b-android-icon" : null;
         const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
-        // The header uses the customer's uploaded horizontal B2B wordmark.
-        // Keep the separate mobile icon/logo for native launcher assets.
-        const webLogo = available.has("b2b_logo") ? "b2b-web-logo" : logo;
+        const webLogo = logo;
         // Use each asset's actual database update timestamp, not Date.now().
         // Otherwise the splash URL changes on every request and flickers.
         const revisions = new Map(
@@ -974,7 +972,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         return res.json({
           logo: image(logo, "b2b_mobile_logo"),
           androidIcon: image(androidIcon, "b2b_mobile_android_icon"),
-          webLogo: image(webLogo, webLogo === "b2b-web-logo" ? "b2b_logo" : "b2b_mobile_logo"),
+          webLogo: image(webLogo, "b2b_mobile_logo"),
           splash: image(splash, "b2b_mobile_splash"),
           updatedAt: Math.max(0, ...revisions.values()),
         });

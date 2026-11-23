@@ -4,7 +4,6 @@ import Constants from 'expo-constants';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/ui/Screen';
-import { useBottomBarScroll } from '@/components/navigation/BottomBarScrollContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { rmaApi, type B2BAccount } from '@/lib/api';
@@ -35,7 +34,6 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { session, user, signOut } = useAuth();
   const { palette } = useAppearance();
-  const { reportScroll } = useBottomBarScroll();
   const [account, setAccount] = useState<B2BAccount | null>(null);
   const [storeLinks,setStoreLinks]=useState<UpdateLinks>({});
   useEffect(()=>{
@@ -66,7 +64,7 @@ export default function ProfileScreen() {
     else router.push({ pathname: '/account/[section]', params: { section: key } } as never);
   };
   return <Screen style={{ backgroundColor: palette.background }}>
-    <ScrollView contentContainerStyle={styles.page} onScroll={(event)=>reportScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16}>
+    <ScrollView contentContainerStyle={styles.page}>
       {showUpdate ? <Pressable style={styles.updateBanner} accessibilityRole="link"
         onPress={()=>{if(storeUrl)void Linking.openURL(storeUrl).catch(()=>undefined);}}>
         <View style={styles.updateIcon}><Ionicons name="cloud-download-outline" size={25} color="#151515"/></View>

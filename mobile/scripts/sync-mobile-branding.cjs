@@ -147,15 +147,9 @@ async function main() {
   }
 
 
-  // Prefer the admin-uploaded square native icon when available; it is
-  // shared by iOS and Android. Keep the separately uploaded wide B2B wordmark
-  // untouched for the top header, rather than shrinking it into a launcher tile.
-  // Apple requires a 1024px square icon without an alpha channel.
-  const iosIconSource = target === "b2b"
-    ? (branding.androidIcon ? androidIconPath : logoPath)
-    : null;
-  const iosIconPath = iosIconSource
-    ? writeOpaqueIosIcon(path.resolve(root, iosIconSource), assetsDir)
+  // The admin logo can be rectangular or transparent. iOS launcher icons cannot.
+  const iosIconPath = target === "b2b"
+    ? writeOpaqueIosIcon(path.resolve(root, logoPath), assetsDir)
     : null;
 
   if (!fs.existsSync(appJsonPath)) {
@@ -284,7 +278,7 @@ async function main() {
 
   fs.writeFileSync(appJsonPath, JSON.stringify(config, null, 2) + "\n");
   console.log(
-    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · iosIconSource=${iosIconSource ? path.basename(iosIconSource) : 'yok'} · iosIcon=${iosIconPath ? path.basename(iosIconPath) : 'yok'} · androidForeground=${androidForegroundPath ? path.basename(androidForegroundPath) : 'yok'} · splash=${Boolean(splashPath)}`,
+    `Mobil marka senkronizasyonu tamamlandı: ${target} · logo=${Boolean(logoPath)} · androidForeground=${androidForegroundPath ? path.basename(androidForegroundPath) : 'yok'} · splash=${Boolean(splashPath)}`,
   );
 }
 
