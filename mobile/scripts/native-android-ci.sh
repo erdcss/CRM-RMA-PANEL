@@ -40,10 +40,11 @@ check_apk() {
   echo "$package_info"
   local badging
   badging="$("$aapt_path" dump badging "$apk")"
-  # aapt formats optional hardware declarations as
+  # aapt outputs the optional feature as:
   # "uses-feature-not-required: name='android.hardware.screen.portrait'".
-  # Match the feature on the same line rather than assuming an exact spacing.
-  if ! grep -E '^uses-feature-not-required:.*android[.]hardware[.]screen[.]portrait' <<< "$badging" >/dev/null; then
+  # Match tokens on the SAME line without requiring column zero; Android
+  # tooling may prefix whitespace. Fail closed if the optional entry is absent.
+  if ! awk 'index($0, "uses-feature-not-required:") && index($0, "android.hardware.screen.portrait") { found=1 } END { exit !found }' <<< "$badging"; then
     echo "Google Play portrait hardware requirement is not optional in compiled APK." >&2
     grep -E 'uses-feature|uses-implied-feature' <<< "$badging" >&2 || true
     exit 1
