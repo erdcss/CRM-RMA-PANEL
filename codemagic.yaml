@@ -137,6 +137,9 @@ workflows:
         EXPO_SKIP_NIIMBOT: "1"
         CI: "1"
         APP_STORE_APPLE_ID: "6802286663"
+        # Apple 90062/90186: 1.3.13 is an approved, closed TestFlight train.
+        # Raise this baseline whenever a newer App Store version is approved.
+        B2B_LAST_APPROVED_IOS_VERSION: "1.3.13"
         # Codemagic Xcode 26 altool App ID resolution compatibility workaround.
         APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool"
       node: 22
