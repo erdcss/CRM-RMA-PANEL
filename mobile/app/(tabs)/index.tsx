@@ -70,6 +70,7 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { palette } = useAppearance();
   const branding = useMobileBranding();
+  const headerLogoUri = branding.b2b_web_logo || branding.b2b_mobile_logo;
   const { reportScroll, expandBar } = useBottomBarScroll();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const styles = useMemo(() => buildStyles(palette), [palette]);
@@ -441,9 +442,9 @@ export default function HomeScreen() {
             <Ionicons name="menu" size={27} color="#FFCD00"/>
           </Pressable>
           <View style={styles.brandMarkWrap} accessibilityLabel="Çalışkan B2B logosu">
-            {(branding.b2b_web_logo || branding.b2b_mobile_logo)
+            {headerLogoUri
               ? <Image
-                  source={{uri:(branding.b2b_web_logo || branding.b2b_mobile_logo)}}
+                  source={{uri:headerLogoUri}}
                   style={styles.brandMark}
                   contentFit="contain"
                   cachePolicy="none"
