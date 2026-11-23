@@ -4,7 +4,7 @@ type RecordItem={
  product_id:number;sku:string;name:string;brand:string;
  source_width:number;source_height:number;state:string;
  candidate_origin:string|null;candidate_width:number|null;candidate_height:number|null;
- candidate_source_url:string|null;review_note:string|null;
+ candidate_source_url:string|null;review_note:string|null;updated_at:string;
 };
 type Report={total:number;counts:Record<string,number>;items:RecordItem[]};
 export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>void}){
@@ -24,12 +24,12 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
   }catch(e){setError((e as Error).message);}
  },[base]);
  useEffect(()=>{void load();},[load]);
- const request=async(path:string,label:string,after?:()=>void)=>{
+ const request=async(path:string,label:string,after?:()=>void,payload:Record<string,unknown>={})=>{
   setBusy(label);setError("");setNotice("");
   try{
    const response=await fetch(base+"/image-recovery"+path,{
     method:"POST",credentials:"include",cache:"no-store",
-    headers:{"Content-Type":"application/json"},body:"{}",
+    headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),
    });
    const r=await response.json().catch(()=>null);
    if(!response.ok){
@@ -69,7 +69,7 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
     ].map(([name,number])=><div key={name} className="rounded-xl bg-slate-50 p-3"><b className="block text-xl text-[#173f6d]">{number}</b><span className="text-xs text-slate-600">{name}</span></div>)}
    </div>
    <p className="flex gap-2 text-xs leading-5 text-amber-900"><AlertTriangle size={16} className="mt-0.5 shrink-0"/>
-    PDF görselleri 800 pikselden küçükse kalite uyarısı verilir. Üretici kaynaklı resimler veya AI taslakları önce onaya gönderilir; AI eksik ürün ayrıntılarını yanlış oluşturabilir.</p>
+    AI ile iyileştir: orijinal fotoğrafı esas alarak 1024×1024 beyaz arka planlı net bir e-ticaret taslağı oluşturur. Kaynak 68×72 px gibi küçükse yeni görünen detaylar birebir doğrulanamaz. Önce/sonra karşılaştırın ve yalnız doğruysa onaylayın.</p>
    <div className="flex flex-wrap items-center gap-2">
     <button disabled={!!busy} onClick={()=>void request("/scan","116 ürün kalite taraması")}
       className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50">
@@ -88,14 +88,27 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
    {busy&&<p role="status" className="text-xs font-semibold text-slate-600">{busy} devam ediyor...</p>}
    <div className="max-h-[620px] space-y-3 overflow-y-auto">
     {visible.map(p=><article key={p.product_id} className="rounded-xl border border-slate-200 p-3">
-     <div className="flex flex-wrap items-start gap-3 sm:flex-nowrap">
-      <div className="flex shrink-0 gap-2">
-       <div className="flex h-24 w-20 items-center justify-center overflow-hidden rounded-lg bg-slate-50">
-        <img src={base.replace(/\/$/,"")+"/products/"+p.product_id+"/image"} alt={p.name+" PDF fotoğrafı"} className="max-h-full max-w-full object-contain"/>
+     <div className="flex flex-wrap items-start gap-3">
+      <div className={"grid shrink-0 gap-2 "+(p.state==="pending_review"?"grid-cols-2":"grid-cols-1")}>
+       <div className={"min-w-0 rounded-xl bg-slate-50 p-2 "+(p.state==="pending_review"?"w-[130px] sm:w-[170px]":"w-[86px]")}>
+        <div className={"flex items-center justify-center overflow-hidden rounded-lg bg-white "+(p.state==="pending_review"?"aspect-square":"h-24")}>
+         <img src={base+"/image-recovery/"+p.product_id+"/original"} alt={p.name+" orijinal PDF görseli"} loading="lazy" className="max-h-full max-w-full object-contain"/>
+        </div>
+        {p.state==="pending_review"&&<span className="mt-1 block text-center text-[10px] font-semibold text-slate-600">Önce · PDF</span>}
        </div>
-       {p.state==="pending_review"&&<div className="flex h-24 w-20 items-center justify-center overflow-hidden rounded-lg bg-slate-50">
-        <img src={base+"/image-recovery/"+p.product_id+"/candidate"} alt={p.name+" yeni görsel adayı"} className="max-h-full max-w-full object-contain"/>
-       </div>}
+       {p.state==="pending_review"&&
+        <div className="w-[130px] min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2 sm:w-[170px]">
+         <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-white">
+          <img key={p.updated_at} src={base+"/image-recovery/"+p.product_id+"/candidate?v="+encodeURIComponent(p.updated_at||"")}
+           alt={p.name+" "+(p.candidate_origin==="ai"?"AI iyileştirme":"resmî fotoğraf")+" adayı"} loading="lazy" className="max-h-full max-w-full object-contain"/>
+         </div>
+         <span className="mt-1 block text-center text-[10px] font-semibold text-emerald-800">Sonra · {p.candidate_origin==="ai"?"AI Taslağı":"Resmî Fotoğraf"}</span>
+         <a href={base+"/image-recovery/"+p.product_id+"/candidate?v="+encodeURIComponent(p.updated_at||"")}
+          target="_blank" rel="noopener noreferrer"
+          className="mt-1 block text-center text-[10px] font-semibold text-blue-800 underline">
+          Görseli büyük aç
+         </a>
+        </div>}
       </div>
       <div className="min-w-0 flex-1">
        <strong className="block break-words text-sm text-slate-900">{p.name}</strong>
@@ -131,6 +144,12 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
         }}>Görseli onayla</button>
        <button type="button" disabled={!!busy} className="inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-xs disabled:opacity-40"
         onClick={()=>void request("/"+p.product_id+"/reject",p.sku+" görsel reddi")}><X size={13}/> Reddet</button>
+       {p.candidate_origin==="ai"&&<button type="button" disabled={!!busy}
+        className="inline-flex items-center gap-1 rounded-lg border border-[#173f6d] px-3 py-2 text-xs font-semibold text-[#173f6d] disabled:opacity-40"
+        onClick={()=>{
+         if(window.confirm("AI taslağını orijinal PDF fotoğrafından yeniden oluşturmak için ücretli bir görsel işlemi başlatılacak. Önceki taslak yalnızca yeni aday başarılı olursa değişir. Devam edilsin mi?"))
+          void request("/"+p.product_id+"/ai",p.sku+" yeniden AI iyileştirme",undefined,{regenerate:true});
+        }}><RefreshCw size={13}/> Yeniden Üret</button>}
       </>}
      </div>
     </article>)}

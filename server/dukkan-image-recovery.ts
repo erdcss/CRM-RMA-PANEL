@@ -74,7 +74,7 @@ export async function scanMusulluRecovery(pool:Pool,storeId:number){
 }
 async function readRow(pool:Pool,storeId:number,productId:number){
  const q=await pool.query(
-  "SELECT r.*,p.name,p.brand,p.sku FROM dukkan_image_recovery r "+
+  "SELECT r.*,r.updated_at::text AS row_version,p.name,p.brand,p.sku FROM dukkan_image_recovery r "+
   "JOIN dukkan_products p ON p.id=r.product_id AND p.store_id=r.store_id "+
   "WHERE r.store_id=$1 AND r.product_id=$2 AND p.deleted_at IS NULL",[storeId,productId]);
  if(!q.rows[0])throw Object.assign(new Error("Ürün kalite kaydı bulunamadı"),{status:404});
@@ -154,30 +154,67 @@ async function officialImage(pool:Pool,storeId:number,productId:number){
    "Resmî siteyle marka/model eşleşti. Varyantı inceleyip onaylayın."]);
  return {candidate:true,source:"official",width:metrics.width,height:metrics.height};
 }
-async function aiImage(pool:Pool,storeId:number,productId:number){
+async function aiImage(pool:Pool,storeId:number,productId:number,regenerate=false){
  const p=await readRow(pool,storeId,productId);
- if(p.state==="pending_review")throw Object.assign(new Error("Bu ürünün zaten onay bekleyen bir görseli var."),{status:409});
- if(!process.env.OPENAI_API_KEY)throw Object.assign(new Error("Yapay zekâ servisi yapılandırılmamış"),{status:503});
+ const pending=p.state==="pending_review";
+ if(pending&&(!regenerate||p.candidate_origin!=="ai"))
+  throw Object.assign(new Error("Bu ürün için onay bekleyen bir görsel var. AI taslağını yeniden üretmek için Yeniden Üret düğmesini kullanın."),{status:409});
+ if(!pending&&(regenerate||p.state==="approved"))
+  throw Object.assign(new Error("Bu ürünün mevcut AI taslağı yok veya görseli daha önce onaylandı."),{status:409});
+ if(!process.env.OPENAI_API_KEY)
+  throw Object.assign(new Error("Yapay zekâ servisi yapılandırılmamış"),{status:503});
  const source=base64Image(p.original_image);
- if(!source)throw new Error("Orijinal ürün görseli okunamadı");
+ if(!source)throw Object.assign(new Error("Kaynak fotoğraf okunamadı"),{status:422});
+ const productLabel=[p.brand,p.sku,p.name].filter(Boolean).map((x:unknown)=>String(x).slice(0,120)).join(" / ");
+ const heaterNotes=/fanlı ısıtıcı|fanli isitici|fan heater/i.test(String(p.name)) ?
+  "For this fan heater only, preserve the top handle cutout, front protective grille, fan/heating element behind it, lower control knob and red indicator light if those parts are visible in the source.":"";
+ const prompt=[
+  "TASK: Edit the ATTACHED EXISTING product photo; do not design a new product.",
+  "Product identification for context only: "+productLabel+".",
+  "Transform this small, blurry catalog picture into a sharp professional ecommerce studio photograph.",
+  "Exactly one complete product, centered and fully within a square 1024 x 1024 frame.",
+  "Pure white (#FFFFFF) seamless background, natural studio lighting, minimal realistic grounding shadow.",
+  "Improve edges, clarity, contrast, plastic/metal textures and visible existing details; no blur, noise or pixelation.",
+  "Preserve original body geometry, silhouette, proportions, model, main colors, vent grille, handle, control dials, button/light placement, accessories and visible brand markings.",
+  heaterNotes,
+  "Do not crop off any part of the product. No packaging, labels, captions, graphics, price, frame, watermark or extra products.",
+  "Do not invent logos, small text, control labels, accessories, ports or features absent or unreadable in the reference.",
+  "Very low-resolution source photos cannot prove fine details: this is an illustrative enhancement candidate that must be reviewed before publication."
+ ].filter(Boolean).join("\n");
  const openai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:120000,maxRetries:0});
  const result=await openai.images.edit({
   model:productImageEditModel(),
   image:await toFile(source.buffer,"original."+source.mime.split("/")[1],{type:source.mime}),
-  prompt:"Enhance this exact product photo as an ecommerce image on a pure white background. Keep the real product shape, colors, antenna, buttons, model, logo and number of accessories exactly unchanged. Do not fabricate or rewrite tiny details or text, do not crop or add objects. The original may be blurry; generated details are not verified.",
-  size:"1024x1024",output_format:"png",
+  prompt,
+  size:"1024x1024",
+  quality:"high",
+  output_format:"jpeg",
+  output_compression:90,
  });
  const b64=result.data?.[0]?.b64_json;
- if(!b64)throw new Error("AI görseli üretilemedi");
- const image="data:image/png;base64,"+b64,meta=imageDimensions(image);
- if(!meta)throw new Error("AI görsel dosyası geçersiz");
- await pool.query(
+ if(!b64)throw Object.assign(new Error("AI görseli üretilemedi"),{status:502});
+ const image="data:image/jpeg;base64,"+b64;
+ const meta=imageDimensions(image);
+ if(!meta||meta.width<900||meta.height<900)
+  throw Object.assign(new Error("AI çıktısı geçerli veya yeterli çözünürlükte değil"),{status:502});
+ // Preserve any existing candidate on failure and reject a stale concurrent write.
+ const saved=await pool.query(
   "UPDATE dukkan_image_recovery SET candidate_image=$3,candidate_origin='ai',"+
   "candidate_source_url=NULL,candidate_width=$4,candidate_height=$5,state='pending_review',"+
-  "review_note='AI taslağı: Düşük kaliteli fotoğraflarda ürün detayları değişebilir. Manuel onay gerekir.',updated_at=NOW() "+
-  "WHERE store_id=$1 AND product_id=$2",
-  [storeId,productId,image,meta.width,meta.height]);
- return {candidate:true,source:"ai",width:meta.width,height:meta.height};
+  "review_note=$6,updated_at=NOW() WHERE store_id=$1 AND product_id=$2 "+
+  "AND source_sha=$7 AND updated_at=$8::timestamptz AND "+
+  (regenerate?"state='pending_review' AND candidate_origin='ai'":
+  "state IN ('critical','low','adequate','missing')")+
+  " RETURNING product_id,updated_at",
+  [storeId,productId,image,meta.width,meta.height,
+   "AI ile netleştirilmiş beyaz arka planlı taslak. Kaynak PDF çok küçük olduğu için ürün ayrıntılarını onaylamadan yayınlamayın.",
+   p.source_sha,p.row_version]
+ );
+ if(!saved.rowCount)throw Object.assign(
+  new Error("Bu ürünün görsel durumu işlem sırasında değişti. Önce sayfayı yenileyin; önceki aday korundu."),
+  {status:409});
+ return {candidate:true,source:"ai",state:"pending_review",width:meta.width,height:meta.height,
+  regenerated:regenerate,updatedAt:saved.rows[0].updated_at};
 }
 export async function approveRecovery(pool:Pool,storeId:number,productId:number){
  const c=await pool.connect();
@@ -235,7 +272,7 @@ export function registerDukkanImageRecovery(app:Express,pool:Pool){
   manager(res);await ensureImageRecovery(pool);
   const q=await pool.query(
    "SELECT r.product_id,p.sku,p.name,p.brand,r.source_width,r.source_height,r.state,"+
-   "r.candidate_origin,r.candidate_width,r.candidate_height,r.candidate_source_url,r.review_note "+
+   "r.candidate_origin,r.candidate_width,r.candidate_height,r.candidate_source_url,r.review_note,r.updated_at "+
    "FROM dukkan_image_recovery r JOIN dukkan_products p ON p.store_id=r.store_id AND p.id=r.product_id "+
    "WHERE r.store_id=$1 AND p.deleted_at IS NULL ORDER BY "+
    "CASE r.state WHEN 'pending_review' THEN 0 WHEN 'critical' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,r.product_id DESC LIMIT 250",
@@ -246,6 +283,17 @@ export function registerDukkanImageRecovery(app:Express,pool:Pool){
  }));
  app.post(root+"/scan",safe(async(req,res)=>{
   manager(res);res.json(await scanMusulluRecovery(pool,sid(req)));
+ }));
+ // Original source is returned separately for side-by-side comparison even after approval.
+ app.get(root+"/:productId/original",safe(async(req,res)=>{
+  manager(res);
+  const q=await pool.query("SELECT original_image FROM dukkan_image_recovery WHERE store_id=$1 AND product_id=$2",
+   [sid(req),pid(req)]);
+  const bytes=base64Image(q.rows[0]?.original_image);
+  if(!bytes){res.status(404).end();return;}
+  res.setHeader("Content-Type",bytes.mime);
+  res.setHeader("Cache-Control","private,no-store");
+  res.send(bytes.buffer);
  }));
  app.get(root+"/:productId/candidate",safe(async(req,res)=>{
   manager(res);const q=await pool.query(
@@ -262,10 +310,10 @@ export function registerDukkanImageRecovery(app:Express,pool:Pool){
   manager(res);
   try{
    res.setHeader("Cache-Control","private,no-store");
-   res.json(await aiImage(pool,sid(req),pid(req)));
+   res.json(await aiImage(pool,sid(req),pid(req),req.body?.regenerate===true));
   }catch(err){
    const original=err as {status?:number;code?:string};
-   if(original?.status===409){res.status(409).json({code:"pending_review",error:"Bu ürün için onay bekleyen bir aday fotoğraf zaten mevcut."});return;}
+   if(original?.status===409){res.status(409).json({code:"image_changed",error:err instanceof Error?err.message:"Görsel durumu değişti. Listeyi yenileyin."});return;}
    if(original?.status===404){res.status(404).json({code:"missing_source",error:"Kaynak fotoğraf bulunamadı. Önce ürün görsellerini yeniden tara."});return;}
    if(original?.status===503&&!process.env.OPENAI_API_KEY){res.status(503).json({code:"missing_api_key",error:"Sunucuda OpenAI API anahtarı tanımlı değil."});return;}
    const report=userFacingImageEditError(err);
