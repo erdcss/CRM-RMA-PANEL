@@ -24,6 +24,7 @@ npm run typecheck
 node scripts/eas-branding-preinstall.cjs
 npx expo prebuild --platform android --no-install --clean
 node scripts/check-google-play-location.cjs
+node scripts/check-google-play-portrait.cjs
 
 aapt_path="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
 if [[ -z "$aapt_path" || ! -x "$aapt_path" ]]; then
@@ -37,6 +38,12 @@ check_apk() {
   local package_info
   package_info="$("$aapt_path" dump badging "$apk" | grep '^package:' | head -1)"
   echo "$package_info"
+  local badging
+  badging="$("$aapt_path" dump badging "$apk")"
+  if ! grep -Fq "uses-feature-not-required: name='android.hardware.screen.portrait'" <<< "$badging"; then
+    echo "Google Play portrait hardware requirement is not optional in compiled APK." >&2
+    exit 1
+  fi
   if ! grep -Fq "name='com.caliskangroup.rma'" <<< "$package_info"; then
     echo "Wrong Android applicationId" >&2
     exit 1
