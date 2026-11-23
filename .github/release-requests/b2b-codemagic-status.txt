@@ -1,10 +1,10 @@
-ÇALIŞKAN B2B TestFlight status monitor (no new iOS build)
-Build ID: 6b042fe46a6d2b351e95ef09
+ÇALIŞKAN B2B TestFlight status monitor — no new iOS build
+Build ID: 6b043a163e5694b358d981ef
 Codemagic App ID: 6afedc30f47c90e3676e0a20
 Workflow: caliskan-b2b-testflight
 Branch: main
-Release: 1.3.18
-Change: Category strip above banner, 16px equal horizontal banner insets, 24px rounded banner frame.
-Bundle ID: com.caliskangroup.rma
-Codemagic is API-only with triggering.events: [] and no changeset skip filter.
-Monitor the existing build's prepare, compile, signing, publish status. Do not launch another iOS build.
+Release: 1.3.19
+Bundle: com.caliskangroup.rma
+Requested: 2026-11-23, after code and native branding CI success.
+Purpose: monitor only the existing explicitly-launched 1.3.19 Codemagic iOS TestFlight build.
+Do not launch another paid iOS build. Apple processing may require additional time after IPA upload.
