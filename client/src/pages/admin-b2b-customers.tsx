@@ -1,13 +1,13 @@
 import {useMemo,useState} from "react";
 import {useQuery} from "@tanstack/react-query";
 import {Link} from "wouter";
-import {Building2,CheckCircle2,ChevronRight,Mail,Search,ShieldCheck,Users,RefreshCw,Clock3,KeyRound,PackageSearch} from "lucide-react";
+import {Building2,CheckCircle2,ChevronRight,Mail,Search,ShieldCheck,Users,RefreshCw,Clock3,KeyRound,PackageSearch,XCircle} from "lucide-react";
 import {Input} from "@/components/ui/input";
 import {Button} from "@/components/ui/button";
 import type {B2BProfile} from "./admin-b2b-customer-detail";
 import {trDate} from "./admin-b2b-customer-detail";
 
-type CustomerQuickFilter="all"|"verified"|"pending-password"|"password-set";
+type CustomerQuickFilter="all"|"verified"|"pending-password"|"password-set"|"rejected";
 
 export default function AdminB2BCustomers(){
   const [query,setQuery]=useState("");
@@ -24,10 +24,26 @@ export default function AdminB2BCustomers(){
       return result as B2BProfile[];
     },
   });
-  // These local filters only affect the company directory. Summary metrics
-  // always reflect the entire approved-customer dataset returned by the API.
+  // Keep approved customers and rejected applications separate: the rejected
+  // state must never inflate active customer or password summary counts.
+  const {data:applications=[],isLoading:applicationsLoading,isError:applicationsError,
+    refetch:refetchApplications}=useQuery<B2BProfile[]>({
+    queryKey:["/api/admin/b2b-applications"],
+    queryFn:async()=>{
+      const res=await fetch("/api/admin/b2b-applications",{credentials:"include",cache:"no-store"});
+      const result=await res.json().catch(()=>({}));
+      if(!res.ok)throw Error(result.error||"Reddedilen başvurular yüklenemedi");
+      return result as B2BProfile[];
+    },
+  });
+  const rejected=useMemo(()=>applications.filter(u=>
+    u.applicationStatus==="rejected" &&
+    u.companyName!=="Çalışkan B2B - Apple İnceleme" &&
+    u.companyName!=="Çalışkan B2B - Google Play İnceleme"
+  ),[applications]);
+  const showingRejected=quickFilter==="rejected";
   const list=useMemo(()=>{
-    const filtered=data.filter(u=>
+    const filtered=showingRejected?rejected:data.filter(u=>
       quickFilter==="verified"?Boolean(u.taxVerified):
       quickFilter==="pending-password"?Boolean(u.mustChangePassword):
       quickFilter==="password-set"?u.mustChangePassword===false:true
@@ -36,7 +52,7 @@ export default function AdminB2BCustomers(){
     return q?filtered.filter(u=>[
       u.companyName,u.firstName,u.lastName,u.email,u.taxNumber,u.companyCategory
     ].some(x=>String(x||"").toLocaleLowerCase("tr-TR").includes(q))):filtered;
-  },[data,query,quickFilter]);
+  },[data,rejected,query,quickFilter,showingRejected]);
   const verified=data.filter(u=>u.taxVerified).length;
   const pendingPassword=data.filter(u=>u.mustChangePassword).length;
   const passwordSet=data.filter(u=>u.mustChangePassword===false).length;
@@ -49,10 +65,10 @@ export default function AdminB2BCustomers(){
         </div>
         <div className="flex gap-2">
           <Link href="/basvurular"><Button variant="outline"><PackageSearch className="mr-2 h-4 w-4"/>Başvurular</Button></Link>
-          <Button variant="outline" onClick={()=>void refetch()}><RefreshCw className="mr-2 h-4 w-4"/>Yenile</Button>
+          <Button variant="outline" onClick={()=>{void refetch();void refetchApplications();}}><RefreshCw className="mr-2 h-4 w-4"/>Yenile</Button>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" role="group" aria-label="Firma rehberi hızlı filtreleri">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" role="group" aria-label="Firma rehberi hızlı filtreleri">
         <button type="button" onClick={()=>selectFilter("all")} aria-pressed={quickFilter==="all"}
           aria-controls="b2b-customer-directory"
           className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickFilter==="all"?"border-primary bg-primary/5 ring-1 ring-primary":"bg-background hover:border-primary/60 hover:bg-muted/40"}`}>
@@ -77,13 +93,19 @@ export default function AdminB2BCustomers(){
           <div className="flex items-center justify-between text-sm text-muted-foreground">Şifresini belirleyen kullanıcılar <KeyRound className="h-5 w-5 shrink-0"/></div>
           <div className="mt-3 text-3xl font-black">{passwordSet}</div>
         </button>
+        <button type="button" onClick={()=>selectFilter("rejected")} aria-pressed={showingRejected}
+          aria-controls="b2b-customer-directory"
+          className={`rounded-2xl border p-4 text-left shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 ${showingRejected?"border-destructive bg-destructive/5 ring-1 ring-destructive":"bg-background hover:border-destructive/60 hover:bg-muted/40"}`}>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">Reddedilen hesaplar <XCircle className="h-5 w-5 shrink-0"/></div>
+          <div className="mt-3 text-3xl font-black">{applicationsError?"—":applicationsLoading?"…":rejected.length}</div>
+        </button>
       </div>
       <div id="b2b-customer-directory" className="overflow-hidden rounded-2xl border bg-background shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b p-4">
           <div><h2 className="font-bold">Firma rehberi</h2>
-            <p className="text-xs text-muted-foreground" aria-live="polite">{list.length} müşteri listeleniyor · Detay için firmaya tıklayın</p>
+            <p className="text-xs text-muted-foreground" aria-live="polite">{list.length} {showingRejected?"reddedilen hesap":"müşteri"} listeleniyor · Detay için firmaya tıklayın</p>
             {quickFilter!=="all"?<div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-medium text-primary">Filtre: {quickFilter==="verified"?"Vergi doğrulanan":quickFilter==="password-set"?"Şifresini belirleyen kullanıcılar":"İlk şifresini belirlemeyen"}</span>
+              <span className="font-medium text-primary">Filtre: {quickFilter==="rejected"?"Reddedilen hesaplar":quickFilter==="verified"?"Vergi doğrulanan":quickFilter==="password-set"?"Şifresini belirleyen kullanıcılar":"İlk şifresini belirlemeyen"}</span>
               <button type="button" className="rounded px-1.5 py-1 text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={()=>setQuickFilter("all")}>Filtreyi temizle</button>
             </div>:null}</div>
@@ -93,22 +115,25 @@ export default function AdminB2BCustomers(){
               className="pl-10" placeholder="Firma, yetkili, e-posta veya VKN ara…" aria-label="Müşteri ara"/>
           </div>
         </div>
-        {isLoading?<div className="p-8 text-sm text-muted-foreground">Müşteriler yükleniyor…</div>
-          :isError?<div className="p-8 text-sm text-destructive">Müşteriler yüklenemedi. Yenile ile yeniden deneyin.</div>
+        {(showingRejected?applicationsLoading:isLoading)?<div className="p-8 text-sm text-muted-foreground">{showingRejected?"Reddedilen hesaplar":"Müşteriler"} yükleniyor…</div>
+          :(showingRejected?applicationsError:isError)?<div className="p-8 text-sm text-destructive">{showingRejected?"Reddedilen hesaplar":"Müşteriler"} yüklenemedi. Yenile ile yeniden deneyin.</div>
           :list.length===0?<div className="p-10 text-center">
             <Building2 className="mx-auto h-9 w-9 text-muted-foreground"/>
-            <h3 className="mt-3 font-bold">{query?"Aramanıza uygun müşteri yok":quickFilter!=="all"?"Bu filtreye uygun müşteri bulunamadı":"Henüz onaylanmış B2B müşteri yok"}</h3>
+            <h3 className="mt-3 font-bold">{query?"Aramanıza uygun firma yok":showingRejected?"Reddedilen hesap bulunamadı":quickFilter!=="all"?"Bu filtreye uygun müşteri bulunamadı":"Henüz onaylanmış B2B müşteri yok"}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{quickFilter!=="all"?"Başka bir özet kutusuna dokunabilir veya filtreyi temizleyebilirsiniz.":"Başvuru onaylandığında firma otomatik olarak burada görünür."}</p>
           </div>
           :<div className="divide-y">
-            {list.map(item=><Link key={item.id} href={`/b2b-musteriler/${item.id}`}
+            {list.map(item=><Link key={item.id} href={showingRejected?`/basvurular/${item.id}`:`/b2b-musteriler/${item.id}`}
               className="flex flex-wrap items-center gap-4 p-4 transition-colors hover:bg-muted/40 sm:p-5">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white"><Building2 className="h-6 w-6"/></div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-bold">{item.companyName||"Firma"}</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-                    <CheckCircle2 className="h-3 w-3"/> Onaylandı</span>
+                  {showingRejected
+                    ?<span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700">
+                      <XCircle className="h-3 w-3"/> Reddedildi</span>
+                    :<span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-3 w-3"/> Onaylandı</span>}
                   {item.taxVerified?<span className="text-xs text-emerald-700">Vergi doğrulandı</span>:null}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
@@ -116,10 +141,10 @@ export default function AdminB2BCustomers(){
                   <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5"/>{item.email}</span>
                   <span>VKN: {item.taxNumber||"—"}</span>
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">Onay: {trDate(item.approvedAt)} · {item.companyCategory||"Kategori yok"}</div>
+                <div className="mt-1 text-xs text-muted-foreground">{showingRejected?"Başvuru":"Onay"}: {trDate(showingRejected?item.createdAt:item.approvedAt)} · {item.companyCategory||"Kategori yok"}</div>
               </div>
               <div className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground">
-                Dashboard <ChevronRight className="h-4 w-4"/>
+                {showingRejected?"Başvuru Detayı":"Dashboard"} <ChevronRight className="h-4 w-4"/>
               </div>
             </Link>)}
           </div>}
