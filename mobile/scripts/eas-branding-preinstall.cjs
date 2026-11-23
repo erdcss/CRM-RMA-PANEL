@@ -72,7 +72,32 @@ async function main(){
   const content=JSON.parse(fs.readFileSync(configPath,"utf8"));
   const expo=content.expo||(content.expo={});
   expo.icon=logo;
-  expo.ios=expo.ios||{};expo.ios.icon=logo;
+  expo.ios=expo.ios||{};
+  // The local branding sync already generated an opaque, full-bleed RGB icon.
+  // Do not overwrite it with the raw Admin logo during EAS remote preinstall.
+  const preparedIcon = expo.ios.icon;
+  const preparedIconPath = typeof preparedIcon === "string"
+    ? path.resolve(root, preparedIcon)
+    : null;
+  if (typeof preparedIcon === "string" &&
+      /^\\.\\/assets\\/managed-ios-app-icon-[a-f0-9]{12}\\.png$/.test(preparedIcon) &&
+      preparedIconPath && fs.existsSync(preparedIconPath)) {
+    console.log("[EAS preinstall] Preserving prepared iOS launcher icon:", path.basename(preparedIconPath));
+  } else {
+    // An unsynced build may use the source only when it already meets
+    // the App Store requirement: opaque square 1024x1024 RGB PNG.
+    const source = fs.readFileSync(path.resolve(root, logo));
+    const isOpaqueSquareRgb = source.length > 26 &&
+      source.subarray(1, 4).toString("ascii") === "PNG" &&
+      source.readUInt32BE(16) === 1024 &&
+      source.readUInt32BE(20) === 1024 &&
+      source[25] === 2;
+    if (!isOpaqueSquareRgb) {
+      throw Error("iOS launcher icon is not prepared. Run npm run sync:branding before EAS build.");
+    }
+    expo.ios.icon = logo;
+    console.log("[EAS preinstall] Valid 1024x1024 RGB source icon used.");
+  }
   expo.android=expo.android||{};
   expo.android.adaptiveIcon={
     ...(expo.android.adaptiveIcon||{}),foregroundImage:androidIcon
