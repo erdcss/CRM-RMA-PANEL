@@ -65,6 +65,21 @@ jobs:
           const publish=actions.filter(a=>a.type==='publishing')
             .map(a=>({status:a.status,reason:a.reason||null}));
           console.log('Son durum:',last);
+          console.log('Build diagnostic keys:',JSON.stringify(Object.keys(details)));
+          const findFailure=(value)=>Array.isArray(value)?value.map((a)=>({
+            name:a.name||a.title||a.type||a.id||null,
+            status:a.status||null,
+            error:String(a.errorMessage||a.error||a.reason||a.message||'').slice(0,350)
+          })).filter(a=>a.status||a.error):[];
+          const summary={
+            status:details.status,
+            error:String(details.errorMessage||details.error||details.reason||details.failureReason||details.failedStep||'').slice(0,1400),
+            buildActions:findFailure(details.buildActions),
+            buildSteps:findFailure(details.buildSteps),
+            steps:findFailure(details.steps),
+            buildScriptSteps:findFailure(details.buildScriptSteps),
+          };
+          console.log('Codemagic build diagnostics:',JSON.stringify(summary).slice(0,11000));
           if(publish.length)console.log('Publishing result:',JSON.stringify(publish));
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
             '### Çalışkan Business · Codemagic TestFlight durum takibi\n\n'+
