@@ -1,0 +1,80 @@
+name: Çalışkan Business - Codemagic TestFlight Durum Takibi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/business-codemagic-monitor.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-business-codemagic-monitor
+  cancel-in-progress: false
+
+jobs:
+  check-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Codemagic build durumu ve TestFlight yayınlama adımını kontrol et
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const lines=fs.readFileSync('.github/release-requests/business-codemagic-monitor.txt','utf8');
+          const match=lines.match(/^buildId=([a-f0-9]{24})$/m);
+          if(!match)throw new Error('Codemagic buildId bulunamadı');
+          const id=match[1];
+          const token=process.env.CODEMAGIC_API_TOKEN;
+          if(!token)throw new Error('CODEMAGIC_API_TOKEN eksik');
+          const url='https://api.codemagic.io/builds/'+id;
+          const buildUrl='https://codemagic.io/app/6afedc30f47c90e3676e0a20/build/'+id;
+          const terminal=new Set(['finished','failed','canceled','timeout','skipped']);
+          const headers={'Content-Type':'application/json','x-auth-token':token};
+          let last='unknown',details={},done=false;
+          for(let i=0;i<100;i++){
+            let response;
+            try{response=await fetch(url,{headers,signal:AbortSignal.timeout(30000)});}
+            catch(error){
+              console.warn('Durum servisi geçici hata:',String(error).slice(0,100));
+              await new Promise(r=>setTimeout(r,35000));
+              continue;
+            }
+            if(!response.ok)throw new Error('Codemagic build durum API HTTP '+response.status);
+            const payload=await response.json();
+            const build=payload.build||payload.data||payload;
+            const status=String(build.status||'unknown').toLowerCase();
+            details=build;
+            if(status!==last)console.log('Codemagic build status:',status);
+            last=status;
+            if(terminal.has(status)){done=true;break;}
+            await new Promise(r=>setTimeout(r,35000));
+          }
+          const actions=Array.isArray(details.buildActions)?details.buildActions:[];
+          const publish=actions.filter(a=>a.type==='publishing')
+            .map(a=>({status:a.status,reason:a.reason||null}));
+          console.log('Son durum:',last);
+          if(publish.length)console.log('Publishing result:',JSON.stringify(publish));
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '### Çalışkan Business · Codemagic TestFlight durum takibi\n\n'+
+            '- Build ID: `'+id+'`\n'+
+            '- Son Codemagic durum: **'+last+'**\n'+
+            '- [Build sayfası]('+buildUrl+')\n'+
+            '- Publishing adımları: '+(publish.length?JSON.stringify(publish):'API yanıtında ayrı yayın bilgisi bulunamadı')+'\n\n'+
+            (last==='finished'?'Codemagic derlemesi tamamlandı. Apple TestFlight işleme durumu App Store Connect üzerinden ayrıca doğrulanmalıdır.':
+            'Codemagic derlemesi henüz tamamlanmamış olabilir veya hata oluşmuştur. Build loglarını kontrol edin.')+'\n');
+          if(!done){console.warn('İzleme zaman sınırına ulaştı; build hâlâ devam ediyor olabilir');process.exitCode=2;}
+          else if(last!=='finished')process.exitCode=1;
+          else if(publish.length&&publish.some(p=>String(p.status).toLowerCase()==='failure'||String(p.status).toLowerCase()==='failed'))process.exitCode=1;
+          NODE
