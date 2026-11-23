@@ -1,0 +1,9 @@
+Çalışkan Business – TestFlight sürüm oluşturma talebi
+Tarih: 2026-11-23
+Komut: Business TestFlight al
+Tek uygulama: CRM-RMA-PANEL
+Hedef uygulama kimliği: com.caliskangroup.business
+Codemagic workflow: caliskan-business-ios-testflight
+Tetikleme yöntemi: GitHub Actions -> Codemagic REST API
+Dağıtım: Apple TestFlight (halka açık App Store yayını yok)
+Talep seri numarası: business-ios-direct-20261123-1
