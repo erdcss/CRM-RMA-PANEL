@@ -21,3 +21,14 @@ Koruma: Expo prebuild Android manifest kontrolü, gerçek APK badging kontrolü,
 Derleme: Github Actions native release; mevcut Play upload anahtarı SHA-256 ile doğrulanacak, APK + Play AAB.
 Hedef: İmzalı dosyaları GitHub Actions artifact olarak hazırla. Play Console'a otomatik yükleme veya üretim yayını yapma.
 İstek kimliği: b2b-play-portrait-fix-20261123.
+
+
+YENİ DERLEME TEKRARI — 2026-11-23 / Android Play manifest düzeltmesi
+Önceki işlem: Android native release #7 başarısız (GitHub Actions ekranında kırmızı).
+Kayıtlı koddaki kesin kontrol hatası: aapt badging için yanlış uses-feature-not-required dizgesi aranıyordu.
+Düzeltme commit: 7c8a68b0055be907c5b71ee2fa25db3fcdf99389.
+Hedef: main üzerindeki güncel Çalışkan B2B (mobile/app.json, v1.3.18), com.caliskangroup.rma.
+Mevcut yükleme anahtarı SHA-256 kontrolü, üretilen gerçek APK'da opsiyonel portre donanımı, konum/reklam izin kontrolü, AAB imza kontrolü zorunlu.
+Derleme: Expo EAS kullanmadan imzalı APK + AAB oluştur; dosyaları GitHub Actions artifact'te sakla.
+Google Play'e otomatik yayınlama yok; test sürümü manuel yüklenip Google incelemesine gönderilecek.
+İstek kimliği: b2b-google-play-android-retry-20261123-portrait-badging.
