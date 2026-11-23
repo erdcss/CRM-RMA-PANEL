@@ -10,3 +10,14 @@ Hedef: release, Expo EAS olmadan Gradle assembleRelease + bundleRelease.
 İzinler: reklam kimliği ve Android konum izinleri paket üzerinde kontrol edilecek.
 Yayın politikası: yalnız imzalı APK+AAB GitHub Artifact; Google Play'e otomatik gönderme.
 İstek tanımlayıcısı: b2b-android-signed-build-20261119-1631.
+
+
+YENİ ÇALIŞKAN B2B GOOGLE PLAY ANDROID YAYIN PAKETİ — 2026-11-23
+Kullanıcı isteği: Çalışkan B2B Android yayın sürecini tamamla.
+Sadece erdcss/CRM-RMA-PANEL mobile/ uygulaması ve com.caliskangroup.rma.
+Kaynak: main, uygulama sürümü 1.3.17, Android versionCode CI tarafından artırılacak.
+Düzeltme: android.hardware.screen.portrait uses-feature android:required=false.
+Koruma: Expo prebuild Android manifest kontrolü, gerçek APK badging kontrolü, paket kimliği, konum ve reklam izni kontrolleri.
+Derleme: Github Actions native release; mevcut Play upload anahtarı SHA-256 ile doğrulanacak, APK + Play AAB.
+Hedef: İmzalı dosyaları GitHub Actions artifact olarak hazırla. Play Console'a otomatik yükleme veya üretim yayını yapma.
+İstek kimliği: b2b-play-portrait-fix-20261123.
