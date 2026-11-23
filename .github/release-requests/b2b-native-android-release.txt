@@ -32,3 +32,13 @@ Mevcut yükleme anahtarı SHA-256 kontrolü, üretilen gerçek APK'da opsiyonel 
 Derleme: Expo EAS kullanmadan imzalı APK + AAB oluştur; dosyaları GitHub Actions artifact'te sakla.
 Google Play'e otomatik yayınlama yok; test sürümü manuel yüklenip Google incelemesine gönderilecek.
 İstek kimliği: b2b-google-play-android-retry-20261123-portrait-badging.
+
+
+YENİ GOOGLE PLAY ANDROID DERLEME TEKRARI — 2026-11-23
+Kullanıcı önceki GitHub Actions logunda Gradle BUILD SUCCESSFUL (723 tasks, Android v1.3.18 versionCode 1008), fakat "Google Play portrait hardware requirement is not optional in compiled APK." ile kod 1 hatasını bildirdi.
+Aynı logda aapt çıktısı uses-feature-not-required: name='android.hardware.screen.portrait' gösteriyor.
+Düzeltme: aapt çıktısında aynı satırda iki ögeyi arayan, satır başlangıcına bağımlı olmayan awk kontrolü.
+İlgili kaynak commit: cb6938fa17e673aee6d9fc134288173494300572.
+Bu marker push'u güncel main'den yeni signed APK + AAB release build talebidir.
+Yalnız Çalışkan B2B, com.caliskangroup.rma; iOS/Business etkilenmeyecek; Google Play'e otomatik yükleme yapılmayacak.
+Request ID: b2b-android-retry-portrait-awk-20261123.
