@@ -30,7 +30,7 @@ const occurrences = storefront.split(footer).length - 1;
 if (occurrences !== 1) {
   throw new Error(`B2B ana sayfada footer yalnızca bir kez kullanılmalıdır (bulunan: ${occurrences})`);
 }
-const featureStart = storefront.indexOf("function Feature(");
+const featureStart = storefront.indexOf("function bannerHref(");
 const footerPlace = storefront.indexOf(footer);
 const mainEnd = storefront.indexOf("</main>");
 if (featureStart < 0 || mainEnd < 0 || footerPlace <= mainEnd || footerPlace >= featureStart) {
