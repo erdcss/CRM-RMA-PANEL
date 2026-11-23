@@ -31,9 +31,16 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
     method:"POST",credentials:"include",cache:"no-store",
     headers:{"Content-Type":"application/json"},body:"{}",
    });
-   const r=await response.json().catch(()=>({}));
-   if(!response.ok)throw Error(r.error||"Görsel işlemi başarısız oldu");
-   setNotice(label+" işlemi tamamlandı.");
+   const r=await response.json().catch(()=>null);
+   if(!response.ok){
+    const details=r&&typeof r.error==="string"?r.error:
+     response.status===504?"Görsel işlemi zaman aşımına uğradı.":
+     response.status===401?"Oturum süresi doldu. Yeniden giriş yapın.":
+     response.status===403?"Bu işlem için yönetici yetkisi gerekli.":
+     "Sunucu yanıtı HTTP "+response.status+". Görsel değiştirilmedi.";
+    throw Error(label+": "+details);
+   }
+   setNotice(label+" işlemi tamamlandı. Görsel onaylanmadan ana fotoğraf olarak kullanılmayacak.");
    await load();after?.();
   }catch(e){setError((e as Error).message);}
   finally{setBusy("");}
