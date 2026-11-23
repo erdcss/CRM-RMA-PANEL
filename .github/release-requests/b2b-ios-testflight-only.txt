@@ -1,11 +1,11 @@
-Çalışkan B2B iOS internal TestFlight retry — Codemagic official workaround
-Date: 2026-11-23 (Europe/Istanbul)
-Feature: Siparişlerim > Bekleyen Sepet Hatırlatıcısı
-Fix merged commit: 645081e025c15db25bc6859b7efa879c9302531f
-Fix source: PR #93, Xcode 26 altool App ID resolution issue
-Workflow: caliskan-b2b-testflight
-Distribution: TestFlight ONLY; submit_to_app_store: false
+Çalışkan B2B iOS internal TestFlight release 1.3.14
+Date (Europe/Istanbul): 2026-11-23
+Merged fix SHA: a503f292d6d684d12c05bb9a8d05ccf494d79f2a
+Fix: Apple 90062 + 90186, 1.3.13 train closed after approval
+New CFBundleShortVersionString / Expo marketing version: 1.3.14
+CFBundleVersion: auto-incremented Codemagic (higher than Apple's last build)
+TestFlight-only workflow: caliskan-b2b-testflight
+Public App Store submission: disabled (submit_to_app_store: false)
 Bundle ID: com.caliskangroup.rma
-App Store Connect Apple App ID: 6802286663
-Expected environment: APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS=--use-old-altool
-Reason: IPA signs, Codemagic publishing fails; server-warning 90725 is an April 2027 requirement notice, not sufficient as a current rejection cause.
+App Store Connect app ID: 6802286663
+Product: Siparişlerim, pending cart 4-hour notification automation
