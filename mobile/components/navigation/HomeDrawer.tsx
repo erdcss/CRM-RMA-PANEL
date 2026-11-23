@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -48,6 +48,7 @@ export function HomeDrawer({visible,onClose}: {visible:boolean;onClose:()=>void}
   };
   if (!visible) return null;
   return (
+    <Modal transparent visible={visible} animationType="none" statusBarTranslucent onRequestClose={onClose}>
     <View style={[StyleSheet.absoluteFillObject,styles.overlayHost]} pointerEvents="box-none">
       <Animated.View style={[styles.scrim,{opacity:progress.interpolate({
         inputRange:[0,1],outputRange:[0,0.77]})}]}/>
@@ -89,6 +90,7 @@ export function HomeDrawer({visible,onClose}: {visible:boolean;onClose:()=>void}
         </View>
       </Animated.View>
     </View>
+    </Modal>
   );
 }
 function DrawerRow({label,icon,onPress}: DrawerItem & {onPress:()=>void}) {
