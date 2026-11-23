@@ -1,9 +1,9 @@
 ÇALIŞKAN B2B TestFlight status monitor
-Build ID: 6b03fbf08e8e9b050a1d05dd
+Build ID: 6b03ffa6ecee92f6d201f69e
 Codemagic App ID: 6afedc30f47c90e3676e0a20
 Workflow: caliskan-b2b-testflight
 Branch: main
-Release: 1.3.16
-Goal: restore old 1.3.14-era app UI from before premium PR #99.
-Action: monitor this existing build and Apple distribution result only.
-DO NOT launch another iOS build.
+Release: 1.3.17
+Goal: preserve old B2B design, remove location permission button from notifications, request iOS near-store consent on first usable signed-in launch.
+Android background marketing location remains blocked.
+Request: monitor the existing Codemagic build and Apple TestFlight publishing. DO NOT launch another iOS build.
