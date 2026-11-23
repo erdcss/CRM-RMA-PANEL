@@ -1,16 +1,16 @@
-ÇALIŞKAN B2B — TestFlight 1.3.17 actual build retry after skip fix
+ÇALIŞKAN B2B iOS 1.3.18 — Banner/category homepage layout release
 Operation: testflight
-Request: b2b-testflight-v1317-manual-api-no-changeset-20261123-02
+Request: b2b-home-banner-gutters-category-before-banner-20261123-01
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
-Fix commit: 241e855257ee6cf2b86ec09fb1b3291546bb99b9
+Merge SHA: 7e66f634cb66e3b3a21ef751a255c70b95e0305c
+App: Çalışkan B2B
 Bundle ID: com.caliskangroup.rma
-App version: 1.3.17
-Codemagic application: CRM-RMA-PANEL
+Marketing version: 1.3.18
 Workflow: caliskan-b2b-testflight
-Prior skipped build: 6b03ffa6ecee92f6d201f69e
-Changeset filter: removed (API initiated builds must proceed even if release marker is unchanged).
-Automatic GitHub webhook builds: disabled.
-UI: original, not premium or 3D navigation. Location consent: signed-in initial use.
-Publishing: TestFlight ONLY, submit_to_app_store false.
-Exactly one authenticated Codemagic POST /builds requested.
+Codemagic app: CRM-RMA-PANEL
+Homepage: category strip and ledger tile above hero banner; 16px left/right gutters; rounded 24px banner corners.
+Keep previous classic UI, iOS first-use location consent and all existing commerce features.
+Automatic webhook builds: disabled.
+Public App Store submission: false.
+Exactly one authenticated API build requested for Apple TestFlight.
