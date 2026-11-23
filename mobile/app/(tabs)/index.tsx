@@ -85,7 +85,9 @@ export default function HomeScreen() {
   const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
-  const bannerWidth = screenWidth;
+  // Inset the carousel symmetrically inside the 16px page gutters.
+  // Page content already has paddingHorizontal: spacing.lg.
+  const bannerWidth = Math.max(1, screenWidth - spacing.lg * 2);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [loadedBannerSizes,setLoadedBannerSizes]=useState<Record<string,{width:number;height:number}>>({});
   const bannerScrollRef = useRef<ScrollView>(null);
@@ -484,6 +486,74 @@ export default function HomeScreen() {
         ) : (
           <>
 
+        {/* Shop by category first, before promotional artwork. */}
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Kategoriler</Text>
+            <Text style={styles.sectionSubtitle}>Ürün grubunu seçin</Text>
+          </View>
+          <Pressable onPress={() => router.push('/(tabs)/products')}>
+            <Text style={styles.sectionAction}>Tümü</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categories}
+        >
+          <Pressable
+            onPress={() => router.push('/ledger' as never)}
+            style={[styles.categoryCard, styles.ledgerTile]}
+            accessibilityRole="button"
+            accessibilityLabel="Defterim'e git"
+          >
+            {ledgerTileImageId ? <Image
+              source={{uri:homepageMediaUrl(ledgerTileImageId)||''}}
+              style={styles.categoryImage}
+              contentFit="contain"
+              cachePolicy="memory-disk"
+            /> : <Ionicons name="book-outline" size={27} color={palette.text}/>}
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.categoryText}>Defterim</Text>
+          </Pressable>
+
+          {categories.map((category, index) => {
+            const configured = categoryCards.find((item) => item.category === category);
+            const icons: Array<keyof typeof Ionicons.glyphMap> = [
+              'home-outline',
+              'flash-outline',
+              'basket-outline',
+              'construct-outline',
+              'storefront-outline',
+              'cube-outline',
+            ];
+
+            return (
+              <Pressable
+                key={category}
+                onPress={() => router.push({ pathname: '/collection/[category]', params: { category } } as never)}
+                style={styles.categoryCard}
+              >
+                {configured?.imageId ? (
+                  <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
+                    style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
+                ) : (
+                  <Ionicons name={icons[index % icons.length]} size={28}
+                    color={palette.text} />
+                )}
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.68}
+                  style={styles.categoryText}
+                >
+                  {configured?.label || category}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         {banners.length > 0 ? (
           <>
             <View
@@ -596,73 +666,6 @@ export default function HomeScreen() {
             </ScrollView>
           </View>;
         })}
-
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Kategoriler</Text>
-            <Text style={styles.sectionSubtitle}>Ürün grubunu seçin</Text>
-          </View>
-          <Pressable onPress={() => router.push('/(tabs)/products')}>
-            <Text style={styles.sectionAction}>Tümü</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categories}
-        >
-          <Pressable
-            onPress={() => router.push('/ledger' as never)}
-            style={[styles.categoryCard, styles.ledgerTile]}
-            accessibilityRole="button"
-            accessibilityLabel="Defterim'e git"
-          >
-            {ledgerTileImageId ? <Image
-              source={{uri:homepageMediaUrl(ledgerTileImageId)||''}}
-              style={styles.categoryImage}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-            /> : <Ionicons name="book-outline" size={27} color={palette.text}/>}
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.categoryText}>Defterim</Text>
-          </Pressable>
-
-          {categories.map((category, index) => {
-            const configured = categoryCards.find((item) => item.category === category);
-            const icons: Array<keyof typeof Ionicons.glyphMap> = [
-              'home-outline',
-              'flash-outline',
-              'basket-outline',
-              'construct-outline',
-              'storefront-outline',
-              'cube-outline',
-            ];
-
-            return (
-              <Pressable
-                key={category}
-                onPress={() => router.push({ pathname: '/collection/[category]', params: { category } } as never)}
-                style={styles.categoryCard}
-              >
-                {configured?.imageId ? (
-                  <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
-                    style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
-                ) : (
-                  <Ionicons name={icons[index % icons.length]} size={28}
-                    color={palette.text} />
-                )}
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.68}
-                  style={styles.categoryText}
-                >
-                  {configured?.label || category}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
 
         {reels.length > 0 ? <>
           <View style={styles.sectionHeader}>
@@ -856,7 +859,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: 15, alignSelf: 'center', width: '100%', marginHorizontal: -spacing.lg, borderRadius: 0, overflow: 'hidden', backgroundColor: '#FFFFFF' },
+  carouselContainer: { marginTop: spacing.lg, alignSelf: 'center', borderRadius: radius.xl, overflow: 'hidden', backgroundColor: '#FFFFFF' },
   carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
   bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
