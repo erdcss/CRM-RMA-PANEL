@@ -1,12 +1,10 @@
-ÇALIŞKAN B2B internal TestFlight status monitor
-Build ID: 6b0427caf7d23caae05091d1
+ÇALIŞKAN B2B TestFlight status monitor (no new iOS build)
+Build ID: 6b042fe46a6d2b351e95ef09
 Codemagic App ID: 6afedc30f47c90e3676e0a20
 Workflow: caliskan-b2b-testflight
 Branch: main
-App version: 1.3.17
-Request: status-only monitor for existing, explicitly API-launched iOS TestFlight build.
-Fix: workflow-level when.changeset removed to prevent Skipped after manual/API build launch (PR #103).
-UI: original, no premium hamburger/3D navigation.
-Location: first-use signed-in iOS consent, no location button in Notifications.
-Publishing: TestFlight only; no public App Store review.
-DO NOT initiate another Codemagic build from this status update.
+Release: 1.3.18
+Change: Category strip above banner, 16px equal horizontal banner insets, 24px rounded banner frame.
+Bundle ID: com.caliskangroup.rma
+Codemagic is API-only with triggering.events: [] and no changeset skip filter.
+Monitor the existing build's prepare, compile, signing, publish status. Do not launch another iOS build.
