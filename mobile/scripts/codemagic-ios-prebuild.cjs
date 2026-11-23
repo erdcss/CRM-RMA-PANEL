@@ -14,6 +14,28 @@ const appPath = path.join(root, 'app.json');
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const app = JSON.parse(fs.readFileSync(appPath, 'utf8'));
 
+/**
+ * Apple closes the entire TestFlight train when its marketing version is
+ * approved. Increasing only CFBundleVersion does NOT reopen that train.
+ */
+function compareDottedVersions(current, previous) {
+  const parse = (value) => {
+    if (typeof value !== 'string' || !/^[0-9]+[.][0-9]+[.][0-9]+$/.test(value))
+      throw new Error('iOS marketing version must be MAJOR.MINOR.PATCH: ' + value);
+    return value.split('.').map(Number);
+  };
+  const left = parse(current), right = parse(previous);
+  for (let i = 0; i < 3; i++) {
+    if (left[i] !== right[i]) return left[i] > right[i] ? 1 : -1;
+  }
+  return 0;
+}
+const lastApproved = process.env.B2B_LAST_APPROVED_IOS_VERSION;
+if (lastApproved && compareDottedVersions(app.expo?.version, lastApproved) <= 0)
+  throw new Error('Apple TestFlight marketing version train is closed: ' +
+    app.expo?.version + '. Increase expo.version above the approved version ' +
+    lastApproved + ' before building again (90062 / 90186).');
+
 if (process.env.EXPO_SKIP_NIIMBOT === '1') {
   pkg.expo ||= {};
   pkg.expo.autolinking ||= {};
