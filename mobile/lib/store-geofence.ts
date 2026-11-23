@@ -159,8 +159,9 @@ async function startForUser(user:string){
   await Location.startGeofencingAsync(TASK,[regionFrom(cfg)]);
   await checkCurrentlyNearby(user);
 }
-// Users can retry opt-in from the Notifications page. Android 11+ grants
-// background location through the OS settings page, not a second popup.
+// Opt-in is offered after the initial signed-in launch; it can be changed
+// later in Settings > Privacy. Android marketing geofencing remains disabled
+// by the platform-specific stub and the Google Play manifest policy.
 let permissionRequestPending=false;
 export async function getStoreNearbyPermissionStatus(user:string){
   if(Platform.OS==='web')return {consented:false,ready:false};
@@ -241,7 +242,7 @@ export async function requestStoreNearbyOptIn(user:string):Promise<boolean>{
   }
   return new Promise(resolve=>{
     Alert.alert('Konum verilerinin kullanımı',
-      'Çalışkan B2B, isteğe bağlı mağaza yakınlık hatırlatmaları için konum verilerinize uygulama kapalıyken veya kullanılmıyorken de erişir. İSTOÇ mağazamızın 3 km çevresine girdiğinizde günde en fazla bir bildirim gösterir. Konum geçmişiniz sunucuya gönderilmez. Dilediğiniz zaman Bildirimler ekranından kapatabilirsiniz.',
+      'Çalışkan B2B, isteğe bağlı mağaza yakınlık hatırlatmaları için konum verilerinize uygulama kapalıyken veya kullanılmıyorken de erişir. İSTOÇ mağazamızın 3 km çevresine girdiğinizde günde en fazla bir bildirim gösterir. Konum geçmişiniz sunucuya gönderilmez. Dilediğiniz zaman Ayarlar ekranından kapatabilirsiniz.',
       [
         {text:'Şimdi değil',style:'cancel',onPress:()=>{
           void AsyncStorage.setItem(CONSENT_PREFIX+user,'no');resolve(false);
@@ -268,6 +269,7 @@ export async function configureStoreNearby(user:string){
     await startForUser(user).catch(err=>console.warn('[store-geofence] start:',err));
     return;
   }
+  // A prior decline must never trigger another automatic prompt.
   if(await AsyncStorage.getItem(CONSENT_PREFIX+user))return;
   await requestStoreNearbyOptIn(user);
 }
