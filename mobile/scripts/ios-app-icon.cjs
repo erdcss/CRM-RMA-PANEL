@@ -11,8 +11,10 @@ const { createHash } = require('node:crypto');
 const { PNG } = require('pngjs');
 
 const SIZE = 1024;
-const PADDING = 64;
-const BACKGROUND = [16, 16, 16];
+// Square app artwork must reach every edge. iOS supplies the rounded-square mask.
+// Rectangular logos still get a safety margin on a solid, branded backdrop.
+const RECTANGULAR_PADDING = 64;
+const BACKGROUND = [255, 204, 0];
 
 function renderOpaqueIosIcon(sourceBuffer) {
   const source = PNG.sync.read(sourceBuffer);
@@ -34,9 +36,11 @@ function renderOpaqueIosIcon(sourceBuffer) {
     output.data[i + 3] = 255;
   }
 
+  const ratio = Math.min(source.width, source.height) / Math.max(source.width, source.height);
+  const padding = ratio >= 0.95 ? 0 : RECTANGULAR_PADDING;
   const scale = Math.min(
-    (SIZE - 2 * PADDING) / source.width,
-    (SIZE - 2 * PADDING) / source.height
+    (SIZE - 2 * padding) / source.width,
+    (SIZE - 2 * padding) / source.height
   );
   const w = Math.max(1, Math.round(source.width * scale));
   const h = Math.max(1, Math.round(source.height * scale));
