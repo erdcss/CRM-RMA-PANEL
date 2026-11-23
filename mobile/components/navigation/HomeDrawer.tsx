@@ -30,6 +30,7 @@ export function HomeDrawer({visible,onClose}: {visible:boolean;onClose:()=>void}
   const insets=useSafeAreaInsets();
   const router=useRouter();
   const branding=useMobileBranding();
+  const headerLogoUri=branding.b2b_web_logo || branding.b2b_mobile_logo;
   const {palette}=useAppearance();
   const {user}=useAuth();
   const progress=useRef(new Animated.Value(0)).current;
@@ -62,8 +63,8 @@ export function HomeDrawer({visible,onClose}: {visible:boolean;onClose:()=>void}
       }]}>
         <View style={styles.drawerHeader}>
           <View style={styles.brandSpace}>
-            {(branding.b2b_web_logo || branding.b2b_mobile_logo)
-              ? <Image source={{uri:(branding.b2b_web_logo || branding.b2b_mobile_logo)}} style={styles.brand}
+            {headerLogoUri
+              ? <Image source={{uri:headerLogoUri}} style={styles.brand}
                   contentFit="contain" cachePolicy="none" accessibilityLabel="Çalışkan B2B logosu"/>
               : <Text style={styles.brandFallback}>ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text></Text>}
           </View>
