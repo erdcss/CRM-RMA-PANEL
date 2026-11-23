@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { trackSearch } from "@/lib/analytics";
-import { Search, Package, Boxes, Truck, ShieldCheck, BadgeCheck, Store } from "lucide-react";
+import { Search, Package, Boxes, Truck, ShieldCheck, BadgeCheck, Store, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
@@ -124,17 +124,14 @@ export default function B2BStorefront() {
     return () => window.clearTimeout(timer);
   }, [query]);
 
+  const isSearching = query.trim().length > 0;
   const filtered = useMemo(() => {
-    const term = query.trim().toLocaleLowerCase("tr-TR");
+    const normalize = (value: string) => value.toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+    const terms = normalize(query.trim()).split(/\s+/).filter(Boolean);
 
     return products.filter((product) => {
-      const matchesSearch =
-        !term ||
-        [product.name, product.sku, product.category, product.collection_name, product.marketplace ? product.seller_name : "ÇALIŞKAN"]
-          .filter(Boolean)
-          .some((value) => String(value).toLocaleLowerCase("tr-TR").includes(term));
-
-      return matchesSearch;
+      const haystack = normalize([product.name, product.sku, product.category, product.collection_name, product.marketplace ? product.seller_name : "ÇALIŞKAN"].filter(Boolean).join(" "));
+      return terms.every(term => haystack.includes(term));
     });
   }, [products, query]);
 
@@ -149,18 +146,29 @@ export default function B2BStorefront() {
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <B2BHeader
         middle={
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <div role="search" className="relative flex min-w-0 items-center">
+            <Search aria-hidden="true" className="pointer-events-none absolute left-3 h-5 w-5 text-slate-600" />
             <Input
-              className="h-9 bg-slate-50 pl-9"
+              type="text"
+              inputMode="search"
+              enterKeyHint="search"
+              aria-label="Ürün, stok kodu veya satıcı ara"
+              autoComplete="off"
+              className="h-11 w-full min-w-0 rounded-xl border border-[#ffcc00] bg-slate-50 pl-10 pr-11 text-base shadow-sm placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-[#ffcc00]/50 md:text-sm"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setQuery("");
+                if (event.key === "Enter") event.currentTarget.blur();
+              }}
               placeholder="Ürün, stok kodu veya satıcı ara"
             />
+            {query ? <button type="button" aria-label="Aramayı temizle" onClick={() => setQuery("")} className="absolute right-1 flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500"><X className="h-5 w-5" /></button> : null}
           </div>
         }
       />
 
+      {!isSearching && <>
       {homepage.categories.length > 0 ? (
         <section className="mx-auto max-w-6xl px-4 pb-3 pt-3 sm:pb-4 sm:pt-4" aria-labelledby="homepage-categories-title">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -207,8 +215,32 @@ export default function B2BStorefront() {
           </div>
         </div>
       </section>
+      </>}
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:py-10">
+      <main className={`mx-auto max-w-6xl px-4 ${isSearching ? "py-4 sm:py-6" : "py-8 sm:py-10"}`}>
+        {isSearching ? (
+          <section aria-labelledby="search-results-title" className="min-w-0">
+            <div className="mb-4 flex min-w-0 items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3 shadow-sm sm:p-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Çalışkan B2B · Ürün arama</p>
+                <h1 id="search-results-title" className="mt-1 break-words text-lg font-black text-slate-950 sm:text-xl">Arama Sonuçları</h1>
+                <p role="status" className="mt-1 break-words text-xs text-slate-600">{isLoading ? "Ürünler aranıyor…" : `${catalogProducts.length} ürün bulundu`} · “{query.trim()}”</p>
+              </div>
+              <button type="button" onClick={() => setQuery("")} className="shrink-0 rounded-lg bg-[#ffcc00] px-3 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-950">Temizle</button>
+            </div>
+            {isLoading ? <div className="rounded-xl border bg-white p-8 text-center text-sm text-slate-500" role="status">Ürünler yükleniyor…</div> : catalogProducts.length ? (
+              <B2BProductRail products={catalogProducts} loggedIn={loggedIn} title="Arama Sonuçları" />
+            ) : (
+              <div className="rounded-2xl border border-amber-200 bg-white p-8 text-center">
+                <Search className="mx-auto h-10 w-10 text-amber-500" aria-hidden="true"/>
+                <h2 className="mt-3 font-bold text-slate-950">Aramanızla eşleşen ürün bulunamadı</h2>
+                <p className="mt-1 text-sm text-slate-500">Farklı bir ürün adı veya stok kodu deneyin.</p>
+                <button type="button" onClick={() => setQuery("")} className="mt-4 rounded-xl bg-[#ffcc00] px-4 py-2 text-sm font-bold text-slate-950">Tüm ürünleri keşfet</button>
+              </div>
+            )}
+          </section>
+        ) : <>
+
         {timedCampaigns.map(campaign=>{
           const end=Date.parse(campaign.ends_at);
           if(!Number.isFinite(end)||end<=catalogNow)return null;
@@ -228,17 +260,7 @@ export default function B2BStorefront() {
         })}
 
 
-        <div className="mb-4 md:hidden">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="h-9 bg-white pl-9"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ürün, stok kodu veya satıcı ara"
-            />
-          </div>
-        </div>
+
 
         <section className="mb-9 scroll-mt-24" id="yeni-gelenler" aria-labelledby="new-arrivals-title">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -313,8 +335,9 @@ export default function B2BStorefront() {
             <B2BProductRail products={catalogProducts} loggedIn={loggedIn} title="Toptan Ürünler" autoScroll />
           </div>
         )}
+        </>}
       </main>
-      <B2BRoundCampaignButton config={homepage.roundBottomBanner}/>
+      {!isSearching && <B2BRoundCampaignButton config={homepage.roundBottomBanner}/>}
       <B2BDesktopAppBanners />
       <B2BFooter />
     </div>
