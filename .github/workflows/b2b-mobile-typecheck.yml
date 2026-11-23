@@ -26,4 +26,5 @@ jobs:
       - run: node scripts/check-location-first-launch.cjs
       - run: node scripts/check-codemagic-manual-only.cjs
       - run: node --test scripts/home-categories-banner-layout.test.cjs
+      - run: node --test scripts/b2b-cart-no-reminder-ui.test.cjs
       - run: npm run typecheck
