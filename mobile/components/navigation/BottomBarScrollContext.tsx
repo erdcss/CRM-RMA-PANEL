@@ -23,8 +23,14 @@ export function BottomBarScrollProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const lastOffset = useRef(0);
   const accumulated = useRef(0);
+  const ignoreNextOffset = useRef(false);
   const reportScroll = useCallback((offsetY: number) => {
     const y = Math.max(0, Number(offsetY) || 0);
+    if (ignoreNextOffset.current) {
+      ignoreNextOffset.current = false;
+      lastOffset.current = y;
+      return;
+    }
     const delta = Math.max(-70, Math.min(70, y - lastOffset.current));
     lastOffset.current = y;
     if (!delta || y < 48) {
@@ -43,6 +49,7 @@ export function BottomBarScrollProvider({ children }: { children: ReactNode }) {
   const expandBar = useCallback(() => {
     accumulated.current = 0;
     lastOffset.current = 0;
+    ignoreNextOffset.current = true;
     setCollapsed(false);
   }, []);
   return (
