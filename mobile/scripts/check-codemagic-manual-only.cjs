@@ -23,6 +23,10 @@ for (const name of ['caliskan-b2b-ios', 'caliskan-b2b-testflight']) {
   assert.doesNotMatch(block, /triggering:\s*\n\s*events:\s*\n\s*-\s*push/, name + ' must not start on pushes');
 }
 const beta = workflowBlock('caliskan-b2b-testflight');
+// Codemagic evaluates when.changeset even for manually/API-triggered jobs.
+// Explicit API TestFlight builds must NOT get marked Skipped just because
+// a release marker file was not changed in their source commit.
+assert.doesNotMatch(beta, /\n\s*when:\s*\n\s*changeset:/, 'Explicit API TestFlight must not have a changeset skip filter');
 assert.match(beta, /submit_to_testflight:\s*true/);
 assert.match(beta, /submit_to_app_store:\s*false/);
 assert.match(action, /workflowId:\s*'caliskan-b2b-testflight'/);

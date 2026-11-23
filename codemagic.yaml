@@ -112,10 +112,11 @@ workflows:
     # Codemagic documents events: [] as manual-only.
     triggering:
       events: []
-    when:
-      changeset:
-        includes:
-          - '.github/release-requests/b2b-ios-testflight-only.txt'
+    # Intentionally NO workflow-level when.changeset:
+    # Codemagic applies it even to manual/API builds and marks the job Skipped
+    # when the watched marker is absent from the requested main commit.
+    # triggering.events: [] prevents automatic GitHub webhook builds.
+    # Only the explicitly authorized API/UI action starts this paid iOS job.
     integrations:
       app_store_connect: Codemagic Caliskan B2B
     environment:
