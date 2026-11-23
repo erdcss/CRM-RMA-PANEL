@@ -44,6 +44,7 @@
       ],
       "expo-router",
       "expo-font",
+      "./plugins/withOptionalPortraitFeature.js",
       "./plugins/withNiimbotBluetooth.js",
       [
         "expo-image-picker",
