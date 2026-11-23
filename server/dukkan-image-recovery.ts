@@ -265,12 +265,12 @@ export function registerDukkanImageRecovery(app:Express,pool:Pool){
    res.json(await aiImage(pool,sid(req),pid(req)));
   }catch(err){
    const original=err as {status?:number;code?:string};
-   if(original?.status===409)return res.status(409).json({code:"pending_review",error:"Bu ürün için onay bekleyen bir aday fotoğraf zaten mevcut."});
-   if(original?.status===404)return res.status(404).json({code:"missing_source",error:"Kaynak fotoğraf bulunamadı. Önce ürün görsellerini yeniden tara."});
-   if(original?.status===503&&!process.env.OPENAI_API_KEY)return res.status(503).json({code:"missing_api_key",error:"Sunucuda OpenAI API anahtarı tanımlı değil."});
+   if(original?.status===409){res.status(409).json({code:"pending_review",error:"Bu ürün için onay bekleyen bir aday fotoğraf zaten mevcut."});return;}
+   if(original?.status===404){res.status(404).json({code:"missing_source",error:"Kaynak fotoğraf bulunamadı. Önce ürün görsellerini yeniden tara."});return;}
+   if(original?.status===503&&!process.env.OPENAI_API_KEY){res.status(503).json({code:"missing_api_key",error:"Sunucuda OpenAI API anahtarı tanımlı değil."});return;}
    const report=userFacingImageEditError(err);
    console.error("Dukkan image edit failed",{productId:req.params.productId,storeId:req.params.storeId,status:original?.status||null,code:original?.code||report.code,model:productImageEditModel()});
-   return res.status(report.status).json({code:report.code,error:report.error});
+   res.status(report.status).json({code:report.code,error:report.error});
   }
  }));
  app.post(root+"/:productId/approve",safe(async(req,res)=>{
