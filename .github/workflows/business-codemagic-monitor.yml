@@ -73,6 +73,13 @@ jobs:
           })).filter(a=>a.status||a.error):[];
           const summary={
             status:details.status,
+            workflowId:details.workflowId,
+            fileWorkflowId:details.fileWorkflowId,
+            start:details.startedAt,
+            finish:details.finishedAt,
+            message:String(details.message||'').slice(0,2500),
+            configKeys:details.config&&typeof details.config==='object'?Object.keys(details.config):[],
+            dynamicConfigKeys:details.dynamicConfig&&typeof details.dynamicConfig==='object'?Object.keys(details.dynamicConfig):[],
             error:String(details.errorMessage||details.error||details.reason||details.failureReason||details.failedStep||'').slice(0,1400),
             buildActions:findFailure(details.buildActions),
             buildSteps:findFailure(details.buildSteps),
