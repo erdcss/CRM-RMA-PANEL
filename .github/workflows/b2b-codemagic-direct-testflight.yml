@@ -107,7 +107,22 @@ jobs:
             'Content-Type': 'application/json',
             'x-auth-token': process.env.CODEMAGIC_API_TOKEN,
           };
+          const isB2BApp = app => {
+            const name = String(app?.appName || '').toLowerCase();
+            const repo = String(app?.repositoryUrl || app?.repository?.url || '').toLowerCase();
+            return name === 'crm-rma-panel' || repo.includes('erdcss/crm-rma-panel');
+          };
           let appId = process.env.CODEMAGIC_APP_ID_VAR || process.env.CODEMAGIC_APP_ID_SECRET;
+          if (appId) {
+            const detail = await fetch('https://api.codemagic.io/apps/' + appId, {
+              headers, signal: AbortSignal.timeout(30000),
+            });
+            const data = await detail.json().catch(() => ({}));
+            if (!detail.ok || !isB2BApp(data.application)) {
+              console.error('::error::CODEMAGIC_APP_ID must reference the existing CRM-RMA-PANEL application.');
+              process.exit(1);
+            }
+          }
           if (!appId) {
             const lookup = await fetch('https://api.codemagic.io/apps', {
               headers, signal: AbortSignal.timeout(30000),
@@ -118,11 +133,7 @@ jobs:
             }
             const lookupData = await lookup.json();
             const applications = Array.isArray(lookupData.applications) ? lookupData.applications : [];
-            const matching = applications.filter(app => {
-              const name = String(app.appName || '').toLowerCase();
-              const repo = String(app.repositoryUrl || app.repository?.url || '').toLowerCase();
-              return name === 'crm-rma-panel' || repo.includes('erdcss/crm-rma-panel');
-            });
+            const matching = applications.filter(isB2BApp);
             if (matching.length !== 1 || !/^[a-f0-9]{24}$/i.test(String(matching[0]._id || ''))) {
               console.error('::error::CRM-RMA-PANEL Codemagic uygulama ID otomatik doğrulanamadı. Codemagic uygulama URL /app/<id> içindeki ID yi GitHub > Settings > Actions > Variables bölümünde CODEMAGIC_APP_ID olarak kaydedin.');
               process.exit(1);
