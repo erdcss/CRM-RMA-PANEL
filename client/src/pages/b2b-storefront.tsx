@@ -1,15 +1,15 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { trackSearch } from "@/lib/analytics";
-import { Search, Package, Boxes, Truck, ShieldCheck, BadgeCheck, Store, X } from "lucide-react";
+import { Search, Package, BadgeCheck, Store, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
 import { B2BProductRail } from "@/components/b2b-product-rail";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
-import { loadB2BHomepageCategories, type B2BHomepageCategories } from "@/lib/b2b-categories";
+import { loadB2BHomepageCategories, b2bCategoryImage, type HomeBanner, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
 import { availableProductsFirst, splitHomepageProducts, nextHomepageArrivalExpiry } from "@/lib/b2b-homepage-products";
 import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
@@ -179,42 +179,7 @@ export default function B2BStorefront() {
         </section>
       ) : null}
 
-      <section
-        className="relative overflow-hidden bg-slate-950 text-white"
-        style={{ background: "radial-gradient(ellipse at 95% 0%, #162139 0%, #020617 60%)" }}
-      >
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:py-16 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-center lg:gap-12 lg:py-20">
-          <div className="min-w-0">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-xs font-bold tracking-wide text-amber-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              ÇALIŞKAN B2B · TOPTAN TİCARET
-            </div>
-            <h1 className="max-w-2xl text-3xl font-black leading-[1.15] tracking-tight sm:text-4xl lg:text-[42px]">
-              Toptan alışverişinizi <span className="text-amber-300">tek merkezden</span> yönetin.
-            </h1>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
-              Ürünleri inceleyin, koli ve minimum alım bilgilerini karşılaştırın. İşletme hesabınızla size özel fiyatlara ve sipariş işlemlerine erişin.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <a
-                href="#urunler"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-400 px-5 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300"
-              >
-                Ürünleri İncele
-              </a>
-              <Link href="/magazalar" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:border-amber-300 hover:bg-white/10">
-                Mağazaları Keşfet
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3 lg:gap-2.5" aria-label="Alışveriş avantajları">
-            <Feature icon={<Boxes className="h-6 w-6" />} title="Koli Bazlı" text="Toptan alıma uygun miktarlar" />
-            <Feature icon={<Truck className="h-6 w-6" />} title="Sevkiyat" text="Sipariş ve teslimat takibi" />
-            <Feature icon={<ShieldCheck className="h-6 w-6" />} title="İşletme" text="Onaylı işletme hesabı" />
-          </div>
-        </div>
-      </section>
+      <HomepageBanners homepage={homepage}/>
       </>}
 
       <main className={`mx-auto max-w-6xl px-4 ${isSearching ? "py-4 sm:py-6" : "py-8 sm:py-10"}`}>
@@ -255,7 +220,7 @@ export default function B2BStorefront() {
               </div>
               <B2BTimedOffer endAt={campaign.ends_at} title="Kalan süre" stock={offers.reduce((total,p)=>total+Math.floor(Math.max(0,Number(p.stock)||0)/Math.max(1,Number(p.units_per_box)||1)),0)} unitsPerBox={1}/>
             </div>
-            <B2BProductRail products={offers} loggedIn={loggedIn} title={campaign.title}/>
+            <B2BProductRail products={offers} loggedIn={loggedIn} title={campaign.title} autoScroll/>
           </section>;
         })}
 
@@ -279,7 +244,7 @@ export default function B2BStorefront() {
           {isLoading ? (
             <div className="rounded-2xl border bg-white p-6 text-center text-sm text-slate-500">Yeni gelen ürünler yükleniyor…</div>
           ) : newArrivals.length > 0 ? (
-            <B2BProductRail products={newArrivals} loggedIn={loggedIn} title="Yeni Gelen Ürünler" />
+            <B2BProductRail products={newArrivals} loggedIn={loggedIn} title="Yeni Gelen Ürünler" autoScroll />
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-500">
               {query.trim() ? "Aramanızla eşleşen yeni ürün bulunmuyor." : "Son 24 saatte eklenen yeni ürün bulunmuyor."}
@@ -344,16 +309,44 @@ export default function B2BStorefront() {
   );
 }
 
-function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <div className="flex min-w-0 flex-row items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.07] p-4 shadow-sm sm:min-h-[170px] sm:flex-col sm:items-start sm:justify-between lg:min-h-[180px]">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <b className="block text-sm font-bold leading-snug text-white sm:text-base">{title}</b>
-        <span className="mt-1 block text-xs leading-relaxed text-slate-300">{text}</span>
-      </div>
+function bannerHref(banner:HomeBanner):string|null {
+  if(banner.linkType==="product" && Number.isSafeInteger(Number(banner.productId)) && Number(banner.productId)>0)return "/urun/"+Number(banner.productId);
+  if(banner.linkType==="page"){
+    const pages:Record<string,string>={"/(tabs)":"/","/(tabs)/products":"/#urunler","/(tabs)/discover":"/kategoriler","/(tabs)/menu":"/hesabim"};
+    return pages[banner.pagePath||""]||null;
+  }
+  if(banner.linkType==="url")try{const url=new URL(banner.externalUrl||"");if(url.protocol==="https:"&&!url.username&&!url.password)return url.href;}catch{}
+  return null;
+}
+function HomepageBanners({homepage}:{homepage:B2BHomepageCategories}){
+  const banners=homepage.banners||[];
+  const [index,setIndex]=useState(0);
+  const rail=useRef<HTMLDivElement>(null);
+  const pauseUntil=useRef(0);
+  const [playing,setPlaying]=useState(true);
+  const go=(next:number)=>{
+    const el=rail.current;
+    if(!el||!banners.length)return;
+    el.scrollTo({left:next*el.clientWidth,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  };
+  useEffect(()=>{
+    if(!playing||homepage.sliderAutoPlay===false||banners.length<2)return;
+    const timer=window.setInterval(()=>{
+      if(document.hidden||Date.now()<pauseUntil.current||rail.current?.contains(document.activeElement)||window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+      const el=rail.current;if(!el||!el.clientWidth)return;
+      go((Math.round(el.scrollLeft/el.clientWidth)+1)%banners.length);
+    },Math.max(2000,homepage.sliderIntervalMs||5000));
+    return ()=>window.clearInterval(timer);
+  },[banners.length,homepage.sliderAutoPlay,homepage.sliderIntervalMs,playing]);
+  if(!banners.length)return null;
+  return <section aria-label="Kampanya bannerları" className="mx-auto max-w-6xl px-4 pb-2">
+    <div ref={rail} onScroll={()=>{const el=rail.current;if(el?.clientWidth)setIndex(Math.min(banners.length-1,Math.round(el.scrollLeft/el.clientWidth)));}} onPointerDown={()=>{pauseUntil.current=Date.now()+8000;}} onTouchStart={()=>{pauseUntil.current=Date.now()+8000;}} className="flex items-start snap-x snap-mandatory overflow-x-auto rounded-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {banners.map((banner,i)=>{
+        const href=bannerHref(banner);
+        const image=<img src={b2bCategoryImage(banner.imageId)||undefined} alt={banner.title||"Çalışkan B2B kampanya görseli"} width={banner.imageWidth||undefined} height={banner.imageHeight||undefined} className="block h-auto w-full object-contain" loading={i===0?"eager":"lazy"}/>;
+        return <div key={banner.id||banner.imageId} className="w-full shrink-0 snap-start overflow-hidden rounded-2xl">{href?<a href={href} className="block">{image}</a>:image}</div>;
+      })}
     </div>
-  );
+    {banners.length>1&&<div className="mt-2 flex flex-wrap items-center justify-center gap-2">{banners.map((b,i)=><button key={b.id||b.imageId} type="button" aria-label={`Banner ${i+1}`} aria-current={index===i} onClick={()=>{pauseUntil.current=Date.now()+8000;go(i);}} className={`h-2.5 rounded-full ${index===i?"w-6 bg-[#ffcc00]":"w-2.5 bg-slate-300"}`}/>)}<button type="button" onClick={()=>setPlaying(v=>!v)} className="ml-2 text-xs text-slate-600">{playing?"Duraklat":"Başlat"}</button></div>}
+  </section>;
 }
