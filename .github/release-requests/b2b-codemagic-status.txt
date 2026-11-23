@@ -1,0 +1,7 @@
+ÇALIŞKAN B2B TestFlight status monitor
+Build ID: 6b03ed104099c5e728ef508b
+Codemagic App ID: 6afedc30f47c90e3676e0a20
+Workflow: caliskan-b2b-testflight
+Branch: main
+Release: 1.3.14
+Request: check the existing Codemagic build and publish status. DO NOT launch a second iOS build.
