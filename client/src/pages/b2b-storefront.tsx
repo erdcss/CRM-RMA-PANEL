@@ -161,6 +161,16 @@ export default function B2BStorefront() {
         }
       />
 
+      {homepage.categories.length > 0 ? (
+        <section className="mx-auto max-w-6xl px-4 pb-3 pt-3 sm:pb-4 sm:pt-4" aria-labelledby="homepage-categories-title">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 id="homepage-categories-title" className="text-sm font-black sm:text-base">Kategoriler</h2>
+            <Link href="/kategoriler" className="shrink-0 text-xs font-bold text-amber-800 hover:underline">Tüm kategoriler</Link>
+          </div>
+          <B2BCategoryTiles homepage={homepage} horizontal />
+        </section>
+      ) : null}
+
       <section
         className="relative overflow-hidden bg-slate-950 text-white"
         style={{ background: "radial-gradient(ellipse at 95% 0%, #162139 0%, #020617 60%)" }}
@@ -216,19 +226,7 @@ export default function B2BStorefront() {
             <B2BProductRail products={offers} loggedIn={loggedIn} title={campaign.title}/>
           </section>;
         })}
-        {homepage.categories.length > 0 ? (
-          <section className="mb-8" aria-labelledby="homepage-categories-title">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 id="homepage-categories-title" className="text-lg font-black">Kategoriler</h2>
-                <p className="mt-1 text-xs text-slate-500">Ürün grubuna dokunarak kategori sayfasını açın.</p>
-              </div>
-              <Link href="/kategoriler" className="shrink-0 text-xs font-bold text-amber-800 hover:underline">Tüm kategoriler</Link>
-            </div>
-            <p className="mb-2 text-xs font-semibold text-amber-800 sm:hidden">Kategorileri görmek için sağa kaydırın →</p>
-            <B2BCategoryTiles homepage={homepage} horizontal />
-          </section>
-        ) : null}
+
 
         <div className="mb-4 md:hidden">
           <div className="relative">
