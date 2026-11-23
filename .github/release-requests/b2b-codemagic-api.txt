@@ -1,15 +1,16 @@
-ÇALIŞKAN B2B — First-use iOS location permission update 1.3.17
+ÇALIŞKAN B2B — TestFlight 1.3.17 actual build retry after skip fix
 Operation: testflight
-Request: b2b-first-login-location-geofence-20261123-01
+Request: b2b-testflight-v1317-manual-api-no-changeset-20261123-02
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
-Merge commit: 0e03c2e994c47ce4029f5f2b5599eabd7448631e
+Fix commit: 241e855257ee6cf2b86ec09fb1b3291546bb99b9
 Bundle ID: com.caliskangroup.rma
 App version: 1.3.17
 Codemagic application: CRM-RMA-PANEL
-Codemagic workflow: caliskan-b2b-testflight
-UX: preserve original 1.3.14-era customer interface (no premium UI).
-Change: remove location permission CTA from Notifications; request iOS store proximity opt-in after first usable authenticated launch; retain location settings opt-out and resume.
-Android: marketing location tracking intentionally remains disabled.
-Publishing: Apple TestFlight ONLY. Public App Store submission prohibited.
-Exactly one iOS build requested.
+Workflow: caliskan-b2b-testflight
+Prior skipped build: 6b03ffa6ecee92f6d201f69e
+Changeset filter: removed (API initiated builds must proceed even if release marker is unchanged).
+Automatic GitHub webhook builds: disabled.
+UI: original, not premium or 3D navigation. Location consent: signed-in initial use.
+Publishing: TestFlight ONLY, submit_to_app_store false.
+Exactly one authenticated Codemagic POST /builds requested.
