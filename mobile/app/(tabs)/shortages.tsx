@@ -282,7 +282,7 @@ export default function ShortagesScreen() {
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
-  page: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
+  page: { padding: spacing.lg, paddingBottom: 130, gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.sm },
   headerText: { flex: 1 },
   title: { ...typography.title, color: palette.text, fontWeight: '900' },
