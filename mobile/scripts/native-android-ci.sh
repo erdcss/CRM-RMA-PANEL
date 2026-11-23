@@ -40,7 +40,7 @@ check_apk() {
   echo "$package_info"
   local badging
   badging="$("$aapt_path" dump badging "$apk")"
-  if ! grep -Fq "uses-feature-not-required: name='android.hardware.screen.portrait'" <<< "$badging"; then
+  if ! grep -Fq "uses-feature-not-required:'android.hardware.screen.portrait'" <<< "$badging"; then
     echo "Google Play portrait hardware requirement is not optional in compiled APK." >&2
     exit 1
   fi
