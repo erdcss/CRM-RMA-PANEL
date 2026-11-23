@@ -57,7 +57,7 @@ jobs:
           const eas=require("./eas.json");
           if(config.android.package!=="com.caliskangroup.rma")
             throw Error("Yanlış Android uygulaması: "+config.android.package);
-          if(!/^\\d+\\.\\d+\\.\\d+$/.test(config.version))
+          if(!/^\d+\.\d+\.\d+$/.test(config.version))
             throw Error("Çalışkan B2B Android sürümü geçersiz: "+config.version);
           if(eas.build["android-aab"]?.android?.buildType!=="app-bundle"||
              eas.build["android-aab"]?.distribution!=="store")
