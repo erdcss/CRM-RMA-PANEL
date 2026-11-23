@@ -151,10 +151,24 @@ async function checkCloudPreinstall() {
     fs.mkdirSync(path.join(tmp, "lib"));
     fs.writeFileSync(path.join(tmp, "scripts", "eas-branding-preinstall.cjs"), fs.readFileSync(cloudScript));
     fs.copyFileSync(path.resolve(__dirname, "b2b-custom-notification-sound.cjs"), path.join(tmp, "scripts", "b2b-custom-notification-sound.cjs"));
-    fs.writeFileSync(path.join(tmp, "app.json"), JSON.stringify({expo:{ios:{},android:{},plugins:[]}}));
-    const icon = new PNG({width: 40,height: 40});
-    for (let i=0;i<icon.data.length;i++) icon.data[i]=Math.floor(i*167%256);
-    const png = PNG.sync.write(icon);
+    const preparedName = "managed-ios-app-icon-0123456789ab.png";
+    const preparedRelativePath = "./assets/" + preparedName;
+    fs.writeFileSync(path.join(tmp, "app.json"), JSON.stringify({
+      expo: { ios: withSplash ? { icon: preparedRelativePath } : {}, android: {}, plugins: [] }
+    }));
+    // A real App Store launcher icon is an opaque square 1024x1024 RGB PNG.
+    const icon = new PNG({ width: 1024, height: 1024 });
+    for (let i = 0; i < icon.data.length; i += 4) {
+      icon.data[i] = 255;
+      icon.data[i + 1] = 204;
+      icon.data[i + 2] = 0;
+      icon.data[i + 3] = 255;
+    }
+    const png = PNG.sync.write(icon, { colorType: 2 });
+    if (withSplash) {
+      fs.mkdirSync(path.join(tmp, "assets"));
+      fs.writeFileSync(path.join(tmp, "assets", preparedName), png);
+    }
     // Sample 16-bit mono PCM WAV to verify the EAS native bundle path.
     const sound = Buffer.alloc(44 + 256);
     sound.write("RIFF", 0, "ascii"); sound.writeUInt32LE(sound.length - 8, 4);
@@ -191,6 +205,10 @@ async function checkCloudPreinstall() {
       assert.equal(output.code,0,output.out);
       assert.equal(firstBrandingRequest, false, "Cloud retry must recover from a 502");
       const expo=JSON.parse(fs.readFileSync(path.join(tmp,"app.json"),"utf8")).expo;
+      if (withSplash)
+        assert.equal(expo.ios.icon, preparedRelativePath, "EAS preinstall must preserve generated icon");
+      else
+        assert.ok(expo.ios.icon.startsWith("./assets/managed-logo-"), "Opaque source may be used directly");
       const plugin=expo.plugins.find(p=>Array.isArray(p)&&p[0]==="expo-splash-screen");
       assert.ok(plugin,"EAS pre-install must configure first frame");
       assert.equal(plugin[1].enableFullScreenImage_legacy,true);
