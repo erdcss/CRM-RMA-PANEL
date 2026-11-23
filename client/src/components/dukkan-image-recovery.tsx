@@ -103,6 +103,11 @@ export function DukkanImageRecovery({base,onChanged}:{base:string;onChanged:()=>
            alt={p.name+" "+(p.candidate_origin==="ai"?"AI iyileştirme":"resmî fotoğraf")+" adayı"} loading="lazy" className="max-h-full max-w-full object-contain"/>
          </div>
          <span className="mt-1 block text-center text-[10px] font-semibold text-emerald-800">Sonra · {p.candidate_origin==="ai"?"AI Taslağı":"Resmî Fotoğraf"}</span>
+         <a href={base+"/image-recovery/"+p.product_id+"/candidate?v="+encodeURIComponent(p.updated_at||"")}
+          target="_blank" rel="noopener noreferrer"
+          className="mt-1 block text-center text-[10px] font-semibold text-blue-800 underline">
+          Görseli büyük aç
+         </a>
         </div>}
       </div>
       <div className="min-w-0 flex-1">
