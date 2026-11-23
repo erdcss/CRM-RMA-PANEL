@@ -24,4 +24,5 @@ jobs:
       - run: node --test scripts/campaign-hero-layout.test.cjs
       - run: node --test scripts/ios-app-icon.test.cjs
       - run: node scripts/check-location-first-launch.cjs
+      - run: node scripts/check-codemagic-manual-only.cjs
       - run: npm run typecheck

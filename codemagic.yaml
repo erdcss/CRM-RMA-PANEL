@@ -10,14 +10,11 @@ workflows:
     # Only a dedicated chat command marker triggers this costly iOS build.
     # Routine code commits, Android requests, and docs changes are excluded.
     # First config change may be detected as a changeset by Codemagic.
+    # TestFlight and public App Store builds require an explicit API or UI
+    # action; ordinary GitHub pushes and status markers MUST NOT start builds.
+    # Codemagic documents events: [] as manual-only.
     triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
-      cancel_previous_builds: false
+      events: []
     when:
       changeset:
         includes:
@@ -110,14 +107,11 @@ workflows:
     # Only a dedicated chat command marker triggers this costly iOS build.
     # Routine code commits, Android requests, and docs changes are excluded.
     # First config change may be detected as a changeset by Codemagic.
+    # TestFlight and public App Store builds require an explicit API or UI
+    # action; ordinary GitHub pushes and status markers MUST NOT start builds.
+    # Codemagic documents events: [] as manual-only.
     triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
-      cancel_previous_builds: false
+      events: []
     when:
       changeset:
         includes:
