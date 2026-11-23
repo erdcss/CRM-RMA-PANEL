@@ -1,9 +1,12 @@
-ÇALIŞKAN B2B TestFlight status monitor
-Build ID: 6b03ffa6ecee92f6d201f69e
+ÇALIŞKAN B2B internal TestFlight status monitor
+Build ID: 6b0427caf7d23caae05091d1
 Codemagic App ID: 6afedc30f47c90e3676e0a20
 Workflow: caliskan-b2b-testflight
 Branch: main
-Release: 1.3.17
-Goal: preserve old B2B design, remove location permission button from notifications, request iOS near-store consent on first usable signed-in launch.
-Android background marketing location remains blocked.
-Request: monitor the existing Codemagic build and Apple TestFlight publishing. DO NOT launch another iOS build.
+App version: 1.3.17
+Request: status-only monitor for existing, explicitly API-launched iOS TestFlight build.
+Fix: workflow-level when.changeset removed to prevent Skipped after manual/API build launch (PR #103).
+UI: original, no premium hamburger/3D navigation.
+Location: first-use signed-in iOS consent, no location button in Notifications.
+Publishing: TestFlight only; no public App Store review.
+DO NOT initiate another Codemagic build from this status update.
