@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/ui/Screen';
+import { useBottomBarScroll } from '@/components/navigation/BottomBarScrollContext';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { rmaApi, type B2BShortageList, type B2BShortageSupplier, type B2BShortageItem } from '@/lib/api';
@@ -16,6 +17,7 @@ export default function ShortagesScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const { palette } = useAppearance();
+  const { reportScroll } = useBottomBarScroll();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [list, setList] = useState<B2BShortageList>(EMPTY);
   const [openSupplier, setOpenSupplier] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export default function ShortagesScreen() {
 
   return (
     <Screen style={{ backgroundColor: palette.background }}>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" onScroll={(event)=>reportScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16}>
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Eksik Listem</Text>
@@ -280,7 +282,7 @@ export default function ShortagesScreen() {
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
-  page: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
+  page: { padding: spacing.lg, paddingBottom: 130, gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: spacing.sm },
   headerText: { flex: 1 },
   title: { ...typography.title, color: palette.text, fontWeight: '900' },

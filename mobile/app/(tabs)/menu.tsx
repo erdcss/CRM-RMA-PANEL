@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
+import { useBottomBarScroll } from '@/components/navigation/BottomBarScrollContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -12,6 +13,7 @@ import { rmaApi, homepageMediaUrl, type HomeCategoryCard } from '@/lib/api';
 
 export default function MenuScreen() {
   const { palette } = useAppearance();
+  const { reportScroll } = useBottomBarScroll();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const {user}=useAuth();
@@ -57,7 +59,7 @@ export default function MenuScreen() {
 
   return (
     <Screen style={{ backgroundColor: palette.background }}>
-      <ScrollView contentContainerStyle={styles.page}>
+      <ScrollView contentContainerStyle={styles.page} onScroll={(event)=>reportScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16}>
         <View style={styles.header}>
           <Text style={styles.eyebrow}>ÇALIŞKAN B2B</Text>
           <Text style={styles.title}>Menü</Text>

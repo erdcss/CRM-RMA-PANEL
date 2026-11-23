@@ -18,6 +18,7 @@ import { registerB2BPush } from '@/lib/push';
 import { appAlert } from '@/lib/appAlert';
 
 import { Screen } from '@/components/ui/Screen';
+import { useBottomBarScroll } from '@/components/navigation/BottomBarScrollContext';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import {
@@ -39,6 +40,7 @@ function money(value: number) {
 
 export default function OrderListScreen() {
   const { palette } = useAppearance();
+  const { reportScroll } = useBottomBarScroll();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const [items, setItems] = useState<B2BOrderListItem[]>([]);
@@ -213,7 +215,7 @@ export default function OrderListScreen() {
         ) : null}
 
         {items.length ? (
-          <ScrollView
+          <ScrollView onScroll={(event)=>reportScroll(event.nativeEvent.contentOffset.y)} scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.list}
           >

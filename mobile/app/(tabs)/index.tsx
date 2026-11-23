@@ -40,6 +40,9 @@ import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
 import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
 import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
+import { HomeDrawer } from '@/components/navigation/HomeDrawer';
+import { useBottomBarScroll } from '@/components/navigation/BottomBarScrollContext';
+import { refreshMobileBranding, useMobileBranding } from '@/lib/branding';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -66,6 +69,10 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const { session } = useAuth();
   const { palette } = useAppearance();
+  const branding = useMobileBranding();
+  const headerLogoUri = branding.b2b_web_logo || branding.b2b_mobile_logo;
+  const { reportScroll, expandBar } = useBottomBarScroll();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [welcome, setWelcome] = useState(false);
   const welcomeFade = useRef(new Animated.Value(0)).current;
@@ -187,6 +194,8 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     setCatalogNow(Date.now());
+    expandBar();
+    void refreshMobileBranding();
     // Returning from Admin-managed promotions should refresh banners without
     // requiring the customer to close or reinstall the mobile application.
     // Refresh both the catalog and category metadata when returning from a product.
@@ -202,7 +211,7 @@ export default function HomeScreen() {
       if (mounted) setUnreadNotifications(rows.filter(row => !row.read_at).length);
     }).catch(() => undefined);
     return () => { mounted=false; };
-  }, [session?.user?.id, load]));
+  }, [session?.user?.id, load, expandBar]));
 
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase('tr-TR');
@@ -415,19 +424,52 @@ export default function HomeScreen() {
           />
         }
         contentContainerStyle={styles.page}
+        onScroll={(event) => reportScroll(event.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
       >
         {welcome ? <Animated.View pointerEvents="none" style={[styles.welcomeToast, { opacity: welcomeFade, transform: [{ translateY: welcomeShift }] }]}>
           <Ionicons name="checkmark-circle" size={20} color="#FFCD00" />
           <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
         </Animated.View> : null}
 
+        <View style={styles.brandHeader}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ana menüyü aç"
+            onPress={() => {expandBar();setDrawerOpen(true);}}
+            style={styles.hamburgerButton}
+          >
+            <Ionicons name="menu" size={27} color="#FFCD00"/>
+          </Pressable>
+          <View style={styles.brandMarkWrap} accessibilityLabel="Çalışkan B2B logosu">
+            {headerLogoUri
+              ? <Image
+                  source={{uri:headerLogoUri}}
+                  style={styles.brandMark}
+                  contentFit="contain"
+                  cachePolicy="none"
+                  accessibilityLabel="Çalışkan B2B"
+                />
+              : <Text style={styles.brandFallback}>ÇALIŞKAN <Text style={styles.brandHighlight}>B2B</Text></Text>}
+          </View>
+          <Pressable
+            style={styles.notificationButton}
+            onPress={() => router.push('/notifications' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Bildirimleri aç"
+          >
+            <Ionicons name="notifications-outline" size={23} color="#FFCD00" />
+            {unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}
+          </Pressable>
+        </View>
+
         <View style={styles.headerRow}>
-  <View style={[styles.searchBox, styles.headerSearchBox]}>
-            <Ionicons name="search-outline" size={20} color={palette.muted} />
+          <View style={[styles.searchBox, styles.headerSearchBox]}>
+            <Ionicons name="search-outline" size={20} color={palette.muted}/>
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Ürün veya stok kodu ara"
+              placeholder="Ürün, marka veya stok kodu ara"
               placeholderTextColor={palette.muted}
               style={styles.searchInput}
               returnKeyType="search"
@@ -435,24 +477,14 @@ export default function HomeScreen() {
             />
             {query ? (
               <Pressable onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
-                <Ionicons name="close-circle" size={19} color={palette.muted} />
+                <Ionicons name="close-circle" size={19} color={palette.muted}/>
               </Pressable>
             ) : null}
             <Pressable onPress={() => setScannerOpen(true)} style={styles.scanButton}
               accessibilityRole="button" accessibilityLabel="Barkod oku">
-              <Ionicons name="scan-outline" size={23} color={palette.text} />
+              <Ionicons name="scan-outline" size={23} color={palette.text}/>
             </Pressable>
           </View>
-  
-          <Pressable
-            style={styles.notificationButton}
-            onPress={() => router.push('/notifications' as never)}
-            accessibilityRole="button"
-            accessibilityLabel="Bildirimleri aç"
-          >
-            <Ionicons name="notifications-outline" size={23} color={palette.text} />
-            {unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}
-          </Pressable>
         </View>
 
         {query.trim() ? (
@@ -822,6 +854,7 @@ export default function HomeScreen() {
           />
         </Pressable>
       ):null}
+      <HomeDrawer visible={drawerOpen} onClose={() => setDrawerOpen(false)}/>
       <BarcodeScannerModal visible={scannerOpen} title="Ürün Barkodu Oku" scanMode="lookup"
         hint="Ürün barkodunu okutun. Eşleşme varsa ürün sayfasına yönlendirilirsiniz."
         onClose={() => setScannerOpen(false)}
@@ -881,10 +914,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   notificationButton: {
     width: 44,
     height: 44,
-    borderRadius: radius.full,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
+    borderColor: '#514619',
+    backgroundColor: '#24231F',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -899,6 +932,21 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.surface,
   },
+  brandHeader: {
+    flexDirection:'row',alignItems:'center',gap:10,minHeight:88,
+    backgroundColor:'#101115',borderRadius:24,borderWidth:1,
+    borderColor:'#6D5711',paddingHorizontal:12,paddingVertical:11,
+    shadowColor:'#000',shadowOpacity:0.18,shadowRadius:14,
+    shadowOffset:{width:0,height:7},elevation:8,
+  },
+  hamburgerButton: {
+    width:45,height:45,borderRadius:16,backgroundColor:'#262722',
+    borderWidth:1,borderColor:'#514619',alignItems:'center',justifyContent:'center',
+  },
+  brandMarkWrap:{flex:1,minWidth:0,height:60,justifyContent:'center',alignItems:'center'},
+  brandMark:{height:60,width:'100%',backgroundColor:'transparent'},
+  brandFallback:{color:'#FFFFFF',fontSize:15,fontWeight:'900',textAlign:'center',letterSpacing:-0.5},
+  brandHighlight:{color:'#FFCD00'},
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -909,9 +957,9 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchBox: {
     marginTop: spacing.md,
     minHeight: 52,
-    borderRadius: radius.lg,
+    borderRadius: 19,
     borderWidth: 1,
-    borderColor: palette.border,
+    borderColor: '#D5B331',
     backgroundColor: palette.surface,
     paddingHorizontal: spacing.lg,
     flexDirection: 'row',
