@@ -160,6 +160,7 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
           </div>
         )}
       </div>
+      {middle ? <div className="mx-auto w-full max-w-6xl px-3 pb-2 md:hidden">{middle}</div> : null}
     </header>
     {typeof document !== "undefined" ? createPortal(
       <div
