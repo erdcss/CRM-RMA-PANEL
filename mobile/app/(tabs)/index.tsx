@@ -441,9 +441,9 @@ export default function HomeScreen() {
             <Ionicons name="menu" size={27} color="#FFCD00"/>
           </Pressable>
           <View style={styles.brandMarkWrap} accessibilityLabel="Çalışkan B2B logosu">
-            {branding.b2b_mobile_logo
+            {(branding.b2b_web_logo || branding.b2b_mobile_logo)
               ? <Image
-                  source={{uri:branding.b2b_mobile_logo}}
+                  source={{uri:(branding.b2b_web_logo || branding.b2b_mobile_logo)}}
                   style={styles.brandMark}
                   contentFit="contain"
                   cachePolicy="none"
