@@ -1,6 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import { createHash } from "crypto";
 import OpenAI, { toFile } from "openai";
+import {productImageEditModel,userFacingImageEditError} from "./product-image-edit-model";
 import { z } from "zod";
 
 const supportedExtractTypes = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
@@ -1249,7 +1250,7 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       const extension = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 60_000, maxRetries: 1 });
       const result = await openai.images.edit({
-        model: "gpt-image-1",
+        model: productImageEditModel(),
         image: await toFile(buffer, `product-source.${extension}`, { type: mime }),
         prompt: "Preserve the product exactly. Remove the background, center the product, and place it on a clean white e-commerce background. Do not add text, logos, or new objects.",
         size: "1024x1024",
@@ -1259,8 +1260,10 @@ export function registerProductAIRoutes(app: Express, requireAdmin: RequestHandl
       if (!image) return res.status(502).json({ error: "Görsel servisi boş yanıt döndürdü." });
       return res.json({ imageData: `data:image/png;base64,${image}` });
     } catch (error) {
-      console.error("Product AI image preparation error:", error instanceof Error ? error.message : "unknown error");
-      return res.status(502).json({ error: "Ürün görseli hazırlanamadı. Görseli değiştirmeden tekrar deneyin." });
+      const failure=userFacingImageEditError(error);
+      const detail=error as {status?:number;code?:string};
+      console.error("Product AI image preparation error",{status:detail.status||null,code:detail.code||failure.code,model:productImageEditModel()});
+      return res.status(failure.status).json({ error: failure.error,code:failure.code });
     }
   });
 }
