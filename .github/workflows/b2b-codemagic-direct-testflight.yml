@@ -6,6 +6,15 @@ on:
     paths:
       - '.github/release-requests/b2b-codemagic-api.txt'
   workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Verify the Codemagic connection without paying for a build, or submit to TestFlight'
+        type: choice
+        required: true
+        default: verify
+        options:
+          - verify
+          - testflight
 
 permissions:
   contents: read
@@ -24,6 +33,41 @@ jobs:
       CODEMAGIC_APP_ID_VAR: ${{ vars.CODEMAGIC_APP_ID }}
       CODEMAGIC_APP_ID_SECRET: ${{ secrets.CODEMAGIC_APP_ID }}
     steps:
+      - uses: actions/checkout@v4
+      - name: Doğrulama veya TestFlight isteğini belirle
+        id: request
+        shell: bash
+        env:
+          DISPATCH_OPERATION: ${{ inputs.operation }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Çalışkan B2B yayın isteği yalnızca main üzerinden yapılabilir."
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            OPERATION="$(sed -n 's/^Operation: //p' .github/release-requests/b2b-codemagic-api.txt | tail -n 1)"
+          else
+            OPERATION="$DISPATCH_OPERATION"
+          fi
+          case "$OPERATION" in
+            verify|testflight) ;;
+            *) echo "::error::Operation: verify veya Operation: testflight olarak açıkça belirtilmeli."; exit 1 ;;
+          esac
+          echo "operation=$OPERATION" >> "$GITHUB_OUTPUT"
+          node <<'NODE'
+          const fs=require('node:fs');
+          const app=JSON.parse(fs.readFileSync('mobile/app.json','utf8')).expo;
+          const tuple=v=>v.split('.').map(Number);
+          const a=tuple(app.version),b=tuple('1.3.13');
+          const above=a.findIndex((n,i)=>n!==b[i]);
+          if(app.ios?.bundleIdentifier!=='com.caliskangroup.rma'||
+            !/^[0-9]+[.][0-9]+[.][0-9]+$/.test(app.version)||
+            (above===-1||a[above]<=b[above])) {
+            throw Error('Apple 90062/90186: B2B must have version above 1.3.13 and exact bundle ID com.caliskangroup.rma');
+          }
+          console.log('Verified Çalışkan B2B app version '+app.version+' and bundle '+app.ios.bundleIdentifier);
+          NODE
       - name: Kod kaynağı ve tek uygulama koruması
         run: |
           echo "App: Çalışkan B2B"
@@ -34,10 +78,14 @@ jobs:
       - name: Codemagic API bağlantısını denetle
         id: preflight
         run: |
+          echo "Workflow operation: ${{ steps.request.outputs.operation }}"
           if [ -z "$CODEMAGIC_API_TOKEN" ]; then
-            echo "::error::CODEMAGIC_API_TOKEN GitHub Actions secrets içinde bulunamadı. Codemagic > Account Settings > API token bölümünden alıp GitHub > Settings > Secrets and variables > Actions > New repository secret'a CODEMAGIC_API_TOKEN olarak kaydedin."
+            echo "::error::CODEMAGIC_API_TOKEN missing. Add it in GitHub > Settings > Secrets and variables > Actions > New repository secret."
+            echo "### Codemagic bağlantısı eksik" >> "$GITHUB_STEP_SUMMARY"
+            echo "GitHub Actions'ta CODEMAGIC_API_TOKEN tanımlanmamış. Gizli anahtarı sohbet içinde paylaşmadan GitHub Repository Secret olarak kaydedin." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+
           ID="${CODEMAGIC_APP_ID_VAR:-$CODEMAGIC_APP_ID_SECRET}"
           if [ -n "$ID" ] && ! [[ "$ID" =~ ^[a-fA-F0-9]{24}$ ]]; then
             echo "::error::CODEMAGIC_APP_ID biçimi geçersiz (24 haneli Codemagic app ID gerekli)."
@@ -47,9 +95,10 @@ jobs:
             echo "CODEMAGIC_APP_ID yok; Codemagic uygulama listesinde CRM-RMA-PANEL otomatik aranacak."
           fi
           echo "Codemagic API token tanımlı."
-      - name: Codemagic TestFlight derlemesini doğrudan tetikle
+      - name: Codemagic API erişimini doğrula ve gerekirse TestFlight derlemesini başlat
         id: launch
         env:
+          RELEASE_OPERATION: ${{ steps.request.outputs.operation }}
           GITHUB_SHA_REQUEST: ${{ github.sha }}
         run: |
           node --input-type=module <<'NODE'
@@ -58,7 +107,22 @@ jobs:
             'Content-Type': 'application/json',
             'x-auth-token': process.env.CODEMAGIC_API_TOKEN,
           };
+          const isB2BApp = app => {
+            const name = String(app?.appName || '').toLowerCase();
+            const repo = String(app?.repositoryUrl || app?.repository?.url || '').toLowerCase();
+            return name === 'crm-rma-panel' || repo.includes('erdcss/crm-rma-panel');
+          };
           let appId = process.env.CODEMAGIC_APP_ID_VAR || process.env.CODEMAGIC_APP_ID_SECRET;
+          if (appId) {
+            const detail = await fetch('https://api.codemagic.io/apps/' + appId, {
+              headers, signal: AbortSignal.timeout(30000),
+            });
+            const data = await detail.json().catch(() => ({}));
+            if (!detail.ok || !isB2BApp(data.application)) {
+              console.error('::error::CODEMAGIC_APP_ID must reference the existing CRM-RMA-PANEL application.');
+              process.exit(1);
+            }
+          }
           if (!appId) {
             const lookup = await fetch('https://api.codemagic.io/apps', {
               headers, signal: AbortSignal.timeout(30000),
@@ -69,17 +133,27 @@ jobs:
             }
             const lookupData = await lookup.json();
             const applications = Array.isArray(lookupData.applications) ? lookupData.applications : [];
-            const matching = applications.filter(app => {
-              const name = String(app.appName || '').toLowerCase();
-              const repo = String(app.repositoryUrl || app.repository?.url || '').toLowerCase();
-              return name === 'crm-rma-panel' || repo.includes('erdcss/crm-rma-panel');
-            });
+            const matching = applications.filter(isB2BApp);
             if (matching.length !== 1 || !/^[a-f0-9]{24}$/i.test(String(matching[0]._id || ''))) {
               console.error('::error::CRM-RMA-PANEL Codemagic uygulama ID otomatik doğrulanamadı. Codemagic uygulama URL /app/<id> içindeki ID yi GitHub > Settings > Actions > Variables bölümünde CODEMAGIC_APP_ID olarak kaydedin.');
               process.exit(1);
             }
             appId = matching[0]._id;
             console.log('Codemagic app automatically resolved from account.');
+          }
+          if (process.env.RELEASE_OPERATION === 'verify') {
+            const url = 'https://codemagic.io/app/' + appId;
+            console.log('Verified Codemagic API permissions and CRM-RMA-PANEL app access. NO BUILD STARTED.');
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+              '### Çalışkan B2B Codemagic bağlantısı: BAŞARILI',
+              '',
+              '- **Çalışma türü:** Yalnız bağlantı doğrulaması, ücretli iOS derlemesi başlatılmadı',
+              '- **Codemagic uygulaması:** [' + appId + '](' + url + ')',
+              '- **Bir sonraki komut:** Operation: testflight',
+              '- **Hedef iş akışı:** caliskan-b2b-testflight',
+              ''
+            ].join('\\n'));
+            process.exit(0);
           }
           const body = { appId, workflowId: 'caliskan-b2b-testflight', branch: 'main' };
           let response;
