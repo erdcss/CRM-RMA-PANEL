@@ -3,6 +3,7 @@ import type {Pool} from "pg";
 import OpenAI,{toFile} from "openai";
 import {base64Image,imageDimensions,qualityBand,isExactOfficialMatch} from "./dukkan-image-meta";
 import {syncDukkanToB2B} from "./dukkan-b2b-sync";
+import {productImageEditModel,userFacingImageEditError} from "./product-image-edit-model";
 
 let schema:Promise<void>|null=null;
 export function ensureImageRecovery(pool:Pool):Promise<void>{
@@ -155,12 +156,13 @@ async function officialImage(pool:Pool,storeId:number,productId:number){
 }
 async function aiImage(pool:Pool,storeId:number,productId:number){
  const p=await readRow(pool,storeId,productId);
+ if(p.state==="pending_review")throw Object.assign(new Error("Bu ürünün zaten onay bekleyen bir görseli var."),{status:409});
  if(!process.env.OPENAI_API_KEY)throw Object.assign(new Error("Yapay zekâ servisi yapılandırılmamış"),{status:503});
  const source=base64Image(p.original_image);
  if(!source)throw new Error("Orijinal ürün görseli okunamadı");
  const openai=new OpenAI({apiKey:process.env.OPENAI_API_KEY,timeout:120000,maxRetries:0});
  const result=await openai.images.edit({
-  model:"gpt-image-1",
+  model:productImageEditModel(),
   image:await toFile(source.buffer,"original."+source.mime.split("/")[1],{type:source.mime}),
   prompt:"Enhance this exact product photo as an ecommerce image on a pure white background. Keep the real product shape, colors, antenna, buttons, model, logo and number of accessories exactly unchanged. Do not fabricate or rewrite tiny details or text, do not crop or add objects. The original may be blurry; generated details are not verified.",
   size:"1024x1024",output_format:"png",
@@ -257,7 +259,19 @@ export function registerDukkanImageRecovery(app:Express,pool:Pool){
   manager(res);res.json(await officialImage(pool,sid(req),pid(req)));
  }));
  app.post(root+"/:productId/ai",safe(async(req,res)=>{
-  manager(res);res.json(await aiImage(pool,sid(req),pid(req)));
+  manager(res);
+  try{
+   res.setHeader("Cache-Control","private,no-store");
+   res.json(await aiImage(pool,sid(req),pid(req)));
+  }catch(err){
+   const original=err as {status?:number;code?:string};
+   if(original?.status===409)return res.status(409).json({code:"pending_review",error:"Bu ürün için onay bekleyen bir aday fotoğraf zaten mevcut."});
+   if(original?.status===404)return res.status(404).json({code:"missing_source",error:"Kaynak fotoğraf bulunamadı. Önce ürün görsellerini yeniden tara."});
+   if(original?.status===503&&!process.env.OPENAI_API_KEY)return res.status(503).json({code:"missing_api_key",error:"Sunucuda OpenAI API anahtarı tanımlı değil."});
+   const report=userFacingImageEditError(err);
+   console.error("Dukkan image edit failed",{productId:req.params.productId,storeId:req.params.storeId,status:original?.status||null,code:original?.code||report.code,model:productImageEditModel()});
+   return res.status(report.status).json({code:report.code,error:report.error});
+  }
  }));
  app.post(root+"/:productId/approve",safe(async(req,res)=>{
   manager(res);res.json(await approveRecovery(pool,sid(req),pid(req)));
