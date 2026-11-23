@@ -127,7 +127,7 @@ function AppContent() {
   useEffect(() => {
     if (showSplash || !initialRoutePainted || loading) return;
     let active = true;
-    const userId = session?.user?.id ? String(session.user.id) : null;
+    const userId = session?.user?.id && !session.user.mustChangePassword ? String(session.user.id) : null;
     const timer = setTimeout(() => {
       void (async () => {
         if (Platform.OS === 'ios' && userId) {
@@ -147,7 +147,7 @@ function AppContent() {
   // On return from iOS Settings, restore geofencing only for customers
   // who have opted in. Never re-prompt those who declined.
   useEffect(() => {
-    if (Platform.OS !== 'ios' || !session?.user?.id) return;
+    if (Platform.OS !== 'ios' || !session?.user?.id || session.user.mustChangePassword) return;
     const userId=String(session.user.id);
     const listener=AppState.addEventListener('change', state => {
       if (state === 'active') void isStoreNearbyEnabled(userId)
