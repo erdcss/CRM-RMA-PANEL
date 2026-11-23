@@ -18,7 +18,7 @@ const MANUAL_SCROLL_PAUSE_MS = 8000;
  * The wholesale homepage can also autoplay the vertical grid inside its own
  * viewport (never scroll the whole document). Other rails remain unchanged.
  */
-export function B2BProductRail({
+function B2BProductGrid({
   products, loggedIn, title, autoScroll = false,
 }: {
   products: UnifiedB2BProduct[];
@@ -305,4 +305,52 @@ export function B2BProductRail({
       </div>
     </>
   );
+}
+
+export function B2BProductRail(props: {products: UnifiedB2BProduct[]; loggedIn:boolean; title?:string; autoScroll?:boolean}) {
+  return props.autoScroll ? <HorizontalProducts {...props}/> : <B2BProductGrid {...props}/>;
+}
+function HorizontalProducts({products,loggedIn,title}: {products:UnifiedB2BProduct[];loggedIn:boolean;title?:string}) {
+  const rail = useRef<HTMLDivElement>(null);
+  const pauseUntil = useRef(0);
+  const [playing,setPlaying] = useState(true);
+  const [visible,setVisible] = useState(false);
+  useEffect(() => {
+    const el=rail.current;
+    if(!el)return;
+    if(typeof IntersectionObserver==="undefined"){setVisible(true);return;}
+    const observer=new IntersectionObserver(entries=>setVisible(entries.some(e=>e.isIntersecting)),{threshold:0.1});
+    observer.observe(el);return ()=>observer.disconnect();
+  },[]);
+  const move=(direction:number, smooth=true)=>{
+    const el=rail.current;
+    if(!el)return;
+    const first=el.children[0] as HTMLElement|undefined;
+    const second=el.children[1] as HTMLElement|undefined;
+    if(!first||!second)return;
+    const step=second.offsetLeft-first.offsetLeft;
+    const max=Math.max(0,el.scrollWidth-el.clientWidth);
+    if(max<2)return;
+    const target=direction>0?(el.scrollLeft>=max-2?0:Math.min(max,el.scrollLeft+step)):(el.scrollLeft<=2?max:Math.max(0,el.scrollLeft-step));
+    el.scrollTo({left:target,behavior:smooth?"smooth":"auto"});
+  };
+  useEffect(()=>{
+    if(!playing||!visible||products.length<2)return;
+    const timer=window.setInterval(()=>{
+      if(document.hidden||Date.now()<pauseUntil.current||rail.current?.contains(document.activeElement)||window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+      move(1);
+    },3000);
+    return ()=>window.clearInterval(timer);
+  },[playing,visible,products.length]);
+  const pause=()=>{pauseUntil.current=Date.now()+8000;};
+  return <div className="min-w-0">
+    <div className="mb-2 flex items-center justify-end gap-2">
+      <button type="button" aria-label="Önceki ürün" onClick={()=>{pause();move(-1);}} className="rounded-lg border bg-white px-3 py-2 text-sm">‹</button>
+      <button type="button" onClick={()=>setPlaying(v=>!v)} aria-pressed={!playing} className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold">{playing?"Duraklat":"Başlat"}</button>
+      <button type="button" aria-label="Sonraki ürün" onClick={()=>{pause();move(1);}} className="rounded-lg border bg-white px-3 py-2 text-sm">›</button>
+    </div>
+    <div ref={rail} role="region" aria-label={title||"Ürün sliderı"} onTouchStart={pause} onPointerDown={pause} onWheel={pause} className="relative flex min-w-0 snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {products.map((product,index)=><div key={String(product.id)+"-"+index} className="w-[calc((100%-8px)/2)] min-w-0 shrink-0 snap-start sm:w-[calc((100%-16px)/3)] lg:w-[calc((100%-24px)/4)] xl:w-[calc((100%-32px)/5)]"><B2BProductCard product={product} loggedIn={loggedIn}/></div>)}
+    </div>
+  </div>;
 }
