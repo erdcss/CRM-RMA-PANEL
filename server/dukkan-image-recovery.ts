@@ -74,7 +74,7 @@ export async function scanMusulluRecovery(pool:Pool,storeId:number){
 }
 async function readRow(pool:Pool,storeId:number,productId:number){
  const q=await pool.query(
-  "SELECT r.*,p.name,p.brand,p.sku FROM dukkan_image_recovery r "+
+  "SELECT r.*,r.updated_at::text AS row_version,p.name,p.brand,p.sku FROM dukkan_image_recovery r "+
   "JOIN dukkan_products p ON p.id=r.product_id AND p.store_id=r.store_id "+
   "WHERE r.store_id=$1 AND r.product_id=$2 AND p.deleted_at IS NULL",[storeId,productId]);
  if(!q.rows[0])throw Object.assign(new Error("Ürün kalite kaydı bulunamadı"),{status:404});
@@ -202,13 +202,13 @@ async function aiImage(pool:Pool,storeId:number,productId:number,regenerate=fals
   "UPDATE dukkan_image_recovery SET candidate_image=$3,candidate_origin='ai',"+
   "candidate_source_url=NULL,candidate_width=$4,candidate_height=$5,state='pending_review',"+
   "review_note=$6,updated_at=NOW() WHERE store_id=$1 AND product_id=$2 "+
-  "AND source_sha=$7 AND updated_at=$8 AND "+
+  "AND source_sha=$7 AND updated_at=$8::timestamptz AND "+
   (regenerate?"state='pending_review' AND candidate_origin='ai'":
   "state IN ('critical','low','adequate','missing')")+
   " RETURNING product_id,updated_at",
   [storeId,productId,image,meta.width,meta.height,
    "AI ile netleştirilmiş beyaz arka planlı taslak. Kaynak PDF çok küçük olduğu için ürün ayrıntılarını onaylamadan yayınlamayın.",
-   p.source_sha,p.updated_at]
+   p.source_sha,p.row_version]
  );
  if(!saved.rowCount)throw Object.assign(
   new Error("Bu ürünün görsel durumu işlem sırasında değişti. Önce sayfayı yenileyin; önceki aday korundu."),
