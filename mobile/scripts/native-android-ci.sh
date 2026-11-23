@@ -40,8 +40,12 @@ check_apk() {
   echo "$package_info"
   local badging
   badging="$("$aapt_path" dump badging "$apk")"
-  if ! grep -Fq "uses-feature-not-required:'android.hardware.screen.portrait'" <<< "$badging"; then
+  # aapt formats optional hardware declarations as
+  # "uses-feature-not-required: name='android.hardware.screen.portrait'".
+  # Match the feature on the same line rather than assuming an exact spacing.
+  if ! grep -E '^uses-feature-not-required:.*android[.]hardware[.]screen[.]portrait' <<< "$badging" >/dev/null; then
     echo "Google Play portrait hardware requirement is not optional in compiled APK." >&2
+    grep -E 'uses-feature|uses-implied-feature' <<< "$badging" >&2 || true
     exit 1
   fi
   if ! grep -Fq "name='com.caliskangroup.rma'" <<< "$package_info"; then
