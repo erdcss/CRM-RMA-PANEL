@@ -4,6 +4,7 @@ const { createHash } = require("node:crypto");
 const { makeAndroidAdaptiveIcon } = require("./android-adaptive-icon.cjs");
 const { syncB2BCustomSound } = require("./b2b-custom-notification-sound.cjs");
 const { PNG } = require("pngjs");
+const { writeOpaqueIosIcon } = require("./ios-app-icon.cjs");
 
 const target = process.argv[2] === "business" ? "business" : "b2b";
 const root = process.cwd();
@@ -146,12 +147,21 @@ async function main() {
   }
 
 
+  // The admin logo can be rectangular or transparent. iOS launcher icons cannot.
+  const iosIconPath = target === "b2b"
+    ? writeOpaqueIosIcon(path.resolve(root, logoPath), assetsDir)
+    : null;
+
   if (!fs.existsSync(appJsonPath)) {
     throw new Error("app.json bulunamadı");
   }
 
   const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
   const expo = config.expo || (config.expo = {});
+  if (iosIconPath) {
+    expo.ios = expo.ios || {};
+    expo.ios.icon = iosIconPath;
+  }
 
   const androidNativeSplashImage="./assets/android-native-splash-transparent.png";
   let androidForegroundPath = null;
@@ -240,10 +250,10 @@ async function main() {
 
   // Only files referenced by app.json are bundled. Older unreferenced files
   // may be locked by Windows Photos; cleanup should never block a valid build.
-  const activeFiles = new Set([logoPath, splashPath, androidIconPath, androidForegroundPath].filter(Boolean).map(file => path.basename(file)));
+  const activeFiles = new Set([logoPath, splashPath, androidIconPath, androidForegroundPath, iosIconPath].filter(Boolean).map(file => path.basename(file)));
   for (const filename of fs.readdirSync(assetsDir)) {
     if (
-      /^managed-(?:logo|splash|android-icon|android-foreground|header-logo)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
+      /^managed-(?:logo|splash|android-icon|android-foreground|header-logo|ios-app-icon)(?:-[a-f0-9]{12})?\.(?:png|jpg|webp)$/.test(filename) &&
       !activeFiles.has(filename)
     ) {
       try {

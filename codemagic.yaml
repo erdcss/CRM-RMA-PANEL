@@ -220,7 +220,15 @@ workflows:
           build=info.get("CFBundleVersion","")
           if bundle!="com.caliskangroup.rma" or not str(build).isdigit():
               raise SystemExit(f"Unexpected IPA identity: bundle={bundle} version={version} build={build}")
-          print(f"Verified signed IPA: bundle={bundle}, version={version}, build={build}")
+          icon=info.get("CFBundleIconName") or info.get("CFBundleIcons",{}).get("CFBundlePrimaryIcon",{}).get("CFBundleIconName")
+          if not icon:
+              raise SystemExit("Apple icon metadata missing: CFBundleIconName / CFBundleIcons.CFBundlePrimaryIcon")
+          if not any(n.startswith("Payload/") and n.endswith(".app/Assets.car") for n in ipa.namelist()):
+              raise SystemExit("Compiled iOS asset catalog (Assets.car) missing from IPA")
+          orientations=info.get("UISupportedInterfaceOrientations",[])
+          if not isinstance(orientations,list) or "UIInterfaceOrientationPortrait" not in orientations:
+              raise SystemExit("Missing supported iOS portrait interface orientation")
+          print(f"Verified signed IPA: bundle={bundle}, version={version}, build={build}, icon={icon}, orientations={orientations}")
           PY
     artifacts:
       - mobile/build/ios/ipa/*.ipa
