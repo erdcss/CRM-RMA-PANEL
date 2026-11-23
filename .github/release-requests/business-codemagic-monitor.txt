@@ -1,0 +1,6 @@
+Çalışkan Business TestFlight — Codemagic build izleme
+buildId=6b03ef0eee4281611991da64
+appId=6afedc30f47c90e3676e0a20
+workflow=caliskan-business-ios-testflight
+date=2026-11-23
+purpose=Monitor API build status and publishing without new build
