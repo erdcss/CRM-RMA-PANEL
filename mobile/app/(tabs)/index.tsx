@@ -33,13 +33,15 @@ import {
   type HomeBanner,
   type HomeCategoryCard,
   type RoundBottomBanner,
+  type HomeSection,
 } from '@/lib/api';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
 import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
-import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
+import { ManagedHomeSections, DEFAULT_MOBILE_HOME_SECTIONS } from '@/components/home/ManagedHomeSections';
+import { useMobileBranding, refreshMobileBranding } from '@/lib/branding';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -66,6 +68,7 @@ export default function HomeScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const { session } = useAuth();
   const { palette } = useAppearance();
+  const branding = useMobileBranding();
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [welcome, setWelcome] = useState(false);
   const welcomeFade = useRef(new Animated.Value(0)).current;
@@ -73,6 +76,9 @@ export default function HomeScreen() {
 
   const [products, setProducts] = useState<B2BProduct[]>([]);
   const [timedCampaigns,setTimedCampaigns] = useState<B2BTimedCampaign[]>([]);
+  const [homeSections,setHomeSections] = useState<HomeSection[]>(DEFAULT_MOBILE_HOME_SECTIONS);
+  const [homeHeader,setHomeHeader] = useState({enabled:true,tagline:'Toptan alışverişin akıllı yolu'});
+  const [bestSellerProductIds,setBestSellerProductIds] = useState<string[]>([]);
   const [catalogNow, setCatalogNow] = useState(() => Date.now());
   const [newArrivalsVisible, setNewArrivalsVisible] = useState(12);
   const [catalogError, setCatalogError] = useState('');
@@ -91,6 +97,7 @@ export default function HomeScreen() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const [loadedBannerSizes,setLoadedBannerSizes]=useState<Record<string,{width:number;height:number}>>({});
   const bannerScrollRef = useRef<ScrollView>(null);
+  const homeScrollRef = useRef<ScrollView>(null);
   const wholesaleScrollRef = useRef<ScrollView>(null);
   const wholesaleIndexRef = useRef(0);
   const [wholesaleWidth, setWholesaleWidth] = useState(0);
@@ -154,6 +161,9 @@ export default function HomeScreen() {
     setRoundBottomBanner(homepage.roundBottomBanner);
     setSliderAutoPlay(homepage.sliderAutoPlay !== false);
     setSliderIntervalMs(homepage.sliderIntervalMs || 5000);
+    setHomeSections(homepage.homeSections || DEFAULT_MOBILE_HOME_SECTIONS);
+    setHomeHeader(homepage.homeHeader || {enabled:true,tagline:'Toptan alışverişin akıllı yolu'});
+    setBestSellerProductIds(homepage.bestSellerProductIds || []);
   }, []);
 
   const load = useCallback(async (forceRefresh = false) => {
@@ -193,6 +203,7 @@ export default function HomeScreen() {
     // requiring the customer to close or reinstall the mobile application.
     // Refresh both the catalog and category metadata when returning from a product.
     void load(true);
+    void refreshMobileBranding();
     void rmaApi.listB2BReels()
       .then(items => {
         setReels(Array.isArray(items) ? items.slice(0, 8) : []);
@@ -209,7 +220,7 @@ export default function HomeScreen() {
   const filtered = useMemo(() => {
     const search = query.trim().toLocaleLowerCase('tr-TR');
     const found = search ? products.filter(product =>
-      [product.name, product.sku, product.barcode, product.collection_name, product.category, product.seller_name, ...(product.tags || [])]
+      [product.name, product.sku, product.barcode, product.collection_name, product.category, product.brand, product.seller_name, ...(product.tags || [])]
         .filter(Boolean)
         .some(value => String(value).toLocaleLowerCase('tr-TR').includes(search)),
     ) : [...products];
@@ -408,6 +419,7 @@ export default function HomeScreen() {
   return (
     <Screen style={{ backgroundColor: palette.background }}>
       <ScrollView
+        ref={homeScrollRef}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -422,6 +434,15 @@ export default function HomeScreen() {
           <Ionicons name="checkmark-circle" size={20} color="#FFCD00" />
           <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
         </Animated.View> : null}
+
+        {homeHeader.enabled ? <View style={styles.homeBrandHeader}>
+          {branding.b2b_web_logo || branding.b2b_mobile_logo ?
+            <Image source={{uri:(branding.b2b_web_logo || branding.b2b_mobile_logo)!}}
+              contentFit="contain" cachePolicy="none"
+              accessibilityLabel="Çalışkan B2B logosu" style={styles.homeBrandLogo}/>
+            : <Text style={styles.homeBrandFallback}>ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text></Text>}
+          <Text style={styles.homeBrandTagline} numberOfLines={2}>{homeHeader.tagline}</Text>
+        </View> : null}
 
         <View style={styles.headerRow}>
   <View style={[styles.searchBox, styles.headerSearchBox]}>
@@ -645,67 +666,23 @@ export default function HomeScreen() {
           </>
         ) : null}
 
-        {timedCampaigns.map(campaign=>{
-          if(Date.parse(campaign.ends_at)<=catalogNow)return null;
-          const ids=new Set((campaign.product_ids||[]).map(String));
-          const offers=products.filter(product=>!product.marketplace&&ids.has(String(product.id))&&product.timed_campaign_id===campaign.id);
-          if(!offers.length)return null;
-          return <View key={campaign.id} style={{marginTop:16,marginHorizontal:spacing.lg,
-            padding:12,borderWidth:1,borderColor:'#FBBF24',borderRadius:15,backgroundColor:palette.surface}}>
-            <View style={{flexDirection:'row',alignItems:'center',gap:6}}>
-              <Ionicons name="flash" size={19} color="#D97706"/>
-              <Text style={{fontWeight:'900',fontSize:19,color:palette.text,flex:1}} numberOfLines={2}>{campaign.title}</Text>
-            </View>
-            <Text style={{marginTop:5,fontSize:11,color:palette.textSecondary}}>Sınırlı süreli koli fırsatları</Text>
-            <TimedCampaignNotice endAt={campaign.ends_at} title="Kalan süre"
-              stock={offers.reduce((sum,product)=>sum+Math.floor(Math.max(0,Number(product.stock)||0)/Math.max(1,Number(product.units_per_box)||1)),0)}
-              unitsPerBox={1} onExpire={()=>void load(true)}/>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{gap:spacing.sm,paddingVertical:12,paddingRight:12}}>
-              {offers.map(product=>renderHomeProductCard(product))}
-            </ScrollView>
-          </View>;
-        })}
-
-        {reels.length > 0 ? <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Reels Videoları</Text>
-            <Pressable onPress={() => router.push('/(tabs)/discover')} accessibilityRole="button">
-              <Text style={styles.sectionAction}>Tümünü Gör  →</Text>
-            </Pressable>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-            {reels.slice(0, 4).map(reel => (
-              <Pressable
-                key={String(reel.id)}
-                style={styles.reelPreviewCard}
-                onPress={() => router.push('/(tabs)/discover')}
-                accessibilityLabel={reel.title || 'Reels videosu'}
-              >
-                {absoluteMediaUrl(reel.video_url) ? (
-                  <Video
-                    source={{ uri: absoluteMediaUrl(reel.video_url)! }}
-                    style={styles.reelCoverImage}
-                    resizeMode={ResizeMode.COVER}
-                    isMuted
-                    shouldPlay
-                    isLooping
-                    useNativeControls={false}
-                    progressUpdateIntervalMillis={1000}
-                  />
-                ) : (
-                  <View style={styles.reelFallback} pointerEvents="none">
-                    <Ionicons name="videocam-outline" size={36} color="#CBD5E1" />
-                  </View>
-                )}
-                <View style={styles.reelPreviewOverlay}>
-                  <Ionicons name="play-circle" size={34} color="#FFCD00" />
-                  <Text style={styles.reelPreviewText} numberOfLines={2}>{reel.title || 'Ürün videosu'}</Text>
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </> : null}
+        <ManagedHomeSections
+          sections={homeSections}
+          products={products}
+          bestSellerProductIds={bestSellerProductIds}
+          campaigns={timedCampaigns}
+          reels={reels}
+          now={catalogNow}
+          signedIn={Boolean(session)}
+          renderProduct={renderHomeProductCard}
+          onRefresh={()=>{void load(true);}}
+          onOpenScanner={()=>setScannerOpen(true)}
+          onRoute={(path)=>router.push(path as never)}
+          onBrand={(brand)=>{
+            setQuery(brand);
+            homeScrollRef.current?.scrollTo({y:0,animated:true});
+          }}
+        />
 
         <View style={styles.sectionHeader}>
           <View style={{ flex: 1 }}>
@@ -842,6 +819,15 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     paddingBottom: 120,
     position: 'relative',
   },
+  homeBrandHeader: {
+    alignItems:'center',justifyContent:'center',minHeight:118,
+    paddingHorizontal:14,paddingVertical:15,
+    backgroundColor:'#121213',borderRadius:21,
+    borderWidth:1,borderColor:'#625017',marginTop:6,marginBottom:3,
+  },
+  homeBrandLogo: {width:'89%',height:64,backgroundColor:'transparent'},
+  homeBrandFallback: {color:'#FFFFFF',fontSize:23,fontWeight:'900',letterSpacing:0.4},
+  homeBrandTagline: {color:'#FFCD00',fontSize:14,fontWeight:'800',textAlign:'center',marginTop:7},
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
   welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
   reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
