@@ -179,6 +179,7 @@ workflows:
           node scripts/codemagic-ios-prebuild.cjs
           npm run typecheck
           node --test scripts/home-managed-modules.test.cjs
+          node --test scripts/b2b-dedicated-header-branding.test.cjs
           node --test scripts/home-categories-banner-layout.test.cjs
       - name: Generate iOS native Xcode project
         script: |

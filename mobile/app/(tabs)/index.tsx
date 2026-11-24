@@ -436,12 +436,16 @@ export default function HomeScreen() {
         </Animated.View> : null}
 
         {homeHeader.enabled ? <View style={styles.homeBrandHeader}>
-          {branding.b2b_web_logo || branding.b2b_mobile_logo ?
-            <Image source={{uri:(branding.b2b_web_logo || branding.b2b_mobile_logo)!}}
+          {branding.b2b_mobile_header_logo ?
+            <Image source={{uri:branding.b2b_mobile_header_logo}}
               contentFit="contain" cachePolicy="none"
               accessibilityLabel="Çalışkan B2B logosu" style={styles.homeBrandLogo}/>
             : <Text style={styles.homeBrandFallback}>ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text></Text>}
-          <Text style={styles.homeBrandTagline} numberOfLines={2}>{homeHeader.tagline}</Text>
+          {((branding.b2b_mobile_header_tagline ?? homeHeader.tagline).trim())
+            ? <Text style={styles.homeBrandTagline} numberOfLines={2}>
+                {branding.b2b_mobile_header_tagline ?? homeHeader.tagline}
+              </Text>
+            : null}
         </View> : null}
 
         <View style={styles.headerRow}>
@@ -820,12 +824,12 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     position: 'relative',
   },
   homeBrandHeader: {
-    alignItems:'center',justifyContent:'center',minHeight:118,
+    alignItems:'center',justifyContent:'center',minHeight:104,
     paddingHorizontal:14,paddingVertical:15,
     backgroundColor:'#121213',borderRadius:21,
     borderWidth:1,borderColor:'#625017',marginTop:6,marginBottom:3,
   },
-  homeBrandLogo: {width:'89%',height:64,backgroundColor:'transparent'},
+  homeBrandLogo: {width:'96%',height:59,backgroundColor:'transparent'},
   homeBrandFallback: {color:'#FFFFFF',fontSize:23,fontWeight:'900',letterSpacing:0.4},
   homeBrandTagline: {color:'#FFCD00',fontSize:14,fontWeight:'800',textAlign:'center',marginTop:7},
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },

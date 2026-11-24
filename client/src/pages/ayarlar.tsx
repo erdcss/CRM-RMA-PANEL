@@ -41,6 +41,8 @@ async function fetchBranding(): Promise<BrandingConfig> {
 }
 
 type MetaTrackingSettings={enabled:boolean;pixelId:string;capiConfigured?:boolean};
+type B2BMobileHeaderSettings={logo:string|null;tagline:string};
+const DEFAULT_HEADER_TAGLINE="Toptan alışverişin akıllı yolu";
 
 type PaymentSettings = {
   iyzicoConfigured: boolean;
@@ -81,6 +83,11 @@ export default function Ayarlar() {
   const [notifications, setNotifications] = useState(true);
   const [autoBackup, setAutoBackup] = useState(false);
   const [draft, setDraft] = useState<BrandingConfig>({});
+  // These controls have a dedicated save action; they never replace the
+  // native square app icon, the web storefront logo, or splash assets.
+  const [headerLogoDraft,setHeaderLogoDraft]=useState<string|null|undefined>(undefined);
+  const [headerTaglineDraft,setHeaderTaglineDraft]=useState<string|null>(null);
+  const [savingHeader,setSavingHeader]=useState(false);
   const [saving, setSaving] = useState(false);
   const [savingPayments, setSavingPayments] = useState(false);
   const [paymentDraft, setPaymentDraft] = useState<PaymentSettings["bankTransfer"] | null>(null);
@@ -89,6 +96,18 @@ export default function Ayarlar() {
     queryKey: ["/api/admin/branding"],
     queryFn: fetchBranding,
   });
+
+  const {data:mobileHeader,isLoading:headerLoading}=useQuery<B2BMobileHeaderSettings>({
+    queryKey:["/api/admin/b2b-mobile-header"],
+    queryFn:async()=>{
+      const response=await fetch("/api/admin/b2b-mobile-header",{credentials:"include",cache:"no-store"});
+      if(!response.ok)throw new Error("Mobil header ayarları alınamadı");
+      return response.json();
+    },
+  });
+  const previewHeaderLogo=headerLogoDraft===undefined?(mobileHeader?.logo||null):headerLogoDraft;
+  const previewHeaderTagline=headerTaglineDraft===null
+    ? (mobileHeader?.tagline??DEFAULT_HEADER_TAGLINE):headerTaglineDraft;
 
   const { data: paymentSettings } = useQuery<PaymentSettings>({
     queryKey: ["/api/admin/payment-settings"],
@@ -211,6 +230,35 @@ export default function Ayarlar() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveMobileHeader(){
+    setSavingHeader(true);
+    try{
+      if(headerLoading)throw new Error("Header ayarlarının yüklenmesi tamamlanmalı");
+      const payload:{tagline:string;logo?:string|null}={
+        tagline:previewHeaderTagline.trim(),
+      };
+      if(headerLogoDraft!==undefined)payload.logo=headerLogoDraft;
+      const response=await fetch("/api/admin/b2b-mobile-header",{
+        method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload),
+      });
+      const result=await response.json().catch(()=>({})) as {error?:string};
+      if(!response.ok)throw new Error(result.error||"Mobil header kaydedilemedi");
+      setHeaderLogoDraft(undefined);
+      setHeaderTaglineDraft(null);
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey:["/api/admin/b2b-mobile-header"]}),
+        queryClient.invalidateQueries({queryKey:["/api/admin/branding"]}),
+        queryClient.invalidateQueries({queryKey:["/api/public/branding"]}),
+      ]);
+      toast({title:"Uygulama üst header ayarları kaydedildi",
+        description:"Mobil logo ve slogan ayrı marka alanlarından yönetiliyor."});
+    }catch(error){
+      toast({title:"Header ayarları kaydedilemedi",
+        description:error instanceof Error?error.message:"Bir hata oluştu",variant:"destructive"});
+    }finally{setSavingHeader(false);}
   }
 
   function setAsset(key: keyof BrandingConfig, value: string | null) {
@@ -501,6 +549,86 @@ export default function Ayarlar() {
                   {(["appStoreImage","googlePlayImage"] as const).map(key => footerValues[key] ? <img key={key} src={footerValues[key]} alt={key} className="h-12 max-w-44 rounded bg-slate-900 object-contain p-1"/> : null)}
                 </div>
                 <Button disabled={savingFooter} onClick={()=>void saveFooter()}><Save className="mr-2 h-4 w-4"/>{savingFooter?"Kaydediliyor…":"Alt Bilgi Bağlantılarını Kaydet"}</Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5" />
+                  Çalışkan B2B Mobile · Uygulama Üst Header Bölümü
+                </CardTitle>
+                <CardDescription>
+                  Ana sayfanın üst bölümünde kullanılan yatay logoyu ve altındaki sloganı
+                  bağımsız olarak yönetin. Bu logo iPhone uygulama simgesi, splash veya B2B
+                  web logosunu değiştirmez.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <AssetUploader
+                    title="Header Logosu"
+                    description="Yatay ve tercihen şeffaf PNG önerilir (ör. 1200×300 px). Görsel orantısı korunur; kesilmeden görüntülenir."
+                    value={previewHeaderLogo}
+                    onChange={setHeaderLogoDraft}
+                    pngOnly
+                  />
+                  <div className="rounded-2xl border bg-muted/20 p-4">
+                    <Label htmlFor="b2b-mobile-header-tagline" className="text-sm font-semibold">
+                      Header Sloganı
+                    </Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Mobil logonun altında görünür. Boş bırakılırsa slogan gizlenir.
+                    </p>
+                    <Input id="b2b-mobile-header-tagline" className="mt-5" maxLength={110}
+                      value={previewHeaderTagline}
+                      onChange={event=>setHeaderTaglineDraft(event.target.value)}
+                      placeholder="Toptan alışverişin akıllı yolu"/>
+                    <p className="mt-2 text-right text-xs text-muted-foreground">
+                      {previewHeaderTagline.length}/110 karakter
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border bg-muted/20 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <Monitor className="h-4 w-4"/> Header Önizleme
+                  </div>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Bu önizleme bir mobil ekranın üst bölümünü temsil eder; logo orantısı
+                    uygulamadaki gibi korunur.
+                  </p>
+                  <div className="mx-auto w-full max-w-[460px] overflow-hidden rounded-[30px] border-[5px] border-slate-600 bg-[#111113] p-4 shadow-xl">
+                    <div className="flex items-center justify-between text-xs font-bold text-white">
+                      <span>9:41</span><span>•••  ▰</span>
+                    </div>
+                    <div className="mt-4 rounded-2xl border border-amber-500/30 bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)] px-3 py-4">
+                      <div className="flex min-h-[58px] items-center justify-center">
+                        {previewHeaderLogo
+                          ? <img src={previewHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
+                              className="h-[59px] w-[96%] object-contain"/>
+                          : <div className="text-center text-2xl font-black text-amber-400">
+                              ÇALIŞKAN B2B
+                            </div>}
+                      </div>
+                      {previewHeaderTagline.trim()
+                        ? <div className="mt-2 text-center text-sm font-extrabold text-[#FFCD00]">
+                            {previewHeaderTagline}
+                          </div> : null}
+                    </div>
+                    <div className="mt-3 flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm text-slate-500">
+                      <span>⌕</span><span>Ürün, marka veya barkod ara</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 gap-2">
+                      {["Elektronik","Züccaciye","Ev Gereçleri","Hırdavat"].map(label=>
+                        <div key={label} className="rounded-lg border border-[#48484a] bg-[#222225] px-1 py-3 text-center text-[10px] font-semibold text-white">{label}</div>)}
+                    </div>
+                  </div>
+                </div>
+                <Button disabled={savingHeader||headerLoading||!mobileHeader} onClick={()=>void saveMobileHeader()}>
+                  <Save className="mr-2 h-4 w-4"/>
+                  {savingHeader?"Kaydediliyor…":"Header Ayarlarını Kaydet"}
+                </Button>
               </CardContent>
             </Card>
 

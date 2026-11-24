@@ -53,14 +53,10 @@ export function AdminHomeSections({
           onChange={e=>onHeaderChange({...header,enabled:e.target.checked})}/>
         Çalışkan B2B logolu üst alanı göster
       </label>
-      <label className="mt-3 block max-w-xl text-xs font-semibold">
-        Üst alan sloganı
-        <Input className="mt-1" maxLength={110} value={header.tagline}
-          onChange={e=>onHeaderChange({...header,tagline:e.target.value})}/>
-      </label>
       <p className="mt-2 text-xs text-muted-foreground">
-        Marka logosu Admin marka ayarlarındaki gerçek yüklenmiş Çalışkan B2B logosundan alınır.
-        Yeni bir logo oluşturulmaz.
+        Mobil üst header logosunu ve sloganını Ayarlar → Marka & Görseller →
+        Uygulama Üst Header Bölümü alanından düzenleyin.
+        Buradaki anahtar yalnızca üst alanın görünürlüğünü yönetir.
       </p>
     </div>
     <p className="text-xs text-muted-foreground">

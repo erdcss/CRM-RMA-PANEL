@@ -28,4 +28,5 @@ jobs:
       - run: node --test scripts/home-categories-banner-layout.test.cjs
       - run: node --test scripts/b2b-cart-no-reminder-ui.test.cjs
       - run: node --test scripts/home-managed-modules.test.cjs
+      - run: node --test scripts/b2b-dedicated-header-branding.test.cjs
       - run: npm run typecheck

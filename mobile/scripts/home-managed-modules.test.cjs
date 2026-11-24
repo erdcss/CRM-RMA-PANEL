@@ -17,7 +17,8 @@ test('Admin managed home modules render actual content and preserve previously w
  assert.ok(screen.includes('setHomeSections(homepage.homeSections'), 'home must sync admin settings');
  assert.ok(screen.includes('setBestSellerProductIds(homepage.bestSellerProductIds'));
  assert.ok(screen.includes('homeHeader.enabled'), 'header visibility must be configurable');
- assert.ok(screen.includes('branding.b2b_web_logo'), 'actual uploaded logo must be used');
+ assert.ok(screen.includes('branding.b2b_mobile_header_logo'), 'dedicated uploaded header logo must be used');
+ assert.ok(!screen.includes('branding.b2b_web_logo || branding.b2b_mobile_logo'), 'square app icon must not be used for header');
  assert.ok(modules.includes('home'+'pageMediaUrl(section.brandImageIds[brand])'), 'brand logo source missing');
  assert.ok(modules.includes('campaigns.filter'), 'real active timed campaigns must be used');
  assert.ok(modules.includes('bestSellerProductIds.map'), 'no invented bestsellers');
