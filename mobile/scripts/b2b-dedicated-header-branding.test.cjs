@@ -1,0 +1,44 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
+
+test('native homepage only uses the separately uploaded header wordmark, not the square icon',()=>{
+ const home=read('mobile/app/(tabs)/index.tsx');
+ const branding=read('mobile/lib/branding.ts');
+ assert.match(home,/branding\.b2b_mobile_header_logo\s*\?/);
+ assert.doesNotMatch(home,/branding\.b2b_web_logo\s*\|\|\s*branding\.b2b_mobile_logo/);
+ assert.match(home,/branding\.b2b_mobile_header_tagline\s*\?\?\s*homeHeader\.tagline/);
+ assert.match(home,/contentFit="contain"/);
+ assert.match(branding,/headerLogo\?: string \| null/);
+ assert.match(branding,/headerTagline\?: string \| null/);
+ assert.match(branding,/b2b_mobile_header_logo: normalizeBrandAsset\(branding\.headerLogo\)/);
+ assert.match(branding,/b2b_mobile_header_tagline: typeof branding\.headerTagline === 'string'/);
+});
+test('server stores the dedicated header logo and tagline independently from app launcher icon',()=>{
+ const server=read('server/admin-platform.ts');
+ assert.match(server,/"b2b-header-logo": "b2b_mobile_header_logo"/);
+ assert.match(server,/headerLogo: image\(headerLogo, "b2b_mobile_header_logo"\)/);
+ assert.match(server,/headerTagline: taglineResult\.rows\.length/);
+ assert.match(server,/app\.get\("\/api\/admin\/b2b-mobile-header"/);
+ assert.match(server,/app\.put\("\/api\/admin\/b2b-mobile-header"/);
+ assert.match(server,/await client\.query\("BEGIN"\)/);
+ assert.match(server,/await client\.query\("COMMIT"\)/);
+ assert.match(server,/await client\.query\("ROLLBACK"\)/);
+ assert.match(server,/\/\^data:image\\\/\(\?:png\|jpeg\|webp\)/);
+});
+test('admin branding page owns header upload, slogan and live preview with a separate save button',()=>{
+ const admin=read('client/src/pages/ayarlar.tsx');
+ const homeAdmin=read('client/src/components/admin-home-sections.tsx');
+ assert.match(admin,/Çalışkan B2B Mobile · Uygulama Üst Header Bölümü/);
+ assert.match(admin,/title="Header Logosu"/);
+ assert.match(admin,/Header Sloganı/);
+ assert.match(admin,/Header Önizleme/);
+ assert.match(admin,/Header Ayarlarını Kaydet/);
+ assert.match(admin,/setHeaderLogoDraft/);
+ assert.match(admin,/saveMobileHeader/);
+ assert.match(admin,/\/api\/admin\/b2b-mobile-header/);
+ assert.doesNotMatch(homeAdmin,/Üst alan sloganı\s*\n\s*<Input/);
+});
