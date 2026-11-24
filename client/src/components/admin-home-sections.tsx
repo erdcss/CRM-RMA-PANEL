@@ -13,7 +13,7 @@ export type HomeHeader = { enabled: boolean; tagline: string };
 const definitions: Array<{id: HomeSectionId; title: string; description: string}> = [
   {id:"actions",title:"Hızlı İşlemler",description:"Barkodla hızlı sipariş, tekrar sipariş, Defterim ve kampanyalara erişim"},
   {id:"flash",title:"Flash Ürünler",description:"Mevcut aktif süreli kampanyalar ve gerçek kalan süre; kampanya yönetiminden düzenlenir"},
-  {id:"special",title:"Sana Özel Fırsatlar",description:"Bu vitrinde gösterilecek ürünleri seçin; atanmayan ürünler gösterilmez"},
+  {id:"special",title:"Sana Özel Fırsatlar",description:"Özel vitrin ürünlerini seçin; seçim yoksa yalnızca gerçek indirimli ve stoklu ürünler kullanılır"},
   {id:"reorder",title:"Hızlı Tekrar Sipariş",description:"Giriş yapmış müşterileri önceki siparişlerine yönlendirir"},
   {id:"videos",title:"Video ile Keşfet",description:"Mevcut onaylı Reels videolarını gösterir; içerikleri Reels yönetiminden düzenleyin"},
   {id:"bestsellers",title:"Çok Satanlar",description:"Yalnızca gerçek tamamlanmış siparişler üzerinden otomatik sıralanır"},
