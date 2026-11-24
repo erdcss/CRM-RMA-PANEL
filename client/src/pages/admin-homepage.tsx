@@ -11,6 +11,7 @@ import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin
 import { AdminRoundBottomBanner, DEFAULT_ROUND_BOTTOM_BANNER, type RoundBottomBanner } from "@/components/admin-round-bottom-banner";
 import {AdminHomepageDrawer,loadHomepageDrawers,saveHomepageDrawers,type HomepageDrawerId,type HomepageDrawerState} from "@/components/admin-homepage-drawer";
 import type {CampaignProductOption} from "@/lib/campaign-product-picker";
+import { AdminHomeSections, DEFAULT_HOME_SECTIONS, type HomeHeader, type HomeSection } from "@/components/admin-home-sections";
 
 type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
@@ -35,6 +36,8 @@ type HomepageConfig = {
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
   roundBottomBanner?: RoundBottomBanner;
+  homeHeader?: HomeHeader;
+  homeSections?: HomeSection[];
 };
 
 async function loadHomepageConfig(): Promise<HomepageConfig> {
@@ -72,10 +75,12 @@ export default function AdminHomepage() {
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
   const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner>(DEFAULT_ROUND_BOTTOM_BANNER);
+  const [homeHeader,setHomeHeader]=useState<HomeHeader>({enabled:true,tagline:"Toptan alışverişin akıllı yolu"});
+  const [homeSections,setHomeSections]=useState<HomeSection[]>(DEFAULT_HOME_SECTIONS);
   const [drawers,setDrawers]=useState<HomepageDrawerState>(()=>loadHomepageDrawers());
   useEffect(()=>{saveHomepageDrawers(drawers);},[drawers]);
   const toggleDrawer=(id:HomepageDrawerId)=>setDrawers(current=>({...current,[id]:!current[id]}));
-  const showAllDrawers=(open:boolean)=>setDrawers({categories:open,campaign:open,banners:open});
+  const showAllDrawers=(open:boolean)=>setDrawers({categories:open,campaign:open,banners:open,sections:open});
 
   useEffect(() => {
     if (!data) return;
@@ -86,6 +91,8 @@ export default function AdminHomepage() {
     setSliderAutoPlay(data.sliderAutoPlay !== false);
     setSliderIntervalMs(data.sliderIntervalMs || 5000);
     setRoundBottomBanner(data.roundBottomBanner||DEFAULT_ROUND_BOTTOM_BANNER);
+    setHomeHeader(data.homeHeader || {enabled:true,tagline:"Toptan alışverişin akıllı yolu"});
+    setHomeSections(data.homeSections || DEFAULT_HOME_SECTIONS);
   }, [data]);
 
   const suggestions = useMemo(() => {
@@ -203,12 +210,14 @@ export default function AdminHomepage() {
     }
     setSaving(true);
     try {
-      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs, roundBottomBanner });
+      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs, roundBottomBanner, homeHeader, homeSections });
       const result = await response.json() as HomepageConfig;
       setCategories(result.categories || []);
       setBanners(result.banners || []);
       setLedgerTileImageId(result.ledgerTileImageId || '');
       setRoundBottomBanner(result.roundBottomBanner||DEFAULT_ROUND_BOTTOM_BANNER);
+      setHomeHeader(result.homeHeader || homeHeader);
+      setHomeSections(result.homeSections || DEFAULT_HOME_SECTIONS);
       setCategoryCards(result.categoryCards || []);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["/api/admin/homepage"] }),
@@ -256,6 +265,15 @@ export default function AdminHomepage() {
           </Button>
           </div>
         </div>
+
+        <AdminHomepageDrawer id="sections" title="Mobil Ana Sayfa Bölümleri"
+          description="Flash ürünler, özel fırsatlar, çok satanlar, markalar, video, tekrar sipariş, hızlı işlemler ve logolu üst alanı yönet."
+          summary={homeSections.filter(item=>item.enabled).length+" bölüm açık"}
+          open={drawers.sections} onToggle={()=>toggleDrawer("sections")}>
+          <AdminHomeSections sections={homeSections} onChange={setHomeSections}
+            header={homeHeader} onHeaderChange={setHomeHeader} products={productOptions}
+            uploadBrandLogo={(file,ready)=>{void uploadMedia(file,ready);}} uploading={uploading}/>
+        </AdminHomepageDrawer>
 
         <AdminHomepageDrawer id="categories" title="Kategoriler"
           description="Kategori kartlarını, görsellerini, alt kategorileri ve sıralamayı yönetin."

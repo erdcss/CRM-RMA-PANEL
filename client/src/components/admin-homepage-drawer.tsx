@@ -1,10 +1,10 @@
 import type {ReactNode} from "react";
 import {ChevronDown,ChevronRight} from "lucide-react";
 
-export type HomepageDrawerId="categories"|"campaign"|"banners";
+export type HomepageDrawerId="categories"|"campaign"|"banners"|"sections";
 export type HomepageDrawerState=Record<HomepageDrawerId,boolean>;
 export const DEFAULT_HOMEPAGE_DRAWERS:HomepageDrawerState={
-  categories:true,campaign:false,banners:false,
+  categories:true,campaign:false,banners:false,sections:true,
 };
 const STORAGE_KEY="caliskan_admin_homepage_drawers_v1";
 
@@ -22,6 +22,7 @@ export function loadHomepageDrawers():HomepageDrawerState{
       categories:typeof record.categories==="boolean"?record.categories:true,
       campaign:typeof record.campaign==="boolean"?record.campaign:false,
       banners:typeof record.banners==="boolean"?record.banners:false,
+      sections:typeof record.sections==="boolean"?record.sections:true,
     };
   }catch{
     return {...DEFAULT_HOMEPAGE_DRAWERS};

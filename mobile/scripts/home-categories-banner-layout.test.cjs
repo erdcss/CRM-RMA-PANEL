@@ -7,7 +7,7 @@ const home = fs.readFileSync(path.resolve(__dirname,'../app/(tabs)/index.tsx'),'
 const marker = '<Text style={styles.sectionTitle}>Kategoriler</Text>';
 const beginCategory = home.indexOf(marker);
 const beginBanner = home.indexOf('{banners.length > 0 ? (');
-const beginCampaigns = home.indexOf('{timedCampaigns.map');
+const beginCampaigns = home.indexOf('<ManagedHomeSections');
 const searchEnd = home.indexOf('{query.trim() ? (');
 
 test('home shows existing categories and ledger tile above the promo banner, not duplicated',()=>{

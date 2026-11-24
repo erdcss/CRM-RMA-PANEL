@@ -60,8 +60,9 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
     const branding = (await response.json()) as MobileBrandingResponse;
     const logo = normalizeBrandAsset(branding.logo);
     return {
-      // The app uses only the mobile assets configured in Admin settings.
-      b2b_web_logo: logo,
+      // Keep the uploaded web wordmark separate from the native app icon.
+      // Use the real admin logo on the homepage without stretching app icons.
+      b2b_web_logo: normalizeBrandAsset(branding.webLogo) || logo,
       b2b_mobile_logo: logo,
       b2b_mobile_splash: normalizeBrandAsset(branding.splash),
       loaded: true,

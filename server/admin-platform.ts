@@ -888,6 +888,31 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     try {
       const config = await homepageConfig();
       const layout=await getMobileHomeLayout();
+      let bestSellerProductIds: string[] = [];
+      // Verified paid and approved order counts only; do not invent sales numbers.
+      if (pool && layout.homeSections.some(section => section.id === "bestsellers" && section.enabled)) {
+        await ensurePrivateProductSchema();
+        const ranking = await pool.query(`
+          SELECT item->>'productId' AS id,
+            SUM(CASE WHEN (item->>'quantity') ~ '^[0-9]{1,6}$'
+              THEN LEAST(100000, (item->>'quantity')::int) ELSE 1 END)::bigint AS units
+          FROM b2b_orders o
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(o.items) = 'array' THEN o.items ELSE '[]'::jsonb END
+          ) AS line(item)
+          JOIN b2b_products p ON p.id::text = item->>'productId'
+            AND p.assigned_customer_id IS NULL
+          WHERE LOWER(TRIM(COALESCE(o.status,''))) IN
+            ('paid','paid_stock_review','approved','confirmed','onaylandi')
+            AND COALESCE(o.total_amount,0) > 0
+            AND COALESCE(o.order_number,'') NOT ILIKE 'DEMO-%'
+            AND COALESCE(o.order_number,'') NOT ILIKE 'TEST-%'
+            AND o.created_at >= NOW() - INTERVAL '180 days'
+          GROUP BY item->>'productId'
+          ORDER BY units DESC, id ASC LIMIT 18
+        `);
+        bestSellerProductIds = ranking.rows.map(row => String(row.id));
+      }
       // Do not expose a recipient-only product through a public homepage banner,
       // even when an old promotion still references that product.
       if(pool){
@@ -897,9 +922,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         const hidden=new Set(privateRows.rows.map(row=>String(row.id)));
         layout.banners=layout.banners.filter(item=>item.linkType!=="product"||!hidden.has(String(item.productId)));
         layout.roundBottomBanner.productIds=layout.roundBottomBanner.productIds.filter(id=>!hidden.has(String(id)));
+        for (const section of layout.homeSections) {
+          section.productIds = section.productIds.filter(id => !hidden.has(String(id)));
+        }
       }
       res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.json({ categories: config.categories, ...layout });
+      return res.json({ categories: config.categories, ...layout, bestSellerProductIds });
     } catch (error) {
       console.error("Public homepage config load failed:", error);
       return res.json({ categories: [] });
@@ -1149,7 +1177,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     if (!pool) return res.status(503).json({ error: "Veritabanı bağlantısı yok" });
 
     const categories = normalizeHomepageCategories(req.body?.categories);
-    const containsLayout = ["banners", "categoryCards", "sliderAutoPlay", "sliderIntervalMs", "roundBottomBanner"].some(key => Object.prototype.hasOwnProperty.call(req.body || {}, key));
+    const containsLayout = ["banners", "categoryCards", "sliderAutoPlay", "sliderIntervalMs", "roundBottomBanner", "homeSections", "homeHeader"].some(key => Object.prototype.hasOwnProperty.call(req.body || {}, key));
 
     try {
       await pool.query(

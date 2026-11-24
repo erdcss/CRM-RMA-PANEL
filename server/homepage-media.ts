@@ -129,7 +129,69 @@ function normalizeSubcategories(raw: unknown): Subcategory[] {
   return result;
 }
 
+export const HOME_SECTION_DEFAULTS = [
+  { id: "actions", title: "Hızlı İşlemler", enabled: true },
+  { id: "flash", title: "Flash Ürünler", enabled: true },
+  { id: "special", title: "Sana Özel Fırsatlar", enabled: true },
+  { id: "reorder", title: "Hızlı Tekrar Sipariş", enabled: true },
+  { id: "videos", title: "Video ile Keşfet", enabled: true },
+  { id: "bestsellers", title: "Çok Satanlar", enabled: true },
+  { id: "brands", title: "Markalar", enabled: true },
+] as const;
+export type HomeSectionId = (typeof HOME_SECTION_DEFAULTS)[number]["id"];
+export type HomeSection = {
+  id: HomeSectionId;
+  title: string;
+  enabled: boolean;
+  productIds: string[];
+  brands: string[];
+  brandImageIds: Record<string,string>;
+};
+/** Store only valid public/catalog IDs and display labels. Unknown modules are discarded. */
+export function normalizeHomeSections(raw: unknown): HomeSection[] {
+  const items = Array.isArray(raw) ? raw : [];
+  const known = new Map<string, (typeof HOME_SECTION_DEFAULTS)[number]>(
+    HOME_SECTION_DEFAULTS.map(item => [item.id, item])
+  );
+  const result: HomeSection[] = [];
+  for (const entry of items) {
+    const id = typeof entry?.id === "string" ? entry.id : "";
+    const base = known.get(id);
+    if (!base || result.some(item => item.id === id)) continue;
+    const productIds = [...new Set<string>(
+      (Array.isArray(entry.productIds) ? entry.productIds : [])
+        .map((value: unknown) => String(value))
+        .filter((value: string) => /^[1-9][0-9]{0,14}$/.test(value))
+    )].slice(0, 24);
+    const brands = [...new Set<string>(
+      (Array.isArray(entry.brands) ? entry.brands : [])
+        .map((value: unknown) => safeString(value, 64))
+        .filter(Boolean)
+    )].slice(0, 24);
+    const brandImageIds: Record<string,string> = {};
+    const images = entry?.brandImageIds && typeof entry.brandImageIds === 'object' && !Array.isArray(entry.brandImageIds)
+      ? entry.brandImageIds : {};
+    for (const brand of brands) {
+      const imageId = images[brand];
+      if (typeof imageId === 'string' && validId.test(imageId)) brandImageIds[brand] = imageId;
+    }
+    result.push({
+      id: base.id,
+      title: safeString(entry.title, 70) || base.title,
+      enabled: entry.enabled !== false,
+      productIds,
+      brands,
+      brandImageIds,
+    });
+  }
+  for (const base of HOME_SECTION_DEFAULTS) if (!result.some(item => item.id === base.id))
+    result.push({ id: base.id, title: base.title, enabled: base.enabled, productIds: [], brands: [], brandImageIds: {} });
+  return result;
+}
+
 export type MobileHomeLayout = {
+  homeSections: HomeSection[];
+  homeHeader: { enabled: boolean; tagline: string };
   roundBottomBanner:RoundBottomBanner;
   banners: Banner[];
   categoryCards: CategoryCard[];
@@ -159,6 +221,11 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
   })).filter((item: CategoryCard) => item.category);
   const n = Number(input.sliderIntervalMs);
   return {
+    homeSections: normalizeHomeSections(input.homeSections),
+    homeHeader: {
+      enabled: input.homeHeader?.enabled !== false,
+      tagline: safeString(input.homeHeader?.tagline, 110) || "Toptan alışverişin akıllı yolu",
+    },
     roundBottomBanner:normalizeRoundBottomBanner(input.roundBottomBanner),
     banners,
     categoryCards,

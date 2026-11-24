@@ -83,3 +83,39 @@ test('normalizes title keywords while retaining existing tag-based matching',()=
  assert.deepEqual(layout.categoryCards[0].subcategories[0].titleKeywords,['çelik cezve','çay makinesi']);
  assert.deepEqual(layout.categoryCards[0].subcategories[0].tags,['cezve']);
 });
+
+test('admin homepage sections preserve order, reject duplicates and unsafe product identifiers',()=>{
+ const input=[
+  {id:'brands',title:' Markalar ',enabled:true,brands:['Arzum','Arzum','Beko'],productIds:[]},
+  {id:'special',title:'Öneriler',enabled:true,productIds:['13','13','../admin','-5','9999999999999999999']},
+  {id:'brands',title:'duplicate'},
+  {id:'unknown',enabled:true,productIds:['1']},
+ ];
+ const normalized=normalizeHomeLayout({homeSections:input,homeHeader:{enabled:false,tagline:'Yeni sezon'}});
+ assert.deepEqual(normalized.homeSections.slice(0,2).map(s=>s.id),['brands','special']);
+ assert.equal(normalized.homeSections.length,7);
+ assert.deepEqual(normalized.homeSections[0].brands,['Arzum','Beko']);
+ assert.deepEqual(normalized.homeSections[1].productIds,['13']);
+ assert.equal(normalized.homeSections[1].title,'Öneriler');
+ assert.deepEqual(normalized.homeHeader,{enabled:false,tagline:'Yeni sezon'});
+});
+test('legacy home layout receives all manageable sections without deleting banner and category data',()=>{
+ const prior=normalizeHomeLayout({banners:[{id:'a'.repeat(32),title:'Banner'}],
+   categoryCards:[{category:'Elektronik',label:'Elektronik'}]});
+ assert.equal(prior.homeSections.length,7);
+ assert.ok(prior.homeSections.some(s=>s.id==='flash'));
+ assert.ok(prior.homeSections.some(s=>s.id==='bestsellers'));
+ assert.equal(prior.homeHeader.enabled,true);
+ const again=normalizeHomeLayout({...prior,homeSections:prior.homeSections.map(s=>({...s,enabled:s.id==='brands'}))});
+ assert.equal(again.homeSections.filter(s=>s.enabled).length,1);
+ assert.equal(again.banners.length,1);
+ assert.equal(again.categoryCards.length,1);
+});
+
+test('only recognized brand names can carry valid immutable brand logo media IDs',()=>{
+ const layout=normalizeHomeLayout({homeSections:[{
+   id:'brands',brands:['Arzum','Beko'],
+   brandImageIds:{Arzum:'a'.repeat(32),Beko:'javascript:evil',Unknown:'b'.repeat(32)}
+ }]});
+ assert.deepEqual(layout.homeSections[0].brandImageIds,{Arzum:'a'.repeat(32)});
+});

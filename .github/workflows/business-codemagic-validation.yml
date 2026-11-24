@@ -38,11 +38,21 @@ jobs:
           }
           for name, marker in markers.items():
             item=workflows[name]
-            assert item['triggering']['events']==['push'], name
-            assert item['triggering']['branch_patterns'][0]['pattern']=='main', name
-            assert item['when']['changeset']['includes']==[marker], name
-            assert marker in item['scripts'][0]['script'], name
-            assert 'git show --format= --name-only HEAD' in item['scripts'][0]['script'], name
+            if name in ('caliskan-b2b-ios', 'caliskan-b2b-testflight'):
+              # B2B iOS builds are now deliberately API/manual-only.
+              # A push or status-marker must never start duplicate paid builds.
+              assert item['triggering']['events']==[], name
+              if name == 'caliskan-b2b-testflight':
+                assert not item.get('when',{}).get('changeset'), name
+                assert item['publishing']['app_store_connect']['submit_to_testflight'] is True
+                assert item['publishing']['app_store_connect']['submit_to_app_store'] is False
+            else:
+              # Business workflows retain their own explicit push markers.
+              assert item['triggering']['events']==['push'], name
+              assert item['triggering']['branch_patterns'][0]['pattern']=='main', name
+              assert item['when']['changeset']['includes']==[marker], name
+              assert marker in item['scripts'][0]['script'], name
+              assert 'git show --format= --name-only HEAD' in item['scripts'][0]['script'], name
           for name in ('caliskan-business-ios-testflight','caliskan-business-android-apk','caliskan-business-android-aab'):
             item=workflows[name]
             assert item['environment']['vars']['EXPO_PUBLIC_API_URL']=='https://admin.ecalisgan.com'

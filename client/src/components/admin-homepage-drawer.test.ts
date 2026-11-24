@@ -16,13 +16,13 @@ test("each homepage section opens independently and drawer state survives a page
         setItem:(key:string,value:string)=>{store.set(key,value);},
       },
     }});
-    assert.deepEqual(loadHomepageDrawers(),{categories:true,campaign:false,banners:false});
-    saveHomepageDrawers({categories:false,campaign:true,banners:false});
-    assert.deepEqual(loadHomepageDrawers(),{categories:false,campaign:true,banners:false});
+    assert.deepEqual(loadHomepageDrawers(),{categories:true,campaign:false,banners:false,sections:true});
+    saveHomepageDrawers({categories:false,campaign:true,banners:false,sections:false});
+    assert.deepEqual(loadHomepageDrawers(),{categories:false,campaign:true,banners:false,sections:false});
     store.set("caliskan_admin_homepage_drawers_v1",JSON.stringify({
       categories:"false",campaign:true,banners:false,unknown:true,
     }));
-    assert.deepEqual(loadHomepageDrawers(),{categories:true,campaign:true,banners:false});
+    assert.deepEqual(loadHomepageDrawers(),{categories:true,campaign:true,banners:false,sections:true});
     store.set("caliskan_admin_homepage_drawers_v1","not-json");
     assert.deepEqual(loadHomepageDrawers(),DEFAULT_HOMEPAGE_DRAWERS);
     store.set("caliskan_admin_homepage_drawers_v1",JSON.stringify([]));
