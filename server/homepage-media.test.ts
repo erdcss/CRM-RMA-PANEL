@@ -111,3 +111,11 @@ test('legacy home layout receives all manageable sections without deleting banne
  assert.equal(again.banners.length,1);
  assert.equal(again.categoryCards.length,1);
 });
+
+test('only recognized brand names can carry valid immutable brand logo media IDs',()=>{
+ const layout=normalizeHomeLayout({homeSections:[{
+   id:'brands',brands:['Arzum','Beko'],
+   brandImageIds:{Arzum:'a'.repeat(32),Beko:'javascript:evil',Unknown:'b'.repeat(32)}
+ }]});
+ assert.deepEqual(layout.homeSections[0].brandImageIds,{Arzum:'a'.repeat(32)});
+});
