@@ -15,11 +15,20 @@ test('native homepage only uses the separately uploaded header wordmark, not the
  assert.match(branding,/headerLogo\?: string \| null/);
  assert.match(branding,/headerTagline\?: string \| null/);
  assert.match(branding,/b2b_mobile_header_logo: normalizeBrandAsset\(branding\.headerLogo\)/);
+ assert.match(branding,/b2b_mobile_header_background: normalizeBrandAsset\(branding\.headerBackground\)/);
+ assert.match(home,/branding\.b2b_mobile_header_background/);
+ assert.match(home,/minHeight:73/);
+ assert.match(home,/homeBrandLogo: \{width:'85%',height:38/);
+ assert.match(home,/contentFit="cover"/);
  assert.match(branding,/b2b_mobile_header_tagline: typeof branding\.headerTagline === 'string'/);
 });
 test('server stores the dedicated header logo and tagline independently from app launcher icon',()=>{
  const server=read('server/admin-platform.ts');
  assert.match(server,/"b2b-header-logo": "b2b_mobile_header_logo"/);
+ assert.match(server,/"b2b-header-background": "b2b_mobile_header_background"/);
+ assert.match(server,/headerBackground: image\(headerBackground, "b2b_mobile_header_background"\)/);
+ assert.match(server,/hasBackground/);
+ assert.match(server,/logos\.b2b_mobile_header_background/);
  assert.match(server,/headerLogo: image\(headerLogo, "b2b_mobile_header_logo"\)/);
  assert.match(server,/headerTagline: taglineResult\.rows\.length/);
  assert.match(server,/app\.get\("\/api\/admin\/b2b-mobile-header"/);
@@ -34,6 +43,10 @@ test('admin branding page owns header upload, slogan and live preview with a sep
  const homeAdmin=read('client/src/components/admin-home-sections.tsx');
  assert.match(admin,/Çalışkan B2B Mobile · Uygulama Üst Header Bölümü/);
  assert.match(admin,/title="Header Logosu"/);
+ assert.match(admin,/title="Header Arka Plan Görseli"/);
+ assert.match(admin,/previewHeaderBackground/);
+ assert.match(admin,/setHeaderBackgroundDraft/);
+ assert.match(admin,/payload\.background=headerBackgroundDraft/);
  assert.match(admin,/Header Sloganı/);
  assert.match(admin,/Header Önizleme/);
  assert.match(admin,/Header Ayarlarını Kaydet/);
