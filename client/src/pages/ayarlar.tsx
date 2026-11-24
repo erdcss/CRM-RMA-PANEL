@@ -41,7 +41,7 @@ async function fetchBranding(): Promise<BrandingConfig> {
 }
 
 type MetaTrackingSettings={enabled:boolean;pixelId:string;capiConfigured?:boolean};
-type B2BMobileHeaderSettings={logo:string|null;tagline:string};
+type B2BMobileHeaderSettings={logo:string|null;background:string|null;tagline:string};
 const DEFAULT_HEADER_TAGLINE="Toptan alışverişin akıllı yolu";
 
 type PaymentSettings = {
@@ -86,6 +86,7 @@ export default function Ayarlar() {
   // These controls have a dedicated save action; they never replace the
   // native square app icon, the web storefront logo, or splash assets.
   const [headerLogoDraft,setHeaderLogoDraft]=useState<string|null|undefined>(undefined);
+  const [headerBackgroundDraft,setHeaderBackgroundDraft]=useState<string|null|undefined>(undefined);
   const [headerTaglineDraft,setHeaderTaglineDraft]=useState<string|null>(null);
   const [savingHeader,setSavingHeader]=useState(false);
   const [saving, setSaving] = useState(false);
@@ -106,6 +107,7 @@ export default function Ayarlar() {
     },
   });
   const previewHeaderLogo=headerLogoDraft===undefined?(mobileHeader?.logo||null):headerLogoDraft;
+  const previewHeaderBackground=headerBackgroundDraft===undefined?(mobileHeader?.background||null):headerBackgroundDraft;
   const previewHeaderTagline=headerTaglineDraft===null
     ? (mobileHeader?.tagline??DEFAULT_HEADER_TAGLINE):headerTaglineDraft;
 
@@ -236,10 +238,11 @@ export default function Ayarlar() {
     setSavingHeader(true);
     try{
       if(headerLoading)throw new Error("Header ayarlarının yüklenmesi tamamlanmalı");
-      const payload:{tagline:string;logo?:string|null}={
+      const payload:{tagline:string;logo?:string|null;background?:string|null}={
         tagline:previewHeaderTagline.trim(),
       };
       if(headerLogoDraft!==undefined)payload.logo=headerLogoDraft;
+      if(headerBackgroundDraft!==undefined)payload.background=headerBackgroundDraft;
       const response=await fetch("/api/admin/b2b-mobile-header",{
         method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
         body:JSON.stringify(payload),
@@ -247,6 +250,7 @@ export default function Ayarlar() {
       const result=await response.json().catch(()=>({})) as {error?:string};
       if(!response.ok)throw new Error(result.error||"Mobil header kaydedilemedi");
       setHeaderLogoDraft(undefined);
+      setHeaderBackgroundDraft(undefined);
       setHeaderTaglineDraft(null);
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-mobile-header"]}),
@@ -560,8 +564,8 @@ export default function Ayarlar() {
                 </CardTitle>
                 <CardDescription>
                   Ana sayfanın üst bölümünde kullanılan yatay logoyu ve altındaki sloganı
-                  bağımsız olarak yönetin. Bu logo iPhone uygulama simgesi, splash veya B2B
-                  web logosunu değiştirmez.
+                  ve isteğe bağlı arka plan görselini bağımsız yönetin. Bu varlıklar iPhone
+                  uygulama simgesi, splash veya B2B web logosunu değiştirmez.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -572,6 +576,13 @@ export default function Ayarlar() {
                     value={previewHeaderLogo}
                     onChange={setHeaderLogoDraft}
                     pngOnly
+                  />
+                  <AssetUploader
+                    title="Header Arka Plan Görseli"
+                    description="Yatay görsel yükleyin (önerilen 1920×640 px, PNG/JPEG/WebP). Kırpılarak headerı kaplar; logo ve slogan ayrı katmanda kalır."
+                    value={previewHeaderBackground}
+                    onChange={setHeaderBackgroundDraft}
+                    cover
                   />
                   <div className="rounded-2xl border bg-muted/20 p-4">
                     <Label htmlFor="b2b-mobile-header-tagline" className="text-sm font-semibold">
@@ -595,24 +606,27 @@ export default function Ayarlar() {
                     <Monitor className="h-4 w-4"/> Header Önizleme
                   </div>
                   <p className="mb-4 text-xs text-muted-foreground">
-                    Bu önizleme bir mobil ekranın üst bölümünü temsil eder; logo orantısı
-                    uygulamadaki gibi korunur.
+                    Bu önizleme kompakt mobil headerı temsil eder. Arka plan kırpılarak doldurulur,
+                    logonun oranı korunur; slogan logonun altında gösterilir.
                   </p>
                   <div className="mx-auto w-full max-w-[460px] overflow-hidden rounded-[30px] border-[5px] border-slate-600 bg-[#111113] p-4 shadow-xl">
                     <div className="flex items-center justify-between text-xs font-bold text-white">
                       <span>9:41</span><span>•••  ▰</span>
                     </div>
-                    <div className="mt-4 rounded-2xl border border-amber-500/30 bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)] px-3 py-4">
-                      <div className="flex min-h-[58px] items-center justify-center">
+                    <div className="relative mt-3 overflow-hidden rounded-2xl border border-amber-500/30 bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)] px-2 py-2">
+                      {previewHeaderBackground ? <img src={previewHeaderBackground}
+                        alt="Çalışkan B2B header arka plan önizlemesi"
+                        className="absolute inset-0 h-full w-full object-cover"/> : null}
+                      <div className="relative z-10 flex min-h-[38px] items-center justify-center">
                         {previewHeaderLogo
                           ? <img src={previewHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
-                              className="h-[59px] w-[96%] object-contain"/>
-                          : <div className="text-center text-2xl font-black text-amber-400">
+                              className="h-[38px] w-[85%] object-contain"/>
+                          : <div className="text-center text-lg font-black text-amber-400">
                               ÇALIŞKAN B2B
                             </div>}
                       </div>
                       {previewHeaderTagline.trim()
-                        ? <div className="mt-2 text-center text-sm font-extrabold text-[#FFCD00]">
+                        ? <div className="relative z-10 mt-0.5 text-center text-xs font-extrabold text-[#FFCD00]">
                             {previewHeaderTagline}
                           </div> : null}
                     </div>
