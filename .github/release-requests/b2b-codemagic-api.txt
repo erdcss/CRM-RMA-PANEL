@@ -1,16 +1,15 @@
-ÇALIŞKAN B2B — Fresh iOS TestFlight 1.3.20
+ÇALIŞKAN B2B iOS 1.3.21 — Admin-controlled home storefront TestFlight
 Operation: testflight
-Request: b2b-testflight-1320-remove-cart-reminder-20261123-01
+Request: b2b-admin-home-modules-ios-1321-20261124-01
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
-Release source commit: 1c6138e3b2f9e1632919433daff856f834e41ec7
-App version: 1.3.20
+Release source merge commit: 3e044f8cc1b01c877f2d9658f8e10989ec0c9478
+App version: 1.3.21
 Bundle ID: com.caliskangroup.rma
-Codemagic application: CRM-RMA-PANEL
-Codemagic workflow: caliskan-b2b-testflight
-Purpose: build latest native B2B version including removal of cart reminder option from Siparişlerim; basket, checkout and order history preserved.
-Existing other features: classic B2B interface, category strip above inset banner, notifications and first-login iOS location consent.
-Mobile Typecheck CI: GitHub Actions run 45199986660 successful.
-Trigger: authenticated GitHub Actions to Codemagic API. No webhook build and no changeset skip filter.
-Publishing: Apple TestFlight only. No public App Store submission.
-Exactly one new iOS build requested.
+Codemagic App: CRM-RMA-PANEL
+Codemagic Workflow: caliskan-b2b-testflight
+Included: Admin-managed Flash, curated offers, real bestseller sales ranking, brand logos, video exploration, quick order shortcuts, repeat ordering and homepage brand header.
+Preserve: classic 6-tab navigation, original categories and inset banner, cart without reminder UI, iOS first-use location consent.
+Publishing: TestFlight only. Public App Store submission disabled.
+Triggering: authenticated GitHub Actions -> Codemagic API, webhook triggers disabled, no changeset skip filter.
+Exactly one paid iOS build requested.
