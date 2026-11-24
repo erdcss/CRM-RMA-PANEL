@@ -235,7 +235,7 @@ export type B2BTimedCampaign = {
 export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "videos" | "bestsellers" | "brands";
 export type HomeSection = {
   id: HomeSectionId; title: string; enabled: boolean;
-  productIds: string[]; brands: string[];
+  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>;
 };
 export type B2BHomepage = {
   homeHeader?: {enabled: boolean; tagline: string};
