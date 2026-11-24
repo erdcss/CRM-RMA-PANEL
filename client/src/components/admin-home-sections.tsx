@@ -7,7 +7,7 @@ import { findCampaignProducts, type CampaignProductOption } from "@/lib/campaign
 export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "videos" | "bestsellers" | "brands";
 export type HomeSection = {
   id: HomeSectionId; title: string; enabled: boolean;
-  productIds: string[]; brands: string[];
+  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>;
 };
 export type HomeHeader = { enabled: boolean; tagline: string };
 const definitions: Array<{id: HomeSectionId; title: string; description: string}> = [
@@ -24,13 +24,15 @@ export const DEFAULT_HOME_SECTIONS: HomeSection[] = definitions.map(d=>({
 }));
 
 export function AdminHomeSections({
-  sections, onChange, header, onHeaderChange, products
+  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploading
 }:{
   sections: HomeSection[];
   onChange: (next: HomeSection[])=>void;
   header: HomeHeader;
   onHeaderChange: (next: HomeHeader)=>void;
   products: CampaignProductOption[];
+  uploadBrandLogo: (file: File, onReady: (imageId:string)=>void)=>void;
+  uploading: boolean;
 }) {
   const [search,setSearch]=useState("");
   const [brandEntry,setBrandEntry]=useState("");
@@ -129,8 +131,22 @@ export function AdminHomeSections({
           </label>
           <div className="flex flex-wrap gap-2">
             {section.brands.map(brand=>
-              <span key={brand} className="flex items-center gap-2 rounded-full border px-3 py-1 text-xs">
-                {brand}
+              <span key={brand} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs">
+                {section.brandImageIds?.[brand]
+                  ? <img src={`/api/public/homepage/media/${section.brandImageIds[brand]}`}
+                      alt={brand+" logosu"} className="h-8 w-16 object-contain"/>
+                  : brand}
+                <label className="cursor-pointer rounded-lg bg-amber-100 px-2 py-1 font-bold text-amber-950">
+                  {section.brandImageIds?.[brand]?"Logo değiştir":"Logo yükle"}
+                  <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden"
+                    disabled={uploading} onChange={event=>{
+                      const file=event.target.files?.[0];
+                      if(file)uploadBrandLogo(file,id=>update(section.id,{
+                        brandImageIds:{...(section.brandImageIds||{}),[brand]:id}
+                      }));
+                      event.target.value="";
+                    }}/>
+                </label>
                 <button type="button" aria-label={brand+" kaldır"}
                   onClick={()=>update(section.id,{brands:section.brands.filter(x=>x!==brand)})}>
                   <Trash2 className="h-3 w-3"/>
