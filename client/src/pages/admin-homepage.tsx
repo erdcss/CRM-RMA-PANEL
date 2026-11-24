@@ -271,7 +271,8 @@ export default function AdminHomepage() {
           summary={homeSections.filter(item=>item.enabled).length+" bölüm açık"}
           open={drawers.sections} onToggle={()=>toggleDrawer("sections")}>
           <AdminHomeSections sections={homeSections} onChange={setHomeSections}
-            header={homeHeader} onHeaderChange={setHomeHeader} products={productOptions}/>
+            header={homeHeader} onHeaderChange={setHomeHeader} products={productOptions}
+            uploadBrandLogo={(file,ready)=>{void uploadMedia(file,ready);}} uploading={uploading}/>
         </AdminHomepageDrawer>
 
         <AdminHomepageDrawer id="categories" title="Kategoriler"
