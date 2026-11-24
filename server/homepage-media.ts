@@ -157,12 +157,12 @@ export function normalizeHomeSections(raw: unknown): HomeSection[] {
     const id = typeof entry?.id === "string" ? entry.id : "";
     const base = known.get(id);
     if (!base || result.some(item => item.id === id)) continue;
-    const productIds = [...new Set(
+    const productIds = [...new Set<string>(
       (Array.isArray(entry.productIds) ? entry.productIds : [])
         .map((value: unknown) => String(value))
         .filter((value: string) => /^[1-9][0-9]{0,14}$/.test(value))
     )].slice(0, 24);
-    const brands = [...new Set(
+    const brands = [...new Set<string>(
       (Array.isArray(entry.brands) ? entry.brands : [])
         .map((value: unknown) => safeString(value, 64))
         .filter(Boolean)
