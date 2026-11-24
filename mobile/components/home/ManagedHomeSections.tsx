@@ -52,7 +52,7 @@ function ItemStrip({products,renderProduct}:{products:B2BProduct[];renderProduct
 const shortActionItems: Array<{id:string;label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
   {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla ürün bul',icon:'scan-outline',route:''},
   {id:'orders',label:'Tekrar Sipariş',subtitle:'Geçmiş siparişlerin',icon:'repeat-outline',route:'/my-orders'},
-  {id:'ledger',label:'Defterim',subtitle:'Hesap hareketlerin',icon:'wallet-outline',route:'/ledger'},
+  {id:'ledger',label:'Cari Hesap',subtitle:'Defter ve hesap hareketleri',icon:'wallet-outline',route:'/ledger'},
   {id:'campaigns',label:'Kampanyalar',subtitle:'Güncel fırsatlar',icon:'pricetag-outline',route:'/campaigns'},
 ];
 export function ManagedHomeSections({
