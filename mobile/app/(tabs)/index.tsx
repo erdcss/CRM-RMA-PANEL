@@ -40,6 +40,7 @@ import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
 import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
 import { ManagedHomeSections, DEFAULT_MOBILE_HOME_SECTIONS } from '@/components/home/ManagedHomeSections';
+import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
 import { useMobileBranding, refreshMobileBranding } from '@/lib/branding';
 
 function money(value: string | number | null | undefined) {
