@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { useAppearance } from '@/contexts/AppearanceContext';
-import { absoluteMediaUrl, type B2BProduct, type B2BReel, type B2BTimedCampaign, type HomeSection } from '@/lib/api';
+import { absoluteMediaUrl, homepageMediaUrl, type B2BProduct, type B2BReel, type B2BTimedCampaign, type HomeSection } from '@/lib/api';
 import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
 
 export const DEFAULT_MOBILE_HOME_SECTIONS: HomeSection[] = [
@@ -164,7 +164,10 @@ export function ManagedHomeSections({
               {brands.map(brand=><Pressable key={brand} accessibilityRole="button"
                 accessibilityLabel={brand+' ürünlerini göster'} style={[styles.brandTile,{backgroundColor:palette.surface,borderColor:palette.border}]}
                 onPress={()=>onBrand(brand)}>
-                <Text style={[styles.brandName,{color:palette.text}]} numberOfLines={2}>{brand}</Text>
+                {section.brandImageIds?.[brand] && homepageMediaUrl(section.brandImageIds[brand])
+                  ? <Image source={{uri:homepageMediaUrl(section.brandImageIds[brand])!}}
+                      style={styles.brandImage} contentFit="contain" cachePolicy="memory-disk"/>
+                  : <Text style={[styles.brandName,{color:palette.text}]} numberOfLines={2}>{brand}</Text>}
               </Pressable>)}
             </ScrollView>
           </View>;
@@ -203,5 +206,6 @@ const styles=StyleSheet.create({
   videoTitle:{fontSize:11,color:'#FFF',fontWeight:'800'},
   brandTile:{width:132,minHeight:61,borderRadius:14,borderWidth:1.2,paddingHorizontal:7,
     alignItems:'center',justifyContent:'center'},
+  brandImage:{width:116,height:46},
   brandName:{fontSize:15,fontWeight:'900',textAlign:'center'},
 });
