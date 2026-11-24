@@ -1,10 +1,11 @@
-ÇALIŞKAN B2B TestFlight status monitor — status only, do not launch new iOS build
-Build ID: 6b0454d4055685459018e6ca
+ÇALIŞKAN B2B TestFlight status monitor — no new paid iOS build
+Build ID: 6b057ca65bf3c5536c09bc84
 Codemagic App ID: 6afedc30f47c90e3676e0a20
 Workflow: caliskan-b2b-testflight
 Branch: main
-Release: 1.3.20
+Release: 1.3.21
 Bundle ID: com.caliskangroup.rma
-Source: authenticated GitHub Actions Codemagic API release run 45200142411.
-Change: Removed customer basket reminder card and CTA; checkout and existing functionality remain.
-Run only the existing build status monitoring; do NOT initiate another Codemagic build.
+Source PR: #107 (admin controlled homepage modules)
+GitHub Actions build trigger: 45389563885 (success)
+Scope: track EXISTING native iOS build, signing and App Store Connect TestFlight upload.
+DO NOT request or launch another iOS build.
