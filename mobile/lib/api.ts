@@ -232,7 +232,15 @@ export type B2BTimedCampaign = {
   ends_at: string;
   product_ids: string[];
 };
+export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "videos" | "bestsellers" | "brands";
+export type HomeSection = {
+  id: HomeSectionId; title: string; enabled: boolean;
+  productIds: string[]; brands: string[];
+};
 export type B2BHomepage = {
+  homeHeader?: {enabled: boolean; tagline: string};
+  homeSections?: HomeSection[];
+  bestSellerProductIds?: string[];
   roundBottomBanner?:RoundBottomBanner;
   categories: string[];
   banners?: HomeBanner[];
