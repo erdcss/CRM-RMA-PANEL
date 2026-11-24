@@ -103,7 +103,15 @@ export function ManagedHomeSections({
           </View>;
         }
         case 'special': {
-          const selected=section.productIds.map(id=>productById.get(id)).filter((p):p is B2BProduct=>Boolean(p));
+          const selected=section.productIds.length
+            ? section.productIds.map(id=>productById.get(id)).filter((p):p is B2BProduct=>Boolean(p))
+            : own.filter(p=>{
+              const price=Number(p.price),oldPrice=Number(p.original_price);
+              return Number.isFinite(price)&&price>0&&Number.isFinite(oldPrice)&&
+                oldPrice>price&&(Number(p.stock)||0)>0;
+            }).sort((a,b)=>
+              (1-Number(b.price)/Number(b.original_price))-(1-Number(a.price)/Number(a.original_price))
+            );
           if(!selected.length)return null;
           return <View key={section.id} style={styles.section}>
             <SectionHead icon="pricetag" title={title}/>
