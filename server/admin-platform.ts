@@ -150,6 +150,7 @@ const BRANDING_KEYS = [
   "b2b_footer_banner",
   "b2b_mobile_logo",
   "b2b_mobile_header_logo",
+  "b2b_mobile_header_background",
   "b2b_mobile_android_icon",
   "b2b_mobile_splash",
   "business_mobile_logo",
@@ -447,6 +448,7 @@ async function brandingMap() {
     b2b_footer_banner: null,
     b2b_mobile_logo: null,
     b2b_mobile_header_logo: null,
+    b2b_mobile_header_background: null,
     b2b_mobile_android_icon: null,
     b2b_mobile_splash: null,
     business_mobile_logo: null,
@@ -942,6 +944,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     const keys: Record<string, BrandingKey> = {
       "b2b-logo": "b2b_mobile_logo",
       "b2b-header-logo": "b2b_mobile_header_logo",
+      "b2b-header-background": "b2b_mobile_header_background",
       "b2b-android-icon": "b2b_mobile_android_icon",
       "b2b-web-logo": "b2b_logo",
       "b2b-splash": "b2b_mobile_splash",
@@ -978,7 +981,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
       if (target === "b2b") {
         const assetKeys = [
-          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_header_logo", "b2b_mobile_android_icon", "b2b_mobile_splash",
+          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_header_logo", "b2b_mobile_header_background", "b2b_mobile_android_icon", "b2b_mobile_splash",
         ];
         const found = pool
           ? await pool.query(
@@ -991,6 +994,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         // and the separately uploaded native homepage header wordmark.
         const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
         const headerLogo = available.has("b2b_mobile_header_logo") ? "b2b-header-logo" : null;
+        const headerBackground = available.has("b2b_mobile_header_background") ? "b2b-header-background" : null;
         const androidIcon = available.has("b2b_mobile_android_icon") ? "b2b-android-icon" : null;
         const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
         const webLogo = available.has("b2b_logo") ? "b2b-web-logo" : null;
@@ -1010,6 +1014,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         return res.json({
           logo: image(logo, "b2b_mobile_logo"),
           headerLogo: image(headerLogo, "b2b_mobile_header_logo"),
+          headerBackground: image(headerBackground, "b2b_mobile_header_background"),
           headerTagline: taglineResult.rows.length ? String(taglineResult.rows[0].value ?? "") : null,
           androidIcon: image(androidIcon, "b2b_mobile_android_icon"),
           webLogo: image(webLogo, "b2b_logo"),
@@ -1143,6 +1148,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       res.setHeader("Cache-Control", "private, no-store");
       return res.json({
         logo: logos.b2b_mobile_header_logo,
+        background: logos.b2b_mobile_header_background,
         tagline: stored.rows.length ? String(stored.rows[0].value ?? "") : legacyTagline,
       });
     } catch (error) {
@@ -1163,6 +1169,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       (typeof logo !== "string" || logo.length > 10_000_000 ||
        !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/s.test(logo)))
       return res.status(400).json({error:"Header için PNG, JPEG veya WebP görseli yükleyin (en fazla 7 MB)"});
+    const hasBackground = Object.prototype.hasOwnProperty.call(req.body || {}, "background");
+    const background = req.body?.background;
+    if (hasBackground && background !== null &&
+      (typeof background !== "string" || background.length > 10_000_000 ||
+       !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/s.test(background)))
+      return res.status(400).json({error:"Header arka planı için en fazla 7 MB PNG, JPEG veya WebP yükleyin"});
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -1174,6 +1186,17 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
             `INSERT INTO platform_settings(key,value,updated_at) VALUES ('b2b_mobile_header_logo',$1,NOW())
              ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()`,
             [logo],
+          );
+        }
+      }
+      if (hasBackground) {
+        if (background === null) {
+          await client.query("DELETE FROM platform_settings WHERE key='b2b_mobile_header_background'");
+        } else {
+          await client.query(
+            `INSERT INTO platform_settings(key,value,updated_at) VALUES ('b2b_mobile_header_background',$1,NOW())
+             ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()`,
+            [background],
           );
         }
       }
@@ -1192,7 +1215,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
     try {
       const logos = await brandingReferences();
-      return res.json({logo: logos.b2b_mobile_header_logo, tagline});
+      return res.json({logo: logos.b2b_mobile_header_logo, background: logos.b2b_mobile_header_background, tagline});
     } catch (error) {
       console.error("B2B mobile header readback failed:", error);
       return res.status(500).json({error:"Header kaydedildi ancak doğrulanamadı"});
