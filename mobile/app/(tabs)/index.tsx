@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
