@@ -145,6 +145,7 @@ export type HomeSection = {
   enabled: boolean;
   productIds: string[];
   brands: string[];
+  brandImageIds: Record<string,string>;
 };
 /** Store only valid public/catalog IDs and display labels. Unknown modules are discarded. */
 export function normalizeHomeSections(raw: unknown): HomeSection[] {
@@ -167,16 +168,24 @@ export function normalizeHomeSections(raw: unknown): HomeSection[] {
         .map((value: unknown) => safeString(value, 64))
         .filter(Boolean)
     )].slice(0, 24);
+    const brandImageIds: Record<string,string> = {};
+    const images = entry?.brandImageIds && typeof entry.brandImageIds === 'object' && !Array.isArray(entry.brandImageIds)
+      ? entry.brandImageIds : {};
+    for (const brand of brands) {
+      const imageId = images[brand];
+      if (typeof imageId === 'string' && validId.test(imageId)) brandImageIds[brand] = imageId;
+    }
     result.push({
       id: base.id,
       title: safeString(entry.title, 70) || base.title,
       enabled: entry.enabled !== false,
       productIds,
       brands,
+      brandImageIds,
     });
   }
   for (const base of HOME_SECTION_DEFAULTS) if (!result.some(item => item.id === base.id))
-    result.push({ id: base.id, title: base.title, enabled: base.enabled, productIds: [], brands: [] });
+    result.push({ id: base.id, title: base.title, enabled: base.enabled, productIds: [], brands: [], brandImageIds: {} });
   return result;
 }
 
