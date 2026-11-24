@@ -4,6 +4,8 @@ import { AppState } from 'react-native';
 export type MobileBranding = {
   b2b_web_logo?: string | null;
   b2b_mobile_logo?: string | null;
+  b2b_mobile_header_logo?: string | null;
+  b2b_mobile_header_tagline?: string | null;
   b2b_mobile_splash?: string | null;
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
@@ -13,6 +15,8 @@ export type MobileBranding = {
 type MobileBrandingResponse = {
   logo?: string | null;
   webLogo?: string | null;
+  headerLogo?: string | null;
+  headerTagline?: string | null;
   splash?: string | null;
   updatedAt?: number | null;
 };
@@ -62,8 +66,11 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
     return {
       // Keep the uploaded web wordmark separate from the native app icon.
       // Use the real admin logo on the homepage without stretching app icons.
-      b2b_web_logo: normalizeBrandAsset(branding.webLogo) || logo,
+      b2b_web_logo: normalizeBrandAsset(branding.webLogo),
       b2b_mobile_logo: logo,
+      b2b_mobile_header_logo: normalizeBrandAsset(branding.headerLogo),
+      b2b_mobile_header_tagline: typeof branding.headerTagline === 'string'
+        ? branding.headerTagline : null,
       b2b_mobile_splash: normalizeBrandAsset(branding.splash),
       loaded: true,
     };
