@@ -436,6 +436,10 @@ export default function HomeScreen() {
         </Animated.View> : null}
 
         {homeHeader.enabled ? <View style={styles.homeBrandHeader}>
+          {branding.b2b_mobile_header_background ? <Image
+            source={{uri:branding.b2b_mobile_header_background}}
+            style={StyleSheet.absoluteFillObject} contentFit="cover"
+            cachePolicy="memory-disk" accessibilityLabel="Header arka planı" /> : null}
           {branding.b2b_mobile_header_logo ?
             <Image source={{uri:branding.b2b_mobile_header_logo}}
               contentFit="contain" cachePolicy="none"
@@ -824,14 +828,14 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     position: 'relative',
   },
   homeBrandHeader: {
-    alignItems:'center',justifyContent:'center',minHeight:104,
-    paddingHorizontal:14,paddingVertical:15,
-    backgroundColor:'#121213',borderRadius:21,
-    borderWidth:1,borderColor:'#625017',marginTop:6,marginBottom:3,
+    alignItems:'center',justifyContent:'center',minHeight:73,
+    paddingHorizontal:9,paddingVertical:7,
+    backgroundColor:'#121213',borderRadius:15,overflow:'hidden',
+    borderWidth:1,borderColor:'#625017',marginTop:3,marginBottom:2,
   },
-  homeBrandLogo: {width:'96%',height:59,backgroundColor:'transparent'},
-  homeBrandFallback: {color:'#FFFFFF',fontSize:23,fontWeight:'900',letterSpacing:0.4},
-  homeBrandTagline: {color:'#FFCD00',fontSize:14,fontWeight:'800',textAlign:'center',marginTop:7},
+  homeBrandLogo: {width:'85%',height:38,backgroundColor:'transparent'},
+  homeBrandFallback: {color:'#FFFFFF',fontSize:19,fontWeight:'900',letterSpacing:0.3},
+  homeBrandTagline: {color:'#FFCD00',fontSize:12,fontWeight:'800',textAlign:'center',marginTop:2},
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
   welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
   reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
