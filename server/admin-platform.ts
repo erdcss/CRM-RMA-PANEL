@@ -1156,12 +1156,12 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     const value = req.body?.tagline;
     if (typeof value !== "string" || value.length > 110)
       return res.status(400).json({error:"Slogan en fazla 110 karakter olmalı"});
-    const tagline = value.trim().replace(/\\s+/g, " ");
+    const tagline = value.trim().replace(/\s+/g, " ");
     const hasLogo = Object.prototype.hasOwnProperty.call(req.body || {}, "logo");
     const logo = req.body?.logo;
     if (hasLogo && logo !== null &&
       (typeof logo !== "string" || logo.length > 10_000_000 ||
-       !/^data:image\\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/s.test(logo)))
+       !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/s.test(logo)))
       return res.status(400).json({error:"Header için PNG, JPEG veya WebP görseli yükleyin (en fazla 7 MB)"});
     const client = await pool.connect();
     try {
