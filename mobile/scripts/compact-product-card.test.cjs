@@ -19,3 +19,20 @@ test('home and catalog share a compact product card without rating, favorite or 
  assert.match(catalog,/<CompactProductCard/);
  assert.match(catalog,/numColumns=\{2\}/);
 });
+
+
+test('standard cards replace the timer panel with an active flash circle on the right middle of the photo',()=>{
+ const card=read('components/products/CompactProductCard.tsx');
+ const flash=read('components/home/FlashHomeSection.tsx');
+ assert.doesNotMatch(card,/TimedCampaignNotice|Kalan stok|timedCampaignRemaining/);
+ assert.match(card,/flashBadge:\{position:'absolute',right:3,top:'50%'/);
+ assert.match(card,/borderRadius:badgeSize\/2,marginTop:-badgeSize\/2/);
+ assert.match(card,/flashActive = hasTimedOffer && !expired && canOrder/);
+ assert.match(card,/Boolean\(product.timed_campaign_id\)/);
+ assert.match(card,/const price = expired \? null : product.price/);
+ assert.match(card,/refreshRef.current\?\.\(\)/);
+ assert.match(card,/AppState.addEventListener/);
+ assert.match(card,/flashBadgeText:\{[^\n]*fontWeight:'400'/);
+ assert.match(flash,/<FlashCountdown endAt=\{campaign.ends_at\}/);
+ assert.match(card,/aspectRatio:1/);
+});

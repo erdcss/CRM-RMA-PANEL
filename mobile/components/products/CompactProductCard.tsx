@@ -1,9 +1,9 @@
+import { useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { spacing } from '@/constants/theme';
 import { absoluteMediaUrl, type B2BProduct } from '@/lib/api';
-import { TimedCampaignNotice } from './TimedCampaignNotice';
 
 // Exactly 2.5 cards plus two gaps fit within the visible horizontal strip.
 export function stripProductWidth(viewport: number) {
@@ -32,7 +32,41 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
   const minBoxes = Math.max(1,Number(product.min_order_qty)||1);
   const stock = Math.max(0,Number(product.stock)||0);
   const canOrder = stock >= pack * minBoxes;
-  const price = product.price;
+  // The standard card has no visible timer. Keep a one-shot expiry check so
+  // the badge disappears and the catalogue refreshes when the offer ends.
+  const endAt = product.timed_campaign_end_at || '';
+  const deadline = Date.parse(endAt);
+  const campaignKey = String(product.id)+':'+String(product.timed_campaign_id||'')+':'+endAt;
+  const [expiredKey,setExpiredKey] = useState('');
+  const notifiedKey = useRef('');
+  const refreshRef = useRef(onExpire);
+  refreshRef.current = onExpire;
+  const hasTimedOffer = !product.marketplace && Boolean(product.timed_campaign_id) && Number.isFinite(deadline);
+  const expired = hasTimedOffer && (expiredKey===campaignKey || deadline<=Date.now());
+  const flashActive = hasTimedOffer && !expired && canOrder;
+  useEffect(()=>{
+    if(!hasTimedOffer)return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check=()=>{
+      if(timer!==undefined)clearTimeout(timer);
+      const remaining=deadline-Date.now();
+      if(remaining<=0){
+        setExpiredKey(campaignKey);
+        if(notifiedKey.current!==campaignKey){
+          notifiedKey.current=campaignKey;
+          refreshRef.current?.();
+        }
+      }else{
+        timer=setTimeout(check,Math.min(remaining+1,2_147_483_647));
+      }
+    };
+    check();
+    const subscription=AppState.addEventListener('change',state=>{if(state==='active')check();});
+    return ()=>{if(timer!==undefined)clearTimeout(timer);subscription.remove();};
+  },[hasTimedOffer,deadline,campaignKey]);
+  const badgeSize = Math.min(46,Math.max(30,Math.round(width*0.30)));
+  // Do not present an expired promotional price while waiting for fresh catalog data.
+  const price = expired ? null : product.price;
   const hasPrice = price != null && String(price).trim()!=='' && Number.isFinite(Number(price));
   return <Pressable style={[styles.card,{width}]} onPress={onPress} accessibilityRole="button"
     accessibilityLabel={product.name || 'Ürün detayını aç'}>
@@ -41,6 +75,12 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
         cachePolicy="memory-disk" recyclingKey={String(product.id)} /> :
         <Ionicons name="cube-outline" size={30} color="#9CA3AF"/>}
       {newArrival ? <View style={styles.newBadge}><Text style={styles.newText}>YENİ</Text></View> : null}
+      {flashActive ? <View pointerEvents="none" accessibilityLabel="Flash Ürün"
+        style={[styles.flashBadge,{width:badgeSize,height:badgeSize,borderRadius:badgeSize/2,marginTop:-badgeSize/2}]}>
+        <Ionicons name="flash" size={Math.round(badgeSize*0.38)} color="#171717"/>
+        <Text style={styles.flashBadgeText} numberOfLines={1}>Flash</Text>
+        <Text style={styles.flashBadgeText} numberOfLines={1}>Ürün</Text>
+      </View>:null}
     </View>
     <View style={styles.body}>
       <Text style={styles.sku} numberOfLines={1}>{product.sku || 'Ürün'}</Text>
@@ -55,15 +95,13 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
       <View style={styles.priceBlock}>
         <Text style={styles.priceLabel}>Toptan Fiyat</Text>
         {signedIn && hasPrice && price != null ? <>
-          {product.timed_campaign_end_at && product.original_price!=null &&
+          {flashActive && product.original_price!=null &&
             Number.isFinite(Number(product.original_price)) ? <Text style={styles.oldPrice} numberOfLines={1}>{money(product.original_price)}</Text>:null}
           <Text style={[styles.price,!canOrder&&styles.disabledPrice]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{money(price)}</Text>
         </>:!signedIn?<Pressable onPress={e=>{e.stopPropagation();onLogin();}} style={styles.login} accessibilityRole="button">
           <Ionicons name="lock-closed-outline" color="#815900" size={11}/><Text style={styles.loginText} numberOfLines={1}>Giriş Yap</Text>
-        </Pressable>:<Text style={styles.priceLabel}>Fiyat belirtilmedi</Text>}
+        </Pressable>:<Text style={styles.priceLabel}>{expired?'Fiyat güncelleniyor…':'Fiyat belirtilmedi'}</Text>}
       </View>
-      {product.timed_campaign_end_at ? <TimedCampaignNotice compact endAt={product.timed_campaign_end_at}
-        title={product.timed_campaign_title} stock={product.stock} unitsPerBox={product.units_per_box} onExpire={onExpire}/>:null}
     </View>
   </Pressable>;
 }
@@ -72,7 +110,11 @@ const styles=StyleSheet.create({
   imageWrap:{width:'100%',aspectRatio:1,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
   image:{width:'100%',height:'100%'},faded:{opacity:0.45},
   newBadge:{position:'absolute',top:6,left:6,paddingHorizontal:5,paddingVertical:3,borderRadius:5,backgroundColor:'#FFCD00'},
-  newText:{fontSize:9,fontWeight:'500',color:'#111827'},
+  newText:{fontSize:9,fontWeight:'400',color:'#111827'},
+  flashBadge:{position:'absolute',right:3,top:'50%',backgroundColor:'#FFCD00',borderWidth:1.5,borderColor:'#FFF0A6',
+    alignItems:'center',justifyContent:'center',shadowColor:'#000000',shadowOpacity:0.18,shadowRadius:2,
+    shadowOffset:{width:0,height:1},elevation:2},
+  flashBadgeText:{fontSize:8,lineHeight:9,fontWeight:'400',color:'#171717',includeFontPadding:false},
   body:{padding:8,gap:4,flex:1},
   sku:{fontSize:9,lineHeight:12,color:'#68707D',fontWeight:'400'},
   name:{fontSize:12,lineHeight:16,minHeight:32,fontWeight:'400',color:'#171717'},
