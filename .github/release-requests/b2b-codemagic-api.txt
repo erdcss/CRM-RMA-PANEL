@@ -1,15 +1,12 @@
-ÇALIŞKAN B2B iOS 1.3.21 — Admin-controlled home storefront TestFlight
+ÇALIŞKAN B2B iOS 1.3.21 — Homepage and navigation polish
 Operation: testflight
-Request: b2b-admin-home-modules-ios-1321-20261124-01
+Request: b2b-home-navigation-ios-1321-20261125-01
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
-Release source merge commit: 3e044f8cc1b01c877f2d9658f8e10989ec0c9478
+Release source commit: a66af4beb9d5f247a1925dae89f261e98a06e215
 App version: 1.3.21
 Bundle ID: com.caliskangroup.rma
-Codemagic App: CRM-RMA-PANEL
 Codemagic Workflow: caliskan-b2b-testflight
-Included: Admin-managed Flash, curated offers, real bestseller sales ranking, brand logos, video exploration, quick order shortcuts, repeat ordering and homepage brand header.
-Preserve: classic 6-tab navigation, original categories and inset banner, cart without reminder UI, iOS first-use location consent.
+Included: full-width reorder banner, enlarged admin-managed quick action icons, flash improvements, soft tab transitions, reduced motion support.
 Publishing: TestFlight only. Public App Store submission disabled.
-Triggering: authenticated GitHub Actions -> Codemagic API, webhook triggers disabled, no changeset skip filter.
 Exactly one paid iOS build requested.
