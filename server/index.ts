@@ -17,7 +17,7 @@ const mobileWebOrigins = new Set([
   "https://caliskan-b2b-mobile-production.up.railway.app",
 ]);
 const mobileWebMethods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
-const mobileWebHeaders = ["authorization", "content-type", "accept", "x-owner-user-id"];
+const mobileWebHeaders = ["authorization", "content-type", "accept", "x-owner-user-id", "cache-control", "pragma"];
 app.use("/api", (req, res, next) => {
   res.vary("Origin");
   const origin = req.get("Origin");
