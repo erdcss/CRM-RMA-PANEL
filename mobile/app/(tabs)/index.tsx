@@ -66,6 +66,14 @@ function productImage(product: B2BProduct) {
   return absoluteMediaUrl(raw);
 }
 
+// In live text mode, emphasize the final two words as in the Çalışkan B2B
+// reference: white bold italic lead + gold bold italic ending and gold swoosh.
+function sloganSegments(value:string){
+  const words=value.trim().split(/\s+/).filter(Boolean);
+  if(words.length<=2)return {intro:'',accent:words.join(' ')};
+  return {intro:words.slice(0,-2).join(' '),accent:words.slice(-2).join(' ')};
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const isFocused = useIsFocused();
@@ -74,6 +82,10 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { palette } = useAppearance();
   const branding = useMobileBranding();
+  const currentTagline = branding.b2b_mobile_header_tagline ?? homeHeader.tagline;
+  const taglineSegments = sloganSegments(currentTagline);
+  const showTaglineArtwork = branding.b2b_mobile_header_tagline_mode === 'image'
+    && Boolean(branding.b2b_mobile_header_tagline_image);
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [welcome, setWelcome] = useState(false);
   const welcomeFade = useRef(new Animated.Value(0)).current;
@@ -482,10 +494,31 @@ export default function HomeScreen() {
                     ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text>
                   </Text>
                 )}
-                {((branding.b2b_mobile_header_tagline ?? homeHeader.tagline).trim()) ? (
-                  <Text style={styles.homeBrandTagline} numberOfLines={2}>
-                    {branding.b2b_mobile_header_tagline ?? homeHeader.tagline}
-                  </Text>
+                {showTaglineArtwork ? (
+                  <Image
+                    source={{uri:branding.b2b_mobile_header_tagline_image!}}
+                    style={styles.homeBrandTaglineArtwork}
+                    contentFit="contain"
+                    cachePolicy="memory-disk"
+                    accessibilityLabel={currentTagline || 'Çalışkan B2B sloganı'}
+                  />
+                ) : currentTagline.trim() ? (
+                  <View style={styles.homeBrandTaglineRow}
+                    accessibilityLabel={currentTagline}>
+                    {taglineSegments.intro ? (
+                      <Text numberOfLines={1} adjustsFontSizeToFit
+                        style={styles.homeBrandTaglineIntro}>
+                        {taglineSegments.intro}{' '}
+                      </Text>
+                    ) : null}
+                    <View style={styles.homeBrandTaglineAccentWrap}>
+                      <Text numberOfLines={1} adjustsFontSizeToFit
+                        style={styles.homeBrandTaglineAccent}>
+                        {taglineSegments.accent}
+                      </Text>
+                      <View pointerEvents="none" style={styles.homeBrandTaglineSwoosh}/>
+                    </View>
+                  </View>
                 ) : null}
               </View>
             </View>
@@ -892,7 +925,27 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   homeCartCountText:{fontSize:9,fontWeight:'900',color:'#111113'},
   homeBrandLogo: {width:'85%',height:38,backgroundColor:'transparent'},
   homeBrandFallback: {color:'#FFFFFF',fontSize:19,fontWeight:'900',letterSpacing:0.3},
-  homeBrandTagline: {color:'#FFCD00',fontSize:12,fontWeight:'800',textAlign:'center',marginTop:2},
+  homeBrandTaglineArtwork:{
+    width:'100%',height:29,marginTop:1,backgroundColor:'transparent',
+  },
+  homeBrandTaglineRow:{
+    flexDirection:'row',alignItems:'center',justifyContent:'center',
+    maxWidth:'100%',marginTop:1,paddingBottom:5,
+  },
+  homeBrandTaglineIntro:{
+    color:'#FFFFFF',fontSize:12,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
+    flexShrink:1,
+  },
+  homeBrandTaglineAccentWrap:{
+    justifyContent:'center',alignItems:'center',maxWidth:'50%',
+  },
+  homeBrandTaglineAccent:{
+    color:'#FFCD00',fontSize:12,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
+  },
+  homeBrandTaglineSwoosh:{
+    position:'absolute',bottom:-3,width:'96%',height:2.3,borderRadius:3,
+    backgroundColor:'#FFCD00',transform:[{rotate:'-4deg'}],
+  },
   welcomeToast: { position:'absolute', right:16, top:7, zIndex:80, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#202225', borderColor:'#FFCD00', borderWidth:1, borderRadius:13, paddingHorizontal:13, paddingVertical:11, elevation:12 },
   welcomeText: { color:'#FFFFFF', fontWeight:'800', fontSize:12 },
   reelPreviewCard:{ width:128,height:170,borderRadius:13,overflow:'hidden',backgroundColor:'#23262A',borderWidth:1,borderColor:'#41454A' },
