@@ -57,6 +57,47 @@ function sloganPreviewSegments(value:string){
 }
 const DEFAULT_HEADER_TAGLINE="Toptan alışverişin akıllı yolu";
 
+// Trim transparent canvas margins without scaling or changing the visible artwork.
+// Existing artwork is also normalized when the header is saved again.
+async function trimSloganTransparency(source:string):Promise<string>{
+  try{
+    const image=new Image();
+    if(!source.startsWith("data:")&&!source.startsWith("blob:"))image.crossOrigin="anonymous";
+    await new Promise<void>((resolve,reject)=>{
+      image.onload=()=>resolve();
+      image.onerror=()=>reject(new Error("Slogan görseli okunamadı"));
+      image.src=source;
+    });
+    const width=image.naturalWidth,height=image.naturalHeight;
+    if(!width||!height||width*height>16_000_000)return source;
+    const canvas=document.createElement("canvas");
+    canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext("2d",{willReadFrequently:true});
+    if(!ctx)return source;
+    ctx.drawImage(image,0,0);
+    const pixels=ctx.getImageData(0,0,width,height).data;
+    let left=width,right=-1,top=height,bottom=-1;
+    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+      if(pixels[(y*width+x)*4+3]<24)continue;
+      if(x<left)left=x;if(x>right)right=x;
+      if(y<top)top=y;if(y>bottom)bottom=y;
+    }
+    if(right<left||bottom<top)return source;
+    const pad=Math.max(2,Math.ceil((bottom-top+1)*0.04));
+    left=Math.max(0,left-pad);right=Math.min(width-1,right+pad);
+    top=Math.max(0,top-pad);bottom=Math.min(height-1,bottom+pad);
+    const croppedWidth=right-left+1,croppedHeight=bottom-top+1;
+    if(croppedWidth===width&&croppedHeight===height)return source;
+    const cropped=document.createElement("canvas");
+    cropped.width=croppedWidth;cropped.height=croppedHeight;
+    const output=cropped.getContext("2d");
+    if(!output)return source;
+    output.drawImage(canvas,left,top,croppedWidth,croppedHeight,0,0,croppedWidth,croppedHeight);
+    const result=cropped.toDataURL("image/png");
+    return result.length<=10_000_000?result:source;
+  }catch{return source;}
+}
+
 type PaymentSettings = {
   iyzicoConfigured: boolean;
   bankTransfer: {
@@ -129,6 +170,16 @@ export default function Ayarlar() {
     ? (mobileHeader?.taglineImage||null):headerTaglineImageDraft;
   const previewHeaderTaglineMode=headerTaglineModeDraft ?? mobileHeader?.taglineMode ?? "text";
   const previewSloganParts=sloganPreviewSegments(previewHeaderTagline);
+  const [trimmedSlogan,setTrimmedSlogan]=useState<{source:string;image:string}|null>(null);
+  useEffect(()=>{
+    let active=true;
+    if(previewHeaderTaglineImage)void trimSloganTransparency(previewHeaderTaglineImage).then(image=>{
+      if(active)setTrimmedSlogan({source:previewHeaderTaglineImage,image});
+    });
+    return ()=>{active=false;};
+  },[previewHeaderTaglineImage]);
+  const displaySloganImage=trimmedSlogan?.source===previewHeaderTaglineImage
+    ? trimmedSlogan.image:previewHeaderTaglineImage;
 
   const { data: paymentSettings } = useQuery<PaymentSettings>({
     queryKey: ["/api/admin/payment-settings"],
@@ -269,6 +320,11 @@ export default function Ayarlar() {
       if(headerLogoDraft!==undefined)payload.logo=headerLogoDraft;
       if(headerBackgroundDraft!==undefined)payload.background=headerBackgroundDraft;
       if(headerTaglineImageDraft!==undefined)payload.taglineImage=headerTaglineImageDraft;
+      if(previewHeaderTaglineImage&&(previewHeaderTaglineMode==="image"||headerTaglineImageDraft!==undefined)){
+        const normalized=trimmedSlogan?.source===previewHeaderTaglineImage
+          ? trimmedSlogan.image:await trimSloganTransparency(previewHeaderTaglineImage);
+        if(normalized!==previewHeaderTaglineImage)payload.taglineImage=normalized;
+      }
       const response=await fetch("/api/admin/b2b-mobile-header",{
         method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
         body:JSON.stringify(payload),
@@ -645,8 +701,9 @@ export default function Ayarlar() {
                       {previewHeaderTagline.length}/110 karakter
                     </p>
                     <AssetUploader title="Slogan Görseli"
-                      description="Önerilen: şeffaf PNG, 1200×180 px. Görsel kesilmeden logonun altında gösterilir. Yükleyince görsel modu seçilir."
-                      value={previewHeaderTaglineImage}
+                      description="Önerilen: şeffaf PNG, 1200×180 px. Şeffaf boşluklar otomatik temizlenir; slogan büyütülerek logonun altında gösterilir."
+                      value={displaySloganImage}
+                      darkPreview
                       pngOnly
                       onChange={value=>{
                         setHeaderTaglineImageDraft(value);
@@ -681,7 +738,8 @@ export default function Ayarlar() {
                         <span>9:41</span><span>●●●  ▰</span>
                       </div>
                       <div className="relative z-10 flex min-h-[82px] items-center justify-center px-4 pb-2 pt-1">
-                        <div className="flex w-[64%] flex-col items-center justify-center">
+                        <div className="flex w-full flex-col items-center justify-center">
+                          <div className="flex w-[64%] flex-col items-center justify-center">
                           {previewHeaderLogo ? (
                             <img src={previewHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
                               className="h-[38px] w-[85%] object-contain"/>
@@ -690,12 +748,13 @@ export default function Ayarlar() {
                               ÇALIŞKAN B2B
                             </div>
                           )}
-                          {previewHeaderTaglineMode==="image" && previewHeaderTaglineImage ? (
-                            <img src={previewHeaderTaglineImage}
+                          </div>
+                          {previewHeaderTaglineMode==="image" && displaySloganImage ? (
+                            <img src={displaySloganImage}
                               alt="Çalışkan B2B slogan görseli önizlemesi"
-                              className="mt-0.5 h-[29px] w-full object-contain"/>
+                              className="mt-1 h-[54px] w-[86%] max-w-[340px] object-contain"/>
                           ) : previewHeaderTagline.trim() ? (
-                            <div className="mt-0.5 flex max-w-full items-center justify-center gap-0.5 pb-1.5 text-center text-xs font-black italic tracking-tight">
+                            <div className="mt-1 flex max-w-[90%] items-center justify-center gap-0.5 pb-1.5 text-center text-[15px] font-black italic tracking-tight">
                               {previewSloganParts.lead ? (
                                 <span className="text-white">{previewSloganParts.lead}</span>
                               ) : null}
@@ -1536,6 +1595,7 @@ function AssetUploader({
   cover = false,
   portrait = false,
   pngOnly = false,
+  darkPreview = false,
   requiredSize,
 }: {
   title: string;
@@ -1546,6 +1606,7 @@ function AssetUploader({
   cover?: boolean;
   portrait?: boolean;
   pngOnly?: boolean;
+  darkPreview?: boolean;
   requiredSize?: [number, number];
 }) {
   const { toast } = useToast();
@@ -1584,7 +1645,7 @@ function AssetUploader({
   return (
     <div className="rounded-2xl border bg-muted/20 p-4">
       <div className="flex items-start gap-4">
-        <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-background ${portrait ? "h-44 w-24" : square ? "h-20 w-20" : "h-20 w-28"}`}>
+        <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border ${darkPreview ? "bg-[#141416]" : "bg-background"} ${portrait ? "h-44 w-24" : square ? "h-20 w-20" : darkPreview ? "h-20 w-36" : "h-20 w-28"}`}>
           {value ? (
             <img src={value} alt={title} className={cover ? "h-full w-full object-cover" : "h-full w-full object-contain p-2"} />
           ) : (

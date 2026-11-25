@@ -125,3 +125,14 @@ test('slogan can be a securely stored image or white-and-gold bold italic text w
  assert.match(server,/taglineMode === "image"/);
  assert.match(server,/await client\.query\("COMMIT"\)/);
 });
+
+test('slogan artwork is enlarged consistently and transparent margins are trimmed on preview and save',()=>{
+  const home=read('mobile/app/(tabs)/index.tsx');
+  const admin=read('client/src/pages/ayarlar.tsx');
+  assert.ok(home.includes("width:'86%',maxWidth:340,height:54"));
+  assert.ok(admin.includes('h-[54px] w-[86%] max-w-[340px] object-contain'));
+  assert.ok(admin.includes('trimSloganTransparency(previewHeaderTaglineImage)'));
+  assert.ok(admin.includes('payload.taglineImage=normalized'));
+  assert.ok(admin.includes('cropped.toDataURL("image/png")'));
+  assert.ok(home.includes("homeBrandLogoRow: {width:'64%'"));
+});

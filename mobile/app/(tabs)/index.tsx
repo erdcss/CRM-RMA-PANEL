@@ -481,6 +481,7 @@ export default function HomeScreen() {
             ) : null}
             <View style={[styles.homeBrandHeaderContent,{paddingTop:insets.top+7}]}>
               <View style={styles.homeBrandMain}>
+                <View style={styles.homeBrandLogoRow}>
                 {branding.b2b_mobile_header_logo ? (
                   <Image
                     source={{uri:branding.b2b_mobile_header_logo}}
@@ -494,6 +495,7 @@ export default function HomeScreen() {
                     ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text>
                   </Text>
                 )}
+                </View>
                 {showTaglineArtwork ? (
                   <Image
                     source={{uri:branding.b2b_mobile_header_tagline_image!}}
@@ -907,7 +909,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     alignItems:'center',
     justifyContent:'center',
   },
-  homeBrandMain: {width:'64%',alignItems:'center',justifyContent:'center'},
+  homeBrandMain: {width:'100%',alignItems:'center',justifyContent:'center'},
+  homeBrandLogoRow: {width:'64%',alignItems:'center',justifyContent:'center'},
   homeHeaderTopActions: {
     position:'absolute',right:spacing.lg,
     flexDirection:'row',alignItems:'center',gap:4,
@@ -926,21 +929,21 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   homeBrandLogo: {width:'85%',height:38,backgroundColor:'transparent'},
   homeBrandFallback: {color:'#FFFFFF',fontSize:19,fontWeight:'900',letterSpacing:0.3},
   homeBrandTaglineArtwork:{
-    width:'100%',height:29,marginTop:1,backgroundColor:'transparent',
+    width:'86%',maxWidth:340,height:54,marginTop:4,backgroundColor:'transparent',
   },
   homeBrandTaglineRow:{
     flexDirection:'row',alignItems:'center',justifyContent:'center',
-    maxWidth:'100%',marginTop:1,paddingBottom:5,
+    maxWidth:'90%',marginTop:4,paddingBottom:5,
   },
   homeBrandTaglineIntro:{
-    color:'#FFFFFF',fontSize:12,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
+    color:'#FFFFFF',fontSize:15,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
     flexShrink:1,
   },
   homeBrandTaglineAccentWrap:{
     justifyContent:'center',alignItems:'center',maxWidth:'50%',
   },
   homeBrandTaglineAccent:{
-    color:'#FFCD00',fontSize:12,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
+    color:'#FFCD00',fontSize:15,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
   },
   homeBrandTaglineSwoosh:{
     position:'absolute',bottom:-3,width:'96%',height:2.3,borderRadius:3,
