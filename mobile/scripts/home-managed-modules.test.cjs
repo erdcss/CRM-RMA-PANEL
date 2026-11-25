@@ -48,14 +48,14 @@ test('quick actions match reference: left icon, unrestricted text and golden rig
   assert.ok(modules.includes("label:'"+label+"'"));
  for(const caption of ['Barkodla veya','listeyle toplu alım','Önceki siparişini','hızla yenile','Bakiye, limit ve','ekstre bilgilerin','Toptan avantajlı','fırsatları kaçırma'])
   assert.ok(modules.includes(caption),caption+' must remain visible');
- assert.ok(actions.includes('style={[styles.actionTitle,compactActions&&styles.actionTitleCompact]}'));
- assert.ok(actions.includes('style={[styles.actionSubtitle,compactActions&&styles.actionSubtitleCompact]}'));
+ assert.ok(actions.includes('style={[styles.actionTitle,{fontSize:actionTitleSize,lineHeight:Math.ceil(actionTitleSize*1.14)}]}'));
+ assert.ok(actions.includes('style={[styles.actionSubtitle,{fontSize:actionSubtitleSize,lineHeight:Math.ceil(actionSubtitleSize*1.18)}]}'));
  assert.ok(actions.includes('styles.actionArrow'), 'arrow must be separate from title width');
- assert.ok(actions.includes('name="chevron-forward" size={compactActions?13:20} color="#FFCD00"'));
+ assert.ok(actions.includes('name="chevron-forward" size={actionChevronSize} color="#FFCD00"'));
  assert.ok(!actions.includes('styles.actionTitleRow'), 'no wasted width for extra wrapper');
  assert.ok(modules.includes("fontWeight:'700',color:'#FFFFFF'"));
- assert.ok(modules.includes("fontWeight:'400',color:'#E0E0E0'"));
- assert.ok(modules.includes("actionArrow:{width:16,height:24"));
+ assert.ok(modules.includes("fontWeight:'400',color:'#D1D1D1'"));
+ assert.ok(modules.includes("actionArrow:{flexShrink:0"));
  assert.ok(modules.includes("actionTitle:{width:'100%'"));
  assert.ok(actions.indexOf('styles.actionIconSlot')<actions.indexOf('styles.actionCopy'));
  assert.ok(actions.indexOf('styles.actionTitle')<actions.indexOf('styles.actionArrow'));
@@ -78,10 +78,13 @@ test('quick actions stay in one row on every viewport with compact responsive in
  assert.ok(modules.includes('Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns)'));
  assert.ok(actions.includes('width:actionTileWidth'));
  assert.ok(modules.includes('const compactActions=actionTileWidth<148'));
- assert.ok(modules.includes("actionIconSlotCompact:{width:20,height:30}"));
+ assert.ok(modules.includes('Math.round(actionTileWidth*0.31)'));
+ assert.ok(modules.includes('Math.max(44,Math.round(actionTileWidth/2.3))'));
+ assert.ok(actions.includes('minHeight:actionCardHeight'));
+ assert.ok(actions.includes('width:actionIconSize,height:actionIconSize'));
  assert.ok(actions.includes('setActionViewport(event.nativeEvent.layout.width)'));
  assert.ok(modules.includes("actionCard:{flexDirection:'row',alignItems:'center'"));
- assert.ok(modules.includes('actionIconSlot:{width:34,height:40'));
+ assert.ok(modules.includes('actionIconSlot:{alignItems:'center''));
  assert.ok(modules.includes('actionCopy:{flex:1,minWidth:0'));
  assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
 });
@@ -171,8 +174,8 @@ test('quick action artwork uses admin media and larger contained icon',()=>{
  assert.ok(icon.includes('homepageMediaUrl(imageId)'));
  assert.ok(icon.includes('contentFit="contain"'));
  assert.ok(icon.includes('priority="high"'));
- assert.ok(icon.includes('size={compact?20:30}'));
- assert.ok(modules.includes('actionIcon:{width:34,height:40}'));
+ assert.ok(icon.includes('size={size}'));
+ assert.ok(icon.includes('width:size,height:size'));
  assert.ok(modules.includes('imageId={section.actionImageIds?.[action.id]}'));
  assert.ok(api.includes('ADMIN_CONTENT_URL}/api/public/homepage/media/'));
 });

@@ -57,12 +57,12 @@ const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:str
   {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye, limit ve ekstre bilgilerin',icon:'cash-outline',route:'/ledger'},
   {id:'campaigns',label:'Kampanyalar',subtitle:'Toptan avantajlı fırsatları kaçırma',icon:'pricetag-outline',route:'/campaigns'},
 ];
-function QuickActionIcon({imageId,icon,compact}:{imageId?:string;icon:keyof typeof Ionicons.glyphMap;compact:boolean}){
+function QuickActionIcon({imageId,icon,size}:{imageId?:string;icon:keyof typeof Ionicons.glyphMap;size:number}){
   const [failed,setFailed]=useState(false);
   const uri=homepageMediaUrl(imageId);
   return uri&&!failed
-    ? <Image source={{uri}} style={[styles.actionIcon,compact&&styles.actionIconCompact]} contentFit="contain" cachePolicy="memory-disk" priority="high" recyclingKey={imageId} onError={()=>setFailed(true)}/>
-    : <Ionicons name={icon} size={compact?20:30} color="#FFCD00"/>;
+    ? <Image source={{uri}} style={[styles.actionIcon,{width:size,height:size}]} contentFit="contain" cachePolicy="memory-disk" priority="high" recyclingKey={imageId} onError={()=>setFailed(true)}/>
+    : <Ionicons name={icon} size={size} color="#FFCD00"/>;
 }
 function ReorderBanner({imageId,title,onPress}:{imageId?:string;title:string;onPress:()=>void}){
   const [failed,setFailed]=useState(false);
@@ -199,7 +199,14 @@ export function ManagedHomeSections({
   // internals on phone widths and let the copy wrap without truncation.
   const actionColumns=4;
   const actionTileWidth=Math.max(0,Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns));
+  // Match the reference's roughly 2.3:1 horizontal silhouette. Keep the
+  // 3D artwork prominent (~31% of the tile width) even on narrow phones.
   const compactActions=actionTileWidth<148;
+  const actionIconSize=Math.max(16,Math.min(64,Math.round(actionTileWidth*0.31)));
+  const actionCardHeight=Math.max(44,Math.round(actionTileWidth/2.3));
+  const actionTitleSize=Math.max(7.5,Math.min(15,actionTileWidth*0.091));
+  const actionSubtitleSize=Math.max(6.5,Math.min(12,actionTileWidth*0.075));
+  const actionChevronSize=Math.max(10,Math.min(24,Math.round(actionTileWidth*0.125)));
   // All product lookups use the currently visible catalog; a recipient-only
   // or unavailable product cannot leak through a curated admin ID.
   const own=products.filter(p=>!p.marketplace);
@@ -218,17 +225,17 @@ export function ManagedHomeSections({
               {shortActionItems.map(action=><Pressable key={action.id}
                 accessibilityRole="button" accessibilityLabel={action.label}
                 accessibilityHint={action.subtitle}
-                style={({pressed})=>[styles.actionCard,compactActions&&styles.actionCardCompact,{width:actionTileWidth},pressed&&{opacity:0.8}]}
+                style={({pressed})=>[styles.actionCard,compactActions&&styles.actionCardCompact,{width:actionTileWidth,minHeight:actionCardHeight},pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
-                <View style={[styles.actionIconSlot,compactActions&&styles.actionIconSlotCompact]}>
-                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon} compact={compactActions}/>
+                <View style={[styles.actionIconSlot,{width:actionIconSize,height:actionIconSize}]}>
+                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon} size={actionIconSize}/>
                 </View>
                 <View style={styles.actionCopy}>
-                  <Text style={[styles.actionTitle,compactActions&&styles.actionTitleCompact]}>{action.label}</Text>
-                  <Text style={[styles.actionSubtitle,compactActions&&styles.actionSubtitleCompact]}>{action.subtitle}</Text>
+                  <Text style={[styles.actionTitle,{fontSize:actionTitleSize,lineHeight:Math.ceil(actionTitleSize*1.14)}]}>{action.label}</Text>
+                  <Text style={[styles.actionSubtitle,{fontSize:actionSubtitleSize,lineHeight:Math.ceil(actionSubtitleSize*1.18)}]}>{action.subtitle}</Text>
                 </View>
-                <View pointerEvents="none" style={[styles.actionArrow,compactActions&&styles.actionArrowCompact]}>
-                  <Ionicons name="chevron-forward" size={compactActions?13:20} color="#FFCD00"/>
+                <View pointerEvents="none" style={[styles.actionArrow,{width:Math.ceil(actionChevronSize*0.7),height:actionChevronSize}]}>
+                  <Ionicons name="chevron-forward" size={actionChevronSize} color="#FFCD00"/>
                 </View>
               </Pressable>)}
           </View>;
@@ -285,21 +292,16 @@ const styles=StyleSheet.create({
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'400'},
   productScroll:{gap:spacing.sm,paddingRight:14},
   actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:4,paddingBottom:3},
-  actionCard:{flexDirection:'row',alignItems:'center',flexShrink:0,minWidth:0,minHeight:72,borderRadius:10,borderWidth:1,borderColor:'#C39B27',
-    backgroundColor:'#171717',paddingHorizontal:6,paddingVertical:8,gap:4,
+  actionCard:{flexDirection:'row',alignItems:'center',flexShrink:0,minWidth:0,borderRadius:12,borderWidth:1,borderColor:'#DCA51B',
+    backgroundColor:'#161616',paddingHorizontal:5,paddingVertical:5,gap:3,
     shadowColor:'#FFCD00',shadowOpacity:0.10,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
-  actionIconSlot:{width:34,height:40,alignItems:'center',justifyContent:'center',flexShrink:0},
-  actionIcon:{width:34,height:40},
-  actionCardCompact:{minHeight:84,paddingHorizontal:3,paddingVertical:5,gap:2,borderRadius:8},
-  actionIconSlotCompact:{width:20,height:30},
-  actionIconCompact:{width:20,height:30},
-  actionCopy:{flex:1,minWidth:0,justifyContent:'center',gap:3},
-  actionTitle:{width:'100%',minWidth:0,fontSize:11,lineHeight:14,fontWeight:'700',color:'#FFFFFF',includeFontPadding:false},
-  actionSubtitle:{width:'100%',fontSize:9,lineHeight:12,fontWeight:'400',color:'#E0E0E0',includeFontPadding:false,textAlign:'left'},
-  actionArrow:{width:16,height:24,flexShrink:0,alignItems:'center',justifyContent:'center'},
-  actionArrowCompact:{width:9,height:16},
-  actionTitleCompact:{fontSize:9.5,lineHeight:12},
-  actionSubtitleCompact:{fontSize:8,lineHeight:10},
+  actionIconSlot:{alignItems:'center',justifyContent:'center',flexShrink:0},
+  actionIcon:{alignSelf:'center'},
+  actionCardCompact:{paddingHorizontal:2,paddingVertical:3,gap:1,borderRadius:7},
+  actionCopy:{flex:1,minWidth:0,justifyContent:'center',gap:2},
+  actionTitle:{width:'100%',minWidth:0,fontWeight:'700',color:'#FFFFFF',includeFontPadding:false},
+  actionSubtitle:{width:'100%',fontWeight:'400',color:'#D1D1D1',includeFontPadding:false,textAlign:'left'},
+  actionArrow:{flexShrink:0,alignItems:'center',justifyContent:'center'},
   reorder:{marginTop:10,width:'100%',aspectRatio:12,paddingHorizontal:7,flexDirection:'row',alignItems:'center',
      backgroundColor:'#1D1C19',borderColor:'#DEAF22',borderWidth:1,borderRadius:7,gap:6,overflow:'hidden'},
    reorderImageFrame:{paddingHorizontal:0,borderWidth:0,backgroundColor:'transparent'},
