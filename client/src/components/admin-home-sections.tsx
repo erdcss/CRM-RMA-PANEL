@@ -8,7 +8,7 @@ export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "video
 export type QuickActionId = 'scan'|'orders'|'ledger'|'campaigns';
 export type HomeSection = {
   id: HomeSectionId; title: string; enabled: boolean;
-  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<QuickActionId,string>>;
+  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<QuickActionId,string>>; reorderBannerImageId?: string;
 };
 export type HomeHeader = { enabled: boolean; tagline: string };
 const quickActionIcons = [{id:'scan',label:'Hızlı Sipariş',Icon:Zap},{id:'orders',label:'Tekrar Sipariş',Icon:Repeat2},{id:'ledger',label:'Cari Hesap',Icon:Coins},{id:'campaigns',label:'Kampanyalar',Icon:Tag}] as const;
@@ -26,7 +26,7 @@ export const DEFAULT_HOME_SECTIONS: HomeSection[] = definitions.map(d=>({
 }));
 
 export function AdminHomeSections({
-  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon,
+  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon, uploadReorderBanner,
   refreshAnimationImageId,uploadRefreshGif,removeRefreshGif,uploading
 }:{
   sections: HomeSection[];
@@ -37,6 +37,7 @@ export function AdminHomeSections({
   uploadBrandLogo: (file: File, onReady: (imageId:string)=>void)=>void;
   uploadActionIcon: (slot:QuickActionId,file:File)=>void;
   removeActionIcon: (slot:QuickActionId)=>void;
+  uploadReorderBanner: (file:File)=>void;
   refreshAnimationImageId: string;
   uploadRefreshGif: (file:File)=>void;
   removeRefreshGif: ()=>void;
@@ -131,6 +132,22 @@ export function AdminHomeSections({
               {section.actionImageIds?.[id]&&<Button type="button" variant="ghost" size="sm" className="w-full" disabled={uploading} onClick={()=>removeActionIcon(id)}>Kaldır</Button>}
             </div>)}
           </div>
+        </div>}
+        {section.id==="reorder"&&<div className="space-y-2 rounded-lg border p-3">
+          <p className="text-xs font-semibold">İnce yatay banner görseli</p>
+          <div className="w-full overflow-hidden rounded-md border bg-[#1B1B1D]" style={{aspectRatio:"12 / 1"}}>
+            {section.reorderBannerImageId ? <img src={`/api/public/homepage/media/${section.reorderBannerImageId}`} alt="Hızlı tekrar sipariş banner önizlemesi" className="h-full w-full object-contain"/> : <div className="flex h-full items-center justify-center px-2 text-xs text-[#FFCD00]">Varsayılan hızlı tekrar sipariş bannerı</div>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="cursor-pointer rounded-md border px-3 py-2 text-xs font-medium">
+              {uploading?"Yükleniyor…":section.reorderBannerImageId?"Görseli değiştir":"Banner görseli yükle"}
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={uploading} onChange={event=>{
+                const file=event.target.files?.[0]; if(file)uploadReorderBanner(file); event.target.value="";
+              }}/>
+            </label>
+            {section.reorderBannerImageId&&<Button type="button" variant="ghost" size="sm" disabled={uploading} onClick={()=>update(section.id,{reorderBannerImageId:undefined})}>Görseli kaldır</Button>}
+          </div>
+          <p className="text-xs text-muted-foreground">Önerilen ölçü: 1440 × 120 px (12:1), en fazla 3 MB. Bannerın tamamı Siparişlerim sayfasına yönlendirir. Yayımlamak için değişiklikleri kaydedin.</p>
         </div>}
         {section.id==="special"&&<div className="space-y-2">
           <label className="block text-xs font-bold">Vitrin ürünleri (en fazla 24)
