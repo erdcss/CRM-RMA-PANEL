@@ -242,6 +242,7 @@ export type B2BHomepage = {
   homeSections?: HomeSection[];
   bestSellerProductIds?: string[];
   roundBottomBanner?:RoundBottomBanner;
+  refreshAnimationImageId?:string;
   categories: string[];
   banners?: HomeBanner[];
   categoryCards?: HomeCategoryCard[];
