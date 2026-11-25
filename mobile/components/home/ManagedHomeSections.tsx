@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { absoluteMediaUrl, homepageMediaUrl, type B2BProduct, type B2BReel, type B2BTimedCampaign, type HomeSection } from '@/lib/api';
-import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
+import { FlashHomeSection } from '@/components/home/FlashHomeSection';
 
 export const DEFAULT_MOBILE_HOME_SECTIONS: HomeSection[] = [
   {id:'actions',title:'Hızlı İşlemler',enabled:true,productIds:[],brands:[]},
@@ -196,10 +196,12 @@ export function ManagedHomeSections({
   // or unavailable product cannot leak through a curated admin ID.
   const own=products.filter(p=>!p.marketplace);
   const productById=new Map(own.map(p=>[String(p.id),p]));
-  const liveCampaigns=campaigns.filter(c=>Date.parse(c.ends_at)>now);
   const brandOptions=[...new Set(own.map(p=>String(p.brand||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'tr-TR'));
+  const orderedSections=sections.filter(section=>section.id!=='flash'&&section.id!=='special');
+  const actionIndex=orderedSections.findIndex(section=>section.id==='actions');
+  orderedSections.splice(actionIndex+1,0,...(['flash','special'] as const).flatMap(id=>sections.filter(section=>section.id===id)));
   return <>
-    {sections.filter(section=>section.enabled).map(section=>{
+    {orderedSections.filter(section=>section.enabled).map(section=>{
       const title=section.title||section.id;
       switch(section.id){
         case 'actions':
@@ -221,24 +223,10 @@ export function ManagedHomeSections({
                 </View>
               </Pressable>)}
           </View>;
-        case 'flash': {
-          const rows=liveCampaigns.map(campaign=>{
-            const ids=new Set((campaign.product_ids||[]).map(String));
-            const offers=own.filter(p=>ids.has(String(p.id))&&p.timed_campaign_id===campaign.id);
-            return {campaign,offers};
-          }).filter(row=>row.offers.length);
-          if(!rows.length)return null;
-          return <View key={section.id} style={[styles.section,styles.flashShell]}>
-            <SectionHead icon="flash" title={title} action="Tümünü Gör" onAction={()=>onRoute('/campaigns')}/>
-            {rows.slice(0,2).map(({campaign,offers})=><View key={campaign.id} style={styles.flashCampaign}>
-              <Text style={styles.campaignLabel}>{campaign.title}</Text>
-              <TimedCampaignNotice endAt={campaign.ends_at} title="Fırsatın bitmesine"
-                stock={offers.reduce((sum,p)=>sum+Math.floor(Math.max(0,Number(p.stock)||0)/Math.max(1,Number(p.units_per_box)||1)),0)}
-                unitsPerBox={1} onExpire={onRefresh}/>
-              <ItemStrip products={offers.slice(0,8)} renderProduct={renderProduct}/>
-            </View>)}
-          </View>;
-        }
+        case 'flash':
+          return <FlashHomeSection key={section.id} title={title} imageId={section.flashBannerImageId}
+            campaigns={campaigns} products={own} signedIn={signedIn}
+            onRefresh={onRefresh} onRoute={onRoute}/>;
         case 'special': {
           const selected=section.productIds.length
             ? section.productIds.map(id=>productById.get(id)).filter((p):p is B2BProduct=>Boolean(p))
@@ -298,9 +286,6 @@ const styles=StyleSheet.create({
   actionTitle:{flex:1,minWidth:0,fontSize:9.5,lineHeight:13,fontWeight:'400',color:'#FFFFFF',includeFontPadding:false},
   actionSubtitle:{width:'100%',fontSize:8,lineHeight:10,fontWeight:'300',color:'#E0E0E0',includeFontPadding:false,textAlign:'left'},
   actionArrow:{position:'absolute',right:2,top:26,width:12,height:12,alignItems:'center',justifyContent:'center'},
-  flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
-  flashCampaign:{gap:9},
-  campaignLabel:{color:'#FFD447',fontWeight:'500',fontSize:13},
   reorder:{marginTop:10,width:'100%',aspectRatio:12,paddingHorizontal:7,flexDirection:'row',alignItems:'center',
      backgroundColor:'#1D1C19',borderColor:'#DEAF22',borderWidth:1,borderRadius:7,gap:6,overflow:'hidden'},
    reorderImageFrame:{paddingHorizontal:0,borderWidth:0,backgroundColor:'transparent'},

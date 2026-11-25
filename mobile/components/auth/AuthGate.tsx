@@ -66,6 +66,7 @@ export function RootStack() {
       <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="privacy-preferences" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="campaigns" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="flash-products" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="account/[section]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="forgot-password" options={{ animation: 'slide_from_right' }} />

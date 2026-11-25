@@ -20,7 +20,7 @@ test('Admin managed home modules render actual content and preserve previously w
  assert.ok(screen.includes('branding.b2b_mobile_header_logo'), 'dedicated uploaded header logo must be used');
  assert.ok(!screen.includes('branding.b2b_web_logo || branding.b2b_mobile_logo'), 'square app icon must not be used for header');
  assert.ok(modules.includes('section.brandImageIds')&&modules.includes('homepageMediaUrl(imageId)'), 'brand logo source missing');
- assert.ok(modules.includes('campaigns.filter'), 'real active timed campaigns must be used');
+ assert.ok(modules.includes('<FlashHomeSection')&&read('lib/flash-products.ts').includes('campaigns.filter'), 'real active timed campaigns must be used');
  assert.ok(modules.includes('bestSellerProductIds.map'), 'no invented bestsellers');
  assert.ok(modules.includes('products.filter(p=>!p.marketplace)'), 'do not mix supplier marketplace IDs');
  assert.ok(screen.includes('NewArrival')||screen.includes('newArrival'), 'previous new arrivals remain');
@@ -125,4 +125,17 @@ test('home brands preserve admin pins even without matching stock, deduplicate a
  assert.match(modules,/brandImage:\{width:'100%',height:'100%'\}/);
  assert.match(modules,/contentFit="contain"/);
  assert.doesNotMatch(brands,/available\.has/);
+});
+
+
+test('flash section uses a compact header, live campaign data and admin artwork',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const flash=read('components/home/FlashHomeSection.tsx');
+ assert.match(modules,/imageId=\{section.flashBannerImageId\}/);
+ assert.match(modules,/\['flash','special'\]/);
+ assert.match(flash,/activeFlashGroups\(campaigns,products,now\)/);
+ assert.match(flash,/homepageMediaUrl\(imageId\)/);
+ assert.match(flash,/onRoute\('\/flash-products'\)/);
+ assert.match(flash,/setInterval\(tick,1000\)/);
+ assert.match(flash,/signedIn&&price!=null/);
 });

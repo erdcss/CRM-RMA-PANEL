@@ -148,6 +148,7 @@ export type HomeSection = {
   brandImageIds: Record<string,string>;
   actionImageIds: Partial<Record<'scan'|'orders'|'ledger'|'campaigns',string>>;
   reorderBannerImageId?: string;
+  flashBannerImageId?: string;
 };
 /** Store only valid public/catalog IDs and display labels. Unknown modules are discarded. */
 export function normalizeHomeSections(raw: unknown): HomeSection[] {
@@ -192,12 +193,19 @@ export function normalizeHomeSections(raw: unknown): HomeSection[] {
       brands,
       brandImageIds,
       actionImageIds,
+      ...(base.id === 'flash' && typeof entry.flashBannerImageId === 'string' && validId.test(entry.flashBannerImageId) ? {flashBannerImageId: entry.flashBannerImageId} : {}),
       ...(base.id === 'reorder' && typeof entry.reorderBannerImageId === 'string' && validId.test(entry.reorderBannerImageId) ? {reorderBannerImageId: entry.reorderBannerImageId} : {}),
     });
   }
   for (const base of HOME_SECTION_DEFAULTS) if (!result.some(item => item.id === base.id))
     result.push({ id: base.id, title: base.title, enabled: base.enabled, productIds: [], brands: [], brandImageIds: {}, actionImageIds: {} });
-  return result;
+  // Keep these three adjacent while preserving the order of the other modules.
+  const actions=result.find(item=>item.id==='actions')!;
+  const flash=result.find(item=>item.id==='flash')!;
+  const special=result.find(item=>item.id==='special')!;
+  const ordered=result.filter(item=>item.id!=='flash'&&item.id!=='special');
+  ordered.splice(ordered.indexOf(actions)+1,0,flash,special);
+  return ordered;
 }
 
 export type MobileHomeLayout = {

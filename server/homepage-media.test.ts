@@ -141,3 +141,18 @@ test('reorder banner accepts only valid media IDs for reorder and survives layou
  assert.equal(layout.homeSections.find(s=>s.id==='actions')?.reorderBannerImageId,undefined);
  assert.equal(normalizeHomeLayout({homeSections:[{id:'reorder',reorderBannerImageId:'invalid'}]}).homeSections.find(s=>s.id==='reorder')?.reorderBannerImageId,undefined);
 });
+
+
+test('flash artwork persists only for the flash module and the three home sections stay adjacent',()=>{
+ const imageId='b'.repeat(32);
+ const layout=normalizeHomeLayout({homeSections:[
+   {id:'special'},{id:'brands'},{id:'actions',flashBannerImageId:imageId},{id:'flash',flashBannerImageId:imageId}
+ ]});
+ const sections=layout.homeSections;
+ const index=sections.findIndex(s=>s.id==='actions');
+ assert.deepEqual(sections.slice(index,index+3).map(s=>s.id),['actions','flash','special']);
+ assert.equal(sections.find(s=>s.id==='flash')?.flashBannerImageId,imageId);
+ assert.equal(normalizeHomeLayout(layout).homeSections.find(s=>s.id==='flash')?.flashBannerImageId,imageId);
+ assert.equal(sections.find(s=>s.id==='actions')?.flashBannerImageId,undefined);
+ assert.equal(normalizeHomeLayout({homeSections:[{id:'flash',flashBannerImageId:'invalid'}]}).homeSections.find(s=>s.id==='flash')?.flashBannerImageId,undefined);
+});

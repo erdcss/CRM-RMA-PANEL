@@ -8,13 +8,13 @@ export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "video
 export type QuickActionId = 'scan'|'orders'|'ledger'|'campaigns';
 export type HomeSection = {
   id: HomeSectionId; title: string; enabled: boolean;
-  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<QuickActionId,string>>; reorderBannerImageId?: string;
+  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<QuickActionId,string>>; reorderBannerImageId?: string; flashBannerImageId?: string;
 };
 export type HomeHeader = { enabled: boolean; tagline: string };
 const quickActionIcons = [{id:'scan',label:'Hızlı Sipariş',Icon:Zap},{id:'orders',label:'Tekrar Sipariş',Icon:Repeat2},{id:'ledger',label:'Cari Hesap',Icon:Coins},{id:'campaigns',label:'Kampanyalar',Icon:Tag}] as const;
 const definitions: Array<{id: HomeSectionId; title: string; description: string}> = [
   {id:"actions",title:"Hızlı İşlemler",description:"Barkodla hızlı sipariş, tekrar sipariş, Defterim ve kampanyalara erişim"},
-  {id:"flash",title:"Flash Ürünler",description:"Mevcut aktif süreli kampanyalar ve gerçek kalan süre; kampanya yönetiminden düzenlenir"},
+  {id:"flash",title:"Flash Ürünler",description:"Dört hızlı işlemden sonra, Sana Özel Fırsatlar'dan önce gösterilir. Ürünler ve sayaç Kampanyalar → Süreli Kampanyalar bölümünden otomatik gelir."},
   {id:"special",title:"Sana Özel Fırsatlar",description:"Özel vitrin ürünlerini seçin; seçim yoksa yalnızca gerçek indirimli ve stoklu ürünler kullanılır"},
   {id:"reorder",title:"Hızlı Tekrar Sipariş",description:"Giriş yapmış müşterileri önceki siparişlerine yönlendirir"},
   {id:"videos",title:"Video ile Keşfet",description:"Mevcut onaylı Reels videolarını gösterir; içerikleri Reels yönetiminden düzenleyin"},
@@ -26,7 +26,7 @@ export const DEFAULT_HOME_SECTIONS: HomeSection[] = definitions.map(d=>({
 }));
 
 export function AdminHomeSections({
-  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon, uploadReorderBanner,
+  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon, uploadReorderBanner, uploadFlashBanner,
   refreshAnimationImageId,uploadRefreshGif,removeRefreshGif,uploading
 }:{
   sections: HomeSection[];
@@ -38,6 +38,7 @@ export function AdminHomeSections({
   uploadActionIcon: (slot:QuickActionId,file:File)=>void;
   removeActionIcon: (slot:QuickActionId)=>void;
   uploadReorderBanner: (file:File)=>void;
+  uploadFlashBanner: (file:File)=>void;
   refreshAnimationImageId: string;
   uploadRefreshGif: (file:File)=>void;
   removeRefreshGif: ()=>void;
@@ -132,6 +133,23 @@ export function AdminHomeSections({
               {section.actionImageIds?.[id]&&<Button type="button" variant="ghost" size="sm" className="w-full" disabled={uploading} onClick={()=>removeActionIcon(id)}>Kaldır</Button>}
             </div>)}
           </div>
+        </div>}
+        {section.id==="flash"&&<div className="space-y-2 rounded-lg border p-3">
+          <p className="text-xs font-semibold">Flash Ürünler başlık görseli</p>
+          <div className="flex h-16 w-64 max-w-full items-center justify-center overflow-hidden rounded-md bg-[#171717]">
+            {section.flashBannerImageId?<img src={`/api/public/homepage/media/${section.flashBannerImageId}`} alt="Flash Ürünler başlık görseli" className="h-full w-full object-contain"/>:
+              <span className="text-sm text-[#FFCD00]">Flash Ürünler · Sınırlı stok</span>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <label className="cursor-pointer rounded-md border px-3 py-2 text-xs font-medium">
+              {uploading?"Yükleniyor…":section.flashBannerImageId?"Görseli değiştir":"Görsel yükle"}
+              <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" disabled={uploading} onChange={event=>{
+                const file=event.target.files?.[0];if(file)uploadFlashBanner(file);event.target.value="";
+              }}/>
+            </label>
+            {section.flashBannerImageId&&<Button type="button" variant="ghost" size="sm" disabled={uploading} onClick={()=>update(section.id,{flashBannerImageId:undefined})}>Görseli kaldır</Button>}
+          </div>
+          <p className="text-xs text-muted-foreground">Önerilen: 480 × 120 px (4:1), en fazla 3 MB. Görsel yalnızca başlık alanında görünür; sayaç, ürünler ve fiyatlar canlı kampanya verileridir. Yayımlamak için değişiklikleri kaydedin.</p>
         </div>}
         {section.id==="reorder"&&<div className="space-y-2 rounded-lg border p-3">
           <p className="text-xs font-semibold">İnce yatay banner görseli</p>
