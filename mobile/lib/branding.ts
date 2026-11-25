@@ -7,6 +7,8 @@ export type MobileBranding = {
   b2b_mobile_header_logo?: string | null;
   b2b_mobile_header_background?: string | null;
   b2b_mobile_header_tagline?: string | null;
+  b2b_mobile_header_tagline_image?: string | null;
+  b2b_mobile_header_tagline_mode?: 'text' | 'image';
   b2b_mobile_splash?: string | null;
   business_mobile_logo?: string | null;
   business_mobile_splash?: string | null;
@@ -19,6 +21,8 @@ type MobileBrandingResponse = {
   headerLogo?: string | null;
   headerBackground?: string | null;
   headerTagline?: string | null;
+  headerTaglineImage?: string | null;
+  headerTaglineMode?: 'text' | 'image';
   splash?: string | null;
   updatedAt?: number | null;
 };
@@ -74,6 +78,8 @@ async function fetchB2BBranding(): Promise<MobileBranding> {
       b2b_mobile_header_background: normalizeBrandAsset(branding.headerBackground),
       b2b_mobile_header_tagline: typeof branding.headerTagline === 'string'
         ? branding.headerTagline : null,
+      b2b_mobile_header_tagline_image: normalizeBrandAsset(branding.headerTaglineImage),
+      b2b_mobile_header_tagline_mode: branding.headerTaglineMode === 'image' ? 'image' : 'text',
       b2b_mobile_splash: normalizeBrandAsset(branding.splash),
       loaded: true,
     };
