@@ -61,8 +61,8 @@ function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionic
   const [failed,setFailed]=useState(false);
   const uri=homepageMediaUrl(imageId);
   return uri&&!failed
-    ? <Image source={{uri}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
-    : <Ionicons name={icon} size={17} color="#FFCD00"/>;
+    ? <Image source={{uri}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk" priority="high" recyclingKey={imageId} onError={()=>setFailed(true)}/>
+    : <Ionicons name={icon} size={20} color="#FFCD00"/>;
 }
 function ReorderBanner({imageId,title,onPress}:{imageId?:string;title:string;onPress:()=>void}){
   const [failed,setFailed]=useState(false);
@@ -280,9 +280,9 @@ const styles=StyleSheet.create({
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
     paddingHorizontal:4,paddingVertical:5,justifyContent:'space-between',
     shadowColor:'#FFCD00',shadowOpacity:0.10,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
-  actionTop:{flexDirection:'row',alignItems:'center',gap:2,minWidth:0,minHeight:17},
-  actionIconSlot:{width:15,height:17,alignItems:'center',justifyContent:'center',flexShrink:0},
-  actionIcon:{width:15,height:15},
+  actionTop:{flexDirection:'row',alignItems:'center',gap:2,minWidth:0,minHeight:20},
+  actionIconSlot:{width:20,height:20,alignItems:'center',justifyContent:'center',flexShrink:0},
+  actionIcon:{width:20,height:20},
   actionTitle:{flex:1,minWidth:0,fontSize:9.5,lineHeight:13,fontWeight:'400',color:'#FFFFFF',includeFontPadding:false},
   actionSubtitle:{width:'100%',fontSize:8,lineHeight:10,fontWeight:'300',color:'#E0E0E0',includeFontPadding:false,textAlign:'left'},
   actionArrow:{position:'absolute',right:2,top:26,width:12,height:12,alignItems:'center',justifyContent:'center'},
