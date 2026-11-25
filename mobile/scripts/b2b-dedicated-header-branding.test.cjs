@@ -93,10 +93,10 @@ test('home status bar and customer actions sit over the same backdrop as the bra
  assert.match(home,/accessibilityLabel="Bildirimleri aç"/);
  assert.match(home,/router\.push\('\/\(tabs\)\/orders' as never\)/);
  assert.match(home,/homeBrowseBlock,\{width:screenWidth\}/);
- assert.match(home,/minHeight:40,borderRadius:12/);
+ assert.match(home,/minHeight:32,borderRadius:8/);
  assert.match(admin,/header arka plan önizlemesi/i);
  assert.match(admin,/Tüm Kategoriler/);
- assert.match(admin,/ScanLine/);
+ assert.match(admin,/ScanBarcode/);
 });
 
 test('slogan can be a securely stored image or white-and-gold bold italic text without losing either',()=>{
@@ -135,4 +135,19 @@ test('slogan artwork is enlarged consistently and transparent margins are trimme
   assert.ok(admin.includes('payload.taglineImage=normalized'));
   assert.ok(admin.includes('cropped.toDataURL("image/png")'));
   assert.ok(home.includes("homeBrandLogoRow: {width:'64%'"));
+});
+
+test('compact search and all seven category slots stay on one row',()=>{
+  const home=read('mobile/app/(tabs)/index.tsx');
+  const admin=read('client/src/pages/ayarlar.tsx');
+  assert.ok(home.includes('categories.slice(0, 6)'));
+  assert.ok(home.includes('quickCategories.map'));
+  assert.ok(home.includes("flexWrap:'nowrap'"));
+  assert.ok(home.includes("flex:1,minWidth:0,height:57"));
+  assert.ok(home.includes('name="barcode-outline"'));
+  assert.ok(home.includes('onPress={()=>setScannerOpen(true)}'));
+  assert.ok(home.includes("fontSize:12,fontWeight:'300'"));
+  assert.ok(admin.includes('grid-cols-7'));
+  assert.ok(admin.includes('font-light'));
+  assert.ok(!admin.includes('flex min-w-0 flex-1 gap-1.5 overflow-x-auto'));
 });

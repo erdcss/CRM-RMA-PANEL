@@ -102,6 +102,8 @@ export default function HomeScreen() {
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
+  // Keep six shortcuts and the full category menu visible without horizontal scrolling.
+  const quickCategories = categories.slice(0, 6);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner|undefined>();
   const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
@@ -553,12 +555,12 @@ export default function HomeScreen() {
           !homeHeader.enabled && {paddingTop:insets.top+spacing.sm}]}>
           <View style={styles.headerRow}>
             <View style={[styles.searchBox,styles.headerSearchBox]}>
-              <Ionicons name="search-outline" size={17} color="#404650" />
+              <Ionicons name="search-outline" size={16} color="#242426" />
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Ürün, marka veya barkod ara"
-                placeholderTextColor="#707782"
+                placeholderTextColor="#45454A"
                 style={styles.searchInput}
                 returnKeyType="search"
                 onSubmitEditing={()=>{void trackTikTokProductSearch(query);}}
@@ -569,18 +571,18 @@ export default function HomeScreen() {
                 </Pressable>
               ) : null}
               <Pressable onPress={()=>setScannerOpen(true)} style={styles.scanButton}
-                accessibilityRole="button" accessibilityLabel="Barkod oku">
-                <Ionicons name="scan-outline" size={21} color="#111827" />
+                accessibilityRole="button" accessibilityLabel="Barkod oku" hitSlop={{top:6,bottom:6,left:4,right:4}}>
+                <View style={styles.scanGlyph} pointerEvents="none">
+                  <Ionicons name="scan-outline" size={23} color="#202124" style={StyleSheet.absoluteFillObject}/>
+                  <Ionicons name="barcode-outline" size={12} color="#202124"/>
+                </View>
               </Pressable>
             </View>
           </View>
 
           {!query.trim() ? (
             <View style={styles.categoryQuickRow}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                style={styles.categoryStripScroll}
-                contentContainerStyle={styles.categories}>
-                {categories.map((category,index)=>{
+                {quickCategories.map((category,index)=>{
                   const configured=categoryCards.find(item=>item.category===category);
                   const icons: Array<keyof typeof Ionicons.glyphMap> = [
                     'laptop-outline','cafe-outline','home-outline','construct-outline',
@@ -598,20 +600,19 @@ export default function HomeScreen() {
                         <Image source={{uri:homepageMediaUrl(configured.imageId)||''}}
                           style={styles.categoryImage} contentFit="contain" cachePolicy="memory-disk"/>
                       ) : (
-                        <Ionicons name={icons[index%icons.length]} size={26} color="#FFCD00" />
+                        <Ionicons name={icons[index%icons.length]} size={22} color="#FFCD00" />
                       )}
-                      <Text numberOfLines={2} style={styles.categoryText}>
+                      <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.categoryText}>
                         {configured?.label||category}
                       </Text>
                     </Pressable>
                   );
                 })}
-              </ScrollView>
               <Pressable style={styles.allCategoriesCard}
                 accessibilityRole="button" accessibilityLabel="Tüm kategoriler"
                 onPress={()=>router.push('/(tabs)/menu' as never)}>
-                <Ionicons name="grid-outline" size={25} color="#FFCD00" />
-                <Text numberOfLines={2} style={styles.allCategoriesText}>Tüm Kategoriler</Text>
+                <Ionicons name="grid-outline" size={21} color="#FFCD00" />
+                <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.allCategoriesText}>Tüm Kategoriler</Text>
               </Pressable>
             </View>
           ) : null}
@@ -956,7 +957,8 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   reelFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1E293B' },
   reelPreviewOverlay:{ flex:1,justifyContent:'space-between',padding:12,backgroundColor:'rgba(0,0,0,0.4)' },
   reelPreviewText:{ color:'#FFFFFF',fontSize:12,fontWeight:'800' },
-  scanButton: { width:36,height:36,alignItems:'center',justifyContent:'center' },
+  scanButton: { width:32,height:32,alignItems:'center',justifyContent:'center' },
+  scanGlyph: { width:23,height:23,alignItems:'center',justifyContent:'center' },
   searchResults: { gap: 8, marginTop: 15 },
   searchResultHeading: { color: palette.textSecondary, fontSize: 13, fontWeight: '700', marginBottom: 3 },
   searchResultRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 12, padding: 8 },
@@ -1018,12 +1020,11 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   headerRow: {flexDirection:'row',alignItems:'center',marginTop:0},
   headerSearchBox: {flex:1,marginTop:0,minWidth:0},
   searchBox: {
-    minHeight:40,borderRadius:12,borderWidth:0,backgroundColor:'#FFFFFF',
-    paddingHorizontal:12,flexDirection:'row',alignItems:'center',gap:7,
+    minHeight:32,borderRadius:8,borderWidth:0,backgroundColor:'#F8F8F8',
+    paddingLeft:12,paddingRight:5,flexDirection:'row',alignItems:'center',gap:7,
   },
-  searchInput: {flex:1,fontSize:13,fontWeight:'500',color:'#111827',height:40,paddingVertical:0},
-  categoryQuickRow:{flexDirection:'row',alignItems:'center',gap:6,marginTop:9},
-  categoryStripScroll:{flex:1,minWidth:0},
+  searchInput: {flex:1,minWidth:0,fontSize:12,fontWeight:'300',color:'#222225',height:32,paddingVertical:0},
+  categoryQuickRow:{flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:7,paddingBottom:3},
   sectionHeader: {
     marginTop: spacing.xxl,
     marginBottom: spacing.md,
@@ -1051,31 +1052,30 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     ...typography.caption,
     color: palette.muted,
   },
-  categories:{gap:7,paddingRight:5,paddingLeft:2,paddingVertical:4},
   categoryCard:{
-    width:66,height:70,borderRadius:12,borderWidth:1,
+    flex:1,minWidth:0,height:57,borderRadius:9,borderWidth:1,
     borderColor:'#414146',borderTopColor:'#505055',borderBottomColor:'#303034',
     backgroundColor:'#2A2A2D',
     shadowColor:'#000000',shadowOffset:{width:0,height:2},
     shadowOpacity:0.38,shadowRadius:3,elevation:3,
     alignItems:'center',justifyContent:'center',gap:3,
-    paddingHorizontal:4,paddingVertical:4,
+    paddingHorizontal:2,paddingVertical:3,
   },
-  categoryImage:{width:31,height:30,borderRadius:5},
+  categoryImage:{width:'78%',maxWidth:30,height:24,borderRadius:4},
   categoryText:{
-    fontSize:9,lineHeight:11,color:'#F1F1F2',
+    fontSize:8,lineHeight:10,color:'#F1F1F2',
     fontWeight:'400',textAlign:'center',width:'100%',
   },
   allCategoriesCard:{
-    width:67,height:70,borderRadius:12,borderWidth:1,
+    flex:1,minWidth:0,height:57,borderRadius:9,borderWidth:1,
     borderColor:'#FFCD00',backgroundColor:'#2A2A2D',
     shadowColor:'#000000',shadowOffset:{width:0,height:2},
     shadowOpacity:0.38,shadowRadius:3,elevation:3,
     alignItems:'center',justifyContent:'center',gap:3,
-    paddingHorizontal:3,paddingVertical:4,
+    paddingHorizontal:2,paddingVertical:3,
   },
   allCategoriesText:{
-    fontSize:9,lineHeight:11,color:'#F1F1F2',fontWeight:'400',textAlign:'center',
+    fontSize:8,lineHeight:10,color:'#F1F1F2',fontWeight:'400',textAlign:'center',width:'100%',
   },
   catalogRetry: { marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: '#FACC15', borderRadius: radius.md },
   catalogRetryText: { color: '#111827', fontWeight: '800' },

@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   ShoppingCart,
-  ScanLine,
+  ScanBarcode,
+  Search,
   Grid2X2,
   CreditCard,
   Database,
@@ -773,26 +774,24 @@ export default function Ayarlar() {
                     </div>
 
                     <div className="bg-[#111113] px-3 pb-3 pt-1">
-                      <div className="flex h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs text-slate-600">
-                        <span className="text-lg">⌕</span>
+                      <div className="flex h-8 items-center gap-2 rounded-lg bg-[#F8F8F8] pl-3 pr-2 text-xs font-light text-[#45454A]">
+                        <Search className="h-4 w-4 shrink-0 text-[#242426]" strokeWidth={1.5}/>
                         <span className="min-w-0 flex-1">Ürün, marka veya barkod ara</span>
-                        <ScanLine className="h-5 w-5 text-slate-900"/>
+                        <ScanBarcode className="h-5 w-5 shrink-0 text-[#202124]" strokeWidth={1.5}/>
                       </div>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+                      <div className="mt-[7px] grid grid-cols-7 gap-1 pb-[3px]">
                           {[
                             ["▤","Elektronik"],["◉","Züccaciye"],["♨","Ev Gereçleri"],
                             ["⚒","Hırdavat"],["▣","Ofis & Kırtasiye"],["▥","Toptan Paketler"],
                           ].map(([symbol,label])=>(
-                            <div key={label} className="flex h-[70px] w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] border border-[#3A3A40] bg-[#242426] px-1 text-white">
-                              <span className="text-xl text-[#FFCD00]">{symbol}</span>
-                              <span className="text-center text-[9px] font-bold leading-[11px]">{label}</span>
+                            <div key={label} className="flex h-[57px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[9px] border border-[#414146] border-t-[#505055] bg-[#2A2A2D] px-0.5 text-white shadow-md shadow-black/40">
+                              <span className="text-lg text-[#FFCD00]">{symbol}</span>
+                              <span className="w-full break-words text-center text-[8px] font-normal leading-[10px]">{label}</span>
                             </div>
                           ))}
-                        </div>
-                        <div className="flex h-[70px] w-[67px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] border border-[#FFCD00] bg-[#1B1B1E] px-1 text-white">
-                          <Grid2X2 className="h-6 w-6 text-[#FFCD00]"/>
-                          <span className="text-center text-[9px] font-extrabold leading-[11px]">Tüm Kategoriler</span>
+                        <div className="flex h-[57px] min-w-0 flex-col items-center justify-center gap-[3px] rounded-[9px] border border-[#FFCD00] bg-[#2A2A2D] px-0.5 text-white shadow-md shadow-black/40">
+                          <Grid2X2 className="h-5 w-5 text-[#FFCD00]"/>
+                          <span className="w-full text-center text-[8px] font-normal leading-[10px]">Tüm Kategoriler</span>
                         </div>
                       </div>
                     </div>
