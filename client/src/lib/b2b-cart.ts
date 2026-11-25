@@ -15,7 +15,8 @@ export type B2BCartItem = {
 const STORAGE_KEY = "caliskan-b2b-order-draft-v2";
 const EVENT_NAME = "caliskan-b2b-cart-change";
 let cartSyncQueue=Promise.resolve();
-function syncCustomerCart(items:B2BCartItem[]){
+let lastCartSync:{owner:string;payload:string;at:number}|null=null;
+function syncCustomerCart(items:B2BCartItem[],ownedOnly=false){
   if(typeof window==="undefined")return;
   const payload=JSON.stringify({source:"web",items:items
     .filter(item=>!item.productId.startsWith("mp-"))
@@ -30,14 +31,21 @@ function syncCustomerCart(items:B2BCartItem[]){
     if(user.role!=="b2b_customer"||!Number.isSafeInteger(user.id))return;
     const ownerKey="caliskan-b2b-cart-sync-owner";
     const lastOwner=window.localStorage.getItem(ownerKey);
+    if(ownedOnly&&lastOwner!==String(user.id))return;
     if(lastOwner&&lastOwner!==String(user.id)&&items.length>0)return;
     if(!lastOwner||items.length===0)window.localStorage.setItem(ownerKey,String(user.id));
+    if(ownedOnly&&lastCartSync?.owner===String(user.id)&&lastCartSync.payload===payload&&Date.now()-lastCartSync.at<30_000)return;
     const response=await fetch("/api/b2b/cart-tracking/snapshot",{
       method:"POST",credentials:"include",keepalive:true,
       headers:{"Content-Type":"application/json"},body:payload
     });
     if(!response.ok&&response.status!==401&&response.status!==403)
       throw new Error("Sepet görünürlüğü sunucuyla eşitlenemedi");
+    if(response.ok){
+      const saved=await response.json() as {items?:number};
+      if(saved.items===items.filter(item=>!item.productId.startsWith("mp-")).length)
+        lastCartSync={owner:String(user.id),payload,at:Date.now()};
+    }
   });
   void cartSyncQueue.catch(error=>console.warn("B2B cart tracking unavailable",error));
 }
@@ -194,7 +202,10 @@ export function useB2BCart() {
         const local=original.filter(item=>visibleIds.has(item.productId));
         if(catalog.ok&&local.length!==original.length){
           window.localStorage.setItem(STORAGE_KEY,JSON.stringify(local));
-          syncCustomerCart(local);
+          syncCustomerCart(local,true);
+        }else if(catalog.ok&&local.length>0){
+          // Recover previously unsynced carts only for their recorded owner.
+          syncCustomerCart(local,true);
         }
         const remote:B2BCartItem[]=supplier.items.map(line=>({
           productId:"mp-"+line.product_id,sku:line.sku,name:line.content?.name||"Ürün",
@@ -209,11 +220,13 @@ export function useB2BCart() {
     window.addEventListener(EVENT_NAME, refresh);
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
     return () => {
       mounted=false;
       window.removeEventListener(EVENT_NAME, refresh);
       window.removeEventListener("storage", refresh);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
     };
   }, []);
 

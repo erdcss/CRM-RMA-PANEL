@@ -53,7 +53,10 @@ export async function getOrderList(): Promise<B2BOrderListItem[]> {
   const verified=local.filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-')&&visibleIds.has(item.productId));
   if(catalogResult.status==='fulfilled'&&verified.length!==local.length){
     await AsyncStorage.setItem(KEY,JSON.stringify(verified)).catch(()=>undefined);
-    queueMobileCartSync(verified);
+    queueMobileCartSync(verified,true);
+  }else if(catalogResult.status==='fulfilled'&&verified.length>0){
+    // Reconcile existing local carts after the app reconnects, without claiming another firm's cart.
+    queueMobileCartSync(verified,true);
   }
   const cart=cartResult.status==='fulfilled'?cartResult.value:{items:[]};
   const suppliers:B2BOrderListItem[]=cart.items.map(line=>({
@@ -73,23 +76,28 @@ export async function getOrderList(): Promise<B2BOrderListItem[]> {
   return [...suppliers,...verified];
 }
 
-async function syncMobileCart(items:B2BOrderListItem[]){
+let lastMobileCartSync:{owner:string;payload:string;at:number}|null=null;
+async function syncMobileCart(items:B2BOrderListItem[],ownedOnly=false){
   // App installations may be shared: do not upload the last user's old local
   // cart into a different customer's corporate profile.
   const {token,userId}=await localAuth.getRequestCredentials();
   if(!token||!userId)return;
   const owner=await AsyncStorage.getItem(TRACK_OWNER_KEY);
+  if(ownedOnly&&owner!==userId)return;
   if(owner&&owner!==userId&&items.length>0)return;
   if(!owner||items.length===0)await AsyncStorage.setItem(TRACK_OWNER_KEY,userId);
-  await rmaApi.syncB2BCartTracking(items
-    .filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-'))
-    .map(item=>({productId:item.productId,quantity:item.boxQuantity})));
+  const lines=items.filter(item=>!item.marketplaceProductId&&!item.productId.startsWith('mp-'))
+    .map(item=>({productId:item.productId,quantity:item.boxQuantity}));
+  const payload=JSON.stringify(lines);
+  if(ownedOnly&&lastMobileCartSync?.owner===userId&&lastMobileCartSync.payload===payload&&Date.now()-lastMobileCartSync.at<30_000)return;
+  await rmaApi.syncB2BCartTracking(lines);
+  lastMobileCartSync={owner:userId,payload,at:Date.now()};
 }
 let mobileCartSyncQueue=Promise.resolve();
-function queueMobileCartSync(items:B2BOrderListItem[]){
+function queueMobileCartSync(items:B2BOrderListItem[],ownedOnly=false){
   // Serialize quick quantity edits and removals so older requests cannot
   // finish later and restore an already cleared customer basket.
-  mobileCartSyncQueue=mobileCartSyncQueue.catch(()=>undefined).then(()=>syncMobileCart(items));
+  mobileCartSyncQueue=mobileCartSyncQueue.catch(()=>undefined).then(()=>syncMobileCart(items,ownedOnly));
   void mobileCartSyncQueue.catch(error=>console.warn('B2B cart tracking sync failed',error));
 }
 async function save(items: B2BOrderListItem[]) {

@@ -5,7 +5,7 @@ import {pool} from "./db";
 import {ensurePrivateProductSchema} from "./b2b-private-products";
 import {ensureB2BNotificationTables} from "./b2b-notification-center";
 import {sendPushToUsers} from "./push-notifications";
-import {cartReminderDue,CART_REMINDER_DELAY_MS} from "./b2b-cart-reminder-rules";
+import {cartReminderDue,CART_REMINDER_DELAY_MS,normalizeCartProductId} from "./b2b-cart-reminder-rules";
 
 // Every customer has one cart cycle across web, mobile and marketplace.
 // A reminder is allowed once per cycle, four hours after the LAST change.
@@ -69,14 +69,14 @@ async function hydrateOwnProducts(source:"web"|"mobile",raw:z.infer<typeof snaps
   await ensurePrivateProductSchema();
   const requested=new Map<string,number>();
   for(const row of raw){
-    const id=String(row.productId).trim();
-    if(!/^[1-9]\d{0,15}$/.test(id))continue;
+    const id=normalizeCartProductId(row.productId);
+    if(id===null)continue;
     requested.set(id,row.quantity);
   }
   if(!requested.size)return [];
   const result=await pool.query([
     "SELECT id,sku,name,price,campaign_price,units_per_box FROM b2b_products",
-    "WHERE id::text=ANY($1::text[]) AND is_active=TRUE AND (assigned_customer_id IS NULL OR assigned_customer_id=$2)"
+    "WHERE id::text=ANY($1::text[]) AND is_active IS DISTINCT FROM FALSE AND (assigned_customer_id IS NULL OR assigned_customer_id=$2)"
   ].join(" "),[[...requested.keys()],customerId]);
   return result.rows.map(row=>{
     const productId=String(row.id),quantity=requested.get(productId)||1;
@@ -121,6 +121,9 @@ export function registerB2BAbandonedCartRoutes(
     try{
       const items=await hydrateOwnProducts(parsed.data.source,parsed.data.items,Number(user.id));
       await upsertCart(Number(user.id),parsed.data.source,items);
+      if(parsed.data.items.length>0&&items.length===0){
+        console.warn("B2B cart snapshot: no visible products matched",{source:parsed.data.source,requested:parsed.data.items.length});
+      }
       return res.json({ok:true,items:items.length});
     }catch(error){
       console.error("B2B cart snapshot",error);
