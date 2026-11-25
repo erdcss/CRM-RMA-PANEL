@@ -113,20 +113,13 @@ export default function HomeScreen() {
   // Page content already has paddingHorizontal: spacing.lg.
   const bannerWidth = Math.max(1, screenWidth - spacing.lg * 2);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [loadedBannerSizes,setLoadedBannerSizes]=useState<Record<string,{width:number;height:number}>>({});
   const bannerScrollRef = useRef<ScrollView>(null);
   const homeScrollRef = useRef<ScrollView>(null);
   const wholesaleScrollRef = useRef<ScrollView>(null);
   const wholesaleIndexRef = useRef(0);
   const [wholesaleWidth, setWholesaleWidth] = useState(0);
   const bannerIndexRef = useRef(0);
-  const activeBanner=banners[bannerIndex];
-  const activeSize=activeBanner ? (loadedBannerSizes[activeBanner.imageId] ||
-    (activeBanner.imageWidth && activeBanner.imageHeight
-      ? {width:activeBanner.imageWidth,height:activeBanner.imageHeight} : null)) : null;
-  const bannerHeight=bannerDisplayHeight(
-    bannerWidth,activeSize?.width,activeSize?.height
-  );
+  const bannerHeight=bannerDisplayHeight(bannerWidth);
   const onBannerPress=useCallback((banner:HomeBanner)=>{
     const destination=bannerDestination(banner);
     if(!destination)return;
@@ -673,8 +666,9 @@ export default function HomeScreen() {
                     setBannerIndex(next);
                   }}
                 >
-                  {banners.map((banner) => (
-                    <Pressable key={banner.id}
+                  {banners.map((banner) => {
+                    const hasCopy=Boolean(banner.title?.trim()||banner.subtitle?.trim()||banner.buttonText?.trim());
+                    return <Pressable key={banner.id}
                       accessible accessibilityRole="button"
                       accessibilityLabel={banner.title||'Banner'}
                       disabled={!bannerDestination(banner)}
@@ -683,28 +677,32 @@ export default function HomeScreen() {
                       {homepageMediaUrl(banner.imageId) ? (
                         <Image
                           source={{ uri: homepageMediaUrl(banner.imageId)! }}
-                          style={styles.carouselImage}
-                          contentFit="cover"
+                          style={hasCopy?styles.carouselSideImage:styles.carouselImage}
+                          contentFit={hasCopy?'cover':'contain'}
                           cachePolicy="memory-disk"
                           transition={180}
                           onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
-                          onLoad={(event) => {
-                            setFailedBannerIds(ids => ids.filter(id => id !== banner.id));
-                            const width=event.source?.width, height=event.source?.height;
-                            if(width>0 && height>0)setLoadedBannerSizes(previous=>
-                              previous[banner.imageId]?.width===width&&previous[banner.imageId]?.height===height
-                                ? previous : {...previous,[banner.imageId]:{width,height}});
-                          }}
+                          onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
                         />
                       ) : null}
+                      {hasCopy ? (
+                        <View style={styles.bannerDetails} pointerEvents="none">
+                          {banner.title?.trim()?<Text style={styles.carouselTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>{banner.title}</Text>:null}
+                          {banner.subtitle?.trim()?<Text style={styles.carouselSubtitle} numberOfLines={2}>{banner.subtitle}</Text>:null}
+                          {banner.buttonText?.trim()?<View style={styles.carouselButton}>
+                            <Text style={styles.carouselButtonText} numberOfLines={1}>{banner.buttonText}</Text>
+                            <Ionicons name="chevron-forward" size={10} color="#131313"/>
+                          </View>:null}
+                        </View>
+                      ):null}
                       {failedBannerIds.includes(banner.id) ? (
                         <View style={styles.bannerError} pointerEvents="none">
                           <Ionicons name="image-outline" size={20} color="#FFFFFF" />
                           <Text style={styles.bannerErrorText}>Banner görseli yüklenemedi</Text>
                         </View>
                       ) : null}
-                    </Pressable>
-                  ))}
+                    </Pressable>;
+                  })}
                 </ScrollView>
               ) : null}
               {banners.length > 1 ? (
@@ -717,31 +715,8 @@ export default function HomeScreen() {
                   ))}
                 </View>
               ) : null}
+              <View pointerEvents="none" style={styles.carouselOutline}/>
             </View>
-            {(banners[bannerIndex]?.title?.trim() ||
-              banners[bannerIndex]?.subtitle?.trim() ||
-              banners[bannerIndex]?.buttonText?.trim()) ? (
-              <View style={styles.bannerDetails}>
-                {banners[bannerIndex]?.title?.trim() ? (
-                  <Text style={styles.carouselTitle} numberOfLines={2}>
-                    {banners[bannerIndex].title}
-                  </Text>
-                ) : null}
-                {banners[bannerIndex]?.subtitle?.trim() ? (
-                  <Text style={styles.carouselSubtitle} numberOfLines={3}>
-                    {banners[bannerIndex].subtitle}
-                  </Text>
-                ) : null}
-                {banners[bannerIndex]?.buttonText?.trim() ? (
-                  <Pressable style={styles.carouselButton}
-                    disabled={!bannerDestination(banners[bannerIndex])}
-                    onPress={()=>onBannerPress(banners[bannerIndex])}>
-                    <Text style={styles.carouselButtonText}>{banners[bannerIndex].buttonText}</Text>
-                    <Ionicons name="arrow-forward" size={15} color="#131313" />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
           </>
         ) : null}
 
@@ -978,27 +953,21 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultTitle: { color: palette.text, fontSize: 14, fontWeight: '700', lineHeight: 19 },
   searchResultSku: { color: palette.textSecondary, fontSize: 11, marginTop: 5 },
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
-  carouselContainer: { marginTop: spacing.sm, alignSelf: 'center', borderRadius: radius.xl, overflow: 'hidden', backgroundColor: '#FFFFFF' },
-  carouselImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  bannerError: { position: 'absolute', top: 15, right: 15, flexDirection: 'row', gap: 6, alignItems: 'center', padding: 7, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.58)' },
-  bannerErrorText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
-  carouselSlide: { overflow: 'hidden', backgroundColor: '#FFFFFF' },
-  bannerDetails: {
-    marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  carouselTitle: { color: palette.text, fontSize: 17, lineHeight: 23, fontWeight: '800' },
-  carouselSubtitle: { color: palette.textSecondary, fontSize: 13, marginTop: 5, lineHeight: 19 },
-  carouselButton: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, alignSelf: 'flex-start', borderRadius: 9, backgroundColor: '#FFCD00', minHeight: 36, paddingHorizontal: 13 },
-  carouselButtonText: { color: '#101010', fontSize: 12, fontWeight: '800' },
-  carouselDots: { position: 'absolute', right: 15, bottom: 9, flexDirection: 'row', gap: 6 },
-  carouselDot: { width: 6, height: 6, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
-  carouselDotActive: { width: 19, backgroundColor: '#FFCD00' },
+  carouselContainer: {marginTop:4,alignSelf:'center',borderRadius:radius.xl,overflow:'hidden',backgroundColor:'#171719'},
+  carouselOutline:{...StyleSheet.absoluteFillObject,borderWidth:1,borderColor:'#737375',borderRadius:radius.xl},
+  carouselImage: {...StyleSheet.absoluteFillObject,width:'100%',height:'100%'},
+  carouselSideImage:{position:'absolute',right:0,top:0,bottom:0,width:'53%',height:'100%'},
+  bannerError:{position:'absolute',top:4,right:5,flexDirection:'row',gap:4,alignItems:'center',padding:4,borderRadius:6,backgroundColor:'rgba(0,0,0,0.65)'},
+  bannerErrorText:{color:'#FFFFFF',fontSize:9,fontWeight:'700'},
+  carouselSlide:{overflow:'hidden',backgroundColor:'#171719'},
+  bannerDetails:{position:'absolute',left:0,top:0,bottom:0,width:'48%',paddingHorizontal:10,paddingVertical:3,justifyContent:'center',alignItems:'flex-start',backgroundColor:'#171719',gap:1},
+  carouselTitle:{color:'#FFFFFF',fontSize:13,lineHeight:14,fontWeight:'800'},
+  carouselSubtitle:{color:'#F1F1F1',fontSize:8,lineHeight:9},
+  carouselButton:{flexDirection:'row',alignItems:'center',gap:3,marginTop:2,borderRadius:5,backgroundColor:'#FFCD00',minHeight:17,paddingHorizontal:6,maxWidth:'100%'},
+  carouselButtonText:{color:'#101010',fontSize:9,fontWeight:'700',flexShrink:1},
+  carouselDots:{position:'absolute',left:0,right:0,bottom:3,flexDirection:'row',justifyContent:'center',alignItems:'center',gap:4},
+  carouselDot:{width:5,height:5,borderRadius:3,backgroundColor:'rgba(255,255,255,0.65)'},
+  carouselDotActive:{width:11,backgroundColor:'#FFCD00'},
   notificationButton: {
     width: 44,
     height: 44,

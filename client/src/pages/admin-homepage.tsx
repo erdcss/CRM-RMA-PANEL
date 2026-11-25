@@ -516,15 +516,22 @@ export default function AdminHomepage() {
                       onChange={(e) => { const file = e.target.files?.[0]; if (file) void (async () => { await uploadMedia(file, (imageId, imageWidth, imageHeight) => setBanners(items => items.map(x => x.id === banner.id ? { ...x, imageId, imageWidth, imageHeight } : x)), "mobile_banner"); })(); e.target.value = ""; }} />
                   </label>
                   <div className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground" role="note">
-                    <strong className="block text-sm text-foreground">Serbest görsel ölçüsü</strong>
-                    <span>Yatay, dikey, kare · Maksimum 3 MB · PNG, JPG, WebP veya GIF</span>
-                    <span className="block">Görsel oranı korunur; ekran genişliğine uyum sağlar.</span>
+                    <strong className="block text-sm text-foreground">Önerilen mobil banner: 1600 × 400 px (4:1)</strong>
+                    <span>Maksimum 3 MB · PNG, JPG, WebP veya GIF</span>
+                    <span className="block">Hazır tasarımın üzerinde yazı varsa başlık, açıklama ve buton metnini boş bırakın. Yazılar girilirse sol panelde, görsel sağda gösterilir.</span>
                   </div>
                   {banner.imageId ? <div className="w-full max-w-[420px]">
-                    <img src={`/api/public/homepage/media/${banner.imageId}`}
-                      alt={banner.title||"Banner önizlemesi"}
-                      className="block w-full h-auto rounded-lg border" />
-                    <p className="mt-1 text-xs text-muted-foreground">Görselin gerçek oranı korunur; mobil çerçeve aynı orana uyarlanır.</p>
+                    <div className="relative aspect-[4/1] overflow-hidden rounded-xl border border-[#737375] bg-[#171719]">
+                      <img src={`/api/public/homepage/media/${banner.imageId}`} alt={banner.title||"Banner önizlemesi"}
+                        className={banner.title?.trim()||banner.subtitle?.trim()||banner.buttonText?.trim()?"absolute right-0 top-0 h-full w-[53%] object-cover":"absolute inset-0 h-full w-full object-contain"}/>
+                      {banner.title?.trim()||banner.subtitle?.trim()||banner.buttonText?.trim()?<div className="absolute inset-y-0 left-0 flex w-[48%] flex-col items-start justify-center gap-0.5 bg-[#171719] px-2.5 text-white">
+                        {banner.title?.trim()?<strong className="line-clamp-2 text-[13px] leading-[14px]">{banner.title}</strong>:null}
+                        {banner.subtitle?.trim()?<span className="line-clamp-2 text-[8px] leading-[9px]">{banner.subtitle}</span>:null}
+                        {banner.buttonText?.trim()?<span className="mt-0.5 max-w-full truncate rounded bg-[#FFCD00] px-1.5 py-0.5 text-[9px] font-semibold text-black">{banner.buttonText} ›</span>:null}
+                      </div>:null}
+                      {banners.length>1?<div className="absolute inset-x-0 bottom-[3px] flex justify-center gap-1">{banners.map((item,i)=><span key={item.id} className={i===index?"h-[5px] w-[11px] rounded-full bg-[#FFCD00]":"h-[5px] w-[5px] rounded-full bg-white/65"}/>)}</div>:null}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">Mobil görünüm · sabit 4:1 çerçeve</p>
                   </div> : null}
                 </div>
               </div>

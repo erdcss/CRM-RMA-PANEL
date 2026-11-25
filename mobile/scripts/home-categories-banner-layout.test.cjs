@@ -17,9 +17,9 @@ test('mini categories appear below slim search, pinned all categories at right a
   assert.ok(beginAllCategories<beginSearchResults, 'All Categories lives beside search, before search results');
   assert.ok(beginSearchResults<beginBanner && beginBanner<beginCampaigns, 'Banners follow mini categories');
   assert.equal(home.split('accessibilityLabel="Tüm kategoriler"').length-1,1,'One pinned action only');
-  assert.match(home,/categories\.map/);
+  assert.match(home,/quickCategories\.map/);
   assert.match(home,/router\.push\('\/\(tabs\)\/menu' as never\)/);
-  assert.match(home,/style=\{styles\.categoryStripScroll\}/);
+  assert.match(home,/flexWrap:'nowrap'/);
 });
 
 test('banner has equal 16px page gutters, rounded edges and correct snapping',()=>{
@@ -31,4 +31,12 @@ test('banner has equal 16px page gutters, rounded edges and correct snapping',()
   assert.match(home,/ref=\{bannerScrollRef\}/);
   assert.match(home,/pagingEnabled/);
   assert.match(home,/scrollTo\(\{\s*x:\s*next\s*\*\s*bannerWidth/);
+});
+
+test('hero banner has a stable frame, centered indicators and an inline copy panel',()=>{
+  assert.ok(home.includes('bannerDisplayHeight(bannerWidth)'));
+  assert.ok(home.includes("contentFit={hasCopy?'cover':'contain'}"));
+  assert.ok(home.includes("carouselDots:{position:'absolute',left:0,right:0,bottom:3"));
+  assert.ok(home.includes('style={styles.carouselOutline}'));
+  assert.ok(home.includes('style={styles.bannerDetails} pointerEvents="none"'));
 });

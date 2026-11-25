@@ -2,11 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {bannerDestination,bannerDisplayHeight} from './home-banner';
 
-test('banner frame always matches image aspect ratio, including portrait',()=>{
-  assert.equal(bannerDisplayHeight(390,1200,360),117);
-  assert.equal(bannerDisplayHeight(390,1000,1000),390);
-  assert.equal(bannerDisplayHeight(390,750,1500),780);
-  assert.equal(bannerDisplayHeight(390,undefined,undefined),117);
+test('banner frame uses a stable compact 4:1 aspect ratio on every screen',()=>{
+  assert.equal(bannerDisplayHeight(400),100);
+  assert.equal(bannerDisplayHeight(390),98);
+  assert.equal(bannerDisplayHeight(320),80);
+  assert.equal(bannerDisplayHeight(0),0);
 });
 test('banner click resolves product, internal page and URL',()=>{
   const base={id:'x',title:'',subtitle:'',buttonText:'',imageId:''};

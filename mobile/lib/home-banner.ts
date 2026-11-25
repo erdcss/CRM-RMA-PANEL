@@ -34,14 +34,8 @@ export function bannerDestination(banner:HomeBanner):BannerDestination {
   return null;
 }
 
-export function bannerDisplayHeight(
-  width:number,imageWidth?:number|null,imageHeight?:number|null,
-):number{
+// Fixed 4:1 hero frame: every slide has the same compact height.
+export function bannerDisplayHeight(width:number):number{
   if(!Number.isFinite(width)||width<=0)return 0;
-  if(!Number.isFinite(imageWidth)||!Number.isFinite(imageHeight)||
-     !imageWidth||!imageHeight||imageWidth<=0||imageHeight<=0){
-    return Math.round(width*.3); // legacy banner before intrinsic size loads
-  }
-  // No aspect-ratio cap: the frame is always the same aspect as the image.
-  return Math.max(1,Math.round(width*imageHeight/imageWidth));
+  return Math.max(1,Math.round(width/4));
 }
