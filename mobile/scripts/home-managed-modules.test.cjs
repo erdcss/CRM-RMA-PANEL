@@ -33,7 +33,7 @@ test('quick actions keep all four tiles, uploaded icons and scanner navigation',
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  assert.ok(!actions.includes('SectionHead'));
- assert.ok(modules.includes("flexWrap:'wrap'"));
+ assert.ok(modules.includes("flexWrap:'nowrap'"));
  assert.ok(actions.includes('section.actionImageIds'));
  assert.ok(actions.includes('name="chevron-forward"'));
  assert.ok(actions.includes('onOpenScanner()'));
@@ -48,10 +48,10 @@ test('quick actions match reference: left icon, unrestricted text and golden rig
   assert.ok(modules.includes("label:'"+label+"'"));
  for(const caption of ['Barkodla veya','listeyle toplu alım','Önceki siparişini','hızla yenile','Bakiye, limit ve','ekstre bilgilerin','Toptan avantajlı','fırsatları kaçırma'])
   assert.ok(modules.includes(caption),caption+' must remain visible');
- assert.ok(actions.includes('style={styles.actionTitle}'));
- assert.ok(actions.includes('style={styles.actionSubtitle}'));
+ assert.ok(actions.includes('style={[styles.actionTitle,compactActions&&styles.actionTitleCompact]}'));
+ assert.ok(actions.includes('style={[styles.actionSubtitle,compactActions&&styles.actionSubtitleCompact]}'));
  assert.ok(actions.includes('styles.actionArrow'), 'arrow must be separate from title width');
- assert.ok(actions.includes('name="chevron-forward" size={20} color="#FFCD00"'));
+ assert.ok(actions.includes('name="chevron-forward" size={compactActions?13:20} color="#FFCD00"'));
  assert.ok(!actions.includes('styles.actionTitleRow'), 'no wasted width for extra wrapper');
  assert.ok(modules.includes("fontWeight:'700',color:'#FFFFFF'"));
  assert.ok(modules.includes("fontWeight:'400',color:'#E0E0E0'"));
@@ -68,15 +68,17 @@ test('quick actions match reference: left icon, unrestricted text and golden rig
  assert.ok(modules.includes('onError={()=>setFailed(true)}'));
 });
 
-test('quick actions adapt columns to actual viewport and preserve accessible descriptions',()=>{
+test('quick actions stay in one row on every viewport with compact responsive internals',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  assert.ok(modules.includes("actions:{width:'100%',alignSelf:'center'"));
- assert.ok(modules.includes("flexWrap:'wrap'"));
+ assert.ok(modules.includes("flexWrap:'nowrap'"));
  assert.ok(!modules.includes('marginHorizontal:-8'));
- assert.ok(modules.includes('actionWidth>=720?4:actionWidth>=260?2:1'));
+ assert.ok(modules.includes('const actionColumns=4'));
  assert.ok(modules.includes('Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns)'));
  assert.ok(actions.includes('width:actionTileWidth'));
+ assert.ok(modules.includes('const compactActions=actionTileWidth<148'));
+ assert.ok(modules.includes("actionIconSlotCompact:{width:20,height:30}"));
  assert.ok(actions.includes('setActionViewport(event.nativeEvent.layout.width)'));
  assert.ok(modules.includes("actionCard:{flexDirection:'row',alignItems:'center'"));
  assert.ok(modules.includes('actionIconSlot:{width:34,height:40'));
@@ -169,7 +171,7 @@ test('quick action artwork uses admin media and larger contained icon',()=>{
  assert.ok(icon.includes('homepageMediaUrl(imageId)'));
  assert.ok(icon.includes('contentFit="contain"'));
  assert.ok(icon.includes('priority="high"'));
- assert.ok(icon.includes('size={30}'));
+ assert.ok(icon.includes('size={compact?20:30}'));
  assert.ok(modules.includes('actionIcon:{width:34,height:40}'));
  assert.ok(modules.includes('imageId={section.actionImageIds?.[action.id]}'));
  assert.ok(api.includes('ADMIN_CONTENT_URL}/api/public/homepage/media/'));
