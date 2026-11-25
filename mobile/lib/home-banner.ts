@@ -34,8 +34,8 @@ export function bannerDestination(banner:HomeBanner):BannerDestination {
   return null;
 }
 
-// Fixed 4:1 hero frame: every slide has the same compact height.
+// Slightly taller 3.6:1 hero frame; keeps responsive sizing and stable slide heights.
 export function bannerDisplayHeight(width:number):number{
   if(!Number.isFinite(width)||width<=0)return 0;
-  return Math.max(1,Math.round(width/4));
+  return Math.max(1,Math.round(width/3.6));
 }
