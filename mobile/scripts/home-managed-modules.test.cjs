@@ -19,7 +19,7 @@ test('Admin managed home modules render actual content and preserve previously w
  assert.ok(screen.includes('homeHeader.enabled'), 'header visibility must be configurable');
  assert.ok(screen.includes('branding.b2b_mobile_header_logo'), 'dedicated uploaded header logo must be used');
  assert.ok(!screen.includes('branding.b2b_web_logo || branding.b2b_mobile_logo'), 'square app icon must not be used for header');
- assert.ok(modules.includes('home'+'pageMediaUrl(section.brandImageIds[brand])'), 'brand logo source missing');
+ assert.ok(modules.includes('section.brandImageIds')&&modules.includes('homepageMediaUrl(imageId)'), 'brand logo source missing');
  assert.ok(modules.includes('campaigns.filter'), 'real active timed campaigns must be used');
  assert.ok(modules.includes('bestSellerProductIds.map'), 'no invented bestsellers');
  assert.ok(modules.includes('products.filter(p=>!p.marketplace)'), 'do not mix supplier marketplace IDs');
@@ -110,4 +110,19 @@ test('home reels use a compact horizontal strip with four responsive cards and r
  assert.match(modules,/duration_seconds\?\?loadedDuration/);
  assert.match(modules,/\?reelId=/);
  assert.match(discover,/data=\{orderedReels\}/);
+});
+
+
+test('home brands preserve admin pins even without matching stock, deduplicate and render six compact logo tiles',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const brands=modules.slice(modules.indexOf('function CompactBrandStrip'),modules.indexOf('export function ManagedHomeSections'));
+ assert.match(brands,/section\.brands\.length\?section\.brands:brandOptions/);
+ assert.match(brands,/seen\.has\(key\)/);
+ assert.match(brands,/\(viewport-5\*4\)\/6/);
+ assert.match(brands,/Tüm Markalar/);
+ assert.match(brands,/onPress=\{\(\)=>onBrand\(brand\)\}/);
+ assert.match(modules,/brandTile:\{height:28/);
+ assert.match(modules,/brandImage:\{width:'100%',height:'100%'\}/);
+ assert.match(modules,/contentFit="contain"/);
+ assert.doesNotMatch(brands,/available\.has/);
 });

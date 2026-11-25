@@ -4,7 +4,6 @@ import { spacing } from '@/constants/theme';
 import { Image } from 'expo-image';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
-import { useAppearance } from '@/contexts/AppearanceContext';
 import { absoluteMediaUrl, homepageMediaUrl, type B2BProduct, type B2BReel, type B2BTimedCampaign, type HomeSection } from '@/lib/api';
 import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
 
@@ -136,11 +135,63 @@ function CompactReelsStrip({title,reels,onRoute}:{title:string;reels:B2BReel[];o
     </ScrollView>
   </View>;
 }
+// Admin-pinned brands remain visible even if no matching product is currently
+// available. Normalize spelling only for deduplication; retain admin labels/order.
+function brandKey(value:string){
+  return value.trim().toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'i');
+}
+function BrandLogoTile({brand,imageId,width,onPress}:{brand:string;imageId?:string;width:number;onPress:()=>void}){
+  const [failed,setFailed]=useState(false);
+  const uri=homepageMediaUrl(imageId);
+  return <Pressable accessibilityRole="button" accessibilityLabel={brand+' ürünlerini göster'}
+    style={[styles.brandTile,{width}]} onPress={onPress}>
+    {uri&&!failed?<Image source={{uri}} style={styles.brandImage} contentFit="contain"
+      cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
+      :<Text style={styles.brandName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{brand}</Text>}
+  </Pressable>;
+}
+function CompactBrandStrip({title,section,brandOptions,onBrand}:{title:string;section:HomeSection;brandOptions:string[];onBrand:Props['onBrand']}){
+  const [expanded,setExpanded]=useState(false);
+  const [viewport,setViewport]=useState(0);
+  const source=section.brands.length?section.brands:brandOptions;
+  const configuredImages=section.brandImageIds||{};
+  const seen=new Set<string>();
+  const brands=source.map(brand=>brand.trim()).filter(brand=>{
+    const key=brandKey(brand);
+    if(!key||seen.has(key))return false;
+    seen.add(key);return true;
+  }).slice(0,24);
+  const imageFor=(brand:string)=>configuredImages[brand]||Object.entries(configuredImages)
+    .find(([name,id])=>Boolean(id)&&brandKey(name)===brandKey(brand))?.[1];
+  const tileWidth=viewport?Math.max(36,Math.floor((viewport-5*4)/6)):56;
+  const tiles=brands.map(brand=>{
+    const imageId=imageFor(brand);
+    return <BrandLogoTile key={brandKey(brand)+':'+(imageId||'')} brand={brand} imageId={imageId}
+      width={tileWidth} onPress={()=>onBrand(brand)}/>;
+  });
+  if(!brands.length)return null;
+  return <View style={styles.brandSection}>
+    <View style={styles.brandHeader}>
+      <View style={styles.brandHeadingRow}>
+        <Ionicons name="pricetag-outline" size={19} color="#FFCD00"/>
+        <Text style={styles.brandHeading} numberOfLines={1}>{title}</Text>
+      </View>
+      <Pressable style={styles.brandAll} accessibilityRole="button"
+        accessibilityState={{expanded}} onPress={()=>setExpanded(value=>!value)}>
+        <Text style={styles.brandAllText}>{expanded?'Daha Az':'Tüm Markalar'}</Text>
+        <Ionicons name={expanded?'chevron-up':'chevron-forward'} size={12} color="#FFCD00"/>
+      </Pressable>
+    </View>
+    <View style={styles.brandViewport} onLayout={event=>setViewport(event.nativeEvent.layout.width)}>
+      {expanded?<View style={styles.brandGrid}>{tiles}</View>:
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.brandScroll}>{tiles}</ScrollView>}
+    </View>
+  </View>;
+}
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
   renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,
 }:Props) {
-  const {palette}=useAppearance();
   // All product lookups use the currently visible catalog; a recipient-only
   // or unavailable product cannot leak through a curated admin ID.
   const own=products.filter(p=>!p.marketplace);
@@ -219,25 +270,9 @@ export function ManagedHomeSections({
             <ItemStrip products={ranked.slice(0,12)} renderProduct={renderProduct}/>
           </View>;
         }
-        case 'brands': {
-          const allowed=section.brands.length?section.brands:brandOptions;
-          const available=new Set(brandOptions.map(x=>x.toLocaleLowerCase('tr-TR')));
-          const brands=allowed.filter(x=>available.has(x.toLocaleLowerCase('tr-TR'))).slice(0,24);
-          if(!brands.length)return null;
-          return <View key={section.id} style={styles.section}>
-            <SectionHead icon="ribbon-outline" title={title}/>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productScroll}>
-              {brands.map(brand=><Pressable key={brand} accessibilityRole="button"
-                accessibilityLabel={brand+' ürünlerini göster'} style={[styles.brandTile,{backgroundColor:palette.surface,borderColor:palette.border}]}
-                onPress={()=>onBrand(brand)}>
-                {section.brandImageIds?.[brand] && homepageMediaUrl(section.brandImageIds[brand])
-                  ? <Image source={{uri:homepageMediaUrl(section.brandImageIds[brand])!}}
-                      style={styles.brandImage} contentFit="contain" cachePolicy="memory-disk"/>
-                  : <Text style={[styles.brandName,{color:palette.text}]} numberOfLines={2}>{brand}</Text>}
-              </Pressable>)}
-            </ScrollView>
-          </View>;
-        }
+        case 'brands':
+          return <CompactBrandStrip key={section.id} title={title} section={section}
+            brandOptions={brandOptions} onBrand={onBrand}/>;
         default:return null;
       }
     })}
@@ -285,8 +320,17 @@ const styles=StyleSheet.create({
   videoLabel:{position:'absolute',left:0,right:0,bottom:0,paddingHorizontal:3,paddingVertical:2,backgroundColor:'rgba(0,0,0,0.68)',minHeight:20},
   videoTitle:{fontSize:7,lineHeight:9,color:'#FFFFFF',fontWeight:'400'},
   videoDuration:{fontSize:7,lineHeight:8,color:'#FFFFFF',textAlign:'right',fontWeight:'400'},
-  brandTile:{width:132,minHeight:61,borderRadius:14,borderWidth:1.2,paddingHorizontal:7,
-    alignItems:'center',justifyContent:'center'},
-  brandImage:{width:116,height:46},
-  brandName:{fontSize:15,fontWeight:'900',textAlign:'center'},
+  brandSection:{marginTop:10,width:'100%',gap:4},
+  brandHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:6},
+  brandHeadingRow:{flexDirection:'row',alignItems:'center',gap:6,flex:1,minWidth:0},
+  brandHeading:{fontSize:14,lineHeight:20,fontWeight:'400',color:'#FFFFFF',flexShrink:1},
+  brandAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:24},
+  brandAllText:{fontSize:10,lineHeight:14,fontWeight:'400',color:'#E5E5E5'},
+  brandViewport:{width:'100%'},
+  brandScroll:{flexDirection:'row',alignItems:'center',gap:4},
+  brandGrid:{flexDirection:'row',flexWrap:'wrap',gap:4},
+  brandTile:{height:28,borderRadius:6,borderWidth:1,borderColor:'#E5E5E5',backgroundColor:'#FFFFFF',paddingHorizontal:3,
+    overflow:'hidden',alignItems:'center',justifyContent:'center',flexShrink:0},
+  brandImage:{width:'100%',height:'100%'},
+  brandName:{fontSize:10,lineHeight:14,fontWeight:'400',color:'#222222',textAlign:'center'},
 });
