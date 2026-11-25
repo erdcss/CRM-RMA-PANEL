@@ -11,6 +11,34 @@ import { getUploadsDir } from "./image-storage";
 const app = express();
 const uploadsDir = getUploadsDir();
 
+// The React Native web preview uses bearer-token API authentication.
+// Permit only the explicitly trusted Railway preview origin, not arbitrary sites.
+const mobileWebOrigins = new Set([
+  "https://caliskan-b2b-mobile-production.up.railway.app",
+]);
+const mobileWebMethods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+const mobileWebHeaders = ["authorization", "content-type", "accept", "x-owner-user-id"];
+app.use("/api", (req, res, next) => {
+  res.vary("Origin");
+  const origin = req.get("Origin");
+  if (!origin || !mobileWebOrigins.has(origin)) return next();
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  if (req.method !== "OPTIONS" || !req.get("Access-Control-Request-Method")) return next();
+  res.vary("Access-Control-Request-Method");
+  res.vary("Access-Control-Request-Headers");
+  const method = req.get("Access-Control-Request-Method")!.toUpperCase();
+  const headers = (req.get("Access-Control-Request-Headers") || "")
+    .split(",").map((header) => header.trim().toLowerCase()).filter(Boolean);
+  if (!mobileWebMethods.includes(method) || headers.some((header) => !mobileWebHeaders.includes(header))) {
+    return res.status(403).end();
+  }
+  res.setHeader("Access-Control-Allow-Methods", mobileWebMethods.join(", "));
+  res.setHeader("Access-Control-Allow-Headers", mobileWebHeaders.join(", "));
+  res.setHeader("Access-Control-Max-Age", "600");
+  return res.status(204).end();
+});
+
+
 // Old supplier URLs on the B2B storefront move to the dedicated marketplace
 // domain. Redirect at HTTP level, including deep links and query parameters.
 app.use((req, res, next) => {
