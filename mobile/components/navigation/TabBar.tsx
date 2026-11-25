@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,7 +19,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.gl
 
 const VISIBLE_TABS = new Set(Object.keys(TAB_CONFIG));
 
-export function TabBar({ state, navigation }: BottomTabBarProps) {
+export function TabBar({ state, navigation, reduceMotion = false }: BottomTabBarProps & { reduceMotion?: boolean }) {
   const insets = useSafeAreaInsets();
   const { palette, mode } = useAppearance();
   const [orderCount, setOrderCount] = useState(0);
@@ -74,6 +74,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
               key={route.key}
               config={config}
               focused={focused}
+              reduceMotion={reduceMotion}
               mode={mode}
               palette={palette}
               orderCount={route.name === 'orders' ? orderCount : 0}
@@ -91,10 +92,11 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
  * label easing and touch compression. Native driver keeps transitions fluid.
  */
 function TabButton({
-  config, focused, mode, palette, orderCount, onPress,
+  config, focused, mode, palette, orderCount, onPress, reduceMotion,
 }: {
   config: (typeof TAB_CONFIG)[string];
   focused: boolean;
+  reduceMotion: boolean;
   mode: string;
   palette: ReturnType<typeof useAppearance>['palette'];
   orderCount: number;
@@ -103,21 +105,30 @@ function TabButton({
   const focus = useRef(new Animated.Value(focused ? 1 : 0)).current;
   const press = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    Animated.spring(focus, {
+    if (reduceMotion) {
+      focus.setValue(focused ? 1 : 0);
+      press.setValue(1);
+      return;
+    }
+    const transition = Animated.timing(focus, {
       toValue: focused ? 1 : 0,
-      stiffness: 470,
-      damping: 35,
-      mass: 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
-  }, [focus, focused]);
+    });
+    transition.start();
+    return () => transition.stop();
+  }, [focus, focused, press, reduceMotion]);
   const scaleTo = (toValue: number) => {
-    Animated.spring(press, { toValue, stiffness: 420, damping: 27, useNativeDriver: true }).start();
+    if (reduceMotion) return;
+    Animated.spring(press, { toValue, stiffness: 300, damping: 26, mass: 0.8, useNativeDriver: true }).start();
   };
+  const inactiveOpacity = focus.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const activeColor = mode === 'dark' ? '#FFCD00' : palette.text;
   return (
     <Pressable
       onPress={onPress}
-      onPressIn={() => scaleTo(0.86)}
+      onPressIn={() => scaleTo(0.94)}
       onPressOut={() => scaleTo(1)}
       style={styles.tab}
       accessibilityRole="tab"
@@ -127,7 +138,7 @@ function TabButton({
       <Animated.View style={{
         transform: [
           { translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) },
-          { scale: Animated.multiply(press, focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] })) },
+          { scale: Animated.multiply(press, focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] })) },
         ],
       }}>
         <View style={styles.iconWrap}>
@@ -135,8 +146,12 @@ function TabButton({
             StyleSheet.absoluteFillObject,
             { borderRadius: radius.full, backgroundColor: mode === 'dark' ? '#383C40' : '#FFF1A8', opacity: focus },
           ]} />
-          <Ionicons name={focused ? config.activeIcon : config.icon} size={21}
-            color={focused ? (mode === 'dark' ? '#FFCD00' : '#191919') : palette.textSecondary} />
+          <Animated.View pointerEvents="none" style={{ opacity: inactiveOpacity }}>
+            <Ionicons name={config.icon} size={21} color={palette.textSecondary} />
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, styles.iconLayer, { opacity: focus }]}>
+            <Ionicons name={config.activeIcon} size={21} color={mode === 'dark' ? '#FFCD00' : '#191919'} />
+          </Animated.View>
           {orderCount > 0 ? (
             <View style={styles.counterBadge}>
               <Text style={styles.counterText}>{orderCount > 9 ? '+9' : orderCount}</Text>
@@ -144,14 +159,10 @@ function TabButton({
           ) : null}
         </View>
       </Animated.View>
-      <Animated.Text style={[
-        styles.label,
-        focused && styles.labelActive,
-        { color: focused ? (mode === 'dark' ? '#FFCD00' : palette.text) : palette.textSecondary,
-          opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }),
-          transform: [{ translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -1] }) }],
-        },
-      ]}>{config.label}</Animated.Text>
+      <Animated.View style={{ transform: [{ translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -1] }) }] }}>
+        <Animated.Text style={[styles.label, { color: palette.textSecondary, opacity: inactiveOpacity }]}>{config.label}</Animated.Text>
+        <Animated.Text style={[styles.label, styles.labelOverlay, { color: activeColor, opacity: focus }]}>{config.label}</Animated.Text>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -214,6 +225,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconLayer: { alignItems: 'center', justifyContent: 'center' },
+  labelOverlay: { position: 'absolute', top: 0, left: 0, right: 0, textAlign: 'center' },
   iconWrapActive: {
     backgroundColor:
       Platform.OS === 'ios'
