@@ -36,6 +36,7 @@ type HomepageConfig = {
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
   roundBottomBanner?: RoundBottomBanner;
+  refreshAnimationImageId?: string;
   homeHeader?: HomeHeader;
   homeSections?: HomeSection[];
 };
@@ -77,6 +78,7 @@ export default function AdminHomepage() {
   const [sliderAutoPlay, setSliderAutoPlay] = useState(true);
   const [sliderIntervalMs, setSliderIntervalMs] = useState(5000);
   const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner>(DEFAULT_ROUND_BOTTOM_BANNER);
+  const [refreshAnimationImageId,setRefreshAnimationImageId]=useState('');
   const [homeHeader,setHomeHeader]=useState<HomeHeader>({enabled:true,tagline:"Toptan alışverişin akıllı yolu"});
   const [homeSections,setHomeSections]=useState<HomeSection[]>(DEFAULT_HOME_SECTIONS);
   const [drawers,setDrawers]=useState<HomepageDrawerState>(()=>loadHomepageDrawers());
@@ -93,6 +95,7 @@ export default function AdminHomepage() {
     setSliderAutoPlay(data.sliderAutoPlay !== false);
     setSliderIntervalMs(data.sliderIntervalMs || 5000);
     setRoundBottomBanner(data.roundBottomBanner||DEFAULT_ROUND_BOTTOM_BANNER);
+    setRefreshAnimationImageId(data.refreshAnimationImageId||'');
     setHomeHeader(data.homeHeader || {enabled:true,tagline:"Toptan alışverişin akıllı yolu"});
     setHomeSections(data.homeSections || DEFAULT_HOME_SECTIONS);
   }, [data]);
@@ -243,12 +246,13 @@ export default function AdminHomepage() {
     }
     setSaving(true);
     try {
-      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs, roundBottomBanner, homeHeader, homeSections });
+      const response = await apiRequest("PUT", "/api/admin/homepage", { categories, categoryCards: categoryCards.filter(x => categories.includes(x.category)), ledgerTileImageId, banners, sliderAutoPlay, sliderIntervalMs, roundBottomBanner, refreshAnimationImageId, homeHeader, homeSections });
       const result = await response.json() as HomepageConfig;
       setCategories(result.categories || []);
       setBanners(result.banners || []);
       setLedgerTileImageId(result.ledgerTileImageId || '');
       setRoundBottomBanner(result.roundBottomBanner||DEFAULT_ROUND_BOTTOM_BANNER);
+      setRefreshAnimationImageId(result.refreshAnimationImageId||'');
       setHomeHeader(result.homeHeader || homeHeader);
       setHomeSections(result.homeSections || DEFAULT_HOME_SECTIONS);
       setCategoryCards(result.categoryCards || []);
@@ -304,6 +308,9 @@ export default function AdminHomepage() {
           summary={homeSections.filter(item=>item.enabled).length+" bölüm açık"}
           open={drawers.sections} onToggle={()=>toggleDrawer("sections")}>
           <AdminHomeSections sections={homeSections} onChange={setHomeSections}
+            refreshAnimationImageId={refreshAnimationImageId}
+            uploadRefreshGif={file=>{void uploadMedia(file,id=>setRefreshAnimationImageId(id));}}
+            removeRefreshGif={()=>setRefreshAnimationImageId('')}
             header={homeHeader} onHeaderChange={setHomeHeader} products={productOptions}
             uploadBrandLogo={(file,ready)=>{void uploadMedia(file,ready);}}
             uploadActionIcon={(slot,file)=>{void uploadMedia(file,id=>publishActionIcon(slot,id),undefined,true);}}
