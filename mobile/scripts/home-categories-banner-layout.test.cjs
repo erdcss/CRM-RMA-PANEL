@@ -25,7 +25,7 @@ test('mini categories appear below slim search, pinned all categories at right a
 test('banner has equal 16px page gutters, rounded edges and correct snapping',()=>{
   assert.match(home,/paddingHorizontal:\s*spacing\.lg/);
   assert.match(home,/const bannerWidth\s*=\s*Math\.max\(1,\s*screenWidth\s*-\s*spacing\.lg\s*\*\s*2\)/);
-  assert.match(home,/carouselContainer:\s*\{[^}]*borderRadius:\s*radius\.xl/);
+  assert.match(home,/carouselContainer:\s*\{[^}]*borderRadius:\s*13/);
   assert.doesNotMatch(home,/carouselContainer:\s*\{[^}]*marginHorizontal:\s*-spacing\.lg/);
   assert.match(home,/bannerDisplayHeight\(\s*bannerWidth/);
   assert.match(home,/ref=\{bannerScrollRef\}/);
@@ -39,4 +39,15 @@ test('hero banner has a stable frame, centered indicators and an inline copy pan
   assert.ok(home.includes("carouselDots:{position:'absolute',left:0,right:0,bottom:3"));
   assert.ok(home.includes('style={styles.carouselOutline}'));
   assert.ok(home.includes('style={styles.bannerDetails} pointerEvents="none"'));
+});
+
+test('banner and quick-action spacing matches compact mobile reference',()=>{
+  const sections=fs.readFileSync(path.resolve(__dirname,'../components/home/ManagedHomeSections.tsx'),'utf8');
+  // 1px category padding + 2px banner margin gives a 3px visual gap.
+  assert.match(home,/categoryQuickRow:\{[^}]*paddingBottom:1/);
+  assert.match(home,/carouselContainer:\s*\{marginTop:2/);
+  assert.match(home,/carouselOutline:\{[^}]*borderRadius:13/);
+  assert.match(sections,/actions:\{[^}]*gap:4,marginTop:4/);
+  assert.ok(home.includes('width: bannerWidth, height: bannerHeight'), 'banner size and side gutters must remain stable');
+  assert.ok(home.includes('overflow:\'hidden\',backgroundColor:\'#171719\''), 'banner image must be clipped to rounded corners');
 });
