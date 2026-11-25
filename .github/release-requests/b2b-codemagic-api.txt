@@ -1,12 +1,12 @@
-ÇALIŞKAN B2B iOS 1.3.21 — Homepage and navigation polish
+ÇALIŞKAN B2B iOS 1.3.21 — Latest homepage and cart improvements
 Operation: testflight
-Request: b2b-home-navigation-ios-1321-20261125-01
+Request: b2b-slim-quick-actions-ios-1321-20261125-02
 Repository: erdcss/CRM-RMA-PANEL
 Branch: main
-Release source commit: a66af4beb9d5f247a1925dae89f261e98a06e215
+Release source commit: 56998aba3c5eb0da68609a60b58026766a83f15c
 App version: 1.3.21
 Bundle ID: com.caliskangroup.rma
 Codemagic Workflow: caliskan-b2b-testflight
-Included: full-width reorder banner, enlarged admin-managed quick action icons, flash improvements, soft tab transitions, reduced motion support.
+Included: slim single-row quick actions, full header backdrop, yellow header icons, account summary arrow removal, banner product links, cart synchronization fixes, corrected regression test syntax.
 Publishing: TestFlight only. Public App Store submission disabled.
 Exactly one paid iOS build requested.
