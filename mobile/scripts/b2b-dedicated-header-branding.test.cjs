@@ -55,3 +55,25 @@ test('admin branding page owns header upload, slogan and live preview with a sep
  assert.match(admin,/\/api\/admin\/b2b-mobile-header/);
  assert.doesNotMatch(homeAdmin,/Üst alan sloganı\s*\n\s*<Input/);
 });
+
+test('native header background stretches edge-to-edge while catalogue gutters remain intact',()=>{
+  const home=read('mobile/app/(tabs)/index.tsx');
+  assert.match(home,/style=\{\[styles\.homeBrandHeader,\s*\{width:screenWidth\}\]\}/);
+  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginLeft:-spacing\.lg/);
+  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginTop:-spacing\.md/);
+  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?borderRadius:0/);
+  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?borderWidth:0/);
+  assert.match(home,/homeBrandHeaderContent:\s*\{[\s\S]*?paddingHorizontal:spacing\.lg/);
+  assert.match(home,/page:\s*\{\s*paddingHorizontal: spacing\.lg/);
+  assert.match(home,/style=\{StyleSheet\.absoluteFillObject\}\s*contentFit="cover"/);
+});
+test('admin phone preview renders an unframed header artwork between padded status and search rows',()=>{
+  const admin=read('client/src/pages/ayarlar.tsx');
+  assert.match(admin,/rounded-\[30px\] border-\[5px\] border-slate-600 bg-\[#111113\] shadow-xl/);
+  assert.match(admin,/justify-between px-4 pt-4 text-xs font-bold/);
+  assert.match(admin,/relative mt-3 min-h-\[73px\] overflow-hidden bg-\[radial-gradient/);
+  assert.doesNotMatch(admin,/relative mt-3 overflow-hidden rounded-2xl border border-amber-500\/30/);
+  assert.match(admin,/className="absolute inset-0 h-full w-full object-cover"/);
+  assert.match(admin,/relative z-10 flex min-h-\[73px\] flex-col/);
+  assert.match(admin,/className="px-4 pb-4"/);
+});
