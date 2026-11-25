@@ -72,7 +72,7 @@ test('native header artwork is centered within the same gutters as the catalogue
   assert.match(home,/page:\s*\{\s*paddingHorizontal: spacing\.lg/);
   assert.match(home,/style=\{StyleSheet\.absoluteFillObject\}\s*contentFit="cover"/);
 });
-test('admin phone preview renders an unframed header artwork between padded status and search rows',()=>{
+test('admin phone preview uses one full-bleed background behind status, branding, search and categories',()=>{
   const admin=read('client/src/pages/ayarlar.tsx');
   assert.match(admin,/rounded-\[30px\] border-\[5px\] border-slate-600 bg-\[#111113\] shadow-xl/);
   assert.match(admin,/justify-between px-4 pt-2 text-xs font-bold/);
@@ -80,7 +80,7 @@ test('admin phone preview renders an unframed header artwork between padded stat
   assert.doesNotMatch(admin,/relative mt-3 overflow-hidden rounded-2xl border border-amber-500\/30/);
   assert.match(admin,/className="absolute inset-0 h-full w-full object-cover"/);
   assert.match(admin,/relative z-10 flex items-center justify-center px-4 pb-0\.5 pt-0\.5/);
-  assert.match(admin,/className="bg-\[#111113\] px-3 pb-3 pt-1"/);
+  assert.match(admin,/className="relative z-10 bg-transparent px-3 pb-3 pt-1"/);
 });
 
 test('home status bar and customer actions sit over the same backdrop as the branded logo',()=>{
@@ -164,4 +164,22 @@ test('compact full-width branding trims logo margins and uses the reference barc
  assert.ok(admin.includes('payload.logo=normalized'));
  assert.ok(home.includes('[2.3,0.9,3.1,1.1,0.7,1.8,1]'));
  assert.ok(admin.includes('[2.3,0.9,3.1,1.1,0.7,1.8,1]'));
+});
+
+test('single native header backdrop covers the sticky parent, including search and categories',()=>{
+  const home=read('mobile/app/(tabs)/index.tsx');
+  const top=home.indexOf('<View style={styles.stickyHomeTop}>');
+  const artwork=home.indexOf('source={{uri:branding.b2b_mobile_header_background}}');
+  const brand=home.indexOf('<View style={styles.homeBrandHeader}>');
+  const search=home.indexOf('style={styles.headerRow}');
+  const categories=home.indexOf('style={styles.categoryQuickRow}');
+  const scroll=home.indexOf('style={styles.scrollableHomeContent}');
+  assert.ok(top<artwork && artwork<brand && brand<search && search<categories && categories<scroll);
+  assert.equal(home.split('source={{uri:branding.b2b_mobile_header_background}}').length-1,1);
+  for(const name of ['homeBrandHeader','homeBrowseBlock']){
+    const block=home.match(new RegExp(name+":\\s*\\{([^}]*)\\}"));
+    assert.ok(block,name);
+    assert.match(block[1],/backgroundColor:'transparent'/);
+  }
+  assert.match(home,/pointerEvents="none" style=\{StyleSheet\.absoluteFillObject\}/);
 });

@@ -369,6 +369,18 @@ export default function HomeScreen() {
           translucent backgroundColor="transparent" />
       ) : null}
       <View style={styles.stickyHomeTop}>
+        {homeHeader.enabled && branding.b2b_mobile_header_background ? (
+          <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+            <Image
+              source={{uri:branding.b2b_mobile_header_background}}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              contentPosition="center"
+              cachePolicy="memory-disk"
+              accessibilityLabel="Header arka planı"
+            />
+          </View>
+        ) : null}
         {welcome ? <Animated.View pointerEvents="none" style={[styles.welcomeToast, { opacity: welcomeFade, transform: [{ translateY: welcomeShift }] }]}>
           <Ionicons name="checkmark-circle" size={20} color="#FFCD00" />
           <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
@@ -376,15 +388,6 @@ export default function HomeScreen() {
 
         {homeHeader.enabled ? (
           <View style={styles.homeBrandHeader}>
-            {branding.b2b_mobile_header_background ? (
-              <Image
-                source={{uri:branding.b2b_mobile_header_background}}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-                accessibilityLabel="Header arka planı"
-              />
-            ) : null}
             <View style={[styles.homeBrandHeaderContent,{paddingTop:insets.top+2}]}>
               <View style={styles.homeBrandMain}>
                 <View style={styles.homeBrandLogoRow}>
@@ -809,7 +812,7 @@ export default function HomeScreen() {
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
-  stickyHomeTop:{width:'100%',paddingHorizontal:spacing.lg,backgroundColor:'#111113',zIndex:10},
+  stickyHomeTop:{width:'100%',paddingHorizontal:spacing.lg,backgroundColor:'#111113',position:'relative',zIndex:10},
   scrollableHomeContent:{flex:1,minHeight:0},
   brandedRefreshOverlay:{position:'absolute',top:7,left:0,right:0,alignItems:'center',zIndex:12},
   brandedRefreshGif:{width:180,height:62},
@@ -825,13 +828,13 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     position: 'relative',
   },
   homeBrandHeader: {
-    // Keep the branded header inside the same symmetric gutters as the banner.
+    // Keep content gutters while the parent artwork covers the entire sticky header.
     width:'100%',
     minHeight:0,
     alignSelf:'center',
     marginTop:0,
     marginBottom:0,
-    backgroundColor:'#121213',
+    backgroundColor:'transparent',
     borderRadius:0,
     borderWidth:0,
     overflow:'hidden',
@@ -944,7 +947,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   homeBrowseBlock:{
     width:'100%',
     alignSelf:'center',
-    backgroundColor:'#111113',
+    backgroundColor:'transparent',
     paddingTop:2,
     paddingBottom:9,
   },

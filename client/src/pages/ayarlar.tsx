@@ -736,7 +736,7 @@ export default function Ayarlar() {
                     <Monitor className="h-4 w-4"/> Header Önizleme
                   </div>
                   <p className="mb-4 text-xs text-muted-foreground">
-                    Arka plan saat ve pil simgelerinin arkasından başlayarak headerı tamamen kaplar.
+                    Arka plan saat ve pil simgelerinden kategori kartlarının altına kadar tüm üst alanı kenardan kenara kaplar.
                     Logo ve slogan ortada, altında ince arama çubuğu ve mini kategori kartları bulunur.
                   </p>
                   <div className="mx-auto w-full max-w-[460px] overflow-hidden rounded-[30px] border-[5px] border-slate-600 bg-[#111113] shadow-xl">
@@ -785,9 +785,8 @@ export default function Ayarlar() {
                           <ShoppingCart className="h-5 w-5"/>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="bg-[#111113] px-3 pb-3 pt-1">
+                    <div className="relative z-10 bg-transparent px-3 pb-3 pt-1">
                       <div className="flex h-8 items-center gap-2 rounded-lg bg-[#F8F8F8] pl-3 pr-2 text-xs font-light text-[#45454A]">
                         <Search className="h-4 w-4 shrink-0 text-[#242426]" strokeWidth={1.5}/>
                         <span className="min-w-0 flex-1">Ürün, marka veya barkod ara</span>
@@ -811,6 +810,7 @@ export default function Ayarlar() {
                           <span className="w-full text-center text-[8px] font-normal leading-[10px]">Tüm Kategoriler</span>
                         </div>
                       </div>
+                    </div>
                     </div>
                   </div>
                 </div>
