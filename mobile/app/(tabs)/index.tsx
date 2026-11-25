@@ -813,7 +813,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   stickyHomeTop:{width:'100%',backgroundColor:'#111113',zIndex:10},
   scrollableHomeContent:{flex:1,minHeight:0},
   brandedRefreshOverlay:{position:'absolute',top:7,left:0,right:0,alignItems:'center',zIndex:12},
-  brandedRefreshGif:{width:150,height:62},
+  brandedRefreshGif:{width:180,height:62},
   brandedRefreshFallback:{minWidth:174,minHeight:54,borderRadius:13,borderWidth:1,borderColor:'#CBA527',backgroundColor:'#171717',
     alignItems:'center',justifyContent:'center',paddingHorizontal:13,paddingVertical:7},
   brandedRefreshWordmark:{fontSize:17,fontWeight:'900',color:'#FFCD00'},
