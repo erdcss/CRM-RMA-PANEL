@@ -142,6 +142,19 @@ export default function HomeScreen() {
     return () => { active = false; unsubscribe(); };
   }, []);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshAnimationImageId,setRefreshAnimationImageId] = useState('');
+  const [refreshGifFailed,setRefreshGifFailed] = useState(false);
+  const refreshPulse=useRef(new Animated.Value(0)).current;
+  useEffect(()=>{
+    if(!refreshing){refreshPulse.setValue(0);return;}
+    const animation=Animated.loop(Animated.sequence([
+      Animated.timing(refreshPulse,{toValue:1,duration:550,useNativeDriver:true}),
+      Animated.timing(refreshPulse,{toValue:0,duration:550,useNativeDriver:true}),
+    ]));
+    animation.start();
+    return ()=>animation.stop();
+  },[refreshing,refreshPulse]);
+  useEffect(()=>{setRefreshGifFailed(false);},[refreshAnimationImageId]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -175,6 +188,7 @@ export default function HomeScreen() {
     setSliderAutoPlay(homepage.sliderAutoPlay !== false);
     setSliderIntervalMs(homepage.sliderIntervalMs || 5000);
     setHomeSections(homepage.homeSections || DEFAULT_MOBILE_HOME_SECTIONS);
+    setRefreshAnimationImageId(homepage.refreshAnimationImageId || '');
     setHomeHeader(homepage.homeHeader || {enabled:true,tagline:'Toptan alışverişin akıllı yolu'});
     setBestSellerProductIds(homepage.bestSellerProductIds || []);
   }, []);
@@ -348,27 +362,14 @@ export default function HomeScreen() {
         <StatusBar style={homeHeader.enabled ? 'light' : 'auto'}
           translucent backgroundColor="transparent" />
       ) : null}
-      <ScrollView
-        ref={homeScrollRef}
-        contentInsetAdjustmentBehavior="never"
-        automaticallyAdjustContentInsets={false}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={palette.text}
-          />
-        }
-        contentContainerStyle={styles.page}
-      >
+      <View style={styles.stickyHomeTop}>
         {welcome ? <Animated.View pointerEvents="none" style={[styles.welcomeToast, { opacity: welcomeFade, transform: [{ translateY: welcomeShift }] }]}>
           <Ionicons name="checkmark-circle" size={20} color="#FFCD00" />
           <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
         </Animated.View> : null}
 
         {homeHeader.enabled ? (
-          <View style={[styles.homeBrandHeader,{width:screenWidth}]}>
+          <View style={[styles.homeBrandHeader,{width:screenWidth,marginLeft:0}]}>
             {branding.b2b_mobile_header_background ? (
               <Image
                 source={{uri:branding.b2b_mobile_header_background}}
@@ -521,7 +522,19 @@ export default function HomeScreen() {
             </View>
           ) : null}
         </View>
-
+      </View>
+      <View style={styles.scrollableHomeContent}>
+        <ScrollView
+          ref={homeScrollRef}
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustContentInsets={false}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
+              tintColor="transparent" colors={['transparent']} progressBackgroundColor="transparent"/>
+          }
+          contentContainerStyle={styles.page}
+        >
         {query.trim() ? (
           <View style={styles.searchResults}>
             <Text style={styles.searchResultHeading}>Arama Sonuçları · {filtered.length} ürün</Text>
@@ -579,16 +592,23 @@ export default function HomeScreen() {
                       onPress={()=>onBannerPress(banner)}
                       style={[styles.carouselSlide,{width:bannerWidth,height:bannerHeight}]}>
                       {homepageMediaUrl(banner.imageId) ? (
-                        <Image
-                          source={{ uri: homepageMediaUrl(banner.imageId)! }}
-                          style={hasCopy?styles.carouselSideImage:styles.carouselImage}
-                          // Always fill the rounded banner frame; contain leaves black side gutters on other aspect ratios.
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          transition={180}
-                          onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
-                          onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
-                        />
+                        <>
+                          {!hasCopy ? (
+                            <Image source={{uri:homepageMediaUrl(banner.imageId)!}}
+                              style={styles.carouselImageBackdrop} contentFit="cover"
+                              cachePolicy="memory-disk" accessibilityIgnoresInvertColors/>
+                          ) : null}
+                          <Image
+                            source={{ uri: homepageMediaUrl(banner.imageId)! }}
+                            style={hasCopy?styles.carouselSideImage:styles.carouselImage}
+                            // Preserve the complete text/products; the cover layer only fills unused side space.
+                            contentFit={hasCopy?'cover':'contain'}
+                            cachePolicy="memory-disk"
+                            transition={180}
+                            onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
+                            onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
+                          />
+                        </>
                       ) : null}
                       {hasCopy ? (
                         <View style={styles.bannerDetails} pointerEvents="none">
@@ -734,7 +754,25 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={20} color="#FFFFFF" />
           </Pressable>
         ) : null}
-      </ScrollView>
+        </ScrollView>
+        {refreshing ? (
+          <View pointerEvents="none" style={styles.brandedRefreshOverlay} accessibilityLabel="Çalışkan B2B yenileniyor">
+            {refreshAnimationImageId && !refreshGifFailed && homepageMediaUrl(refreshAnimationImageId) ? (
+              <Image source={{uri:homepageMediaUrl(refreshAnimationImageId)!}}
+                style={styles.brandedRefreshGif} contentFit="contain" cachePolicy="memory-disk"
+                onError={()=>setRefreshGifFailed(true)}/>
+            ) : (
+              <Animated.View style={[styles.brandedRefreshFallback,{
+                opacity:refreshPulse.interpolate({inputRange:[0,1],outputRange:[0.72,1]}),
+                transform:[{scale:refreshPulse.interpolate({inputRange:[0,1],outputRange:[0.96,1.04]})}],
+              }]}>
+                <Text style={styles.brandedRefreshWordmark}>ÇALIŞKAN <Text style={styles.brandedRefreshHighlight}>B2B</Text></Text>
+                <Text style={styles.brandedRefreshCaption}>Güncelleniyor...</Text>
+              </Animated.View>
+            )}
+          </View>
+        ) : null}
+      </View>
       {roundBottomBanner?.enabled&&roundBottomBanner.imageId&&
        roundBottomBanner.productIds?.length>0&&
        (!roundBottomBanner.endAt||new Date(roundBottomBanner.endAt).getTime()>Date.now())&&
@@ -772,6 +810,15 @@ export default function HomeScreen() {
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
+  stickyHomeTop:{width:'100%',backgroundColor:'#111113',zIndex:10},
+  scrollableHomeContent:{flex:1,minHeight:0},
+  brandedRefreshOverlay:{position:'absolute',top:7,left:0,right:0,alignItems:'center',zIndex:12},
+  brandedRefreshGif:{width:150,height:62},
+  brandedRefreshFallback:{minWidth:174,minHeight:54,borderRadius:13,borderWidth:1,borderColor:'#CBA527',backgroundColor:'#171717',
+    alignItems:'center',justifyContent:'center',paddingHorizontal:13,paddingVertical:7},
+  brandedRefreshWordmark:{fontSize:17,fontWeight:'900',color:'#FFCD00'},
+  brandedRefreshHighlight:{fontSize:13,color:'#FFFFFF'},
+  brandedRefreshCaption:{fontSize:10,fontWeight:'500',color:'#F1E9BA',marginTop:2},
   page: {
     paddingHorizontal: spacing.lg,
     paddingTop: 0,
@@ -860,6 +907,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
   carouselContainer: {marginTop:2,alignSelf:'center',borderRadius:13,overflow:'hidden',backgroundColor:'#171719'},
   carouselOutline:{...StyleSheet.absoluteFillObject,borderWidth:1,borderColor:'#737375',borderRadius:13},
+  carouselImageBackdrop:{...StyleSheet.absoluteFillObject,width:'100%',height:'100%'},
   carouselImage: {...StyleSheet.absoluteFillObject,width:'100%',height:'100%'},
   carouselSideImage:{position:'absolute',right:0,top:0,bottom:0,width:'53%',height:'100%'},
   bannerError:{position:'absolute',top:4,right:5,flexDirection:'row',gap:4,alignItems:'center',padding:4,borderRadius:6,backgroundColor:'rgba(0,0,0,0.65)'},
