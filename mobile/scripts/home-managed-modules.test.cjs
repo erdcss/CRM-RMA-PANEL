@@ -75,3 +75,15 @@ test('quick actions preserve compact four-column row and accessible descriptions
  assert.ok(modules.includes('actionTop:{flexDirection:\'row\',alignItems:\'center\''));
  assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
 });
+
+
+test('reorder banner uses admin media, compact ratio, fallback and order navigation',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const reorder=modules.slice(modules.indexOf("case 'reorder':"),modules.indexOf("case 'videos':"));
+ assert.ok(reorder.includes('if(!signedIn)return null'));
+ assert.ok(reorder.includes('section.reorderBannerImageId'));
+ assert.ok(reorder.includes("onRoute('/my-orders')"));
+ assert.ok(modules.includes('aspectRatio:12'));
+ assert.ok(modules.includes('showImage ? <Image'));
+ assert.ok(modules.includes('onError={()=>setFailed(true)}'));
+});
