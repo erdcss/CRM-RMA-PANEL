@@ -205,6 +205,7 @@ export type MobileHomeLayout = {
   banners: Banner[];
   categoryCards: CategoryCard[];
   ledgerTileImageId: string;
+  refreshAnimationImageId: string;
   sliderAutoPlay: boolean;
   sliderIntervalMs: number;
 };
@@ -239,6 +240,7 @@ export function normalizeHomeLayout(raw: any): MobileHomeLayout {
     banners,
     categoryCards,
     ledgerTileImageId: validId.test(String(input.ledgerTileImageId || '')) ? String(input.ledgerTileImageId) : '',
+    refreshAnimationImageId: validId.test(String(input.refreshAnimationImageId || '')) ? String(input.refreshAnimationImageId) : '',
     sliderAutoPlay: input.sliderAutoPlay !== false,
     sliderIntervalMs: Number.isFinite(n) ? Math.min(15000, Math.max(2500, Math.round(n))) : 5000,
   };
