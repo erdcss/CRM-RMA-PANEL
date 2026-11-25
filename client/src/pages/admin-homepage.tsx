@@ -11,7 +11,7 @@ import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin
 import { AdminRoundBottomBanner, DEFAULT_ROUND_BOTTOM_BANNER, type RoundBottomBanner } from "@/components/admin-round-bottom-banner";
 import {AdminHomepageDrawer,loadHomepageDrawers,saveHomepageDrawers,type HomepageDrawerId,type HomepageDrawerState} from "@/components/admin-homepage-drawer";
 import type {CampaignProductOption} from "@/lib/campaign-product-picker";
-import { AdminHomeSections, DEFAULT_HOME_SECTIONS, type HomeHeader, type HomeSection } from "@/components/admin-home-sections";
+import { AdminHomeSections, DEFAULT_HOME_SECTIONS, type HomeHeader, type HomeSection, type QuickActionId } from "@/components/admin-home-sections";
 
 type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
@@ -41,7 +41,7 @@ type HomepageConfig = {
 };
 
 async function loadHomepageConfig(): Promise<HomepageConfig> {
-  const response = await fetch("/api/admin/homepage", { credentials: "include" });
+  const response = await fetch("/api/admin/homepage", { credentials: "include", cache:"no-store" });
   if (!response.ok) throw new Error("Ana sayfa ayarları alınamadı");
   return response.json();
 }
@@ -51,6 +51,8 @@ export default function AdminHomepage() {
   const { data, isLoading } = useQuery<HomepageConfig>({
     queryKey: ["/api/admin/homepage"],
     queryFn: loadHomepageConfig,
+    refetchOnWindowFocus:false,
+    refetchOnReconnect:false,
   });
 
   const [categories, setCategories] = useState<string[]>([]);
@@ -109,7 +111,7 @@ export default function AdminHomepage() {
     });
   }
 
-  async function uploadMedia(file: File, onReady: (id: string, imageWidth?: number, imageHeight?: number) => void, purpose?: "mobile_banner") {
+  async function uploadMedia(file: File, onReady: (id: string, imageWidth?: number, imageHeight?: number) => void | Promise<void>, purpose?: "mobile_banner", publishImmediately=false) {
     if (file.size > 3 * 1024 * 1024) {
       toast({ title: "Görsel büyük", description: "En fazla 3 MB PNG, JPEG, WebP veya GIF yüklenebilir.", variant: "destructive" });
       return;
@@ -129,13 +131,43 @@ export default function AdminHomepage() {
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Görsel kaydedilemedi");
-      onReady(String(result.id), Number(result.imageWidth)||undefined, Number(result.imageHeight)||undefined);
-      toast({ title: "Görsel yüklendi", description: "Yayımlamak için değişiklikleri kaydedin." });
+      if(!/^[a-f0-9]{32}$/.test(String(result.id)))throw new Error('Görsel kimliği geçersiz');
+      await onReady(String(result.id), Number(result.imageWidth)||undefined, Number(result.imageHeight)||undefined);
+      if(!publishImmediately)toast({ title: "Görsel yüklendi", description: "Yayımlamak için değişiklikleri kaydedin." });
     } catch (error) {
       toast({ title: "Görsel yüklenemedi", description: error instanceof Error ? error.message : "Tekrar deneyin", variant: "destructive" });
     } finally {
       setUploading(false);
     }
+  }
+
+  async function publishActionIcon(slot:QuickActionId,imageId:string|null){
+    const response=await fetch(`/api/admin/homepage/action-icons/${slot}`,{
+      method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageId}),
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||"Simge yayımlanamadı");
+    const actionImageIds=result.actionImageIds as HomeSection['actionImageIds'];
+    if(!actionImageIds||(actionImageIds[slot]||null)!==imageId)throw new Error("Sunucu simge kaydını doğrulamadı");
+    setHomeSections(current=>current.map(section=>section.id==="actions"?{...section,actionImageIds}:section));
+    // Verify that the same public feed read by the mobile app exposes the saved ID.
+    let published=false;
+    try{
+      const publicResponse=await fetch(`/api/public/homepage?t=${Date.now()}`,{cache:"no-store"});
+      if(publicResponse.ok){
+        const config=await publicResponse.json() as HomepageConfig;
+        const actual=config.homeSections?.find(section=>section.id==="actions")?.actionImageIds?.[slot]||null;
+        published=actual===imageId;
+      }
+    }catch{/* Saved, but public readback is unavailable. */}
+    toast(published?{title:"Simge yayımlandı",description:"Mobil ana sayfa kaydı doğrulandı."}
+      :{title:"Simge kaydedildi",description:"Mobil yayın henüz doğrulanamadı.",variant:"destructive"});
+  }
+  async function removeActionIcon(slot:QuickActionId){
+    setUploading(true);
+    try{await publishActionIcon(slot,null);}
+    catch(error){toast({title:"Simge kaldırılamadı",description:error instanceof Error?error.message:"Tekrar deneyin",variant:"destructive"});}
+    finally{setUploading(false);}
   }
 
   function addBanner() {
@@ -171,6 +203,7 @@ export default function AdminHomepage() {
   }
 
   async function save() {
+    if(uploading)return;
     for (const category of categories) {
       const subcategories = categoryCards.find(card => card.category === category)?.subcategories || [];
       const seen = new Set<string>();
@@ -259,7 +292,7 @@ export default function AdminHomepage() {
               aria-label="Tüm ana sayfa bölümlerini aç">Tümünü Aç</Button>
             <Button type="button" size="sm" variant="outline" onClick={()=>showAllDrawers(false)}
               aria-label="Tüm ana sayfa bölümlerini kapat">Tümünü Kapat</Button>
-          <Button onClick={save} disabled={saving || isLoading}>
+          <Button onClick={save} disabled={saving || uploading || isLoading}>
             <Save className="mr-2 h-4 w-4" />
             {saving ? "Kaydediliyor…" : "Değişiklikleri Kaydet"}
           </Button>
@@ -272,7 +305,9 @@ export default function AdminHomepage() {
           open={drawers.sections} onToggle={()=>toggleDrawer("sections")}>
           <AdminHomeSections sections={homeSections} onChange={setHomeSections}
             header={homeHeader} onHeaderChange={setHomeHeader} products={productOptions}
-            uploadBrandLogo={(file,ready)=>{void uploadMedia(file,ready);}} uploading={uploading}/>
+            uploadBrandLogo={(file,ready)=>{void uploadMedia(file,ready);}}
+            uploadActionIcon={(slot,file)=>{void uploadMedia(file,id=>publishActionIcon(slot,id),undefined,true);}}
+            removeActionIcon={slot=>{void removeActionIcon(slot);}} uploading={uploading||saving}/>
         </AdminHomepageDrawer>
 
         <AdminHomepageDrawer id="categories" title="Kategoriler"

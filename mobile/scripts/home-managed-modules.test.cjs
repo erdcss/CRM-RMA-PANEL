@@ -38,3 +38,12 @@ test('quick actions use a single row, optional uploaded icons and yellow arrows'
  assert.ok(actions.includes('name="chevron-forward"'));
  assert.ok(actions.includes('onOpenScanner()'));
 });
+
+test('quick actions use full-width titles and one-line short captions',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ assert.ok(modules.includes('subtitle:\'Barkodla bul\''));
+ assert.ok(modules.includes('style={styles.actionSubtitle} numberOfLines={1}'));
+ assert.ok(modules.includes('style={styles.actionTitle} numberOfLines={1}'));
+ assert.ok(modules.includes('recyclingKey={imageId}'));
+ assert.ok(modules.includes('onError={()=>setFailed(true)}'));
+});

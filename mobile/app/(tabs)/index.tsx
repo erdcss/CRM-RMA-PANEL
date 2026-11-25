@@ -188,11 +188,17 @@ export default function HomeScreen() {
     setBestSellerProductIds(homepage.bestSellerProductIds || []);
   }, []);
 
+  const homepageRequestRef=useRef(0);
+  const refreshHomepage=useCallback(async()=>{
+    const requestId=++homepageRequestRef.current;
+    const homepage=await rmaApi.getB2BHomepage();
+    if(requestId===homepageRequestRef.current)applyHomepage(homepage);
+  },[applyHomepage]);
   const load = useCallback(async (forceRefresh = false) => {
-    const [productResult, supplierResult, homepageResult, campaignResult] = await Promise.allSettled([
+    const [productResult, supplierResult, , campaignResult] = await Promise.allSettled([
       rmaApi.listB2BProducts(forceRefresh),
       rmaApi.listMarketplaceProducts(),
-      rmaApi.getB2BHomepage(),
+      refreshHomepage(),
       rmaApi.listTimedCampaigns(),
     ]);
 
@@ -207,13 +213,15 @@ export default function HomeScreen() {
       setCatalogError('Ürün kataloglarına ulaşılamadı. Yeniden deneyin.');
     }
 
-    if (homepageResult.status === 'fulfilled') {
-      applyHomepage(homepageResult.value);
-    }
     if (campaignResult.status === 'fulfilled') {
       setTimedCampaigns(Array.isArray(campaignResult.value) ? campaignResult.value : []);
     }
-  }, [applyHomepage]);
+  }, [refreshHomepage]);
+
+  useFocusEffect(useCallback(()=>{
+    const timer=setInterval(()=>{void refreshHomepage().catch(()=>undefined);},30_000);
+    return ()=>clearInterval(timer);
+  },[refreshHomepage]));
 
   useEffect(() => {
     void load();

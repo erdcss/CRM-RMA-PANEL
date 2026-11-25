@@ -448,6 +448,38 @@ export function registerHomepageMediaRoutes(app: Express, requireAdmin: RequestH
     }
   });
 
+  // Persist only the chosen quick-action icon. Other homepage drafts are untouched.
+  app.put("/api/admin/homepage/action-icons/:slot",requireAdmin,async(req,res)=>{
+    if(!pool)return res.status(503).json({error:"Veritabanı bağlantısı yok"});
+    const slots=['scan','orders','ledger','campaigns'] as const;
+    const slot=slots.find(key=>key===req.params.slot);
+    const imageId=req.body?.imageId;
+    if(!slot||(imageId!==null&&(typeof imageId!=="string"||!validId.test(imageId))))
+      return res.status(400).json({error:"Geçersiz simge veya görsel"});
+    try{
+      if(imageId!==null&&!(await getCachedHomepageMedia(imageId)))
+        return res.status(404).json({error:"Yüklenen görsel bulunamadı"});
+      await ensureElectronicsTitleSubcategories();
+      const client=await pool.connect();
+      try{
+        await client.query("BEGIN");
+        await client.query("INSERT INTO platform_settings (key,value,updated_at) VALUES ($1,$2,NOW()) ON CONFLICT (key) DO NOTHING",[LAYOUT_KEY,JSON.stringify(normalizeHomeLayout({}))]);
+        const row=await client.query("SELECT value FROM platform_settings WHERE key=$1 FOR UPDATE",[LAYOUT_KEY]);
+        const layout=normalizeHomeLayout(JSON.parse(String(row.rows[0].value)));
+        const section=layout.homeSections.find(item=>item.id==="actions")!;
+        if(imageId===null)delete section.actionImageIds[slot];
+        else section.actionImageIds[slot]=imageId;
+        await client.query("UPDATE platform_settings SET value=$2,updated_at=NOW() WHERE key=$1",[LAYOUT_KEY,JSON.stringify(layout)]);
+        await client.query("COMMIT");
+        return res.json({actionImageIds:section.actionImageIds});
+      }catch(error){await client.query("ROLLBACK");throw error;}
+      finally{client.release();}
+    }catch(error){
+      console.error("Quick action icon save failed",error);
+      return res.status(500).json({error:"Simge kaydedilemedi"});
+    }
+  });
+
   app.get("/api/public/homepage/media/:id", async (req, res) => {
     const id = String(req.params.id || "");
     if (!validId.test(id) || !pool) return res.status(404).end();

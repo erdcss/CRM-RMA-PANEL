@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { findCampaignProducts, type CampaignProductOption } from "@/lib/campaign-product-picker";
 
 export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "videos" | "bestsellers" | "brands";
+export type QuickActionId = 'scan'|'orders'|'ledger'|'campaigns';
 export type HomeSection = {
   id: HomeSectionId; title: string; enabled: boolean;
-  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<'scan'|'orders'|'ledger'|'campaigns',string>>;
+  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<QuickActionId,string>>;
 };
 export type HomeHeader = { enabled: boolean; tagline: string };
 const quickActionIcons = [{id:'scan',label:'Hızlı Sipariş',Icon:Zap},{id:'orders',label:'Tekrar Sipariş',Icon:Repeat2},{id:'ledger',label:'Cari Hesap',Icon:Coins},{id:'campaigns',label:'Kampanyalar',Icon:Tag}] as const;
@@ -25,7 +26,7 @@ export const DEFAULT_HOME_SECTIONS: HomeSection[] = definitions.map(d=>({
 }));
 
 export function AdminHomeSections({
-  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploading
+  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon, uploading
 }:{
   sections: HomeSection[];
   onChange: (next: HomeSection[])=>void;
@@ -33,6 +34,8 @@ export function AdminHomeSections({
   onHeaderChange: (next: HomeHeader)=>void;
   products: CampaignProductOption[];
   uploadBrandLogo: (file: File, onReady: (imageId:string)=>void)=>void;
+  uploadActionIcon: (slot:QuickActionId,file:File)=>void;
+  removeActionIcon: (slot:QuickActionId)=>void;
   uploading: boolean;
 }) {
   const [search,setSearch]=useState("");
@@ -85,7 +88,7 @@ export function AdminHomeSections({
             onChange={e=>update(section.id,{title:e.target.value})}/>
         </label>}
         {section.id==="actions"&&<div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Mobilde başlık gösterilmez. Dört kart tek satırdadır. Her simge için şeffaf PNG önerilir (256 × 256 px).</p>
+          <p className="text-xs text-muted-foreground">Dört kart tek satırdadır. Görseller yüklenince otomatik yayımlanır. Şeffaf PNG önerilir (256 × 256 px).</p>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             {quickActionIcons.map(({id,label,Icon})=><div key={id} className="rounded-xl border p-2 space-y-2">
               <div className="flex h-14 items-center justify-center rounded-lg bg-[#1B1B1D]">
@@ -93,16 +96,14 @@ export function AdminHomeSections({
               </div>
               <p className="text-xs font-semibold">{label}</p>
               <label className="block cursor-pointer rounded-md border px-2 py-1.5 text-center text-xs font-medium">
-                {section.actionImageIds?.[id]?"Görseli değiştir":"Görsel yükle"}
+                {uploading?"İşleniyor…":section.actionImageIds?.[id]?"Görseli değiştir":"Görsel yükle"}
                 <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading} onChange={event=>{
                   const file=event.target.files?.[0];
-                  if(file)uploadBrandLogo(file,imageId=>update(section.id,{actionImageIds:{...section.actionImageIds,[id]:imageId}}));
+                  if(file)uploadActionIcon(id,file);
                   event.target.value="";
                 }}/>
               </label>
-              {section.actionImageIds?.[id]&&<Button type="button" variant="ghost" size="sm" className="w-full" onClick={()=>{
-                const next={...section.actionImageIds};delete next[id];update(section.id,{actionImageIds:next});
-              }}>Kaldır</Button>}
+              {section.actionImageIds?.[id]&&<Button type="button" variant="ghost" size="sm" className="w-full" disabled={uploading} onClick={()=>removeActionIcon(id)}>Kaldır</Button>}
             </div>)}
           </div>
         </div>}

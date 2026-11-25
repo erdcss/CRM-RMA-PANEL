@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,11 +50,18 @@ function ItemStrip({products,renderProduct}:{products:B2BProduct[];renderProduct
   </ScrollView>;
 }
 const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
-  {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla veya listeyle',icon:'flash',route:''},
-  {id:'orders',label:'Tekrar Sipariş',subtitle:'Önceki siparişini yenile',icon:'repeat-outline',route:'/my-orders'},
-  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye ve hesap bilgileri',icon:'cash-outline',route:'/ledger'},
-  {id:'campaigns',label:'Kampanyalar',subtitle:'Toptan fırsatları keşfet',icon:'pricetag-outline',route:'/campaigns'},
+  {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla bul',icon:'flash',route:''},
+  {id:'orders',label:'Tekrar Sipariş',subtitle:'Yeniden al',icon:'repeat-outline',route:'/my-orders'},
+  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye gör',icon:'cash-outline',route:'/ledger'},
+  {id:'campaigns',label:'Kampanyalar',subtitle:'Fırsatları gör',icon:'pricetag-outline',route:'/campaigns'},
 ];
+function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionicons.glyphMap}){
+  const [failed,setFailed]=useState(false);
+  const uri=homepageMediaUrl(imageId);
+  return uri&&!failed
+    ? <Image source={{uri}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
+    : <Ionicons name={icon} size={19} color="#FFCD00"/>;
+}
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
   renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,
@@ -77,15 +84,11 @@ export function ManagedHomeSections({
                 style={({pressed})=>[styles.actionCard,pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
                 <View style={styles.actionTop}>
-                  {section.actionImageIds?.[action.id]&&homepageMediaUrl(section.actionImageIds[action.id]!)
-                    ? <Image source={{uri:homepageMediaUrl(section.actionImageIds[action.id]!)!}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk"/>
-                    : <Ionicons name={action.icon} size={16} color="#FFCD00"/>}
-                  <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{action.label}</Text>
-                </View>
-                <View style={styles.actionBottom}>
-                  <Text style={styles.actionSubtitle} numberOfLines={2}>{action.subtitle}</Text>
+                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
                   <Ionicons name="chevron-forward" size={12} color="#FFCD00"/>
                 </View>
+                <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{action.label}</Text>
+                <Text style={styles.actionSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{action.subtitle}</Text>
               </Pressable>)}
           </View>;
         case 'flash': {
@@ -198,16 +201,15 @@ const styles=StyleSheet.create({
   seeAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:38},
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'700'},
   productScroll:{gap:10,paddingRight:14},
-  actions:{flexDirection:'row',flexWrap:'nowrap',gap:5,marginTop:6,paddingBottom:3},
-  actionCard:{flex:1,minWidth:0,minHeight:55,borderRadius:10,borderWidth:1,borderColor:'#5C5433',
+  actions:{flexDirection:'row',flexWrap:'nowrap',gap:4,marginTop:6,marginHorizontal:-8,paddingBottom:3},
+  actionCard:{flex:1,minWidth:0,minHeight:62,borderRadius:10,borderWidth:1,borderColor:'#5C5433',
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
-    paddingHorizontal:5,paddingVertical:5,gap:3,justifyContent:'center',
+    paddingHorizontal:4,paddingVertical:5,gap:2,justifyContent:'center',
     shadowColor:'#FFCD00',shadowOpacity:0.16,shadowRadius:4,shadowOffset:{width:0,height:1},elevation:2},
-  actionTop:{flexDirection:'row',alignItems:'center',gap:3,minWidth:0},
-  actionIcon:{width:16,height:16},
-  actionTitle:{flex:1,minWidth:0,fontSize:9,fontWeight:'500',color:'#FFFFFF'},
-  actionBottom:{flexDirection:'row',alignItems:'center',gap:1},
-  actionSubtitle:{flex:1,minWidth:0,fontSize:8,color:'#DDDDDF',lineHeight:10,fontWeight:'400'},
+  actionTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',width:'100%'},
+  actionIcon:{width:22,height:22},
+  actionTitle:{width:'100%',fontSize:10,fontWeight:'500',color:'#FFFFFF',textAlign:'center'},
+  actionSubtitle:{width:'100%',fontSize:9,color:'#DDDDDF',lineHeight:11,fontWeight:'400',textAlign:'center'},
   flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
   flashCampaign:{gap:9},
   campaignLabel:{color:'#FFD447',fontWeight:'800',fontSize:13},
