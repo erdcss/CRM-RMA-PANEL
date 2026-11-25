@@ -124,3 +124,10 @@ test('quick action icon IDs only allow known action slots and valid media IDs',(
  const layout=normalizeHomeLayout({homeSections:[{id:'actions',actionImageIds:{scan:'a'.repeat(32),orders:'b'.repeat(32),ledger:'invalid',campaigns:'c'.repeat(32),unknown:'d'.repeat(32)}}]});
  assert.deepEqual(layout.homeSections[0].actionImageIds,{scan:'a'.repeat(32),orders:'b'.repeat(32),campaigns:'c'.repeat(32)});
 });
+
+test('pull refresh GIF ID persists safely through homepage layout normalization',()=>{
+  const valid='a'.repeat(32);
+  assert.equal(normalizeHomeLayout({refreshAnimationImageId:valid}).refreshAnimationImageId,valid);
+  assert.equal(normalizeHomeLayout({refreshAnimationImageId:'../admin'}).refreshAnimationImageId,'');
+  assert.equal(normalizeHomeLayout({}).refreshAnimationImageId,'');
+});
