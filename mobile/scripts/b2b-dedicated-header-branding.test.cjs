@@ -89,7 +89,7 @@ test('home status bar and customer actions sit over the same backdrop as the bra
  assert.match(home,/router\.push\('\/\(tabs\)\/orders' as never\)/);
  assert.match(home,/homeBrowseBlock,\{width:screenWidth\}/);
  assert.match(home,/minHeight:40,borderRadius:12/);
- assert.match(admin,/Header arka plan önizlemesi/);
+ assert.match(admin,/header arka plan önizlemesi/i);
  assert.match(admin,/Tüm Kategoriler/);
  assert.match(admin,/ScanLine/);
 });
