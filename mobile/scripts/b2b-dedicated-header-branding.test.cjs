@@ -60,7 +60,7 @@ test('native header background stretches edge-to-edge while catalogue gutters re
   const home=read('mobile/app/(tabs)/index.tsx');
   assert.match(home,/style=\{\[styles\.homeBrandHeader,\s*\{width:screenWidth\}\]\}/);
   assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginLeft:-spacing\.lg/);
-  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginTop:-spacing\.md/);
+  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginTop:0/);
   assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?borderRadius:0/);
   assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?borderWidth:0/);
   assert.match(home,/homeBrandHeaderContent:\s*\{[\s\S]*?paddingHorizontal:spacing\.lg/);
@@ -70,10 +70,26 @@ test('native header background stretches edge-to-edge while catalogue gutters re
 test('admin phone preview renders an unframed header artwork between padded status and search rows',()=>{
   const admin=read('client/src/pages/ayarlar.tsx');
   assert.match(admin,/rounded-\[30px\] border-\[5px\] border-slate-600 bg-\[#111113\] shadow-xl/);
-  assert.match(admin,/justify-between px-4 pt-4 text-xs font-bold/);
-  assert.match(admin,/relative mt-3 min-h-\[73px\] overflow-hidden bg-\[radial-gradient/);
+  assert.match(admin,/justify-between px-4 pt-2 text-xs font-bold/);
+  assert.match(admin,/relative overflow-hidden bg-\[radial-gradient/);
   assert.doesNotMatch(admin,/relative mt-3 overflow-hidden rounded-2xl border border-amber-500\/30/);
   assert.match(admin,/className="absolute inset-0 h-full w-full object-cover"/);
-  assert.match(admin,/relative z-10 flex min-h-\[73px\] flex-col/);
-  assert.match(admin,/className="px-4 pb-4"/);
+  assert.match(admin,/relative z-10 flex min-h-\[82px\] items-center/);
+  assert.match(admin,/className="bg-\[#111113\] px-3 pb-3 pt-1"/);
+});
+
+test('home status bar and customer actions sit over the same backdrop as the branded logo',()=>{
+ const home=read('mobile/app/(tabs)/index.tsx');
+ const admin=read('client/src/pages/ayarlar.tsx');
+ assert.match(home,/useSafeAreaInsets\(\)/);
+ assert.match(home,/<StatusBar style="light" translucent backgroundColor="transparent"/);
+ assert.match(home,/paddingTop:insets\.top\+7/);
+ assert.match(home,/homeHeaderTopActions,\{top:insets\.top\+7\}/);
+ assert.match(home,/accessibilityLabel="Bildirimleri aç"/);
+ assert.match(home,/router\.push\('\/\(tabs\)\/orders' as never\)/);
+ assert.match(home,/homeBrowseBlock,\{width:screenWidth\}/);
+ assert.match(home,/minHeight:40,borderRadius:12/);
+ assert.match(admin,/Header arka plan önizlemesi/);
+ assert.match(admin,/Tüm Kategoriler/);
+ assert.match(admin,/ScanLine/);
 });
