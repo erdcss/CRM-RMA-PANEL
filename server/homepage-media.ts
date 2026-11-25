@@ -146,6 +146,7 @@ export type HomeSection = {
   productIds: string[];
   brands: string[];
   brandImageIds: Record<string,string>;
+  actionImageIds: Partial<Record<'scan'|'orders'|'ledger'|'campaigns',string>>;
 };
 /** Store only valid public/catalog IDs and display labels. Unknown modules are discarded. */
 export function normalizeHomeSections(raw: unknown): HomeSection[] {
@@ -175,6 +176,13 @@ export function normalizeHomeSections(raw: unknown): HomeSection[] {
       const imageId = images[brand];
       if (typeof imageId === 'string' && validId.test(imageId)) brandImageIds[brand] = imageId;
     }
+    const actionImageIds: HomeSection['actionImageIds'] = {};
+    if(base.id==='actions'&&entry.actionImageIds&&typeof entry.actionImageIds==='object'&&!Array.isArray(entry.actionImageIds)){
+      for(const key of ['scan','orders','ledger','campaigns'] as const){
+        const imageId=entry.actionImageIds[key];
+        if(typeof imageId==='string'&&validId.test(imageId))actionImageIds[key]=imageId;
+      }
+    }
     result.push({
       id: base.id,
       title: safeString(entry.title, 70) || base.title,
@@ -182,10 +190,11 @@ export function normalizeHomeSections(raw: unknown): HomeSection[] {
       productIds,
       brands,
       brandImageIds,
+      actionImageIds,
     });
   }
   for (const base of HOME_SECTION_DEFAULTS) if (!result.some(item => item.id === base.id))
-    result.push({ id: base.id, title: base.title, enabled: base.enabled, productIds: [], brands: [], brandImageIds: {} });
+    result.push({ id: base.id, title: base.title, enabled: base.enabled, productIds: [], brands: [], brandImageIds: {}, actionImageIds: {} });
   return result;
 }
 

@@ -119,3 +119,8 @@ test('only recognized brand names can carry valid immutable brand logo media IDs
  }]});
  assert.deepEqual(layout.homeSections[0].brandImageIds,{Arzum:'a'.repeat(32)});
 });
+
+test('quick action icon IDs only allow known action slots and valid media IDs',()=>{
+ const layout=normalizeHomeLayout({homeSections:[{id:'actions',actionImageIds:{scan:'a'.repeat(32),orders:'b'.repeat(32),ledger:'invalid',campaigns:'c'.repeat(32),unknown:'d'.repeat(32)}}]});
+ assert.deepEqual(layout.homeSections[0].actionImageIds,{scan:'a'.repeat(32),orders:'b'.repeat(32),campaigns:'c'.repeat(32)});
+});

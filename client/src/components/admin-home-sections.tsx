@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2, Zap, Repeat2, Coins, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { findCampaignProducts, type CampaignProductOption } from "@/lib/campaign-product-picker";
@@ -7,9 +7,10 @@ import { findCampaignProducts, type CampaignProductOption } from "@/lib/campaign
 export type HomeSectionId = "actions" | "flash" | "special" | "reorder" | "videos" | "bestsellers" | "brands";
 export type HomeSection = {
   id: HomeSectionId; title: string; enabled: boolean;
-  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>;
+  productIds: string[]; brands: string[]; brandImageIds?: Record<string,string>; actionImageIds?: Partial<Record<'scan'|'orders'|'ledger'|'campaigns',string>>;
 };
 export type HomeHeader = { enabled: boolean; tagline: string };
+const quickActionIcons = [{id:'scan',label:'Hızlı Sipariş',Icon:Zap},{id:'orders',label:'Tekrar Sipariş',Icon:Repeat2},{id:'ledger',label:'Cari Hesap',Icon:Coins},{id:'campaigns',label:'Kampanyalar',Icon:Tag}] as const;
 const definitions: Array<{id: HomeSectionId; title: string; description: string}> = [
   {id:"actions",title:"Hızlı İşlemler",description:"Barkodla hızlı sipariş, tekrar sipariş, Defterim ve kampanyalara erişim"},
   {id:"flash",title:"Flash Ürünler",description:"Mevcut aktif süreli kampanyalar ve gerçek kalan süre; kampanya yönetiminden düzenlenir"},
@@ -79,10 +80,32 @@ export function AdminHomeSections({
             disabled={index===sections.length-1} onClick={()=>move(index,1)}><ArrowDown className="h-4 w-4"/></Button>
         </div>
         <p className="text-xs text-muted-foreground">{def?.description}</p>
-        <label className="block max-w-lg text-xs font-semibold">Mobil başlık
+        {section.id!=="actions"&&<label className="block max-w-lg text-xs font-semibold">Mobil başlık
           <Input className="mt-1" maxLength={70} value={section.title}
             onChange={e=>update(section.id,{title:e.target.value})}/>
-        </label>
+        </label>}
+        {section.id==="actions"&&<div className="space-y-2">
+          <p className="text-xs text-muted-foreground">Mobilde başlık gösterilmez. Dört kart tek satırdadır. Her simge için şeffaf PNG önerilir (256 × 256 px).</p>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {quickActionIcons.map(({id,label,Icon})=><div key={id} className="rounded-xl border p-2 space-y-2">
+              <div className="flex h-14 items-center justify-center rounded-lg bg-[#1B1B1D]">
+                {section.actionImageIds?.[id]?<img src={`/api/public/homepage/media/${section.actionImageIds[id]}`} alt={label+" simgesi"} className="h-10 w-10 object-contain"/>:<Icon className="h-7 w-7 text-[#FFCD00]"/>}
+              </div>
+              <p className="text-xs font-semibold">{label}</p>
+              <label className="block cursor-pointer rounded-md border px-2 py-1.5 text-center text-xs font-medium">
+                {section.actionImageIds?.[id]?"Görseli değiştir":"Görsel yükle"}
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" disabled={uploading} onChange={event=>{
+                  const file=event.target.files?.[0];
+                  if(file)uploadBrandLogo(file,imageId=>update(section.id,{actionImageIds:{...section.actionImageIds,[id]:imageId}}));
+                  event.target.value="";
+                }}/>
+              </label>
+              {section.actionImageIds?.[id]&&<Button type="button" variant="ghost" size="sm" className="w-full" onClick={()=>{
+                const next={...section.actionImageIds};delete next[id];update(section.id,{actionImageIds:next});
+              }}>Kaldır</Button>}
+            </div>)}
+          </div>
+        </div>}
         {section.id==="special"&&<div className="space-y-2">
           <label className="block text-xs font-bold">Vitrin ürünleri (en fazla 24)
             <Input className="mt-1" placeholder="Ürün adı veya stok koduyla ara (min. 2 harf)"

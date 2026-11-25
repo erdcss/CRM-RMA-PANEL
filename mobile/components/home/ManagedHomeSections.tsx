@@ -49,11 +49,11 @@ function ItemStrip({products,renderProduct}:{products:B2BProduct[];renderProduct
     {products.map(product=>renderProduct(product))}
   </ScrollView>;
 }
-const shortActionItems: Array<{id:string;label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
-  {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla ürün bul',icon:'scan-outline',route:''},
-  {id:'orders',label:'Tekrar Sipariş',subtitle:'Geçmiş siparişlerin',icon:'repeat-outline',route:'/my-orders'},
-  {id:'ledger',label:'Cari Hesap',subtitle:'Defter ve hesap hareketleri',icon:'wallet-outline',route:'/ledger'},
-  {id:'campaigns',label:'Kampanyalar',subtitle:'Güncel fırsatlar',icon:'pricetag-outline',route:'/campaigns'},
+const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
+  {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla veya listeyle',icon:'flash',route:''},
+  {id:'orders',label:'Tekrar Sipariş',subtitle:'Önceki siparişini yenile',icon:'repeat-outline',route:'/my-orders'},
+  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye ve hesap bilgileri',icon:'cash-outline',route:'/ledger'},
+  {id:'campaigns',label:'Kampanyalar',subtitle:'Toptan fırsatları keşfet',icon:'pricetag-outline',route:'/campaigns'},
 ];
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
@@ -71,18 +71,22 @@ export function ManagedHomeSections({
       const title=section.title||section.id;
       switch(section.id){
         case 'actions':
-          return <View key={section.id} style={styles.section}>
-            <SectionHead icon="flash-outline" title={title}/>
-            <View style={styles.actions}>
+          return <View key={section.id} style={styles.actions}>
               {shortActionItems.map(action=><Pressable key={action.id}
                 accessibilityRole="button" accessibilityLabel={action.label}
-                style={styles.actionCard}
+                style={({pressed})=>[styles.actionCard,pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
-                <Ionicons name={action.icon} size={25} color="#FFCD00"/>
-                <Text style={styles.actionTitle} numberOfLines={1}>{action.label}</Text>
-                <Text style={styles.actionSubtitle} numberOfLines={2}>{action.subtitle}</Text>
+                <View style={styles.actionTop}>
+                  {section.actionImageIds?.[action.id]&&homepageMediaUrl(section.actionImageIds[action.id]!)
+                    ? <Image source={{uri:homepageMediaUrl(section.actionImageIds[action.id]!)!}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk"/>
+                    : <Ionicons name={action.icon} size={16} color="#FFCD00"/>}
+                  <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>{action.label}</Text>
+                </View>
+                <View style={styles.actionBottom}>
+                  <Text style={styles.actionSubtitle} numberOfLines={2}>{action.subtitle}</Text>
+                  <Ionicons name="chevron-forward" size={12} color="#FFCD00"/>
+                </View>
               </Pressable>)}
-            </View>
           </View>;
         case 'flash': {
           const rows=liveCampaigns.map(campaign=>{
@@ -194,11 +198,16 @@ const styles=StyleSheet.create({
   seeAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:38},
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'700'},
   productScroll:{gap:10,paddingRight:14},
-  actions:{flexDirection:'row',flexWrap:'wrap',gap:8},
-  actionCard:{width:'48%',minHeight:98,borderRadius:15,borderWidth:1,borderColor:'#5F521E',
-    backgroundColor:'#1B1B1D',padding:12,gap:4,flexGrow:1},
-  actionTitle:{fontSize:13,fontWeight:'800',color:'#FFFFFF'},
-  actionSubtitle:{fontSize:11,color:'#C5C5CA',lineHeight:15},
+  actions:{flexDirection:'row',flexWrap:'nowrap',gap:5,marginTop:6,paddingBottom:3},
+  actionCard:{flex:1,minWidth:0,minHeight:55,borderRadius:10,borderWidth:1,borderColor:'#5C5433',
+    borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
+    paddingHorizontal:5,paddingVertical:5,gap:3,justifyContent:'center',
+    shadowColor:'#FFCD00',shadowOpacity:0.16,shadowRadius:4,shadowOffset:{width:0,height:1},elevation:2},
+  actionTop:{flexDirection:'row',alignItems:'center',gap:3,minWidth:0},
+  actionIcon:{width:16,height:16},
+  actionTitle:{flex:1,minWidth:0,fontSize:9,fontWeight:'500',color:'#FFFFFF'},
+  actionBottom:{flexDirection:'row',alignItems:'center',gap:1},
+  actionSubtitle:{flex:1,minWidth:0,fontSize:8,color:'#DDDDDF',lineHeight:10,fontWeight:'400'},
   flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
   flashCampaign:{gap:9},
   campaignLabel:{color:'#FFD447',fontWeight:'800',fontSize:13},

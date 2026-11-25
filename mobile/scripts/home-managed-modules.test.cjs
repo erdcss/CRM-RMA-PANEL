@@ -28,3 +28,13 @@ test('Admin managed home modules render actual content and preserve previously w
  assert.ok(screen.includes('Kategoriler'), 'category strip retained');
  assert.ok(screen.includes('{banners.length > 0 ? ('), 'carousel retained');
 });
+
+test('quick actions use a single row, optional uploaded icons and yellow arrows',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
+ assert.ok(!actions.includes('SectionHead'));
+ assert.ok(modules.includes("flexWrap:'nowrap'"));
+ assert.ok(actions.includes('section.actionImageIds'));
+ assert.ok(actions.includes('name="chevron-forward"'));
+ assert.ok(actions.includes('onOpenScanner()'));
+});
