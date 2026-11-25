@@ -4,19 +4,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const home = fs.readFileSync(path.resolve(__dirname,'../app/(tabs)/index.tsx'),'utf8');
-const marker = '<Text style={styles.sectionTitle}>Kategoriler</Text>';
-const beginCategory = home.indexOf(marker);
+const beginCategory = home.indexOf('style={styles.categoryQuickRow}');
+const beginAllCategories = home.indexOf('accessibilityLabel="Tüm kategoriler"');
+const beginSearchResults = home.indexOf('{query.trim() ? (');
 const beginBanner = home.indexOf('{banners.length > 0 ? (');
 const beginCampaigns = home.indexOf('<ManagedHomeSections');
-const searchEnd = home.indexOf('{query.trim() ? (');
 
-test('home shows existing categories and ledger tile above the promo banner, not duplicated',()=>{
-  assert.ok(searchEnd >= 0 && searchEnd < beginCategory);
-  assert.ok(beginCategory > 0 && beginCategory < beginBanner, 'Categories must appear before banner');
-  assert.ok(beginBanner < beginCampaigns, 'Timed campaigns remain after banner');
-  assert.equal(home.split(marker).length - 1,1,'One category section only');
-  assert.match(home.slice(beginCategory,beginBanner),/ledgerTileImageId/);
-  assert.match(home.slice(beginCategory,beginBanner),/categories\.map/);
+test('mini categories appear below slim search, pinned all categories at right and above the banner',()=>{
+  const beginSearch = home.indexOf('placeholder="Ürün, marka veya barkod ara"');
+  assert.ok(beginSearch>=0 && beginSearch<beginCategory, 'Search must precede mini categories');
+  assert.ok(beginCategory>0 && beginCategory<beginAllCategories, 'Pinned All Categories is after the strip');
+  assert.ok(beginAllCategories<beginSearchResults, 'All Categories lives beside search, before search results');
+  assert.ok(beginSearchResults<beginBanner && beginBanner<beginCampaigns, 'Banners follow mini categories');
+  assert.equal(home.split('accessibilityLabel="Tüm kategoriler"').length-1,1,'One pinned action only');
+  assert.match(home,/categories\.map/);
+  assert.match(home,/router\.push\('\/\(tabs\)\/menu' as never\)/);
+  assert.match(home,/style=\{styles\.categoryStripScroll\}/);
 });
 
 test('banner has equal 16px page gutters, rounded edges and correct snapping',()=>{
