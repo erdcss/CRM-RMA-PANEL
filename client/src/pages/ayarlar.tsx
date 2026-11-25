@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
+  ShoppingCart,
+  ScanLine,
+  Grid2X2,
   CreditCard,
   Database,
   Copy,
@@ -606,17 +609,12 @@ export default function Ayarlar() {
                     <Monitor className="h-4 w-4"/> Header Önizleme
                   </div>
                   <p className="mb-4 text-xs text-muted-foreground">
-                    Arka plan telefonun iki kenarına kadar uzanır; iç çerçeve kullanılmaz.
-                    Logo kesilmeden, slogan ise logonun altında gösterilir.
+                    Arka plan saat ve pil simgelerinin arkasından başlayarak headerı tamamen kaplar.
+                    Logo ve slogan ortada, altında ince arama çubuğu ve mini kategori kartları bulunur.
                   </p>
                   <div className="mx-auto w-full max-w-[460px] overflow-hidden rounded-[30px] border-[5px] border-slate-600 bg-[#111113] shadow-xl">
-                    <div className="flex items-center justify-between px-4 pt-4 text-xs font-bold text-white">
-                      <span>9:41</span><span>•••  ▰</span>
-                    </div>
-
-                    {/* Full-bleed artwork: no inner card, border, rounded corners
-                        or horizontal phone padding around the header background. */}
-                    <div className="relative mt-3 min-h-[73px] overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)]">
+                    {/* Header artwork extends behind the status bar to the top edge. */}
+                    <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)]">
                       {previewHeaderBackground ? (
                         <img
                           src={previewHeaderBackground}
@@ -624,33 +622,54 @@ export default function Ayarlar() {
                           className="absolute inset-0 h-full w-full object-cover"
                         />
                       ) : null}
-                      <div className="relative z-10 flex min-h-[73px] flex-col items-center justify-center px-4 py-[7px]">
-                        {previewHeaderLogo ? (
-                          <img
-                            src={previewHeaderLogo}
-                            alt="Çalışkan B2B header logo önizlemesi"
-                            className="h-[38px] w-[85%] object-contain"
-                          />
-                        ) : (
-                          <div className="text-center text-lg font-black text-amber-400">
-                            ÇALIŞKAN B2B
-                          </div>
-                        )}
-                        {previewHeaderTagline.trim() ? (
-                          <div className="mt-0.5 text-center text-xs font-extrabold text-[#FFCD00]">
-                            {previewHeaderTagline}
-                          </div>
-                        ) : null}
+                      <div className="relative z-10 flex items-center justify-between px-4 pt-2 text-xs font-bold text-white">
+                        <span>9:41</span><span>●●●  ▰</span>
+                      </div>
+                      <div className="relative z-10 flex min-h-[82px] items-center justify-center px-4 pb-2 pt-1">
+                        <div className="flex w-[64%] flex-col items-center justify-center">
+                          {previewHeaderLogo ? (
+                            <img src={previewHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
+                              className="h-[38px] w-[85%] object-contain"/>
+                          ) : (
+                            <div className="text-center text-lg font-black text-amber-400">
+                              ÇALIŞKAN B2B
+                            </div>
+                          )}
+                          {previewHeaderTagline.trim() ? (
+                            <div className="mt-0.5 text-center text-xs font-extrabold text-[#FFCD00]">
+                              {previewHeaderTagline}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="absolute right-3 top-2 flex items-center gap-3 text-white">
+                          <Bell className="h-5 w-5"/>
+                          <ShoppingCart className="h-5 w-5"/>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="px-4 pb-4">
-                      <div className="mt-3 flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm text-slate-500">
-                        <span>⌕</span><span>Ürün, marka veya barkod ara</span>
+                    <div className="bg-[#111113] px-3 pb-3 pt-1">
+                      <div className="flex h-10 items-center gap-2 rounded-xl bg-white px-3 text-xs text-slate-600">
+                        <span className="text-lg">⌕</span>
+                        <span className="min-w-0 flex-1">Ürün, marka veya barkod ara</span>
+                        <ScanLine className="h-5 w-5 text-slate-900"/>
                       </div>
-                      <div className="mt-3 grid grid-cols-4 gap-2">
-                        {["Elektronik","Züccaciye","Ev Gereçleri","Hırdavat"].map(label=>
-                          <div key={label} className="rounded-lg border border-[#48484a] bg-[#222225] px-1 py-3 text-center text-[10px] font-semibold text-white">{label}</div>)}
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto">
+                          {[
+                            ["▤","Elektronik"],["◉","Züccaciye"],["♨","Ev Gereçleri"],
+                            ["⚒","Hırdavat"],["▣","Ofis & Kırtasiye"],["▥","Toptan Paketler"],
+                          ].map(([symbol,label])=>(
+                            <div key={label} className="flex h-[70px] w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] border border-[#3A3A40] bg-[#242426] px-1 text-white">
+                              <span className="text-xl text-[#FFCD00]">{symbol}</span>
+                              <span className="text-center text-[9px] font-bold leading-[11px]">{label}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex h-[70px] w-[67px] shrink-0 flex-col items-center justify-center gap-1 rounded-[10px] border border-[#FFCD00] bg-[#1B1B1E] px-1 text-white">
+                          <Grid2X2 className="h-6 w-6 text-[#FFCD00]"/>
+                          <span className="text-center text-[9px] font-extrabold leading-[11px]">Tüm Kategoriler</span>
+                        </div>
                       </div>
                     </div>
                   </div>
