@@ -131,3 +131,13 @@ test('pull refresh GIF ID persists safely through homepage layout normalization'
   assert.equal(normalizeHomeLayout({refreshAnimationImageId:'../admin'}).refreshAnimationImageId,'');
   assert.equal(normalizeHomeLayout({}).refreshAnimationImageId,'');
 });
+
+
+test('reorder banner accepts only valid media IDs for reorder and survives layout normalization',()=>{
+ const imageId='a'.repeat(32);
+ const layout=normalizeHomeLayout({homeSections:[{id:'reorder',reorderBannerImageId:imageId},{id:'actions',reorderBannerImageId:imageId}]});
+ assert.equal(layout.homeSections.find(s=>s.id==='reorder')?.reorderBannerImageId,imageId);
+ assert.equal(normalizeHomeLayout(layout).homeSections.find(s=>s.id==='reorder')?.reorderBannerImageId,imageId);
+ assert.equal(layout.homeSections.find(s=>s.id==='actions')?.reorderBannerImageId,undefined);
+ assert.equal(normalizeHomeLayout({homeSections:[{id:'reorder',reorderBannerImageId:'invalid'}]}).homeSections.find(s=>s.id==='reorder')?.reorderBannerImageId,undefined);
+});
