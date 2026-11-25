@@ -29,11 +29,11 @@ test('Admin managed home modules render actual content and preserve previously w
  assert.ok(screen.includes('{banners.length > 0 ? ('), 'carousel retained');
 });
 
-test('quick actions keep four tiles in one row, uploaded icons and scanner navigation',()=>{
+test('quick actions keep all four tiles, uploaded icons and scanner navigation',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  assert.ok(!actions.includes('SectionHead'));
- assert.ok(modules.includes("flexWrap:'nowrap'"));
+ assert.ok(modules.includes("flexWrap:'wrap'"));
  assert.ok(actions.includes('section.actionImageIds'));
  assert.ok(actions.includes('name="chevron-forward"'));
  assert.ok(actions.includes('onOpenScanner()'));
@@ -41,23 +41,25 @@ test('quick actions keep four tiles in one row, uploaded icons and scanner navig
 
 });
 
-test('quick actions match reference: full title, two-line description, large golden top-right arrow and admin icons',()=>{
+test('quick actions match reference: left icon, unrestricted text and golden right arrow',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  for(const label of ['Hızlı Sipariş','Tekrar Sipariş','Cari Hesap','Kampanyalar'])
   assert.ok(modules.includes("label:'"+label+"'"));
  for(const caption of ['Barkodla veya','listeyle toplu alım','Önceki siparişini','hızla yenile','Bakiye, limit ve','ekstre bilgilerin','Toptan avantajlı','fırsatları kaçırma'])
   assert.ok(modules.includes(caption),caption+' must remain visible');
- assert.ok(actions.includes('style={styles.actionTitle} numberOfLines={1}'));
- assert.ok(actions.includes('style={styles.actionSubtitle} numberOfLines={2}'));
+ assert.ok(actions.includes('style={styles.actionTitle}'));
+ assert.ok(actions.includes('style={styles.actionSubtitle}'));
  assert.ok(actions.includes('styles.actionArrow'), 'arrow must be separate from title width');
  assert.ok(actions.includes('name="chevron-forward" size={20} color="#FFCD00"'));
  assert.ok(!actions.includes('styles.actionTitleRow'), 'no wasted width for extra wrapper');
  assert.ok(modules.includes("fontWeight:'700',color:'#FFFFFF'"));
  assert.ok(modules.includes("fontWeight:'400',color:'#E0E0E0'"));
- assert.ok(modules.includes("actionArrow:{width:20,height:20"));
+ assert.ok(modules.includes("actionArrow:{width:16,height:24"));
  assert.ok(modules.includes("actionTitle:{width:'100%'"));
- assert.ok(actions.indexOf('styles.actionArrow')<actions.indexOf('styles.actionTitle'));
+ assert.ok(actions.indexOf('styles.actionIconSlot')<actions.indexOf('styles.actionCopy'));
+ assert.ok(actions.indexOf('styles.actionTitle')<actions.indexOf('styles.actionArrow'));
+ assert.ok(!actions.includes('numberOfLines='),'copy must wrap rather than truncate');
  assert.ok(modules.includes("actionSubtitle:{width:'100%'"), 'caption should use full card width');
  assert.ok(!modules.includes('paddingLeft:19'), 'caption should not be indented');
  assert.ok(actions.includes('imageId={section.actionImageIds?.[action.id]}'));
@@ -66,15 +68,19 @@ test('quick actions match reference: full title, two-line description, large gol
  assert.ok(modules.includes('onError={()=>setFailed(true)}'));
 });
 
-test('quick actions preserve compact four-column row and accessible descriptions',()=>{
+test('quick actions adapt columns to actual viewport and preserve accessible descriptions',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  assert.ok(modules.includes("actions:{width:'100%',alignSelf:'center'"));
- assert.ok(modules.includes("flexWrap:'nowrap'"));
+ assert.ok(modules.includes("flexWrap:'wrap'"));
  assert.ok(!modules.includes('marginHorizontal:-8'));
- assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,minHeight:76'));
- assert.ok(modules.includes('actionIconSlot:{width:20,height:20'));
- assert.ok(modules.includes('actionTop:{flexDirection:\'row\',alignItems:\'center\''));
+ assert.ok(modules.includes('actionWidth>=720?4:actionWidth>=260?2:1'));
+ assert.ok(modules.includes('Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns)'));
+ assert.ok(actions.includes('width:actionTileWidth'));
+ assert.ok(actions.includes('setActionViewport(event.nativeEvent.layout.width)'));
+ assert.ok(modules.includes("actionCard:{flexDirection:'row',alignItems:'center'"));
+ assert.ok(modules.includes('actionIconSlot:{width:34,height:40'));
+ assert.ok(modules.includes('actionCopy:{flex:1,minWidth:0'));
  assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
 });
 
@@ -156,15 +162,15 @@ test('flash header artwork fills its left slot at the intrinsic ratio and the st
 });
 
 
-test('quick action artwork uses admin media and a larger contained icon without changing the four-card layout',()=>{
+test('quick action artwork uses admin media and larger contained icon',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const api=read('lib/api.ts');
  const icon=modules.slice(modules.indexOf('function QuickActionIcon'),modules.indexOf('function ReorderBanner'));
  assert.ok(icon.includes('homepageMediaUrl(imageId)'));
  assert.ok(icon.includes('contentFit="contain"'));
  assert.ok(icon.includes('priority="high"'));
- assert.ok(icon.includes('size={20}'));
- assert.ok(modules.includes('actionIcon:{width:20,height:20}'));
+ assert.ok(icon.includes('size={30}'));
+ assert.ok(modules.includes('actionIcon:{width:34,height:40}'));
  assert.ok(modules.includes('imageId={section.actionImageIds?.[action.id]}'));
  assert.ok(api.includes('ADMIN_CONTENT_URL}/api/public/homepage/media/'));
 });

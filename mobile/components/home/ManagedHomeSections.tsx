@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { spacing } from '@/constants/theme';
 import { Image } from 'expo-image';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -62,7 +62,7 @@ function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionic
   const uri=homepageMediaUrl(imageId);
   return uri&&!failed
     ? <Image source={{uri}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk" priority="high" recyclingKey={imageId} onError={()=>setFailed(true)}/>
-    : <Ionicons name={icon} size={20} color="#FFCD00"/>;
+    : <Ionicons name={icon} size={30} color="#FFCD00"/>;
 }
 function ReorderBanner({imageId,title,onPress}:{imageId?:string;title:string;onPress:()=>void}){
   const [failed,setFailed]=useState(false);
@@ -192,6 +192,12 @@ export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
   renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,
 }:Props) {
+  const {width:windowWidth}=useWindowDimensions();
+  const [actionViewport,setActionViewport]=useState(0);
+  const actionWidth=actionViewport||Math.max(1,windowWidth-2*spacing.lg);
+  // Four cards fit on wide screens; phones show two per row so copy stays readable.
+  const actionColumns=actionWidth>=720?4:actionWidth>=260?2:1;
+  const actionTileWidth=Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns);
   // All product lookups use the currently visible catalog; a recipient-only
   // or unavailable product cannot leak through a curated admin ID.
   const own=products.filter(p=>!p.marketplace);
@@ -205,22 +211,23 @@ export function ManagedHomeSections({
       const title=section.title||section.id;
       switch(section.id){
         case 'actions':
-          return <View key={section.id} style={styles.actions}>
+          return <View key={section.id} style={styles.actions}
+            onLayout={event=>setActionViewport(event.nativeEvent.layout.width)}>
               {shortActionItems.map(action=><Pressable key={action.id}
                 accessibilityRole="button" accessibilityLabel={action.label}
                 accessibilityHint={action.subtitle}
-                style={({pressed})=>[styles.actionCard,pressed&&{opacity:0.8}]}
+                style={({pressed})=>[styles.actionCard,{width:actionTileWidth},pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
-                <View style={styles.actionTop}>
-                  <View style={styles.actionIconSlot}>
-                    <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
-                  </View>
-                  <View pointerEvents="none" style={styles.actionArrow}>
-                    <Ionicons name="chevron-forward" size={20} color="#FFCD00"/>
-                  </View>
+                <View style={styles.actionIconSlot}>
+                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
                 </View>
-                <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{action.label}</Text>
-                <Text style={styles.actionSubtitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{action.subtitle}</Text>
+                <View style={styles.actionCopy}>
+                  <Text style={styles.actionTitle}>{action.label}</Text>
+                  <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
+                </View>
+                <View pointerEvents="none" style={styles.actionArrow}>
+                  <Ionicons name="chevron-forward" size={20} color="#FFCD00"/>
+                </View>
               </Pressable>)}
           </View>;
         case 'flash':
@@ -275,17 +282,16 @@ const styles=StyleSheet.create({
   seeAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:38},
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'400'},
   productScroll:{gap:spacing.sm,paddingRight:14},
-  actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:4,paddingBottom:3},
-  actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,minHeight:76,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
-    borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
-    paddingHorizontal:4,paddingVertical:5,justifyContent:'space-between',gap:2,
+  actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'wrap',alignItems:'stretch',gap:4,marginTop:4,paddingBottom:3},
+  actionCard:{flexDirection:'row',alignItems:'center',flexShrink:0,minWidth:0,minHeight:72,borderRadius:10,borderWidth:1,borderColor:'#C39B27',
+    backgroundColor:'#171717',paddingHorizontal:6,paddingVertical:8,gap:4,
     shadowColor:'#FFCD00',shadowOpacity:0.10,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
-  actionTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',width:'100%',minWidth:0,minHeight:20},
-  actionIconSlot:{width:20,height:20,alignItems:'center',justifyContent:'center',flexShrink:0},
-  actionIcon:{width:20,height:20},
+  actionIconSlot:{width:34,height:40,alignItems:'center',justifyContent:'center',flexShrink:0},
+  actionIcon:{width:34,height:40},
+  actionCopy:{flex:1,minWidth:0,justifyContent:'center',gap:3},
   actionTitle:{width:'100%',minWidth:0,fontSize:11,lineHeight:14,fontWeight:'700',color:'#FFFFFF',includeFontPadding:false},
   actionSubtitle:{width:'100%',fontSize:9,lineHeight:12,fontWeight:'400',color:'#E0E0E0',includeFontPadding:false,textAlign:'left'},
-  actionArrow:{width:20,height:20,flexShrink:0,alignItems:'center',justifyContent:'center'},
+  actionArrow:{width:16,height:24,flexShrink:0,alignItems:'center',justifyContent:'center'},
   reorder:{marginTop:10,width:'100%',aspectRatio:12,paddingHorizontal:7,flexDirection:'row',alignItems:'center',
      backgroundColor:'#1D1C19',borderColor:'#DEAF22',borderWidth:1,borderRadius:7,gap:6,overflow:'hidden'},
    reorderImageFrame:{paddingHorizontal:0,borderWidth:0,backgroundColor:'transparent'},
