@@ -6,6 +6,7 @@ import {
   ensureDukkanB2BBridge,
   stockForB2B,
   syncDukkanToB2B,
+  unpublishDukkanProduct,
   validateDukkanImages,
 } from "./dukkan-b2b-sync";
 
@@ -69,4 +70,30 @@ test("published update without pictures rejects before any B2B modification",asy
   const mock={query:async(query:string)=>{calls.push(query);return {rowCount:1,rows:[]};}} as unknown as PoolClient;
   await assert.rejects(()=>syncDukkanToB2B(mock,{...example,b2b_product_id:42,publish_b2b:true}));
   assert.equal(calls.length,0);
+});
+
+
+test("unpublish changes only visibility and preserves linked inventory fields",async()=>{
+  const calls:Array<{sql:string,args?:unknown[]}>=[];
+  const row={...example,publish_b2b:true,b2b_product_id:"42"};
+  const mock={query:async(sql:string,args?:unknown[])=>{
+    calls.push({sql,args});
+    return {rowCount:1,rows:[{...row,publish_b2b:false}]};
+  }} as unknown as PoolClient;
+  const result=await unpublishDukkanProduct(mock,row);
+  assert.equal(result.publish_b2b,false);
+  assert.equal(result.stock,row.stock);
+  assert.equal(result.sale_price,row.sale_price);
+  assert.deepEqual(calls,[
+    {sql:"UPDATE dukkan_products SET publish_b2b=FALSE WHERE store_id=$1 AND id=$2 RETURNING *",args:[2,4]},
+    {sql:"UPDATE b2b_products SET is_active=FALSE,updated_at=NOW() WHERE id::text=$1 RETURNING id",args:["42"]},
+  ]);
+});
+
+test("unpublish of unlinked product does not create a B2B draft",async()=>{
+  const calls:string[]=[];
+  const mock={query:async(sql:string)=>{calls.push(sql);return {rowCount:1,rows:[example]};}} as unknown as PoolClient;
+  await unpublishDukkanProduct(mock,example);
+  assert.equal(calls.length,1);
+  assert.match(calls[0],/^UPDATE dukkan_products SET publish_b2b=FALSE/);
 });
