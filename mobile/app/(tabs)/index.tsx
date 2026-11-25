@@ -481,7 +481,7 @@ export default function HomeScreen() {
                 accessibilityLabel="Header arka planı"
               />
             ) : null}
-            <View style={[styles.homeBrandHeaderContent,{paddingTop:insets.top+7}]}>
+            <View style={[styles.homeBrandHeaderContent,{paddingTop:insets.top+2}]}>
               <View style={styles.homeBrandMain}>
                 <View style={styles.homeBrandLogoRow}>
                 {branding.b2b_mobile_header_logo ? (
@@ -526,7 +526,7 @@ export default function HomeScreen() {
                 ) : null}
               </View>
             </View>
-            <View style={[styles.homeHeaderTopActions,{top:insets.top+7}]}>
+            <View style={[styles.homeHeaderTopActions,{top:insets.top+2}]}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Bildirimleri aç"
@@ -573,8 +573,15 @@ export default function HomeScreen() {
               <Pressable onPress={()=>setScannerOpen(true)} style={styles.scanButton}
                 accessibilityRole="button" accessibilityLabel="Barkod oku" hitSlop={{top:6,bottom:6,left:4,right:4}}>
                 <View style={styles.scanGlyph} pointerEvents="none">
-                  <Ionicons name="scan-outline" size={23} color="#202124" style={StyleSheet.absoluteFillObject}/>
-                  <Ionicons name="barcode-outline" size={12} color="#202124"/>
+                  <View style={[styles.scanCorner,{top:0,left:0,borderTopWidth:1.8,borderLeftWidth:1.8,borderTopLeftRadius:2}]}/>
+                  <View style={[styles.scanCorner,{top:0,right:0,borderTopWidth:1.8,borderRightWidth:1.8,borderTopRightRadius:2}]}/>
+                  <View style={[styles.scanCorner,{bottom:0,left:0,borderBottomWidth:1.8,borderLeftWidth:1.8,borderBottomLeftRadius:2}]}/>
+                  <View style={[styles.scanCorner,{bottom:0,right:0,borderBottomWidth:1.8,borderRightWidth:1.8,borderBottomRightRadius:2}]}/>
+                  <View style={styles.scanBars}>
+                    {[2.3,0.9,3.1,1.1,0.7,1.8,1].map((width,index)=>(
+                      <View key={index} style={[styles.scanBar,{width}]}/>
+                    ))}
+                  </View>
                 </View>
               </Pressable>
             </View>
@@ -893,7 +900,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   homeBrandHeader: {
     // Full-bleed artwork starts under the transparent iOS status bar.
-    minHeight:73,
+    minHeight:0,
     marginLeft:-spacing.lg,
     marginTop:0,
     marginBottom:0,
@@ -904,14 +911,14 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     position:'relative',
   },
   homeBrandHeaderContent: {
-    minHeight:73,
+    minHeight:0,
     paddingHorizontal:spacing.lg,
-    paddingBottom:9,
+    paddingBottom:2,
     alignItems:'center',
     justifyContent:'center',
   },
   homeBrandMain: {width:'100%',alignItems:'center',justifyContent:'center'},
-  homeBrandLogoRow: {width:'64%',alignItems:'center',justifyContent:'center'},
+  homeBrandLogoRow: {width:'100%',paddingHorizontal:72,alignItems:'center',justifyContent:'center'},
   homeHeaderTopActions: {
     position:'absolute',right:spacing.lg,
     flexDirection:'row',alignItems:'center',gap:4,
@@ -927,14 +934,14 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     backgroundColor:'#FFCD00',
   },
   homeCartCountText:{fontSize:9,fontWeight:'900',color:'#111113'},
-  homeBrandLogo: {width:'85%',height:38,backgroundColor:'transparent'},
-  homeBrandFallback: {color:'#FFFFFF',fontSize:19,fontWeight:'900',letterSpacing:0.3},
+  homeBrandLogo: {width:'100%',height:46,backgroundColor:'transparent'},
+  homeBrandFallback: {color:'#FFFFFF',fontSize:23,fontWeight:'900',letterSpacing:0.3},
   homeBrandTaglineArtwork:{
-    width:'86%',maxWidth:340,height:54,marginTop:4,backgroundColor:'transparent',
+    width:'86%',maxWidth:340,height:34,marginTop:0,backgroundColor:'transparent',
   },
   homeBrandTaglineRow:{
     flexDirection:'row',alignItems:'center',justifyContent:'center',
-    maxWidth:'90%',marginTop:4,paddingBottom:5,
+    maxWidth:'90%',marginTop:0,paddingBottom:4,
   },
   homeBrandTaglineIntro:{
     color:'#FFFFFF',fontSize:15,fontWeight:'900',fontStyle:'italic',letterSpacing:-0.2,
@@ -958,7 +965,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   reelPreviewOverlay:{ flex:1,justifyContent:'space-between',padding:12,backgroundColor:'rgba(0,0,0,0.4)' },
   reelPreviewText:{ color:'#FFFFFF',fontSize:12,fontWeight:'800' },
   scanButton: { width:32,height:32,alignItems:'center',justifyContent:'center' },
-  scanGlyph: { width:23,height:23,alignItems:'center',justifyContent:'center' },
+  scanGlyph: { width:22,height:20,alignItems:'center',justifyContent:'center' },
+  scanCorner: {position:'absolute',width:6,height:6,borderColor:'#202124'},
+  scanBars: {flexDirection:'row',alignItems:'center',gap:0.8},
+  scanBar: {height:13,backgroundColor:'#202124'},
   searchResults: { gap: 8, marginTop: 15 },
   searchResultHeading: { color: palette.textSecondary, fontSize: 13, fontWeight: '700', marginBottom: 3 },
   searchResultRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 12, padding: 8 },
@@ -1014,7 +1024,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     marginLeft:-spacing.lg,
     backgroundColor:'#111113',
     paddingHorizontal:spacing.lg,
-    paddingTop:5,
+    paddingTop:2,
     paddingBottom:9,
   },
   headerRow: {flexDirection:'row',alignItems:'center',marginTop:0},

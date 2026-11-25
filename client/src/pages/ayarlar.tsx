@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   ShoppingCart,
-  ScanBarcode,
   Search,
   Grid2X2,
   CreditCard,
@@ -164,6 +163,15 @@ export default function Ayarlar() {
     },
   });
   const previewHeaderLogo=headerLogoDraft===undefined?(mobileHeader?.logo||null):headerLogoDraft;
+  const [trimmedLogo,setTrimmedLogo]=useState<{source:string;image:string}|null>(null);
+  useEffect(()=>{
+    let active=true;
+    if(previewHeaderLogo)void trimSloganTransparency(previewHeaderLogo).then(image=>{
+      if(active)setTrimmedLogo({source:previewHeaderLogo,image});
+    });
+    return ()=>{active=false;};
+  },[previewHeaderLogo]);
+  const displayHeaderLogo=trimmedLogo?.source===previewHeaderLogo ? trimmedLogo.image:previewHeaderLogo;
   const previewHeaderBackground=headerBackgroundDraft===undefined?(mobileHeader?.background||null):headerBackgroundDraft;
   const previewHeaderTagline=headerTaglineDraft===null
     ? (mobileHeader?.tagline??DEFAULT_HEADER_TAGLINE):headerTaglineDraft;
@@ -319,6 +327,11 @@ export default function Ayarlar() {
         taglineMode:previewHeaderTaglineMode,
       };
       if(headerLogoDraft!==undefined)payload.logo=headerLogoDraft;
+      if(previewHeaderLogo){
+        const normalized=trimmedLogo?.source===previewHeaderLogo
+          ? trimmedLogo.image:await trimSloganTransparency(previewHeaderLogo);
+        if(normalized!==previewHeaderLogo)payload.logo=normalized;
+      }
       if(headerBackgroundDraft!==undefined)payload.background=headerBackgroundDraft;
       if(headerTaglineImageDraft!==undefined)payload.taglineImage=headerTaglineImageDraft;
       if(previewHeaderTaglineImage&&(previewHeaderTaglineMode==="image"||headerTaglineImageDraft!==undefined)){
@@ -657,8 +670,9 @@ export default function Ayarlar() {
                 <div className="grid gap-4 lg:grid-cols-2">
                   <AssetUploader
                     title="Header Logosu"
-                    description="Yatay ve tercihen şeffaf PNG önerilir (ör. 1200×300 px). Görsel orantısı korunur; kesilmeden görüntülenir."
-                    value={previewHeaderLogo}
+                    description="Yatay şeffaf PNG önerilir (ör. 1200×300 px). Şeffaf boşluklar temizlenir, logo büyütülür ve oranı korunur."
+                    value={displayHeaderLogo}
+                    darkPreview
                     onChange={setHeaderLogoDraft}
                     pngOnly
                   />
@@ -738,14 +752,14 @@ export default function Ayarlar() {
                       <div className="relative z-10 flex items-center justify-between px-4 pt-2 text-xs font-bold text-white">
                         <span>9:41</span><span>●●●  ▰</span>
                       </div>
-                      <div className="relative z-10 flex min-h-[82px] items-center justify-center px-4 pb-2 pt-1">
+                      <div className="relative z-10 flex items-center justify-center px-4 pb-0.5 pt-0.5">
                         <div className="flex w-full flex-col items-center justify-center">
-                          <div className="flex w-[64%] flex-col items-center justify-center">
-                          {previewHeaderLogo ? (
-                            <img src={previewHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
-                              className="h-[38px] w-[85%] object-contain"/>
+                          <div className="flex w-full flex-col items-center justify-center px-[72px]">
+                          {displayHeaderLogo ? (
+                            <img src={displayHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
+                              className="h-[46px] w-full object-contain"/>
                           ) : (
-                            <div className="text-center text-lg font-black text-amber-400">
+                            <div className="text-center text-[23px] font-black text-amber-400">
                               ÇALIŞKAN B2B
                             </div>
                           )}
@@ -753,9 +767,9 @@ export default function Ayarlar() {
                           {previewHeaderTaglineMode==="image" && displaySloganImage ? (
                             <img src={displaySloganImage}
                               alt="Çalışkan B2B slogan görseli önizlemesi"
-                              className="mt-1 h-[54px] w-[86%] max-w-[340px] object-contain"/>
+                              className="h-[34px] w-[86%] max-w-[340px] object-contain"/>
                           ) : previewHeaderTagline.trim() ? (
-                            <div className="mt-1 flex max-w-[90%] items-center justify-center gap-0.5 pb-1.5 text-center text-[15px] font-black italic tracking-tight">
+                            <div className="flex max-w-[90%] items-center justify-center gap-0.5 pb-1 text-center text-[15px] font-black italic tracking-tight">
                               {previewSloganParts.lead ? (
                                 <span className="text-white">{previewSloganParts.lead}</span>
                               ) : null}
@@ -766,7 +780,7 @@ export default function Ayarlar() {
                             </div>
                           ) : null}
                         </div>
-                        <div className="absolute right-3 top-2 flex items-center gap-3 text-white">
+                        <div className="absolute right-3 top-0.5 flex h-[44px] items-center gap-3 text-white">
                           <Bell className="h-5 w-5"/>
                           <ShoppingCart className="h-5 w-5"/>
                         </div>
@@ -777,7 +791,10 @@ export default function Ayarlar() {
                       <div className="flex h-8 items-center gap-2 rounded-lg bg-[#F8F8F8] pl-3 pr-2 text-xs font-light text-[#45454A]">
                         <Search className="h-4 w-4 shrink-0 text-[#242426]" strokeWidth={1.5}/>
                         <span className="min-w-0 flex-1">Ürün, marka veya barkod ara</span>
-                        <ScanBarcode className="h-5 w-5 shrink-0 text-[#202124]" strokeWidth={1.5}/>
+                        <svg aria-hidden="true" viewBox="0 0 22 20" className="h-5 w-[22px] shrink-0 text-[#202124]">
+                          <path d="M1 6V1h5 M16 1h5v5 M21 14v5h-5 M6 19H1v-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                          {[2.3,0.9,3.1,1.1,0.7,1.8,1].map((width,index,bars)=><rect key={index} x={3.15+bars.slice(0,index).reduce((sum,w)=>sum+w+0.8,0)} y={3.5} width={width} height={13} fill="currentColor"/>)}
+                        </svg>
                       </div>
                       <div className="mt-[7px] grid grid-cols-7 gap-1 pb-[3px]">
                           {[
