@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { useFonts } from 'expo-font';
+import { APP_FONT_FAMILY } from '@/components/ui/AppTypography';
 import { useRouter, useSegments } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
@@ -208,6 +210,11 @@ function AppContent() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    [APP_FONT_FAMILY]: require('../assets/fonts/Poppins-Regular.ttf'),
+  });
+  if (fontError) throw fontError;
+  if (!fontsLoaded) return null;
   return (
     <SafeAreaProvider>
       <AppearanceProvider>

@@ -9,7 +9,7 @@
     "start:web": "node scripts/serve-web.js",
     "ios": "node scripts/create-scan-beep.cjs && expo start --ios",
     "android": "node scripts/create-scan-beep.cjs && expo start --android",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node --test scripts/typography-policy.test.cjs && tsc --noEmit",
     "fix:deps": "expo install --fix",
     "build:ios": "node scripts/create-scan-beep.cjs && node scripts/prepare-native-release.cjs && node scripts/sync-mobile-branding.cjs b2b && node scripts/prepare-niimbot-sdk.js && eas build --platform ios --profile production",
     "submit:ios": "eas submit --platform ios --profile production --latest",
