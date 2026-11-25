@@ -14,6 +14,7 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
@@ -67,6 +68,7 @@ function productImage(product: B2BProduct) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { session } = useAuth();
@@ -431,9 +433,14 @@ export default function HomeScreen() {
 
   return (
     <View style={{flex:1,backgroundColor:palette.background}}>
-      <StatusBar style="light" translucent backgroundColor="transparent" />
+      {isFocused ? (
+        <StatusBar style={homeHeader.enabled ? 'light' : 'auto'}
+          translucent backgroundColor="transparent" />
+      ) : null}
       <ScrollView
         ref={homeScrollRef}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
