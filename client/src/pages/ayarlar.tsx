@@ -606,36 +606,52 @@ export default function Ayarlar() {
                     <Monitor className="h-4 w-4"/> Header Önizleme
                   </div>
                   <p className="mb-4 text-xs text-muted-foreground">
-                    Bu önizleme kompakt mobil headerı temsil eder. Arka plan kırpılarak doldurulur,
-                    logonun oranı korunur; slogan logonun altında gösterilir.
+                    Arka plan telefonun iki kenarına kadar uzanır; iç çerçeve kullanılmaz.
+                    Logo kesilmeden, slogan ise logonun altında gösterilir.
                   </p>
-                  <div className="mx-auto w-full max-w-[460px] overflow-hidden rounded-[30px] border-[5px] border-slate-600 bg-[#111113] p-4 shadow-xl">
-                    <div className="flex items-center justify-between text-xs font-bold text-white">
+                  <div className="mx-auto w-full max-w-[460px] overflow-hidden rounded-[30px] border-[5px] border-slate-600 bg-[#111113] shadow-xl">
+                    <div className="flex items-center justify-between px-4 pt-4 text-xs font-bold text-white">
                       <span>9:41</span><span>•••  ▰</span>
                     </div>
-                    <div className="relative mt-3 overflow-hidden rounded-2xl border border-amber-500/30 bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)] px-2 py-2">
-                      {previewHeaderBackground ? <img src={previewHeaderBackground}
-                        alt="Çalışkan B2B header arka plan önizlemesi"
-                        className="absolute inset-0 h-full w-full object-cover"/> : null}
-                      <div className="relative z-10 flex min-h-[38px] items-center justify-center">
-                        {previewHeaderLogo
-                          ? <img src={previewHeaderLogo} alt="Çalışkan B2B header logo önizlemesi"
-                              className="h-[38px] w-[85%] object-contain"/>
-                          : <div className="text-center text-lg font-black text-amber-400">
-                              ÇALIŞKAN B2B
-                            </div>}
-                      </div>
-                      {previewHeaderTagline.trim()
-                        ? <div className="relative z-10 mt-0.5 text-center text-xs font-extrabold text-[#FFCD00]">
+
+                    {/* Full-bleed artwork: no inner card, border, rounded corners
+                        or horizontal phone padding around the header background. */}
+                    <div className="relative mt-3 min-h-[73px] overflow-hidden bg-[radial-gradient(ellipse_at_top_left,_#45300c,_#141416_60%)]">
+                      {previewHeaderBackground ? (
+                        <img
+                          src={previewHeaderBackground}
+                          alt="Çalışkan B2B header arka plan önizlemesi"
+                          className="absolute inset-0 h-full w-full object-cover"
+                        />
+                      ) : null}
+                      <div className="relative z-10 flex min-h-[73px] flex-col items-center justify-center px-4 py-[7px]">
+                        {previewHeaderLogo ? (
+                          <img
+                            src={previewHeaderLogo}
+                            alt="Çalışkan B2B header logo önizlemesi"
+                            className="h-[38px] w-[85%] object-contain"
+                          />
+                        ) : (
+                          <div className="text-center text-lg font-black text-amber-400">
+                            ÇALIŞKAN B2B
+                          </div>
+                        )}
+                        {previewHeaderTagline.trim() ? (
+                          <div className="mt-0.5 text-center text-xs font-extrabold text-[#FFCD00]">
                             {previewHeaderTagline}
-                          </div> : null}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="mt-3 flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm text-slate-500">
-                      <span>⌕</span><span>Ürün, marka veya barkod ara</span>
-                    </div>
-                    <div className="mt-3 grid grid-cols-4 gap-2">
-                      {["Elektronik","Züccaciye","Ev Gereçleri","Hırdavat"].map(label=>
-                        <div key={label} className="rounded-lg border border-[#48484a] bg-[#222225] px-1 py-3 text-center text-[10px] font-semibold text-white">{label}</div>)}
+
+                    <div className="px-4 pb-4">
+                      <div className="mt-3 flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm text-slate-500">
+                        <span>⌕</span><span>Ürün, marka veya barkod ara</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-4 gap-2">
+                        {["Elektronik","Züccaciye","Ev Gereçleri","Hırdavat"].map(label=>
+                          <div key={label} className="rounded-lg border border-[#48484a] bg-[#222225] px-1 py-3 text-center text-[10px] font-semibold text-white">{label}</div>)}
+                      </div>
                     </div>
                   </div>
                 </div>

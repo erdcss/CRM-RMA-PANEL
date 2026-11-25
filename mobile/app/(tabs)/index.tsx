@@ -435,22 +435,39 @@ export default function HomeScreen() {
           <Text style={styles.welcomeText}>Çalışkan'a hoş geldiniz</Text>
         </Animated.View> : null}
 
-        {homeHeader.enabled ? <View style={styles.homeBrandHeader}>
-          {branding.b2b_mobile_header_background ? <Image
-            source={{uri:branding.b2b_mobile_header_background}}
-            style={StyleSheet.absoluteFillObject} contentFit="cover"
-            cachePolicy="memory-disk" accessibilityLabel="Header arka planı" /> : null}
-          {branding.b2b_mobile_header_logo ?
-            <Image source={{uri:branding.b2b_mobile_header_logo}}
-              contentFit="contain" cachePolicy="none"
-              accessibilityLabel="Çalışkan B2B logosu" style={styles.homeBrandLogo}/>
-            : <Text style={styles.homeBrandFallback}>ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text></Text>}
-          {((branding.b2b_mobile_header_tagline ?? homeHeader.tagline).trim())
-            ? <Text style={styles.homeBrandTagline} numberOfLines={2}>
-                {branding.b2b_mobile_header_tagline ?? homeHeader.tagline}
-              </Text>
-            : null}
-        </View> : null}
+        {homeHeader.enabled ? (
+          <View style={[styles.homeBrandHeader, {width:screenWidth}]}>
+            {branding.b2b_mobile_header_background ? (
+              <Image
+                source={{uri:branding.b2b_mobile_header_background}}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                accessibilityLabel="Header arka planı"
+              />
+            ) : null}
+            <View style={styles.homeBrandHeaderContent}>
+              {branding.b2b_mobile_header_logo ? (
+                <Image
+                  source={{uri:branding.b2b_mobile_header_logo}}
+                  contentFit="contain"
+                  cachePolicy="none"
+                  accessibilityLabel="Çalışkan B2B logosu"
+                  style={styles.homeBrandLogo}
+                />
+              ) : (
+                <Text style={styles.homeBrandFallback}>
+                  ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text>
+                </Text>
+              )}
+              {((branding.b2b_mobile_header_tagline ?? homeHeader.tagline).trim()) ? (
+                <Text style={styles.homeBrandTagline} numberOfLines={2}>
+                  {branding.b2b_mobile_header_tagline ?? homeHeader.tagline}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.headerRow}>
   <View style={[styles.searchBox, styles.headerSearchBox]}>
@@ -828,10 +845,24 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     position: 'relative',
   },
   homeBrandHeader: {
-    alignItems:'center',justifyContent:'center',minHeight:73,
-    paddingHorizontal:9,paddingVertical:7,
-    backgroundColor:'#121213',borderRadius:15,overflow:'hidden',
-    borderWidth:1,borderColor:'#625017',marginTop:3,marginBottom:2,
+    // Full-bleed header: negative gutter offsets the ScrollView page padding.
+    // Width comes from useWindowDimensions so the artwork reaches both edges.
+    minHeight:73,
+    marginLeft:-spacing.lg,
+    marginTop:-spacing.md,
+    marginBottom:spacing.xs,
+    backgroundColor:'#121213',
+    borderRadius:0,
+    borderWidth:0,
+    overflow:'hidden',
+    position:'relative',
+  },
+  homeBrandHeaderContent: {
+    minHeight:73,
+    paddingHorizontal:spacing.lg,
+    paddingVertical:7,
+    alignItems:'center',
+    justifyContent:'center',
   },
   homeBrandLogo: {width:'85%',height:38,backgroundColor:'transparent'},
   homeBrandFallback: {color:'#FFFFFF',fontSize:19,fontWeight:'900',letterSpacing:0.3},
