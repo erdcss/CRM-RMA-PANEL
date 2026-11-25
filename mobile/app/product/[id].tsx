@@ -23,6 +23,7 @@ import {trackTikTokAddToCart,trackTikTokProductView} from '@/lib/tiktok-commerce
 import { appAlert } from '@/lib/appAlert';
 import { ProductShareSheet } from '@/components/products/ProductShareSheet';
 import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
+import { FlashProductBadge } from '@/components/products/FlashProductBadge';
 import { monitorMobileProduct } from '@/lib/customer-insights';
 import { registerB2BPush } from '@/lib/push';
 
@@ -194,6 +195,8 @@ export default function ProductDetailScreen() {
   const images = productImages(product);
   const image = images[0] || null;
   const isSellerProduct = isMarketplaceProduct(product);
+  const showFlashBadge = !product.marketplace && Boolean(product.timed_campaign_id) && Boolean(product.timed_campaign_end_at) && !cannotOrder;
+  const flashBadgeSize = Math.min(76,Math.max(48,Math.round((galleryWidth||320)*0.19)));
   const loggedIn =
     session?.user?.role === 'b2b_customer' && session?.user?.isActive === true;
 
@@ -247,6 +250,7 @@ export default function ProductDetailScreen() {
               <Text style={styles.soldOutGalleryBannerText}>{soldOut ? 'STOKTA YOK' : 'STOK YETERSİZ'}</Text>
             </View>
           ) : null}
+          {showFlashBadge ? <FlashProductBadge size={flashBadgeSize} right={8} endAt={product.timed_campaign_end_at}/> : null}
           {images.length > 0 ? (
             <View style={styles.imageCounter} pointerEvents="none">
               <Text style={styles.imageCounterText}>{Math.min(galleryIndex + 1, images.length)}/{images.length}</Text>

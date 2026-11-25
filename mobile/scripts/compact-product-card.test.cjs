@@ -24,15 +24,30 @@ test('home and catalog share a compact product card without rating, favorite or 
 test('standard cards replace the timer panel with an active flash circle on the right middle of the photo',()=>{
  const card=read('components/products/CompactProductCard.tsx');
  const flash=read('components/home/FlashHomeSection.tsx');
+ const badge=read('components/products/FlashProductBadge.tsx');
  assert.doesNotMatch(card,/TimedCampaignNotice|Kalan stok|timedCampaignRemaining/);
- assert.match(card,/flashBadge:\{position:'absolute',right:3,top:'50%'/);
- assert.match(card,/borderRadius:badgeSize\/2,marginTop:-badgeSize\/2/);
+ assert.match(badge,/flashBadge:\{position:'absolute',right:3,top:'50%'/);
+ assert.match(badge,/borderRadius:size\/2,marginTop:-size\/2/);
+ assert.match(card,/<FlashProductBadge size=\{badgeSize\}/);
  assert.match(card,/flashActive = hasTimedOffer && !expired && canOrder/);
  assert.match(card,/Boolean\(product.timed_campaign_id\)/);
  assert.match(card,/const price = expired \? null : product.price/);
  assert.match(card,/refreshRef.current\?\.\(\)/);
  assert.match(card,/AppState.addEventListener/);
- assert.match(card,/flashBadgeText:\{[^\n]*fontWeight:'400'/);
+ assert.match(badge,/flashBadgeText:\{[^\n]*fontWeight:'400'/);
  assert.match(flash,/<FlashCountdown endAt=\{campaign.ends_at\}/);
  assert.match(card,/aspectRatio:1/);
+});
+
+
+test('product detail shares the same flash badge, respects expiry and retains gallery and campaign notice',()=>{
+ const detail=read('app/product/[id].tsx');
+ const badge=read('components/products/FlashProductBadge.tsx');
+ assert.match(detail,/showFlashBadge = !product.marketplace && Boolean\(product.timed_campaign_id\) && Boolean\(product.timed_campaign_end_at\) && !cannotOrder/);
+ assert.match(detail,/<FlashProductBadge size=\{flashBadgeSize\} right=\{8\} endAt=\{product.timed_campaign_end_at\}/);
+ assert.match(detail,/<TimedCampaignNotice/);
+ assert.match(detail,/style=\{styles.imageCounter\}/);
+ assert.match(badge,/deadline<=Date.now\(\)/);
+ assert.match(badge,/pointerEvents="none"/);
+ assert.match(badge,/AppState.addEventListener/);
 });

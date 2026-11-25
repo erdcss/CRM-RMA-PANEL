@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { spacing } from '@/constants/theme';
 import { absoluteMediaUrl, type B2BProduct } from '@/lib/api';
+import { FlashProductBadge } from './FlashProductBadge';
 
 // Exactly 2.5 cards plus two gaps fit within the visible horizontal strip.
 export function stripProductWidth(viewport: number) {
@@ -75,12 +76,7 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
         cachePolicy="memory-disk" recyclingKey={String(product.id)} /> :
         <Ionicons name="cube-outline" size={30} color="#9CA3AF"/>}
       {newArrival ? <View style={styles.newBadge}><Text style={styles.newText}>YENİ</Text></View> : null}
-      {flashActive ? <View pointerEvents="none" accessibilityLabel="Flash Ürün"
-        style={[styles.flashBadge,{width:badgeSize,height:badgeSize,borderRadius:badgeSize/2,marginTop:-badgeSize/2}]}>
-        <Ionicons name="flash" size={Math.round(badgeSize*0.38)} color="#171717"/>
-        <Text style={styles.flashBadgeText} numberOfLines={1}>Flash</Text>
-        <Text style={styles.flashBadgeText} numberOfLines={1}>Ürün</Text>
-      </View>:null}
+      {flashActive ? <FlashProductBadge size={badgeSize}/>:null}
     </View>
     <View style={styles.body}>
       <Text style={styles.sku} numberOfLines={1}>{product.sku || 'Ürün'}</Text>
@@ -111,10 +107,6 @@ const styles=StyleSheet.create({
   image:{width:'100%',height:'100%'},faded:{opacity:0.45},
   newBadge:{position:'absolute',top:6,left:6,paddingHorizontal:5,paddingVertical:3,borderRadius:5,backgroundColor:'#FFCD00'},
   newText:{fontSize:9,fontWeight:'400',color:'#111827'},
-  flashBadge:{position:'absolute',right:3,top:'50%',backgroundColor:'#FFCD00',borderWidth:1.5,borderColor:'#FFF0A6',
-    alignItems:'center',justifyContent:'center',shadowColor:'#000000',shadowOpacity:0.18,shadowRadius:2,
-    shadowOffset:{width:0,height:1},elevation:2},
-  flashBadgeText:{fontSize:8,lineHeight:9,fontWeight:'400',color:'#171717',includeFontPadding:false},
   body:{padding:8,gap:4,flex:1},
   sku:{fontSize:9,lineHeight:12,color:'#68707D',fontWeight:'400'},
   name:{fontSize:12,lineHeight:16,minHeight:32,fontWeight:'400',color:'#171717'},
