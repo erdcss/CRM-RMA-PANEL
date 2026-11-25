@@ -582,7 +582,8 @@ export default function HomeScreen() {
                         <Image
                           source={{ uri: homepageMediaUrl(banner.imageId)! }}
                           style={hasCopy?styles.carouselSideImage:styles.carouselImage}
-                          contentFit={hasCopy?'cover':'contain'}
+                          // Always fill the rounded banner frame; contain leaves black side gutters on other aspect ratios.
+                          contentFit="cover"
                           cachePolicy="memory-disk"
                           transition={180}
                           onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
