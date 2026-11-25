@@ -1,11 +1,10 @@
 ÇALIŞKAN B2B TestFlight status monitor — no new paid iOS build
-Build ID: 6b057ca65bf3c5536c09bc84
+Build ID: 6b06e606a0eebfef2ea30cef
 Codemagic App ID: 6afedc30f47c90e3676e0a20
 Workflow: caliskan-b2b-testflight
 Branch: main
 Release: 1.3.21
 Bundle ID: com.caliskangroup.rma
-Source PR: #107 (admin controlled homepage modules)
-GitHub Actions build trigger: 45389563885 (success)
+GitHub Actions build trigger: 45626489219 (success)
 Scope: track EXISTING native iOS build, signing and App Store Connect TestFlight upload.
 DO NOT request or launch another iOS build.
