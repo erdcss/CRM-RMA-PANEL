@@ -85,7 +85,6 @@ export default function ProfileScreen() {
           <Text style={{ color: palette.textSecondary, fontSize: 12 }} numberOfLines={1}>{account?.email || user?.email || 'B2B Müşteri'}</Text>
           <Text style={styles.tag}>Kurumsal Hesap</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={palette.muted} />
       </View>
       <View style={{ gap: 8, marginTop: 18 }}>
         {rows.map((item) => (
