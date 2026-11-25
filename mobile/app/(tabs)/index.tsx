@@ -14,11 +14,12 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarcodeScannerModal } from '@/components/packages/BarcodeScannerModal';
 import { appAlert } from '@/lib/appAlert';
 import {trackTikTokProductSearch} from '@/lib/tiktok-commerce-events';
 
-import { Screen } from '@/components/ui/Screen';
 import { useAuth } from '@/contexts/AuthContext';
 import { radius, spacing, typography } from '@/constants/theme';
 import {
@@ -42,6 +43,7 @@ import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arriva
 import { ManagedHomeSections, DEFAULT_MOBILE_HOME_SECTIONS } from '@/components/home/ManagedHomeSections';
 import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
 import { useMobileBranding, refreshMobileBranding } from '@/lib/branding';
+import { getOrderList, subscribeOrderList } from '@/lib/b2b-order-list';
 
 function money(value: string | number | null | undefined) {
   const numeric = Number(value);
@@ -66,6 +68,7 @@ function productImage(product: B2BProduct) {
 export default function HomeScreen() {
   const router = useRouter();
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { session } = useAuth();
   const { palette } = useAppearance();
   const branding = useMobileBranding();
@@ -127,6 +130,18 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<'newest'|'name'|'priceAsc'|'priceDesc'>('newest');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [cartCount, setCartCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      void getOrderList().then(items => {
+        if (active) setCartCount(items.length);
+      }).catch(() => undefined);
+    };
+    refresh();
+    const unsubscribe = subscribeOrderList(refresh);
+    return () => { active = false; unsubscribe(); };
+  }, []);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -417,7 +432,8 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen style={{ backgroundColor: palette.background }}>
+    <View style={{flex:1,backgroundColor:palette.background}}>
+      <StatusBar style="light" translucent backgroundColor="transparent" />
       <ScrollView
         ref={homeScrollRef}
         showsVerticalScrollIndicator={false}
@@ -436,7 +452,7 @@ export default function HomeScreen() {
         </Animated.View> : null}
 
         {homeHeader.enabled ? (
-          <View style={[styles.homeBrandHeader, {width:screenWidth}]}>
+          <View style={[styles.homeBrandHeader,{width:screenWidth}]}>
             {branding.b2b_mobile_header_background ? (
               <Image
                 source={{uri:branding.b2b_mobile_header_background}}
@@ -446,61 +462,119 @@ export default function HomeScreen() {
                 accessibilityLabel="Header arka planı"
               />
             ) : null}
-            <View style={styles.homeBrandHeaderContent}>
-              {branding.b2b_mobile_header_logo ? (
-                <Image
-                  source={{uri:branding.b2b_mobile_header_logo}}
-                  contentFit="contain"
-                  cachePolicy="none"
-                  accessibilityLabel="Çalışkan B2B logosu"
-                  style={styles.homeBrandLogo}
-                />
-              ) : (
-                <Text style={styles.homeBrandFallback}>
-                  ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text>
-                </Text>
-              )}
-              {((branding.b2b_mobile_header_tagline ?? homeHeader.tagline).trim()) ? (
-                <Text style={styles.homeBrandTagline} numberOfLines={2}>
-                  {branding.b2b_mobile_header_tagline ?? homeHeader.tagline}
-                </Text>
-              ) : null}
+            <View style={[styles.homeBrandHeaderContent,{paddingTop:insets.top+7}]}>
+              <View style={styles.homeBrandMain}>
+                {branding.b2b_mobile_header_logo ? (
+                  <Image
+                    source={{uri:branding.b2b_mobile_header_logo}}
+                    contentFit="contain"
+                    cachePolicy="none"
+                    accessibilityLabel="Çalışkan B2B logosu"
+                    style={styles.homeBrandLogo}
+                  />
+                ) : (
+                  <Text style={styles.homeBrandFallback}>
+                    ÇALIŞKAN <Text style={{color:'#FFCD00'}}>B2B</Text>
+                  </Text>
+                )}
+                {((branding.b2b_mobile_header_tagline ?? homeHeader.tagline).trim()) ? (
+                  <Text style={styles.homeBrandTagline} numberOfLines={2}>
+                    {branding.b2b_mobile_header_tagline ?? homeHeader.tagline}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <View style={[styles.homeHeaderTopActions,{top:insets.top+7}]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Bildirimleri aç"
+                onPress={()=>router.push('/notifications' as never)}
+                style={styles.homeHeaderIconButton}
+              >
+                <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                {unreadNotifications>0?<View style={styles.homeNotificationDot}/>:null}
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={cartCount ? `Siparişlerim, sepette ${cartCount} ürün` : 'Siparişlerim'}
+                onPress={()=>router.push('/(tabs)/orders' as never)}
+                style={styles.homeHeaderIconButton}
+              >
+                <Ionicons name="cart-outline" size={23} color="#FFFFFF" />
+                {cartCount>0?<View style={styles.homeCartCount}>
+                  <Text style={styles.homeCartCountText}>{cartCount>9?'9+':cartCount}</Text>
+                </View>:null}
+              </Pressable>
             </View>
           </View>
         ) : null}
 
-        <View style={styles.headerRow}>
-  <View style={[styles.searchBox, styles.headerSearchBox]}>
-            <Ionicons name="search-outline" size={20} color={palette.muted} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Ürün veya stok kodu ara"
-              placeholderTextColor={palette.muted}
-              style={styles.searchInput}
-              returnKeyType="search"
-              onSubmitEditing={()=>{void trackTikTokProductSearch(query);}}
-            />
-            {query ? (
-              <Pressable onPress={() => setQuery('')} accessibilityLabel="Aramayı temizle">
-                <Ionicons name="close-circle" size={19} color={palette.muted} />
+        <View style={[styles.homeBrowseBlock,{width:screenWidth},
+          !homeHeader.enabled && {paddingTop:insets.top+spacing.sm}]}>
+          <View style={styles.headerRow}>
+            <View style={[styles.searchBox,styles.headerSearchBox]}>
+              <Ionicons name="search-outline" size={17} color="#404650" />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Ürün, marka veya barkod ara"
+                placeholderTextColor="#707782"
+                style={styles.searchInput}
+                returnKeyType="search"
+                onSubmitEditing={()=>{void trackTikTokProductSearch(query);}}
+              />
+              {query ? (
+                <Pressable onPress={()=>setQuery('')} accessibilityLabel="Aramayı temizle">
+                  <Ionicons name="close-circle" size={18} color="#6B7280" />
+                </Pressable>
+              ) : null}
+              <Pressable onPress={()=>setScannerOpen(true)} style={styles.scanButton}
+                accessibilityRole="button" accessibilityLabel="Barkod oku">
+                <Ionicons name="scan-outline" size={21} color="#111827" />
               </Pressable>
-            ) : null}
-            <Pressable onPress={() => setScannerOpen(true)} style={styles.scanButton}
-              accessibilityRole="button" accessibilityLabel="Barkod oku">
-              <Ionicons name="scan-outline" size={23} color={palette.text} />
-            </Pressable>
+            </View>
           </View>
-  
-          <Pressable
-            style={styles.notificationButton}
-            onPress={() => router.push('/notifications' as never)}
-            accessibilityRole="button"
-            accessibilityLabel="Bildirimleri aç"
-          >
-            <Ionicons name="notifications-outline" size={23} color={palette.text} />
-            {unreadNotifications > 0 ? <View style={styles.notificationDot} /> : null}
-          </Pressable>
+
+          {!query.trim() ? (
+            <View style={styles.categoryQuickRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                style={styles.categoryStripScroll}
+                contentContainerStyle={styles.categories}>
+                {categories.map((category,index)=>{
+                  const configured=categoryCards.find(item=>item.category===category);
+                  const icons: Array<keyof typeof Ionicons.glyphMap> = [
+                    'laptop-outline','cafe-outline','home-outline','construct-outline',
+                    'briefcase-outline','cube-outline','layers-outline',
+                  ];
+                  return (
+                    <Pressable key={category}
+                      accessibilityRole="button"
+                      accessibilityLabel={configured?.label || category}
+                      onPress={()=>router.push({
+                        pathname:'/collection/[category]',params:{category},
+                      } as never)}
+                      style={styles.categoryCard}>
+                      {configured?.imageId ? (
+                        <Image source={{uri:homepageMediaUrl(configured.imageId)||''}}
+                          style={styles.categoryImage} contentFit="contain" cachePolicy="memory-disk"/>
+                      ) : (
+                        <Ionicons name={icons[index%icons.length]} size={26} color="#FFCD00" />
+                      )}
+                      <Text numberOfLines={2} style={styles.categoryText}>
+                        {configured?.label||category}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Pressable style={styles.allCategoriesCard}
+                accessibilityRole="button" accessibilityLabel="Tüm kategoriler"
+                onPress={()=>router.push('/(tabs)/menu' as never)}>
+                <Ionicons name="grid-outline" size={25} color="#FFCD00" />
+                <Text numberOfLines={2} style={styles.allCategoriesText}>Tüm Kategoriler</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         {query.trim() ? (
@@ -531,74 +605,6 @@ export default function HomeScreen() {
           </View>
         ) : (
           <>
-
-        {/* Shop by category first, before promotional artwork. */}
-        <View style={styles.sectionHeader}>
-          <View>
-            <Text style={styles.sectionTitle}>Kategoriler</Text>
-            <Text style={styles.sectionSubtitle}>Ürün grubunu seçin</Text>
-          </View>
-          <Pressable onPress={() => router.push('/(tabs)/products')}>
-            <Text style={styles.sectionAction}>Tümü</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categories}
-        >
-          <Pressable
-            onPress={() => router.push('/ledger' as never)}
-            style={[styles.categoryCard, styles.ledgerTile]}
-            accessibilityRole="button"
-            accessibilityLabel="Defterim'e git"
-          >
-            {ledgerTileImageId ? <Image
-              source={{uri:homepageMediaUrl(ledgerTileImageId)||''}}
-              style={styles.categoryImage}
-              contentFit="contain"
-              cachePolicy="memory-disk"
-            /> : <Ionicons name="book-outline" size={27} color={palette.text}/>}
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.categoryText}>Defterim</Text>
-          </Pressable>
-
-          {categories.map((category, index) => {
-            const configured = categoryCards.find((item) => item.category === category);
-            const icons: Array<keyof typeof Ionicons.glyphMap> = [
-              'home-outline',
-              'flash-outline',
-              'basket-outline',
-              'construct-outline',
-              'storefront-outline',
-              'cube-outline',
-            ];
-
-            return (
-              <Pressable
-                key={category}
-                onPress={() => router.push({ pathname: '/collection/[category]', params: { category } } as never)}
-                style={styles.categoryCard}
-              >
-                {configured?.imageId ? (
-                  <Image source={{ uri: homepageMediaUrl(configured.imageId) || '' }}
-                    style={styles.categoryImage} contentFit="cover" cachePolicy="memory-disk" />
-                ) : (
-                  <Ionicons name={icons[index % icons.length]} size={28}
-                    color={palette.text} />
-                )}
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.68}
-                  style={styles.categoryText}
-                >
-                  {configured?.label || category}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
 
         {banners.length > 0 ? (
           <>
@@ -833,7 +839,7 @@ export default function HomeScreen() {
         onScanned={(value) => void handleScannedBarcode(value)}
         onScanRejected={(message) => appAlert('Barkod okunamadı', message, undefined, 'error')}
       />
-    </Screen>
+    </View>
   );
 }
 
