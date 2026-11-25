@@ -63,7 +63,7 @@ function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionic
   const uri=homepageMediaUrl(imageId);
   return uri&&!failed
     ? <Image source={{uri}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
-    : <Ionicons name={icon} size={19} color="#FFCD00"/>;
+    : <Ionicons name={icon} size={17} color="#FFCD00"/>;
 }
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
@@ -84,19 +84,14 @@ export function ManagedHomeSections({
           return <View key={section.id} style={styles.actions}>
               {shortActionItems.map(action=><Pressable key={action.id}
                 accessibilityRole="button" accessibilityLabel={action.label}
+                accessibilityHint={action.subtitle}
                 style={({pressed})=>[styles.actionCard,pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
-                <View style={styles.actionTop}>
-                  <View style={styles.actionIconSlot}>
-                    <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
-                  </View>
-                  <View style={styles.actionArrowSlot}>
-                    <Ionicons name="chevron-forward" size={12} color="#FFCD00"/>
-                  </View>
+                <View style={styles.actionIconSlot}>
+                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
                 </View>
                 <View style={styles.actionTextBlock}>
-                  <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{action.label}</Text>
-                  <Text style={styles.actionSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{action.subtitle}</Text>
+                  <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{action.label}</Text>
                 </View>
               </Pressable>)}
           </View>;
@@ -211,17 +206,14 @@ const styles=StyleSheet.create({
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'700'},
   productScroll:{gap:spacing.sm,paddingRight:14},
   actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:6,paddingBottom:3},
-  actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:62,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
+  actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:43,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
-    paddingHorizontal:4,paddingVertical:5,justifyContent:'space-between',
+    flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:4,paddingVertical:4,
     shadowColor:'#FFCD00',shadowOpacity:0.12,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
-  actionTop:{height:22,flexDirection:'row',alignItems:'center',justifyContent:'space-between',width:'100%'},
-  actionIconSlot:{width:22,height:22,alignItems:'center',justifyContent:'center'},
-  actionArrowSlot:{width:12,height:22,alignItems:'center',justifyContent:'center'},
-  actionIcon:{width:22,height:22},
-  actionTextBlock:{height:26,width:'100%',justifyContent:'space-between',alignItems:'center'},
-  actionTitle:{width:'100%',height:14,fontSize:10,lineHeight:14,fontWeight:'500',color:'#FFFFFF',textAlign:'center',includeFontPadding:false},
-  actionSubtitle:{width:'100%',height:11,fontSize:9,color:'#DDDDDF',lineHeight:11,fontWeight:'400',textAlign:'center',includeFontPadding:false},
+  actionIconSlot:{width:17,height:19,alignItems:'center',justifyContent:'center',flexShrink:0},
+  actionIcon:{width:17,height:17},
+  actionTextBlock:{flex:1,minWidth:0,justifyContent:'center'},
+  actionTitle:{width:'100%',fontSize:10,lineHeight:13,fontWeight:'700',color:'#FFFFFF',textAlign:'left',includeFontPadding:false},
   flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
   flashCampaign:{gap:9},
   campaignLabel:{color:'#FFD447',fontWeight:'800',fontSize:13},
