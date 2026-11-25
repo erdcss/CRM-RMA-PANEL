@@ -51,11 +51,11 @@ function ItemStrip({products,renderProduct}:{products:B2BProduct[];renderProduct
     {products.map(product=>renderProduct(product,viewport||undefined))}
   </ScrollView>;
 }
-const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
-  {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla veya listeyle toplu alım',icon:'flash',route:''},
-  {id:'orders',label:'Tekrar Sipariş',subtitle:'Önceki siparişini hızla yenile',icon:'repeat-outline',route:'/my-orders'},
-  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye, limit ve ekstre bilgilerin',icon:'cash-outline',route:'/ledger'},
-  {id:'campaigns',label:'Kampanyalar',subtitle:'Toptan avantajlı fırsatları kaçırma',icon:'pricetag-outline',route:'/campaigns'},
+const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:string;subtitle:string;compactSubtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
+  {id:'scan',label:'Hızlı Sipariş',subtitle:'Toplu ürün al',compactSubtitle:'Toplu ürün al',icon:'flash',route:''},
+  {id:'orders',label:'Tekrar Sipariş',subtitle:'Önceki siparişini yenile',compactSubtitle:'Siparişi yenile',icon:'repeat-outline',route:'/my-orders'},
+  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye ve limit bilgisi',compactSubtitle:'Bakiye ve limit',icon:'cash-outline',route:'/ledger'},
+  {id:'campaigns',label:'Kampanyalar',subtitle:'Güncel fırsatları gör',compactSubtitle:'Fırsatları gör',icon:'pricetag-outline',route:'/campaigns'},
 ];
 function QuickActionIcon({imageId,icon,size}:{imageId?:string;icon:keyof typeof Ionicons.glyphMap;size:number}){
   const [failed,setFailed]=useState(false);
@@ -199,14 +199,13 @@ export function ManagedHomeSections({
   // internals on phone widths and let the copy wrap without truncation.
   const actionColumns=4;
   const actionTileWidth=Math.max(0,Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns));
-  // Match the reference's roughly 2.3:1 horizontal silhouette. Keep the
-  // 3D artwork prominent (~31% of the tile width) even on narrow phones.
+  // Slim reference cards: compact artwork, concise copy and one row.
   const compactActions=actionTileWidth<148;
-  const actionIconSize=Math.max(16,Math.min(64,Math.round(actionTileWidth*0.31)));
-  const actionCardHeight=Math.max(44,Math.round(actionTileWidth/2.3));
-  const actionTitleSize=Math.max(7.5,Math.min(15,actionTileWidth*0.091));
-  const actionSubtitleSize=Math.max(6.5,Math.min(12,actionTileWidth*0.075));
-  const actionChevronSize=Math.max(10,Math.min(24,Math.round(actionTileWidth*0.125)));
+  const actionIconSize=Math.max(14,Math.min(36,Math.round(actionTileWidth*0.22)));
+  const actionCardHeight=Math.max(44,Math.min(64,Math.round(actionTileWidth/3.4)));
+  const actionTitleSize=Math.max(7.5,Math.min(15,actionTileWidth*0.09));
+  const actionSubtitleSize=Math.max(6.5,Math.min(12,actionTileWidth*0.073));
+  const actionChevronSize=Math.max(9,Math.min(18,Math.round(actionTileWidth*0.10)));
   // All product lookups use the currently visible catalog; a recipient-only
   // or unavailable product cannot leak through a curated admin ID.
   const own=products.filter(p=>!p.marketplace);
@@ -231,8 +230,8 @@ export function ManagedHomeSections({
                   <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon} size={actionIconSize}/>
                 </View>
                 <View style={styles.actionCopy}>
-                  <Text style={[styles.actionTitle,{fontSize:actionTitleSize,lineHeight:Math.ceil(actionTitleSize*1.14)}]}>{action.label}</Text>
-                  <Text style={[styles.actionSubtitle,{fontSize:actionSubtitleSize,lineHeight:Math.ceil(actionSubtitleSize*1.18)}]}>{action.subtitle}</Text>
+                  <Text style={[styles.actionTitle,{fontSize:actionTitleSize,lineHeight:Math.ceil(actionTitleSize*1.14)}]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{action.label}</Text>
+                  <Text style={[styles.actionSubtitle,{fontSize:actionSubtitleSize,lineHeight:Math.ceil(actionSubtitleSize*1.18)}]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{actionTileWidth<110?action.compactSubtitle:action.subtitle}</Text>
                 </View>
                 <View pointerEvents="none" style={[styles.actionArrow,{width:Math.ceil(actionChevronSize*0.7),height:actionChevronSize}]}>
                   <Ionicons name="chevron-forward" size={actionChevronSize} color="#FFCD00"/>
@@ -292,13 +291,12 @@ const styles=StyleSheet.create({
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'400'},
   productScroll:{gap:spacing.sm,paddingRight:14},
   actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:4,paddingBottom:3},
-  actionCard:{flexDirection:'row',alignItems:'center',flexShrink:0,minWidth:0,borderRadius:12,borderWidth:1,borderColor:'#DCA51B',
-    backgroundColor:'#161616',paddingHorizontal:5,paddingVertical:5,gap:3,
-    shadowColor:'#FFCD00',shadowOpacity:0.10,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
+  actionCard:{flexDirection:'row',alignItems:'center',flexShrink:0,minWidth:0,borderRadius:8,borderWidth:1,borderColor:'#DCA51B',
+    backgroundColor:'#171717',paddingHorizontal:5,paddingVertical:3,gap:3},
   actionIconSlot:{alignItems:'center',justifyContent:'center',flexShrink:0},
   actionIcon:{alignSelf:'center'},
-  actionCardCompact:{paddingHorizontal:2,paddingVertical:3,gap:1,borderRadius:7},
-  actionCopy:{flex:1,minWidth:0,justifyContent:'center',gap:2},
+  actionCardCompact:{paddingHorizontal:2,paddingVertical:2,gap:1,borderRadius:6},
+  actionCopy:{flex:1,minWidth:0,justifyContent:'center',gap:1},
   actionTitle:{width:'100%',minWidth:0,fontWeight:'700',color:'#FFFFFF',includeFontPadding:false},
   actionSubtitle:{width:'100%',fontWeight:'400',color:'#D1D1D1',includeFontPadding:false,textAlign:'left'},
   actionArrow:{flexShrink:0,alignItems:'center',justifyContent:'center'},

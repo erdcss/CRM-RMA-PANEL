@@ -41,12 +41,12 @@ test('quick actions keep all four tiles, uploaded icons and scanner navigation',
 
 });
 
-test('quick actions match reference: left icon, unrestricted text and golden right arrow',()=>{
+test('quick actions match reference: slim left icon, concise text and golden right arrow',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  for(const label of ['Hızlı Sipariş','Tekrar Sipariş','Cari Hesap','Kampanyalar'])
   assert.ok(modules.includes("label:'"+label+"'"));
- for(const caption of ['Barkodla veya','listeyle toplu alım','Önceki siparişini','hızla yenile','Bakiye, limit ve','ekstre bilgilerin','Toptan avantajlı','fırsatları kaçırma'])
+ for(const caption of ['Toplu ürün al','Önceki siparişini yenile','Bakiye ve limit bilgisi','Güncel fırsatları gör','Siparişi yenile','Fırsatları gör'])
   assert.ok(modules.includes(caption),caption+' must remain visible');
  assert.ok(actions.includes('style={[styles.actionTitle,{fontSize:actionTitleSize,lineHeight:Math.ceil(actionTitleSize*1.14)}]}'));
  assert.ok(actions.includes('style={[styles.actionSubtitle,{fontSize:actionSubtitleSize,lineHeight:Math.ceil(actionSubtitleSize*1.18)}]}'));
@@ -59,7 +59,9 @@ test('quick actions match reference: left icon, unrestricted text and golden rig
  assert.ok(modules.includes("actionTitle:{width:'100%'"));
  assert.ok(actions.indexOf('styles.actionIconSlot')<actions.indexOf('styles.actionCopy'));
  assert.ok(actions.indexOf('styles.actionTitle')<actions.indexOf('styles.actionArrow'));
- assert.ok(!actions.includes('numberOfLines='),'copy must wrap rather than truncate');
+ assert.ok(actions.includes('numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}'));
+ assert.ok(actions.includes('numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}'));
+ assert.ok(actions.includes('actionTileWidth<110?action.compactSubtitle:action.subtitle'));
  assert.ok(modules.includes("actionSubtitle:{width:'100%'"), 'caption should use full card width');
  assert.ok(!modules.includes('paddingLeft:19'), 'caption should not be indented');
  assert.ok(actions.includes('imageId={section.actionImageIds?.[action.id]}'));
@@ -78,8 +80,8 @@ test('quick actions stay in one row on every viewport with compact responsive in
  assert.ok(modules.includes('Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns)'));
  assert.ok(actions.includes('width:actionTileWidth'));
  assert.ok(modules.includes('const compactActions=actionTileWidth<148'));
- assert.ok(modules.includes('Math.round(actionTileWidth*0.31)'));
- assert.ok(modules.includes('Math.max(44,Math.round(actionTileWidth/2.3))'));
+ assert.ok(modules.includes('Math.round(actionTileWidth*0.22)'));
+ assert.ok(modules.includes('Math.max(44,Math.min(64,Math.round(actionTileWidth/3.4)))'));
  assert.ok(actions.includes('minHeight:actionCardHeight'));
  assert.ok(actions.includes('width:actionIconSize,height:actionIconSize'));
  assert.ok(actions.includes('setActionViewport(event.nativeEvent.layout.width)'));
