@@ -27,7 +27,8 @@ const rows: Array<{ key: string; label: string; subtitle: string; icon: keyof ty
   { key: 'invoices', label: 'Faturalarım', subtitle: 'Faturalarınızı görüntüleyin', icon: 'document-text-outline' },
   { key: 'support', label: 'Destek', subtitle: 'Yardım ve iletişim', icon: 'headset-outline' },
   { key: 'notifications', label: 'Bildirimlerim', subtitle: 'Duyurular ve işlem bildirimleri', icon: 'notifications-outline' },
-  { key: 'settings', label: 'Ayarlar', subtitle: 'Tema ve uygulama tercihleri', icon: 'settings-outline' },
+  { key: 'privacy', label: 'Gizlilik ve Veri Tercihleri', subtitle: 'Veri paylaşımı ve konum izinleri', icon: 'shield-checkmark-outline' },
+  { key: 'settings', label: 'Ayarlar', subtitle: 'Yardım ve uygulama hakkında', icon: 'settings-outline' },
 ];
 
 export default function ProfileScreen() {
@@ -59,6 +60,7 @@ export default function ProfileScreen() {
   const openRow = (key: string) => {
     if (key === 'orders') router.push('/my-orders');
     else if (key === 'ledger') router.push('/ledger' as never);
+    else if (key === 'privacy') router.push('/privacy-preferences');
     else if (key === 'settings') router.push('/settings');
     else if (key === 'notifications') router.push('/notifications' as never);
     else router.push({ pathname: '/account/[section]', params: { section: key } } as never);
