@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { spacing } from '@/constants/theme';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import { useAppearance } from '@/contexts/AppearanceContext';
 import { absoluteMediaUrl, homepageMediaUrl, type B2BProduct, type B2BReel, type B2BTimedCampaign, type HomeSection } from '@/lib/api';
@@ -24,7 +25,7 @@ type Props = {
   reels: B2BReel[];
   now: number;
   signedIn: boolean;
-  renderProduct: (item: B2BProduct) => ReactNode;
+  renderProduct: (item: B2BProduct, viewportWidth?: number) => ReactNode;
   onRefresh: () => void;
   onOpenScanner: () => void;
   onRoute: (path: string) => void;
@@ -33,7 +34,7 @@ type Props = {
 function SectionHead({icon,title,action,onAction}:{icon:keyof typeof Ionicons.glyphMap;title:string;action?:string;onAction?:()=>void}) {
   return <View style={styles.head}>
     <View style={styles.headLeft}>
-      <Ionicons name={icon} size={23} color="#FFCD00" />
+      {icon === "pricetag" ? <MaterialCommunityIcons name="sale" size={23} color="#FFCD00"/> : <Ionicons name={icon} size={23} color="#FFCD00" />}
       <Text style={styles.heading} numberOfLines={2}>{title}</Text>
     </View>
     {action&&onAction?<Pressable onPress={onAction} accessibilityRole="button"
@@ -44,9 +45,11 @@ function SectionHead({icon,title,action,onAction}:{icon:keyof typeof Ionicons.gl
   </View>;
 }
 function ItemStrip({products,renderProduct}:{products:B2BProduct[];renderProduct:Props['renderProduct']}) {
+  const [viewport,setViewport]=useState(0);
   return <ScrollView horizontal showsHorizontalScrollIndicator={false}
+    onLayout={event=>setViewport(event.nativeEvent.layout.width)}
     contentContainerStyle={styles.productScroll}>
-    {products.map(product=>renderProduct(product))}
+    {products.map(product=>renderProduct(product,viewport||undefined))}
   </ScrollView>;
 }
 const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
@@ -206,7 +209,7 @@ const styles=StyleSheet.create({
   heading:{fontSize:19,fontWeight:'900',color:'#F8F8FA',flexShrink:1},
   seeAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:38},
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'700'},
-  productScroll:{gap:10,paddingRight:14},
+  productScroll:{gap:spacing.sm,paddingRight:14},
   actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:6,paddingBottom:3},
   actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:62,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',

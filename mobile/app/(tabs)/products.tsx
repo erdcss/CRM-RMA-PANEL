@@ -7,8 +7,9 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { CompactProductCard, gridProductWidth } from '@/components/products/CompactProductCard';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -18,7 +19,7 @@ import { Screen } from '@/components/ui/Screen';
 import { useAppearance, type AppPalette } from '@/contexts/AppearanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { radius, spacing, typography } from '@/constants/theme';
-import { absoluteMediaUrl, rmaApi, type B2BProduct } from '@/lib/api';
+import { rmaApi, type B2BProduct } from '@/lib/api';
 import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {trackTikTokProductSearch} from '@/lib/tiktok-commerce-events';
 
@@ -31,31 +32,10 @@ const SORT_OPTIONS = [
 
 type ProductSort = (typeof SORT_OPTIONS)[number]['id'];
 
-function money(value: string | number | null | undefined) {
-  if (value === null || value === undefined || String(value).trim() === '') return '—';
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return '—';
-  return numeric.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + ' ₺';
-}
-
-function productImage(product: B2BProduct) {
-  if (typeof product.image_data === 'string' && product.image_data.trim()) {
-    return absoluteMediaUrl(product.image_data);
-  }
-  if (Array.isArray(product.images)) {
-    const first = product.images.find(
-      (item) => typeof item === 'string' && item.trim(),
-    );
-    if (first) return absoluteMediaUrl(first);
-  }
-  return null;
-}
-
 export default function ProductsScreen() {
   const { palette } = useAppearance();
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = gridProductWidth(Math.max(1,screenWidth-2*spacing.lg));
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const router = useRouter();
   const { session } = useAuth();
@@ -134,7 +114,9 @@ export default function ProductsScreen() {
     <Screen style={{ backgroundColor: palette.background }}>
       <FlatList
         data={filteredProducts}
-        keyExtractor={(item) => String(item.id)}
+        keyExtractor={(item) => (item.marketplace?'marketplace-':'b2b-')+String(item.id)}
+        numColumns={2}
+        columnWrapperStyle={{gap:spacing.sm}}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -227,84 +209,9 @@ export default function ProductsScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </View>
         }
-        renderItem={({ item }) => {
-          const image = productImage(item);
-          const validPrice = item.price !== null && item.price !== undefined
-            && String(item.price).trim() !== '' && Number.isFinite(Number(item.price));
-          const hasPrice = Boolean(session && validPrice);
-
-          return (
-            <Pressable
-              style={styles.card}
-              accessibilityRole="button"
-              accessibilityLabel={item.name || 'Ürün detayını aç'}
-              onPress={() =>
-                router.push({
-                  pathname: '/product/[id]',
-                  params: productParams(item),
-                } as never)
-              }
-            >
-              <View style={styles.cardMain}>
-                <View style={styles.imageBox}>
-                  {image ? (
-                    <Image
-                      source={{ uri: image }}
-                      style={styles.image}
-                      contentFit="contain"
-                      cachePolicy="memory-disk"
-                    />
-                  ) : (
-                    <Ionicons name="cube-outline" size={34} color={palette.muted} />
-                  )}
-                </View>
-                <View style={styles.productBody}>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {item.name || 'Ürün'}
-                  </Text>
-                  {item.seller_name ? (
-                    <Text style={styles.sellerText} numberOfLines={1}>{item.seller_name}</Text>
-                  ) : null}
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    Stok Kodu: {item.sku || '—'}
-                  </Text>
-                  {item.units_per_box ? (
-                    <Text style={styles.metaText}>Koli içi: {Number(item.units_per_box)} adet</Text>
-                  ) : null}
-                  {item.min_order_qty ? (
-                    <Text style={styles.minOrder}>
-                      Minimum alım: {Number(item.min_order_qty)} koli
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-
-              <View style={styles.priceArea}>
-                <View style={styles.priceLabelWrap}>
-                  <Ionicons name="pricetag-outline" size={16} color={palette.accent} />
-                  <Text style={styles.priceLabel}>B2B Fiyatı</Text>
-                </View>
-                {hasPrice ? (
-                  <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit>
-                    {money(item.price)}
-                  </Text>
-                ) : !session ? (
-                  <Pressable
-                    style={styles.lockedPrice}
-                    accessibilityRole="button"
-                    accessibilityLabel="Fiyat için giriş yap"
-                    onPress={() => router.push('/login')}
-                  >
-                    <Ionicons name="lock-closed-outline" size={13} color={palette.accent} />
-                    <Text style={styles.lockedPriceText}>Giriş Yap</Text>
-                  </Pressable>
-                ) : (
-                  <Text style={styles.unavailablePrice}>Fiyat belirtilmedi</Text>
-                )}
-              </View>
-            </Pressable>
-          );
-        }}
+        renderItem={({item})=><CompactProductCard product={item} width={cardWidth} signedIn={Boolean(session)}
+          onPress={()=>router.push({pathname:'/product/[id]',params:productParams(item)} as never)}
+          onLogin={()=>router.push('/login')} onExpire={()=>void loadProducts(true)}/>}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={loading ? (
           <LoadingState />
@@ -456,103 +363,6 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     fontWeight: '800',
   },
   sortTextActive: { color: palette.accentText },
-  card: {
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  cardMain: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  imageBox: {
-    width: 108,
-    height: 108,
-    borderRadius: radius.md,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: palette.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  image: { width: '100%', height: '100%' },
-  productBody: { flex: 1, minWidth: 0 },
-  productName: {
-    ...typography.subtitle,
-    color: palette.text,
-    fontWeight: '800',
-    marginBottom: spacing.xs,
-  },
-  sellerText: {
-    ...typography.caption,
-    color: palette.accent,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-  metaText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    marginTop: 3,
-  },
-  minOrder: {
-    ...typography.caption,
-    color: palette.text,
-    marginTop: spacing.xs,
-    fontWeight: '700',
-  },
-  priceArea: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: radius.md,
-    borderLeftWidth: 3,
-    borderLeftColor: palette.accent,
-    backgroundColor: palette.surfaceSecondary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  priceLabelWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    flexShrink: 1,
-  },
-  priceLabel: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '700',
-  },
-  price: {
-    ...typography.title2,
-    color: palette.text,
-    fontWeight: '900',
-    textAlign: 'right',
-    flexShrink: 1,
-  },
-  lockedPrice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: palette.surface,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  lockedPriceText: {
-    ...typography.caption,
-    color: palette.text,
-    fontWeight: '700',
-  },
-  unavailablePrice: {
-    ...typography.caption,
-    color: palette.muted,
-    fontWeight: '600',
-  },
   separator: { height: spacing.sm + 2 },
   error: {
     ...typography.caption,

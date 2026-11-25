@@ -42,18 +42,9 @@ import { asCatalogProduct, productParams } from '@/lib/marketplace-products';
 import {bannerDestination,bannerDisplayHeight} from '@/lib/home-banner';
 import {splitHomepageProducts,nextHomepageArrivalExpiry} from '@/lib/home-arrivals';
 import { ManagedHomeSections, DEFAULT_MOBILE_HOME_SECTIONS } from '@/components/home/ManagedHomeSections';
-import { TimedCampaignNotice } from '@/components/products/TimedCampaignNotice';
+import { CompactProductCard, stripProductWidth, gridProductWidth } from '@/components/products/CompactProductCard';
 import { useMobileBranding, refreshMobileBranding } from '@/lib/branding';
 import { getOrderList, subscribeOrderList } from '@/lib/b2b-order-list';
-
-function money(value: string | number | null | undefined) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return '—';
-  return `${numeric.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ₺`;
-}
 
 function productImage(product: B2BProduct) {
   const raw =
@@ -300,7 +291,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (query.trim() || wholesale.length < 2 || !wholesaleWidth) return;
-    const cardWidth = Math.min(190, Math.max(145, screenWidth * 0.42)) + spacing.sm;
+    const cardWidth = stripProductWidth(wholesaleWidth) + spacing.sm;
     const count = Math.min(wholesale.length, 10);
     const timer = setInterval(() => {
       const next = (wholesaleIndexRef.current + 1) % count;
@@ -342,108 +333,13 @@ export default function HomeScreen() {
     }
   };
 
-  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false) => {
-
-            const image = productImage(product);
-            const pack = Math.max(1, Number(product.units_per_box) || 1);
-            const minBoxes = Math.max(1, Number(product.min_order_qty) || 1);
-            const stock = Math.max(0, Number(product.stock) || 0);
-            const soldOut = stock === 0;
-            const cannotOrder = stock < pack * minBoxes;
-            const priceVisible =
-              Boolean(session) &&
-              product.price !== null &&
-              product.price !== undefined;
-
-            return (
-              <Pressable
-                key={String(product.id)}
-                style={[styles.productCard, { width: isNewArrivalCard
-                  ? Math.max(130, Math.floor((screenWidth - 2 * spacing.lg - spacing.sm) / 2))
-                  : Math.min(190, Math.max(145, screenWidth * 0.42)) }, cannotOrder && styles.unavailableProductCard]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/product/[id]',
-                    params: productParams(product),
-                  } as never)
-                }
-              >
-                <View style={styles.productImageWrap}>
-                  {isNewArrivalCard ? (
-                    <View style={styles.newArrivalBadge} pointerEvents="none">
-                      <Text style={styles.newArrivalBadgeText}>YENİ GELDİ</Text>
-                    </View>
-                  ) : null}
-                  {image ? (
-                    <Image
-                      source={{ uri: image }}
-                      style={[styles.productImage, cannotOrder && styles.unavailableProductImage]}
-                      contentFit="contain"
-                      cachePolicy="memory-disk"
-                    />
-                  ) : (
-                    <Ionicons
-                      name="cube-outline"
-                      size={38}
-                      color={palette.muted}
-                    />
-                  )}
-                  {cannotOrder ? (
-                    <View pointerEvents="none" style={styles.stockOverlayBadge}>
-                      <Ionicons name="ban-outline" size={15} color="#FFFFFF" />
-                      <Text style={styles.stockOverlayText}>{soldOut ? 'STOKTA YOK' : 'STOK YETERSİZ'}</Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.productBody}>
-                  <Text style={styles.sku}>{product.sku || 'STOK'}</Text>
-                  <Text style={styles.productName} numberOfLines={2}>
-                    {product.name}
-                  </Text>
-                  {product.seller_name ? <Text style={styles.meta} numberOfLines={1}>{product.seller_name}</Text> : null}
-
-                  {priceVisible ? (
-                    <View>
-                      {product.timed_campaign_end_at&&product.original_price!=null ? (
-                        <Text style={{fontSize:11,color:palette.muted,textDecorationLine:'line-through'}}>{money(product.original_price)}</Text>
-                      ) : null}
-                      <Text style={[styles.price, cannotOrder && styles.unavailablePrice]}>{money(product.price)}</Text>
-                    </View>
-                  ) : (
-                    <Pressable
-                      style={styles.lockedPrice}
-                      onPress={() => router.push('/login')}
-                    >
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={13}
-                        color={palette.textSecondary}
-                      />
-                      <Text style={styles.lockedPriceText}>
-                        Fiyat bilgisi giriş yapıldıktan sonra listelenir
-                      </Text>
-                    </Pressable>
-                  )}
-
-                  {product.timed_campaign_end_at ? <TimedCampaignNotice
-                    compact endAt={product.timed_campaign_end_at}
-                    title={product.timed_campaign_title} stock={product.stock}
-                    unitsPerBox={product.units_per_box} onExpire={()=>void load(true)}/> : null}
-
-                  {cannotOrder ? (
-                    <View style={styles.stockMessage}>
-                      <Ionicons name="cube-outline" size={14} color="#BE123C"/>
-                      <Text style={styles.stockMessageText}>{soldOut ? 'Stoklar tükenmiştir.' : 'Sipariş için yeterli stok yok.'}</Text>
-                    </View>
-                  ) : null}
-                  <Text style={[styles.meta, cannotOrder && styles.unavailablePrice]}>
-                    Koli içi {pack} · Min. {minBoxes}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-
+  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false, viewportWidth?: number) => {
+    const viewport = viewportWidth || Math.max(1, screenWidth - 2 * spacing.lg);
+    return <CompactProductCard key={product.marketplace ? 'marketplace-'+product.id : 'b2b-'+product.id}
+      product={product} width={isNewArrivalCard?gridProductWidth(viewport):stripProductWidth(viewport)}
+      signedIn={Boolean(session)} newArrival={isNewArrivalCard}
+      onPress={()=>router.push({pathname:'/product/[id]',params:productParams(product)} as never)}
+      onLogin={()=>router.push('/login')} onExpire={()=>void load(true)}/>;
   };
 
   return (
@@ -736,7 +632,7 @@ export default function HomeScreen() {
           reels={reels}
           now={catalogNow}
           signedIn={Boolean(session)}
-          renderProduct={renderHomeProductCard}
+          renderProduct={(product,width)=>renderHomeProductCard(product,false,width)}
           onRefresh={()=>{void load(true);}}
           onOpenScanner={()=>setScannerOpen(true)}
           onRoute={(path)=>router.push(path as never)}
@@ -797,7 +693,7 @@ export default function HomeScreen() {
             onLayout={event => setWholesaleWidth(event.nativeEvent.layout.width)}
             contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.lg }}
           >
-            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product))}
+            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product,false,wholesaleWidth))}
           </ScrollView>
         ) : (
           <View style={styles.newArrivalEmpty}>
@@ -1085,83 +981,6 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     paddingVertical: 22, paddingHorizontal: 16, borderRadius: 12,
   },
   newArrivalEmptyText: { color: palette.textSecondary, fontSize: 13, textAlign: 'center' },
-  productCard: {
-    width: '48%',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.surface,
-    overflow: 'hidden',
-  },
-  productImageWrap: {
-    aspectRatio: 1,
-    backgroundColor: '#FAFAFA',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
-  unavailableProductCard: { borderColor: '#E5E7EB' },
-  unavailableProductImage: { opacity: 0.42 },
-  stockOverlayBadge: {
-    position: 'absolute', left: 7, right: 7, top: '40%',
-    minHeight: 36, paddingHorizontal: 7, paddingVertical: 8, borderRadius: 22,
-    backgroundColor: '#C91F2C', flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 5, borderWidth: 1, borderColor: '#FFFFFF',
-  },
-  stockOverlayText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', flexShrink: 1, textAlign: 'center' },
-  unavailablePrice: { color: '#9CA3AF' },
-  stockMessage: {
-    marginTop: 8, paddingHorizontal: 8, paddingVertical: 8,
-    backgroundColor: '#FFF1F2', borderRadius: 9,
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-  },
-  stockMessageText: { flex: 1, fontSize: 10, lineHeight: 15, fontWeight: '700', color: '#9F1239' },
-  productBody: {
-    padding: spacing.md,
-  },
-  sku: {
-    ...typography.caption,
-    fontSize: 10,
-    color: palette.muted,
-  },
-  productName: {
-    ...typography.bodyMedium,
-    color: palette.text,
-    minHeight: 42,
-    marginTop: 3,
-    fontWeight: '700',
-  },
-  price: {
-    ...typography.subtitle,
-    color: palette.text,
-    marginTop: spacing.sm,
-    fontWeight: '800',
-  },
-  lockedPrice: {
-    marginTop: spacing.sm,
-    minHeight: 34,
-    borderRadius: radius.sm,
-    backgroundColor: palette.surfaceSecondary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  lockedPriceText: {
-    ...typography.caption,
-    color: palette.textSecondary,
-    fontWeight: '600',
-    flex: 1,
-  },
-  meta: {
-    ...typography.caption,
-    color: palette.muted,
-    fontSize: 10,
-    marginTop: spacing.sm,
-  },
   emptyState: {
     minHeight: 180,
     alignItems: 'center',
