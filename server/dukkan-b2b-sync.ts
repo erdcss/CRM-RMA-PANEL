@@ -72,6 +72,23 @@ export async function ensureDukkanB2BBridge(pool: Pool): Promise<void> {
   await pool.query(statements.join(";\n") + ";");
 }
 
+/** Disable publication only; caller must hold the store product row lock in a transaction. */
+export async function unpublishDukkanProduct(c: PoolClient, row: DukkanCatalogRecord): Promise<DukkanCatalogRecord> {
+  const saved=await c.query(
+    "UPDATE dukkan_products SET publish_b2b=FALSE WHERE store_id=$1 AND id=$2 RETURNING *",
+    [row.store_id,row.id],
+  );
+  if(!saved.rowCount)throw Object.assign(new Error("Mağaza ürünü bulunamadı"),{status:404});
+  if(row.b2b_product_id!=null){
+    const result=await c.query(
+      "UPDATE b2b_products SET is_active=FALSE,updated_at=NOW() WHERE id::text=$1 RETURNING id",
+      [String(row.b2b_product_id)],
+    );
+    if(!result.rowCount)throw Object.assign(new Error("Bağlı B2B ürünü bulunamadı; işlem geri alındı"),{status:409});
+  }
+  return saved.rows[0];
+}
+
 export async function syncDukkanToB2B(c: PoolClient, row: DukkanCatalogRecord): Promise<DukkanCatalogRecord> {
   if (!b2bPublicationAllowed(row)) {
     throw Object.assign(new Error("B2B yayını için en az bir ürün görseli ekleyin"), {status:400});
