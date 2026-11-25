@@ -166,3 +166,18 @@ test('quick action artwork uses admin media and a larger contained icon without 
  assert.ok(modules.includes('imageId={section.actionImageIds?.[action.id]}'));
  assert.ok(api.includes('ADMIN_CONTENT_URL}/api/public/homepage/media/'));
 });
+
+
+test('bottom navigation keeps six visible tabs and animates focus with native crossfade and reduced motion support',()=>{
+ const bar=read('components/navigation/TabBar.tsx');
+ const layout=read('app/(tabs)/_layout.tsx');
+ for(const name of ['index','menu','discover','shortages','orders','profile'])assert.ok(layout.includes('name="'+name+'"'));
+ assert.ok(layout.includes("animation: reduceMotion ? 'none' : 'fade'"));
+ assert.ok(layout.includes('AccessibilityInfo.isReduceMotionEnabled()'));
+ assert.ok(bar.includes('duration: 220'));
+ assert.ok(bar.includes('useNativeDriver: true'));
+ assert.ok(bar.includes('opacity: inactiveOpacity'));
+ assert.ok(bar.includes('opacity: focus'));
+ assert.ok(bar.includes('if (reduceMotion)'));
+ assert.ok(bar.includes('event.defaultPrevented'));
+});
