@@ -314,6 +314,7 @@ export default function AdminHomepage() {
             header={homeHeader} onHeaderChange={setHomeHeader} products={productOptions}
             uploadBrandLogo={(file,ready)=>{void uploadMedia(file,ready);}}
             uploadActionIcon={(slot,file)=>{void uploadMedia(file,id=>publishActionIcon(slot,id),undefined,true);}}
+            uploadReorderBanner={file=>{void uploadMedia(file,id=>setHomeSections(current=>current.map(section=>section.id==="reorder"?{...section,reorderBannerImageId:id}:section)),"mobile_banner");}}
             removeActionIcon={slot=>{void removeActionIcon(slot);}} uploading={uploading||saving}/>
         </AdminHomepageDrawer>
 
