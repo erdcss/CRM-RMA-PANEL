@@ -26,7 +26,8 @@ export const DEFAULT_HOME_SECTIONS: HomeSection[] = definitions.map(d=>({
 }));
 
 export function AdminHomeSections({
-  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon, uploading
+  sections, onChange, header, onHeaderChange, products, uploadBrandLogo, uploadActionIcon, removeActionIcon,
+  refreshAnimationImageId,uploadRefreshGif,removeRefreshGif,uploading
 }:{
   sections: HomeSection[];
   onChange: (next: HomeSection[])=>void;
@@ -36,6 +37,9 @@ export function AdminHomeSections({
   uploadBrandLogo: (file: File, onReady: (imageId:string)=>void)=>void;
   uploadActionIcon: (slot:QuickActionId,file:File)=>void;
   removeActionIcon: (slot:QuickActionId)=>void;
+  refreshAnimationImageId: string;
+  uploadRefreshGif: (file:File)=>void;
+  removeRefreshGif: ()=>void;
   uploading: boolean;
 }) {
   const [search,setSearch]=useState("");
@@ -68,6 +72,27 @@ export function AdminHomeSections({
       Kaydedilince mobil uygulama ayarları yeniden açılışta veya ana sayfaya dönüldüğünde güncellenir.
       Boş kampanya, video, özel fırsat ve satış verisi olan bölümler boş kart göstermeden gizlenir.
     </p>
+    <div className="rounded-xl border border-amber-400/30 bg-background p-4 space-y-3">
+      <h3 className="text-sm font-semibold">Yenileme Animasyonu (GIF)</h3>
+      <p className="text-xs text-muted-foreground">Mobil ana sayfada aşağı çekerek yenilerken, header ve kategoriler sabit kalır. Bu alana yüklenen Çalışkan B2B GIF animasyonu standart yükleme simgesinin yerine oynatılır. GIF yüklenmezse uygulamanın kendi animasyonlu Çalışkan B2B yazısı kullanılır.</p>
+      {refreshAnimationImageId ? (
+        <div className="flex items-center gap-4">
+          <div className="h-20 w-36 rounded-lg border bg-[#181818] flex items-center justify-center overflow-hidden">
+            <img src={`/api/public/homepage/media/${refreshAnimationImageId}`} alt="Yenileme animasyonu önizlemesi" className="h-full w-full object-contain" />
+          </div>
+          <Button type="button" variant="outline" disabled={uploading} onClick={removeRefreshGif}>GIF'i Kaldır</Button>
+        </div>
+      ) : <div className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">Varsayılan Çalışkan B2B animasyonu etkin</div>}
+      <label className="inline-flex cursor-pointer rounded-md bg-[#FFCD00] px-4 py-2 text-sm font-semibold text-black">
+        {uploading ? "Yükleniyor…" : refreshAnimationImageId ? "GIF'i Değiştir" : "GIF Yükle"}
+        <input type="file" accept="image/gif,.gif" className="hidden" disabled={uploading} onChange={event=>{
+          const file=event.target.files?.[0];
+          if(file&&file.type==="image/gif")uploadRefreshGif(file);
+          event.target.value="";
+        }}/>
+      </label>
+      <p className="text-xs text-muted-foreground">Önerilen ölçü: 240 × 100 px. Dosya türü GIF, en fazla 3 MB. Kaydedildiğinde mobil uygulama ana sayfa ayarlarına yansır.</p>
+    </div>
     {sections.map((section,index)=>{
       const def=definitions.find(d=>d.id===section.id);
       return <div className="rounded-xl border bg-background p-4 space-y-3" key={section.id}>
