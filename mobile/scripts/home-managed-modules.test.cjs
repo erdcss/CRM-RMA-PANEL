@@ -87,3 +87,13 @@ test('reorder banner uses admin media, compact ratio, fallback and order navigat
  assert.ok(modules.includes('showImage ? <Image'));
  assert.ok(modules.includes('onError={()=>setFailed(true)}'));
 });
+
+
+test('uploaded reorder banners fill available width without cropping or stretching',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const banner=modules.slice(modules.indexOf('function ReorderBanner'),modules.indexOf('export function ManagedHomeSections'));
+ assert.ok(banner.includes('aspectRatio:imageRatio'));
+ assert.ok(banner.includes('setImageRatio(source.width/source.height)'));
+ assert.ok(banner.includes('contentFit="contain"'));
+ assert.ok(modules.includes("reorder:{marginTop:10,width:'100%'"));
+});
