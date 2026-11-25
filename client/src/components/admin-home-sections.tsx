@@ -91,7 +91,7 @@ export function AdminHomeSections({
           event.target.value="";
         }}/>
       </label>
-      <p className="text-xs text-muted-foreground">Önerilen ölçü: 240 × 100 px. Dosya türü GIF, en fazla 3 MB. Kaydedildiğinde mobil uygulama ana sayfa ayarlarına yansır.</p>
+      <p className="text-xs text-muted-foreground">Önerilen ölçü: 360 × 120 px. Dosya türü GIF, en fazla 3 MB. Kaydedildiğinde mobil uygulama ana sayfa ayarlarına yansır.</p>
     </div>
     {sections.map((section,index)=>{
       const def=definitions.find(d=>d.id===section.id);
