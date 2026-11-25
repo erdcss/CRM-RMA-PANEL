@@ -14,8 +14,9 @@ export type BannerDestination=
 /** A visible banner is interactive only with a validated target. */
 export function bannerDestination(banner:HomeBanner):BannerDestination {
   if(banner.linkType==='product'){
-    const id=Number(banner.productId);
-    return Number.isSafeInteger(id)&&id>0?{kind:'product',id:String(id)}:null;
+    const raw=banner.productId;
+    const id=typeof raw==='string'?raw.trim():typeof raw==='number'&&Number.isSafeInteger(raw)&&raw>0?String(raw):'';
+    return /^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(id)&&!/^0+$/.test(id)&&!id.startsWith('mp-')?{kind:'product',id}:null;
   }
   if(banner.linkType==='page'&&
     (BANNER_PAGES as readonly string[]).includes(banner.pagePath||'')){

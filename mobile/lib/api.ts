@@ -199,7 +199,7 @@ export type MarketplaceCart = {
 export type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
   imageWidth?:number;imageHeight?:number;
-  linkType?:'none'|'product'|'page'|'url';productId?:number|null;
+  linkType?:'none'|'product'|'page'|'url';productId?:string|number|null;
   pagePath?:string;externalUrl?:string;
 };
 export type HomeSubcategory = {

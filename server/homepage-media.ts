@@ -74,13 +74,16 @@ export type BannerLinkType = 'none' | 'product' | 'page' | 'url';
 type Banner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
   imageWidth?:number;imageHeight?:number;
-  linkType:BannerLinkType;productId:number|null;pagePath:string;externalUrl:string;
+  linkType:BannerLinkType;productId:string|number|null;pagePath:string;externalUrl:string;
 };
 function safeBannerLink(item:any):Pick<Banner,'linkType'|'productId'|'pagePath'|'externalUrl'> {
   const type:BannerLinkType = ['product','page','url'].includes(item?.linkType)
     ? item.linkType : 'none';
-  const n=Number(item?.productId);
-  const productId=Number.isSafeInteger(n)&&n>0?n:null;
+  const rawId=item?.productId;
+  const id=typeof rawId==='string'?rawId.trim():typeof rawId==='number'&&Number.isSafeInteger(rawId)&&rawId>0?String(rawId):'';
+  const validProductId=/^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(id)&&!/^0+$/.test(id)&&!id.startsWith('mp-');
+  // Retain legacy numeric links for older apps, but never coerce opaque catalog keys.
+  const productId=validProductId?(/^[1-9]\d*$/.test(id)&&Number.isSafeInteger(Number(id))?Number(id):id):null;
   const pagePath=typeof item?.pagePath==='string'&&
     (HOME_BANNER_PAGES as readonly string[]).includes(item.pagePath)
     ? item.pagePath : '';

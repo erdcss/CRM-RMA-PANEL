@@ -156,3 +156,11 @@ test('flash artwork persists only for the flash module and the three home sectio
  assert.equal(sections.find(s=>s.id==='actions')?.flashBannerImageId,undefined);
  assert.equal(normalizeHomeLayout({homeSections:[{id:'flash',flashBannerImageId:'invalid'}]}).homeSections.find(s=>s.id==='flash')?.flashBannerImageId,undefined);
 });
+
+test('banner product assignment survives saving and reloading opaque catalog IDs',()=>{
+ const ids=['a5cc8310e6b740b0b3b05298202ea123','550e8400-e29b-41d4-a716-446655440000','12345678901234567890','00125'];
+ const layout=normalizeHomeLayout({banners:ids.map(productId=>({linkType:'product',productId}))});
+ assert.deepEqual(layout.banners.map(b=>b.productId),ids);
+ assert.deepEqual(normalizeHomeLayout(layout).banners.map(b=>b.productId),ids);
+ assert.ok(normalizeHomeLayout({banners:['../admin','mp-42','0','-1','a/b'].map(productId=>({linkType:'product',productId}))}).banners.every(b=>b.linkType==='none'));
+});

@@ -17,7 +17,7 @@ export type RoundBottomBanner = {
   heroImageMode?:'full'|'background';
   heroCropPercent?:number;
 };
-export type HomeBanner = { id:string; title?:string; imageId:string; imageWidth?:number; imageHeight?:number; linkType?:string; productId?:number|null; pagePath?:string; externalUrl?:string };
+export type HomeBanner = { id:string; title?:string; imageId:string; imageWidth?:number; imageHeight?:number; linkType?:string; productId?:string|number|null; pagePath?:string; externalUrl?:string };
 export type B2BHomepageCategories = {
   banners?: HomeBanner[];
   sliderAutoPlay?: boolean;

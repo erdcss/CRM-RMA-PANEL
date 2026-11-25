@@ -25,3 +25,10 @@ test('no arbitrary navigation from malformed target or legacy image-only banner'
   assert.equal(bannerDestination({...base,linkType:'url',externalUrl:'javascript:alert(1)'}),null);
   assert.equal(bannerDestination({...base,linkType:'url',externalUrl:'http://example.com'}),null);
 });
+
+test('banner opens opaque product IDs without numeric coercion',()=>{
+ const base={id:'x',title:'',subtitle:'',buttonText:'',imageId:'',linkType:'product' as const};
+ for(const id of ['a5cc8310e6b740b0b3b05298202ea123','550e8400-e29b-41d4-a716-446655440000','12345678901234567890','00125'])
+   assert.deepEqual(bannerDestination({...base,productId:id}),{kind:'product',id});
+ for(const id of ['../admin','mp-42','0','-1','a/b'])assert.equal(bannerDestination({...base,productId:id}),null);
+});

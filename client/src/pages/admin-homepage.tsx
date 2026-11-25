@@ -10,15 +10,16 @@ import { useToast } from "@/hooks/use-toast";
 import { AdminSubcategoryDrawer, type HomeSubcategory } from "@/components/admin-subcategory-drawer";
 import { AdminRoundBottomBanner, DEFAULT_ROUND_BOTTOM_BANNER, type RoundBottomBanner } from "@/components/admin-round-bottom-banner";
 import {AdminHomepageDrawer,loadHomepageDrawers,saveHomepageDrawers,type HomepageDrawerId,type HomepageDrawerState} from "@/components/admin-homepage-drawer";
-import type {CampaignProductOption} from "@/lib/campaign-product-picker";
+import {campaignProductId,type CampaignProductOption} from "@/lib/campaign-product-picker";
 import { AdminHomeSections, DEFAULT_HOME_SECTIONS, type HomeHeader, type HomeSection, type QuickActionId } from "@/components/admin-home-sections";
 
 type HomeBanner = {
   id:string;title:string;subtitle:string;buttonText:string;imageId:string;
   imageWidth?:number;imageHeight?:number;
-  linkType:'none'|'product'|'page'|'url';productId:number|null;pagePath:string;externalUrl:string;
+  linkType:'none'|'product'|'page'|'url';productId:string|number|null;pagePath:string;externalUrl:string;
 };
-type ProductOption=CampaignProductOption;
+type ProductOption=CampaignProductOption & {assigned_customer_id?:string|number|null;barcode?:string|null};
+const isBannerProduct=(product:ProductOption)=>Boolean(campaignProductId(product.id))&&product.is_active!==false&&product.assigned_customer_id==null;
 const pageDestinations=[
   {path:'/(tabs)',label:'Ana Sayfa'}, {path:'/(tabs)/products',label:'Ürünler'},
   {path:'/(tabs)/discover',label:'Keşfet'}, {path:'/(tabs)/menu',label:'Menü'},
@@ -225,7 +226,7 @@ export default function AdminHomepage() {
       }
     }
     const invalid=banners.find(banner=>
-      (banner.linkType==='product'&&(!banner.productId||!productOptions.some(p=>Number(p.id)===Number(banner.productId))))||
+      (banner.linkType==='product'&&(!banner.productId||!productOptions.some(p=>isBannerProduct(p)&&campaignProductId(p.id)===campaignProductId(banner.productId))))||
       (banner.linkType==='page'&&!pageDestinations.some(page=>page.path===banner.pagePath))||
       (banner.linkType==='url'&&!/^https:\/\/[^\s/]+(?:\/[^\s]*)?$/.test(banner.externalUrl||''))
     );
@@ -513,22 +514,25 @@ export default function AdminHomepage() {
                   </label>
                   {banner.linkType==='product'&&<div className="space-y-2">
                     <label className="text-xs font-semibold">Ürün adı veya stok kodu ara
-                      <Input placeholder="Ürün ara..." value={productSearch[banner.id]||''}
+                      <Input placeholder="Ürün adı, stok kodu veya barkod ara..." value={productSearch[banner.id]||''}
                         onChange={event=>setProductSearch(q=>({...q,[banner.id]:event.target.value}))}/>
                     </label>
                     <select aria-label="Bannerın yönlendireceği ürün"
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={banner.productId||''}
+                      value={campaignProductId(banner.productId)}
+                      disabled={productsLoading||productsError}
                       onChange={event=>setBanners(items=>items.map(x=>x.id===banner.id?
-                        {...x,productId:Number(event.target.value)||null}:x))}>
+                        {...x,productId:campaignProductId(event.target.value)||null}:x))}>
                       <option value="">Ürün seçin</option>
-                      {productOptions.filter(p=>{
-                        const q=(productSearch[banner.id]||'').toLocaleLowerCase('tr-TR');
-                        return Number(p.id)===Number(banner.productId)||!q||
-                          (p.name+' '+(p.sku||'')).toLocaleLowerCase('tr-TR').includes(q);
-                      }).slice(0,120).map(p=>
-                        <option key={String(p.id)} value={String(p.id)}>{p.name} {p.sku?'· '+p.sku:''}</option>)}
+                      {productOptions.filter(isBannerProduct).filter(p=>{
+                        const q=(productSearch[banner.id]||'').trim().toLocaleLowerCase('tr-TR');
+                        return campaignProductId(p.id)===campaignProductId(banner.productId)||!q||
+                          q.split(/\s+/).every(term=>[p.name,p.sku,p.barcode,p.brand].map(v=>String(v||'')).join(' ').toLocaleLowerCase('tr-TR').includes(term));
+                      }).sort((a,b)=>Number(campaignProductId(b.id)===campaignProductId(banner.productId))-Number(campaignProductId(a.id)===campaignProductId(banner.productId))).slice(0,120).map(p=>
+                        <option key={campaignProductId(p.id)} value={campaignProductId(p.id)}>{p.name} {p.sku?'· '+p.sku:''}</option>)}
                     </select>
+                    {productsLoading?<p className="text-xs text-muted-foreground">Ürünler yükleniyor…</p>:productsError?<div className="flex items-center gap-2 text-xs text-destructive">Ürün listesi alınamadı.<Button type="button" variant="outline" size="sm" onClick={()=>void refetchProducts()}>Tekrar dene</Button></div>:!productOptions.some(isBannerProduct)?<p className="text-xs text-muted-foreground">Atanabilir aktif ürün bulunamadı.</p>:null}
+                    {banner.productId&&productOptions.some(p=>isBannerProduct(p)&&campaignProductId(p.id)===campaignProductId(banner.productId))?<p className="text-xs font-semibold text-emerald-600">Ürün seçildi. Yayınlamak için değişiklikleri kaydedin.</p>:null}
                   </div>}
                   {banner.linkType==='page'&&<label className="space-y-1 text-xs font-semibold">
                     Açılacak uygulama sayfası

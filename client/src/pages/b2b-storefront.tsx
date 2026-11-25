@@ -310,7 +310,11 @@ export default function B2BStorefront() {
 }
 
 function bannerHref(banner:HomeBanner):string|null {
-  if(banner.linkType==="product" && Number.isSafeInteger(Number(banner.productId)) && Number(banner.productId)>0)return "/urun/"+Number(banner.productId);
+  if(banner.linkType==="product"){
+    const raw=banner.productId;
+    const id=typeof raw==="string"?raw.trim():typeof raw==="number"&&Number.isSafeInteger(raw)&&raw>0?String(raw):"";
+    return /^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$/.test(id)&&!/^0+$/.test(id)&&!id.startsWith("mp-")?"/urun/"+encodeURIComponent(id):null;
+  }
   if(banner.linkType==="page"){
     const pages:Record<string,string>={"/(tabs)":"/","/(tabs)/products":"/#urunler","/(tabs)/discover":"/kategoriler","/(tabs)/menu":"/hesabim"};
     return pages[banner.pagePath||""]||null;
