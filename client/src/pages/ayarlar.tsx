@@ -780,9 +780,9 @@ export default function Ayarlar() {
                             </div>
                           ) : null}
                         </div>
-                        <div className="absolute right-3 top-0.5 flex h-[44px] items-center gap-3 text-white">
-                          <Bell className="h-5 w-5"/>
-                          <ShoppingCart className="h-5 w-5"/>
+                        <div className="absolute right-3 top-0.5 flex items-center gap-1.5 text-[#111113]">
+                          <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-[#FFCD00]"><Bell className="h-5 w-5"/></div>
+                          <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-[#FFCD00]"><ShoppingCart className="h-[22px] w-[22px]"/></div>
                         </div>
                       </div>
 

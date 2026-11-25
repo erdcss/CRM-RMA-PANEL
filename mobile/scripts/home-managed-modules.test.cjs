@@ -41,7 +41,7 @@ test('quick actions keep four tiles in one row, uploaded icons and scanner navig
 
 });
 
-test('quick actions match reference: full title, two-line description, golden mid-right arrow and admin icons',()=>{
+test('quick actions match reference: full title, two-line description, large golden top-right arrow and admin icons',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  for(const label of ['Hızlı Sipariş','Tekrar Sipariş','Cari Hesap','Kampanyalar'])
@@ -51,11 +51,13 @@ test('quick actions match reference: full title, two-line description, golden mi
  assert.ok(actions.includes('style={styles.actionTitle} numberOfLines={1}'));
  assert.ok(actions.includes('style={styles.actionSubtitle} numberOfLines={2}'));
  assert.ok(actions.includes('styles.actionArrow'), 'arrow must be separate from title width');
- assert.ok(actions.includes('name="chevron-forward" size={11} color="#FFCD00"'));
+ assert.ok(actions.includes('name="chevron-forward" size={20} color="#FFCD00"'));
  assert.ok(!actions.includes('styles.actionTitleRow'), 'no wasted width for extra wrapper');
- assert.ok(modules.includes("fontWeight:'400',color:'#FFFFFF'"));
- assert.ok(modules.includes("fontWeight:'300',color:'#E0E0E0'"));
- assert.ok(modules.includes("actionArrow:{position:'absolute'"));
+ assert.ok(modules.includes("fontWeight:'700',color:'#FFFFFF'"));
+ assert.ok(modules.includes("fontWeight:'400',color:'#E0E0E0'"));
+ assert.ok(modules.includes("actionArrow:{width:20,height:20"));
+ assert.ok(modules.includes("actionTitle:{width:'100%'"));
+ assert.ok(actions.indexOf('styles.actionArrow')<actions.indexOf('styles.actionTitle'));
  assert.ok(modules.includes("actionSubtitle:{width:'100%'"), 'caption should use full card width');
  assert.ok(!modules.includes('paddingLeft:19'), 'caption should not be indented');
  assert.ok(actions.includes('imageId={section.actionImageIds?.[action.id]}'));
@@ -70,7 +72,7 @@ test('quick actions preserve compact four-column row and accessible descriptions
  assert.ok(modules.includes("actions:{width:'100%',alignSelf:'center'"));
  assert.ok(modules.includes("flexWrap:'nowrap'"));
  assert.ok(!modules.includes('marginHorizontal:-8'));
- assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:64'));
+ assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,minHeight:76'));
  assert.ok(modules.includes('actionIconSlot:{width:20,height:20'));
  assert.ok(modules.includes('actionTop:{flexDirection:\'row\',alignItems:\'center\''));
  assert.ok(actions.includes('accessibilityHint={action.subtitle}'));

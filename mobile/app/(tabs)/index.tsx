@@ -439,8 +439,9 @@ export default function HomeScreen() {
                 accessibilityLabel="Bildirimleri aç"
                 onPress={()=>router.push('/notifications' as never)}
                 style={styles.homeHeaderIconButton}
+                hitSlop={5}
               >
-                <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+                <Ionicons name="notifications-outline" size={21} color="#111113" />
                 {unreadNotifications>0?<View style={styles.homeNotificationDot}/>:null}
               </Pressable>
               <Pressable
@@ -448,8 +449,9 @@ export default function HomeScreen() {
                 accessibilityLabel={cartCount ? `Siparişlerim, sepette ${cartCount} ürün` : 'Siparişlerim'}
                 onPress={()=>router.push('/(tabs)/orders' as never)}
                 style={styles.homeHeaderIconButton}
+                hitSlop={5}
               >
-                <Ionicons name="cart-outline" size={23} color="#FFFFFF" />
+                <Ionicons name="cart-outline" size={22} color="#111113" />
                 {cartCount>0?<View style={styles.homeCartCount}>
                   <Text style={styles.homeCartCountText}>{cartCount>9?'9+':cartCount}</Text>
                 </View>:null}
@@ -851,19 +853,19 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   homeBrandLogoRow: {width:'100%',paddingHorizontal:72,alignItems:'center',justifyContent:'center'},
   homeHeaderTopActions: {
     position:'absolute',right:spacing.lg,
-    flexDirection:'row',alignItems:'center',gap:4,
+    flexDirection:'row',alignItems:'center',gap:6,
   },
-  homeHeaderIconButton: {width:35,height:44,alignItems:'center',justifyContent:'center'},
+  homeHeaderIconButton: {width:34,height:34,borderRadius:9,backgroundColor:'#FFCD00',alignItems:'center',justifyContent:'center'},
   homeNotificationDot: {
-    position:'absolute',top:5,right:7,width:8,height:8,borderRadius:4,
-    backgroundColor:'#FFCD00',
+    position:'absolute',top:2,right:2,width:8,height:8,borderRadius:4,
+    backgroundColor:'#EF4444',borderWidth:1,borderColor:'#FFCD00',
   },
   homeCartCount: {
-    position:'absolute',top:0,right:0,minWidth:17,height:17,
+    position:'absolute',top:-3,right:-3,minWidth:17,height:17,
     borderRadius:9,paddingHorizontal:2,alignItems:'center',justifyContent:'center',
-    backgroundColor:'#FFCD00',
+    backgroundColor:'#111113',borderWidth:1,borderColor:'#FFCD00',
   },
-  homeCartCountText:{fontSize:9,fontWeight:'900',color:'#111113'},
+  homeCartCountText:{fontSize:9,fontWeight:'900',color:'#FFFFFF'},
   homeBrandLogo: {width:'100%',height:46,backgroundColor:'transparent'},
   homeBrandFallback: {color:'#FFFFFF',fontSize:23,fontWeight:'900',letterSpacing:0.3},
   homeBrandTaglineArtwork:{

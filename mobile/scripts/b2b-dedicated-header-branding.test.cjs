@@ -183,3 +183,13 @@ test('single native header backdrop covers the sticky parent, including search a
   }
   assert.match(home,/pointerEvents="none" style=\{StyleSheet\.absoluteFillObject\}/);
 });
+
+test('header uses yellow icon tiles with dark glyphs and contrasting badges',()=>{
+ const home=read('mobile/app/(tabs)/index.tsx');
+ const admin=read('client/src/pages/ayarlar.tsx');
+ assert.match(home,/homeHeaderIconButton:\s*\{[^}]*width:34,height:34,borderRadius:9,backgroundColor:'#FFCD00'/);
+ assert.match(home,/name="notifications-outline" size=\{21\} color="#111113"/);
+ assert.match(home,/name="cart-outline" size=\{22\} color="#111113"/);
+ assert.match(home,/homeNotificationDot:\s*\{[^}]*backgroundColor:'#EF4444'/);
+ assert.match(admin,/rounded-\[9px\] bg-\[#FFCD00\]/);
+});
