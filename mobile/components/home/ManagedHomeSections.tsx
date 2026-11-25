@@ -65,6 +65,24 @@ function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionic
     ? <Image source={{uri}} style={styles.actionIcon} contentFit="contain" cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
     : <Ionicons name={icon} size={17} color="#FFCD00"/>;
 }
+function ReorderBanner({imageId,title,onPress}:{imageId?:string;title:string;onPress:()=>void}){
+  const [failed,setFailed]=useState(false);
+  const uri=homepageMediaUrl(imageId);
+  const showImage=!!uri&&!failed;
+  return <Pressable accessibilityRole="button" accessibilityLabel={title+', Siparişlerimi Gör'}
+    onPress={onPress} style={[styles.reorder,showImage&&styles.reorderImageFrame]}>
+    {showImage ? <Image source={{uri}} style={StyleSheet.absoluteFill} contentFit="contain"
+      cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
+    : <>
+      <Ionicons name="cube" size={21} color="#FFCD00"/>
+      <View style={{flex:1,minWidth:0}}>
+        <Text style={styles.reorderTitle} numberOfLines={1} adjustsFontSizeToFit>{title}</Text>
+        <Text style={styles.reorderDescription} numberOfLines={1}>Önceki siparişlerini kolayca yenile</Text>
+      </View>
+      <View style={styles.reorderCta}><Text style={styles.reorderCtaText} numberOfLines={1}>Siparişlerimi Gör</Text><Ionicons name="chevron-forward" size={11} color="#161616"/></View>
+    </>}
+  </Pressable>;
+}
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
   renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,
@@ -135,15 +153,8 @@ export function ManagedHomeSections({
         }
         case 'reorder':
           if(!signedIn)return null;
-          return <Pressable key={section.id} accessibilityRole="button"
-            onPress={()=>onRoute('/my-orders')} style={styles.reorder}>
-            <View style={styles.parcelIcon}><Ionicons name="cube" size={29} color="#FFCD00"/></View>
-            <View style={{flex:1,minWidth:0}}>
-              <Text style={styles.reorderTitle}>{title}</Text>
-              <Text style={styles.reorderDescription}>Önceki siparişlerini görüntüle ve yeniden sipariş ver</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={22} color="#FFCD00"/>
-          </Pressable>;
+          return <ReorderBanner key={section.reorderBannerImageId||section.id} imageId={section.reorderBannerImageId}
+            title={title} onPress={()=>onRoute('/my-orders')}/>;
         case 'videos':
           if(!reels.length)return null;
           return <View key={section.id} style={styles.section}>
@@ -223,12 +234,13 @@ const styles=StyleSheet.create({
   flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
   flashCampaign:{gap:9},
   campaignLabel:{color:'#FFD447',fontWeight:'500',fontSize:13},
-  reorder:{marginTop:15,minHeight:90,padding:13,flexDirection:'row',alignItems:'center',
-    backgroundColor:'#1D1C19',borderColor:'#DEAF22',borderWidth:1.5,borderRadius:17,gap:12},
-  parcelIcon:{width:52,height:54,alignItems:'center',justifyContent:'center',borderRadius:13,
-    backgroundColor:'#3E3313'},
-  reorderTitle:{color:'#FFFFFF',fontSize:15,fontWeight:'500'},
-  reorderDescription:{color:'#E1D7B5',fontSize:11,marginTop:5,lineHeight:16},
+  reorder:{marginTop:10,width:'100%',aspectRatio:12,paddingHorizontal:7,flexDirection:'row',alignItems:'center',
+     backgroundColor:'#1D1C19',borderColor:'#DEAF22',borderWidth:1,borderRadius:7,gap:6,overflow:'hidden'},
+   reorderImageFrame:{paddingHorizontal:0,borderWidth:0,backgroundColor:'transparent'},
+   reorderTitle:{color:'#FFFFFF',fontSize:11,fontWeight:'700',lineHeight:12},
+   reorderDescription:{color:'#E1D7B5',fontSize:8,lineHeight:10},
+   reorderCta:{flexDirection:'row',alignItems:'center',gap:2,borderRadius:5,backgroundColor:'#FFCD00',paddingHorizontal:5,paddingVertical:3},
+   reorderCtaText:{fontSize:8,fontWeight:'700',color:'#161616'},
   videoCard:{width:140,height:175,borderRadius:15,borderWidth:1,borderColor:'#655528',
     backgroundColor:'#262628',overflow:'hidden',justifyContent:'flex-end',alignItems:'center'},
   videoLabel:{padding:9,width:'100%',backgroundColor:'rgba(0,0,0,0.6)',gap:3},
