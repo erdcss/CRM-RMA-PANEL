@@ -139,3 +139,16 @@ test('flash section uses a compact header, live campaign data and admin artwork'
  assert.match(flash,/setInterval\(tick,1000\)/);
  assert.match(flash,/signedIn&&price!=null/);
 });
+
+
+test('flash header artwork fills its left slot at the intrinsic ratio and the strip has taller product tiles',()=>{
+ const flash=read('components/home/FlashHomeSection.tsx');
+ assert.match(flash,/artwork:\{width:'100%',alignSelf:'stretch'\}/);
+ assert.match(flash,/aspectRatio:artworkRatio/);
+ assert.match(flash,/setArtworkRatio\(source.width\/source.height\)/);
+ assert.match(flash,/contentFit="contain"/);
+ assert.match(flash,/contentPosition="left"/);
+ assert.match(flash,/header:\{[^}]*minHeight:46/);
+ assert.match(flash,/tile:\{height:79/);
+ assert.match(flash,/\(viewport-8\)\/3/);
+});

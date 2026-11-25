@@ -44,11 +44,12 @@ export function FlashHomeSection({title,imageId,campaigns,products,signedIn,onRe
   const [now,setNow]=useState(Date.now());
   const [viewport,setViewport]=useState(0);
   const [failedImage,setFailedImage]=useState(false);
+  const [artworkRatio,setArtworkRatio]=useState(4);
   const notified=useRef(new Set<string>());
   const refreshRef=useRef(onRefresh);
   refreshRef.current=onRefresh;
   const image=homepageMediaUrl(imageId);
-  useEffect(()=>setFailedImage(false),[image]);
+  useEffect(()=>{setFailedImage(false);setArtworkRatio(4);},[image]);
   useEffect(()=>{
     if(!campaigns.length)return;
     const tick=()=>setNow(Date.now());
@@ -66,8 +67,14 @@ export function FlashHomeSection({title,imageId,campaigns,products,signedIn,onRe
     {groups.map(({campaign,offers})=><View key={campaign.id} style={styles.group}>
       <View style={styles.header}>
         <View style={styles.titleArea}>
-          {image&&!failedImage?<Image source={{uri:image}} style={styles.artwork} contentFit="contain"
-            cachePolicy="memory-disk" accessibilityLabel={title} onError={()=>setFailedImage(true)}/>:
+          {image&&!failedImage?<Image key={image} source={{uri:image}} style={[styles.artwork,{aspectRatio:artworkRatio}]} contentFit="contain"
+            contentPosition="left" cachePolicy="memory-disk" accessibilityLabel={title}
+            onLoad={({source})=>{
+              if(Number.isFinite(source.width)&&Number.isFinite(source.height)&&source.width>0&&source.height>0){
+                setArtworkRatio(source.width/source.height);
+              }
+            }}
+            onError={()=>setFailedImage(true)}/>:
             <><View style={styles.titleRow}><Ionicons name="flash" color="#FFCD00" size={20}/>
               <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{title}</Text></View>
               <View style={styles.scarcity}><Text style={styles.scarcityText} numberOfLines={1}>Sınırlı Stok, Kaçırma!</Text></View></>}
@@ -87,11 +94,11 @@ export function FlashHomeSection({title,imageId,campaigns,products,signedIn,onRe
 }
 
 const styles=StyleSheet.create({
-  shell:{width:'100%',marginTop:5,borderWidth:1,borderColor:'#C8A02C',borderRadius:12,padding:5,backgroundColor:'#191712',gap:7},
-  group:{gap:4},
-  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:3},
+  shell:{width:'100%',marginTop:5,borderWidth:1,borderColor:'#C8A02C',borderRadius:12,padding:7,backgroundColor:'#191712',gap:8},
+  group:{gap:6},
+  header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:5,minHeight:46},
   titleArea:{flex:1,minWidth:0,alignItems:'flex-start',justifyContent:'center',gap:2},
-  artwork:{width:'100%',height:34},
+  artwork:{width:'100%',alignSelf:'stretch'},
   titleRow:{flexDirection:'row',alignItems:'center',gap:2,width:'100%'},
   title:{color:'#FFFFFF',fontSize:13,lineHeight:17,fontWeight:'400',flex:1,minWidth:0},
   scarcity:{backgroundColor:'#FFCD00',borderRadius:4,paddingHorizontal:3,paddingVertical:1,maxWidth:'100%'},
@@ -105,14 +112,14 @@ const styles=StyleSheet.create({
   allButton:{maxWidth:'28%',flexDirection:'row',alignItems:'center',gap:2,backgroundColor:'#FFCD00',borderRadius:10,paddingHorizontal:5,paddingVertical:4},
   allText:{fontSize:8,lineHeight:11,color:'#151515',fontWeight:'400',flexShrink:1},
   tiles:{flexDirection:'row',gap:4},
-  tile:{height:65,borderRadius:7,borderWidth:1,borderColor:'#625A48',backgroundColor:'#2B2925',flexDirection:'row',alignItems:'center',padding:3,gap:3,overflow:'hidden'},
+  tile:{height:79,borderRadius:7,borderWidth:1,borderColor:'#625A48',backgroundColor:'#2B2925',flexDirection:'row',alignItems:'center',padding:4,gap:4,overflow:'hidden'},
   imageFrame:{width:'37%',height:'100%',borderRadius:4,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center',overflow:'hidden'},
   productImage:{width:'100%',height:'100%'},
-  tileBody:{flex:1,minWidth:0,gap:1},
-  productName:{fontSize:8,lineHeight:10,color:'#FFFFFF',fontWeight:'400'},
+  tileBody:{flex:1,minWidth:0,gap:2},
+  productName:{fontSize:9,lineHeight:12,color:'#FFFFFF',fontWeight:'400'},
   discountBadge:{alignSelf:'flex-start',backgroundColor:'#D72638',borderRadius:4,paddingHorizontal:3},
-  discountText:{fontSize:7,lineHeight:9,color:'#FFFFFF',fontWeight:'400'},
-  oldPrice:{fontSize:7,lineHeight:9,color:'#C7C7C7',fontWeight:'400',textDecorationLine:'line-through'},
+  discountText:{fontSize:8,lineHeight:10,color:'#FFFFFF',fontWeight:'400'},
+  oldPrice:{fontSize:8,lineHeight:10,color:'#C7C7C7',fontWeight:'400',textDecorationLine:'line-through'},
   noPrice:{fontSize:8,lineHeight:10,color:'#C7C7C7',fontWeight:'400'},
-  price:{fontSize:11,lineHeight:13,color:'#FFCD00',fontWeight:'400'},
+  price:{fontSize:12,lineHeight:15,color:'#FFCD00',fontWeight:'400'},
 });
