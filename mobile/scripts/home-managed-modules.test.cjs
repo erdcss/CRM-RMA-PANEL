@@ -71,7 +71,7 @@ test('quick actions preserve compact four-column row and accessible descriptions
  assert.ok(modules.includes("flexWrap:'nowrap'"));
  assert.ok(!modules.includes('marginHorizontal:-8'));
  assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:64'));
- assert.ok(modules.includes('actionIconSlot:{width:15,height:17'));
+ assert.ok(modules.includes('actionIconSlot:{width:20,height:20'));
  assert.ok(modules.includes('actionTop:{flexDirection:\'row\',alignItems:\'center\''));
  assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
 });
@@ -151,4 +151,18 @@ test('flash header artwork fills its left slot at the intrinsic ratio and the st
  assert.match(flash,/header:\{[^}]*minHeight:46/);
  assert.match(flash,/tile:\{height:79/);
  assert.match(flash,/\(viewport-8\)\/3/);
+});
+
+
+test('quick action artwork uses admin media and a larger contained icon without changing the four-card layout',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const api=read('lib/api.ts');
+ const icon=modules.slice(modules.indexOf('function QuickActionIcon'),modules.indexOf('function ReorderBanner'));
+ assert.ok(icon.includes('homepageMediaUrl(imageId)'));
+ assert.ok(icon.includes('contentFit="contain"'));
+ assert.ok(icon.includes('priority="high"'));
+ assert.ok(icon.includes('size={20}'));
+ assert.ok(modules.includes('actionIcon:{width:20,height:20}'));
+ assert.ok(modules.includes('imageId={section.actionImageIds?.[action.id]}'));
+ assert.ok(api.includes('ADMIN_CONTENT_URL}/api/public/homepage/media/'));
 });
