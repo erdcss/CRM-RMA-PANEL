@@ -4,7 +4,7 @@ import {ensurePrivateProductSchema} from "./b2b-private-products";
 import { storage } from "./storage";
 import { z, ZodError } from "zod";
 import type { PoolClient } from "pg";
-import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, validateDukkanImages } from "./dukkan-b2b-sync";
+import { backfillExistingDukkanProducts, ensureDukkanB2BBridge, importAllB2BToDukkan, syncDukkanToB2B, unpublishDukkanProduct, validateDukkanImages } from "./dukkan-b2b-sync";
 import { notifyMetaCatalogChange } from "./meta-catalog-sync";
 import { dukkanStockTotalsSql, dukkanStockHistorySql } from "./dukkan-stock-ledger";
 import {createManualStockMovement,changeManualStockMovement} from "./dukkan-stock-adjustments";
@@ -1271,7 +1271,7 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   app.post("/api/dukkan/stores/:storeId/products/bulk",safe(async(req,res)=>{
     manager(res);
     const sid=store(req);
-    const body=z.object({action:z.enum(["publish","archive","restore","delete"]),
+    const body=z.object({action:z.enum(["publish","unpublish","archive","restore","delete"]),
       ids:z.array(id).min(1).max(100)}).parse(req.body);
     const ids=[...new Set(body.ids)];
     if(ids.length!==body.ids.length)
@@ -1302,6 +1302,8 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
         if(body.action==="publish"){
           const saved=await c.query("UPDATE dukkan_products SET publish_b2b=TRUE WHERE store_id=$1 AND id=$2 RETURNING *",[sid,product.id]);
           await syncDukkanToB2B(c,saved.rows[0]);
+        }else if(body.action==="unpublish"){
+          await unpublishDukkanProduct(c,product);
         }else if(body.action==="archive"){
           const saved=await c.query(
             "UPDATE dukkan_products SET archived_at=COALESCE(archived_at,NOW()),"+
@@ -1328,8 +1330,9 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
     const updated=await transaction(async c=>{
       const found=await c.query("SELECT * FROM dukkan_products WHERE store_id=$1 AND id=$2 FOR UPDATE",[sid,productId]);
       if(!found.rows[0])throw Object.assign(new Error("Mağaza ürünü bulunamadı"),{status:404});
-      if(found.rows[0].deleted_at||Boolean(found.rows[0].archived_at))
+      if(found.rows[0].deleted_at||(published&&Boolean(found.rows[0].archived_at)))
         throw Object.assign(new Error("Silinmiş veya arşivlenmiş ürünün yayını değiştirilemez."),{status:409});
+      if(!published)return unpublishDukkanProduct(c,found.rows[0]);
       if(published&&!found.rows[0].image_data&&(!Array.isArray(found.rows[0].images)||!found.rows[0].images.length))
         throw Object.assign(new Error("Yayınlamak için ürün görseli ekleyin"),{status:400});
       const result=await c.query(
