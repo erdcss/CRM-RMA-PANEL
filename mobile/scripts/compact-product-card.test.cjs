@@ -10,7 +10,10 @@ test('home and catalog share a compact product card without rating, favorite or 
  assert.match(card,/\(viewport - 2 \* spacing\.sm\) \/ 2\.5/);
  assert.match(card,/backgroundColor:'#FFFFFF'/);
  assert.match(card,/Stokta/);
- assert.match(card,/Koli:/);
+ assert.doesNotMatch(card,/Koli:|Min\. \{minBoxes\} koli/);
+ assert.match(card,/canOrder = stock >= pack \* minBoxes/);
+ assert.match(card,/name:\{[^\n]*fontWeight:'400'/);
+ assert.match(card,/price:\{[^\n]*fontWeight:'400'/);
  assert.doesNotMatch(card,/heart|star-outline|cart-outline|Sepete Ekle|Değerlendirme/i);
  assert.match(home,/<CompactProductCard/);
  assert.match(catalog,/<CompactProductCard/);

@@ -52,8 +52,6 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
           {canOrder?'Stokta':stock===0?'Stokta yok':'Stok yetersiz'}
         </Text>
       </View>
-      <View style={styles.packBadge}><Text style={styles.packText} numberOfLines={1}>Koli: {pack} Adet</Text></View>
-      <Text style={styles.minimum} numberOfLines={1}>Min. {minBoxes} koli</Text>
       <View style={styles.priceBlock}>
         <Text style={styles.priceLabel}>Toptan Fiyat</Text>
         {signedIn && hasPrice && price != null ? <>
@@ -62,7 +60,7 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
           <Text style={[styles.price,!canOrder&&styles.disabledPrice]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{money(price)}</Text>
         </>:!signedIn?<Pressable onPress={e=>{e.stopPropagation();onLogin();}} style={styles.login} accessibilityRole="button">
           <Ionicons name="lock-closed-outline" color="#815900" size={11}/><Text style={styles.loginText} numberOfLines={1}>Giriş Yap</Text>
-        </Pressable>:<Text style={styles.minimum}>Fiyat belirtilmedi</Text>}
+        </Pressable>:<Text style={styles.priceLabel}>Fiyat belirtilmedi</Text>}
       </View>
       {product.timed_campaign_end_at ? <TimedCampaignNotice compact endAt={product.timed_campaign_end_at}
         title={product.timed_campaign_title} stock={product.stock} unitsPerBox={product.units_per_box} onExpire={onExpire}/>:null}
@@ -74,23 +72,20 @@ const styles=StyleSheet.create({
   imageWrap:{width:'100%',aspectRatio:1,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
   image:{width:'100%',height:'100%'},faded:{opacity:0.45},
   newBadge:{position:'absolute',top:6,left:6,paddingHorizontal:5,paddingVertical:3,borderRadius:5,backgroundColor:'#FFCD00'},
-  newText:{fontSize:9,fontWeight:'900',color:'#111827'},
+  newText:{fontSize:9,fontWeight:'500',color:'#111827'},
   body:{padding:8,gap:4,flex:1},
-  sku:{fontSize:9,lineHeight:12,color:'#68707D'},
-  name:{fontSize:12,lineHeight:16,minHeight:32,fontWeight:'800',color:'#171717'},
-  seller:{fontSize:9,lineHeight:12,color:'#6B7280'},
+  sku:{fontSize:9,lineHeight:12,color:'#68707D',fontWeight:'400'},
+  name:{fontSize:12,lineHeight:16,minHeight:32,fontWeight:'400',color:'#171717'},
+  seller:{fontSize:9,lineHeight:12,color:'#6B7280',fontWeight:'400'},
   stockBadge:{alignSelf:'flex-start',maxWidth:'100%',borderRadius:6,paddingHorizontal:5,paddingVertical:3,backgroundColor:'#DCFCE7',flexDirection:'row',alignItems:'center',gap:3},
   dot:{width:6,height:6,borderRadius:3,backgroundColor:'#16A34A'},
-  stockText:{fontSize:9,lineHeight:12,color:'#166534',fontWeight:'700',flexShrink:1},
+  stockText:{fontSize:9,lineHeight:12,color:'#166534',fontWeight:'400',flexShrink:1},
   noStockBadge:{backgroundColor:'#FEE2E2'},noStockDot:{backgroundColor:'#DC2626'},noStockText:{color:'#991B1B'},
-  packBadge:{alignSelf:'flex-start',maxWidth:'100%',borderRadius:6,paddingHorizontal:5,paddingVertical:3,backgroundColor:'#F3F4F6'},
-  packText:{fontSize:10,lineHeight:12,color:'#262626',fontWeight:'700'},
-  minimum:{fontSize:9,lineHeight:12,color:'#6B7280'},
   priceBlock:{marginTop:'auto',paddingTop:5,gap:2},
-  priceLabel:{fontSize:10,lineHeight:13,color:'#555555',fontWeight:'600'},
-  price:{fontSize:16,lineHeight:21,fontWeight:'900',color:'#111111'},
-  oldPrice:{fontSize:10,color:'#6B7280',textDecorationLine:'line-through'},
+  priceLabel:{fontSize:10,lineHeight:13,color:'#555555',fontWeight:'400'},
+  price:{fontSize:15,lineHeight:20,fontWeight:'400',color:'#111111'},
+  oldPrice:{fontSize:10,color:'#6B7280',textDecorationLine:'line-through',fontWeight:'400'},
   disabledPrice:{color:'#9CA3AF'},
   login:{flexDirection:'row',alignItems:'center',gap:4,backgroundColor:'#FFF6D5',paddingVertical:4,paddingHorizontal:5,borderRadius:5},
-  loginText:{fontSize:10,color:'#815900',fontWeight:'700',flexShrink:1},
+  loginText:{fontSize:10,color:'#815900',fontWeight:'400',flexShrink:1},
 });

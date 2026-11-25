@@ -849,7 +849,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   scanBars: {flexDirection:'row',alignItems:'center',gap:0.8},
   scanBar: {height:13,backgroundColor:'#202124'},
   searchResults: { gap: 8, marginTop: 15 },
-  searchResultHeading: { color: palette.textSecondary, fontSize: 13, fontWeight: '700', marginBottom: 3 },
+  searchResultHeading: { color: palette.textSecondary, fontSize: 13, fontWeight: '500', marginBottom: 3 },
   searchResultRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 12, padding: 8 },
   searchResultThumb: { width: 56, height: 56, backgroundColor: '#FFFFFF', borderRadius: 9, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   searchResultImage: { width: '100%', height: '100%' },
@@ -917,9 +917,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     gap: spacing.md,
   },
   sectionTitle: {
-    ...typography.title2,
+    fontSize: 15,
+    lineHeight: 20,
     color: palette.text,
-    fontWeight: '800',
+    fontWeight: '500',
   },
   sectionSubtitle: {
     ...typography.caption,
@@ -927,9 +928,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     marginTop: 2,
   },
   sectionAction: {
-    ...typography.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16,
     color: palette.text,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   productCount: {
     ...typography.caption,
@@ -969,7 +971,7 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   },
   newArrivalLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 6 },
   newArrivalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#16A34A' },
-  newArrivalLabel: { fontSize: 10, color: '#15803D', fontWeight: '800', letterSpacing: 0.5 },
+  newArrivalLabel: { fontSize: 10, color: '#15803D', fontWeight: '500', letterSpacing: 0.5 },
   newArrivalBadge: {
     position: 'absolute', top: 8, left: 8, zIndex: 2,
     paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6,
