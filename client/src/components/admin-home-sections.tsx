@@ -135,8 +135,8 @@ export function AdminHomeSections({
         </div>}
         {section.id==="reorder"&&<div className="space-y-2 rounded-lg border p-3">
           <p className="text-xs font-semibold">İnce yatay banner görseli</p>
-          <div className="w-full overflow-hidden rounded-md border bg-[#1B1B1D]" style={{aspectRatio:"12 / 1"}}>
-            {section.reorderBannerImageId ? <img src={`/api/public/homepage/media/${section.reorderBannerImageId}`} alt="Hızlı tekrar sipariş banner önizlemesi" className="h-full w-full object-contain"/> : <div className="flex h-full items-center justify-center px-2 text-xs text-[#FFCD00]">Varsayılan hızlı tekrar sipariş bannerı</div>}
+          <div className="w-full overflow-hidden rounded-md bg-[#1B1B1D]" style={section.reorderBannerImageId ? undefined : {aspectRatio:"12 / 1"}}>
+            {section.reorderBannerImageId ? <img src={`/api/public/homepage/media/${section.reorderBannerImageId}`} alt="Hızlı tekrar sipariş banner önizlemesi" className="block w-full h-auto"/> : <div className="flex h-full items-center justify-center px-2 text-xs text-[#FFCD00]">Varsayılan hızlı tekrar sipariş bannerı</div>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="cursor-pointer rounded-md border px-3 py-2 text-xs font-medium">
