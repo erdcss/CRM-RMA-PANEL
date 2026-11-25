@@ -22,9 +22,15 @@ assert.match(layout,/Platform\.OS === 'ios' && userId/);
 assert.match(layout,/await configureStoreNearby\(userId\)/);
 assert.match(layout,/if \(userId\) await registerB2BPush\(\)/);
 assert.match(layout,/isStoreNearbyEnabled\(userId\)/);
-assert.match(settings,/Mağaza yakınlık bildirimleri/);
-assert.match(settings,/requestStoreNearbyOptIn\(String\(user\.id\)\)/);
-assert.match(settings,/revokeStoreNearby\(String\(user\.id\)\)/);
+// The streamlined Settings screen no longer exposes optional location
+// controls; first-use consent is handled at launch, never in Notifications.
+if (settings.includes('Mağaza yakınlık bildirimleri')) {
+  assert.match(settings,/requestStoreNearbyOptIn\(String\(user\.id\)\)/);
+  assert.match(settings,/revokeStoreNearby\(String\(user\.id\)\)/);
+} else {
+  assert.doesNotMatch(settings,/requestStoreNearbyOptIn|getStoreNearbyPermissionStatus/);
+  assert.doesNotMatch(settings,/Konum izinlerini aç|Konum izinlerini kontrol et/);
+}
 assert.match(geofence,/await Location\.requestForegroundPermissionsAsync\(\)/);
 assert.match(geofence,/await Location\.requestBackgroundPermissionsAsync\(\)/);
 assert.match(geofence,/CONSENT_PREFIX\+user,'no'/);
