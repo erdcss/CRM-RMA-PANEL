@@ -86,7 +86,7 @@ test('quick actions stay in one row on every viewport with compact responsive in
  assert.ok(actions.includes('width:actionIconSize,height:actionIconSize'));
  assert.ok(actions.includes('setActionViewport(event.nativeEvent.layout.width)'));
  assert.ok(modules.includes("actionCard:{flexDirection:'row',alignItems:'center'"));
- assert.ok(modules.includes('actionIconSlot:{alignItems:'center''));
+ assert.ok(modules.includes("actionIconSlot:{alignItems:'center'"));
  assert.ok(modules.includes('actionCopy:{flex:1,minWidth:0'));
  assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
 });
