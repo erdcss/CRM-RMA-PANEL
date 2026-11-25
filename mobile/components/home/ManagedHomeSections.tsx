@@ -54,9 +54,9 @@ function ItemStrip({products,renderProduct}:{products:B2BProduct[];renderProduct
 }
 const shortActionItems: Array<{id:'scan'|'orders'|'ledger'|'campaigns';label:string;subtitle:string;icon:keyof typeof Ionicons.glyphMap;route:string}> = [
   {id:'scan',label:'Hızlı Sipariş',subtitle:'Barkodla veya\nlisteyle toplu alım',icon:'flash',route:''},
-  {id:'orders',label:'Tekrar Sipariş',subtitle:'Önceki siparişini\nyeniden al',icon:'repeat-outline',route:'/my-orders'},
-  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye, limit ve\neksikleri öğren',icon:'cash-outline',route:'/ledger'},
-  {id:'campaigns',label:'Kampanyalar',subtitle:'Toptan avantajlı\nürünleri anında gör',icon:'pricetag-outline',route:'/campaigns'},
+  {id:'orders',label:'Tekrar Sipariş',subtitle:'Önceki siparişini\nhızla yenile',icon:'repeat-outline',route:'/my-orders'},
+  {id:'ledger',label:'Cari Hesap',subtitle:'Bakiye, limit ve\nekstre bilgilerin',icon:'cash-outline',route:'/ledger'},
+  {id:'campaigns',label:'Kampanyalar',subtitle:'Toptan avantajlı\nfırsatları kaçırma',icon:'pricetag-outline',route:'/campaigns'},
 ];
 function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionicons.glyphMap}){
   const [failed,setFailed]=useState(false);
@@ -88,15 +88,15 @@ export function ManagedHomeSections({
                 style={({pressed})=>[styles.actionCard,pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
                 <View style={styles.actionTop}>
-                  <View style={styles.actionTitleRow}>
-                    <View style={styles.actionIconSlot}>
-                      <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
-                    </View>
-                    <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{action.label}</Text>
+                  <View style={styles.actionIconSlot}>
+                    <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
                   </View>
-                  <Ionicons name="chevron-forward" size={12} color="#FFCD00"/>
+                  <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{action.label}</Text>
                 </View>
-                <Text style={styles.actionSubtitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8}>{action.subtitle}</Text>
+                <Text style={styles.actionSubtitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75}>{action.subtitle}</Text>
+                <View pointerEvents="none" style={styles.actionArrow}>
+                  <Ionicons name="chevron-forward" size={11} color="#FFCD00"/>
+                </View>
               </Pressable>)}
           </View>;
         case 'flash': {
@@ -212,14 +212,14 @@ const styles=StyleSheet.create({
   actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:4,paddingBottom:3},
   actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:64,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
-    paddingHorizontal:5,paddingVertical:6,justifyContent:'space-between',
+    paddingHorizontal:4,paddingVertical:5,justifyContent:'space-between',
     shadowColor:'#FFCD00',shadowOpacity:0.10,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
-  actionTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:2,minWidth:0},
-  actionTitleRow:{flexDirection:'row',alignItems:'center',flex:1,minWidth:0,gap:3},
-  actionIconSlot:{width:16,height:16,alignItems:'center',justifyContent:'center',flexShrink:0},
-  actionIcon:{width:16,height:16},
-  actionTitle:{flex:1,minWidth:0,fontSize:10,lineHeight:13,fontWeight:'400',color:'#FFFFFF',includeFontPadding:false},
-  actionSubtitle:{fontSize:8.5,lineHeight:11,fontWeight:'300',color:'#D8D8D8',includeFontPadding:false,paddingLeft:19},
+  actionTop:{flexDirection:'row',alignItems:'center',gap:2,minWidth:0,minHeight:17},
+  actionIconSlot:{width:15,height:17,alignItems:'center',justifyContent:'center',flexShrink:0},
+  actionIcon:{width:15,height:15},
+  actionTitle:{flex:1,minWidth:0,fontSize:9.5,lineHeight:13,fontWeight:'400',color:'#FFFFFF',includeFontPadding:false},
+  actionSubtitle:{width:'100%',fontSize:8,lineHeight:10,fontWeight:'300',color:'#E0E0E0',includeFontPadding:false,textAlign:'left'},
+  actionArrow:{position:'absolute',right:2,top:26,width:12,height:12,alignItems:'center',justifyContent:'center'},
   flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
   flashCampaign:{gap:9},
   campaignLabel:{color:'#FFD447',fontWeight:'500',fontSize:13},
