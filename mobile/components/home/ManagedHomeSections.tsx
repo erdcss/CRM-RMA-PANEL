@@ -67,12 +67,15 @@ function QuickActionIcon({imageId,icon}:{imageId?:string;icon:keyof typeof Ionic
 }
 function ReorderBanner({imageId,title,onPress}:{imageId?:string;title:string;onPress:()=>void}){
   const [failed,setFailed]=useState(false);
+  const [imageRatio,setImageRatio]=useState(12);
   const uri=homepageMediaUrl(imageId);
   const showImage=!!uri&&!failed;
   return <Pressable accessibilityRole="button" accessibilityLabel={title+', Siparişlerimi Gör'}
-    onPress={onPress} style={[styles.reorder,showImage&&styles.reorderImageFrame]}>
+    onPress={onPress} style={[styles.reorder,showImage&&styles.reorderImageFrame,showImage&&{aspectRatio:imageRatio}]}>
     {showImage ? <Image source={{uri}} style={StyleSheet.absoluteFill} contentFit="contain"
-      cachePolicy="memory-disk" recyclingKey={imageId} onError={()=>setFailed(true)}/>
+      cachePolicy="memory-disk" recyclingKey={imageId}
+      onLoad={({source})=>{if(Number.isFinite(source.width)&&Number.isFinite(source.height)&&source.width>0&&source.height>0)setImageRatio(source.width/source.height);}}
+      onError={()=>setFailed(true)}/>
     : <>
       <Ionicons name="cube" size={21} color="#FFCD00"/>
       <View style={{flex:1,minWidth:0}}>
