@@ -84,11 +84,17 @@ export function ManagedHomeSections({
                 style={({pressed})=>[styles.actionCard,pressed&&{opacity:0.8}]}
                 onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
                 <View style={styles.actionTop}>
-                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
-                  <Ionicons name="chevron-forward" size={12} color="#FFCD00"/>
+                  <View style={styles.actionIconSlot}>
+                    <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon}/>
+                  </View>
+                  <View style={styles.actionArrowSlot}>
+                    <Ionicons name="chevron-forward" size={12} color="#FFCD00"/>
+                  </View>
                 </View>
-                <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{action.label}</Text>
-                <Text style={styles.actionSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{action.subtitle}</Text>
+                <View style={styles.actionTextBlock}>
+                  <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{action.label}</Text>
+                  <Text style={styles.actionSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{action.subtitle}</Text>
+                </View>
               </Pressable>)}
           </View>;
         case 'flash': {
@@ -201,15 +207,18 @@ const styles=StyleSheet.create({
   seeAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:38},
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'700'},
   productScroll:{gap:10,paddingRight:14},
-  actions:{flexDirection:'row',flexWrap:'nowrap',gap:4,marginTop:6,marginHorizontal:-8,paddingBottom:3},
-  actionCard:{flex:1,minWidth:0,minHeight:62,borderRadius:10,borderWidth:1,borderColor:'#5C5433',
+  actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:6,paddingBottom:3},
+  actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:62,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
-    paddingHorizontal:4,paddingVertical:5,gap:2,justifyContent:'center',
-    shadowColor:'#FFCD00',shadowOpacity:0.16,shadowRadius:4,shadowOffset:{width:0,height:1},elevation:2},
-  actionTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',width:'100%'},
+    paddingHorizontal:4,paddingVertical:5,justifyContent:'space-between',
+    shadowColor:'#FFCD00',shadowOpacity:0.12,shadowRadius:3,shadowOffset:{width:0,height:1},elevation:2},
+  actionTop:{height:22,flexDirection:'row',alignItems:'center',justifyContent:'space-between',width:'100%'},
+  actionIconSlot:{width:22,height:22,alignItems:'center',justifyContent:'center'},
+  actionArrowSlot:{width:12,height:22,alignItems:'center',justifyContent:'center'},
   actionIcon:{width:22,height:22},
-  actionTitle:{width:'100%',fontSize:10,fontWeight:'500',color:'#FFFFFF',textAlign:'center'},
-  actionSubtitle:{width:'100%',fontSize:9,color:'#DDDDDF',lineHeight:11,fontWeight:'400',textAlign:'center'},
+  actionTextBlock:{height:26,width:'100%',justifyContent:'space-between',alignItems:'center'},
+  actionTitle:{width:'100%',height:14,fontSize:10,lineHeight:14,fontWeight:'500',color:'#FFFFFF',textAlign:'center',includeFontPadding:false},
+  actionSubtitle:{width:'100%',height:11,fontSize:9,color:'#DDDDDF',lineHeight:11,fontWeight:'400',textAlign:'center',includeFontPadding:false},
   flashShell:{padding:12,borderColor:'#BE9012',borderWidth:1,borderRadius:19,backgroundColor:'#151516'},
   flashCampaign:{gap:9},
   campaignLabel:{color:'#FFD447',fontWeight:'800',fontSize:13},

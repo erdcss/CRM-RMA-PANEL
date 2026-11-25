@@ -47,3 +47,13 @@ test('quick actions use full-width titles and one-line short captions',()=>{
  assert.ok(modules.includes('recyclingKey={imageId}'));
  assert.ok(modules.includes('onError={()=>setFailed(true)}'));
 });
+
+test('quick action row shares the banner gutters and aligns every card and icon slot',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ assert.ok(modules.includes("actions:{width:'100%',alignSelf:'center'"));
+ assert.ok(!modules.includes('marginHorizontal:-8'));
+ assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:62'));
+ assert.ok(modules.includes('actionIconSlot:{width:22,height:22'));
+ assert.ok(modules.includes('actionArrowSlot:{width:12,height:22'));
+ assert.ok(modules.includes("actionTextBlock:{height:26,width:'100%'"));
+});
