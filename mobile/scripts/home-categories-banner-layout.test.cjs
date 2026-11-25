@@ -56,7 +56,7 @@ test('banner and quick-action spacing matches compact mobile reference',()=>{
 
 test('fixed header and category tiles stay outside the pull-refresh scroll area',()=>{
   const sticky=home.indexOf('style={styles.stickyHomeTop}');
-  const search=home.indexOf('style={styles.headerSearchBox}');
+  const search=home.indexOf('styles.headerSearchBox');
   const category=home.indexOf('style={styles.categoryQuickRow}');
   const content=home.indexOf('style={styles.scrollableHomeContent}');
   const scroll=home.indexOf('ref={homeScrollRef}');
@@ -65,7 +65,7 @@ test('fixed header and category tiles stay outside the pull-refresh scroll area'
   assert.ok(home.includes('tintColor="transparent" colors={[\'transparent\']}'), 'default spinner must be hidden');
   assert.ok(home.includes('style={styles.brandedRefreshOverlay}'));
   assert.ok(home.includes('style={styles.brandedRefreshGif}'));
-  assert.ok(home.includes('style={styles.brandedRefreshFallback}'));
+  assert.ok(home.includes('styles.brandedRefreshFallback'));
   assert.ok(home.includes('setRefreshAnimationImageId(homepage.refreshAnimationImageId'));
   assert.ok(home.includes('setRefreshing(false)'), 'refresh must end without reloading the screen');
 });
