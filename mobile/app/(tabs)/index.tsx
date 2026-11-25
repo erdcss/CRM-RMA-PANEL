@@ -82,10 +82,6 @@ export default function HomeScreen() {
   const { session } = useAuth();
   const { palette } = useAppearance();
   const branding = useMobileBranding();
-  const currentTagline = branding.b2b_mobile_header_tagline ?? homeHeader.tagline;
-  const taglineSegments = sloganSegments(currentTagline);
-  const showTaglineArtwork = branding.b2b_mobile_header_tagline_mode === 'image'
-    && Boolean(branding.b2b_mobile_header_tagline_image);
   const styles = useMemo(() => buildStyles(palette), [palette]);
   const [welcome, setWelcome] = useState(false);
   const welcomeFade = useRef(new Animated.Value(0)).current;
@@ -95,6 +91,10 @@ export default function HomeScreen() {
   const [timedCampaigns,setTimedCampaigns] = useState<B2BTimedCampaign[]>([]);
   const [homeSections,setHomeSections] = useState<HomeSection[]>(DEFAULT_MOBILE_HOME_SECTIONS);
   const [homeHeader,setHomeHeader] = useState({enabled:true,tagline:'Toptan alışverişin akıllı yolu'});
+  const currentTagline = branding.b2b_mobile_header_tagline ?? homeHeader.tagline;
+  const taglineSegments = sloganSegments(currentTagline);
+  const showTaglineArtwork = branding.b2b_mobile_header_tagline_mode === 'image'
+    && Boolean(branding.b2b_mobile_header_tagline_image);
   const [bestSellerProductIds,setBestSellerProductIds] = useState<string[]>([]);
   const [catalogNow, setCatalogNow] = useState(() => Date.now());
   const [newArrivalsVisible, setNewArrivalsVisible] = useState(12);
