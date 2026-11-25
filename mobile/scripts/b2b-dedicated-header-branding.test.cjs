@@ -30,7 +30,10 @@ test('server stores the dedicated header logo and tagline independently from app
  assert.match(server,/hasBackground/);
  assert.match(server,/logos\.b2b_mobile_header_background/);
  assert.match(server,/headerLogo: image\(headerLogo, "b2b_mobile_header_logo"\)/);
- assert.match(server,/headerTagline: taglineResult\.rows\.length/);
+ assert.match(server,/headerTagline: taglineValues\.has\("b2b_mobile_header_tagline"\)/);
+ assert.match(server,/headerTaglineImage: image\(taglineImage,"b2b_mobile_header_tagline_image"\)/);
+ assert.match(server,/headerTaglineMode: taglineValues\.get/);
+ assert.match(server,/"b2b-tagline-image": "b2b_mobile_header_tagline_image"/);
  assert.match(server,/app\.get\("\/api\/admin\/b2b-mobile-header"/);
  assert.match(server,/app\.put\("\/api\/admin\/b2b-mobile-header"/);
  assert.match(server,/await client\.query\("BEGIN"\)/);
@@ -94,4 +97,31 @@ test('home status bar and customer actions sit over the same backdrop as the bra
  assert.match(admin,/header arka plan önizlemesi/i);
  assert.match(admin,/Tüm Kategoriler/);
  assert.match(admin,/ScanLine/);
+});
+
+test('slogan can be a securely stored image or white-and-gold bold italic text without losing either',()=>{
+ const home=read('mobile/app/(tabs)/index.tsx');
+ const branding=read('mobile/lib/branding.ts');
+ const admin=read('client/src/pages/ayarlar.tsx');
+ const server=read('server/admin-platform.ts');
+ assert.match(home,/sloganSegments\(currentTagline\)/);
+ assert.match(home,/branding\.b2b_mobile_header_tagline_mode === 'image'/);
+ assert.match(home,/branding\.b2b_mobile_header_tagline_image!/);
+ assert.match(home,/style=\{styles\.homeBrandTaglineArtwork\}/);
+ assert.match(home,/homeBrandTaglineIntro:[\s\S]*?color:'#FFFFFF'[\s\S]*?fontStyle:'italic'/);
+ assert.match(home,/homeBrandTaglineAccent:[\s\S]*?color:'#FFCD00'[\s\S]*?fontStyle:'italic'/);
+ assert.match(home,/homeBrandTaglineSwoosh:[\s\S]*?backgroundColor:'#FFCD00'/);
+ assert.match(branding,/b2b_mobile_header_tagline_image: normalizeBrandAsset\(branding\.headerTaglineImage\)/);
+ assert.match(branding,/b2b_mobile_header_tagline_mode: branding\.headerTaglineMode === 'image'/);
+ assert.match(admin,/title="Slogan Görseli"/);
+ assert.match(admin,/setHeaderTaglineImageDraft/);
+ assert.match(admin,/setHeaderTaglineModeDraft/);
+ assert.match(admin,/payload\.taglineImage=headerTaglineImageDraft/);
+ assert.match(admin,/previewHeaderTaglineMode==="image"/);
+ assert.match(admin,/previewSloganParts\.highlight/);
+ assert.match(server,/b2b_mobile_header_tagline_image/);
+ assert.match(server,/b2b_mobile_header_tagline_mode/);
+ assert.match(server,/hasTaglineImage/);
+ assert.match(server,/taglineMode === "image"/);
+ assert.match(server,/await client\.query\("COMMIT"\)/);
 });
