@@ -151,6 +151,7 @@ const BRANDING_KEYS = [
   "b2b_mobile_logo",
   "b2b_mobile_header_logo",
   "b2b_mobile_header_background",
+  "b2b_mobile_header_tagline_image",
   "b2b_mobile_android_icon",
   "b2b_mobile_splash",
   "business_mobile_logo",
@@ -449,6 +450,7 @@ async function brandingMap() {
     b2b_mobile_logo: null,
     b2b_mobile_header_logo: null,
     b2b_mobile_header_background: null,
+    b2b_mobile_header_tagline_image: null,
     b2b_mobile_android_icon: null,
     b2b_mobile_splash: null,
     business_mobile_logo: null,
@@ -945,6 +947,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       "b2b-logo": "b2b_mobile_logo",
       "b2b-header-logo": "b2b_mobile_header_logo",
       "b2b-header-background": "b2b_mobile_header_background",
+      "b2b-tagline-image": "b2b_mobile_header_tagline_image",
       "b2b-android-icon": "b2b_mobile_android_icon",
       "b2b-web-logo": "b2b_logo",
       "b2b-splash": "b2b_mobile_splash",
@@ -981,7 +984,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
 
       if (target === "b2b") {
         const assetKeys = [
-          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_header_logo", "b2b_mobile_header_background", "b2b_mobile_android_icon", "b2b_mobile_splash",
+          "b2b_logo", "b2b_mobile_logo", "b2b_mobile_header_logo", "b2b_mobile_header_background", "b2b_mobile_header_tagline_image", "b2b_mobile_android_icon", "b2b_mobile_splash",
         ];
         const found = pool
           ? await pool.query(
@@ -995,6 +998,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         const logo = available.has("b2b_mobile_logo") ? "b2b-logo" : null;
         const headerLogo = available.has("b2b_mobile_header_logo") ? "b2b-header-logo" : null;
         const headerBackground = available.has("b2b_mobile_header_background") ? "b2b-header-background" : null;
+        const taglineImage = available.has("b2b_mobile_header_tagline_image") ? "b2b-tagline-image" : null;
         const androidIcon = available.has("b2b_mobile_android_icon") ? "b2b-android-icon" : null;
         const splash = available.has("b2b_mobile_splash") ? "b2b-splash" : null;
         const webLogo = available.has("b2b_logo") ? "b2b-web-logo" : null;
@@ -1006,16 +1010,23 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         const image = (asset: string | null, key: string) =>
           asset ? `/api/public/mobile-image/${asset}?v=${revisions.get(key) || 0}` : null;
 
-        const taglineResult = pool
+        const taglineSettings = pool
           ? await pool.query(
-              "SELECT value FROM platform_settings WHERE key='b2b_mobile_header_tagline' LIMIT 1",
+              "SELECT key,value FROM platform_settings WHERE key = ANY($1::text[])",
+              [["b2b_mobile_header_tagline","b2b_mobile_header_tagline_mode"]],
             )
-          : { rows: [] as Array<{value:string}> };
+          : { rows: [] as Array<{key:string;value:string}> };
+        const taglineValues = new Map<string,string>(
+          taglineSettings.rows.map(row=>[String(row.key),String(row.value??"")])
+        );
         return res.json({
           logo: image(logo, "b2b_mobile_logo"),
           headerLogo: image(headerLogo, "b2b_mobile_header_logo"),
           headerBackground: image(headerBackground, "b2b_mobile_header_background"),
-          headerTagline: taglineResult.rows.length ? String(taglineResult.rows[0].value ?? "") : null,
+          headerTagline: taglineValues.has("b2b_mobile_header_tagline")
+            ? taglineValues.get("b2b_mobile_header_tagline") : null,
+          headerTaglineMode: taglineValues.get("b2b_mobile_header_tagline_mode")==="image" ? "image" : "text",
+          headerTaglineImage: image(taglineImage,"b2b_mobile_header_tagline_image"),
           androidIcon: image(androidIcon, "b2b_mobile_android_icon"),
           webLogo: image(webLogo, "b2b_logo"),
           splash: image(splash, "b2b_mobile_splash"),
@@ -1141,15 +1152,24 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     if (!pool) return res.status(503).json({error:"Veritabanı bağlantısı yok"});
     try {
       const [stored, logos] = await Promise.all([
-        pool.query("SELECT value FROM platform_settings WHERE key='b2b_mobile_header_tagline' LIMIT 1"),
+        pool.query(
+          "SELECT key,value FROM platform_settings WHERE key = ANY($1::text[])",
+          [["b2b_mobile_header_tagline","b2b_mobile_header_tagline_mode"]],
+        ),
         brandingReferences(),
       ]);
-      const legacyTagline = stored.rows.length ? null : (await getMobileHomeLayout()).homeHeader.tagline;
+      const settings = new Map<string,string>(
+        stored.rows.map(row=>[String(row.key),String(row.value??"")])
+      );
+      const legacyTagline = settings.has("b2b_mobile_header_tagline") ? null
+        : (await getMobileHomeLayout()).homeHeader.tagline;
       res.setHeader("Cache-Control", "private, no-store");
       return res.json({
         logo: logos.b2b_mobile_header_logo,
         background: logos.b2b_mobile_header_background,
-        tagline: stored.rows.length ? String(stored.rows[0].value ?? "") : legacyTagline,
+        tagline: settings.get("b2b_mobile_header_tagline") ?? legacyTagline,
+        taglineMode: settings.get("b2b_mobile_header_tagline_mode")==="image" ? "image" : "text",
+        taglineImage: logos.b2b_mobile_header_tagline_image,
       });
     } catch (error) {
       console.error("Admin B2B mobile header load failed:", error);
@@ -1175,6 +1195,15 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
       (typeof background !== "string" || background.length > 10_000_000 ||
        !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/s.test(background)))
       return res.status(400).json({error:"Header arka planı için en fazla 7 MB PNG, JPEG veya WebP yükleyin"});
+    const taglineMode = req.body?.taglineMode ?? "text";
+    if (taglineMode !== "text" && taglineMode !== "image")
+      return res.status(400).json({error:"Geçersiz slogan gösterim seçeneği"});
+    const hasTaglineImage = Object.prototype.hasOwnProperty.call(req.body || {}, "taglineImage");
+    const taglineImage = req.body?.taglineImage;
+    if (hasTaglineImage && taglineImage !== null &&
+      (typeof taglineImage !== "string" || taglineImage.length > 10_000_000 ||
+       !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/s.test(taglineImage)))
+      return res.status(400).json({error:"Slogan görseli için en fazla 7 MB PNG, JPEG veya WebP yükleyin"});
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -1200,10 +1229,35 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
           );
         }
       }
+      if (hasTaglineImage) {
+        if (taglineImage === null) {
+          await client.query("DELETE FROM platform_settings WHERE key='b2b_mobile_header_tagline_image'");
+        } else {
+          await client.query(
+            `INSERT INTO platform_settings(key,value,updated_at) VALUES ('b2b_mobile_header_tagline_image',$1,NOW())
+             ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()`,
+            [taglineImage],
+          );
+        }
+      }
+      if (taglineMode === "image") {
+        const availableImage = await client.query(
+          "SELECT 1 FROM platform_settings WHERE key='b2b_mobile_header_tagline_image' AND LENGTH(value)>0 LIMIT 1",
+        );
+        if (!availableImage.rows.length) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({error:"Önce slogan görseli yükleyin veya metin modunu seçin"});
+        }
+      }
       await client.query(
         `INSERT INTO platform_settings(key,value,updated_at) VALUES ('b2b_mobile_header_tagline',$1,NOW())
          ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()`,
         [tagline],
+      );
+      await client.query(
+        `INSERT INTO platform_settings(key,value,updated_at) VALUES ('b2b_mobile_header_tagline_mode',$1,NOW())
+         ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()`,
+        [taglineMode],
       );
       await client.query("COMMIT");
     } catch (error) {
@@ -1215,7 +1269,13 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
     try {
       const logos = await brandingReferences();
-      return res.json({logo: logos.b2b_mobile_header_logo, background: logos.b2b_mobile_header_background, tagline});
+      return res.json({
+        logo:logos.b2b_mobile_header_logo,
+        background:logos.b2b_mobile_header_background,
+        tagline,
+        taglineMode,
+        taglineImage:logos.b2b_mobile_header_tagline_image,
+      });
     } catch (error) {
       console.error("B2B mobile header readback failed:", error);
       return res.status(500).json({error:"Header kaydedildi ancak doğrulanamadı"});
