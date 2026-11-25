@@ -34,7 +34,7 @@ function FlashTile({product,width,signedIn,onPress}:{product:B2BProduct;width:nu
         {discount>0?<View style={styles.discountBadge}><Text style={styles.discountText}>%{discount}</Text></View>:null}
         {discount>0&&product.original_price!=null?<Text style={styles.oldPrice} numberOfLines={1}>{currency(product.original_price)}</Text>:null}
         <Text style={styles.price} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{currency(price!)}</Text>
-      </>:<Text style={styles.oldPrice} numberOfLines={2}>Fiyat için giriş yapın</Text>}
+      </>:<Text style={styles.noPrice} numberOfLines={2}>{signedIn?'Fiyat belirtilmedi':'Fiyat için giriş yapın'}</Text>}
     </View>
   </Pressable>;
 }
@@ -61,7 +61,7 @@ export function FlashHomeSection({title,imageId,campaigns,products,signedIn,onRe
   },[campaigns,now]);
   const groups=activeFlashGroups(campaigns,products,now);
   if(!groups.length)return null;
-  const tileWidth=viewport?Math.max(108,Math.floor((viewport-8)/3)):112;
+  const tileWidth=viewport?Math.max(80,Math.floor((viewport-8)/3)):112;
   return <View style={styles.shell}>
     {groups.map(({campaign,offers})=><View key={campaign.id} style={styles.group}>
       <View style={styles.header}>
@@ -113,5 +113,6 @@ const styles=StyleSheet.create({
   discountBadge:{alignSelf:'flex-start',backgroundColor:'#D72638',borderRadius:4,paddingHorizontal:3},
   discountText:{fontSize:7,lineHeight:9,color:'#FFFFFF',fontWeight:'400'},
   oldPrice:{fontSize:7,lineHeight:9,color:'#C7C7C7',fontWeight:'400',textDecorationLine:'line-through'},
+  noPrice:{fontSize:8,lineHeight:10,color:'#C7C7C7',fontWeight:'400'},
   price:{fontSize:11,lineHeight:13,color:'#FFCD00',fontWeight:'400'},
 });

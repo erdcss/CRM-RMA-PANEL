@@ -224,9 +224,15 @@ export default function HomeScreen() {
   }, [refreshHomepage]);
 
   useFocusEffect(useCallback(()=>{
-    const timer=setInterval(()=>{void refreshHomepage().catch(()=>undefined);},30_000);
+    let cycle=0;
+    const timer=setInterval(()=>{
+      // Keep admin artwork updates at 30s; refresh real campaign/catalog data every 60s.
+      cycle++;
+      if(cycle%2===0)void load(true).catch(()=>undefined);
+      else void refreshHomepage().catch(()=>undefined);
+    },30_000);
     return ()=>clearInterval(timer);
-  },[refreshHomepage]));
+  },[load,refreshHomepage]));
 
   useEffect(() => {
     void load();

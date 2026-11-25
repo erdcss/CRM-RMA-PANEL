@@ -92,11 +92,11 @@ test('admin homepage sections preserve order, reject duplicates and unsafe produ
   {id:'unknown',enabled:true,productIds:['1']},
  ];
  const normalized=normalizeHomeLayout({homeSections:input,homeHeader:{enabled:false,tagline:'Yeni sezon'}});
- assert.deepEqual(normalized.homeSections.slice(0,2).map(s=>s.id),['brands','special']);
+ assert.deepEqual(normalized.homeSections.slice(0,4).map(s=>s.id),['brands','actions','flash','special']);
  assert.equal(normalized.homeSections.length,7);
  assert.deepEqual(normalized.homeSections[0].brands,['Arzum','Beko']);
- assert.deepEqual(normalized.homeSections[1].productIds,['13']);
- assert.equal(normalized.homeSections[1].title,'Öneriler');
+ assert.deepEqual(normalized.homeSections.find(s=>s.id==='special')?.productIds,['13']);
+ assert.equal(normalized.homeSections.find(s=>s.id==='special')?.title,'Öneriler');
  assert.deepEqual(normalized.homeHeader,{enabled:false,tagline:'Yeni sezon'});
 });
 test('legacy home layout receives all manageable sections without deleting banner and category data',()=>{

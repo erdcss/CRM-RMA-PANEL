@@ -52,9 +52,14 @@ export function AdminHomeSections({
   );
   const update=(id:HomeSectionId,patch:Partial<HomeSection>)=>
     onChange(sections.map(section=>section.id===id?{...section,...patch}:section));
-  const move=(at:number,offset:number)=>{
-    const to=at+offset;if(to<0||to>=sections.length)return;
-    const next=[...sections];[next[to],next[at]]=[next[at],next[to]];onChange(next);
+  // Actions + Flash + Special are one movable block; their relative order is fixed.
+  const fixedIds:HomeSectionId[]=['actions','flash','special'];
+  const blocks=sections.filter(s=>s.id!=='flash'&&s.id!=='special').map(s=>
+    s.id==='actions'?fixedIds.flatMap(id=>sections.filter(item=>item.id===id)):[s]);
+  const move=(id:HomeSectionId,offset:number)=>{
+    const at=blocks.findIndex(block=>block[0]?.id===id);
+    const to=at+offset;if(at<0||to<0||to>=blocks.length)return;
+    const next=[...blocks];[next[to],next[at]]=[next[at],next[to]];onChange(next.flat());
   };
   return <div className="space-y-5 p-5">
     <div className="rounded-xl border border-amber-400/30 bg-amber-50/60 p-4">
@@ -95,8 +100,9 @@ export function AdminHomeSections({
       </label>
       <p className="text-xs text-muted-foreground">Önerilen ölçü: 360 × 120 px. Dosya türü GIF, en fazla 3 MB. Kaydedildiğinde mobil uygulama ana sayfa ayarlarına yansır.</p>
     </div>
-    {sections.map((section,index)=>{
+    {sections.map(section=>{
       const def=definitions.find(d=>d.id===section.id);
+      const blockIndex=blocks.findIndex(block=>block[0]?.id===section.id);
       return <div className="rounded-xl border bg-background p-4 space-y-3" key={section.id}>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex flex-1 items-center gap-2 font-bold">
@@ -105,9 +111,9 @@ export function AdminHomeSections({
             {def?.title||section.title}
           </label>
           <Button size="icon" variant="outline" type="button" aria-label={section.title+" yukarı"}
-            disabled={index===0} onClick={()=>move(index,-1)}><ArrowUp className="h-4 w-4"/></Button>
+            disabled={blockIndex<=0} onClick={()=>move(section.id,-1)}><ArrowUp className="h-4 w-4"/></Button>
           <Button size="icon" variant="outline" type="button" aria-label={section.title+" aşağı"}
-            disabled={index===sections.length-1} onClick={()=>move(index,1)}><ArrowDown className="h-4 w-4"/></Button>
+            disabled={blockIndex<0||blockIndex===blocks.length-1} onClick={()=>move(section.id,1)}><ArrowDown className="h-4 w-4"/></Button>
         </div>
         <p className="text-xs text-muted-foreground">{def?.description}</p>
         {section.id!=="actions"&&<label className="block max-w-lg text-xs font-semibold">Mobil başlık
