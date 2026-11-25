@@ -209,7 +209,7 @@ const styles=StyleSheet.create({
   seeAll:{flexDirection:'row',alignItems:'center',gap:2,minHeight:38},
   seeAllText:{fontSize:11,color:'#E5E7EB',fontWeight:'400'},
   productScroll:{gap:spacing.sm,paddingRight:14},
-  actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:6,paddingBottom:3},
+  actions:{width:'100%',alignSelf:'center',flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:4,paddingBottom:3},
   actionCard:{flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:64,borderRadius:10,borderWidth:1,borderColor:'#6A5C33',
     borderTopColor:'#B5A05B',borderBottomColor:'#3B3628',backgroundColor:'#252526',
     paddingHorizontal:5,paddingVertical:6,justifyContent:'space-between',
