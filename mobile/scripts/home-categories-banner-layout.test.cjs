@@ -35,8 +35,9 @@ test('banner has equal 16px page gutters, rounded edges and correct snapping',()
 
 test('hero banner has a stable frame, centered indicators and an inline copy panel',()=>{
   assert.ok(home.includes('bannerDisplayHeight(bannerWidth)'));
-  assert.ok(home.includes('contentFit="cover"'), 'all banner images should fill the entire rounded frame');
-  assert.ok(!home.includes("contentFit={hasCopy?'cover':'contain'}"), 'contain must not create black side gutters');
+  assert.ok(home.includes("contentFit={hasCopy?'cover':'contain'}"), 'full banner artwork should never be cropped');
+  assert.ok(home.includes('style={styles.carouselImageBackdrop} contentFit="cover"'), 'side space is filled by artwork backdrop');
+  assert.ok(home.includes('style={hasCopy?styles.carouselSideImage:styles.carouselImage}'), 'copy banners retain their original split layout');
   assert.ok(home.includes("carouselDots:{position:'absolute',left:0,right:0,bottom:3"));
   assert.ok(home.includes('style={styles.carouselOutline}'));
   assert.ok(home.includes('style={styles.bannerDetails} pointerEvents="none"'));
@@ -51,4 +52,20 @@ test('banner and quick-action spacing matches compact mobile reference',()=>{
   assert.match(sections,/actions:\{[^}]*gap:4,marginTop:4/);
   assert.ok(home.includes('width: bannerWidth, height: bannerHeight'), 'banner size and side gutters must remain stable');
   assert.ok(home.includes('overflow:\'hidden\',backgroundColor:\'#171719\''), 'banner image must be clipped to rounded corners');
+});
+
+test('fixed header and category tiles stay outside the pull-refresh scroll area',()=>{
+  const sticky=home.indexOf('style={styles.stickyHomeTop}');
+  const search=home.indexOf('style={styles.headerSearchBox}');
+  const category=home.indexOf('style={styles.categoryQuickRow}');
+  const content=home.indexOf('style={styles.scrollableHomeContent}');
+  const scroll=home.indexOf('ref={homeScrollRef}');
+  assert.ok(sticky>0 && sticky<category && category<content && content<scroll,
+    'Header and categories must stay fixed above the independent scrolling section');
+  assert.ok(home.includes('tintColor="transparent" colors={[\'transparent\']}'), 'default spinner must be hidden');
+  assert.ok(home.includes('style={styles.brandedRefreshOverlay}'));
+  assert.ok(home.includes('style={styles.brandedRefreshGif}'));
+  assert.ok(home.includes('style={styles.brandedRefreshFallback}'));
+  assert.ok(home.includes('setRefreshAnimationImageId(homepage.refreshAnimationImageId'));
+  assert.ok(home.includes('setRefreshing(false)'), 'refresh must end without reloading the screen');
 });
