@@ -44,7 +44,17 @@ async function fetchBranding(): Promise<BrandingConfig> {
 }
 
 type MetaTrackingSettings={enabled:boolean;pixelId:string;capiConfigured?:boolean};
-type B2BMobileHeaderSettings={logo:string|null;background:string|null;tagline:string};
+type B2BMobileHeaderSettings={
+  logo:string|null; background:string|null; tagline:string;
+  taglineImage:string|null; taglineMode:"text"|"image";
+};
+function sloganPreviewSegments(value:string){
+  const words=value.trim().split(/\s+/).filter(Boolean);
+  return {
+    lead: words.length>2 ? words.slice(0,-2).join(" ") : "",
+    highlight: words.slice(-2).join(" "),
+  };
+}
 const DEFAULT_HEADER_TAGLINE="Toptan alışverişin akıllı yolu";
 
 type PaymentSettings = {
@@ -91,6 +101,8 @@ export default function Ayarlar() {
   const [headerLogoDraft,setHeaderLogoDraft]=useState<string|null|undefined>(undefined);
   const [headerBackgroundDraft,setHeaderBackgroundDraft]=useState<string|null|undefined>(undefined);
   const [headerTaglineDraft,setHeaderTaglineDraft]=useState<string|null>(null);
+  const [headerTaglineImageDraft,setHeaderTaglineImageDraft]=useState<string|null|undefined>(undefined);
+  const [headerTaglineModeDraft,setHeaderTaglineModeDraft]=useState<"text"|"image"|null>(null);
   const [savingHeader,setSavingHeader]=useState(false);
   const [saving, setSaving] = useState(false);
   const [savingPayments, setSavingPayments] = useState(false);
@@ -113,6 +125,10 @@ export default function Ayarlar() {
   const previewHeaderBackground=headerBackgroundDraft===undefined?(mobileHeader?.background||null):headerBackgroundDraft;
   const previewHeaderTagline=headerTaglineDraft===null
     ? (mobileHeader?.tagline??DEFAULT_HEADER_TAGLINE):headerTaglineDraft;
+  const previewHeaderTaglineImage=headerTaglineImageDraft===undefined
+    ? (mobileHeader?.taglineImage||null):headerTaglineImageDraft;
+  const previewHeaderTaglineMode=headerTaglineModeDraft ?? mobileHeader?.taglineMode ?? "text";
+  const previewSloganParts=sloganPreviewSegments(previewHeaderTagline);
 
   const { data: paymentSettings } = useQuery<PaymentSettings>({
     queryKey: ["/api/admin/payment-settings"],
@@ -241,11 +257,18 @@ export default function Ayarlar() {
     setSavingHeader(true);
     try{
       if(headerLoading)throw new Error("Header ayarlarının yüklenmesi tamamlanmalı");
-      const payload:{tagline:string;logo?:string|null;background?:string|null}={
+      if(previewHeaderTaglineMode==="image"&&!previewHeaderTaglineImage)
+        throw new Error("Görsel modunu kullanmak için slogan görseli yükleyin.");
+      const payload:{
+        tagline:string;taglineMode:"text"|"image";
+        logo?:string|null;background?:string|null;taglineImage?:string|null;
+      }={
         tagline:previewHeaderTagline.trim(),
+        taglineMode:previewHeaderTaglineMode,
       };
       if(headerLogoDraft!==undefined)payload.logo=headerLogoDraft;
       if(headerBackgroundDraft!==undefined)payload.background=headerBackgroundDraft;
+      if(headerTaglineImageDraft!==undefined)payload.taglineImage=headerTaglineImageDraft;
       const response=await fetch("/api/admin/b2b-mobile-header",{
         method:"PUT",credentials:"include",headers:{"Content-Type":"application/json"},
         body:JSON.stringify(payload),
@@ -255,13 +278,15 @@ export default function Ayarlar() {
       setHeaderLogoDraft(undefined);
       setHeaderBackgroundDraft(undefined);
       setHeaderTaglineDraft(null);
+      setHeaderTaglineImageDraft(undefined);
+      setHeaderTaglineModeDraft(null);
       await Promise.all([
         queryClient.invalidateQueries({queryKey:["/api/admin/b2b-mobile-header"]}),
         queryClient.invalidateQueries({queryKey:["/api/admin/branding"]}),
         queryClient.invalidateQueries({queryKey:["/api/public/branding"]}),
       ]);
       toast({title:"Uygulama üst header ayarları kaydedildi",
-        description:"Mobil logo ve slogan ayrı marka alanlarından yönetiliyor."});
+        description:"Slogan metni, görseli ve görünüm tercihi kaydedildi."});
     }catch(error){
       toast({title:"Header ayarları kaydedilemedi",
         description:error instanceof Error?error.message:"Bir hata oluştu",variant:"destructive"});
@@ -587,19 +612,49 @@ export default function Ayarlar() {
                     onChange={setHeaderBackgroundDraft}
                     cover
                   />
-                  <div className="rounded-2xl border bg-muted/20 p-4">
-                    <Label htmlFor="b2b-mobile-header-tagline" className="text-sm font-semibold">
-                      Header Sloganı
-                    </Label>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Mobil logonun altında görünür. Boş bırakılırsa slogan gizlenir.
-                    </p>
-                    <Input id="b2b-mobile-header-tagline" className="mt-5" maxLength={110}
+                  <div className="rounded-2xl border bg-muted/20 p-4 space-y-4">
+                    <div>
+                      <Label htmlFor="b2b-mobile-header-tagline" className="text-sm font-semibold">
+                        Header Sloganı
+                      </Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Metin olarak beyaz kalın-eğik başlangıç, sarı vurgulu son iki kelime ve alt çizgi kullanılır.
+                        İsterseniz aynı alana kendi slogan görselinizi de yükleyebilirsiniz.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm"
+                        variant={previewHeaderTaglineMode==="text"?"default":"outline"}
+                        aria-pressed={previewHeaderTaglineMode==="text"}
+                        onClick={()=>setHeaderTaglineModeDraft("text")}>
+                        Yazı Olarak
+                      </Button>
+                      <Button type="button" size="sm"
+                        variant={previewHeaderTaglineMode==="image"?"default":"outline"}
+                        aria-pressed={previewHeaderTaglineMode==="image"}
+                        disabled={!previewHeaderTaglineImage}
+                        onClick={()=>setHeaderTaglineModeDraft("image")}>
+                        Görsel Olarak
+                      </Button>
+                    </div>
+                    <Input id="b2b-mobile-header-tagline" maxLength={110}
                       value={previewHeaderTagline}
                       onChange={event=>setHeaderTaglineDraft(event.target.value)}
                       placeholder="Toptan alışverişin akıllı yolu"/>
-                    <p className="mt-2 text-right text-xs text-muted-foreground">
+                    <p className="text-right text-xs text-muted-foreground">
                       {previewHeaderTagline.length}/110 karakter
+                    </p>
+                    <AssetUploader title="Slogan Görseli"
+                      description="Önerilen: şeffaf PNG, 1200×180 px. Görsel kesilmeden logonun altında gösterilir. Yükleyince görsel modu seçilir."
+                      value={previewHeaderTaglineImage}
+                      pngOnly
+                      onChange={value=>{
+                        setHeaderTaglineImageDraft(value);
+                        setHeaderTaglineModeDraft(value?"image":"text");
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Görsel yüklemek yazılı sloganı silmez; istediğiniz zaman tekrar metin moduna geçebilirsiniz.
                     </p>
                   </div>
                 </div>
@@ -635,9 +690,19 @@ export default function Ayarlar() {
                               ÇALIŞKAN B2B
                             </div>
                           )}
-                          {previewHeaderTagline.trim() ? (
-                            <div className="mt-0.5 text-center text-xs font-extrabold text-[#FFCD00]">
-                              {previewHeaderTagline}
+                          {previewHeaderTaglineMode==="image" && previewHeaderTaglineImage ? (
+                            <img src={previewHeaderTaglineImage}
+                              alt="Çalışkan B2B slogan görseli önizlemesi"
+                              className="mt-0.5 h-[29px] w-full object-contain"/>
+                          ) : previewHeaderTagline.trim() ? (
+                            <div className="mt-0.5 flex max-w-full items-center justify-center gap-0.5 pb-1.5 text-center text-xs font-black italic tracking-tight">
+                              {previewSloganParts.lead ? (
+                                <span className="text-white">{previewSloganParts.lead}</span>
+                              ) : null}
+                              <span className="relative whitespace-nowrap text-[#FFCD00]">
+                                {previewSloganParts.highlight}
+                                <span className="absolute -bottom-[3px] left-[3%] h-[2px] w-[94%] -rotate-3 rounded-full bg-[#FFCD00]"/>
+                              </span>
                             </div>
                           ) : null}
                         </div>
