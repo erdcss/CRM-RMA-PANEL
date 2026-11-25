@@ -592,23 +592,16 @@ export default function HomeScreen() {
                       onPress={()=>onBannerPress(banner)}
                       style={[styles.carouselSlide,{width:bannerWidth,height:bannerHeight}]}>
                       {homepageMediaUrl(banner.imageId) ? (
-                        <>
-                          {!hasCopy ? (
-                            <Image source={{uri:homepageMediaUrl(banner.imageId)!}}
-                              style={styles.carouselImageBackdrop} contentFit="cover"
-                              cachePolicy="memory-disk" accessibilityIgnoresInvertColors/>
-                          ) : null}
                           <Image
                             source={{ uri: homepageMediaUrl(banner.imageId)! }}
                             style={hasCopy?styles.carouselSideImage:styles.carouselImage}
-                            // Preserve the complete text/products; the cover layer only fills unused side space.
-                            contentFit={hasCopy?'cover':'contain'}
+                            // Render ready-made banners once, preserving the complete source artwork.
+                            contentFit="contain"
                             cachePolicy="memory-disk"
                             transition={180}
                             onError={() => setFailedBannerIds(ids => ids.includes(banner.id) ? ids : [...ids, banner.id])}
                             onLoad={() => setFailedBannerIds(ids => ids.filter(id => id !== banner.id))}
                           />
-                        </>
                       ) : null}
                       {hasCopy ? (
                         <View style={styles.bannerDetails} pointerEvents="none">
@@ -907,7 +900,6 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   searchResultEmpty: { color: palette.textSecondary, fontSize: 14, padding: 15, textAlign: 'center' },
   carouselContainer: {marginTop:2,alignSelf:'center',borderRadius:13,overflow:'hidden',backgroundColor:'#171719'},
   carouselOutline:{...StyleSheet.absoluteFillObject,borderWidth:1,borderColor:'#737375',borderRadius:13},
-  carouselImageBackdrop:{...StyleSheet.absoluteFillObject,width:'100%',height:'100%'},
   carouselImage: {...StyleSheet.absoluteFillObject,width:'100%',height:'100%'},
   carouselSideImage:{position:'absolute',right:0,top:0,bottom:0,width:'53%',height:'100%'},
   bannerError:{position:'absolute',top:4,right:5,flexDirection:'row',gap:4,alignItems:'center',padding:4,borderRadius:6,backgroundColor:'rgba(0,0,0,0.65)'},

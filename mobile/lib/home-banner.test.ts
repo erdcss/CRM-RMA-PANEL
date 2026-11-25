@@ -2,12 +2,14 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {bannerDestination,bannerDisplayHeight} from './home-banner';
 
-test('banner frame is slightly taller at 3.6:1 and responsive on every screen',()=>{
-  assert.equal(bannerDisplayHeight(400),111);
-  assert.equal(bannerDisplayHeight(390),108);
-  assert.equal(bannerDisplayHeight(320),89);
+test('banner frame preserves exact 1600 × 400 (4:1) ratio on every screen',()=>{
+  assert.equal(bannerDisplayHeight(1600),400);
+  assert.equal(bannerDisplayHeight(400),100);
+  assert.equal(bannerDisplayHeight(390),97.5);
+  assert.equal(bannerDisplayHeight(320),80);
   assert.equal(bannerDisplayHeight(0),0);
-  assert.ok(bannerDisplayHeight(390)>Math.round(390/4));
+  assert.equal(bannerDisplayHeight(NaN),0);
+  assert.equal(bannerDisplayHeight(-10),0);
 });
 test('banner click resolves product, internal page and URL',()=>{
   const base={id:'x',title:'',subtitle:'',buttonText:'',imageId:''};

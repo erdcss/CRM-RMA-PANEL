@@ -35,8 +35,8 @@ test('banner has equal 16px page gutters, rounded edges and correct snapping',()
 
 test('hero banner has a stable frame, centered indicators and an inline copy panel',()=>{
   assert.ok(home.includes('bannerDisplayHeight(bannerWidth)'));
-  assert.ok(home.includes("contentFit={hasCopy?'cover':'contain'}"), 'full banner artwork should never be cropped');
-  assert.ok(home.includes('style={styles.carouselImageBackdrop} contentFit="cover"'), 'side space is filled by artwork backdrop');
+  assert.match(home,/style=\{hasCopy\?styles\.carouselSideImage:styles\.carouselImage\}[\s\S]{0,220}contentFit="contain"/, 'banner artwork should never be cropped');
+  assert.doesNotMatch(home,/carouselImageBackdrop/, 'no duplicate or cropped backdrop behind artwork');
   assert.ok(home.includes('style={hasCopy?styles.carouselSideImage:styles.carouselImage}'), 'copy banners retain their original split layout');
   assert.ok(home.includes("carouselDots:{position:'absolute',left:0,right:0,bottom:3"));
   assert.ok(home.includes('style={styles.carouselOutline}'));
