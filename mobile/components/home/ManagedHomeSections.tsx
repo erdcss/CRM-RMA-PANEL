@@ -86,6 +86,56 @@ function ReorderBanner({imageId,title,onPress}:{imageId?:string;title:string;onP
     </>}
   </Pressable>;
 }
+function reelDuration(seconds: number | null | undefined) {
+  if(typeof seconds!=='number'||!Number.isFinite(seconds)||seconds<=0)return '';
+  const total=Math.floor(seconds);
+  return Math.floor(total/60)+':'+String(total%60).padStart(2,'0');
+}
+
+function MiniReelCard({reel,width,onPress}:{reel:B2BReel;width:number;onPress:()=>void}){
+  const [loadedDuration,setLoadedDuration]=useState<number>();
+  const [thumbnailFailed,setThumbnailFailed]=useState(false);
+  const thumbnail=absoluteMediaUrl(reel.thumbnail_url);
+  const video=absoluteMediaUrl(reel.video_url);
+  const duration=reelDuration(reel.duration_seconds??loadedDuration);
+  return <Pressable style={[styles.videoCard,{width}]} accessibilityRole="button"
+    accessibilityLabel={reel.title||'Ürün videosu'} onPress={onPress}>
+    {thumbnail&&!thumbnailFailed ?
+      <Image source={{uri:thumbnail}} contentFit="cover" style={StyleSheet.absoluteFillObject}
+        cachePolicy="memory-disk" recyclingKey={String(reel.id)} onError={()=>setThumbnailFailed(true)}/>
+      :video?<Video source={{uri:video}} style={StyleSheet.absoluteFillObject}
+        resizeMode={ResizeMode.COVER} isMuted shouldPlay={false} useNativeControls={false}
+        onLoad={status=>{if(status.isLoaded&&status.durationMillis)setLoadedDuration(status.durationMillis/1000);}}/>
+      :<Ionicons name="videocam-outline" size={18} color="#D4D4D4"/>}
+    <View pointerEvents="none" style={styles.videoPlay}>
+      <Ionicons name="play" size={12} color="#FFFFFF"/>
+    </View>
+    <View pointerEvents="none" style={styles.videoLabel}>
+      <Text style={styles.videoTitle} numberOfLines={2}>{reel.title||'Ürün videosu'}</Text>
+      {duration?<Text style={styles.videoDuration}>{duration}</Text>:null}
+    </View>
+  </Pressable>;
+}
+function CompactReelsStrip({title,reels,onRoute}:{title:string;reels:B2BReel[];onRoute:Props['onRoute']}){
+  const [stripWidth,setStripWidth]=useState(0);
+  const cardWidth=stripWidth?Math.max(42,Math.floor((stripWidth-3*4)/4)):60;
+  return <View style={styles.videoSection}>
+    <Pressable style={styles.videoIntro} onPress={()=>onRoute('/(tabs)/discover')}
+      accessibilityRole="button" accessibilityLabel={title+', tüm videoları keşfet'}>
+      <View style={styles.videoHeadingRow}>
+        <Ionicons name="film-outline" size={16} color="#FFCD00"/>
+        <Text style={styles.videoHeading} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{title}</Text>
+      </View>
+      <Text style={styles.videoDescription} numberOfLines={3}>Ürünleri yakından gör, işletmen için en doğru seçimi yap.</Text>
+    </Pressable>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.videoScroll}
+      onLayout={event=>setStripWidth(event.nativeEvent.layout.width)}
+      contentContainerStyle={styles.videoStripContent}>
+      {reels.slice(0,8).map(reel=><MiniReelCard key={String(reel.id)} reel={reel} width={cardWidth}
+        onPress={()=>onRoute('/(tabs)/discover?reelId='+encodeURIComponent(String(reel.id)))}/>)}
+    </ScrollView>
+  </View>;
+}
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
   renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,
@@ -160,28 +210,7 @@ export function ManagedHomeSections({
             title={title} onPress={()=>onRoute('/my-orders')}/>;
         case 'videos':
           if(!reels.length)return null;
-          return <View key={section.id} style={styles.section}>
-            <SectionHead icon="play-circle-outline" title={title}
-              action="Tümünü Gör" onAction={()=>onRoute('/(tabs)/discover')}/>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.productScroll}>
-              {reels.slice(0,8).map(reel=><Pressable key={String(reel.id)} style={styles.videoCard}
-                accessibilityLabel={reel.title||'Ürün videosu'} accessibilityRole="button"
-                onPress={()=>onRoute('/(tabs)/discover')}>
-                {absoluteMediaUrl(reel.thumbnail_url) ?
-                  <Image source={{uri:absoluteMediaUrl(reel.thumbnail_url)!}}
-                    contentFit="cover" style={StyleSheet.absoluteFillObject}/>
-                  : absoluteMediaUrl(reel.video_url) ?
-                    <Video source={{uri:absoluteMediaUrl(reel.video_url)!}}
-                      style={StyleSheet.absoluteFillObject} resizeMode={ResizeMode.COVER}
-                      isMuted shouldPlay={false} useNativeControls={false}/>
-                  : <Ionicons name="videocam-outline" size={42} color="#FFFFFF"/>}
-                <View style={styles.videoLabel}>
-                  <Ionicons name="play-circle" color="#FFCD00" size={29}/>
-                  <Text style={styles.videoTitle} numberOfLines={2}>{reel.title||'Ürün videosu'}</Text>
-                </View>
-              </Pressable>)}
-            </ScrollView>
-          </View>;
+          return <CompactReelsStrip key={section.id} title={title} reels={reels} onRoute={onRoute}/>;
         case 'bestsellers': {
           const ranked=bestSellerProductIds.map(id=>productById.get(id)).filter((p):p is B2BProduct=>Boolean(p));
           if(!ranked.length)return null;
@@ -244,10 +273,18 @@ const styles=StyleSheet.create({
    reorderDescription:{color:'#E1D7B5',fontSize:8,lineHeight:10},
    reorderCta:{flexDirection:'row',alignItems:'center',gap:2,borderRadius:5,backgroundColor:'#FFCD00',paddingHorizontal:5,paddingVertical:3},
    reorderCtaText:{fontSize:8,fontWeight:'700',color:'#161616'},
-  videoCard:{width:140,height:175,borderRadius:15,borderWidth:1,borderColor:'#655528',
-    backgroundColor:'#262628',overflow:'hidden',justifyContent:'flex-end',alignItems:'center'},
-  videoLabel:{padding:9,width:'100%',backgroundColor:'rgba(0,0,0,0.6)',gap:3},
-  videoTitle:{fontSize:11,color:'#FFF',fontWeight:'800'},
+  videoSection:{marginTop:10,width:'100%',flexDirection:'row',alignItems:'center',gap:6,padding:4,borderRadius:9,borderWidth:1,borderColor:'#403B2D',backgroundColor:'#171717'},
+  videoIntro:{width:'31%',flexShrink:0,minWidth:0,gap:3,paddingLeft:3},
+  videoHeadingRow:{flexDirection:'row',alignItems:'center',gap:3,minWidth:0},
+  videoHeading:{fontSize:11,lineHeight:15,fontWeight:'400',color:'#FFCD00',flex:1,minWidth:0},
+  videoDescription:{fontSize:8,lineHeight:11,fontWeight:'400',color:'#E5E5E5'},
+  videoScroll:{flex:1,minWidth:0},
+  videoStripContent:{flexDirection:'row',alignItems:'center',gap:4},
+  videoCard:{height:54,borderRadius:6,borderWidth:1,borderColor:'#887751',backgroundColor:'#262628',overflow:'hidden',justifyContent:'center',alignItems:'center'},
+  videoPlay:{position:'absolute',top:10,alignSelf:'center',width:19,height:19,borderRadius:10,backgroundColor:'rgba(0,0,0,0.50)',alignItems:'center',justifyContent:'center'},
+  videoLabel:{position:'absolute',left:0,right:0,bottom:0,paddingHorizontal:3,paddingVertical:2,backgroundColor:'rgba(0,0,0,0.68)',minHeight:20},
+  videoTitle:{fontSize:7,lineHeight:9,color:'#FFFFFF',fontWeight:'400'},
+  videoDuration:{fontSize:7,lineHeight:8,color:'#FFFFFF',textAlign:'right',fontWeight:'400'},
   brandTile:{width:132,minHeight:61,borderRadius:14,borderWidth:1.2,paddingHorizontal:7,
     alignItems:'center',justifyContent:'center'},
   brandImage:{width:116,height:46},

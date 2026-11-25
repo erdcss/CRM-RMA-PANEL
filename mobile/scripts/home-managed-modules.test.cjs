@@ -97,3 +97,17 @@ test('uploaded reorder banners fill available width without cropping or stretchi
  assert.ok(banner.includes('contentFit="contain"'));
  assert.ok(modules.includes("reorder:{marginTop:10,width:'100%'"));
 });
+
+
+test('home reels use a compact horizontal strip with four responsive cards and real duration only',()=>{
+ const modules=read('components/home/ManagedHomeSections.tsx');
+ const discover=read('app/(tabs)/discover.tsx');
+ assert.match(modules,/case 'videos':[\s\S]*?<CompactReelsStrip/);
+ assert.match(modules,/videoSection:\{[^}]*flexDirection:'row'/);
+ assert.match(modules,/videoIntro:\{width:'31%'/);
+ assert.match(modules,/\(stripWidth-3\*4\)\/4/);
+ assert.match(modules,/videoCard:\{height:54/);
+ assert.match(modules,/duration_seconds\?\?loadedDuration/);
+ assert.match(modules,/\?reelId=/);
+ assert.match(discover,/data=\{orderedReels\}/);
+});

@@ -345,6 +345,7 @@ export type B2BLedgerContactInput = {
 
 export type B2BReel = {
   id: string | number;
+  duration_seconds?: number | null;
   title: string;
   video_url: string;
   thumbnail_url?: string | null;

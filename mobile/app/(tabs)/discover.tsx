@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,7 +12,7 @@ import {
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { Screen } from '@/components/ui/Screen';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -254,6 +254,7 @@ function VideoFallback() {
 }
 
 export default function DiscoverScreen() {
+  const { reelId } = useLocalSearchParams<{reelId?:string}>();
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -278,6 +279,14 @@ export default function DiscoverScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Home cards refer to editorial reels; show the chosen reel first without losing the rest of the feed.
+  const orderedReels = useMemo(()=>{
+    if(!reelId)return reels;
+    const index=reels.findIndex(reel=>!reel.marketplace&&String(reel.id)===String(reelId));
+    return index>0?[reels[index],...reels.slice(0,index),...reels.slice(index+1)]:reels;
+  },[reels,reelId]);
+  useEffect(()=>{setActiveIndex(0);},[reelId]);
+
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 72,
     minimumViewTime: 120,
@@ -300,8 +309,9 @@ export default function DiscoverScreen() {
       >
         {viewportHeight > 0 ? (
           <FlatList
-            data={reels}
-            keyExtractor={(item) => String(item.id)}
+            key={reelId?String(reelId):'all-reels'}
+            data={orderedReels}
+            keyExtractor={(item) => (item.marketplace?'marketplace-':'editorial-')+String(item.id)}
             renderItem={({ item, index }) => (
               <ReelCard
                 item={item}
