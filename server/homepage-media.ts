@@ -147,6 +147,7 @@ export type HomeSection = {
   brands: string[];
   brandImageIds: Record<string,string>;
   actionImageIds: Partial<Record<'scan'|'orders'|'ledger'|'campaigns',string>>;
+  reorderBannerImageId?: string;
 };
 /** Store only valid public/catalog IDs and display labels. Unknown modules are discarded. */
 export function normalizeHomeSections(raw: unknown): HomeSection[] {
@@ -191,6 +192,7 @@ export function normalizeHomeSections(raw: unknown): HomeSection[] {
       brands,
       brandImageIds,
       actionImageIds,
+      ...(base.id === 'reorder' && typeof entry.reorderBannerImageId === 'string' && validId.test(entry.reorderBannerImageId) ? {reorderBannerImageId: entry.reorderBannerImageId} : {}),
     });
   }
   for (const base of HOME_SECTION_DEFAULTS) if (!result.some(item => item.id === base.id))
