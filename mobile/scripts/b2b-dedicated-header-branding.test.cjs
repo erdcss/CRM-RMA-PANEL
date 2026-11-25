@@ -82,7 +82,9 @@ test('home status bar and customer actions sit over the same backdrop as the bra
  const home=read('mobile/app/(tabs)/index.tsx');
  const admin=read('client/src/pages/ayarlar.tsx');
  assert.match(home,/useSafeAreaInsets\(\)/);
- assert.match(home,/<StatusBar style="light" translucent backgroundColor="transparent"/);
+ assert.match(home,/useIsFocused\(\)/);
+ assert.match(home,/<StatusBar style=\{homeHeader\.enabled \? 'light' : 'auto'\}/);
+ assert.match(home,/contentInsetAdjustmentBehavior="never"/);
  assert.match(home,/paddingTop:insets\.top\+7/);
  assert.match(home,/homeHeaderTopActions,\{top:insets\.top\+7\}/);
  assert.match(home,/accessibilityLabel="Bildirimleri aç"/);
