@@ -547,11 +547,13 @@ export default function Dukkan() {
     navigate("/dukkan/urunler/"+encodeURIComponent(String(item.id))+
       "?storeId="+encodeURIComponent(storeId));
   };
-  const togglePublication=async(item:Entry)=>{
-    if(!canManage||publishingId)return;
+  const togglePublication=async(item:Entry,requested?:boolean)=>{
+    if(!canManage||publishingId||bulkProductBusy)return;
     const global=item._source==="b2b";
     if(global&&(!isAdmin||item.linked_to_store))return;
     const published=global?item.is_active!==false:Boolean(item.publish_b2b);
+    const nextPublished=requested??!published;
+    if(nextPublished===published)return;
     const target=global?String(item._b2bId):String(item.id);
     const key=(global?"b2b:":"dukkan:")+target;
     setPublishingId(key);setError("");setNotice("");
@@ -559,13 +561,13 @@ export default function Dukkan() {
       const endpoint=global
         ? base+"/catalog/b2b/"+encodeURIComponent(target)+"/publication"
         : base+"/products/"+encodeURIComponent(target)+"/publication";
-      await api(endpoint,{method:"PATCH",body:JSON.stringify({published:!published})});
+      await api(endpoint,{method:"PATCH",body:JSON.stringify({published:nextPublished})});
       // Reflect the committed state without waiting for the next polling cycle.
       setRows(current=>current.map(entry=>entry.id===item.id&&entry._source===item._source
-        ? {...entry,[global?"is_active":"publish_b2b"]:!published}:entry));
+        ? {...entry,[global?"is_active":"publish_b2b"]:nextPublished}:entry));
       setB2bCatalog(current=>global?current.map(entry=>String(entry.id)===target
-        ? {...entry,is_active:!published}:entry):current);
-      setNotice(item.name+" B2B'de "+(published?"yayından kaldırıldı.":"yayına alındı."));
+        ? {...entry,is_active:nextPublished}:entry):current);
+      setNotice(item.name+" B2B'de "+(nextPublished?"yayına alındı.":"yayından kaldırıldı."));
       setRefresh(value=>value+1);
     }catch(e){setError((e as Error).message);}
     finally{setPublishingId(null);}
@@ -576,14 +578,14 @@ export default function Dukkan() {
     productToolbar.publication,productToolbar.visibility,productToolbar.sort,
     productToolbar.page,productToolbar.pageSize
   ]);
-  const bulkProductAction=async(action:"publish"|"archive"|"restore"|"delete")=>{
-    if(!canManage||bulkProductBusy||!selectedProductIds.size)return;
+  const bulkProductAction=async(action:"publish"|"unpublish"|"archive"|"restore"|"delete")=>{
+    if(!canManage||bulkProductBusy||publishingId||!selectedProductIds.size)return;
     const ids=[...selectedProductIds].map(Number);
     if(ids.some(x=>!Number.isSafeInteger(x)||x<=0)||ids.length>100){
       setError("Bir seferde en fazla 100 mağaza ürünü seçebilirsiniz.");return;
     }
     const explanations={
-      publish:"B2B'de yayınla",archive:"arşivle ve B2B'de yayından kaldır",
+      publish:"B2B'de yayınla",unpublish:"B2B'de yayından kaldır (ürünler ve stoklar korunur)",archive:"arşivle ve B2B'de yayından kaldır",
       restore:"arşivden çıkar (yayınlamadan)",delete:"sil"
     };
     const selectedProducts=rows.filter(item=>item._source!=="b2b"&&selectedProductIds.has(String(item.id)));
@@ -597,7 +599,8 @@ export default function Dukkan() {
     setBulkProductBusy(true);setError("");setNotice("");
     try{
       const result=await api(base+"/products/bulk",{method:"POST",body:JSON.stringify({ids,action})});
-      const results={publish:"B2B'de yayınlandı",archive:"arşivlendi",restore:"arşivden çıkarıldı",delete:"silindi"};
+      const results={publish:"B2B'de yayınlandı",unpublish:"B2B'de yayından kaldırıldı",archive:"arşivlendi",restore:"arşivden çıkarıldı",delete:"silindi"};
+      if(action==="unpublish")setRows(current=>current.map(entry=>entry._source!=="b2b"&&ids.includes(Number(entry.id))?{...entry,publish_b2b:false}:entry));
       setSelectedProductIds(new Set());
       setNotice(String(result.affected)+" ürün "+results[action]+
         (action==="delete"?" (geçmiş fatura ve stok kayıtları korundu).":""));
@@ -1191,17 +1194,21 @@ export default function Dukkan() {
               <span className="mr-2 text-xs font-bold text-[#1c4a7d]">
                 {selectedProductIds.size?selectedProductIds.size+" ürün seçildi":"İşlem için ürün seçin"}
               </span>
-              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy||Boolean(publishingId)}
                 onClick={()=>void bulkProductAction("publish")}
                 className="rounded-lg bg-[#122a51] px-3 py-2 text-xs font-bold text-white hover:bg-[#21518e] disabled:opacity-40">
                 B2B'de Yayınla</button>
-              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy||Boolean(publishingId)}
+                onClick={()=>void bulkProductAction("unpublish")}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:opacity-40">
+                Yayından Kaldır</button>
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy||Boolean(publishingId)}
                 onClick={()=>void bulkProductAction("archive")}
                 className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50 disabled:opacity-40">Arşivle</button>
-              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy||Boolean(publishingId)}
                 onClick={()=>void bulkProductAction("restore")}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40">Arşivden Çıkar</button>
-              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy}
+              <button type="button" disabled={!selectedProductIds.size||bulkProductBusy||Boolean(publishingId)}
                 onClick={()=>void bulkProductAction("delete")}
                 className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-40">Sil</button>
               {selectedProductIds.size>0&&<button type="button" onClick={()=>setSelectedProductIds(new Set())}
@@ -1345,7 +1352,7 @@ export default function Dukkan() {
                             <button type="button" role="switch" aria-checked={published}
                               aria-label={String(r.name)+" B2B yayını "+(published?"açık":"kapalı")}
                               title={published?"B2B'de yayından kaldır":"B2B'de yayınla"}
-                              disabled={busy||Boolean(publishingId)||editingLoading}
+                              disabled={busy||Boolean(publishingId)||bulkProductBusy||editingLoading}
                               onClick={event=>{event.stopPropagation();void togglePublication(r);}}
                               className={"inline-flex min-h-9 items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-bold transition disabled:opacity-50 "+
                                 (published?"border-emerald-200 bg-emerald-50 text-emerald-800":"border-slate-200 bg-slate-100 text-slate-600")}>
@@ -1412,6 +1419,12 @@ export default function Dukkan() {
                   {section==="products"&&canManage&&<td className="px-3 py-3">
                     <button type="button" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold hover:bg-slate-100"
                       onClick={()=>editProduct(r)}>Düzenle</button>
+                    {(r._source==="b2b"?isAdmin&&!r.linked_to_store&&r.is_active!==false:Boolean(r.publish_b2b))&&
+                      <button type="button" disabled={busy||Boolean(publishingId)||bulkProductBusy||editingLoading}
+                        aria-label={String(r.name)+" ürününü B2B'de yayından kaldır"}
+                        onClick={event=>{event.stopPropagation();void togglePublication(r,false);}}
+                        className="ml-1 whitespace-nowrap rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-40">
+                        Yayından Kaldır</button>}
                   </td>}
                   {isCariSection&&isWriter&&canAccount&&<td className="sticky right-0 z-[1] bg-white/95 px-3 py-2 text-right transition-colors group-hover:bg-[#f7faff]">
                     <button type="button" aria-label={String(r.name)+" cari işlemlerini aç"}
