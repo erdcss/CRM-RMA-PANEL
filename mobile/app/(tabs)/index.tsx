@@ -369,7 +369,7 @@ export default function HomeScreen() {
         </Animated.View> : null}
 
         {homeHeader.enabled ? (
-          <View style={[styles.homeBrandHeader,{width:screenWidth,marginLeft:0}]}>
+          <View style={styles.homeBrandHeader}>
             {branding.b2b_mobile_header_background ? (
               <Image
                 source={{uri:branding.b2b_mobile_header_background}}
@@ -449,7 +449,7 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        <View style={[styles.homeBrowseBlock,{width:screenWidth},
+        <View style={[styles.homeBrowseBlock,
           !homeHeader.enabled && {paddingTop:insets.top+spacing.sm}]}>
           <View style={styles.headerRow}>
             <View style={[styles.searchBox,styles.headerSearchBox]}>
@@ -803,7 +803,7 @@ export default function HomeScreen() {
 }
 
 const buildStyles = (palette: AppPalette) => StyleSheet.create({
-  stickyHomeTop:{width:'100%',backgroundColor:'#111113',zIndex:10},
+  stickyHomeTop:{width:'100%',paddingHorizontal:spacing.lg,backgroundColor:'#111113',zIndex:10},
   scrollableHomeContent:{flex:1,minHeight:0},
   brandedRefreshOverlay:{position:'absolute',top:7,left:0,right:0,alignItems:'center',zIndex:12},
   brandedRefreshGif:{width:180,height:62},
@@ -819,9 +819,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     position: 'relative',
   },
   homeBrandHeader: {
-    // Full-bleed artwork starts under the transparent iOS status bar.
+    // Keep the branded header inside the same symmetric gutters as the banner.
+    width:'100%',
     minHeight:0,
-    marginLeft:-spacing.lg,
+    alignSelf:'center',
     marginTop:0,
     marginBottom:0,
     backgroundColor:'#121213',
@@ -935,9 +936,9 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     borderColor: palette.surface,
   },
   homeBrowseBlock:{
-    marginLeft:-spacing.lg,
+    width:'100%',
+    alignSelf:'center',
     backgroundColor:'#111113',
-    paddingHorizontal:spacing.lg,
     paddingTop:2,
     paddingBottom:9,
   },

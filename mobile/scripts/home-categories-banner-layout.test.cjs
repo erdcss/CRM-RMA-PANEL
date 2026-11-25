@@ -69,3 +69,16 @@ test('fixed header and category tiles stay outside the pull-refresh scroll area'
   assert.ok(home.includes('setRefreshAnimationImageId(homepage.refreshAnimationImageId'));
   assert.ok(home.includes('setRefreshing(false)'), 'refresh must end without reloading the screen');
 });
+
+
+test('sticky header, search and category strip have matching 16px symmetric banner gutters',()=>{
+  assert.match(home,/stickyHomeTop:\{[^}]*paddingHorizontal:spacing\.lg/);
+  for(const name of ['homeBrandHeader','homeBrowseBlock']){
+    const block=home.match(new RegExp(name+":\\s*\\{([^}]*)\\}"));
+    assert.ok(block, name);
+    assert.match(block[1],/width:'100%'/);
+    assert.match(block[1],/alignSelf:'center'/);
+    assert.doesNotMatch(block[1],/margin(?:Left|Right|Horizontal)\s*:\s*-/);
+  }
+  assert.doesNotMatch(home,/homeBrowseBlock,\{width:screenWidth\}/);
+});

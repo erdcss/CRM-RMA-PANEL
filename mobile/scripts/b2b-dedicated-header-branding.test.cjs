@@ -59,10 +59,12 @@ test('admin branding page owns header upload, slogan and live preview with a sep
  assert.doesNotMatch(homeAdmin,/Üst alan sloganı\s*\n\s*<Input/);
 });
 
-test('native header background stretches edge-to-edge while catalogue gutters remain intact',()=>{
+test('native header artwork is centered within the same gutters as the catalogue',()=>{
   const home=read('mobile/app/(tabs)/index.tsx');
-  assert.match(home,/style=\{\[styles\.homeBrandHeader,\s*\{width:screenWidth\}\]\}/);
-  assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginLeft:-spacing\.lg/);
+  assert.match(home,/style=\{styles\.homeBrandHeader\}/);
+  assert.match(home,/stickyHomeTop:\{[^}]*paddingHorizontal:spacing\.lg/);
+  assert.match(home,/homeBrandHeader:\s*\{[^}]*width:'100%'[^}]*alignSelf:'center'/);
+  assert.doesNotMatch(home,/homeBrandHeader:\s*\{[^}]*marginLeft:\s*-/);
   assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?marginTop:0/);
   assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?borderRadius:0/);
   assert.match(home,/homeBrandHeader:\s*\{[\s\S]*?borderWidth:0/);
@@ -92,7 +94,7 @@ test('home status bar and customer actions sit over the same backdrop as the bra
  assert.match(home,/homeHeaderTopActions,\{top:insets\.top\+2\}/);
  assert.match(home,/accessibilityLabel="Bildirimleri aç"/);
  assert.match(home,/router\.push\('\/\(tabs\)\/orders' as never\)/);
- assert.match(home,/homeBrowseBlock,\{width:screenWidth\}/);
+ assert.match(home,/homeBrowseBlock:\s*\{[^}]*width:'100%'[^}]*alignSelf:'center'/);
  assert.match(home,/minHeight:32,borderRadius:8/);
  assert.match(admin,/header arka plan önizlemesi/i);
  assert.match(admin,/Tüm Kategoriler/);
