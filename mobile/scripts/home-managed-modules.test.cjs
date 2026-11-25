@@ -29,21 +29,25 @@ test('Admin managed home modules render actual content and preserve previously w
  assert.ok(screen.includes('{banners.length > 0 ? ('), 'carousel retained');
 });
 
-test('quick actions use a single row, optional uploaded icons and yellow arrows',()=>{
+test('quick actions use a single row, optional uploaded icons and accessible labels',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
  const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
  assert.ok(!actions.includes('SectionHead'));
  assert.ok(modules.includes("flexWrap:'nowrap'"));
  assert.ok(actions.includes('section.actionImageIds'));
- assert.ok(actions.includes('name="chevron-forward"'));
+ assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
  assert.ok(actions.includes('onOpenScanner()'));
 });
 
-test('quick actions use full-width titles and one-line short captions',()=>{
+test('quick actions show icon and label in one line without clipping or a second caption row',()=>{
  const modules=read('components/home/ManagedHomeSections.tsx');
- assert.ok(modules.includes('subtitle:\'Barkodla bul\''));
- assert.ok(modules.includes('style={styles.actionSubtitle} numberOfLines={1}'));
- assert.ok(modules.includes('style={styles.actionTitle} numberOfLines={1}'));
+ const actions=modules.slice(modules.indexOf("case 'actions':"),modules.indexOf("case 'flash':"));
+ assert.ok(modules.includes("subtitle:'Barkodla bul'"), 'short caption retained for accessibility');
+ assert.ok(actions.includes('accessibilityHint={action.subtitle}'));
+ assert.ok(actions.includes('style={styles.actionTitle} numberOfLines={1}'));
+ assert.ok(!actions.includes('style={styles.actionSubtitle}'), 'caption must not create a second line');
+ assert.ok(modules.includes("flexDirection:'row',alignItems:'center',gap:3,paddingHorizontal:4"));
+ assert.ok(modules.includes("actionTextBlock:{flex:1,minWidth:0"));
  assert.ok(modules.includes('recyclingKey={imageId}'));
  assert.ok(modules.includes('onError={()=>setFailed(true)}'));
 });
@@ -52,8 +56,8 @@ test('quick action row shares the banner gutters and aligns every card and icon 
  const modules=read('components/home/ManagedHomeSections.tsx');
  assert.ok(modules.includes("actions:{width:'100%',alignSelf:'center'"));
  assert.ok(!modules.includes('marginHorizontal:-8'));
- assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:62'));
- assert.ok(modules.includes('actionIconSlot:{width:22,height:22'));
- assert.ok(modules.includes('actionArrowSlot:{width:12,height:22'));
- assert.ok(modules.includes("actionTextBlock:{height:26,width:'100%'"));
+ assert.ok(modules.includes('flexGrow:1,flexShrink:1,flexBasis:0,minWidth:0,height:43'));
+ assert.ok(modules.includes('actionIconSlot:{width:17,height:19'));
+ assert.ok(!modules.includes('actionArrowSlot:'));
+ assert.ok(modules.includes('actionTextBlock:{flex:1,minWidth:0'));
 });
