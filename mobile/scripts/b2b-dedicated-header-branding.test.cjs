@@ -139,17 +139,17 @@ test('slogan artwork is enlarged consistently and transparent margins are trimme
   assert.ok(home.includes("homeBrandLogoRow: {width:'100%'"));
 });
 
-test('compact search and all seven category slots stay on one row',()=>{
+test('premium search and scrollable category shortcuts keep barcode access',()=>{
   const home=read('mobile/app/(tabs)/index.tsx');
   const admin=read('client/src/pages/ayarlar.tsx');
-  assert.ok(home.includes('categories.slice(0, 6)'));
+  assert.ok(home.includes('categories.slice(0, 12)'));
   assert.ok(home.includes('quickCategories.map'));
-  assert.ok(home.includes("flexWrap:'nowrap'"));
-  assert.ok(home.includes("flex:1,minWidth:0,height:57"));
+  assert.ok(home.includes('<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryQuickRow}>'));
+  assert.ok(home.includes('width:86,height:90'));
   assert.ok(home.includes('styles.scanCorner'));
   assert.ok(home.includes('styles.scanBar'));
   assert.ok(home.includes('onPress={()=>setScannerOpen(true)}'));
-  assert.ok(home.includes("fontSize:12,fontWeight:'300'"));
+  assert.ok(home.includes("fontSize:14,fontWeight:'400'"));
   assert.ok(admin.includes('grid-cols-7'));
   assert.ok(admin.includes('font-light'));
   assert.ok(!admin.includes('flex min-w-0 flex-1 gap-1.5 overflow-x-auto'));
