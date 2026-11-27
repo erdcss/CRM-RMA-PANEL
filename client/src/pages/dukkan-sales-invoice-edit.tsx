@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import {useLocation} from "wouter";
+import {DukkanInvoicePicker} from "@/components/dukkan-invoice-picker";
 import {ArrowLeft,CheckCircle2,Copy,Download,FileText,Pencil,Plus,Save,Trash2,AlertTriangle} from "lucide-react";
 
 type Entry=Record<string,any>;
@@ -143,6 +144,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
           }))
         })});
       }else{
+        if(!parties.some(p=>str(p.id)===partyId))throw Error("Fatura için cari hesap seçin.");
         const submitLines=lines.map(l=>({
           productId:Number(l.productId),quantity:number(l.quantity),
           unitPrice:number(l.unitPrice),taxRate:number(l.taxRate)
@@ -297,11 +299,9 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="mb-4 text-base font-black">{mode==="copy"?"Yeni fatura taslağı":"Faturayı düzenle"}</h2>
           <div className="grid gap-4 md:grid-cols-3">
-            <label className="text-xs font-semibold">Cari hesap
-              <select className={field+" mt-1"} required disabled={isArchiveEdit} value={partyId} onChange={e=>setPartyId(e.target.value)}>
-                <option value="">Cari seçin</option>{parties.map(p=><option value={str(p.id)} key={str(p.id)}>{p.name}</option>)}
-              </select>
-            </label>
+            <div className="min-w-0 text-xs font-semibold">Cari hesap
+              <DukkanInvoicePicker kind="party" items={parties} value={partyId} onChange={setPartyId} disabled={isArchiveEdit||busy} className="mt-1"/>
+            </div>
             <label className="text-xs font-semibold">Fatura tarihi
               <input className={field+" mt-1"} type="date" required value={date} onChange={e=>setDate(e.target.value)}/>
             </label>
@@ -326,12 +326,10 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
               <label className="text-xs font-semibold md:col-span-4">Ürün adı
                 <input className={field+" mt-1"} value={line.productName} required onChange={e=>changeLine(index,"productName",e.target.value)}/>
               </label>:
-              <label className="text-xs font-semibold md:col-span-4">Stoktan ürün seçimi
-                <select className={field+" mt-1"} required value={line.productId} onChange={e=>changeLine(index,"productId",e.target.value)}>
-                  <option value="">Ürün seçin</option>{products.map(p=><option key={str(p.id)} value={str(p.id)}>{p.sku} · {p.name}</option>)}
-                </select>
+              <div className="min-w-0 text-xs font-semibold md:col-span-4">Stoktan ürün seçimi
+                <DukkanInvoicePicker kind="product" items={products} value={line.productId} onChange={v=>changeLine(index,"productId",v)} disabled={busy} className="mt-1" priceKind={String(current.kind).startsWith("purchase")?"purchase":"sale"}/>
                 {archived&&line.productName&&<span className="mt-1 block text-[11px] text-amber-800">Kaynak: {line.productName}</span>}
-              </label>}
+              </div>}
             <label className="text-xs font-semibold md:col-span-2">Miktar
               <input className={field+" mt-1"} type="number" min="0.001" step="0.001" required value={line.quantity} onChange={e=>changeLine(index,"quantity",e.target.value)}/>
             </label>

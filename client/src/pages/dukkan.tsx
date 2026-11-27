@@ -14,6 +14,7 @@ import {DukkanImageRecovery} from "@/components/dukkan-image-recovery";
 import {DukkanProductThumbnailDrop} from "@/components/dukkan-product-thumbnail-drop";
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
+import {DukkanInvoicePicker} from "@/components/dukkan-invoice-picker";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
 import {DukkanNewProductProfitPanel} from "@/components/dukkan-new-product-profit-panel";
 import {DukkanCampaignPriceControl} from "@/components/dukkan-campaign-price-control";
@@ -470,6 +471,8 @@ export default function Dukkan() {
       const body:Entry={...draft};
       let path="";
       if(section==="sales"||section==="purchases"){
+        if(!parties.some(p=>String(p.id)===String(body.partyId)))throw new Error("Fatura için cari hesap seçin.");
+        if(lines.some(l=>!products.some(p=>String(p.id)===l.productId)))throw new Error("Her fatura kalemi için listeden ürün seçin.");
         path="/invoices";body.kind=body.kind||(section==="sales"?"sale":"purchase");
         if(section==="sales"&&editingInvoiceId)body.expectedRevision=editingInvoiceRevision;
         else body.requestKey=globalThis.crypto.randomUUID();
@@ -1038,7 +1041,7 @@ export default function Dukkan() {
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {fields.map(f=><div key={f.key} className="min-w-0">
-                  <label className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
+                  {["sales","purchases"].includes(section)&&f.key==="partyId"?<><span className="mb-1 block text-xs font-semibold">{f.label}</span><DukkanInvoicePicker kind="party" items={parties} value={draft.partyId||""} onChange={v=>put("partyId",v)} disabled={busy}/></>:<label className="block min-w-0"><span className="mb-1 block text-xs font-semibold">{f.label}</span>
                   {f.type==="select"?<select className={inputClass} required={f.required} disabled={section==="sales"&&f.key==="kind"&&Boolean(editingInvoiceId)} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}>
                     <option value="">Seçiniz</option>{f.options?.map(opt=><option key={opt.value} value={opt.value}>{opt.label}</option>)}
                   </select>:<input className={inputClass} type={f.type||"text"}
@@ -1046,7 +1049,7 @@ export default function Dukkan() {
                      step={f.key==="stock"?"0.001":f.type==="number"?"any":undefined}
                      placeholder={f.key==="stock"?"0":undefined}
                      required={f.required} value={draft[f.key]||""} onChange={e=>put(f.key,e.target.value)}/>}
-                  </label>
+                  </label>}
                   {section==="products"&&f.key==="salePrice"&&
                      <DukkanCampaignPriceControl salePrice={draft.salePrice||""}
                        campaignPrice={draft.campaignPrice||""} enabled={newProductCampaignEnabled}
@@ -1124,11 +1127,11 @@ export default function Dukkan() {
                   <span className="col-span-1">KDV (%)</span><span className="col-span-2 text-right">Tutar (TL)</span><span className="col-span-1 text-center">Sil</span>
                 </div>
                 {lines.map((l,i)=><div className="mb-2 grid grid-cols-2 items-center gap-2 rounded-xl bg-white p-3 md:grid-cols-12" key={i}>
-                  <label className="col-span-2 md:col-span-4"><span className="mb-1 block text-xs font-semibold md:hidden">Ürün</span>
-                    <select aria-label="Ürün" className={inputClass} value={l.productId} required onChange={e=>updateLine(i,"productId",e.target.value)}>
+                  <div className="col-span-2 min-w-0 md:col-span-4"><span className="mb-1 block text-xs font-semibold md:hidden">Ürün</span>
+                    {["sales","purchases"].includes(section)?<DukkanInvoicePicker kind="product" items={products} value={l.productId} onChange={v=>updateLine(i,"productId",v)} disabled={busy} priceKind={section==="purchases"?"purchase":"sale"}/>:<select aria-label="Ürün" className={inputClass} value={l.productId} required onChange={e=>updateLine(i,"productId",e.target.value)}>
                       <option value="">Ürün seç</option>{productOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </label>
+                    </select>}
+                  </div>
                   <label className="md:col-span-2"><span className="mb-1 block text-xs font-semibold md:hidden">Miktar</span>
                     <input aria-label="Miktar" className={inputClass} required min="0.001" step="0.001" type="number" value={l.quantity} onChange={e=>updateLine(i,"quantity",e.target.value)}/>
                   </label>
