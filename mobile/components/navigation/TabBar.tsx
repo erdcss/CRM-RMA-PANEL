@@ -13,11 +13,12 @@ const TAB_CONFIG: Record<string, { label: string; icon: keyof typeof Ionicons.gl
   menu: { label: 'Kategoriler', icon: 'grid-outline', activeIcon: 'grid' },
   discover: { label: 'Reels', icon: 'play-circle-outline', activeIcon: 'play-circle' },
   shortages: { label: 'Eksik Listem', icon: 'clipboard-outline', activeIcon: 'clipboard' },
-  orders: { label: 'Siparişlerim', icon: 'cart-outline', activeIcon: 'cart' },
+  orders: { label: 'Sepet', icon: 'cart-outline', activeIcon: 'cart' },
+  history: { label: 'Siparişlerim', icon: 'receipt-outline', activeIcon: 'receipt' },
   profile: { label: 'Hesabım', icon: 'person-outline', activeIcon: 'person' },
 };
 
-const VISIBLE_TABS = new Set(Object.keys(TAB_CONFIG));
+const VISIBLE_TABS = new Set(['index','menu','orders','history','profile']);
 
 export function TabBar({ state, navigation, reduceMotion = false }: BottomTabBarProps & { reduceMotion?: boolean }) {
   const insets = useSafeAreaInsets();

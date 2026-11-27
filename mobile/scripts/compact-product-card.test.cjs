@@ -3,17 +3,18 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const read=p=>fs.readFileSync(path.resolve(__dirname,'..',p),'utf8');
-test('home and catalog share a compact product card without rating, favorite or cart controls',()=>{
+test('home and catalog share premium box-aware product cards without decorative ratings',()=>{
  const card=read('components/products/CompactProductCard.tsx');
  const home=read('app/(tabs)/index.tsx');
  const catalog=read('app/(tabs)/products.tsx');
  assert.match(card,/\(viewport - 2 \* spacing\.sm\) \/ 2\.5/);
  assert.match(card,/backgroundColor:'#FFFFFF'/);
  assert.match(card,/Stokta/);
- assert.doesNotMatch(card,/Koli:|Min\. \{minBoxes\} koli/);
+ assert.match(card,/Koli içi: \{pack\} adet/);
+ assert.match(card,/Min\. alım: \{minBoxes\} koli/);
  assert.match(card,/canOrder = stock >= pack \* minBoxes/);
- assert.match(card,/name:\{[^\n]*fontWeight:'400'/);
- assert.match(card,/price:\{[^\n]*fontWeight:'400'/);
+ assert.match(card,/name:\{[^\n]*fontWeight:'800'/);
+ assert.match(card,/price:\{[^\n]*fontWeight:'900'/);
  assert.doesNotMatch(card,/heart|star-outline|cart-outline|Sepete Ekle|Değerlendirme/i);
  assert.match(home,/<CompactProductCard/);
  assert.match(catalog,/<CompactProductCard/);

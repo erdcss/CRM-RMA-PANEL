@@ -93,8 +93,8 @@ export default function HomeScreen() {
   const [reels, setReels] = useState<B2BReel[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryCards, setCategoryCards] = useState<HomeCategoryCard[]>([]);
-  // Keep six shortcuts and the full category menu visible without horizontal scrolling.
-  const quickCategories = categories.slice(0, 6);
+  // Category cards scroll horizontally to fit smaller phones without shrinking text.
+  const quickCategories = categories.slice(0, 12);
   const [banners, setBanners] = useState<HomeBanner[]>([]);
   const [roundBottomBanner,setRoundBottomBanner]=useState<RoundBottomBanner|undefined>();
   const [failedBannerIds, setFailedBannerIds] = useState<string[]>([]);
@@ -106,9 +106,6 @@ export default function HomeScreen() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
   const homeScrollRef = useRef<ScrollView>(null);
-  const wholesaleScrollRef = useRef<ScrollView>(null);
-  const wholesaleIndexRef = useRef(0);
-  const [wholesaleWidth, setWholesaleWidth] = useState(0);
   const bannerIndexRef = useRef(0);
   const bannerHeight=bannerDisplayHeight(bannerWidth);
   const onBannerPress=useCallback((banner:HomeBanner)=>{
@@ -309,17 +306,6 @@ export default function HomeScreen() {
     return () => clearInterval(timer);
   }, [bannerWidth, banners.length, query, sliderAutoPlay, sliderIntervalMs]);
 
-  useEffect(() => {
-    if (query.trim() || wholesale.length < 2 || !wholesaleWidth) return;
-    const cardWidth = stripProductWidth(wholesaleWidth) + spacing.sm;
-    const count = Math.min(wholesale.length, 10);
-    const timer = setInterval(() => {
-      const next = (wholesaleIndexRef.current + 1) % count;
-      wholesaleIndexRef.current = next;
-      wholesaleScrollRef.current?.scrollTo({ x: next * cardWidth, animated: next !== 0 });
-    }, 3500);
-    return () => clearInterval(timer);
-  }, [wholesale.length, wholesaleWidth, query, screenWidth]);
 
   const handleScannedBarcode = async (value: string) => {
     if (scanLockedRef.current) return;
@@ -353,10 +339,10 @@ export default function HomeScreen() {
     }
   };
 
-  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false, viewportWidth?: number) => {
+  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false, viewportWidth?: number, forceGrid = false) => {
     const viewport = viewportWidth || Math.max(1, screenWidth - 2 * spacing.lg);
     return <CompactProductCard key={product.marketplace ? 'marketplace-'+product.id : 'b2b-'+product.id}
-      product={product} width={isNewArrivalCard?gridProductWidth(viewport):stripProductWidth(viewport)}
+      product={product} width={isNewArrivalCard || forceGrid ? gridProductWidth(viewport) : stripProductWidth(viewport)}
       signedIn={Boolean(session)} newArrival={isNewArrivalCard}
       onPress={()=>router.push({pathname:'/product/[id]',params:productParams(product)} as never)}
       onLogin={()=>router.push('/login')} onExpire={()=>void load(true)}/>;
@@ -497,7 +483,7 @@ export default function HomeScreen() {
           </View>
 
           {!query.trim() ? (
-            <View style={styles.categoryQuickRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryQuickRow}>
                 {quickCategories.map((category,index)=>{
                   const configured=categoryCards.find(item=>item.category===category);
                   const icons: Array<keyof typeof Ionicons.glyphMap> = [
@@ -530,7 +516,15 @@ export default function HomeScreen() {
                 <Ionicons name="grid-outline" size={21} color="#FFCD00" />
                 <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.allCategoriesText}>Tüm Kategoriler</Text>
               </Pressable>
-            </View>
+              <Pressable style={styles.allCategoriesCard} accessibilityRole="button" accessibilityLabel="Reels" onPress={()=>router.push("/(tabs)/discover" as never)}>
+                <Ionicons name="play-circle-outline" size={24} color="#FFCD00"/>
+                <Text style={styles.allCategoriesText}>Reels</Text>
+              </Pressable>
+              <Pressable style={styles.allCategoriesCard} accessibilityRole="button" accessibilityLabel="Eksik Listem" onPress={()=>router.push("/(tabs)/shortages" as never)}>
+                <Ionicons name="clipboard-outline" size={24} color="#FFCD00"/>
+                <Text style={styles.allCategoriesText}>Eksik Listem</Text>
+              </Pressable>
+            </ScrollView>
           ) : null}
         </View>
       </View>
@@ -667,6 +661,7 @@ export default function HomeScreen() {
           }}
         />
 
+        {newArrivals.length > 0 && <>
         <View style={styles.sectionHeader}>
           <View style={{ flex: 1 }}>
             <View style={styles.newArrivalLabelRow}>
@@ -701,6 +696,8 @@ export default function HomeScreen() {
           </View>
         )}
 
+        </>}
+
         <View style={styles.sectionHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionTitle}>Toptan Ürünler</Text>
@@ -711,15 +708,9 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         {wholesale.length > 0 ? (
-          <ScrollView
-            ref={wholesaleScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            onLayout={event => setWholesaleWidth(event.nativeEvent.layout.width)}
-            contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.lg }}
-          >
-            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product,false,wholesaleWidth))}
-          </ScrollView>
+          <View style={styles.productGrid}>
+            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product,false,undefined,true))}
+          </View>
         ) : (
           <View style={styles.newArrivalEmpty}>
             <Text style={styles.newArrivalEmptyText}>Toptan ürünler burada listelenecek. Yeni ürünler yukarıdaki bölümde yer alır.</Text>
@@ -956,11 +947,11 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
   headerRow: {flexDirection:'row',alignItems:'center',marginTop:0},
   headerSearchBox: {flex:1,marginTop:0,minWidth:0},
   searchBox: {
-    minHeight:32,borderRadius:8,borderWidth:0,backgroundColor:'#F8F8F8',
+    minHeight:44,borderRadius:12,borderWidth:1,borderColor:'#FFCD00',backgroundColor:'#FFFFFF',
     paddingLeft:12,paddingRight:5,flexDirection:'row',alignItems:'center',gap:7,
   },
-  searchInput: {flex:1,minWidth:0,fontSize:12,fontWeight:'300',color:'#222225',height:32,paddingVertical:0},
-  categoryQuickRow:{flexDirection:'row',flexWrap:'nowrap',alignItems:'stretch',gap:4,marginTop:7,paddingBottom:1},
+  searchInput: {flex:1,minWidth:0,fontSize:14,fontWeight:'400',color:'#0B192D',height:42,paddingVertical:0},
+  categoryQuickRow:{flexDirection:'row',alignItems:'stretch',gap:8,marginTop:10,paddingBottom:7,paddingRight:12},
   sectionHeader: {
     marginTop: spacing.xxl,
     marginBottom: spacing.md,
@@ -970,10 +961,10 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     gap: spacing.md,
   },
   sectionTitle: {
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 18,
+    lineHeight: 24,
     color: palette.text,
-    fontWeight: '500',
+    fontWeight: '800',
   },
   sectionSubtitle: {
     ...typography.caption,
@@ -991,29 +982,28 @@ const buildStyles = (palette: AppPalette) => StyleSheet.create({
     color: palette.muted,
   },
   categoryCard:{
-    flex:1,minWidth:0,height:57,borderRadius:9,borderWidth:1,
-    borderColor:'#414146',borderTopColor:'#505055',borderBottomColor:'#303034',
-    backgroundColor:'#2A2A2D',
-    shadowColor:'#000000',shadowOffset:{width:0,height:2},
-    shadowOpacity:0.38,shadowRadius:3,elevation:3,
-    alignItems:'center',justifyContent:'center',gap:3,
-    paddingHorizontal:2,paddingVertical:3,
+    width:86,height:90,borderRadius:14,borderWidth:1,
+    borderColor:'#E2E8F0',backgroundColor:'#FFFFFF',
+    shadowColor:'#0B192D',shadowOffset:{width:0,height:2},
+    shadowOpacity:0.10,shadowRadius:4,elevation:2,
+    alignItems:'center',justifyContent:'center',gap:5,
+    paddingHorizontal:5,paddingVertical:6,
   },
-  categoryImage:{width:'78%',maxWidth:30,height:24,borderRadius:4},
+  categoryImage:{width:51,height:52,borderRadius:6},
   categoryText:{
-    fontSize:8,lineHeight:10,color:'#F1F1F2',
-    fontWeight:'400',textAlign:'center',width:'100%',
+    fontSize:10,lineHeight:12,color:'#0B192D',
+    fontWeight:'800',textAlign:'center',width:'100%',
   },
   allCategoriesCard:{
-    flex:1,minWidth:0,height:57,borderRadius:9,borderWidth:1,
-    borderColor:'#FFCD00',backgroundColor:'#2A2A2D',
+    width:86,height:90,borderRadius:14,borderWidth:1,
+    borderColor:'#FFCD00',backgroundColor:'#0B192D',
     shadowColor:'#000000',shadowOffset:{width:0,height:2},
-    shadowOpacity:0.38,shadowRadius:3,elevation:3,
-    alignItems:'center',justifyContent:'center',gap:3,
-    paddingHorizontal:2,paddingVertical:3,
+    shadowOpacity:0.16,shadowRadius:4,elevation:2,
+    alignItems:'center',justifyContent:'center',gap:6,
+    paddingHorizontal:4,paddingVertical:6,
   },
   allCategoriesText:{
-    fontSize:8,lineHeight:10,color:'#F1F1F2',fontWeight:'400',textAlign:'center',width:'100%',
+    fontSize:10,lineHeight:12,color:'#FFFFFF',fontWeight:'800',textAlign:'center',width:'100%',
   },
   catalogRetry: { marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: '#FACC15', borderRadius: radius.md },
   catalogRetryText: { color: '#111827', fontWeight: '800' },

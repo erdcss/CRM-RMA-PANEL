@@ -32,13 +32,14 @@ export function B2BProductCard({
     <Link
       href={unifiedProductHref(product)}
       aria-label={`${product.name || "Ürün"}${cannotOrder ? soldOut ? " - Stoklar tükenmiştir" : " - Sipariş için yeterli stok yok" : ""}`}
-      className={`group block h-full min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/40 sm:rounded-2xl ${
+      className={`group block h-full min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/40 ${
         cannotOrder ? "border-slate-200 hover:border-rose-200" : "border-slate-200 hover:border-amber-300 hover:shadow-md"
       }`}
     >
       <article className="flex h-full min-w-0 flex-col">
-        <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-slate-50">
+        <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-white">
           <B2BNewArrivalBadge createdAt={product.created_at} size="card" />
+          {hasCampaign && <span className="absolute right-2 top-2 z-10 rounded-full bg-[#ffcc00] px-2 py-1 text-[10px] font-black text-[#0b192d] shadow-sm">KAMPANYA</span>}
           <div className={`flex h-full w-full items-center justify-center ${
             cannotOrder ? "opacity-50 grayscale-[40%]" : ""
           }`}>
@@ -57,15 +58,19 @@ export function B2BProductCard({
             </div>
           ) : null}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col p-2 sm:p-3">
+        <div className="flex min-w-0 flex-1 flex-col p-2.5 sm:p-4">
           <div className="truncate text-[10px] text-slate-400 sm:text-[11px]">{product.sku || "STOK"}</div>
-          <h3 className="mt-1 min-h-9 line-clamp-2 break-words text-xs font-semibold leading-[18px] sm:min-h-10 sm:text-sm sm:leading-5">{product.name || "Ürün"}</h3>
+          <h3 className="mt-1 min-h-10 line-clamp-2 break-words text-xs font-extrabold leading-[18px] text-[#0b192d] sm:min-h-11 sm:text-sm sm:leading-5">{product.name || "Ürün"}</h3>
           {sellerName ? (
             <p className={`mt-1 flex min-w-0 items-center gap-1 text-[10px] sm:text-[11px] ${cannotOrder ? "text-slate-400" : "text-slate-600"}`} aria-label={"Satıcı: " + sellerName}>
               <BadgeCheck className={`h-3.5 w-3.5 shrink-0 ${cannotOrder ? "text-slate-400" : "text-green-600"}`} />
               <span className="truncate">{sellerName}</span>
             </p>
           ) : null}
+          <p className={`mt-2 flex items-center gap-1.5 text-[11px] font-semibold ${cannotOrder ? "text-rose-600" : "text-emerald-700"}`}>
+            <span className={`h-2 w-2 shrink-0 rounded-full ${cannotOrder ? "bg-rose-500" : "bg-emerald-500"}`} aria-hidden="true"/>
+            {soldOut ? "Stokta yok" : `Stok: ${stock.toLocaleString("tr-TR")} adet`}
+          </p>
           <div className={`mt-2 min-w-0 break-words text-xs font-semibold leading-5 sm:mt-3 sm:text-sm ${cannotOrder ? "text-slate-400" : "text-slate-700"}`}>
             {visiblePrice ? (hasCampaign ? (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -73,7 +78,7 @@ export function B2BProductCard({
                 <strong className={`text-base font-black sm:text-lg ${cannotOrder ? "text-slate-400" : "text-red-600"}`}>{formatPrice(product.price)}</strong>
                 <span className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-extrabold text-red-700">KAMPANYA</span>
               </div>
-            ) : formatPrice(product.price)) : showPrice ? "Fiyat için giriş yapın" : "Fiyat bilgisi gizli"}
+            ) : <strong className="text-base font-black text-[#0b192d] sm:text-lg">{formatPrice(product.price)}</strong>) : showPrice ? <span className="text-xs font-bold text-slate-500">Fiyat için bayi girişi yapın</span> : "Fiyat bilgisi gizli"}
           </div>
           {product.timed_campaign_end_at ? <B2BTimedOffer compact endAt={product.timed_campaign_end_at} title={product.timed_campaign_title} stock={product.stock} unitsPerBox={product.units_per_box}/> : null}
           {cannotOrder ? (
@@ -82,10 +87,13 @@ export function B2BProductCard({
               <span>{soldOut ? "Stoklar tükenmiştir." : "Sipariş için yeterli stok yok."}</span>
             </div>
           ) : null}
-          <div className="mt-auto grid min-w-0 grid-cols-2 gap-1 pt-2 text-[10px] leading-snug sm:gap-2 sm:pt-3 sm:text-[11px]">
+          <div className="mt-auto grid min-w-0 grid-cols-2 gap-1 pt-3 text-[10px] leading-snug sm:gap-2 sm:pt-3 sm:text-[11px]">
             <div className={`min-w-0 break-words rounded-md p-1.5 sm:rounded-lg sm:p-2 ${cannotOrder ? "bg-slate-100 text-slate-400" : "bg-slate-100"}`}>Koli içi<br /><b>{pack} adet</b></div>
             <div className={`min-w-0 break-words rounded-md p-1.5 sm:rounded-lg sm:p-2 ${cannotOrder ? "bg-slate-100 text-slate-400" : "bg-amber-50"}`}>Min. alım<br /><b>{minBoxes} koli</b></div>
           </div>
+          <span className="mt-3 flex min-h-9 items-center justify-center rounded-lg bg-[#ffcc00] px-2 text-center text-[11px] font-extrabold text-[#0b192d] transition group-hover:bg-amber-400 sm:min-h-10 sm:text-xs">
+            {cannotOrder ? "Ürünü İncele" : loggedIn ? "Ürüne Git" : "Bayi Fiyatını Gör"}
+          </span>
         </div>
       </article>
     </Link>

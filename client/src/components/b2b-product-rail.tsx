@@ -280,7 +280,7 @@ function B2BProductGrid({
           role={canAutoScroll ? undefined : "region"}
           aria-label={canAutoScroll ? undefined : title || "Ürün kataloğu"}
           ref={productGridRef}
-          className="relative grid w-full min-w-0 grid-cols-2 gap-2 pb-4 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5"
+          className="relative grid w-full min-w-0 grid-cols-2 gap-2 pb-4 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
         >
           {products.slice(0, visibleCount).map(product => (
             <div key={String(product.id)} className="min-w-0 w-full">
