@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, RefreshControl, ScrollView, StyleSheet,
+  ActivityIndicator, RefreshControl, FlatList, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiFetch } from "../lib/api";
+import { apiRead, peekBusinessRead, BUSINESS_PRODUCTS_PATH } from "../lib/api";
 import type { B2BProduct } from "../types";
 import { C } from "../ui/theme";
 import { BackHeader, EmptyState } from "./common";
@@ -17,15 +17,15 @@ export function LowStockScreen({
   onEdit: (id: string) => void;
   onProducts: () => void;
 }) {
-  const [products, setProducts] = useState<B2BProduct[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<B2BProduct[]>(() => peekBusinessRead<B2BProduct[]>(BUSINESS_PRODUCTS_PATH) ?? []);
+  const [loading, setLoading] = useState(() => peekBusinessRead<B2BProduct[]>(BUSINESS_PRODUCTS_PATH) === undefined);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setError("");
     try {
-      const response = await apiFetch<B2BProduct[]>("/api/admin/b2b-products");
+      const response = await apiRead<B2BProduct[]>(BUSINESS_PRODUCTS_PATH, force);
       setProducts(Array.isArray(response) ? response : []);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Stok bilgileri yüklenemedi");
@@ -45,14 +45,21 @@ export function LowStockScreen({
   const outOfStock = critical.filter((p) => Number(p.stock ?? 0) <= 0).length;
 
   return (
-    <ScrollView
+    <FlatList
+      data={loading ? [] : critical}
+      keyExtractor={(product) => String(product.id)}
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={7}
+      ItemSeparatorComponent={() => <View style={{height: 10}} />}
+      renderItem={({item}) => <ProductCard product={item} onPress={() => onEdit(String(item.id))} />}
       style={s.page}
       contentContainerStyle={s.content}
       refreshControl={<RefreshControl tintColor={C.text} refreshing={refreshing} onRefresh={() => {
         setRefreshing(true);
-        void load();
+        void load(true);
       }} />}
-    >
+      ListHeaderComponent={<>
       <BackHeader title="Düşük Stok" subtitle="Yeniden tedarik edilmesi gereken ürünler" onBack={onBack} />
       <View style={s.summary}>
         <View style={s.summaryIcon}><Ionicons name="alert-circle-outline" size={27} color={C.orange} /></View>
@@ -66,15 +73,9 @@ export function LowStockScreen({
         <Ionicons name="arrow-forward" color={C.text2} size={17} />
       </TouchableOpacity>
       {error ? <Text style={s.error}>{error}</Text> : null}
-      {loading ? <ActivityIndicator color={C.blue} size="large" style={s.loader} /> : null}
-      {!loading && !error && critical.length === 0
-        ? <EmptyState title="Kritik stok yok" text="Düşük stok seviyesinde ürün bulunamadı." />
-        : <View style={s.list}>
-            {critical.map((product) => (
-              <ProductCard key={String(product.id)} product={product} onPress={() => onEdit(String(product.id))} />
-            ))}
-          </View>}
-    </ScrollView>
+      </>}
+      ListEmptyComponent={loading ? <ActivityIndicator color={C.blue} size="large" style={s.loader} /> : !error ? <EmptyState title="Kritik stok yok" text="Düşük stok seviyesinde ürün bulunamadı." /> : null}
+    />
   );
 }
 

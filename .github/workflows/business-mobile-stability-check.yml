@@ -27,6 +27,9 @@ jobs:
       - name: Install native dependencies
         working-directory: business-mobile
         run: npm ci --ignore-scripts
+      - name: Session-scoped read cache tests
+        working-directory: business-mobile
+        run: node --experimental-strip-types --test scripts/read-cache.test.mjs
       - name: Typecheck
         working-directory: business-mobile
         run: npx tsc --noEmit --project tsconfig.json

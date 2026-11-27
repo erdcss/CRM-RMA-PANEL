@@ -3,7 +3,7 @@ import {
   ActivityIndicator,RefreshControl,ScrollView,StyleSheet,Text,TextInput,
   TouchableOpacity,View
 } from "react-native";
-import {getApplications,fullName,formatDate,statusName,type B2BApplication}
+import {getApplications,peekApplications,fullName,formatDate,statusName,type B2BApplication}
   from "../lib/b2b-customer-center";
 import {C} from "../ui/theme";
 import {BackHeader,EmptyState} from "./common";
@@ -26,16 +26,16 @@ export function BusinessApplicationsScreen({
 }:{
   onBack:()=>void;onOpenApplication:(id:string)=>void;onOpenCustomer:()=>void;
 }){
-  const [items,setItems]=useState<B2BApplication[]>([]);
+  const [items,setItems]=useState<B2BApplication[]>(() => peekApplications() ?? []);
   const [filter,setFilter]=useState<Filter>("pending");
   const [query,setQuery]=useState("");
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(() => peekApplications() === undefined);
   const [refreshing,setRefreshing]=useState(false);
   const [error,setError]=useState("");
-  const load=useCallback(async()=>{
+  const load=useCallback(async(force=false)=>{
     setError("");
     try{
-      const list=await getApplications();
+      const list=await getApplications(force);
       setItems(Array.isArray(list)?list:[]);
     }catch(e){setError(e instanceof Error?e.message:"Başvurular alınamadı.");}
     finally{setLoading(false);setRefreshing(false);}
@@ -59,7 +59,7 @@ export function BusinessApplicationsScreen({
   return <ScrollView style={s.page} contentContainerStyle={s.content}
     keyboardShouldPersistTaps="handled"
     refreshControl={<RefreshControl tintColor={C.text} refreshing={refreshing}
-      onRefresh={()=>{setRefreshing(true);void load();}}/>}>
+      onRefresh={()=>{setRefreshing(true);void load(true);}}/>}>
     <BackHeader title="Başvurular" subtitle="B2B firma başvuru ve onay yönetimi" onBack={onBack}/>
     <View style={s.stats}>
       <Summary title="Bekleyen" value={stats.pending} color={C.orange}/>
@@ -97,7 +97,7 @@ export function BusinessApplicationsScreen({
       <Text style={s.count}>{filtered.length} kayıt</Text>
     </View>
     {!!error&&<View style={s.errorBox}><Text style={s.error}>{error}</Text>
-      <TouchableOpacity onPress={()=>{setLoading(true);void load();}}><Text style={s.retry}>Tekrar dene</Text></TouchableOpacity>
+      <TouchableOpacity onPress={()=>{setLoading(true);void load(true);}}><Text style={s.retry}>Tekrar dene</Text></TouchableOpacity>
     </View>}
     {loading?<ActivityIndicator size="large" color={C.blue} style={{marginTop:35}}/>
       :!error&&filtered.length===0?<EmptyState title="Başvuru bulunamadı"

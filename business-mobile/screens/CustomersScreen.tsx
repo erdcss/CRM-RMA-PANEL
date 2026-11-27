@@ -3,20 +3,20 @@ import {ActivityIndicator,RefreshControl,ScrollView,StyleSheet,Text,TextInput,
   TouchableOpacity,View} from "react-native";
 import {C} from "../ui/theme";
 import {EmptyState,MiniStat,PageHeader} from "./common";
-import {getApprovedApplications,fullName,formatDate,type B2BApplication}
+import {getApprovedApplications,peekApplications,fullName,formatDate,type B2BApplication}
   from "../lib/b2b-customer-center";
 
 export function CustomersScreen({onOpenCustomer}:{onOpenCustomer:(id:string)=>void}){
-  const [items,setItems]=useState<B2BApplication[]>([]);
+  const [items,setItems]=useState<B2BApplication[]>(() => (peekApplications() ?? []).filter(x=>x.applicationStatus==="approved"&&x.isActive===true));
   const [query,setQuery]=useState("");
   const [filter,setFilter]=useState<"Tümü"|"Şifre Bekleyen"|"Aktif">("Tümü");
   const [error,setError]=useState("");
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(() => peekApplications() === undefined);
   const [refreshing,setRefreshing]=useState(false);
-  const load=useCallback(async()=>{
+  const load=useCallback(async(force=false)=>{
     setError("");
     try{
-      const customers=await getApprovedApplications();
+      const customers=await getApprovedApplications(force);
       setItems(customers);
     }catch(e){setError(e instanceof Error?e.message:"Müşteriler alınamadı.");}
     finally{setLoading(false);setRefreshing(false);}
@@ -36,7 +36,7 @@ export function CustomersScreen({onOpenCustomer}:{onOpenCustomer:(id:string)=>vo
   return <ScrollView style={s.page} contentContainerStyle={s.content}
     keyboardShouldPersistTaps="handled"
     refreshControl={<RefreshControl tintColor={C.text} refreshing={refreshing}
-      onRefresh={()=>{setRefreshing(true);void load();}}/>}>
+      onRefresh={()=>{setRefreshing(true);void load(true);}}/>}>
     <PageHeader title="B2B Müşteriler" subtitle="Onaylı firmalar, hesaplar ve ticari hareketler"/>
     <View style={s.stats}>
       <MiniStat icon="◎" title="Onaylı" value={items.length}/>
@@ -58,7 +58,7 @@ export function CustomersScreen({onOpenCustomer}:{onOpenCustomer:(id:string)=>vo
         </TouchableOpacity>)}
     </ScrollView>
     <Text style={s.count}>{list.length} firma gösteriliyor</Text>
-    {!!error&&<TouchableOpacity style={s.errorBox} onPress={()=>{setLoading(true);void load();}}>
+    {!!error&&<TouchableOpacity style={s.errorBox} onPress={()=>{setLoading(true);void load(true);}}>
       <Text style={s.error}>{error} · Tekrar dene</Text>
     </TouchableOpacity>}
     {loading?<ActivityIndicator style={{marginTop:28}} size="large" color={C.blue}/>:

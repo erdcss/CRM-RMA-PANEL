@@ -1,4 +1,4 @@
-import { apiFetch } from "./api";
+import { apiFetch, apiRead, peekBusinessRead } from "./api";
 export type ApplicationStatus = "pending" | "approved" | "rejected";
 export type B2BApplication = {
   id:number; username:string; email?:string|null; phone?:string|null; companyName?:string|null;
@@ -33,11 +33,12 @@ export type ActivityRecord = {
   status?:string|null;happened_at?:string|null;
 };
 export type ActivityPage = {rows:ActivityRecord[];page:number;total:number;hasMore:boolean;};
-export const getApplications = () => apiFetch<B2BApplication[]>("/api/admin/b2b-applications");
+export const peekApplications = () => peekBusinessRead<B2BApplication[]>("/api/admin/b2b-applications");
+export const getApplications = (force = false) => apiRead<B2BApplication[]>("/api/admin/b2b-applications", force);
 export const getCustomers = () => apiFetch<B2BApplication[]>("/api/admin/b2b-customers");
 // Applications remain the canonical source where both old and newly approved
 // accounts have the same field shape. No guessing profile fields from emails.
-export const getApprovedApplications=async()=> (await getApplications()).filter(
+export const getApprovedApplications=async(force = false)=> (await getApplications(force)).filter(
   item=>item.applicationStatus==="approved"&&item.isActive===true);
 export const getCenter = (id:string) =>
   apiFetch<CenterDetail>("/api/admin/b2b-customer-center/"+encodeURIComponent(id));

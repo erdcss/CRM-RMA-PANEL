@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import {
   ActivityIndicator,
+  AppState,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { BusinessAuthUser } from "../lib/auth";
-import { apiFetch } from "../lib/api";
+import { apiRead, peekBusinessRead, BUSINESS_PRODUCTS_PATH } from "../lib/api";
 import type { DashboardOverview } from "../types";
 import { C, money, statusMeta, isApprovedBusinessOrder } from "../ui/theme";
 import { Badge, EmptyState, SectionTitle } from "./common";
@@ -37,15 +38,15 @@ export function DashboardScreen({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const compact = windowWidth < 375;
-  const [data, setData] = useState<DashboardOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DashboardOverview | null>(() => peekBusinessRead<DashboardOverview>("/api/admin/dashboard-overview") ?? null);
+  const [loading, setLoading] = useState(() => peekBusinessRead<DashboardOverview>("/api/admin/dashboard-overview") === undefined);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setError("");
     try {
-      setData(await apiFetch<DashboardOverview>("/api/admin/dashboard-overview"));
+      setData(await apiRead<DashboardOverview>("/api/admin/dashboard-overview", force));
     } catch (error) {
       setError(error instanceof Error ? error.message : "Dashboard verileri alınamadı");
     } finally {
@@ -56,9 +57,19 @@ export function DashboardScreen({
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 15000);
+    const timer = setInterval(() => { if (AppState.currentState === "active") void load(true); }, 15000);
     return () => clearInterval(timer);
   }, [load]);
+
+  const prefetched = useRef(false);
+  useEffect(() => {
+    if (!data || prefetched.current || !["admin","super_admin"].includes(user?.role || "")) return;
+    const timer = setTimeout(() => {
+      prefetched.current = true;
+      void apiRead(BUSINESS_PRODUCTS_PATH).catch(() => undefined);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [data, user?.role]);
 
   const approvedOrders = (data?.recentApprovedOrders ?? data?.recentOrders ?? [])
     .filter((order) => isApprovedBusinessOrder(order.status))
@@ -79,7 +90,7 @@ export function DashboardScreen({
           refreshing={refreshing}
           onRefresh={() => {
             setRefreshing(true);
-            void load();
+            void load(true);
           }}
         />
       }

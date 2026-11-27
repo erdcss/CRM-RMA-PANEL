@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { businessReadCache } from "./read-cache";
 
 const API = (process.env.EXPO_PUBLIC_API_URL || "https://admin.ecalisgan.com").replace(/\/$/, "");
 
@@ -185,6 +186,7 @@ export async function signIn(email: string, password: string): Promise<BusinessS
     throw new Error("Bu hesabın Çalışkan Business erişimi yok");
   }
 
+  businessReadCache.clear();
   currentSession = { user, token };
   if (Platform.OS !== "web") {
     try {
@@ -207,6 +209,7 @@ export function getBusinessToken() {
 export async function signOut() {
   const token = currentSession?.token;
   currentSession = null;
+  businessReadCache.clear();
   await forgetStoredSession();
 
   if (token) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { B2BProduct } from "../types";
@@ -26,7 +26,7 @@ export function productImage(product: B2BProduct): string | null {
   return /^(https?:\/\/|data:image\/)/i.test(url) ? url : null;
 }
 
-export function ProductCard({
+export const ProductCard = memo(function ProductCard({
   product,
   onPress,
 }: {
@@ -74,7 +74,7 @@ export function ProductCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
 
 const s = StyleSheet.create({
   card: {

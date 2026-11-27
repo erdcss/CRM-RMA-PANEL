@@ -1636,7 +1636,7 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
   });
 
-  app.get("/api/admin/b2b-products", requireAdmin, async (_req, res) => {
+  app.get("/api/admin/b2b-products", requireAdmin, async (req, res) => {
     if (!pool) return res.json([]);
     try { await ensureB2BProductSchema(); } catch (error) {
       console.error("B2B product schema repair failed:", error);
@@ -1644,6 +1644,28 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
     }
 
     try {
+      if (req.query.view === "business-list") {
+        // Mobile cards only need the searchable identity, price/stock and one
+        // image. Keep the original full response for web/legacy consumers.
+        res.setHeader("Cache-Control", "private, no-store");
+        const result = await pool.query(`
+          SELECT p.id::text AS id, p.sku, p.name, p.brand, p.price,
+                 p.stock, p.units_per_box, p.barcode, p.is_active,
+                 COALESCE(first_image.url, p.image_data) AS image_data
+          FROM b2b_products p
+          LEFT JOIN LATERAL (
+            SELECT entry.value AS url
+            FROM jsonb_array_elements_text(
+              CASE WHEN jsonb_typeof(p.images) = 'array' THEN p.images ELSE '[]'::jsonb END
+            ) WITH ORDINALITY AS entry(value, position)
+            WHERE btrim(entry.value) <> ''
+            ORDER BY entry.position
+            LIMIT 1
+          ) first_image ON true
+          ORDER BY p.created_at DESC
+        `);
+        return res.json(result.rows);
+      }
       const result = await pool.query(`
         SELECT
           id::text AS id,

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
@@ -10,24 +10,24 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiFetch } from "../lib/api";
+import { apiRead, peekBusinessRead, BUSINESS_PRODUCTS_PATH } from "../lib/api";
 import type { B2BProduct } from "../types";
 import { C } from "../ui/theme";
 import { isLowStock, ProductCard } from "./ProductCard";
 import { EmptyState, MiniStat, PageHeader } from "./common";
 
 export function ProductsScreen({ onAdd, onAiAdd, onEdit }: { onAdd: () => void; onAiAdd?: () => void; onEdit: (id: string) => void }) {
-  const [products, setProducts] = useState<B2BProduct[]>([]);
+  const [products, setProducts] = useState<B2BProduct[]>(() => peekBusinessRead<B2BProduct[]>(BUSINESS_PRODUCTS_PATH) ?? []);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "low">("all");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => peekBusinessRead<B2BProduct[]>(BUSINESS_PRODUCTS_PATH) === undefined);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setError("");
     try {
-      const result = await apiFetch<B2BProduct[]>("/api/admin/b2b-products");
+      const result = await apiRead<B2BProduct[]>(BUSINESS_PRODUCTS_PATH, force);
       setProducts(Array.isArray(result) ? result : []);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Ürünler alınamadı");
@@ -41,8 +41,9 @@ export function ProductsScreen({ onAdd, onAiAdd, onEdit }: { onAdd: () => void; 
     void load();
   }, [load]);
 
+  const deferredQuery = useDeferredValue(query);
   const filtered = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("tr-TR");
+    const needle = deferredQuery.trim().toLocaleLowerCase("tr-TR");
     return products.filter((product) => {
       if (filter === "low" && (product.is_active === false || !isLowStock(product))) return false;
       return !needle || [product.name, product.brand, product.sku, product.barcode]
@@ -51,13 +52,28 @@ export function ProductsScreen({ onAdd, onAiAdd, onEdit }: { onAdd: () => void; 
         .toLocaleLowerCase("tr-TR")
         .includes(needle);
     });
-  }, [products, query, filter]);
+  }, [products, deferredQuery, filter]);
 
-  const low = products.filter((product) => product.is_active !== false && isLowStock(product)).length;
-  const active = products.filter((product) => product.is_active !== false).length;
+  const {low, active} = useMemo(() => {
+    let low = 0, active = 0;
+    for (const product of products) {
+      if (product.is_active === false) continue;
+      active++;
+      if (isLowStock(product)) low++;
+    }
+    return {low, active};
+  }, [products]);
 
   return (
-    <ScrollView
+    <FlatList
+      data={loading ? [] : filtered}
+      keyExtractor={(product) => String(product.id)}
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={7}
+      keyboardShouldPersistTaps="handled"
+      ItemSeparatorComponent={() => <View style={{height: 10}} />}
+      renderItem={({item}) => <ProductCard product={item} onPress={() => onEdit(String(item.id))} />}
       style={s.page}
       contentContainerStyle={s.content}
       refreshControl={
@@ -66,11 +82,11 @@ export function ProductsScreen({ onAdd, onAiAdd, onEdit }: { onAdd: () => void; 
           refreshing={refreshing}
           onRefresh={() => {
             setRefreshing(true);
-            void load();
+            void load(true);
           }}
         />
       }
-    >
+      ListHeaderComponent={<>
       <PageHeader
         title="Ürünler"
         subtitle="Ürünleri, fiyatları ve stok durumunu yönetin."
@@ -138,18 +154,13 @@ export function ProductsScreen({ onAdd, onAiAdd, onEdit }: { onAdd: () => void; 
 
       {error ? <Text style={s.error}>{error}</Text> : null}
 
-      {loading ? (
+      </>}
+      ListEmptyComponent={loading ? (
         <ActivityIndicator color={C.blue} size="large" style={s.loader} />
-      ) : filtered.length === 0 ? (
+      ) : !error ? (
         <EmptyState title="Ürün bulunamadı" text="Aramaya uygun ürün bulunmuyor." />
-      ) : (
-        <View style={s.list}>
-          {filtered.map((product) => (
-            <ProductCard key={String(product.id)} product={product} onPress={() => onEdit(String(product.id))} />
-          ))}
-        </View>
-      )}
-    </ScrollView>
+      ) : null}
+    />
   );
 }
 

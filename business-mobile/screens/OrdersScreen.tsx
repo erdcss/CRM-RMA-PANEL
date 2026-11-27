@@ -3,14 +3,14 @@ import {
   ActivityIndicator,
   Image,
   RefreshControl,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import { apiFetch } from "../lib/api";
+import { apiRead, peekBusinessRead } from "../lib/api";
 import type { AdminOrder } from "../types";
 import { C, money, shortDate, statusMeta, isApprovedBusinessOrder } from "../ui/theme";
 import { Badge, EmptyState, MiniStat, PageHeader } from "./common";
@@ -20,16 +20,16 @@ export function OrdersScreen({
 }: {
   onOpenOrder: (id: string) => void;
 }) {
-  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>(() => (peekBusinessRead<AdminOrder[]>("/api/admin/orders") ?? []).filter(item => isApprovedBusinessOrder(item.status)));
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => peekBusinessRead<AdminOrder[]>("/api/admin/orders") === undefined);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     setError("");
     try {
-      const result = await apiFetch<AdminOrder[]>("/api/admin/orders");
+      const result = await apiRead<AdminOrder[]>("/api/admin/orders", force);
       // Only confirmed/approved orders belong on this screen. Never display
       // pending EFT, unpaid, cancelled or stock-review orders as approved.
       setOrders(Array.isArray(result) ? result.filter((item) => isApprovedBusinessOrder(item.status)) : []);
@@ -66,7 +66,14 @@ export function OrdersScreen({
   }, [orders, query]);
 
   return (
-    <ScrollView
+    <FlatList
+      data={loading ? [] : filtered}
+      keyExtractor={(order) => String(order.id)}
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={7}
+      keyboardShouldPersistTaps="handled"
+      ItemSeparatorComponent={() => <View style={{height: 10}} />}
       style={s.page}
       contentContainerStyle={s.content}
       refreshControl={
@@ -75,11 +82,11 @@ export function OrdersScreen({
           refreshing={refreshing}
           onRefresh={() => {
             setRefreshing(true);
-            void load();
+            void load(true);
           }}
         />
       }
-    >
+      ListHeaderComponent={<>
       <PageHeader
         title="Siparişler"
         subtitle="Yalnızca onaylanan siparişler listelenir."
@@ -104,13 +111,13 @@ export function OrdersScreen({
 
       {error ? <Text style={s.error}>{error}</Text> : null}
 
-      {loading ? (
+      </>}
+      ListEmptyComponent={loading ? (
         <ActivityIndicator color={C.blue} size="large" style={s.loader} />
-      ) : filtered.length === 0 ? (
+      ) : !error ? (
         <EmptyState title="Onaylanan sipariş bulunamadı" text={query.trim() ? "Aramanıza uygun onaylanan sipariş yok." : "Henüz onaylanmış bir sipariş bulunmuyor."} />
-      ) : (
-        <View style={s.list}>
-          {filtered.map((order) => {
+      ) : null}
+      renderItem={({item: order}) => {
             const meta = statusMeta(order.status);
             const billing = order.billing_details || {};
             const shipping = order.shipping_address || {};
@@ -166,10 +173,8 @@ export function OrdersScreen({
                 </View>
               </TouchableOpacity>
             );
-          })}
-        </View>
-      )}
-    </ScrollView>
+      }}
+    />
   );
 }
 
