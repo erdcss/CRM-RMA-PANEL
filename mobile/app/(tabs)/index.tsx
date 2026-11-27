@@ -106,6 +106,7 @@ export default function HomeScreen() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
   const homeScrollRef = useRef<ScrollView>(null);
+  const newArrivalsOffset = useRef(0);
   const bannerIndexRef = useRef(0);
   const bannerHeight=bannerDisplayHeight(bannerWidth);
   const onBannerPress=useCallback((banner:HomeBanner)=>{
@@ -644,6 +645,8 @@ export default function HomeScreen() {
         ) : null}
 
         <ManagedHomeSections
+          hasNewArrivals={newArrivals.length > 0}
+          onOpenNewArrivals={()=>homeScrollRef.current?.scrollTo({y:newArrivalsOffset.current,animated:true})}
           sections={homeSections}
           products={products}
           bestSellerProductIds={bestSellerProductIds}
@@ -662,7 +665,7 @@ export default function HomeScreen() {
         />
 
         {newArrivals.length > 0 && <>
-        <View style={styles.sectionHeader}>
+        <View style={styles.sectionHeader} onLayout={event=>{newArrivalsOffset.current=event.nativeEvent.layout.y;}}>
           <View style={{ flex: 1 }}>
             <View style={styles.newArrivalLabelRow}>
               <View style={styles.newArrivalDot} />
