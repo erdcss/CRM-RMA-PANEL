@@ -1651,14 +1651,15 @@ export async function registerAdminPlatformRoutes(app: Express, requireAdmin: Re
         const result = await pool.query(`
           SELECT p.id::text AS id, p.sku, p.name, p.brand, p.price,
                  p.stock, p.units_per_box, p.barcode, p.is_active,
-                 COALESCE(first_image.url, p.image_data) AS image_data
+                 COALESCE(first_image.url, p.image_data) AS image_data,
+                 CASE WHEN jsonb_typeof(p.images) = 'string' THEN p.images ELSE '[]'::jsonb END AS images
           FROM b2b_products p
           LEFT JOIN LATERAL (
-            SELECT entry.value AS url
-            FROM jsonb_array_elements_text(
+            SELECT entry.value #>> '{}' AS url
+            FROM jsonb_array_elements(
               CASE WHEN jsonb_typeof(p.images) = 'array' THEN p.images ELSE '[]'::jsonb END
             ) WITH ORDINALITY AS entry(value, position)
-            WHERE btrim(entry.value) <> ''
+            WHERE jsonb_typeof(entry.value) = 'string' AND btrim(entry.value #>> '{}') <> ''
             ORDER BY entry.position
             LIMIT 1
           ) first_image ON true

@@ -5,7 +5,14 @@ export class BusinessReadCache {
   private epoch = 0;
   private entries = new Map<string, Entry>();
   private pending = new Map<string, Promise<unknown>>();
-  constructor(private readonly freshMs = 10000, private readonly visibleMs = 30000, private readonly now = Date.now) {}
+  private readonly freshMs: number;
+  private readonly visibleMs: number;
+  private readonly now: () => number;
+  constructor(freshMs = 10000, visibleMs = 30000, now: () => number = Date.now) {
+    this.freshMs = freshMs;
+    this.visibleMs = visibleMs;
+    this.now = now;
+  }
   clear() {
     this.epoch++;
     this.entries.clear();

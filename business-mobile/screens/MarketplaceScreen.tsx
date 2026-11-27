@@ -68,28 +68,36 @@ export function MarketplaceScreen({isSuper,onBack,onLogout,onOpenOrder,onOpenSup
  const [reelDraftTitle,setReelDraftTitle]=useState(""),[reelDraftVideo,setReelDraftVideo]=useState<string|null>(null),[reelDraftCover,setReelDraftCover]=useState<string|null>(null);
  const load=useCallback(async()=>{
   setError("");
+  // Each independent response updates its own panel as soon as it arrives.
+  // A slow store, chat or product response cannot block the overview or orders.
+  const failures:string[]=[];
+  const settle=async<T,>(request:Promise<T>,apply:(value:T)=>void,label:string)=>{
+    try{apply(await request);}
+    catch(e){failures.push(label+": "+(e instanceof Error?e.message:"Veri alınamadı"));}
+  };
   try{
    if(isSuper){
-    const [a,q,orders]=await Promise.all([
-      apiFetch<AdminStats>("/api/admin/marketplace/overview"),
-      apiFetch<Queue>("/api/admin/marketplace/review-queue"),
-      apiFetch<AdminOrder[]>("/api/admin/orders")]);
-    setOverview(a);setQueue(q);setAdminOrders(orders);
+    await Promise.all([
+      settle(apiFetch<AdminStats>("/api/admin/marketplace/overview"),setOverview,"Özet").finally(()=>setLoading(false)),
+      settle(apiFetch<Queue>("/api/admin/marketplace/review-queue"),setQueue,"Onaylar"),
+      settle(apiFetch<AdminOrder[]>("/api/admin/orders"),setAdminOrders,"Siparişler")]);
    }else{
-    const [a,p,c,orders,account,store]=await Promise.all([
-      apiFetch<SupplierStats>("/api/marketplace/seller/dashboard"),
-      apiFetch<any[]>("/api/marketplace/seller/products"),
-      apiFetch<Chat[]>("/api/marketplace/conversations"),
-      apiFetch<SellerOrder[]>("/api/marketplace/seller/orders"),
-      apiFetch<SupplierProfile>("/api/marketplace/me"),
-      apiFetch<{content:{title:string;tagline:string;accent:string;logoUrl?:string|null;bannerUrl?:string|null}}|null>("/api/marketplace/seller/store")]);
-    setOverview(a);setProducts(p);setChats(c);setSupplierOrders(orders);setProfile(account);
-    if(store?.content){setStoreTitle(store.content.title||"");setStoreTagline(store.content.tagline||"");
-      setStoreAccent(store.content.accent||"#FACC15");
-      setStoreLogo(store.content.logoUrl||null);setStoreBanner(store.content.bannerUrl||null);}
+    await Promise.all([
+      settle(apiFetch<SupplierStats>("/api/marketplace/seller/dashboard"),setOverview,"Özet").finally(()=>setLoading(false)),
+      settle(apiFetch<any[]>("/api/marketplace/seller/products"),setProducts,"Ürünler"),
+      settle(apiFetch<Chat[]>("/api/marketplace/conversations"),setChats,"Mesajlar"),
+      settle(apiFetch<SellerOrder[]>("/api/marketplace/seller/orders"),setSupplierOrders,"Siparişler"),
+      settle(apiFetch<SupplierProfile>("/api/marketplace/me"),setProfile,"Hesap"),
+      settle(apiFetch<{content:{title:string;tagline:string;accent:string;logoUrl?:string|null;bannerUrl?:string|null}}|null>("/api/marketplace/seller/store"),store=>{
+        if(store?.content){setStoreTitle(store.content.title||"");setStoreTagline(store.content.tagline||"");
+          setStoreAccent(store.content.accent||"#FACC15");
+          setStoreLogo(store.content.logoUrl||null);setStoreBanner(store.content.bannerUrl||null);}
+      },"Mağaza")]);
    }
-  }catch(e){setError(e instanceof Error?e.message:"Veriler alınamadı");}
-  finally{setLoading(false);setRefreshing(false);}
+  }finally{
+    if(failures.length)setError(failures.join(" · "));
+    setLoading(false);setRefreshing(false);
+  }
  },[isSuper]);
  useEffect(()=>{void load();},[load]);
  useEffect(()=>{if(!selectedChat||isSuper)return;
