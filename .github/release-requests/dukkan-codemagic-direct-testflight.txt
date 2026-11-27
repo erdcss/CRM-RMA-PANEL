@@ -1,4 +1,4 @@
-request=dukkan-testflight-20261127-01
-source=chatgpt-explicit-user-request
+request=dukkan-testflight-20261127-02
+source=chatgpt-user-approved-profile-retry
 workflow=caliskan-dukkan-ios-testflight
-requestedSource=c5f9e1a119b92faf1b489756b4d4ab93b9510f69
+requestedSource=9ef29f6b8f70eaa28d8ad0cf2247049616a9f39b
