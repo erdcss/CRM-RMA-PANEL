@@ -4,7 +4,7 @@ import { Link, useLocation } from "wouter";
 import { LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { b2bBottomActiveTab } from "@/lib/b2b-bottom-nav-routes";
 import { initialB2BBottomNavScroll, updateB2BBottomNavScroll } from "@/lib/b2b-bottom-nav-scroll";
-import { Grid2X2, House, ShoppingCart, UserRound } from "lucide-react";
+import { Grid2X2, House, ShoppingCart, UserRound, ClipboardList } from "lucide-react";
 import { useB2BCart } from "@/lib/b2b-cart";
 
 type SessionUser = { role?: string; isActive?: boolean } | null;
@@ -18,7 +18,8 @@ async function loadSession(): Promise<SessionUser> {
 const tabs = [
   { key: "home" as const, label: "Ana Sayfa", href: "/", icon: House },
   { key: "categories" as const, label: "Kategoriler", href: "/kategoriler", icon: Grid2X2 },
-  { key: "orders" as const, label: "Siparişlerim", href: "/siparislerim", icon: ShoppingCart },
+  { key: "cart" as const, label: "Sepet", href: "/siparislerim", icon: ShoppingCart },
+  { key: "orders" as const, label: "Siparişlerim", href: "/siparis-gecmisi", icon: ClipboardList },
   { key: "account" as const, label: "Hesabım", href: "/hesabim", icon: UserRound },
 ];
 
@@ -78,7 +79,7 @@ export function B2BBottomNav() {
 
   return (
     <nav aria-label="Çalışkan B2B alt navigasyon"
-      className="pointer-events-none fixed inset-x-0 z-[65] flex justify-center px-3 md:px-6"
+      className="pointer-events-none fixed inset-x-0 z-[65] flex justify-center px-3 md:hidden"
       style={{ bottom: "max(10px, env(safe-area-inset-bottom, 0px))" }}>
       <LayoutGroup id="caliskan-b2b-nav">
       <motion.div
@@ -90,7 +91,7 @@ export function B2BBottomNav() {
         animate={{scale:compact?0.84:1,opacity:compact?0.46:1}}
         transition={reduceMotion?{duration:0}:{duration:0.24,ease:[0.22,1,0.36,1]}}
         style={{transformOrigin:"center bottom"}}
-        className="pointer-events-auto grid min-h-[70px] w-full max-w-[660px] grid-cols-4 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/95 md:min-h-[78px] md:p-2">
+        className="pointer-events-auto grid min-h-[70px] w-full max-w-[560px] grid-cols-5 items-stretch rounded-[24px] border border-slate-200/90 bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(15,23,42,0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-white/95 md:min-h-[78px] md:p-2">
         {tabs.map(({ key, label, href, icon: Icon }) => {
           const selected = current === key;
           // Orders are also a guest cart; account asks for login without losing the
@@ -101,7 +102,7 @@ export function B2BBottomNav() {
           return (
             <Link key={key} href={destination}
               aria-current={selected ? "page" : undefined}
-              aria-label={label + (key === "orders" && itemCount > 0 ? `, ${itemCount} ürün` : "")}
+              aria-label={label + (key === "cart" && itemCount > 0 ? `, ${itemCount} ürün` : "")}
               onClick={() => {
                 const scroller = document.querySelector<HTMLElement>(".b2b-site");
                 if (scroller) scroller.scrollTo({ top: 0, behavior: "auto" });
@@ -122,14 +123,14 @@ export function B2BBottomNav() {
                   />
                 ) : null}
                 <Icon className="relative z-[1]" aria-hidden="true" size={21} strokeWidth={selected ? 2.5 : 1.8} />
-                {key === "orders" && itemCount > 0 ? (
+                {key === "cart" && itemCount > 0 ? (
                   <motion.span
                     key={itemCount}
                     initial={reduceMotion ? false : { scale: 0.7 }}
                     animate={{ scale: 1 }}
                     transition={{ type: "spring", stiffness: 450, damping: 24 }}
                     aria-hidden="true"
-                    className="absolute -right-3 -top-2 z-[2] flex h-[24px] min-w-[24px] items-center justify-center rounded-full border-2 border-white bg-[#E11D48] px-1.5 text-[12px] font-black leading-none text-white shadow-[0_2px_5px_rgba(225,29,72,0.2)]">
+                    className="absolute -right-2 -top-2 z-[2] flex h-[24px] min-w-[24px] items-center justify-center rounded-full border-2 border-white bg-[#E11D48] px-1.5 text-[12px] font-black leading-none text-white shadow-[0_2px_5px_rgba(225,29,72,0.2)]">
                     {itemCount > 99 ? "99+" : itemCount}
                   </motion.span>
                 ) : null}
