@@ -26,11 +26,12 @@ async function loadOrders(): Promise<OrderSummary[]> {
   return Array.isArray(payload) ? payload as OrderSummary[] : [];
 }
 const money = (value: unknown) => Number(value || 0).toLocaleString("tr-TR", {style:"currency",currency:"TRY"});
-const statusLabel = (value: string | null | undefined) => ({
+const orderStatusLabels: Record<string,string> = {
   pending: "Beklemede", paid: "Ödendi", completed: "Tamamlandı",
   cancelled: "İptal", shipped: "Kargoda", delivered: "Teslim Edildi",
   processing: "Hazırlanıyor", paid_stock_review: "Stok kontrolünde"
-}[String(value || "").toLowerCase()] || value || "Durum bekleniyor");
+};
+const statusLabel = (value: string | null | undefined) => orderStatusLabels[String(value || "").toLowerCase()] || value || "Durum bekleniyor";
 
 export default function B2BOrderHistory() {
   const {data:session,isLoading:sessionLoading} = useQuery({
