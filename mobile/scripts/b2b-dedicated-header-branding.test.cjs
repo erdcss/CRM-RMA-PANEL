@@ -172,7 +172,7 @@ test('single native header backdrop covers the sticky parent, including search a
   const artwork=home.indexOf('source={{uri:branding.b2b_mobile_header_background}}');
   const brand=home.indexOf('<View style={styles.homeBrandHeader}>');
   const search=home.indexOf('style={styles.headerRow}');
-  const categories=home.indexOf('style={styles.categoryQuickRow}');
+  const categories=home.indexOf('contentContainerStyle={styles.categoryQuickRow}');
   const scroll=home.indexOf('style={styles.scrollableHomeContent}');
   assert.ok(top<artwork && artwork<brand && brand<search && search<categories && categories<scroll);
   assert.equal(home.split('source={{uri:branding.b2b_mobile_header_background}}').length-1,1);
