@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const home = fs.readFileSync(path.resolve(__dirname,'../app/(tabs)/index.tsx'),'utf8');
-const beginCategory = home.indexOf('style={styles.categoryQuickRow}');
+const beginCategory = home.indexOf('contentContainerStyle={styles.categoryQuickRow}');
 const beginAllCategories = home.indexOf('accessibilityLabel="Tüm kategoriler"');
 const beginSearchResults = home.indexOf('{query.trim() ? (');
 const beginBanner = home.indexOf('{banners.length > 0 ? (');
@@ -57,7 +57,7 @@ test('banner and quick-action spacing matches compact mobile reference',()=>{
 test('fixed header and category tiles stay outside the pull-refresh scroll area',()=>{
   const sticky=home.indexOf('style={styles.stickyHomeTop}');
   const search=home.indexOf('styles.headerSearchBox');
-  const category=home.indexOf('style={styles.categoryQuickRow}');
+  const category=home.indexOf('contentContainerStyle={styles.categoryQuickRow}');
   const content=home.indexOf('style={styles.scrollableHomeContent}');
   const scroll=home.indexOf('ref={homeScrollRef}');
   assert.ok(sticky>0 && sticky<category && category<content && content<scroll,
