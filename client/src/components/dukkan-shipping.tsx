@@ -33,8 +33,8 @@ export function shippingBarcode(value:string){
   for(const ch of "*"+value+"*"){patterns[ch].split("").forEach((width,i)=>{const w=width==="w"?3:1;if(i%2===0)bars.push({x,w});x+=w;});x++;}
   return {width:x+10,bars};
 }
-type PaperDirection="roll"|"landscape";
-function labelCanvas(label:Label,direction:PaperDirection){
+const PAPER_WIDTH=100, PAPER_HEIGHT=150;
+function labelCanvas(label:Label){
   // 150 x 100 mm artwork at about 305 dpi. A single flattened page
   // prevents Chromium from fragmenting a grid across roll labels.
   const canvas=document.createElement("canvas");canvas.width=1800;canvas.height=1200;
@@ -82,7 +82,6 @@ function labelCanvas(label:Label,direction:PaperDirection){
   if(module<3)throw Error("Barkod etikete sığmıyor.");
   for(const bar of barcode.bars)ctx.fillRect(left+bar.x*module,846,bar.w*module,210);
   ctx.textAlign="center";text(label.invoiceNo,900,1100,39,true);text("Çalışkan Dükkan · Dahili fatura barkodu",900,1155,25);
-  if(direction==="landscape")return canvas;
   // Most thermal rolls are 100 mm across and advance 150 mm per label.
   // Rotate the complete artwork, not the browser's page layout.
   const rotated=document.createElement("canvas");rotated.width=1200;rotated.height=1800;
@@ -90,28 +89,42 @@ function labelCanvas(label:Label,direction:PaperDirection){
   out.translate(1200,0);out.rotate(Math.PI/2);out.drawImage(canvas,0,0);
   return rotated;
 }
-const paperSize=(direction:PaperDirection)=>direction==="roll"?[100,150] as const:[150,100] as const;
-async function downloadLabel(label:Label,direction:PaperDirection){
-  const canvas=labelCanvas(label,direction),[width,height]=paperSize(direction);
+async function downloadLabel(label:Label){
+  const canvas=labelCanvas(label),width=PAPER_WIDTH,height=PAPER_HEIGHT;
   const {jsPDF}=await import("jspdf");
-  const pdf=new jsPDF({orientation:direction==="roll"?"portrait":"landscape",unit:"mm",format:[width,height],compress:true});
-  pdf.addImage(canvas.toDataURL("image/png"),"PNG",0,0,width,height);
+  const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:[width,height],compress:true});
+  pdf.addImage(canvas.toDataURL("image/png"),"PNG",3,4.5,94,141);
   if(pdf.getNumberOfPages()!==1)throw Error("Etiket tek sayfa oluşturulamadı.");
   pdf.save("Sevkiyat-"+label.invoiceNo+"-150x100.pdf");
 }
-function printLabel(label:Label,direction:PaperDirection){
-  const canvas=labelCanvas(label,direction),[width,height]=paperSize(direction);
-  // Slightly inset the one unbreakable image to avoid fractional-pixel
-  // overflow in Chromium and keep the entire print on one physical label.
+type DesktopLabelBridge={printShippingLabel:(png:string)=>Promise<{ok:boolean;error?:string}>};
+async function printLabel(label:Label){
+  const canvas=labelCanvas(label),png=canvas.toDataURL("image/png");
+  const desktop=(window as Window&{caliskanDukkan?:DesktopLabelBridge}).caliskanDukkan;
+  if(desktop?.printShippingLabel){
+    const result=await desktop.printShippingLabel(png);
+    if(!result.ok&&result.error!=="cancelled")throw Error(result.error||"Yazdırma tamamlanamadı.");
+    return;
+  }
+  // Browser fallback: a single fixed-position image, no in-flow content
+  // that can create a second page. Leave a 3 mm / 4.5 mm safety inset.
   const frame=document.createElement("iframe");
-  frame.style.cssText="position:fixed;left:-10000px;top:0;width:"+width+"mm;height:"+height+"mm;border:0";
-  const html='<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Sevkiyat etiketi</title><style>@page{size:'+width+'mm '+height+'mm;margin:0}html,body{margin:0;padding:0;background:#fff}body{width:'+(width-2)+'mm;height:'+(height-2)+'mm;overflow:hidden}img{display:block;width:'+(width-2)+'mm;height:'+(height-2)+'mm;object-fit:contain;break-inside:avoid;page-break-inside:avoid;max-width:100%;max-height:100%}</style></head><body><img alt="Sevkiyat etiketi" src="'+canvas.toDataURL("image/png")+'"></body></html>';
-  frame.onload=async()=>{try{const w=frame.contentWindow;if(!w)throw Error("Yazdırma açılamadı");const img=frame.contentDocument?.querySelector("img");if(img)await img.decode();w.addEventListener("afterprint",()=>frame.remove(),{once:true});w.focus();w.print();}catch(e){frame.remove();window.alert((e as Error).message);}};
-  frame.srcdoc=html;document.body.appendChild(frame);
+  frame.style.cssText="position:fixed;left:-10000px;top:0;width:100mm;height:150mm;border:0";
+  frame.setAttribute("title","Sevkiyat etiketi");
+  const html='<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Sevkiyat etiketi</title><style>@page{size:100mm 150mm;margin:0}html,body{margin:0!important;padding:0!important;width:100%;height:100%;overflow:hidden!important;background:#fff}img{display:block;position:fixed;left:3mm;top:4.5mm;width:94mm;height:141mm;object-fit:contain;break-inside:avoid;page-break-inside:avoid}</style></head><body><img alt="Sevkiyat etiketi" src="'+png+'"></body></html>';
+  await new Promise<void>((resolve,reject)=>{
+    frame.onload=async()=>{try{
+      const w=frame.contentWindow;if(!w)throw Error("Yazdırma açılamadı");
+      const img=frame.contentDocument?.querySelector("img");if(!img)throw Error("Etiket görseli yüklenemedi");await img.decode();
+      w.addEventListener("afterprint",()=>frame.remove(),{once:true});
+      w.focus();w.print();resolve();
+    }catch(e){frame.remove();reject(e);}};
+    frame.srcdoc=html;document.body.appendChild(frame);
+  });
 }
 export function DukkanShippingLabelDialog({base,invoiceId,onClose}:{base:string;invoiceId:string;onClose:()=>void}){
   const [label,setLabel]=useState<Label|null>(null),[error,setError]=useState("");
-  const [direction,setDirection]=useState<PaperDirection>("roll"),[printError,setPrintError]=useState(""),[pdfBusy,setPdfBusy]=useState(false);
+  const [printError,setPrintError]=useState(""),[pdfBusy,setPdfBusy]=useState(false),[printBusy,setPrintBusy]=useState(false);
   useEffect(()=>{let active=true;setLabel(null);setError("");fetch(base+"/invoices/"+encodeURIComponent(invoiceId)+"/shipping-label",{credentials:"include",cache:"no-store"}).then(async r=>{const data=await r.json();if(!r.ok)throw Error(data.error||"Etiket yüklenemedi.");if(active)setLabel(data);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[base,invoiceId]);
   const barcode=useMemo(()=>{try{return label?shippingBarcode(label.invoiceNo):null;}catch{return null;}},[label?.invoiceNo]);
   const update=(side:"sender"|"receiver",key:keyof Contact,value:string)=>setLabel(old=>old?{...old,[side]:{...old[side],[key]:value}}:old);
@@ -121,15 +134,14 @@ export function DukkanShippingLabelDialog({base,invoiceId,onClose}:{base:string;
       <div className="flex items-center justify-between gap-2 bg-[#122a51] p-4 text-white"><div><Dialog.Title className="flex items-center gap-2 text-lg font-black"><Barcode size={22}/> Barkod Etiketi</Dialog.Title><Dialog.Description className="text-xs text-slate-200">150 × 100 mm · Yatay gönderim etiketi</Dialog.Description></div><Dialog.Close asChild><button type="button" aria-label="Kapat"><X size={22}/></button></Dialog.Close></div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">{error?<p role="alert" className="text-red-700">{error}</p>:!label?<p>Etiket hazırlanıyor...</p>:<>
         <p className="mb-3 text-sm font-bold">{label.shippingType} · Fatura {label.invoiceNo}</p>
-        <label className="mb-3 block text-xs font-semibold">Yazıcı kağıt yönü<select className={field} value={direction} onChange={e=>{setDirection(e.target.value as PaperDirection);setPrintError("");}}><option value="roll">100 mm genişlik × 150 mm ilerleme (rulo, önerilen)</option><option value="landscape">150 mm genişlik × 100 mm ilerleme</option></select></label>
-        <p className="mb-3 text-xs text-slate-600">Yazıcıda seçilen kağıt ölçüsü ile aynı yönü kullanın. Tek etiket, %100 / gerçek boyut, kenar boşluğu yok, üst ve alt bilgiler kapalı.</p>
+        <p className="mb-3 text-xs text-slate-600">150 × 100 mm etiket · Tek sayfa · Rulo yönü otomatik</p>
         <div className="grid gap-3 sm:grid-cols-2">{(["sender","receiver"] as const).map(side=><section key={side} className="space-y-2 rounded-xl border p-3"><h3 className="font-bold">{side==="sender"?"Gönderen firma":"Alıcı firma"}</h3>{(["name","contact","address","phone"] as const).map(key=><label key={key} className="block text-xs font-semibold">{{name:"Firma adı",contact:"Yetkili kişi",address:"Adres",phone:"Telefon"}[key]}{key==="address"?<textarea className={field} rows={3} maxLength={250} value={label[side][key]||""} onChange={e=>update(side,key,e.target.value)}/>:<input className={field} maxLength={key==="name"?140:key==="phone"?45:80} value={label[side][key]||""} onChange={e=>update(side,key,e.target.value)}/>}</label>)}</section>)}</div>
         {barcode&&<div className="mt-4 rounded-xl border bg-white p-3 text-center"><svg viewBox={"0 0 "+barcode.width+" 70"} className="mx-auto h-20 w-full max-w-[350px]" preserveAspectRatio="none" aria-label="Fatura barkodu">{barcode.bars.map(b=><rect key={b.x} x={b.x} y={0} width={b.w} height={70} fill="#000"/>)}</svg><p className="font-mono text-sm">{label.invoiceNo}</p></div>}
         {(!label.sender.address||!label.receiver.address||!label.sender.phone||!label.receiver.phone)&&<p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">Eksik adres veya telefon bilgilerini yazdırmadan önce tamamlayın.</p>}
         {printError&&<p role="alert" className="mt-3 text-sm text-red-700">{printError}</p>}
         <p className="mt-3 text-xs text-slate-500">Bu ekrandaki düzeltmeler sadece etikete yansır. Barkod kargo firması takip numarası değildir.</p>
       </>}</div>
-      <div className="flex justify-end gap-2 border-t p-3"><Dialog.Close asChild><button type="button" className="rounded-xl border px-4 py-2 text-sm">Kapat</button></Dialog.Close><button type="button" disabled={!label||!barcode||!label.sender.name.trim()||!label.receiver.name.trim()} onClick={()=>{setPrintError("");try{if(label)printLabel(label,direction);}catch(e){setPrintError((e as Error).message);}}} className="flex items-center gap-2 rounded-xl bg-[#123d70] px-4 py-2 text-sm font-bold text-white disabled:opacity-40"><Printer size={17}/> Yazdır</button><button type="button" disabled={pdfBusy||!label||!barcode||!label.sender.name.trim()||!label.receiver.name.trim()} onClick={async()=>{if(!label)return;setPdfBusy(true);setPrintError("");try{await downloadLabel(label,direction);}catch(e){setPrintError((e as Error).message);}finally{setPdfBusy(false);}}} className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-40"><Download size={17}/>{pdfBusy?"Hazırlanıyor...":"Tek Sayfa PDF"}</button></div>
+      <div className="flex justify-end gap-2 border-t p-3"><Dialog.Close asChild><button type="button" className="rounded-xl border px-4 py-2 text-sm">Kapat</button></Dialog.Close><button type="button" disabled={printBusy||!label||!barcode||!label.sender.name.trim()||!label.receiver.name.trim()} onClick={async()=>{if(!label)return;setPrintBusy(true);setPrintError("");try{await printLabel(label);}catch(e){setPrintError((e as Error).message);}finally{setPrintBusy(false);}}} className="flex items-center gap-2 rounded-xl bg-[#123d70] px-4 py-2 text-sm font-bold text-white disabled:opacity-40"><Printer size={17}/>{printBusy?"Yazdırılıyor...":"Yazdır"}</button><button type="button" disabled={pdfBusy||!label||!barcode||!label.sender.name.trim()||!label.receiver.name.trim()} onClick={async()=>{if(!label)return;setPdfBusy(true);setPrintError("");try{await downloadLabel(label);}catch(e){setPrintError((e as Error).message);}finally{setPdfBusy(false);}}} className="flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-40"><Download size={17}/>{pdfBusy?"Hazırlanıyor...":"Tek Sayfa PDF"}</button></div>
     </Dialog.Content>
   </Dialog.Portal></Dialog.Root>;
 }
