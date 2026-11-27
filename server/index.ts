@@ -134,7 +134,7 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         const safeResponse =
           capturedJsonResponse && typeof capturedJsonResponse === "object"
-            ? { ...capturedJsonResponse, ...(capturedJsonResponse.token ? { token: "[redacted]" } : {}) }
+            ? { ...capturedJsonResponse, ...(capturedJsonResponse.token ? { token: "[redacted]" } : {}), ...(capturedJsonResponse.code ? {code:"[redacted]"} : {}) }
             : capturedJsonResponse;
         logLine += ` :: ${JSON.stringify(safeResponse)}`;
       }

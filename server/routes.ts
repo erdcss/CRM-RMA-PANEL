@@ -20,6 +20,7 @@ import {
 } from "./b2b-timed-campaigns";
 import {CALISKAN_META_PIXEL_ID} from "./b2b-meta-dataset";
 import { registerDukkanRoutes } from "./dukkan";
+import {isDukkanSetupCode,validDukkanSetupCode,registerDukkanStaffPasswordRoutes} from "./dukkan-staff-password";
 import {
   completeIyzico3DS,
   deleteIyzicoStoredCard,
@@ -3474,6 +3475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await registerB2BTimedCampaignRoutes(app, requireAdmin);
   // Only active users explicitly assigned to a Dükkan store can sign in here.
   // This does not grant access to the general Çalışkan Admin panel.
+  registerDukkanStaffPasswordRoutes(app,pool,sessionUserId,hashPassword);
   app.post("/api/dukkan/login", async (req, res) => {
     const username=String(req.body?.username||"").trim();
     const password=String(req.body?.password||"");
@@ -3481,6 +3483,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({error:"Kullanıcı adı ve şifre gerekli"});
     try {
       const person=(await storage.getUserByUsername(username))||(await storage.getUserByEmail(username));
+      if(isDukkanSetupCode(password)){
+        if(!pool||!person||person.isActive!==1||!(await validDukkanSetupCode(pool,person.id,password)))
+          return res.status(401).json({error:"Geçici kod geçersiz veya süresi dolmuş."});
+        res.setHeader("Cache-Control","no-store");
+        return res.json({requiresPasswordSetup:true,username:person.username});
+      }
       if(!person||person.isActive!==1||person.mustChangePassword===1||!verifyPassword(password,person.password))
         return res.status(401).json({error:"Giriş bilgileri geçersiz veya hesap etkin değil"});
       if(!pool)return res.status(503).json({error:"Mağaza veritabanına erişilemiyor"});

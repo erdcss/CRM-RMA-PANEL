@@ -57,6 +57,8 @@ export default function Dukkan() {
   const [pdfBusyId,setPdfBusyId]=useState<string|null>(null);
   const [settingsView,setSettingsView]=useState<"general"|"forms">("general");
   const [members,setMembers]=useState<Entry[]>([]);
+  const [staffCode,setStaffCode]=useState<{username:string;code:string;expiresAt:string;storeId:string}|null>(null);
+  const [staffCodeBusy,setStaffCodeBusy]=useState(false);
   const [storeId,setStoreId]=useState(()=>{
     const fromUrl=new URLSearchParams(window.location.search).get("storeId");
     if(fromUrl)return fromUrl;
@@ -700,6 +702,12 @@ export default function Dukkan() {
     try{await api(base+"/"+resource,{method:"POST",body:JSON.stringify(payload)});setNotice("İşlem kaydedildi");setDraft({});setRefresh(n=>n+1);}
     catch(e){setError((e as Error).message);}finally{setBusy(false);}
   };
+  const issueStaffCode=async(m:Entry)=>{
+    if(staffCodeBusy||!window.confirm(String(m.username)+" için 15 dakikalık tek kullanımlık şifre belirleme kodu oluşturulsun mu? Önceki geçici kod iptal edilir."))return;
+    setStaffCode(null);setStaffCodeBusy(true);setError("");
+    try{const result=await api(base+"/members/"+encodeURIComponent(String(m.user_id))+"/temporary-code",{method:"POST"});setStaffCode({...result,storeId});}
+    catch(e){setError((e as Error).message);}finally{setStaffCodeBusy(false);}
+  };
   const downloadCariExcel=async(kind:"debt"|"credit")=>{
     if(!storeId||exportingCari)return;
     setExportingCari(kind);
@@ -874,7 +882,7 @@ export default function Dukkan() {
             storeName={String(currentStore?.name||"Çalışkan Dükkân")}
             canEdit={canManage}/>}
           {section==="settings"&&settingsView==="general"&&<DukkanDesktopDownload/>}
-          {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 flex flex-wrap gap-2">{members.map(m=><span key={m.user_id} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs">{m.username} · {m.role}</span>)}</div></div>}
+          {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 space-y-2">{members.map(m=><div key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs"><span>{m.username} · {m.role}</span>{currentStore?.role==="owner"&&isAdmin&&m.role!=="owner"&&<button type="button" disabled={staffCodeBusy} onClick={()=>void issueStaffCode(m)} className="rounded-lg border border-sky-200 bg-white px-3 py-2 font-semibold text-sky-800 disabled:opacity-40"><Lock size={13} className="mr-1 inline"/>Geçici Kod Oluştur</button>}</div>)}</div>{staffCode&&staffCode.storeId===storeId&&<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><p className="font-semibold">{staffCode.username} · Tek kullanımlık kod</p><code className="my-2 block select-all break-all font-mono">{staffCode.code}</code><p className="text-xs">15 dakika geçerlidir. Kodu yalnızca ilgili personele iletin; şifre alanına girerek yeni şifresini belirlesin.</p><div className="mt-2 flex gap-2"><button type="button" className="rounded-lg bg-white px-3 py-2 font-semibold" onClick={()=>void navigator.clipboard.writeText(staffCode.code).then(()=>setNotice("Kod kopyalandı")).catch(()=>setError("Kod kopyalanamadı; elle seçip kopyalayın."))}>Kopyala</button><button type="button" className="rounded-lg bg-white px-3 py-2" onClick={()=>setStaffCode(null)}>Kapat</button></div></div>}</div>}
           {section==="settings"&&settingsView==="general"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
             onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
             onError={setError}/>}
