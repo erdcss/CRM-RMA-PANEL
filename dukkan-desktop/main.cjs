@@ -1,5 +1,4 @@
-const { app, BrowserWindow, shell, dialog, Menu, ipcMain, nativeTheme, net, nativeImage } = require("electron");
-const path = require("node:path");
+const { app, BrowserWindow, shell, dialog, Menu, net, nativeImage } = require("electron");
 
 const TARGET = process.env.DUKKAN_URL || "https://admin.ecalisgan.com/dukkan";
 const base = new URL(TARGET);
@@ -23,11 +22,17 @@ function createWindow() {
     show: false,
     title: "Çalışkan Dükkan",
     backgroundColor: "#f5f7fb",
-    titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#f1f5f9", symbolColor: "#1e293b", height: 42 },
+    // Use the native OS caption: Windows handles drag, double-click maximize,
+    // restore-and-drag and Snap without relying on remote page CSS.
+    frame: true,
+    titleBarStyle: "default",
+    movable: true,
+    resizable: true,
+    minimizable: true,
+    maximizable: true,
+    closable: true,
     icon: undefined,
     webPreferences: {
-      preload: path.join(__dirname,"preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -67,16 +72,6 @@ function createWindow() {
     dialog.showErrorBox("Çalışkan Dükkan", "Sunucuya bağlanılamadı: " + error.message);
   });
 }
-
-ipcMain.on("dukkan:theme", (event, dark) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || !permitted(event.sender.getURL())) return;
-  win.setTitleBarOverlay({
-    color: dark ? "#0f172a" : "#f1f5f9",
-    symbolColor: dark ? "#f8fafc" : "#1e293b",
-    height: 42
-  });
-});
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);

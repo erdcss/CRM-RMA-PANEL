@@ -39,6 +39,9 @@ jobs:
       - name: Bağımlılıkları yükle
         run: npm install --no-audit --no-fund
 
+      - name: Pencere başlığı regresyon kontrolü
+        run: node --test scripts/window-frame.test.cjs
+
       - name: Windows kurulumunu oluştur
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
