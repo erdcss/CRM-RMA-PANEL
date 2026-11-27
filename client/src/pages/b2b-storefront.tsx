@@ -3,13 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { trackSearch } from "@/lib/analytics";
-import { Search, Package, BadgeCheck, Store, X } from "lucide-react";
+import { Search, Package, BadgeCheck, Store, X, Boxes, ChevronRight, Truck, ShieldCheck, ClipboardList, Percent, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
 import { B2BProductRail } from "@/components/b2b-product-rail";
 import { loadApprovedSupplierProducts, type UnifiedB2BProduct } from "@/lib/b2b-marketplace-products";
-import { loadB2BHomepageCategories, b2bCategoryImage, type HomeBanner, type B2BHomepageCategories } from "@/lib/b2b-categories";
+import { loadB2BHomepageCategories, b2bCategoryImage, b2bCategoryHref, findB2BCategoryCard, type HomeBanner, type B2BHomepageCategories } from "@/lib/b2b-categories";
 import { B2BCategoryTiles } from "@/components/b2b-category-tiles";
 import { availableProductsFirst, splitHomepageProducts, nextHomepageArrivalExpiry } from "@/lib/b2b-homepage-products";
 import {B2BRoundCampaignButton} from "@/components/b2b-round-campaign-button";
@@ -143,7 +143,7 @@ export default function B2BStorefront() {
   const catalogProducts = useMemo(() => availableProductsFirst(filtered), [filtered]);
 
   return (
-    <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
+    <div className="min-h-screen bg-[#f7f8fa] text-slate-950">
       <B2BHeader
         middle={
           <div role="search" className="relative flex min-w-0 items-center">
@@ -169,20 +169,57 @@ export default function B2BStorefront() {
       />
 
       {!isSearching && <>
-      {homepage.categories.length > 0 ? (
-        <section className="mx-auto max-w-6xl px-4 pb-3 pt-3 sm:pb-4 sm:pt-4" aria-labelledby="homepage-categories-title">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h2 id="homepage-categories-title" className="text-sm font-black sm:text-base">Kategoriler</h2>
-            <Link href="/kategoriler" className="shrink-0 text-xs font-bold text-amber-800 hover:underline">Tüm kategoriler</Link>
-          </div>
-          <B2BCategoryTiles homepage={homepage} horizontal />
-        </section>
-      ) : null}
+        {homepage.categories.length > 0 && (
+          <section className="mx-auto max-w-[1600px] px-3 pb-3 pt-4 sm:px-5 lg:hidden" aria-labelledby="homepage-categories-title">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 id="homepage-categories-title" className="text-base font-black">Kategoriler</h2>
+              <Link href="/kategoriler" className="text-xs font-bold text-amber-800">Tüm kategoriler</Link>
+            </div>
+            <B2BCategoryTiles homepage={homepage} horizontal />
+          </section>
+        )}
 
-      <HomepageBanners homepage={homepage}/>
+        <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-5 lg:pt-6 xl:px-6">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[230px_minmax(0,1fr)] 2xl:grid-cols-[250px_minmax(0,1fr)_245px]">
+            <aside className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:block" aria-label="Ürün kategorileri">
+              <h2 className="flex items-center gap-2 bg-[#ffcc00] px-4 py-4 text-base font-black"><Boxes className="h-5 w-5" /> Kategoriler</h2>
+              <nav className="p-2">
+                <Link href="/kategoriler" className="flex min-h-11 items-center justify-between rounded-xl px-3 text-sm font-bold hover:bg-amber-50">Tüm kategoriler <ChevronRight className="h-4 w-4" /></Link>
+                {homepage.categories.slice(0, 8).map(category => {
+                  const card = findB2BCategoryCard(homepage,category);
+                  const imageUrl = b2bCategoryImage(card?.imageId);
+                  return <Link href={b2bCategoryHref(category)} key={category} className="flex min-h-12 items-center gap-3 rounded-xl px-3 transition hover:bg-amber-50">
+                    {imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-9 w-9 shrink-0 object-contain" /> : <Package className="h-6 w-9 shrink-0 text-amber-600" />}
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{card?.label || category}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+                  </Link>;
+                })}
+              </nav>
+            </aside>
+            <div className="min-w-0">
+              <HomepageBanners homepage={homepage}/>
+            </div>
+            <aside className="hidden min-h-[250px] flex-col justify-between overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-white via-amber-50 to-[#ffcc00] p-5 shadow-sm 2xl:flex">
+              <div>
+                <span className="inline-flex rounded-full bg-[#0b192d] px-3 py-1 text-[11px] font-bold text-white">ÇALIŞKAN B2B</span>
+                <h2 className="mt-5 text-2xl font-black leading-tight text-slate-950">İşletmenizin toptan alışveriş merkezi</h2>
+                <p className="mt-3 text-sm text-slate-700">Ürünleri, koli adetlerini ve size özel bayi fiyatlarını tek ekranda keşfedin.</p>
+              </div>
+              <Link href={loggedIn ? "/hesabim" : "/kayit-ol"} className="mt-5 flex min-h-11 items-center justify-between rounded-xl bg-[#0b192d] px-4 text-sm font-bold text-white hover:bg-slate-800">
+                {loggedIn ? "Bayi hesabım" : "Bayi kaydı oluştur"} <ArrowRight className="h-4 w-4" />
+              </Link>
+            </aside>
+          </div>
+          <nav aria-label="Hızlı erişim" className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-4 sm:gap-0">
+            <Link href="/siparislerim" className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><Truck className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Hızlı Sipariş<span className="block text-[10px] font-normal text-slate-500">Koli bazında</span></span></Link>
+            <Link href={loggedIn ? "/hesabim" : "/uye-girisi"} className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><Percent className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Bayi Fiyatları<span className="block text-[10px] font-normal text-slate-500">Giriş yaparak görüntüle</span></span></Link>
+            <Link href="/magazalar" className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><ShieldCheck className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Tedarikçiler<span className="block text-[10px] font-normal text-slate-500">Onaylı mağazalar</span></span></Link>
+            <Link href="/siparislerim" className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><ClipboardList className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Sipariş Listem<span className="block text-[10px] font-normal text-slate-500">Sepeti görüntüle</span></span></Link>
+          </nav>
+        </div>
       </>}
 
-      <main className={`mx-auto max-w-6xl px-4 ${isSearching ? "py-4 sm:py-6" : "py-8 sm:py-10"}`}>
+      <main className={`mx-auto max-w-[1600px] px-3 sm:px-5 xl:px-6 ${isSearching ? "py-4 sm:py-6" : "py-7 sm:py-9"}`}>
         {isSearching ? (
           <section aria-labelledby="search-results-title" className="min-w-0">
             <div className="mb-4 flex min-w-0 items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-3 shadow-sm sm:p-4">
@@ -227,7 +264,7 @@ export default function B2BStorefront() {
 
 
 
-        <section className="mb-9 scroll-mt-24" id="yeni-gelenler" aria-labelledby="new-arrivals-title">
+        {(isLoading || newArrivals.length > 0) && <section className="mb-9 scroll-mt-24" id="yeni-gelenler" aria-labelledby="new-arrivals-title">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="mb-1.5 flex items-center gap-2">
@@ -250,7 +287,7 @@ export default function B2BStorefront() {
               {query.trim() ? "Aramanızla eşleşen yeni ürün bulunmuyor." : "Son 24 saatte eklenen yeni ürün bulunmuyor."}
             </div>
           )}
-        </section>
+        </section>}
 
         {verifiedStores.length > 0 ? (
           <section className="mb-9" aria-label="Onaylı tedarikçi mağazaları">
@@ -297,7 +334,7 @@ export default function B2BStorefront() {
           </div>
         ) : (
           <div>
-            <B2BProductRail products={catalogProducts} loggedIn={loggedIn} title="Toptan Ürünler" autoScroll />
+            <B2BProductRail products={catalogProducts} loggedIn={loggedIn} title="Toptan Ürünler" />
           </div>
         )}
         </>}
@@ -343,7 +380,7 @@ function HomepageBanners({homepage}:{homepage:B2BHomepageCategories}){
     return ()=>window.clearInterval(timer);
   },[banners.length,homepage.sliderAutoPlay,homepage.sliderIntervalMs,playing]);
   if(!banners.length)return null;
-  return <section aria-label="Kampanya bannerları" className="mx-auto max-w-6xl px-4 pb-2">
+  return <section aria-label="Kampanya bannerları" className="w-full min-w-0 pb-2">
     <div ref={rail} onScroll={()=>{const el=rail.current;if(el?.clientWidth)setIndex(Math.min(banners.length-1,Math.round(el.scrollLeft/el.clientWidth)));}} onPointerDown={()=>{pauseUntil.current=Date.now()+8000;}} onTouchStart={()=>{pauseUntil.current=Date.now()+8000;}} className="flex items-start snap-x snap-mandatory overflow-x-auto rounded-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {banners.map((banner,i)=>{
         const href=bannerHref(banner);
