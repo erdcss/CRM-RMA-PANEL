@@ -17,6 +17,7 @@ concurrency:
 jobs:
   launch:
     name: Yalnızca Dükkan iOS Codemagic derlemesini başlat
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 140
     env:
@@ -38,9 +39,9 @@ jobs:
         if: github.event_name == 'push'
         run: |
           set -euo pipefail
-          git diff --name-only HEAD^ HEAD | grep -Fxq '.github/release-requests/dukkan-codemagic-direct-testflight.txt'
-          if git diff --name-only HEAD^ HEAD | grep -Eq '^codemagic\\.yaml$'; then
-            echo "::error::Aynı commit içinde Codemagic YAML güncellemesi bulunamaz."
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          if [ "$changed" != '.github/release-requests/dukkan-codemagic-direct-testflight.txt' ]; then
+            echo "::error::TestFlight isteği yalnız Dükkan release marker dosyasını değiştirmelidir."
             exit 1
           fi
       - name: Codemagic API ile Dükkan TestFlight kuyruğuna al
@@ -91,7 +92,7 @@ jobs:
             '- Durum: **Derleme isteği kabul edildi / kuyruğa alındı**\n'+
             '- Uygulama: `com.caliskan.dukkan`\n'+
             '- İş akışı: `'+workflowId+'`\n'+
-            '- GitHub commit: `'+process.env.GITHUB_SHA_REQUEST+'`\n'+
+            '- GitHub request commit: `'+process.env.GITHUB_SHA_REQUEST+'`\n'+
             '- Codemagic build ID: `'+result.buildId+'`\n'+
             '- [Derleme durumunu Codemagic üzerinde aç]('+url+')\n\n'+
             'Codemagic build tamamlanması ve Apple TestFlight işleme/onay durumu ayrıca doğrulanmalıdır.\n');
