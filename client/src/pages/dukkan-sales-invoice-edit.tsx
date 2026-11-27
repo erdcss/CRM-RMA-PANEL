@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useMemo,useState,type FormEvent} from "react";
 import {useLocation} from "wouter";
 import {DukkanInvoicePicker} from "@/components/dukkan-invoice-picker";
+import {DukkanShippingType,DukkanShippingLabelDialog} from "@/components/dukkan-shipping";
 import {ArrowLeft,CheckCircle2,Copy,Download,FileText,Pencil,Plus,Save,Trash2,AlertTriangle} from "lucide-react";
 
 type Entry=Record<string,any>;
@@ -44,6 +45,8 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
   const [notice,setNotice]=useState("");
   const [partyId,setPartyId]=useState("");
   const [date,setDate]=useState("");
+  const [shippingType,setShippingType]=useState("");
+  const [shippingLabel,setShippingLabel]=useState(false);
   const [amount,setAmount]=useState("");
   const [description,setDescription]=useState("");
   const [lines,setLines]=useState<InvoiceLine[]>([]);
@@ -66,6 +69,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
   const fromDoc=useCallback((doc:DocumentData,productRows:Entry[],target:Mode)=>{
     const inv=doc.invoice;
     setPartyId(str(inv.party_id));
+    setShippingType(str(inv.shipping_type));
     const now=new Date();
     const localToday=[now.getFullYear(),String(now.getMonth()+1).padStart(2,"0"),String(now.getDate()).padStart(2,"0")].join("-");
     setDate(target==="copy"?localToday:str(inv.issued_at).slice(0,10));
@@ -151,7 +155,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
         }));
         if(submitLines.some(l=>!l.productId))throw Error("Her ürün için stoktaki karşılığını seçin. Kaynağı eşleşmeyen arşiv ürünlerini kontrol edin.");
         const payload:Entry={partyId:Number(partyId),kind:str(current.kind),
-          date,lines:submitLines};
+          date,lines:submitLines,shippingType};
         if(mode==="edit")payload.expectedRevision=Number(current.revision);
         else payload.requestKey=crypto.randomUUID();
         saved=await api(mode==="edit"?standardPath:base+"/invoices",{
@@ -225,8 +229,10 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
       {details&&<div className="flex flex-wrap gap-2">
         <button type="button" className={btn} onClick={()=>void exportPdf(false)}><Download size={16}/> PDF İndir</button>
         <button type="button" className={btn} onClick={()=>void exportPdf(true)}><FileText size={16}/> Yazdır</button>
+        {!archived&&current.shipping_type&&<button type="button" className={btn} onClick={()=>setShippingLabel(true)}><FileText size={16}/> Barkod Etiketi Yazdır</button>}
       </div>}
     </div>
+    {shippingLabel&&<DukkanShippingLabelDialog base={base} invoiceId={numericId} onClose={()=>setShippingLabel(false)}/>}
     {loading?<div role="status" className="rounded-xl border bg-white p-8 text-sm">Fatura yükleniyor...</div>:!details?<div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-red-800">{error||"Fatura bulunamadı."}</div>:<>
       <div className="mb-5 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -239,6 +245,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
           <AlertTriangle size={18} className="shrink-0"/>
           <span>Bu kayıt cari ekstresinden aktarılmış bir arşiv belgesidir. Ürün stoklarına işlememiştir. Düzenleme ve silme mevcut cari kaydı etkiler; kaynak dosya geçmişi denetim için korunur. KDV bilgileri kaynaktan doğrulanamayabilir.</span>
         </div>}
+        {current.shipping_type&&<p className="mt-3 text-sm font-semibold">Gönderim: {current.shipping_type}</p>}
         <p className="mt-3 text-xs text-slate-500">{details.disclaimer||"Dahili ön muhasebe belgesidir, resmî e-Fatura değildir."}</p>
       </div>
       <div className="mb-5 flex flex-wrap gap-2">
@@ -307,6 +314,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
             </label>
             <div className="flex flex-col justify-end gap-1 text-xs"><span className="font-semibold">Belge numarası</span><span className="rounded-xl bg-slate-50 p-3">{mode==="copy"?"Kaydetme sırasında yeni numara oluşturulur":current.invoice_no}</span></div>
           </div>
+          {!isArchiveEdit&&<DukkanShippingType base={base} value={shippingType} onChange={setShippingType} disabled={busy}/>}
           {isArchiveEdit&&<div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="text-xs font-semibold">Cari ekstresindeki toplam tutar (TL)
               <input className={field+" mt-1"} required type="number" step="0.01" min="0" value={amount} onChange={e=>setAmount(e.target.value)}/>

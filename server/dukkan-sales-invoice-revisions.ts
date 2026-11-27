@@ -6,7 +6,7 @@ export type EditableInvoiceLine = {
 export type SalesInvoiceRevision = {
   storeId:number; invoiceId:number; actorId:number; expectedRevision:number;
   action:"edit"|"delete";
-  payload?:{partyId:number;date?:string;kind:"sale"|"sale_return";lines:EditableInvoiceLine[]};
+  payload?:{partyId:number;date?:string;kind:"sale"|"sale_return";lines:EditableInvoiceLine[];shippingType?:string};
 };
 const fail=(message:string,status=409):never=>{
   throw Object.assign(new Error(message),{status});
@@ -100,8 +100,8 @@ export async function reviseDukkanSalesInvoice(c:PoolClient,input:SalesInvoiceRe
       [storeId,data!.partyId,debit,credit,doc.kind+" "+doc.invoice_no,invoiceId]
     );
     changed=await c.query(
-      "UPDATE dukkan_invoices SET party_id=$3,issued_at=COALESCE($4::date,issued_at),subtotal=$5,tax_total=$6,grand_total=$7,revision=revision+1 WHERE store_id=$1 AND id=$2 RETURNING *",
-      [storeId,invoiceId,data!.partyId,data!.date||null,subtotal,taxTotal,grandTotal]
+      "UPDATE dukkan_invoices SET party_id=$3,issued_at=COALESCE($4::date,issued_at),subtotal=$5,tax_total=$6,grand_total=$7,shipping_type=CASE WHEN $8::text IS NULL THEN shipping_type ELSE NULLIF($8::text,\'\') END,revision=revision+1 WHERE store_id=$1 AND id=$2 RETURNING *",
+      [storeId,invoiceId,data!.partyId,data!.date||null,subtotal,taxTotal,grandTotal,data!.shippingType??null]
     );
   }
   await c.query(

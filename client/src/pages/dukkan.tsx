@@ -15,6 +15,7 @@ import {DukkanProductThumbnailDrop} from "@/components/dukkan-product-thumbnail-
 import {DukkanStockWorkspace,type StockProduct} from "@/components/dukkan-stock-workspace";
 import { DukkanCariSearchPicker } from "@/components/dukkan-cari-search-picker";
 import {DukkanInvoicePicker} from "@/components/dukkan-invoice-picker";
+import {DukkanShippingType,DukkanShippingLabelDialog} from "@/components/dukkan-shipping";
 import { DukkanCariActionsDrawer } from "@/components/dukkan-cari-actions-drawer";
 import {DukkanNewProductProfitPanel} from "@/components/dukkan-new-product-profit-panel";
 import {DukkanCampaignPriceControl} from "@/components/dukkan-campaign-price-control";
@@ -125,6 +126,7 @@ export default function Dukkan() {
   const [exportingCari,setExportingCari]=useState<"debt"|"credit"|null>(null);
   const [showForm,setShowForm]=useState(()=>standaloneSalesCreate||standaloneProductCreate);
   const [createdInvoiceNumber,setCreatedInvoiceNumber]=useState<string|null>(null);
+  const [shippingLabel,setShippingLabel]=useState<{id:string;base:string}|null>(null);
   const [createdProductName,setCreatedProductName]=useState<string|null>(null);
   const [editingProductId,setEditingProductId]=useState<string|null>(null);
   const [editingPartyId,setEditingPartyId]=useState<string|null>(null);
@@ -465,7 +467,8 @@ export default function Dukkan() {
     setDraft(d=>applyDukkanNewProductMarkup(d,"custom",value));
   };
   const onSubmit=async(e:FormEvent)=>{
-    e.preventDefault();if(!storeId)return;
+    e.preventDefault();if(!storeId||busy)return;
+    const printShipping=(e.nativeEvent as SubmitEvent).submitter?.getAttribute("data-shipping-print")==="yes";
     setBusy(true);setError("");setNotice("");
     try{
       const body:Entry={...draft};
@@ -506,6 +509,7 @@ export default function Dukkan() {
           ? base+"/invoices/"+encodeURIComponent(editingInvoiceId)
           : base+path+(editingProductId?"/"+editingProductId:editingPartyId?"/"+editingPartyId:"");
       const saved=await api(url,{method:editing?"PATCH":"POST",body:JSON.stringify(body)});
+      if(printShipping&&saved.shipping_type&&saved.id)setShippingLabel({id:String(saved.id),base});
       if(standaloneSalesCreate&&section==="sales")setCreatedInvoiceNumber(String(saved.invoice_no||"Fatura"));
       if(standaloneProductCreate&&section==="products"){
         setCreatedProductName(String(saved.name||draft.name||"Ürün"));
@@ -1119,6 +1123,7 @@ export default function Dukkan() {
                   </span>
                 </label>
               </div>}
+              {["sales","purchases"].includes(section)&&<DukkanShippingType base={base} value={draft.shippingType||""} onChange={v=>put("shippingType",v)} disabled={busy}/>}
               {["sales","purchases"].includes(section)&&<p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">{editingInvoiceId?"Mevcut fatura numarası korunur. Düzenleme stok ve cari hareketlerine yansır.":"Fatura Numarası: Kaydettiğinizde sistem tarafından benzersiz 14 haneli rakam atanacaktır."}</p>}
               {["sales","purchases","orders"].includes(section)&&<div className="mt-5">
                 <h4 className="mb-2 text-sm font-bold">Ürün Kalemleri</h4>
@@ -1148,7 +1153,7 @@ export default function Dukkan() {
                 </div>)}
                 <div className="mt-2 flex items-center justify-between gap-3"><button type="button" className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold" onClick={()=>setLines(old=>[...old,{...NEW_LINE}])}>+ Ürün satırı</button><strong className="text-sm">Toplam: {currency(total)}</strong></div>
               </div>}
-              <div className="mt-4 flex justify-end"><button type="submit" disabled={busy||(section==="products"&&processingProductImages)} className={buttonClass}>{busy?"Kaydediliyor...":editingInvoiceId?"Değişiklikleri Kaydet":"Kaydet ve İşle"}</button></div>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">{["sales","purchases"].includes(section)&&draft.shippingType&&<button type="submit" data-shipping-print="yes" disabled={busy} className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-bold text-[#123d70] disabled:opacity-40"><FileText size={17}/> Kaydet ve Barkod Etiketi Yazdır</button>}<button type="submit" disabled={busy||(section==="products"&&processingProductImages)} className={buttonClass}>{busy?"Kaydediliyor...":editingInvoiceId?"Değişiklikleri Kaydet":"Kaydet ve İşle"}</button></div>
             </form>}
             {section==="banks"&&isWriter&&<div className="mb-4 grid gap-3 md:grid-cols-2">
               <form className="rounded-xl border p-3" onSubmit={e=>{e.preventDefault();void submitSpecial("banks",{name:draft.newBank,iban:draft.newIban});}}><h3 className="mb-2 text-sm font-bold">Yeni banka hesabı</h3><input className={inputClass+" mb-2"} placeholder="Banka adı" required value={draft.newBank||""} onChange={e=>put("newBank",e.target.value)}/><input className={inputClass+" mb-2"} placeholder="IBAN (opsiyonel)" value={draft.newIban||""} onChange={e=>put("newIban",e.target.value)}/><button disabled={busy} className={buttonClass}>Banka Ekle</button></form>
@@ -1418,6 +1423,7 @@ export default function Dukkan() {
                           <Trash2 size={14}/> Sil
                         </button>}
                       </>}
+                      {!r.imported_archive&&r.shipping_type&&<button type="button" onClick={()=>setShippingLabel({id:String(r.id),base})} className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800"><FileText size={15}/> Barkod Etiketi Yazdır</button>}
                       <button type="button" disabled={pdfBusyId!==null} onClick={()=>void exportPdf(r)}
                         title="Belgenin kaydedilmiş şablonla PDF çıktısını indir" aria-label={"PDF indir: "+r.invoice_no}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-100 disabled:opacity-40">
@@ -1461,6 +1467,7 @@ export default function Dukkan() {
           </div>}
           <p className="mt-5 text-center text-xs leading-5 text-slate-500">Çalışkan Dükkan · Merkezi kayıtlar · PDF satış belgesi GİB e-Fatura veya e-Arşiv yerine geçmez.</p>
           </DukkanWorkspaceLayout>
+          {shippingLabel&&<DukkanShippingLabelDialog key={shippingLabel.base+":"+shippingLabel.id} base={shippingLabel.base} invoiceId={shippingLabel.id} onClose={()=>setShippingLabel(null)}/>}
           {selectedCariAction&&isWriter&&canAccount&&(
             <DukkanCariActionsDrawer key={storeId+":"+String(selectedCariAction.id)}
               storeId={storeId}
