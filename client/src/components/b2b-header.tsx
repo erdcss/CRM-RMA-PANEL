@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { LogIn, UserPlus, PackageSearch, UserRound, Menu, X, ChevronRight } from "lucide-react";
+import { LogIn, UserPlus, PackageSearch, UserRound, Menu, X, ChevronRight, ShoppingCart, Tags, Flame, Boxes, Store, Star } from "lucide-react";
 import { footerGroups, B2BSocialAndStores } from "@/components/b2b-footer";
 
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,7 @@ function B2BWebLogo({ logo }: { logo?: string | null }) {
       onError={() => setFailed(prev => [...prev, source])}
       alt="Çalışkan B2B"
       loading="eager"
-      className="h-9 w-auto max-w-full object-contain object-left sm:h-10"
+      className="h-9 w-auto max-w-full object-contain object-left lg:h-11"
     />
   ) : (
     <span className="block whitespace-nowrap text-xs font-black tracking-tight text-slate-950 sm:text-base">
@@ -110,15 +110,19 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
 
   return (
     <>
-    <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[60px] w-full min-w-0 max-w-6xl items-center gap-1.5 overflow-hidden px-2 sm:gap-3 sm:px-4">
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex h-[64px] w-full min-w-0 max-w-[1600px] items-center gap-1.5 px-2 sm:gap-3 sm:px-5 lg:h-[76px] xl:px-6">
         <button type="button" onClick={()=>setDrawerOpen(true)} aria-label="Menüyü aç" aria-expanded={drawerOpen} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[#111] transition hover:bg-[#fff1ae] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffcc00] md:hidden"><Menu className="h-6 w-6"/></button>
         <Link href="/" className="flex min-w-0 flex-1 items-center overflow-hidden sm:flex-none">
           <span className="block min-w-0 max-w-[124px] sm:max-w-none"><B2BWebLogo logo={branding?.b2b_logo} /></span>
         </Link>
 
-        {middle ? <div className="mx-auto hidden w-full max-w-xl md:block">{middle}</div> : <div className="hidden flex-1 sm:block" />}
+        {middle ? <div className="mx-auto hidden w-full max-w-2xl md:block">{middle}</div> : <div className="hidden flex-1 sm:block" />}
 
+        <Link href="/siparislerim" aria-label={itemCount ? `Sepet, ${itemCount} koli` : "Sepet"} className="relative ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-950 transition hover:border-amber-400 hover:bg-amber-50 sm:w-auto sm:gap-2 sm:px-3">
+          <ShoppingCart className="h-5 w-5" /><span className="hidden text-sm font-bold lg:inline">Sepet</span>
+          {itemCount > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ffcc00] px-1 text-[10px] font-black text-[#0b192d] sm:static">{itemCount > 99 ? "99+" : itemCount}</span>}
+        </Link>
         {loggedIn ? (
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <Button
@@ -160,7 +164,17 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
           </div>
         )}
       </div>
-      {middle ? <div className="mx-auto w-full max-w-6xl px-3 pb-2 md:hidden">{middle}</div> : null}
+      {middle ? <div className="mx-auto w-full max-w-[1600px] px-3 pb-3 md:hidden">{middle}</div> : null}
+      <nav aria-label="Masaüstü mağaza menüsü" className="hidden border-t border-white/10 bg-[#0b192d] text-white md:block">
+        <div className="mx-auto flex h-12 max-w-[1600px] items-center justify-between gap-3 px-5 xl:px-6">
+          <Link href="/kategoriler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Boxes className="h-4 w-4 text-[#ffcc00]" /> Tüm Kategoriler</Link>
+          <Link href="/kampanyalar" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Tags className="h-4 w-4 text-[#ffcc00]" /> Kampanyalar</Link>
+          <a href="/#yeni-gelenler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Star className="h-4 w-4 text-[#ffcc00]" /> Yeni Ürünler</a>
+          <a href="/#urunler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Flame className="h-4 w-4 text-[#ffcc00]" /> Toptan Ürünler</a>
+          <Link href="/magazalar" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Store className="h-4 w-4 text-[#ffcc00]" /> Tedarikçiler</Link>
+          <Link href="/siparislerim" className="text-xs font-semibold hover:text-[#ffcc00] lg:text-sm">Sipariş Listem</Link>
+        </div>
+      </nav>
     </header>
     {typeof document !== "undefined" ? createPortal(
       <div
