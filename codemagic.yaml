@@ -450,3 +450,97 @@ workflows:
     artifacts:
       - business-mobile/android/app/build/outputs/bundle/release/*.aab
       - business-mobile/android/app/build/outputs/mapping/release/mapping.txt
+
+  # Dukkan: Expo native prebuild on Codemagic, isolated TestFlight only.
+  caliskan-dukkan-ios-testflight:
+    name: Caliskan Dukkan - iOS TestFlight (Codemagic)
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    triggering:
+      events: []
+    integrations:
+      app_store_connect: Codemagic Caliskan B2B
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.caliskan.dukkan
+      vars:
+        EXPO_PUBLIC_DUKKAN_URL: "https://admin.ecalisgan.com/dukkan"
+        APP_STORE_APPLE_ID: "6826848065"
+        CI: "1"
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool"
+      node: 22
+      xcode: 26.4
+      cocoapods: default
+    scripts:
+      - name: Install Dukkan dependencies and verify release identity
+        script: |
+          set -euo pipefail
+          cd dukkan-mobile
+          npm install --no-audit --no-fund
+          node -e 'const a=require("./app.json").expo; const e=require("./eas.json").submit.testflight.ios; if(a.ios.bundleIdentifier!=="com.caliskan.dukkan" || e.ascAppId!==process.env.APP_STORE_APPLE_ID || e.appleTeamId!=="U3WGSDJCT2") throw Error("Dukkan identity mismatch")'
+          npm run test:images
+          node --test check-schema.cjs
+          npm run check
+      - name: Prepare current admin branding and unique Apple build number
+        script: |
+          set -euo pipefail
+          cd dukkan-mobile
+          npm run prepare:branding
+          LATEST="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --all-versions)"
+          export LATEST
+          node <<'NODE'
+          const fs=require('node:fs');
+          const config=JSON.parse(fs.readFileSync('app.json','utf8'));
+          if(!/^\d+$/.test(process.env.LATEST||'')) throw Error('Apple latest build number could not be verified; check App Store Connect integration and app access');
+          const latest=Number(process.env.LATEST);
+          if(!Number.isSafeInteger(latest)||latest<0) throw Error('Invalid Apple build number');
+          config.expo.ios.buildNumber=String(Math.max(latest+1,Number(config.expo.ios.buildNumber)||1));
+          fs.writeFileSync('app.json',JSON.stringify(config,null,2)+'\n');
+          console.log('Dukkan iOS '+config.expo.version+' build '+config.expo.ios.buildNumber);
+          NODE
+      - name: Generate Expo native iOS project
+        script: |
+          set -euo pipefail
+          cd dukkan-mobile
+          npx expo prebuild --platform ios --clean --no-install
+          cd ios
+          pod install
+      - name: Apply Dukkan App Store signing
+        script: |
+          set -euo pipefail
+          cd dukkan-mobile
+          xcode-project use-profiles
+      - name: Create and verify signed Dukkan IPA
+        script: |
+          set -euo pipefail
+          cd dukkan-mobile
+          workspace="$(find ios -maxdepth 1 -name '*.xcworkspace' -type d | head -n 1)"
+          test -n "$workspace"
+          scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; print(next((s for s in json.load(sys.stdin)["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
+          test -n "$scheme"
+          xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+          python3 - <<'PY'
+          import json, plistlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          files=list(Path("build/ios/ipa").glob("*.ipa"))
+          if len(files)!=1: raise SystemExit("Expected one signed Dukkan IPA")
+          expected=json.loads(Path("app.json").read_text())["expo"]
+          with ZipFile(files[0]) as ipa:
+              names=[n for n in ipa.namelist() if n.startswith("Payload/") and n.count("/")==2 and n.endswith(".app/Info.plist")]
+              if len(names)!=1: raise SystemExit("Expected one main app Info.plist")
+              info=plistlib.loads(ipa.read(names[0]))
+              if not any(n.startswith("Payload/") and n.endswith(".app/Assets.car") for n in ipa.namelist()): raise SystemExit("Missing compiled asset catalog")
+          if (info.get("CFBundleIdentifier"),str(info.get("CFBundleVersion")),info.get("CFBundleShortVersionString")) != ("com.caliskan.dukkan",expected["ios"]["buildNumber"],expected["version"]):
+              raise SystemExit("Signed Dukkan IPA identity/version mismatch")
+          print("Verified Dukkan IPA", info["CFBundleShortVersionString"], info["CFBundleVersion"])
+          PY
+    artifacts:
+      - dukkan-mobile/build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false

@@ -1,0 +1,139 @@
+name: Çalışkan Dükkan - Codemagic Doğrudan TestFlight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/release-requests/dukkan-codemagic-direct-testflight.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caliskan-dukkan-codemagic-direct-testflight
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    name: Yalnızca Dükkan iOS Codemagic derlemesini başlat
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    env:
+      CODEMAGIC_API_TOKEN: ${{ secrets.CODEMAGIC_API_TOKEN }}
+      CODEMAGIC_DUKKAN_APP_ID: ${{ vars.CODEMAGIC_DUKKAN_APP_ID }}
+      CODEMAGIC_BUSINESS_APP_ID: ${{ vars.CODEMAGIC_BUSINESS_APP_ID }}
+      CODEMAGIC_APP_ID_VAR: ${{ vars.CODEMAGIC_APP_ID }}
+      CODEMAGIC_APP_ID_SECRET: ${{ secrets.CODEMAGIC_APP_ID }}
+      GITHUB_SHA_REQUEST: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sadece bu Dükkan TestFlight talebi kontrol et
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          git diff --name-only HEAD^ HEAD | grep -Fxq '.github/release-requests/dukkan-codemagic-direct-testflight.txt'
+          if git diff --name-only HEAD^ HEAD | grep -Eq '^codemagic\\.yaml$'; then
+            echo "::error::Aynı commit içinde Codemagic YAML güncellemesi bulunamaz."
+            exit 1
+          fi
+      - name: Codemagic API ile Dükkan TestFlight kuyruğuna al
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const token=process.env.CODEMAGIC_API_TOKEN;
+          if(!token) throw new Error('GitHub Actions Secrets içinde CODEMAGIC_API_TOKEN bulunamadı.');
+          const headers={'Content-Type':'application/json','x-auth-token':token};
+          const get=async(url,init={})=>{
+            const res=await fetch(url,{headers,signal:AbortSignal.timeout(45000),...init});
+            const payload=await res.json().catch(()=>({}));
+            if(!res.ok)throw new Error('Codemagic API HTTP '+res.status);
+            return payload;
+          };
+          const payload=await get('https://api.codemagic.io/apps');
+          const applications=Array.isArray(payload.applications)?payload.applications:[];
+          const matches=applications.filter(x=>{
+            const url=String(x.repositoryUrl||x.repository?.url||'').toLowerCase().replace(/\\/g,'/');
+            const name=String(x.appName||'').toLowerCase();
+            return url.includes('erdcss/crm-rma-panel')||name==='crm-rma-panel';
+          });
+          const configured=process.env.CODEMAGIC_DUKKAN_APP_ID||
+            process.env.CODEMAGIC_APP_ID_VAR||process.env.CODEMAGIC_BUSINESS_APP_ID||process.env.CODEMAGIC_APP_ID_SECRET||'';
+          if(configured&&!/^[a-f0-9]{24}$/i.test(configured))
+            throw new Error('CODEMAGIC_APP_ID 24 haneli geçerli kimlik değil.');
+          const app=configured?matches.find(x=>x._id===configured):
+            matches.length===1?matches[0]:null;
+          if(!app||!/^[a-f0-9]{24}$/i.test(String(app._id||''))){
+            console.error('Codemagic uygulama eşleşmeleri: '+matches.length);
+            throw new Error('Tek CRM-RMA-PANEL Codemagic uygulaması doğrulanamadı. GitHub Actions Variables içindeki CODEMAGIC_APP_ID ayarını kontrol edin.');
+          }
+          const workflowId='caliskan-dukkan-ios-testflight';
+          const result=await get('https://api.codemagic.io/builds',{
+            method:'POST',
+            body:JSON.stringify({appId:app._id,workflowId,branch:'main'})
+          });
+          if(!/^[a-f0-9]{24}$/i.test(String(result.buildId||'')))
+            throw new Error('Codemagic derlemeyi kabul ettiğine ilişkin geçerli buildId döndürmedi.');
+          fs.appendFileSync(process.env.GITHUB_ENV,'DUKKAN_CM_BUILD_ID='+result.buildId+'\n');
+          const url='https://codemagic.io/app/'+app._id+'/build/'+result.buildId;
+          console.log('Çalışkan Dükkan iOS TestFlight Codemagic build başlatıldı.');
+          console.log('Build ID: '+result.buildId);
+          console.log('Codemagic bağlantısı: '+url);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+            '### Çalışkan Dükkan TestFlight – Codemagic API yanıtı\n\n'+
+            '- Durum: **Derleme isteği kabul edildi / kuyruğa alındı**\n'+
+            '- Uygulama: `com.caliskan.dukkan`\n'+
+            '- İş akışı: `'+workflowId+'`\n'+
+            '- GitHub commit: `'+process.env.GITHUB_SHA_REQUEST+'`\n'+
+            '- Codemagic build ID: `'+result.buildId+'`\n'+
+            '- [Derleme durumunu Codemagic üzerinde aç]('+url+')\n\n'+
+            'Codemagic build tamamlanması ve Apple TestFlight işleme/onay durumu ayrıca doğrulanmalıdır.\n');
+          NODE
+      - name: Codemagic sonucunu izle
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const id=process.env.DUKKAN_CM_BUILD_ID;
+          if(!/^[a-f0-9]{24}$/i.test(id||''))throw Error('Missing build ID');
+          const deadline=Date.now()+125*60*1000;
+          let last='';
+          while(Date.now()<deadline){
+            let res;
+            try{
+              res=await fetch('https://api.codemagic.io/builds/'+id,{
+                headers:{'x-auth-token':process.env.CODEMAGIC_API_TOKEN},
+                signal:AbortSignal.timeout(30000)
+              });
+            }catch{
+              await new Promise(r=>setTimeout(r,30000));
+              continue;
+            }
+            if(!res.ok){
+              if(res.status===429||res.status>=500){
+                await new Promise(r=>setTimeout(r,30000));
+                continue;
+              }
+              throw Error('Codemagic status HTTP '+res.status);
+            }
+            const p=await res.json();
+            const b=p.build||p.data||p;
+            const status=String(b.status||'unknown').toLowerCase();
+            if(status!==last){console.log('Codemagic status: '+status);last=status;}
+            if(['finished','failed','canceled','cancelled','timeout','skipped'].includes(status)){
+              const publishing=(Array.isArray(b.buildActions)?b.buildActions:[]).filter(x=>x.type==='publishing').map(x=>({status:x.status}));
+              fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n- Codemagic final status: **'+status+'**\n- Publishing: '+JSON.stringify(publishing)+'\n- Apple TestFlight processing must be verified separately.\n');
+              if(status!=='finished'||publishing.some(x=>/fail|error|cancel/i.test(String(x.status))))process.exitCode=1;
+              break;
+            }
+            await new Promise(r=>setTimeout(r,30000));
+          }
+          if(!['finished','failed','canceled','cancelled','timeout','skipped'].includes(last))throw Error('Status monitoring timed out; check existing build ID before retrying.');
+          NODE
