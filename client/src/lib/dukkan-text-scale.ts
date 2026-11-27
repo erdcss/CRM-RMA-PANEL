@@ -1,6 +1,6 @@
 import {useEffect,useState} from "react";
 export const DUKKAN_TEXT_SCALE_KEY="dukkan:text-scale:v1";
-export const DUKKAN_TEXT_SCALES=[90,100,110,120,125] as const;
+export const DUKKAN_TEXT_SCALES=[50,75,90,100,110,120,125] as const;
 export type DukkanTextScale=typeof DUKKAN_TEXT_SCALES[number];
 const EVENT="dukkan:text-scale-change";
 let volatileScale:DukkanTextScale|undefined;
