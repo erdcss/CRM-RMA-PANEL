@@ -130,14 +130,10 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
               variant="ghost"
               className="h-9 w-9 border border-slate-200 bg-slate-100 px-0 text-slate-800 hover:bg-slate-200 sm:w-auto sm:px-4"
             >
-              <Link href="/siparislerim" aria-label="Siparişler" className="relative">
+              <Link href="/siparis-gecmisi" aria-label="Siparişlerim" className="relative">
                 <PackageSearch className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Siparişler</span>
-                {itemCount > 0 ? (
-                  <span className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-bold text-slate-950">
-                    {itemCount > 99 ? "99+" : itemCount}
-                  </span>
-                ) : null}
+
               </Link>
             </Button>
             <Button asChild className="h-9 w-9 bg-slate-950 px-0 hover:bg-slate-800 sm:w-auto sm:px-4">
