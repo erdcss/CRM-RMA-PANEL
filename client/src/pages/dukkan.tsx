@@ -6,6 +6,7 @@ import {DukkanWorkspaceHeader,DukkanWorkspaceLayout} from "@/components/dukkan-w
 import {DukkanSuperManagerPanel} from "@/components/dukkan-super-manager-panel";
 import {DukkanInvoiceFormSettings} from "@/components/dukkan-invoice-form-settings";
 import {DukkanDesktopDownload} from "@/components/dukkan-desktop-download";
+import {DukkanTextSizeSettings} from "@/components/dukkan-text-size-settings";
 import {DukkanAiDocumentImport,type AiDocumentDraft} from "@/components/dukkan-ai-document-import";
 import {fileToCompressedDataUrl} from "@/lib/compress-image";
 import {DukkanProductToolbar} from "@/components/dukkan-product-toolbar";
@@ -154,10 +155,11 @@ export default function Dukkan() {
   const canManageStock=canManage||currentStore?.role==="accountant"||(isAdmin&&currentStore?.role!=="viewer");
   const canAccount=!cashier;
   const isManager=["owner","manager"].includes(String(currentStore?.role));
-  const canAccessSettings=canManage||isSuperAdmin;
+  const canAccessSettings=Boolean(currentStore)||isSuperAdmin;
   useEffect(()=>{
     if(section==="settings"&&!canAccessSettings)setSection("overview");
-  },[section,canAccessSettings]);
+    if(settingsView==="forms"&&!canManage&&!isSuperAdmin)setSettingsView("general");
+  },[section,canAccessSettings,settingsView,canManage,isSuperAdmin]);
   const identity=useMemo(()=>new URLSearchParams(window.location.search).get("tab"),[]);
   useEffect(()=>{
     if(!storeId||toolbarStore.current===storeId)return;
@@ -870,23 +872,24 @@ export default function Dukkan() {
                   (settingsView==="general"?"bg-[#123d70] text-white":"border border-[#d8e5f3] bg-white text-[#365a7f] hover:bg-sky-50")}>
                 <Building2 size={17}/> Genel Ayarlar
               </button>
-              <button type="button" onClick={()=>setSettingsView("forms")} aria-pressed={settingsView==="forms"}
+              {(canManage||isSuperAdmin)&&<button type="button" onClick={()=>setSettingsView("forms")} aria-pressed={settingsView==="forms"}
                 className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition "+
                   (settingsView==="forms"?"bg-[#123d70] text-white":"border border-[#d8e5f3] bg-white text-[#365a7f] hover:bg-sky-50")}>
                 <FileText size={17}/> Formlar
-              </button>
+              </button>}
             </nav>
           </div>}
-          {section==="settings"&&settingsView==="forms"&&<DukkanInvoiceFormSettings
+          {section==="settings"&&settingsView==="forms"&&(canManage||isSuperAdmin)&&<DukkanInvoiceFormSettings
             key={storeId} base={base} storeId={storeId}
             storeName={String(currentStore?.name||"Çalışkan Dükkân")}
             canEdit={canManage}/>}
+          {section==="settings"&&settingsView==="general"&&<DukkanTextSizeSettings/>}
           {section==="settings"&&settingsView==="general"&&<DukkanDesktopDownload/>}
           {section==="settings"&&settingsView==="general"&&canManage&&<div className={softCard+" mb-5"}><h2 className="mb-3 font-bold">Personel ve Mağaza Yetkileri</h2><form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();void submitSpecial("members",{username:draft.memberUsername,role:draft.memberRole||"cashier"});}}><input className={inputClass+" flex-1"} value={draft.memberUsername||""} onChange={e=>put("memberUsername",e.target.value)} required placeholder="Sistemde kayıtlı kullanıcı adı / e-posta"/><select className={inputClass} value={draft.memberRole||"cashier"} onChange={e=>put("memberRole",e.target.value)}><option value="cashier">Kasiyer</option><option value="accountant">Muhasebeci</option><option value="manager">Mağaza Müdürü</option><option value="viewer">Yalnızca Görüntüleme</option></select><button className={buttonClass} disabled={busy}>Yetki Ata</button></form><div className="mt-3 space-y-2">{members.map(m=><div key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs"><span>{m.username} · {m.role}</span>{currentStore?.role==="owner"&&isAdmin&&m.role!=="owner"&&<button type="button" disabled={staffCodeBusy} onClick={()=>void issueStaffCode(m)} className="rounded-lg border border-sky-200 bg-white px-3 py-2 font-semibold text-sky-800 disabled:opacity-40"><Lock size={13} className="mr-1 inline"/>Geçici Kod Oluştur</button>}</div>)}</div>{staffCode&&staffCode.storeId===storeId&&<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><p className="font-semibold">{staffCode.username} · Tek kullanımlık kod</p><code className="my-2 block select-all break-all font-mono">{staffCode.code}</code><p className="text-xs">15 dakika geçerlidir. Kodu yalnızca ilgili personele iletin; şifre alanına girerek yeni şifresini belirlesin.</p><div className="mt-2 flex gap-2"><button type="button" className="rounded-lg bg-white px-3 py-2 font-semibold" onClick={()=>void navigator.clipboard.writeText(staffCode.code).then(()=>setNotice("Kod kopyalandı")).catch(()=>setError("Kod kopyalanamadı; elle seçip kopyalayın."))}>Kopyala</button><button type="button" className="rounded-lg bg-white px-3 py-2" onClick={()=>setStaffCode(null)}>Kapat</button></div></div>}</div>}
           {section==="settings"&&settingsView==="general"&&isSuperAdmin&&<DukkanSuperManagerPanel storeId={storeId}
             onCreated={name=>{setNotice(name+" süper yönetici olarak oluşturuldu. Çalışkan Admin ve Dükkan hesap bilgileriyle giriş hazır.");setRefresh(v=>v+1);}}
             onError={setError}/>}
-          {section==="settings"&&settingsView==="general"&&<div className="mb-5">
+          {section==="settings"&&settingsView==="general"&&(canManage||isSuperAdmin)&&<div className="mb-5">
             <div className={softCard}>
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-[#e6f2ff] p-3 text-[#124b85]"><Building2 size={22}/></div>

@@ -1,4 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
+import {useDukkanTextScaleRuntime} from "@/lib/dukkan-text-scale";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -148,6 +149,7 @@ function AppContent() {
   // The restricted store-manager branch needs to react to SPA route changes.
   const [appPath] = useLocation();
   const dukkanPath=appPath.split("?")[0];
+  useDukkanTextScaleRuntime(dukkanPath==="/dukkan"||dukkanPath.startsWith("/dukkan/"));
   const { data: user, isLoading } = useQuery<{ id: number; username: string; role: string; appAccess: string; isActive: boolean } | null>({
     queryKey: ["/api/auth/me"],
     retry: false,

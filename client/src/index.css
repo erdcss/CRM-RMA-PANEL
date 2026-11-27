@@ -316,3 +316,168 @@
     inset: -1px;
   }
 }
+
+/* Personal Dukkan display preference: screen only, never printed documents. */
+@media screen {
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) { font-size: calc(100% * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[9px]"] { font-size: calc(9px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[10px]"] { font-size: calc(10px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[11px]"] { font-size: calc(11px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[12px]"] { font-size: calc(12px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[13px]"] { font-size: calc(13px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[14px]"] { font-size: calc(14px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[15px]"] { font-size: calc(15px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[16px]"] { font-size: calc(16px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[17px]"] { font-size: calc(17px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[18px]"] { font-size: calc(18px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[19px]"] { font-size: calc(19px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[20px]"] { font-size: calc(20px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[21px]"] { font-size: calc(21px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[22px]"] { font-size: calc(22px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[23px]"] { font-size: calc(23px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[24px]"] { font-size: calc(24px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[25px]"] { font-size: calc(25px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[26px]"] { font-size: calc(26px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[28px]"] { font-size: calc(28px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[30px]"] { font-size: calc(30px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[32px]"] { font-size: calc(32px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[36px]"] { font-size: calc(36px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[40px]"] { font-size: calc(40px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[44px]"] { font-size: calc(44px * var(--dukkan-text-scale, 1)); }
+  html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="text-[48px]"] { font-size: calc(48px * var(--dukkan-text-scale, 1)); }
+  @media (min-width: 640px) {
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[9px]"] { font-size: calc(9px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[10px]"] { font-size: calc(10px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[11px]"] { font-size: calc(11px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[12px]"] { font-size: calc(12px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[13px]"] { font-size: calc(13px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[14px]"] { font-size: calc(14px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[15px]"] { font-size: calc(15px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[16px]"] { font-size: calc(16px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[17px]"] { font-size: calc(17px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[18px]"] { font-size: calc(18px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[19px]"] { font-size: calc(19px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[20px]"] { font-size: calc(20px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[21px]"] { font-size: calc(21px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[22px]"] { font-size: calc(22px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[23px]"] { font-size: calc(23px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[24px]"] { font-size: calc(24px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[25px]"] { font-size: calc(25px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[26px]"] { font-size: calc(26px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[28px]"] { font-size: calc(28px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[30px]"] { font-size: calc(30px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[32px]"] { font-size: calc(32px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[36px]"] { font-size: calc(36px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[40px]"] { font-size: calc(40px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[44px]"] { font-size: calc(44px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="sm:text-[48px]"] { font-size: calc(48px * var(--dukkan-text-scale, 1)); }
+  }
+  @media (min-width: 768px) {
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[9px]"] { font-size: calc(9px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[10px]"] { font-size: calc(10px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[11px]"] { font-size: calc(11px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[12px]"] { font-size: calc(12px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[13px]"] { font-size: calc(13px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[14px]"] { font-size: calc(14px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[15px]"] { font-size: calc(15px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[16px]"] { font-size: calc(16px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[17px]"] { font-size: calc(17px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[18px]"] { font-size: calc(18px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[19px]"] { font-size: calc(19px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[20px]"] { font-size: calc(20px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[21px]"] { font-size: calc(21px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[22px]"] { font-size: calc(22px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[23px]"] { font-size: calc(23px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[24px]"] { font-size: calc(24px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[25px]"] { font-size: calc(25px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[26px]"] { font-size: calc(26px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[28px]"] { font-size: calc(28px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[30px]"] { font-size: calc(30px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[32px]"] { font-size: calc(32px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[36px]"] { font-size: calc(36px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[40px]"] { font-size: calc(40px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[44px]"] { font-size: calc(44px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="md:text-[48px]"] { font-size: calc(48px * var(--dukkan-text-scale, 1)); }
+  }
+  @media (min-width: 1024px) {
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[9px]"] { font-size: calc(9px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[10px]"] { font-size: calc(10px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[11px]"] { font-size: calc(11px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[12px]"] { font-size: calc(12px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[13px]"] { font-size: calc(13px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[14px]"] { font-size: calc(14px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[15px]"] { font-size: calc(15px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[16px]"] { font-size: calc(16px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[17px]"] { font-size: calc(17px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[18px]"] { font-size: calc(18px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[19px]"] { font-size: calc(19px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[20px]"] { font-size: calc(20px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[21px]"] { font-size: calc(21px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[22px]"] { font-size: calc(22px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[23px]"] { font-size: calc(23px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[24px]"] { font-size: calc(24px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[25px]"] { font-size: calc(25px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[26px]"] { font-size: calc(26px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[28px]"] { font-size: calc(28px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[30px]"] { font-size: calc(30px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[32px]"] { font-size: calc(32px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[36px]"] { font-size: calc(36px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[40px]"] { font-size: calc(40px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[44px]"] { font-size: calc(44px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="lg:text-[48px]"] { font-size: calc(48px * var(--dukkan-text-scale, 1)); }
+  }
+  @media (min-width: 1280px) {
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[9px]"] { font-size: calc(9px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[10px]"] { font-size: calc(10px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[11px]"] { font-size: calc(11px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[12px]"] { font-size: calc(12px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[13px]"] { font-size: calc(13px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[14px]"] { font-size: calc(14px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[15px]"] { font-size: calc(15px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[16px]"] { font-size: calc(16px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[17px]"] { font-size: calc(17px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[18px]"] { font-size: calc(18px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[19px]"] { font-size: calc(19px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[20px]"] { font-size: calc(20px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[21px]"] { font-size: calc(21px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[22px]"] { font-size: calc(22px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[23px]"] { font-size: calc(23px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[24px]"] { font-size: calc(24px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[25px]"] { font-size: calc(25px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[26px]"] { font-size: calc(26px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[28px]"] { font-size: calc(28px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[30px]"] { font-size: calc(30px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[32px]"] { font-size: calc(32px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[36px]"] { font-size: calc(36px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[40px]"] { font-size: calc(40px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[44px]"] { font-size: calc(44px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="xl:text-[48px]"] { font-size: calc(48px * var(--dukkan-text-scale, 1)); }
+  }
+  @media (min-width: 1536px) {
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[9px]"] { font-size: calc(9px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[10px]"] { font-size: calc(10px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[11px]"] { font-size: calc(11px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[12px]"] { font-size: calc(12px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[13px]"] { font-size: calc(13px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[14px]"] { font-size: calc(14px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[15px]"] { font-size: calc(15px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[16px]"] { font-size: calc(16px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[17px]"] { font-size: calc(17px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[18px]"] { font-size: calc(18px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[19px]"] { font-size: calc(19px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[20px]"] { font-size: calc(20px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[21px]"] { font-size: calc(21px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[22px]"] { font-size: calc(22px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[23px]"] { font-size: calc(23px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[24px]"] { font-size: calc(24px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[25px]"] { font-size: calc(25px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[26px]"] { font-size: calc(26px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[28px]"] { font-size: calc(28px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[30px]"] { font-size: calc(30px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[32px]"] { font-size: calc(32px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[36px]"] { font-size: calc(36px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[40px]"] { font-size: calc(40px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[44px]"] { font-size: calc(44px * var(--dukkan-text-scale, 1)); }
+    html[data-dukkan-text-scale]:not([data-dukkan-text-scale="100"]) [class~="2xl:text-[48px]"] { font-size: calc(48px * var(--dukkan-text-scale, 1)); }
+  }
+}
