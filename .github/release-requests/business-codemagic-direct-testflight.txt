@@ -1,5 +1,6 @@
-request=business-testflight-20261127-01
-source=chatgpt-user-confirmed-signing-profile
+request=business-testflight-performance-20261127-02
+source=chatgpt-user-request-performance-release
 workflow=caliskan-business-ios-testflight
 bundle=com.caliskangroup.business
 profile=caliskan_business_appstore_2027
+requestedSource=17e68a30d9bd23ec84a966217e81146eb3c2b975
