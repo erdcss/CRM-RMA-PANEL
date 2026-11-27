@@ -57,7 +57,7 @@ function B2BWebLogo({ logo }: { logo?: string | null }) {
   );
 }
 
-export function B2BHeader({ middle }: { middle?: ReactNode }) {
+export function B2BHeader({ middle, hasNewArrivals = false }: { middle?: ReactNode; hasNewArrivals?: boolean }) {
   const [drawerOpen,setDrawerOpen] = useState(false);
   const [location] = useLocation();
 
@@ -165,7 +165,7 @@ export function B2BHeader({ middle }: { middle?: ReactNode }) {
         <div className="mx-auto flex h-12 max-w-[1600px] items-center justify-between gap-3 px-5 xl:px-6">
           <Link href="/kategoriler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Boxes className="h-4 w-4 text-[#ffcc00]" /> Tüm Kategoriler</Link>
           <Link href="/kampanyalar" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Tags className="h-4 w-4 text-[#ffcc00]" /> Kampanyalar</Link>
-          <a href="/#yeni-gelenler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Star className="h-4 w-4 text-[#ffcc00]" /> Yeni Ürünler</a>
+          {hasNewArrivals &&           <a href="/#yeni-gelenler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Star className="h-4 w-4 text-[#ffcc00]" /> Yeni Ürünler</a>}
           <a href="/#urunler" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Flame className="h-4 w-4 text-[#ffcc00]" /> Toptan Ürünler</a>
           <Link href="/magazalar" className="flex items-center gap-2 text-xs font-semibold hover:text-[#ffcc00] lg:text-sm"><Store className="h-4 w-4 text-[#ffcc00]" /> Tedarikçiler</Link>
           <Link href="/siparislerim" className="text-xs font-semibold hover:text-[#ffcc00] lg:text-sm">Sipariş Listem</Link>
