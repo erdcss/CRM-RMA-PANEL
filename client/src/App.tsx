@@ -56,6 +56,7 @@ import B2BLogin from "@/pages/b2b-login";
 import B2BRegister from "@/pages/b2b-register";
 import B2BAccount from "@/pages/b2b-account";
 import B2BOrders from "@/pages/b2b-orders";
+import B2BOrderHistory from "@/pages/b2b-order-history";
 import B2BPaymentPage from "@/pages/b2b-payment";
 import B2BSupport from "@/pages/b2b-support";
 import B2BPrivacyPage from "@/pages/b2b-privacy";
@@ -289,6 +290,7 @@ function B2BWebsite() {
         <Route path="/kayit-ol" component={B2BRegister} />
         <Route path="/hesabim" component={B2BAccount} />
         <Route path="/siparislerim" component={B2BOrders} />
+        <Route path="/siparis-gecmisi" component={B2BOrderHistory} />
         <Route path="/odeme" component={B2BPaymentPage} />
         <Route path="/destek" component={B2BSupport} />
         <Route path="/hakkimizda" component={B2BInfoPage} />
