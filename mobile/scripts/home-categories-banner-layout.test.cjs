@@ -10,7 +10,7 @@ const beginSearchResults = home.indexOf('{query.trim() ? (');
 const beginBanner = home.indexOf('{banners.length > 0 ? (');
 const beginCampaigns = home.indexOf('<ManagedHomeSections');
 
-test('mini categories appear below slim search, pinned all categories at right and above the banner',()=>{
+test('swipeable category shortcuts appear below search and above the banner',()=>{
   const beginSearch = home.indexOf('placeholder="Ürün, marka veya barkod ara"');
   assert.ok(beginSearch>=0 && beginSearch<beginCategory, 'Search must precede mini categories');
   assert.ok(beginCategory>0 && beginCategory<beginAllCategories, 'Pinned All Categories is after the strip');
@@ -19,7 +19,7 @@ test('mini categories appear below slim search, pinned all categories at right a
   assert.equal(home.split('accessibilityLabel="Tüm kategoriler"').length-1,1,'One pinned action only');
   assert.match(home,/quickCategories\.map/);
   assert.match(home,/router\.push\('\/\(tabs\)\/menu' as never\)/);
-  assert.match(home,/flexWrap:'nowrap'/);
+  assert.match(home,/<ScrollView horizontal showsHorizontalScrollIndicator=\{false\} contentContainerStyle=\{styles\.categoryQuickRow\}>/);
 });
 
 test('banner has equal 16px page gutters, rounded edges and correct snapping',()=>{
@@ -45,8 +45,8 @@ test('hero banner has a stable frame, centered indicators and an inline copy pan
 
 test('banner and quick-action spacing matches compact mobile reference',()=>{
   const sections=fs.readFileSync(path.resolve(__dirname,'../components/home/ManagedHomeSections.tsx'),'utf8');
-  // 1px category padding + 2px banner margin gives a 3px visual gap.
-  assert.match(home,/categoryQuickRow:\{[^}]*paddingBottom:1/);
+  // The updated category cards have breathable padding while the banner keeps its original layout.
+  assert.match(home,/categoryQuickRow:\{[^}]*paddingBottom:7/);
   assert.match(home,/carouselContainer:\s*\{marginTop:2/);
   assert.match(home,/carouselOutline:\{[^}]*borderRadius:13/);
   assert.match(sections,/actions:\{[^}]*gap:4,marginTop:4/);
