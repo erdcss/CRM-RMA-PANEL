@@ -85,8 +85,12 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
       <View style={[styles.stockBadge,!canOrder&&styles.noStockBadge]}>
         <View style={[styles.dot,!canOrder&&styles.noStockDot]}/>
         <Text style={[styles.stockText,!canOrder&&styles.noStockText]} numberOfLines={1}>
-          {canOrder?'Stokta':stock===0?'Stokta yok':'Stok yetersiz'}
+          {canOrder?`Stok: ${stock.toLocaleString('tr-TR')} adet`:stock===0?'Stokta yok':'Stok yetersiz'}
         </Text>
+      </View>
+      <View style={styles.packInfo}>
+        <View style={styles.packRow}><Ionicons name="cube-outline" size={12} color="#0B192D"/><Text style={styles.packText}>Koli içi: {pack} adet</Text></View>
+        <Text style={styles.minBoxesText}>Min. alım: {minBoxes} koli</Text>
       </View>
       <View style={styles.priceBlock}>
         <Text style={styles.priceLabel}>Toptan Fiyat</Text>
@@ -95,31 +99,35 @@ export function CompactProductCard({product,width,signedIn,newArrival,onPress,on
             Number.isFinite(Number(product.original_price)) ? <Text style={styles.oldPrice} numberOfLines={1}>{money(product.original_price)}</Text>:null}
           <Text style={[styles.price,!canOrder&&styles.disabledPrice]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{money(price)}</Text>
         </>:!signedIn?<Pressable onPress={e=>{e.stopPropagation();onLogin();}} style={styles.login} accessibilityRole="button">
-          <Ionicons name="lock-closed-outline" color="#815900" size={11}/><Text style={styles.loginText} numberOfLines={1}>Giriş Yap</Text>
+          <Ionicons name="lock-closed-outline" color="#815900" size={11}/><Text style={styles.loginText} numberOfLines={1}>Bayi Fiyatını Gör</Text>
         </Pressable>:<Text style={styles.priceLabel}>{expired?'Fiyat güncelleniyor…':'Fiyat belirtilmedi'}</Text>}
       </View>
     </View>
   </Pressable>;
 }
 const styles=StyleSheet.create({
-  card:{backgroundColor:'#FFFFFF',borderWidth:1,borderColor:'#E5E7EB',borderRadius:13,overflow:'hidden',flexShrink:0},
+  card:{backgroundColor:'#FFFFFF',borderWidth:1,borderColor:'#E5E7EB',borderRadius:16,overflow:'hidden',flexShrink:0,shadowColor:'#0B192D',shadowOffset:{width:0,height:2},shadowOpacity:0.08,shadowRadius:5,elevation:2},
   imageWrap:{width:'100%',aspectRatio:1,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
   image:{width:'100%',height:'100%'},faded:{opacity:0.45},
   newBadge:{position:'absolute',top:6,left:6,paddingHorizontal:5,paddingVertical:3,borderRadius:5,backgroundColor:'#FFCD00'},
   newText:{fontSize:9,fontWeight:'400',color:'#111827'},
-  body:{padding:8,gap:4,flex:1},
+  body:{padding:10,gap:5,flex:1},
   sku:{fontSize:9,lineHeight:12,color:'#68707D',fontWeight:'400'},
-  name:{fontSize:12,lineHeight:16,minHeight:32,fontWeight:'400',color:'#171717'},
+  name:{fontSize:13,lineHeight:18,minHeight:36,fontWeight:'800',color:'#0B192D'},
   seller:{fontSize:9,lineHeight:12,color:'#6B7280',fontWeight:'400'},
   stockBadge:{alignSelf:'flex-start',maxWidth:'100%',borderRadius:6,paddingHorizontal:5,paddingVertical:3,backgroundColor:'#DCFCE7',flexDirection:'row',alignItems:'center',gap:3},
   dot:{width:6,height:6,borderRadius:3,backgroundColor:'#16A34A'},
   stockText:{fontSize:9,lineHeight:12,color:'#166534',fontWeight:'400',flexShrink:1},
   noStockBadge:{backgroundColor:'#FEE2E2'},noStockDot:{backgroundColor:'#DC2626'},noStockText:{color:'#991B1B'},
-  priceBlock:{marginTop:'auto',paddingTop:5,gap:2},
+  packInfo:{gap:2,marginTop:2},
+  packRow:{flexDirection:'row',alignItems:'center',gap:4},
+  packText:{fontSize:10,lineHeight:13,fontWeight:'700',color:'#0B192D'},
+  minBoxesText:{fontSize:10,lineHeight:13,fontWeight:'500',color:'#64748B'},
+  priceBlock:{marginTop:'auto',paddingTop:6,gap:3},
   priceLabel:{fontSize:10,lineHeight:13,color:'#555555',fontWeight:'400'},
-  price:{fontSize:15,lineHeight:20,fontWeight:'400',color:'#111111'},
+  price:{fontSize:17,lineHeight:22,fontWeight:'900',color:'#0B192D'},
   oldPrice:{fontSize:10,color:'#6B7280',textDecorationLine:'line-through',fontWeight:'400'},
   disabledPrice:{color:'#9CA3AF'},
-  login:{flexDirection:'row',alignItems:'center',gap:4,backgroundColor:'#FFF6D5',paddingVertical:4,paddingHorizontal:5,borderRadius:5},
-  loginText:{fontSize:10,color:'#815900',fontWeight:'400',flexShrink:1},
+  login:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:4,backgroundColor:'#FFCD00',paddingVertical:9,paddingHorizontal:6,borderRadius:9},
+  loginText:{fontSize:10,color:'#0B192D',fontWeight:'800',flexShrink:1},
 });
