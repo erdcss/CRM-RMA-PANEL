@@ -106,9 +106,6 @@ export default function HomeScreen() {
   const [bannerIndex, setBannerIndex] = useState(0);
   const bannerScrollRef = useRef<ScrollView>(null);
   const homeScrollRef = useRef<ScrollView>(null);
-  const wholesaleScrollRef = useRef<ScrollView>(null);
-  const wholesaleIndexRef = useRef(0);
-  const [wholesaleWidth, setWholesaleWidth] = useState(0);
   const bannerIndexRef = useRef(0);
   const bannerHeight=bannerDisplayHeight(bannerWidth);
   const onBannerPress=useCallback((banner:HomeBanner)=>{
@@ -309,17 +306,6 @@ export default function HomeScreen() {
     return () => clearInterval(timer);
   }, [bannerWidth, banners.length, query, sliderAutoPlay, sliderIntervalMs]);
 
-  useEffect(() => {
-    if (query.trim() || wholesale.length < 2 || !wholesaleWidth) return;
-    const cardWidth = stripProductWidth(wholesaleWidth) + spacing.sm;
-    const count = Math.min(wholesale.length, 10);
-    const timer = setInterval(() => {
-      const next = (wholesaleIndexRef.current + 1) % count;
-      wholesaleIndexRef.current = next;
-      wholesaleScrollRef.current?.scrollTo({ x: next * cardWidth, animated: next !== 0 });
-    }, 3500);
-    return () => clearInterval(timer);
-  }, [wholesale.length, wholesaleWidth, query, screenWidth]);
 
   const handleScannedBarcode = async (value: string) => {
     if (scanLockedRef.current) return;
@@ -353,10 +339,10 @@ export default function HomeScreen() {
     }
   };
 
-  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false, viewportWidth?: number) => {
+  const renderHomeProductCard = (product: B2BProduct, isNewArrivalCard = false, viewportWidth?: number, forceGrid = false) => {
     const viewport = viewportWidth || Math.max(1, screenWidth - 2 * spacing.lg);
     return <CompactProductCard key={product.marketplace ? 'marketplace-'+product.id : 'b2b-'+product.id}
-      product={product} width={isNewArrivalCard?gridProductWidth(viewport):stripProductWidth(viewport)}
+      product={product} width={isNewArrivalCard || forceGrid ? gridProductWidth(viewport) : stripProductWidth(viewport)}
       signedIn={Boolean(session)} newArrival={isNewArrivalCard}
       onPress={()=>router.push({pathname:'/product/[id]',params:productParams(product)} as never)}
       onLogin={()=>router.push('/login')} onExpire={()=>void load(true)}/>;
@@ -722,15 +708,9 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         {wholesale.length > 0 ? (
-          <ScrollView
-            ref={wholesaleScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            onLayout={event => setWholesaleWidth(event.nativeEvent.layout.width)}
-            contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.lg }}
-          >
-            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product,false,wholesaleWidth))}
-          </ScrollView>
+          <View style={styles.productGrid}>
+            {wholesale.slice(0, 10).map(product => renderHomeProductCard(product,false,undefined,true))}
+          </View>
         ) : (
           <View style={styles.newArrivalEmpty}>
             <Text style={styles.newArrivalEmptyText}>Toptan ürünler burada listelenecek. Yeni ürünler yukarıdaki bölümde yer alır.</Text>
