@@ -1,4 +1,4 @@
-export type B2BBottomTab = "home" | "categories" | "orders" | "account";
+export type B2BBottomTab = "home" | "categories" | "cart" | "orders" | "account";
 
 const normalizedPath = (value: string) => {
   const path = (value || "/").split("?")[0].replace(/\/+$/, "");
@@ -12,12 +12,14 @@ export function b2bBottomActiveTab(location: string, search = ""): B2BBottomTab 
   const query = new URLSearchParams(search || inlineSearch);
   if (path === "/uye-girisi" || path === "/login") {
     if (query.get("from") === "hesabim") return "account";
-    if (query.get("from") === "siparislerim") return "orders";
+    if (query.get("from") === "siparislerim") return "cart";
+    if (query.get("from") === "siparis-gecmisi") return "orders";
     return null;
   }
   if (path === "/") return "home";
   if (path === "/kategoriler" || path.startsWith("/kategori/")) return "categories";
-  if (path === "/siparislerim" || path === "/pazaryeri-sepetim" || path === "/odeme" || path.startsWith("/odeme/")) return "orders";
+  if (path === "/siparislerim" || path === "/pazaryeri-sepetim" || path === "/odeme" || path.startsWith("/odeme/")) return "cart";
+  if (path === "/siparis-gecmisi") return "orders";
   if (path === "/hesabim" || path.startsWith("/hesabim/")) return "account";
   if (path.startsWith("/urun/") || path.startsWith("/magaza/")) return "home";
   return null;
@@ -28,5 +30,6 @@ export function b2bDestinationAfterLogin(search = ""): string {
   const from = new URLSearchParams(search).get("from");
   if (from === "hesabim") return "/hesabim";
   if (from === "siparislerim") return "/siparislerim";
+  if (from === "siparis-gecmisi") return "/siparis-gecmisi";
   return "/";
 }
