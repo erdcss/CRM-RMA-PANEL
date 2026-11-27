@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { RefreshCw } from "lucide-react";
 import { NotificationCenter } from "@/components/notification-center";
 import Dashboard from "@/pages/dashboard";
 import Kayitlar from "@/pages/kayitlar";
@@ -184,6 +185,11 @@ function AppContent() {
                 <header className="flex items-center justify-between p-4 border-b shrink-0 pt-[max(1rem,env(safe-area-inset-top))]">
                   <SidebarTrigger className="shrink-0" aria-label="Sol menüyü aç veya kapat" data-testid="button-sidebar-toggle" />
                   <div className="flex items-center gap-2">
+                    <button type="button" aria-label="Programı yenile" title="Programı yenile" data-testid="button-program-refresh"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-background text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={()=>{if(window.confirm("Program yenilensin mi? Kaydedilmemiş değişiklikler kaybolabilir."))window.location.reload();}}>
+                      <RefreshCw className="h-4 w-4" aria-hidden="true"/>
+                    </button>
                     <NotificationCenter />
                     <ThemeToggle />
                   </div>
