@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useEffect } from "react";
 import { trackSearch } from "@/lib/analytics";
-import { Search, Package, BadgeCheck, Store, X, Boxes, ChevronRight, Truck, ShieldCheck, ClipboardList, Percent, ArrowRight } from "lucide-react";
+import { Search, Package, BadgeCheck, Store, X, Boxes, ChevronRight, Truck, ShieldCheck, ClipboardList, Percent, ArrowRight, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { B2BHeader } from "@/components/b2b-header";
 import { B2BFooter, B2BDesktopAppBanners } from "@/components/b2b-footer";
@@ -145,6 +145,7 @@ export default function B2BStorefront() {
   return (
     <div className="min-h-screen bg-[#f7f8fa] text-slate-950">
       <B2BHeader
+        hasNewArrivals={newArrivals.length > 0 && !isSearching}
         middle={
           <div role="search" className="relative flex min-w-0 items-center">
             <Search aria-hidden="true" className="pointer-events-none absolute left-3 h-5 w-5 text-slate-600" />
@@ -210,11 +211,12 @@ export default function B2BStorefront() {
               </Link>
             </aside>
           </div>
-          <nav aria-label="Hızlı erişim" className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:grid-cols-4 sm:gap-0">
+          <nav aria-label="Hızlı erişim" className={`mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm sm:gap-0 ${newArrivals.length > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
             <Link href="/siparislerim" className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><Truck className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Hızlı Sipariş<span className="block text-[10px] font-normal text-slate-500">Koli bazında</span></span></Link>
             <Link href={loggedIn ? "/hesabim" : "/uye-girisi"} className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><Percent className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Bayi Fiyatları<span className="block text-[10px] font-normal text-slate-500">Giriş yaparak görüntüle</span></span></Link>
             <Link href="/magazalar" className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><ShieldCheck className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Tedarikçiler<span className="block text-[10px] font-normal text-slate-500">Onaylı mağazalar</span></span></Link>
             <Link href="/siparislerim" className="flex min-h-14 items-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:justify-center"><ClipboardList className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Sipariş Listem<span className="block text-[10px] font-normal text-slate-500">Sepeti görüntüle</span></span></Link>
+            {newArrivals.length > 0 && <a href="#yeni-gelenler" className="col-span-2 flex min-h-14 items-center justify-center gap-2 rounded-xl px-2 hover:bg-amber-50 sm:col-span-1"><Star className="h-6 w-6 shrink-0 text-[#0b192d]" /><span className="text-xs font-bold sm:text-sm">Yeni Ürünler<span className="block text-[10px] font-normal text-slate-500">Sisteme Eklenenler</span></span></a>}
           </nav>
         </div>
       </>}
@@ -264,7 +266,7 @@ export default function B2BStorefront() {
 
 
 
-        {(isLoading || newArrivals.length > 0) && <section className="mb-9 scroll-mt-24" id="yeni-gelenler" aria-labelledby="new-arrivals-title">
+        {newArrivals.length > 0 && <section className="mb-9 scroll-mt-24" id="yeni-gelenler" aria-labelledby="new-arrivals-title">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <div className="mb-1.5 flex items-center gap-2">
