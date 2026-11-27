@@ -32,17 +32,17 @@ jobs:
           markers={
             'caliskan-b2b-ios': '.github/release-requests/b2b-ios-testflight.txt',
             'caliskan-b2b-testflight': '.github/release-requests/b2b-ios-testflight-only.txt',
-            'caliskan-business-ios-testflight': '.github/release-requests/business-codemagic-testflight.txt',
+            'caliskan-business-ios-testflight': '.github/release-requests/business-codemagic-direct-testflight.txt',
             'caliskan-business-android-apk': '.github/release-requests/business-codemagic-apk.txt',
             'caliskan-business-android-aab': '.github/release-requests/business-codemagic-aab.txt',
           }
           for name, marker in markers.items():
             item=workflows[name]
-            if name in ('caliskan-b2b-ios', 'caliskan-b2b-testflight'):
+            if name in ('caliskan-b2b-ios', 'caliskan-b2b-testflight', 'caliskan-business-ios-testflight'):
               # B2B iOS builds are now deliberately API/manual-only.
               # A push or status-marker must never start duplicate paid builds.
               assert item['triggering']['events']==[], name
-              if name == 'caliskan-b2b-testflight':
+              if name in ('caliskan-b2b-testflight', 'caliskan-business-ios-testflight'):
                 assert not item.get('when',{}).get('changeset'), name
                 assert item['publishing']['app_store_connect']['submit_to_testflight'] is True
                 assert item['publishing']['app_store_connect']['submit_to_app_store'] is False
@@ -58,7 +58,12 @@ jobs:
             assert item['environment']['vars']['EXPO_PUBLIC_API_URL']=='https://admin.ecalisgan.com'
             assert 'business-mobile' in str(item['scripts'])
           ios=workflows['caliskan-business-ios-testflight']
-          assert ios['environment']['ios_signing']['bundle_identifier']=='com.caliskangroup.business'
+          assert ios['environment']['ios_signing']['certificates']==['caliskan_b2b_appstore_distribution']
+          assert ios['environment']['ios_signing']['provisioning_profiles']==['caliskan_business_appstore_2027']
+          assert ios['environment']['vars']['APP_STORE_APPLE_ID']=='6818161236'
+          assert 'com.caliskangroup.business' in str(ios['scripts'])
+          assert 'get-latest-build-number' in str(ios['scripts'])
+          assert 'business-codemagic-direct-testflight.txt' in pathlib.Path('.github/workflows/business-codemagic-direct-testflight.yml').read_text()
           assert ios['publishing']['app_store_connect']['submit_to_testflight'] is True
           assert ios['publishing']['app_store_connect']['submit_to_app_store'] is False
           for name in ('caliskan-business-android-apk','caliskan-business-android-aab'):

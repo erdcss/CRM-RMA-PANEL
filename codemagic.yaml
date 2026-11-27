@@ -249,52 +249,48 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 120
     triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
-      cancel_previous_builds: false
-    when:
-      changeset:
-        includes:
-          - '.github/release-requests/business-codemagic-testflight.txt'
+      events: []
     integrations:
       app_store_connect: Codemagic Caliskan B2B
     environment:
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.caliskangroup.business
+        certificates:
+          - caliskan_b2b_appstore_distribution
+        provisioning_profiles:
+          - caliskan_business_appstore_2027
       vars:
         EXPO_PUBLIC_API_URL: "https://admin.ecalisgan.com"
         APP_STORE_APPLE_ID: "6818161236"
         CI: "1"
+        APP_STORE_CONNECT_ALTOOL_ADDITIONAL_ARGUMENTS: "--use-old-altool"
       node: 22
       xcode: 26.4
       cocoapods: default
     scripts:
-      - name: Verify explicit chat release request
-        script: |
-          set -eu
-          if [ "${CM_TRIGGER_SOURCE:-}" = "webhook" ]; then
-            git show --format= --name-only HEAD | grep -Fxq '.github/release-requests/business-codemagic-testflight.txt' || {
-              echo "Push-triggered release requires marker in this commit: .github/release-requests/business-codemagic-testflight.txt";
-              exit 1;
-            }
-          fi
       - name: Install Business packages and verify TypeScript
         script: |
           set -e
           cd business-mobile
           npm ci
+          node -e 'const a=require("./app.json").expo; const e=require("./eas.json").submit.testflight.ios; if(a.ios.bundleIdentifier!=="com.caliskangroup.business" || e.ascAppId!==process.env.APP_STORE_APPLE_ID || e.appleTeamId!=="U3WGSDJCT2") throw Error("Business identity mismatch")'
           npx tsc --noEmit --project tsconfig.json
       - name: Sync current Business logo and splash from CRM
         script: |
           set -e
           cd business-mobile
           npm run sync:branding
-          node scripts/codemagic-build-version.cjs ios
+          LATEST="$(app-store-connect get-latest-build-number "$APP_STORE_APPLE_ID" --all-versions)"
+          export LATEST
+          node <<'NODE'
+          const fs=require('node:fs');
+          const config=JSON.parse(fs.readFileSync('app.json','utf8'));
+          if(!/^\d+$/.test(process.env.LATEST||''))throw Error('Apple latest build number could not be verified; check Business app access');
+          const latest=Number(process.env.LATEST);
+          if(!Number.isSafeInteger(latest)||latest<0||latest>=Number.MAX_SAFE_INTEGER)throw Error('Invalid Apple build number');
+          config.expo.ios.buildNumber=String(Math.max(latest+1,Number(config.expo.ios.buildNumber)||1));
+          fs.writeFileSync('app.json',JSON.stringify(config,null,2)+'\n');
+          console.log('Business iOS '+config.expo.version+' build '+config.expo.ios.buildNumber);
+          NODE
       - name: Generate native iOS project and install pods
         script: |
           set -e
@@ -316,6 +312,22 @@ workflows:
           scheme="$(xcodebuild -list -json -workspace "$workspace" | python3 -c 'import json,sys; print(next((s for s in json.load(sys.stdin)["workspace"]["schemes"] if not s.startswith("Pods-")), ""))')"
           test -n "$scheme" || { echo "Business Xcode scheme missing"; exit 1; }
           xcode-project build-ipa --workspace "$workspace" --scheme "$scheme"
+          python3 - <<'PY'
+          import json, plistlib
+          from pathlib import Path
+          from zipfile import ZipFile
+          files=list(Path("build/ios/ipa").glob("*.ipa"))
+          if len(files)!=1: raise SystemExit("Expected one signed Business IPA")
+          expected=json.loads(Path("app.json").read_text())["expo"]
+          with ZipFile(files[0]) as ipa:
+              names=[n for n in ipa.namelist() if n.startswith("Payload/") and n.count("/")==2 and n.endswith(".app/Info.plist")]
+              if len(names)!=1: raise SystemExit("Expected one main app Info.plist")
+              info=plistlib.loads(ipa.read(names[0]))
+              if not any(n.startswith("Payload/") and n.endswith(".app/Assets.car") for n in ipa.namelist()): raise SystemExit("Missing compiled asset catalog")
+          if (info.get("CFBundleIdentifier"),str(info.get("CFBundleVersion")),info.get("CFBundleShortVersionString")) != ("com.caliskangroup.business",expected["ios"]["buildNumber"],expected["version"]):
+              raise SystemExit("Signed Business IPA identity/version mismatch")
+          print("Verified Business IPA",info["CFBundleShortVersionString"],info["CFBundleVersion"])
+          PY
     artifacts:
       - business-mobile/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
