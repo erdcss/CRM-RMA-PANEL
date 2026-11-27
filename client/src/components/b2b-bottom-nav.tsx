@@ -24,7 +24,7 @@ const tabs = [
 ];
 
 /**
- * The 4 native-app B2B tabs adapted to mobile web and desktop.
+ * The 5 B2B tabs adapted to mobile web; desktop uses the header navigation.
  * Background, active yellow capsule, compact icons, rounded glass-like
  * iOS bar, and badges mirror mobile/components/navigation/TabBar.tsx.
  */
