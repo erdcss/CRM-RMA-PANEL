@@ -462,8 +462,10 @@ workflows:
       app_store_connect: Codemagic Caliskan B2B
     environment:
       ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.caliskan.dukkan
+        certificates:
+          - caliskan_b2b_appstore_distribution
+        provisioning_profiles:
+          - caliskan_dukkan_appstore_2027
       vars:
         EXPO_PUBLIC_DUKKAN_URL: "https://admin.ecalisgan.com/dukkan"
         APP_STORE_APPLE_ID: "6826848065"
