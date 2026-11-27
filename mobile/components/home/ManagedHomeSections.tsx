@@ -27,6 +27,8 @@ type Props = {
   renderProduct: (item: B2BProduct, viewportWidth?: number) => ReactNode;
   onRefresh: () => void;
   onOpenScanner: () => void;
+  hasNewArrivals: boolean;
+  onOpenNewArrivals: () => void;
   onRoute: (path: string) => void;
   onBrand: (name: string) => void;
 };
@@ -190,14 +192,14 @@ function CompactBrandStrip({title,section,brandOptions,onBrand}:{title:string;se
 }
 export function ManagedHomeSections({
   sections,products,bestSellerProductIds,campaigns,reels,now,signedIn,
-  renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,
+  renderProduct,onRefresh,onOpenScanner,onRoute,onBrand,hasNewArrivals,onOpenNewArrivals,
 }:Props) {
   const {width:windowWidth}=useWindowDimensions();
   const [actionViewport,setActionViewport]=useState(0);
   const actionWidth=actionViewport||Math.max(1,windowWidth-2*spacing.lg);
   // Always fit all four shortcuts in one row. Scale the horizontal card
   // internals on phone widths and let the copy wrap without truncation.
-  const actionColumns=4;
+  const actionColumns=hasNewArrivals?5:4;
   const actionTileWidth=Math.max(0,Math.floor((actionWidth-(actionColumns-1)*4)/actionColumns));
   // Slim reference cards: compact artwork, concise copy and one row.
   const compactActions=actionTileWidth<148;
@@ -221,13 +223,13 @@ export function ManagedHomeSections({
         case 'actions':
           return <View key={section.id} style={styles.actions}
             onLayout={event=>setActionViewport(event.nativeEvent.layout.width)}>
-              {shortActionItems.map(action=><Pressable key={action.id}
+              {[...shortActionItems,...(hasNewArrivals?[{id:'new' as const,label:'Yeni Ürünler',subtitle:'Sisteme Eklenenler',compactSubtitle:'Yeni Gelenler',icon:'star-outline' as const,route:''}]:[])].map(action=><Pressable key={action.id}
                 accessibilityRole="button" accessibilityLabel={action.label}
                 accessibilityHint={action.subtitle}
                 style={({pressed})=>[styles.actionCard,compactActions&&styles.actionCardCompact,{width:actionTileWidth,minHeight:actionCardHeight},pressed&&{opacity:0.8}]}
-                onPress={()=>action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
+                onPress={()=>action.id==='new'?onOpenNewArrivals():action.id==='scan'?onOpenScanner():onRoute(!signedIn&&action.id==='orders'?'/login':action.route)}>
                 <View style={[styles.actionIconSlot,{width:actionIconSize,height:actionIconSize}]}>
-                  <QuickActionIcon key={section.actionImageIds?.[action.id]||action.id} imageId={section.actionImageIds?.[action.id]} icon={action.icon} size={actionIconSize}/>
+                  <QuickActionIcon key={(action.id==='new'?undefined:section.actionImageIds?.[action.id])||action.id} imageId={(action.id==='new'?undefined:section.actionImageIds?.[action.id])} icon={action.icon} size={actionIconSize}/>
                 </View>
                 <View style={styles.actionCopy}>
                   <Text style={[styles.actionTitle,{fontSize:actionTitleSize,lineHeight:Math.ceil(actionTitleSize*1.14)}]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{action.label}</Text>
