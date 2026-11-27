@@ -335,7 +335,7 @@ export default function DukkanSalesInvoiceEdit({id}:{id:string}){
                 <input className={field+" mt-1"} value={line.productName} required onChange={e=>changeLine(index,"productName",e.target.value)}/>
               </label>:
               <div className="min-w-0 text-xs font-semibold md:col-span-4">Stoktan ürün seçimi
-                <DukkanInvoicePicker kind="product" items={products} value={line.productId} onChange={v=>changeLine(index,"productId",v)} disabled={busy} className="mt-1" priceKind={String(current.kind).startsWith("purchase")?"purchase":"sale"}/>
+                <DukkanInvoicePicker kind="product" items={products} value={line.productId} onChange={v=>changeLine(index,"productId",v)} disabled={busy} className="mt-1" storeId={storeId} partyId={partyId} priceKind={String(current.kind).startsWith("purchase")?"purchase":"sale"}/>
                 {archived&&line.productName&&<span className="mt-1 block text-[11px] text-amber-800">Kaynak: {line.productName}</span>}
               </div>}
             <label className="text-xs font-semibold md:col-span-2">Miktar

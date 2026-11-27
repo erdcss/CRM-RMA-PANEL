@@ -1,0 +1,24 @@
+name: Dukkan customer product sales history
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/dukkan-party-product-history*'
+      - 'server/dukkan.ts'
+      - 'client/src/components/dukkan-invoice-picker.tsx'
+      - 'client/src/components/dukkan-party-product-history.tsx'
+      - '.github/workflows/dukkan-party-product-history.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx tsx --test server/dukkan-party-product-history.integration.test.ts server/dukkan-product-images.test.ts
+      - run: npm run build

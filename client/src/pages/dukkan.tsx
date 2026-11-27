@@ -1133,7 +1133,7 @@ export default function Dukkan() {
                 </div>
                 {lines.map((l,i)=><div className="mb-2 grid grid-cols-2 items-center gap-2 rounded-xl bg-white p-3 md:grid-cols-12" key={i}>
                   <div className="col-span-2 min-w-0 md:col-span-4"><span className="mb-1 block text-xs font-semibold md:hidden">Ürün</span>
-                    {["sales","purchases"].includes(section)?<DukkanInvoicePicker kind="product" items={products} value={l.productId} onChange={v=>updateLine(i,"productId",v)} disabled={busy} priceKind={section==="purchases"?"purchase":"sale"}/>:<select aria-label="Ürün" className={inputClass} value={l.productId} required onChange={e=>updateLine(i,"productId",e.target.value)}>
+                    {["sales","purchases"].includes(section)?<DukkanInvoicePicker kind="product" items={products} value={l.productId} onChange={v=>updateLine(i,"productId",v)} disabled={busy} storeId={storeId} partyId={draft.partyId||""} priceKind={section==="purchases"?"purchase":"sale"}/>:<select aria-label="Ürün" className={inputClass} value={l.productId} required onChange={e=>updateLine(i,"productId",e.target.value)}>
                       <option value="">Ürün seç</option>{productOpts.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>}
                   </div>

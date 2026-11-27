@@ -1,3 +1,4 @@
+import {dukkanPartyProductHistorySql} from "./dukkan-party-product-history";
 import type { Express, Request, RequestHandler, Response, NextFunction } from "express";
 import { pool } from "./db";
 import {ensurePrivateProductSchema} from "./b2b-private-products";
@@ -429,9 +430,9 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
       "NULL::text AS image_external_url,CASE WHEN cover.photo IS NULL THEN 0 ELSE 1 END AS image_count "+
       "FROM dukkan_products p LEFT JOIN b2b_products b ON b.id::text=p.b2b_product_id "+
       "LEFT JOIN LATERAL (SELECT COALESCE("+
-      "CASE WHEN p.images->>0 ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN p.images->>0 END,"+
+      "(SELECT v FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(p.images)='array' THEN p.images ELSE '[]'::jsonb END) WITH ORDINALITY AS gallery(v,n) WHERE v ~* '^(data:image/(png|jpeg|webp);base64,[a-z0-9+/=]+$|https://[^[:space:]]+$|/uploads/[a-z0-9._-]+$)' ORDER BY n LIMIT 1),"+
       "CASE WHEN p.image_data ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN p.image_data END,"+
-      "CASE WHEN b.images->>0 ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN b.images->>0 END,"+
+      "(SELECT v FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(b.images)='array' THEN b.images ELSE '[]'::jsonb END) WITH ORDINALITY AS gallery(v,n) WHERE v ~* '^(data:image/(png|jpeg|webp);base64,[a-z0-9+/=]+$|https://[^[:space:]]+$|/uploads/[a-z0-9._-]+$)' ORDER BY n LIMIT 1),"+
       "CASE WHEN b.image_data ~* '^(data:image/(png|jpeg|webp);base64,|https://|/uploads/[a-z0-9._-]+$)' THEN b.image_data END"+
       ") AS photo) cover ON TRUE "+
       "WHERE p.store_id=$1 AND p.deleted_at IS NULL AND ($2::boolean OR p.archived_at IS NULL) ORDER BY p.id DESC LIMIT 5000",
@@ -1583,6 +1584,17 @@ export function registerDukkanRoutes(app: Express, sessionUserId: (req: Request)
   // Detailed product ledger is store-scoped and combines immutable invoice line prices
   // with their matching inventory entries. A manual adjustment has no sales/purchase
   // unit price, and imported opening stock is never represented as a fictitious invoice.
+  // Same store membership rules as sales invoice reads; only sale prices.
+  app.get("/api/dukkan/stores/:storeId/parties/:partyId/products/:productId/sales-history",safe(async(req,res)=>{
+    const sid=store(req),partyId=id.parse(req.params.partyId),productId=id.parse(req.params.productId);
+    const paging=z.object({page:z.coerce.number().int().min(1).max(100000).default(1)}).parse(req.query);
+    const pageSize=40,db=await ready();
+    const result=await db.query(dukkanPartyProductHistorySql,[sid,partyId,productId,pageSize,(paging.page-1)*pageSize]);
+    const history=result.rows[0];
+    res.setHeader("Cache-Control","private,no-store");
+    if(!history?.party||!history?.product)return res.status(404).json({error:"Cari veya ürün bu mağazada bulunamadı."});
+    return res.json({...history,page:paging.page,totalPages:Math.max(1,Math.ceil(Number(history.summary.line_count)/pageSize))});
+  }));
   app.get("/api/dukkan/stores/:storeId/stock-products/:productId/history",safe(async(req,res)=>{
     const sid=store(req),productId=id.parse(req.params.productId);
     const paging=z.object({
