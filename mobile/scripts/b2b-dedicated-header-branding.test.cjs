@@ -95,7 +95,7 @@ test('home status bar and customer actions sit over the same backdrop as the bra
  assert.match(home,/accessibilityLabel="Bildirimleri aç"/);
  assert.match(home,/router\.push\('\/\(tabs\)\/orders' as never\)/);
  assert.match(home,/homeBrowseBlock:\s*\{[^}]*width:'100%'[^}]*alignSelf:'center'/);
- assert.match(home,/minHeight:32,borderRadius:8/);
+ assert.match(home,/minHeight:44,borderRadius:12/);
  assert.match(admin,/header arka plan önizlemesi/i);
  assert.match(admin,/Tüm Kategoriler/);
  assert.ok(admin.includes('viewBox="0 0 22 20"'));
